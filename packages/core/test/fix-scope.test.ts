@@ -66,6 +66,8 @@ function snap(o: Opts = {}): RepoSnapshot {
   const pin = o.pin === undefined ? { pin: GROUNDS_V2_FROM } : o.pin;
   return {
     ...base,
+    // Claimed under 0.4.0: these cases are about the Phase 2 fix check, which reads the record's round-1 pin; the Phase 3 rules read the claim pin (D-15).
+    claimPins: { 'T-1': { pin: '0.4.0' } },
     ...(pin === null ? {} : { recordPins: { 'T-1': { plan: pin, ...(o.approach === true ? { approach: pin } : {}) } } }),
     ...(o.fix === undefined ? {} : { planFix: { 'T-1': o.fix } }),
   };

@@ -94,7 +94,7 @@ Lanes:
 - M, a feature (one story). It passes through six stages, each a skill you can also call directly:
   1. intent (`accord-intent`): an interview that writes the intent, acceptance criteria, vetoes and decisions, then the discuss stage: it asks the owner every gray area one at a time, with a recommended default and what each choice costs, and writes each answer as a Decision.
   2. approach (`accord-approach`): the planner drafts the lightest approach that works, a critic argues against it in at most two rounds `accord round <id> --approach` counts, and the owner approves the whole ticket once, from `accord show <id> --approval --short`.
-  3. plan (`accord-plan`): a task-by-task plan checked by `accord gate plan`.
+  3. plan (`accord-plan`): a task-by-task plan that lists tasks, criteria, files, interfaces and dependencies, checked by `accord gate plan`, and one plan checker checks it in at most three rounds.
   4. build (`accord-build`): one fresh executor per task, each recorded with `accord task-done`.
   5. review (`accord-review`): reviewers until no Must is open and every Should is fixed.
   6. verify (`accord-verify`): a fresh verifier checks each criterion, writes `verification.md`, and `accord gate done` runs once the owner approves.

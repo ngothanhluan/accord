@@ -2,7 +2,7 @@
 // The table is test/helpers/approach-corpus.ts; each row states what the owner decisions require (BLOCK, LIST, PASS, PROBLEM, LEGACY, LANE-S), not what the code did when it was written.
 // A fix of the record reader is held to this file: a row that goes red is a finding that came back.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, approvalBlockers, approvalFindings, approvalProblems, loadSnapshot, nextRound, parseRounds, recordProblems } from '../src/index.js';
+import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, PLAN_GROUNDS_FROM, approvalBlockers, approvalFindings, approvalProblems, loadSnapshot, nextRound, parseRounds, recordProblems } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
 import { PLAN_ROWS, ROWS } from '../../../test/helpers/approach-corpus.js';
 import type { PlanRow, Row } from '../../../test/helpers/approach-corpus.js';
@@ -16,10 +16,10 @@ function recordOf(r: Row): string {
   return 'Round record: 1\n\n## Round 1 (whole)\n\n' + r.r1.join('\n') + '\n\n' + second + (r.tail ?? '');
 }
 
-function repoOf(file: 'approach-review.md' | 'plan-review.md', text: string, lane: string | undefined, claim: string, record: string): RepoSnapshot {
+function repoOf(file: 'approach-review.md' | 'plan-review.md', text: string, lane: string | undefined, claim: string, record: string, deferred: string[] = []): RepoSnapshot {
   const files: Record<string, string> = { 'accord/config.yml': CONFIG };
   building(files, 'T-1', lane === undefined ? undefined : { lane });
-  files['accord/tickets/T-1/ledger.md'] = LEDGER;
+  files['accord/tickets/T-1/ledger.md'] = LEDGER + (deferred.length === 0 ? '' : '\n## Deferred\n' + deferred.map((d) => '- ' + d + '\n').join(''));
   files['accord/tickets/T-1/' + file] = text;
   const snapshot = loadSnapshot({ files, tree: Object.keys(files) });
   return { ...snapshot, claimPins: { 'T-1': { pin: claim } }, recordPins: { 'T-1': { [file === 'plan-review.md' ? 'plan' : 'approach']: { pin: record } } } };
@@ -96,11 +96,19 @@ for (const r of ROWS) {
 
 function checkPlan(r: PlanRow): void {
   const text = 'Round record: 1\n\n' + r.rounds.map((lines, i) => '## Round ' + (i + 1) + ' (' + (i === 0 ? 'whole' : 'diff') + ')\n\n' + lines.join('\n') + '\n\n').join('');
-  const s = repoOf('plan-review.md', text, undefined, APPROACH_CAP_FROM, r.record ?? GROUNDS_V2_FROM);
+  // The rows are about a ticket claimed under 0.4.0 whose plan critique began at the record pin (the table's own heading): the five-round rules, no count stop (D-15).
+  const s = repoOf('plan-review.md', text, undefined, '0.4.0', r.record ?? GROUNDS_V2_FROM, r.deferred);
   const named = (r.problem ?? []).map((x) => lineOf(text, x));
   const problems = recordProblems(s, 'T-1', 'plan');
   expect(problems.map((p) => p.line), r.id + ' record problems: ' + JSON.stringify(problems)).toEqual(named);
   expect(nextRound(s, 'T-1', 'plan').kind, r.id + ' round --plan').toBe(r.round);
+  // A ticket claimed at the cut-off (plan 03-09) has the same record problems: the plan cap changes the loop, never how a record line is read. Plan 03-11 (D-19): the grounds rule and its
+  // mark reading hold from round 1 there whatever pin the record began under, so a row may name `cutProblem` and the answer `cut`.
+  const cut = repoOf('plan-review.md', text, undefined, PLAN_GROUNDS_FROM, r.record ?? GROUNDS_V2_FROM, r.deferred);
+  const cutNamed = (r.cutProblem ?? r.problem ?? []).map((x) => lineOf(text, x));
+  expect(recordProblems(cut, 'T-1', 'plan').map((p) => p.line), r.id + ' record problems at the cut-off').toEqual(cutNamed);
+  if (r.round === 'refused') expect(nextRound(cut, 'T-1', 'plan').kind, r.id + ' round --plan at the cut-off').toBe('refused');
+  if (r.cut !== undefined) expect(nextRound(cut, 'T-1', 'plan').kind, r.id + ' round --plan at the cut-off (D-19)').toBe(r.cut);
 }
 for (const r of PLAN_ROWS) {
   it('risk:security corpus plan ' + r.id + ' (' + r.src + ')', () => checkPlan(r));

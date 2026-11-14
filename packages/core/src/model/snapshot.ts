@@ -166,6 +166,8 @@ export interface PlanTask {
   newFiles: string[]; // the paths of that line followed by `(new)`
   verify: string[]; // report case ids of the first 'verify:' line, `(@ac-n)` markers dropped
   maps: { test: string; ac: string }[]; // each `(@ac-n)` marker with the test id before it: { test: 'a#x', ac: '@ac-1' }
+  // ST-LN-91 D-09: the first `after:` line outside a fence and a comment: the task numbers it names and the tokens it holds that are neither `none` nor a task number; absent with no such line or no token on it
+  after?: { line: number; tasks: number[]; unread: string[] };
   lines: Line[]; // every line under the heading up to the next '## ' heading, fences included
 }
 

@@ -45,14 +45,15 @@ export type {
 export { loadSnapshot } from './load/snapshot.js';
 export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
-export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, DISCUSS_FROM, GROUNDS_V2_FROM, PLAN_SIZE_FROM, RECORD_V2_FROM, pinAllowsV1, pinBefore, pinOf } from './round/pin.js';
+export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, DISCUSS_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_SIZE_FROM, RECORD_V2_FROM, pinAllowsV1, pinBefore, pinOf } from './round/pin.js';
 export { parseDiscuss } from './load/work.js';
-export { groundsDeferred, groundsProblems, groundsV2 } from './round/grounds.js';
+export { groundsDeferred, groundsFrom, groundsOn, groundsProblems, groundsV2 } from './round/grounds.js';
 export { fixScopeProblems } from './round/fixscope.js';
 export { pendingAddedCode, scopeProblems } from './round/scope.js';
 export {
   APPROACH_CAP,
   LEGACY_CAP,
+  PLAN_CAP,
   ROUND_CAP,
   allowancesOf,
   approvalBlockers,
@@ -67,6 +68,7 @@ export {
   openFindings,
   planStopOf,
   recordProblems,
+  roundCount,
   roundText,
 } from './round/next.js';
 export type { Allowance, CapRules, RoundAnswer, RoundKind } from './round/next.js';
@@ -85,7 +87,7 @@ export type { GateResult } from './gate/index.js';
 export { taskVerdict } from './gate/task.js';
 export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
-export { SIZE_MULTIPLE, sizeRefusal } from './gate/plan.js';
+export { SIZE_MULTIPLE, sizeRefusal, TASK_LINE_CAP, taskLength } from './gate/plan.js';
 export { CALL_SIGN, interfaceSigns, outsideScope, scopeLines } from './gate/scope.js';
 export { ID_PREFIX, initialsHolder, initialsOf, nextTicketId, peopleOf } from './lint/ids.js';
 export { untracedTests } from './lint/tests.js';

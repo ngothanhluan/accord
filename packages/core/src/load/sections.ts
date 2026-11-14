@@ -148,3 +148,52 @@ export function requirementLines(section: Section, fences: Fence[]): Line[] {
     .map((l) => ({ line: l.line, text: l.text.replace(LIST_MARKER, '').trim() }))
     .filter((l) => l.text !== ''); // after the marker: a bullet with no text is not a requirement
 }
+
+// ST-LN-91 D-09, group 2 round 3 (the owner's decision, 2026-11-14): a plan task holds an interfaces block in one form only, and the reader models no
+// CommonMark container. The block opens on a line that is exactly ```interfaces at column 0 and ends at the first following line that is exactly ``` at
+// column 0, trailing spaces, tabs and a carriage return allowed. Any other line that is fence-like is refused: one that, after any mix of leading spaces,
+// tabs, `>` quote marks and list markers (`-`, `*`, `+`, `1.`, `1)`, with or without the space after them), starts with three or more backticks or tildes.
+const INTERFACES_OPEN = /^```interfaces[ \t\r]*$/;
+const INTERFACES_CLOSE = /^```[ \t\r]*$/;
+const FENCE_LIKE = /^((?:[ \t>]|[-*+]|[0-9]+[.)])*)(`{3,}|~{3,})(.*)$/;
+
+/** A line of a plan task that the one interfaces block form does not allow. */
+export interface FenceLine {
+  line: number; // Markdown line of the refused line: for `unclosed`, the opening line of the interfaces block no line closes
+  kind: 'fence' | 'inside' | 'unclosed'; // a fence-like line outside the block, one inside it (`from` names its opening line), or a block left open
+  info: string; // what follows the run of backticks or tildes, trimmed
+  quoted: boolean; // a `>` precedes the run
+  from?: number; // for `inside`: the opening line of the interfaces block the line sits in
+}
+
+/** Whether a fence-like line is quoted, and what follows its run; undefined when the line is not fence-like. */
+const fenceLike = (text: string): { quoted: boolean; info: string } | undefined => {
+  const m = FENCE_LIKE.exec(text);
+  return m === null ? undefined : { quoted: m[1].includes('>'), info: m[3].trim() };
+};
+
+/**
+ * ST-LN-91 D-09: the interfaces blocks of a plan task and every line the one accepted form does not allow, read from the lines as `accord brief` prints
+ * them: an HTML comment hides nothing, and a comment delimiter inside the block is part of it. `blocks` holds each accepted block, opening and closing
+ * line; `refused` every other fence-like line, in line order, an interfaces block that no line closes named at its opening line.
+ */
+export function taskBlocks(lines: Line[]): { blocks: { open: number; close: number }[]; refused: FenceLine[] } {
+  const blocks: { open: number; close: number }[] = [];
+  const refused: FenceLine[] = [];
+  let open: number | undefined;
+  for (const { line, text } of lines) {
+    if (open !== undefined && INTERFACES_CLOSE.test(text)) {
+      blocks.push({ open, close: line });
+      open = undefined;
+      continue;
+    }
+    if (open === undefined && INTERFACES_OPEN.test(text)) {
+      open = line;
+      continue;
+    }
+    const f = fenceLike(text);
+    if (f !== undefined) refused.push({ line, kind: open === undefined ? 'fence' : 'inside', ...f, ...(open === undefined ? {} : { from: open }) });
+  }
+  if (open !== undefined) refused.push({ line: open, kind: 'unclosed', info: 'interfaces', quoted: false });
+  return { blocks, refused: refused.sort((a, b) => a.line - b.line) };
+}

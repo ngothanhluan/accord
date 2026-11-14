@@ -47,6 +47,9 @@ function planRepo(pin: string): string {
   commitMsg(repo, 'base');
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  // The claim commit under 0.4.0: these cases are about the Phase 2 fix check, which reads the record's round-1 pin; the Phase 3 rules read the claim pin (D-15).
+  writeFiles(repo, { 'notes.txt': 'claimed\n' });
+  commitMsg(repo, 'claim: T-1');
   writeFiles(repo, { 'accord/config.yml': pinned(pin), [PLAN_FILE]: PLAN, [REVIEW_FILE]: ROUND_1 });
   commitMsg(repo, 'plan: T-1 round 1, the plan and its critique');
   writeFiles(repo, { 'accord/config.yml': CONFIG, 'src/b.ts': 'export const b = 1;\n' });

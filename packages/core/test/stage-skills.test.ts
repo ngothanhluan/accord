@@ -24,7 +24,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
-  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'plan: <id> ready', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last `plan: <id> ready`'],
+  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'plan: <id> ready', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last `plan: <id> ready`'],
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', 'plan: <id> ready', 'accord-debug', 'git status --porcelain', './scout.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done'],
@@ -346,11 +346,10 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   expect(['`accord round <id> --plan`', 'stop and tell the owner', '`accord gate plan <id>` still fails'].filter((p) => !skill.includes(p))).toEqual([]);
   expect(skill).not.toContain('have the planner fix every Must and every Should');
   const loopPhrases = [
-    'Round 1 is `whole` and sized by the plan.',
-    'Count the `## Task` sections of `plan.md` and judge from the ticket and the plan whether the ticket touches auth, money, migration, or data deletion.',
-    'one `accord-critic`, no lens, for a plan of one to three tasks',
-    'two critics for a plan of four or more tasks, lens `criteria`, which checks that the plan reaches the criteria and the Intent, and lens `build`, which checks that an executor can build each task',
-    'one more critic, lens `security`, for a plan of any size whose ticket touches auth, money, migration, or data deletion, so at most three',
+    'Round 1 is `whole`.',
+    'Judge from the ticket and the plan whether the ticket touches auth, money, migration, or data deletion, or the plan touches a path under `sensitive:` in `accord/config.yml`.',
+    'one `accord-critic`, no lens, the plan checker, which runs every check of its fixed checklist, for a plan of any size',
+    'one more `accord-critic`, lens `security`, when the ticket touches auth, money, migration, or data deletion, or the plan touches a path under `sensitive:` in `accord/config.yml`',
     'Merge and de-duplicate their findings into one round, numbered within it, before the planner gets them.',
     'After a round that reports a Must, or that leaves a Must from an earlier round open or unverified',
     'its section holds a Must, or `<m>` is above zero in step 5',
@@ -372,7 +371,7 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   const criticPhrases = [
     'Mode `diff`:',
     '`fixed: <round>.<n>, <round>.<n>`',
-    '`criteria` runs only the first, second, third, fifth and seventh checks',
+    'In `plan` mode with no lens you are the plan checker',
     'On the changed hunks, check that no Veto is violated and that nothing goes beyond the acceptance criteria.',
     'and at the task or section each `open` or `unverified` finding names; never read the whole plan.',
     'a new numbered finding that starts `repeats <round>.<n>:`',

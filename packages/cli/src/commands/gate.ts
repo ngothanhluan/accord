@@ -4,7 +4,7 @@
 // stdout before the write is attempted, so a write failure is reported after the true verdict rather
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
-import { gateDone, gatePlan, gateReady, renderText, workOf } from '@accord-dev/accord-core';
+import { capRulesOf, gateDone, gatePlan, gateReady, renderText, workOf } from '@accord-dev/accord-core';
 import { gitAfterReview, gitBranchCommits, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
@@ -42,10 +42,14 @@ export function gate(
       ? { ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }
       : forDone;
   // ST-LN-63: the history Plan and Done read is loaded here for the gated ticket alone, never at load for every ticket.
+  const claimPinned =
+    which === 'plan' ? withClaimPins(ctx.root, { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id) : undefined;
   const gated =
-    which === 'plan'
-      ? // ST-LN-91 D-12: a deferral leaves the stop at gate plan as it does at accord round, so the record's pin is read when a stop is possible (round 3).
-        withRecordPins(ctx.root, { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id, 'plan', 3)
+    claimPinned !== undefined
+      ? // ST-LN-91 D-12: a deferral leaves the stop at gate plan as it does at accord round, so the record's pin is read when a stop is possible: from round 2
+        // under the plan cap of three (its count stop can fall there), from round 3 otherwise. The pin read itself is Phase 2's and unchanged.
+        // ST-LN-91 D-15: the plan format rules and the plan cap read the ticket's claim pin, never the plan baseline's.
+        withRecordPins(ctx.root, claimPinned, id, 'plan', capRulesOf(claimPinned, id, 'plan').fall ? 2 : 3)
       : which === 'done'
         ? { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }
         : ctx.snapshot;

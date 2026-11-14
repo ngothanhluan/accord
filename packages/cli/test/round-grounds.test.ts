@@ -75,6 +75,9 @@ function recordRepo(file: string, pin: string, base = '0.4.0'): { repo: string; 
   commitMsg(repo, 'base');
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  // The claim commit holds main's pin (0.4.0 unless a case says otherwise): these cases are about the Phase 2 grounds rule, which reads the record's round-1 pin; the Phase 3 rules read the claim pin (D-15).
+  writeFiles(repo, { 'notes.txt': 'claimed\n' });
+  commitMsg(repo, 'claim: T-1');
   writeFiles(repo, { 'accord/config.yml': pinned(pin), [file]: ROUND_1 });
   commitMsg(repo, 'record round 1');
   writeFiles(repo, { 'accord/config.yml': CONFIG, 'src/b.ts': 'export const b = 1;\n' });

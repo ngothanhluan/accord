@@ -5,10 +5,12 @@ import type { LoadFinding } from '../model/finding.js';
 import type { Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
-import { headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
+import { headingKey, LIST_MARKER, scan, stripHtmlComments, taskBlocks } from './sections.js';
 import { parseYamlMap } from './yaml.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
+// The three fields the older rules read, and the deferral rule reads token by token. `after:` is not one of them (ST-LN-91 CR-01): its own reader is afterField,
+// and the deferral rule reads an `after:` line as free text, as it did before the line existed, so a prose line that starts with it never escapes.
 export const FIELD = /^(covers|files|verify):(.*)$/;
 const DONE = /^\s*[-*+]\s+task\s+([1-9][0-9]*)\s+done\s+([0-9a-fA-F]{7,})\s*$/;
 export const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
@@ -48,6 +50,34 @@ export function fieldLines(lines: Line[]): Partial<Record<Field, { line: number;
     if (out[key] === undefined) out[key] = { line: l.line, value: f[2] };
   }
   return out;
+}
+
+const TASK_NUMBER = /^[1-9][0-9]*$/;
+
+/**
+ * ST-LN-91 D-09: the first `after:` line of a task outside its accepted interfaces blocks (group 2 round 3: any other fence line hides nothing), list marker stripped, read as `accord brief` prints the task (WR-01: a comment is text), as `{ line, tasks, unread }`: each token that is a
+ * task number goes to `tasks`, `none` is skipped, anything else (and `none` beside another token, which says two things) to `unread`. Undefined with no
+ * such line, and when the first one holds no token, so the rule that asks for the line names it.
+ */
+function afterField(lines: Line[]): PlanTask['after'] {
+  const { blocks } = taskBlocks(lines);
+  for (const l of lines) {
+    if (blocks.some((b) => l.line >= b.open && l.line <= b.close)) continue;
+    const m = /^after:(.*)$/.exec(l.text.replace(LIST_MARKER, '').trim());
+    if (m === null) continue;
+    const found = tokens(m[1]);
+    if (found.length === 0) return undefined;
+    const named = found.filter((t) => t !== 'none');
+    const nums: number[] = [];
+    const unread: string[] = [];
+    for (const t of new Set(named)) {
+      if (TASK_NUMBER.test(t) && Number.isSafeInteger(Number(t))) nums.push(Number(t));
+      else unread.push(t);
+    }
+    if (named.length > 0 && named.length < found.length) unread.push('none');
+    return { line: l.line, tasks: nums, unread };
+  }
+  return undefined;
 }
 
 // The body lines above the first task heading (1-based Markdown line), or the whole body when there is none.
@@ -101,6 +131,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       if (!MARKER.test(t)) verify.push(t);
       else if (verify.length > 0) maps.push({ test: verify[verify.length - 1], ac: t.slice(1, -1) });
     }
+    const after = afterField(s.lines);
     tasks.push({
       n,
       title: m[2].trim(),
@@ -111,6 +142,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       verify,
       maps,
       lines: s.lines,
+      ...(after === undefined ? {} : { after }),
     });
   }
   // A broken or non-string baseline is simply absent; gate.plan-baseline-missing says what to write.

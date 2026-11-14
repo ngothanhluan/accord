@@ -43,6 +43,27 @@ export const DISCUSS_FROM = '0.4.1';
  */
 export const APPROACH_CAP_FROM = '0.4.1';
 
+/**
+ * ST-LN-91 D-09, D-12 and D-15: the release that ships the plan format rules (an `after:` line per task, no fenced block other than an interfaces
+ * block, at most TASK_LINE_CAP non-blank lines per task). A ticket whose claim pin is below it keeps the older plan format, whatever pin its
+ * plan baseline holds. Read through claimPinBefore.
+ */
+export const PLAN_FORMAT_FROM = '0.4.1';
+
+/**
+ * ST-LN-91 D-07, D-12 and D-15: the release that caps plan critique at three rounds, stops it after a round whose Must + Should count did not fall, and
+ * has the plan skill dispatch one plan checker at round 1 (`Critics: plan checker`). A ticket whose claim pin is below it keeps five plan critique rounds,
+ * the stop from round 3 and the 0.4.0 round 1, whatever pin its plan-review.md began under. Read through claimPinBefore.
+ */
+export const PLAN_CAP_FROM = '0.4.1';
+
+/**
+ * ST-LN-91 D-19, D-12 and D-15: the release from which the plan checker's round 1 is asked for grounds. A lane ticket other than lane S whose claim pin is not before it has
+ * the Must and Should of its plan record's round 1 rest on a ticket line, a test, a command or a risk tag, or be written deferred with a failing case; a ticket claimed earlier
+ * keeps GROUNDS_V2_FROM's rule from round 2, read from the pin at the record's first round. Read through claimPinBefore.
+ */
+export const PLAN_GROUNDS_FROM = '0.4.1';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;
@@ -51,9 +72,10 @@ export function pinBefore(from: string, pin: string | undefined, basePin?: strin
 
 /**
  * ST-LN-91 D-15: true when the ticket `id` was claimed under rules older than `from`, so it keeps them until it is done, whatever the
- * working-tree pin says after an upgrade. The reader of the claim pin for the rules that follow the claim: the discuss rule (DISCUSS_FROM) and
- * the approach cap with its `## Closed` and no-allowance rules and the approval block that goes with it (APPROACH_CAP_FROM). Other rules follow the
- * record or the plan instead and do not ask this pin: the grounds rule and the plan fix scope read the pin at the first round of the record
+ * working-tree pin says after an upgrade. The reader of the claim pin for every Phase 3 rule that follows the claim: the discuss rule (DISCUSS_FROM), the
+ * approach cap with its `## Closed` and no-allowance rules and the approval block that goes with it (APPROACH_CAP_FROM), the plan format rules (PLAN_FORMAT_FROM:
+ * the `after:` line, the interfaces block, the task length), the plan cap with its count stop and the plan checker at round 1 (PLAN_CAP_FROM), and the plan
+ * checker's round-1 grounds rule (PLAN_GROUNDS_FROM, D-19). The five constants are one release, and a test names the equality (D-15). Other rules follow the record or the plan instead and do not ask this pin: the Phase 2 grounds rule (which a ticket claimed earlier keeps) and the plan fix scope read the pin at the first round of the record
  * (GROUNDS_V2_FROM, `recordPins`, and the round facts of review.md), the version 2 review record reads it at the first review round (RECORD_V2_FROM),
  * and the plan size rule reads the pin at the plan's baseline commit (PLAN_SIZE_FROM, `planPins`). So a record begun after an upgrade, on a ticket
  * claimed before it, gets the grounds rule and keeps the five approach rounds. The chain: the host's claim fact (`claimPins[id]`: the pin at the
@@ -72,6 +94,15 @@ export function claimPinBefore(snapshot: RepoSnapshot, id: string, from: string)
 export function claimPinError(snapshot: RepoSnapshot, id: string): string | undefined {
   const fact = Object.hasOwn(snapshot.claimPins ?? {}, id) ? snapshot.claimPins![id] : undefined;
   return fact !== undefined && 'error' in fact ? fact.error : undefined;
+}
+
+/**
+ * ST-LN-91 WR-04: the sentence a plan answer (`accord round --plan`, `accord gate plan`) adds when git failed reading the claim pin of `id`: the git error, and that
+ * the new plan rules apply because of it (fail closed). Undefined when the claim pin was read, so a ticket that has one is answered as before.
+ */
+export function claimPinNote(snapshot: RepoSnapshot, id: string): string | undefined {
+  const error = claimPinError(snapshot, id);
+  return error === undefined ? undefined : `${error}; the claim pin could not be read, so the new plan rules apply`;
 }
 
 /** True only when `pin` is a plain x.y.z below RECORD_V2_FROM and, when `basePin` is a plain x.y.z, not below `basePin`. */

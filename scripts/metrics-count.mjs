@@ -187,6 +187,8 @@ function ordered(report) {
             noCriteria: [...report.planSize.noCriteria],
           },
         }),
+    // ST-LN-91 D-09, only with --plan-format: the key is absent otherwise.
+    ...(report.planFormat === undefined ? {} : { planFormat: { ...report.planFormat, lengths: { ...report.planFormat.lengths } } }),
   };
 }
 
@@ -211,6 +213,31 @@ function planSizeSection(report) {
   out.push(`No criteria, not counted: ${p.noCriteria.length ? p.noCriteria.join(', ') : 'none'}`);
   if (report.planSize.files !== undefined) out.push(`Plan files in the commit: ${report.planSize.files}`);
   out.push('');
+  return out;
+}
+
+/** The `## Plan format (ST-LN-91 D-09)` section: the cap line first, then the fence and after: counts and the task length distribution. */
+function planFormatSection(report) {
+  const p = report.planFormat;
+  const out = [
+    '## Plan format (ST-LN-91 D-09)',
+    '',
+    `Task length cap: ${p.cap} non-blank lines; refuses ${p.tasksOver} of ${p.tasks} tasks in ${p.plansOver} of ${p.plans} plans`,
+    '',
+    "Each plan is read by core's own loadSnapshot; a task is measured with core's own `taskLength` (non-blank lines under its heading as `accord brief` prints them: comment lines and fenced lines counted) against `TASK_LINE_CAP`. The fence and after: counts are the findings of core's own `gatePlan` with every ticket at the pin the format rules read, so this report and the gate cannot disagree. A fence-like line is one that, after any leading spaces, tabs, `>` or list markers, starts with three or more backticks or tildes, other than the two lines of an interfaces block in its one form; a code span at the start of a line is one too. Only lane tickets other than S with a plan are counted.",
+    '',
+    `Plans with a fence-like line the format rule refuses: ${p.plansFenced} of ${p.plans}`,
+    `Tasks with a fence-like line the format rule refuses: ${p.tasksFenced} of ${p.tasks}`,
+    `Plans with a task lacking after:: ${p.plansAfterless} of ${p.plans}`,
+    '',
+    'Task length in non-blank lines (nearest rank):',
+    '',
+    '| p50 | p90 | p95 | max |',
+    '|---:|---:|---:|---:|',
+    `| ${p.lengths.p50} | ${p.lengths.p90} | ${p.lengths.p95} | ${p.lengths.max} |`,
+    '',
+  ];
+  if (p.files !== undefined) out.push(`Plan files in the commit: ${p.files}`, '');
   return out;
 }
 
@@ -241,6 +268,7 @@ export function renderMarkdown(report) {
     out.push('');
   }
   if (r.planSize !== undefined) out.push(...planSizeSection(report));
+  if (r.planFormat !== undefined) out.push(...planFormatSection(report));
   out.push('## Critic and planner runs', '');
   out.push(
     '- Runs of `accord-critic`, `accord-planner` and `accord-architect` in the Claude Code project folders of this repository and its worktrees, read as `scripts/benchmark.mjs` reads them (usage the max per message id). A run counts when it started at or before the commit\'s time and its ticket has a file under `accord/tickets/<id>/` in the commit; a run described `bench …` is a benchmark arm and is left out.',

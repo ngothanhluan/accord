@@ -1,7 +1,7 @@
 // ST-LN-94 94-ac-1, D-10, D-13: a lane R ticket holds a question, a timebox and a token budget, and gate ready passes it with no
 // approval, Approach, discuss record or scenario. The config pins DISCUSS_FROM, so the discuss rules would apply to a lane M ticket here.
 import { expect, it } from 'vitest';
-import { DISCUSS_FROM, gateDone, gatePlan, gateReady, lintSnapshot, laneRHash, loadSnapshot, readTimebox, readTokenBudget, setFrontmatterKey } from '../src/index.js';
+import { DISCUSS_FROM, gateDone, gatePlan, gateReady, lintSnapshot, laneRHash, loadSnapshot, parseSpent, readTimebox, readTokenBudget, setFrontmatterKey } from '../src/index.js';
 import { DONE_R_RULES, DONE_RULES } from '../src/gate/rules.js';
 import type { BranchChange, BranchFact, GateResult } from '../src/index.js';
 import { CONFIG, PLAN, REPORT, junit, laneTicket } from '../../../test/helpers/lane.js';
@@ -290,4 +290,63 @@ it('risk:security a change under packages/ on a lane R branch fails gate done an
   const unread = done({ fact: { error: 'git merge-base failed reading the branch diff: no merge base' } });
   expect(ruled(unread, 'gate.branch-unknown')).toHaveLength(1);
   expect(unread.verdict).toBe('fail');
+});
+
+// ST-LN-94 D-14, D-11, D-20: gate done compares the record's last Spent line with the ticket's Timebox and Token budget, strictly over, and
+// a record past either needs the owner's quoted answer. A `not measured` token count leaves the time alone to decide.
+const over = (...lines: string[]) => ruled(done({ record: record(...lines) }), 'gate.research-over-budget');
+const WRITE_NOW = 'Owner: write now — "write it from what you have"';
+const EXTENDED = 'Owner: extended to 6 hours — "take two more hours"';
+
+it('risk:complex-branching gate done fails a research record spent past the budget without the owner\'s answer (ST-LN-94 D-14)', () => {
+  expect(done({ record: record('Spent: 4h 0m of 4 hours; 800000 of 800k weighted tokens') }).verdict).toBe('pass');
+  const time = over('Spent: 4h 1m of 4 hours; 10000 of 800k weighted tokens');
+  expect(time).toHaveLength(1);
+  expect(time[0]).toMatchObject({ file: RECORD, line: 8, level: 'error' });
+  for (const s of [RECORD, '4h 1m', '4 hours', 'over the timebox,', 'Owner: write now — "']) expect(time[0].reason).toContain(s);
+  const tokens = over('Spent: 1h 0m of 4 hours; 800001 of 800k weighted tokens');
+  expect(tokens).toHaveLength(1);
+  for (const s of ['800001', '800k weighted tokens', 'over the token budget,']) expect(tokens[0].reason).toContain(s);
+  const both = over('Spent: 4h 1m of 4 hours; 800001 of 800k weighted tokens');
+  expect(both).toHaveLength(1);
+  expect(both[0].reason).toContain('over the timebox and token budget,');
+  expect(over('Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens')).toHaveLength(1);
+  expect(over('Spent: 3h 0m of 4 hours; not measured of 800k weighted tokens')).toEqual([]);
+  for (const spent of ['Spent: 4h 1m of 4 hours; 10000 of 800k weighted tokens', 'Spent: 1h 0m of 4 hours; 800001 of 800k weighted tokens', 'Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens']) {
+    for (const owner of [WRITE_NOW, EXTENDED]) expect(done({ record: record(spent, owner) }).verdict, spent + ' ' + owner).toBe('pass');
+    for (const owner of ['Owner: write now', 'Owner: write now — ""', 'Owner: write now — "  "', 'Owner: extended to 6 hours', '<!-- ' + WRITE_NOW + ' -->', 'Owner: later — "fine"']) {
+      expect(over(spent, owner), spent + ' ' + owner).toHaveLength(1);
+    }
+  }
+  // Of two Spent lines the last is compared.
+  expect(over('Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens', 'Spent: 3h 0m of 4 hours; not measured of 800k weighted tokens')).toEqual([]);
+  const last = over('Spent: 3h 0m of 4 hours; not measured of 800k weighted tokens', 'Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens');
+  expect(last).toHaveLength(1);
+  expect(last[0].line).toBe(9);
+  expect(parseSpent('Spent: 2h 10m of 4 hours; 312000 of 800k weighted tokens')).toMatchObject({ minutes: 130, tokens: 312000 });
+  expect(parseSpent('Spent: 2h 10m of 4 hours; not measured of 800k weighted tokens')).toMatchObject({ minutes: 130, tokens: undefined });
+  for (const l of ['Spent: 1h of 4 hours; 1 of 2', 'Spent: 2h 10m of 4 hours', 'Spent: 2h 10m; 1 of 2', 'Spent: 2h 10m of 4 hours; 1.5 of 2', 'spent: 2h 10m of 4 hours; 1 of 2']) {
+    expect(parseSpent(l), l).toBeUndefined();
+  }
+});
+
+it('risk:complex-branching an extension written into the ticket is the allowance compared (ST-LN-94 D-14)', () => {
+  const extended = body({ timebox: '6 hours', decisions: QUOTE + '\n- D-02 Timebox extended to 6 hours — "take two more hours"' });
+  const r = done({ body: extended, record: record('Spent: 5h 0m of 6 hours; not measured of 800k weighted tokens') });
+  expect(r.findings).toEqual([]);
+  expect(r.verdict).toBe('pass');
+  expect(ruled(done({ body: extended, record: record('Spent: 6h 1m of 6 hours; not measured of 800k weighted tokens') }), 'gate.research-over-budget')).toHaveLength(1);
+});
+
+it('risk:dos a long hostile Spent or Owner line is read in bounded time (ST-LN-94 D-14)', () => {
+  const fragments = '; ' + ' of ' + ' — ';
+  const spent = 'Spent: ' + '9'.repeat(1_000) + fragments.repeat(23_000);
+  const owner = 'Owner: write now' + ' — "'.repeat(20_000) + fragments.repeat(14_000);
+  expect(spent.length).toBeGreaterThanOrEqual(200_000);
+  expect(owner.length).toBeGreaterThanOrEqual(200_000);
+  const t0 = performance.now();
+  const r = done({ record: record('Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens', spent, owner) });
+  expect(performance.now() - t0).toBeLessThan(2_000);
+  expect(ruled(r, 'gate.research-over-budget')).toHaveLength(1);
+  expect(parseSpent(spent)).toBeUndefined();
 });

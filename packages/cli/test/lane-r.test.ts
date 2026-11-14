@@ -140,3 +140,23 @@ it('risk:security accord gate done refuses a lane R branch that changes packages
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:complex-branching accord gate done refuses an over-budget research record on real git (ST-LN-94 D-14)', async () => {
+  const repo = rBranch('Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens');
+  try {
+    const first = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(first.code).toBe(1);
+    const findings = JSON.parse(first.out).findings as F[];
+    expect(findings.map((f) => f.rule)).toEqual(['gate.research-over-budget']);
+    expect(findings[0].file).toBe(RECORD);
+    expect(findings[0].reason).toContain('5h 0m');
+    const file = join(repo, ...RECORD.split('/'));
+    writeFileSync(file, readFileSync(file, 'utf8') + 'Owner: write now — "write it now"\n');
+    commitMsg(repo, 'research: R-1 owner answer');
+    const second = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(JSON.parse(second.out).findings).toEqual([]);
+    expect(second.code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

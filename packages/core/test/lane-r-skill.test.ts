@@ -79,9 +79,11 @@ describe('lane R in the accord skill', () => {
         '`Owner: write now — "<the owner\'s sentence>"`',
         '`Owner: extended to <value> — "<the owner\'s sentence>"`',
         'run `accord gate ready <id>` again',
-        // D-10: named as the shipped packages, never as `packages/`, which no rendered text may name (skills.test.ts, REPO_ONLY)
-        'stays out of the shipped packages',
-        'names any file of them the branch changes',
+        // UAT decision 3: a research branch changes nothing outside accord/; never named as `packages/`, which no rendered text may name (skills.test.ts, REPO_ONLY)
+        'A script the research writes goes under `accord/research/`',
+        'names every path outside `accord/` the branch changes, a deletion included',
+        'changes nothing outside `accord/`',
+        'A script that should ship becomes',
         'a new lane S or M ticket',
         '`accord/research/<YYYY-MM-DD>-<topic>.md`',
         '`Date: <YYYY-MM-DD>`',

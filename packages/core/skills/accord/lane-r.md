@@ -6,8 +6,8 @@ kind: reference
 
 A lane R ticket holds a question, a timebox and a token budget, and ends in a research record under `accord/research/`
 that the owner reads and decides on. It is worked from its own lane R ticket, in that ticket's worktree, never in the
-main checkout. It has no approach, plan, critic, code review or verification, and its branch changes nothing in the
-shipped packages.
+main checkout. It has no approach, plan, critic, code review or verification, and its branch changes nothing outside
+`accord/`.
 
 ## Start
 
@@ -36,9 +36,9 @@ shipped packages.
 3. **Research.** Answer the question by reading code, docs and data. Run `accord budget <id>` before each new
    dispatch or script run, and at least between steps: it prints `within budget` or `stop: ask owner`, then the
    elapsed time, the tokens and the `Spent:` line. Where its tokens read `not measured`, no full transcript count
-   since the claim exists, and only the time decides. A script the research writes stays out of the shipped
-   packages, and `accord gate done <id>` names any file of them the branch changes; a script that should ship becomes
-   a new lane S or M ticket.
+   since the claim exists, and only the time decides. A script the research writes goes under `accord/research/`;
+   `accord gate done <id>` names every path outside `accord/` the branch changes, a deletion included. A script that
+   should ship becomes a new lane S or M ticket.
 4. **Stop.** On `stop: ask owner`, stop and do no more research until the owner answers. Ask the owner, as
    `./ask.md` says, whether to write the record now from what the research has, or to extend `## Timebox` or
    `## Token budget`. On write now, go on at step 5, and the record holds the line

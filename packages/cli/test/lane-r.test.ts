@@ -1,6 +1,7 @@
 // ST-LN-94 94-ac-1, D-13: `accord new ticket --lane R` writes the research template, and `accord gate ready` gates it on real git.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fixModel, loadSnapshot, nextRound } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, gateReadyIn, laneTicket, P } from '../../../test/helpers/lane.js';
@@ -156,6 +157,68 @@ it('risk:complex-branching accord gate done refuses an over-budget research reco
     const second = await run(['gate', 'done', 'R-1', '--json'], repo);
     expect(JSON.parse(second.out).findings).toEqual([]);
     expect(second.code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// ST-LN-94 D-10, 94-ac-2: a lane R ticket has no approval, rounds, plan tasks or review package. Each build-stage command refuses it with a
+// usage error before any work; requireLaneTicket lets it through as a lane ticket, so the refusal is the command's own, never "lane tickets only".
+it('risk:complex-branching the build-stage commands refuse a lane R ticket (ST-LN-94 94-ac-2)', async () => {
+  const repo = makeEmptyRepo();
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  try {
+    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R'], repo)).code).toBe(0);
+    const file = join(repo, 'accord', 'tickets', 'R-1.md');
+    writeFileSync(file, decide(fill(readFileSync(file, 'utf8'))));
+    expect((await run(['gate', 'ready', 'R-1', '--json'], repo)).code).toBe(0);
+    commitMsg(repo, 'R-1');
+    const before = readFileSync(file, 'utf8');
+    const commands: Array<[string[], string]> = [
+      [['round', 'R-1'], 'review rounds'],
+      [['round', 'R-1', '--plan'], 'plan critique'],
+      [['round', 'R-1', '--approach'], 'approach critique'],
+      [['approve', 'R-1'], 'approval'],
+      [['review-package', 'R-1'], 'review package'],
+      [['brief', 'R-1', '1'], 'plan tasks'],
+      [['task-done', 'R-1', '1'], 'plan tasks'],
+    ];
+    for (const [argv, what] of commands) {
+      const r = await run(argv, repo);
+      expect(r.code, argv.join(' ') + ': ' + r.out + r.err).toBe(2);
+      expect(r.err, argv.join(' ')).toContain('lane R has no ' + what);
+      expect(r.err, argv.join(' ')).toContain('a research ticket ends in a record under accord/research/');
+      expect(r.err, argv.join(' ')).not.toContain('lane tickets only');
+      expect(r.out, argv.join(' ')).toBe('');
+    }
+    // Nothing was written: no approved_hash, no ledger, no round record.
+    expect(readFileSync(file, 'utf8')).toBe(before);
+    expect(gitRun(repo, 'status', '--porcelain')).toBe('');
+    // The core answer the round command prints, refused for every record kind; and no fix executor model rule applies to R.
+    const snapshot = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P('R-1')]: before }, tree: [] });
+    for (const kind of ['review', 'plan', 'approach'] as const) {
+      const answer = nextRound(snapshot, 'R-1', kind);
+      expect(answer.kind, kind).toBe('refused');
+      expect(answer.reasons.join(' '), kind).toContain('lane R has no');
+    }
+    expect(fixModel(snapshot, 'R-1', 4)).toBeUndefined();
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// D-10: an epic groups stories of lane L or P; a research question is never an epic.
+it('risk:regression an epic is never lane R (ST-LN-94 D-10)', async () => {
+  const repo = makeEmptyRepo();
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  try {
+    const r = await run(['new', 'ticket', 'E-1', '--type', 'epic', '--lane', 'R'], repo);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('an epic is lane L or P, not R');
+    expect(gitRun(repo, 'status', '--porcelain', '--untracked-files=all')).not.toContain('E-1');
+    const l = await run(['new', 'ticket', 'E-2', '--type', 'epic', '--lane', 'L'], repo);
+    expect(l.code, l.err).toBe(0);
+    expect(l.out).toBe('accord/tickets/E-2.md\n');
   } finally {
     cleanup(repo);
   }

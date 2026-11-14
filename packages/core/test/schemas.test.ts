@@ -143,7 +143,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'git']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'git', 'ids']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -384,4 +384,26 @@ it('risk:parsing git.merge is merge, rebase or squash and git.sync a one-line co
   expect(has(cfg({ sync: '' }), '/git/sync', 'schema.minLength')).toBe(true);
   expect(has(cfg({ sync: 'a\nb' }), '/git/sync', 'schema.pattern')).toBe(true);
   expect(has(cfg({ merge: 'merge', other: 1 }), '/git', 'schema.additionalProperties')).toBe(true);
+});
+
+it('risk:parsing ids.pattern accepts the three tokens and refuses everything else (ST-LN-50 t2-ac-1)', () => {
+  const cfg = (ids: unknown) => at({ ...idsBase, ids });
+  for (const ok of ['FEAT-{n}', '{type}-{initials}-{n}', '{type}{n}', 'FEAT-{initials}-{n}', '{initials}.{n}', 'a_b-{n}-x'])
+    expect(validate('config', { ...idsBase, ids: { pattern: ok } }), ok).toEqual([]);
+  for (const bad of ['FEAT', '{n}-{n}', '{id}-{n}', '-{n}', 'FE AT-{n}', '{n}', '{type}-{type}-{n}', '{initials}{initials}{n}', 'A/{n}', 'A-{n', 'a{n}}', 'A-{N}', ''])
+    expect(cfg({ pattern: bad }), bad).toContain('schema.pattern@/ids/pattern');
+  expect(cfg({ pattern: 'F-' + 'x'.repeat(80) + '-{n}' })).toContain('schema.maxLength@/ids/pattern');
+});
+
+it('risk:parsing ids holds a mode, prefixes per type and a non-empty list of tracker projects (ST-LN-50 t2-ac-1)', () => {
+  expect(validate('config', { ...idsBase, ids: { mode: 'tracker', projects: ['ENG', 'OPS_1'] } })).toEqual([]);
+  expect(validate('config', { ...idsBase, ids: { types: { story: 'FEAT', bug: 'DEFECT', epic: 'EPIC' } } })).toEqual([]);
+  expect(validate('config', { ...idsBase, ids: {} })).toEqual([]);
+  expect(at({ ...idsBase, ids: { projects: [] } })).toContain('schema.minItems@/ids/projects');
+  expect(at({ ...idsBase, ids: { projects: ['ENG', 'ENG'] } })).toContain('schema.uniqueItems@/ids/projects');
+  expect(at({ ...idsBase, ids: { projects: ['eng'] } })).toContain('schema.pattern@/ids/projects/0');
+  expect(at({ ...idsBase, ids: { mode: 'both' } })).toContain('schema.enum@/ids/mode');
+  expect(at({ ...idsBase, ids: { types: { story: 'feat' } } })).toContain('schema.pattern@/ids/types/story');
+  expect(at({ ...idsBase, ids: { types: { task: 'TSK' } } })).toContain('schema.additionalProperties@/ids/types');
+  expect(at({ ...idsBase, ids: { regex: '.*' } })).toContain('schema.additionalProperties@/ids');
 });

@@ -10,7 +10,7 @@ import { readHistory } from '../src/load/record-history.js';
 import { roundFactsFor } from '../src/load/round-facts.js';
 import { readWalk } from '../src/load/walk.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { claimWorktree, copy, doneOnRemote, dropOnRemote, has, lines, ticketWorktree, useSandboxes } from './helpers/worktree.js';
+import { claimWorktree, type Clone, copy, doneOnRemote, dropOnRemote, has, lines, ME, teammate, ticketWorktree, useSandboxes } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -270,3 +270,41 @@ it('risk:regression S20 the trailer scan reads the same branch commits after a r
     cleanup(repo);
   }
 });
+
+/** ST-9 claimed on `t/ST-9` by a teammate (`mine` or y@example.invalid), then rebased onto a moved main and pushed with a lease; the claim commit is rewritten. */
+function rebasedClaim(c: Clone, mine: boolean): void {
+  const o = teammate(c);
+  gitRun(o, 'switch', '-q', '-c', 't/ST-9', 'main');
+  gitRun(o, ...(mine ? ME : []), 'commit', '-q', '--allow-empty', '-m', 'claim: ST-9');
+  writeFiles(o, { 'work.txt': 'w\n' });
+  commitMsg(o, 'work');
+  const old = gitRun(o, 'rev-parse', 'HEAD~1').trim();
+  gitRun(o, 'push', '-q', 'origin', 't/ST-9');
+  gitRun(o, 'switch', '-q', 'main');
+  writeFiles(o, { 'next.txt': 'n\n' });
+  commitMsg(o, 'next');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  gitRun(o, 'switch', '-q', 't/ST-9');
+  gitRun(o, 'rebase', '-q', 'main');
+  gitRun(o, 'push', '-q', '--force-with-lease', 'origin', 't/ST-9');
+  const now = gitRun(o, 'rev-parse', 'HEAD~1').trim();
+  expect(now).not.toBe(old);
+  expect(gitRun(o, 'log', '-1', '--format=%s', now).trim()).toBe('claim: ST-9');
+  c.git('fetch', '-q', 'origin');
+}
+
+it("risk:regression S23 a rebased claim commit still names its claimant by subject and author (ST-LN-96 t1-ac-5)", async () => {
+  const own = copy();
+  rebasedClaim(own, true);
+  const reused = await run(['worktree', 'open', 'ST-9'], own.root);
+  expect(reused.err).toBe('');
+  expect(reused.code).toBe(0);
+  expect(reused.out.split('\n').slice(0, 3)).toEqual(['stop: open a session in this folder and type the line below it', own.sibling('ST-9'), '/accord continue ST-9']);
+  expect(own.git('rev-parse', 'refs/heads/t/ST-9').trim()).toBe(own.git('rev-parse', 'origin/t/ST-9').trim());
+  const theirs = copy();
+  rebasedClaim(theirs, false);
+  const refused = await run(['worktree', 'open', 'ST-9'], theirs.root);
+  expect(refused.code).toBe(2);
+  expect(refused.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
+  expect(existsSync(theirs.sibling('ST-9'))).toBe(false);
+}, 120_000);

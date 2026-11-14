@@ -70,3 +70,28 @@ it('risk:regression the round-2 replica harness spawns only git and starts no mo
     .filter((file) => /round2-replica/.test(readFileSync(file, 'utf8')));
   expect(naming).toEqual([]);
 });
+
+// ST-LN-91 91r-ac-1: the discuss replica harness reads transcripts and git, prepares a worktree and a brief, and renders the
+// report; it never starts a model run or `claude`, so the one thing it spawns is `git`, with a literal first argument, never
+// through a shell, and the published package names it nowhere.
+it('risk:regression the discuss replica harness spawns only git and starts no model run (ST-LN-91 91r-ac-1)', () => {
+  const entry = stripCommentLines(readFileSync(join(scripts, 'discuss-replica.mjs'), 'utf8'));
+  const sites = [...entry.matchAll(SPAWN)].map((m) => ({
+    line: entry.slice(0, m.index).split('\n').length,
+    first: FIRST_ARG.exec(entry.slice(m.index + m[0].length))?.[2],
+  }));
+  expect(sites.length).toBeGreaterThan(0);
+  expect(sites.filter((s) => s.first !== 'git')).toEqual([]);
+  const childImports = entry.split('\n').filter((l) => /child_process/.test(l));
+  expect(childImports).toEqual(["import { execFileSync } from 'node:child_process';"]);
+  expect(entry).not.toMatch(/\brequire\s*\(|\bimport\s*\(/);
+  expect(entry).not.toMatch(/\bshell\s*:/);
+  expect(entry).not.toMatch(/['"`]claude['"`]/);
+  const pkg = JSON.parse(readFileSync(join(cli, 'package.json'), 'utf8')) as { files?: string[] };
+  expect((pkg.files ?? []).filter((p) => /discuss-replica/.test(p))).toEqual([]);
+  const naming = readdirSync(join(cli, 'src'), { recursive: true, withFileTypes: true })
+    .filter((d) => d.isFile())
+    .map((d) => join(d.parentPath, d.name))
+    .filter((file) => /discuss-replica/.test(readFileSync(file, 'utf8')));
+  expect(naming).toEqual([]);
+});

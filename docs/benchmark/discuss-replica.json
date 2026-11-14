@@ -1,0 +1,5 @@
+{
+  "caveat": "This would have covered one merged ticket, ST-LN-81, and only the discuss stage and the approach critic (at most two rounds) after the ST-LN-91 changes, not a whole ticket's life, and one ticket shows no trend. No model run was dispatched, so no gray area was raised or answered, no Decision was written and no critic round was counted: every replica step is not measured, and no verdict is drawn.",
+  "notRun": true,
+  "reason": "at the cost gate (estimated 4139k weighted, about twice the original approach's 1842k) the owner asked for a recommendation and the orchestrator recommended not running: one ticket gives weak evidence; answers from the record leave almost every gray area at the planner default, and live answers are shaped by knowing how the ticket ended; the first real lane M ticket on the new process measures the stage at no extra cost"
+}

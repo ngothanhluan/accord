@@ -73,7 +73,7 @@ import {
   reviewUncommitted,
   sectionsChanged,
 } from './lane-s.js';
-import { researchFieldMissing } from './lane-r.js';
+import { researchBudgetUnanswered, researchFieldMissing } from './lane-r.js';
 import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './scope.js';
 import { planRounds, reviewRounds } from './rounds.js';
 import { findingEvidence } from '../round/evidence.js';
@@ -140,6 +140,7 @@ export const READY_RULES: readonly GateRule[] = [
   { id: 'gate.discuss-unmapped', level: 'error', profiles: ['build', 'maintain'], check: discussUnmapped },
   SECTION_EMPTY,
   { id: 'gate.research-field-missing', level: 'error', profiles: ['build', 'maintain'], check: researchFieldMissing },
+  { id: 'gate.research-budget-unanswered', level: 'error', profiles: ['build', 'maintain'], check: researchBudgetUnanswered },
   APPROVAL_MISSING,
   APPROVAL_STALE,
   { id: 'gate.depends-unmerged', level: 'error', profiles: ['build', 'maintain'], check: dependsUnmerged },

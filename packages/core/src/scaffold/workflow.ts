@@ -161,8 +161,8 @@ jobs:
           # that each hold a plain M, L or P on the key line, rule lane S out: a value off its key line or behind a
           # tag may still read as S. Lane R needs no approval either, so it is read as S is here: a move to R after
           # approval is a drop, an R ticket never approved is not. A lane M ticket never approved may move to lane S
-          # in place. An unsettled read at HEAD is gated, since approved_at counts it as approved; at the base or at a commit of this pull
-          # request, an unsettled read or a failing rev-list fails closed. An absent file is skipped.
+          # in place. An unsettled read at HEAD is gated, since approved_at counts it as approved; at the base or at a
+          # commit of this pull request, an unsettled read or a failing rev-list fails closed. An absent file is skipped.
           lane_dropped() {
             local rc revs rev lanes
             fm_at HEAD "$file" || return 1

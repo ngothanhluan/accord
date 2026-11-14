@@ -25,14 +25,15 @@ What `accord worktree open <id>` and `accord new ticket --worktree` print:
 - A line starting `fetch from origin failed`: the fetch before the work failed, or the remote did not
   answer in time. Show the line verbatim and go on with the other lines; the work goes on with the refs
   already in this clone.
-- A line starting `behind:` (Continue only): Continue did not merge the remote's default branch, because the
+- A line starting `behind:` (Continue only): Continue did not take the remote's default branch in, because the
   ticket is at verify or done, its worktree has uncommitted changes, another session holds it,
   this session is missing the variables that identify it, or its remote branch has commits this clone's branch lacks. Show the line verbatim and go on.
-  Never merge here: at verify `accord-verify` runs `accord worktree merge <id>` once, after review.
-- A line starting `merged:` (Continue only): Continue merged the remote's default branch into the ticket
-  branch with a merge commit, ran the setup commands on it and pushed it. Show it verbatim and go on.
-- A line starting `push of` that `accord worktree open <id> --continue` prints: the merge commit was not
-  pushed. Show it verbatim, tell the owner the merge commit is local only, and run the push command the
+  Never sync here: at verify `accord-verify` runs `accord worktree sync <id>` once, after review.
+- A line starting `merged:`, `rebased:` or `synced:` (Continue only): Continue brought the remote's default branch into
+  the ticket branch in the way `git.merge` says (a merge commit, a rebase, or the team's `git.sync` command), ran the
+  setup commands on it and pushed it. Show it verbatim and go on.
+- A line starting `push of` that `accord worktree open <id> --continue` prints: the sync was not
+  pushed. Show it verbatim, tell the owner the synced branch is local only, and run the push command the
   line names; when that push fails too, show git's message and stop.
 - A line starting `push of` from `accord worktree push <id>`, which a stage skill runs after its commit:
   the commits stay local until the next push. Show it and git's message after it verbatim and go on with

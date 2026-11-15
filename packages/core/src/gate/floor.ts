@@ -9,6 +9,7 @@
 // floor is a visible diff. Pure: no I/O, no config read beyond the value handed in.
 import type { AccordConfig, RepoSnapshot } from '../model/snapshot.js';
 import { resolveStrictness } from '../config/strictness.js';
+import { teamSectionProblems } from '../scaffold/sections.js';
 import type { Strictness } from '../config/strictness.js';
 
 export type RuleLevel = 'error' | 'warning' | 'off';
@@ -37,7 +38,7 @@ const FLOOR: Record<string, readonly string[]> = {
   ],
   'the security and data-loss rules': ['gate.sensitive-touched', 'gate.out-of-scope', 'gate.interface-sign', 'gate.branch-unknown', 'lint.lane-s-lane-m-records'],
   'which rules apply, which lane a ticket is in and what the config says': [
-    'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor',
+    'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor', 'lint.template-section',
   ],
 };
 
@@ -195,6 +196,7 @@ function stageRefusal(lane: string, stage: string, value: unknown): string | und
 
 /**
  * Every key of `strictness.levels` and `strictness.stages` the engines will ignore, each with why: lint reports them as lint.config-floor and `accord config` refuses them.
+ * Every `template.sections` entry the template skips is listed too (lint.template-section, not lint.config-floor: `configFloor` leaves the `/template/` pointers to its own rule).
  * A stage key is refused when it says `off` for a floor stage (intent, build, verify) of lane M, L or P, or for any stage of lane S or lane R.
  */
 export function floorProblems(config: AccordConfig | undefined): { pointer: string; reason: string }[] {
@@ -207,17 +209,18 @@ export function floorProblems(config: AccordConfig | undefined): { pointer: stri
           return reason === undefined ? [] : [{ pointer: `/strictness/levels/${id}`, reason }];
         });
   const stages = config?.strictness?.stages;
-  if (stages === undefined || stages === null || typeof stages !== 'object') return found;
-  return [
-    ...found,
-    ...Object.entries(stages).flatMap(([lane, keys]) => {
-      if (keys === undefined || keys === null || typeof keys !== 'object') return [];
-      return Object.entries(keys).flatMap(([stage, value]) => {
-        const reason = stageRefusal(lane, stage, value);
-        return reason === undefined ? [] : [{ pointer: `/strictness/stages/${lane}/${stage}`, reason }];
-      });
-    }),
-  ];
+  const stageKeys =
+    stages === undefined || stages === null || typeof stages !== 'object'
+      ? []
+      : Object.entries(stages).flatMap(([lane, keys]) => {
+          if (keys === undefined || keys === null || typeof keys !== 'object') return [];
+          return Object.entries(keys).flatMap(([stage, value]) => {
+            const reason = stageRefusal(lane, stage, value);
+            return reason === undefined ? [] : [{ pointer: `/strictness/stages/${lane}/${stage}`, reason }];
+          });
+        });
+  // D-10: a team section that replaces a required one, or gives acceptance criteria another form, is the same kind of key: the engines skip it and `accord config` refuses it
+  return [...found, ...stageKeys, ...teamSectionProblems(config?.template?.sections)];
 }
 
 /**

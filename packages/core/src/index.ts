@@ -151,7 +151,7 @@ export type { ScaffoldFile } from './scaffold/init.js';
 export { POINTER_END, POINTER_FILES, POINTER_START, pointerText } from './scaffold/pointer.js';
 export { refreshLintStep, repinConfig, repinWorkflow } from './scaffold/repin.js';
 export type { StepRefresh } from './scaffold/repin.js';
-export { insertTeamSections, TEAM_HINT } from './scaffold/sections.js';
+export { insertTeamSections, reservedSections, TEAM_HINT, teamSectionProblems } from './scaffold/sections.js';
 export type { TeamSection } from './scaffold/sections.js';
 export { appendConfigList, flowValue, getConfigValue, idConsequences, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from './scaffold/configEdit.js';
 export { mergePanel, panelSettings } from './scaffold/panel.js';

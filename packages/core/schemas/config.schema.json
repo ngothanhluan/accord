@@ -221,25 +221,6 @@
         }
       }
     },
-    "template": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "sections": {
-          "type": "array",
-          "maxItems": 20,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["name"],
-            "properties": {
-              "name": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9 ,'()/&-]{0,59}$" },
-              "after": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9 ,'()/&-]{0,59}$" }
-            }
-          }
-        }
-      }
-    },
     "strictness": {
       "type": "object",
       "additionalProperties": false,
@@ -267,6 +248,25 @@
             "P": { "$ref": "#/$defs/stageSwitches" },
             "S": { "type": "object", "additionalProperties": false, "properties": { "intent": { "$ref": "#/$defs/onOff" }, "build": { "$ref": "#/$defs/onOff" }, "review": { "$ref": "#/$defs/onOff" } } },
             "R": { "type": "object", "additionalProperties": false, "properties": { "intent": { "$ref": "#/$defs/onOff" }, "research": { "$ref": "#/$defs/onOff" } } }
+          }
+        }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sections": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9 ,'()/&-]{0,59}$" },
+              "after": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9 ,'()/&-]{0,59}$" }
+            }
           }
         }
       }

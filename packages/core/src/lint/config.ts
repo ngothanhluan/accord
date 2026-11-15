@@ -1,6 +1,7 @@
 // ST-LN-80: models.architect still validates so an old config loads, but nothing reads it any more.
 import { subjectCollisions } from '../commits/subjects.js';
 import { floorProblems } from '../gate/floor.js';
+import { teamSectionProblems } from '../scaffold/sections.js';
 import type { Rule } from './rules.js';
 
 export const modelRetired: Rule['check'] = (snapshot) =>
@@ -25,4 +26,10 @@ export const subjectDuplicate: Rule['check'] = (snapshot) =>
 
 /** ST-LN-50 D-08, D-09: a `strictness.levels` key the engines ignore (the rule is on the floor, belongs to a stage, does not exist, or cannot be turned off) is an error, so a hand edit never passes unseen. LOCKED itself. */
 export const configFloor: Rule['check'] = (snapshot) =>
-  floorProblems(snapshot.config).map((p) => ({ file: 'accord/config.yml', pointer: p.pointer, reason: p.reason }));
+  floorProblems(snapshot.config)
+    .filter((p) => !p.pointer.startsWith('/template/')) // named once, by lint.template-section
+    .map((p) => ({ file: 'accord/config.yml', pointer: p.pointer, reason: p.reason }));
+
+/** ST-LN-50 D-10, t2-ac-7: a `template.sections` entry that replaces a required section, names acceptance criteria or repeats another is an error, so a hand edit never passes unseen. LOCKED itself. */
+export const templateSection: Rule['check'] = (snapshot) =>
+  teamSectionProblems(snapshot.config?.template?.sections).map((p) => ({ file: 'accord/config.yml', pointer: p.pointer, reason: p.reason }));

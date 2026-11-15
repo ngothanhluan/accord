@@ -87,7 +87,7 @@ const describe = (f: LoadFinding): string => `${f.pointer !== undefined && f.poi
 const dotted = (pointer: string): string => pointer.slice(1).split('/').join('.');
 
 /**
- * ST-LN-50 D-08, D-09: the `strictness.levels` keys the engines would ignore (a floor rule, a stage's rule, an unknown rule, a Ready-promoted rule turned off).
+ * ST-LN-50 D-08, D-09, D-10: the `strictness.levels` keys the engines would ignore (a floor rule, a stage's rule, an unknown rule, a Ready-promoted rule turned off).
  * An edit is refused when one stands at the key it edits or is new; one already in the file and not touched by this edit does not stop the edit, so a file
  * holding two of them can be cleaned up one `unset` at a time. `accord config check` and `accord lint` still name every one.
  */
@@ -161,7 +161,13 @@ export function configCheck(ctx: CommandContext, options: { json?: boolean }): n
   }
   const loaded = loadConfig(FILE, text);
   // A config the schema accepts can still name a rule the floor does not let a team set (D-08): those are findings too, and the exit code is 2, as for `accord config set`.
-  const floor: LoadFinding[] = floorProblems(loaded.config).map((p) => ({ file: FILE, rule: 'lint.config-floor', pointer: p.pointer, reason: p.reason }));
+  // A team section that replaces a required one (D-10) is named by its own rule, as `accord lint` names it.
+  const floor: LoadFinding[] = floorProblems(loaded.config).map((p) => ({
+    file: FILE,
+    rule: p.pointer.startsWith('/template/') ? 'lint.template-section' : 'lint.config-floor',
+    pointer: p.pointer,
+    reason: p.reason,
+  }));
   const findings = [...loaded.findings, ...floor];
   ctx.stdout.write(
     options.json === true

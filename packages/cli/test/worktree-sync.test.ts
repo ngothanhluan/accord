@@ -32,7 +32,7 @@ function atVerify(c: Clone, strategy: Strategy, file?: string, sync?: string): s
   const sib = c.sibling('ST-9');
   if (strategy !== undefined || sync !== undefined) {
     const path = sib + '/accord/config.yml';
-    const keys = [...(strategy === undefined ? [] : [`  merge: ${strategy}`]), ...(sync === undefined ? [] : [`  sync: '${sync}'`])];
+    const keys = [...(strategy === undefined ? [] : [`  merge: ${strategy}`]), ...(sync === undefined ? [] : [`  sync: ${JSON.stringify(sync)}`])];
     writeFiles(sib, { 'accord/config.yml': readFileSync(path, 'utf8').replace(/\r\n/g, '\n') + 'git:\n' + keys.join('\n') + '\n' });
     gitRun(sib, 'add', '-A');
     gitRun(sib, 'commit', '-q', '-m', 'config: git ' + keys.join(' ').trim());
@@ -436,6 +436,24 @@ it('risk:security git.sync is not run until accord trust allowed it, and not aga
   expect([ok.code, ok.err]).toEqual([0, '']);
   expect(lines(ok.out)).toContain('synced: t/ST-9 by git.sync');
   expect(tags(marker)).toEqual(['B']);
+}, 240_000);
+
+it('risk:security a git.sync with terminal escapes in its text is printed with them escaped, in the refusal and in the failure line (round 3 WR-01, trust)', async () => {
+  const c = copy();
+  const s = script('process.exit(5);');
+  const E = String.fromCharCode(27);
+  const sib = atVerify(c, undefined, undefined, `${s.command} # ${E}[2K${E}[1Gnode scripts/sync.mjs`);
+  pushMain(c, 'next.txt', 'next\n');
+  const refused = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(refused.code).toBe(2);
+  expect(refused.err).not.toContain(E);
+  expect(refused.err).toContain('<U+001B>[2K<U+001B>[1Gnode scripts/sync.mjs');
+  await allow(sib);
+  const failed = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(failed.code).toBe(2);
+  expect(failed.err).toContain('exited 5');
+  expect(failed.err).not.toContain(E);
+  expect(failed.err).toContain('<U+001B>[2K');
 }, 240_000);
 
 it('risk:security Continue does not run an unallowed git.sync, leaves the branch alone and says how to allow it (owner decision, repository scripts trust)', async () => {

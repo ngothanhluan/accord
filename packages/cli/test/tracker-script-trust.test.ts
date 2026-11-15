@@ -312,6 +312,26 @@ describe('the allow covers the files the command runs through npm run, Node reso
   });
 });
 
+describe('the command text is printed with its control characters escaped (round 3 WR-01)', () => {
+  it('risk:security a command that hides its start behind ESC, C1 or bidi controls shows them escaped in the status refusal and in accord trust', async () => {
+    const E = String.fromCharCode(27);
+    const hidden = `node -e "1" # ${E}[2K${E}[1G\u009b2K\u202enode scripts/tracker.mjs`;
+    const b = sandbox();
+    // YAML takes a C1 or bidi control only as an escape, so the value is written with \u escapes for every non-ASCII character
+    const file = join(b.repo, 'accord', 'config.yml');
+    const escaped = JSON.stringify(hidden).replace(/[\u0080-￿]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+    writeFileSync(file, readFileSync(file, 'utf8').replace(/command: .*/, 'command: ' + escaped));
+    const refused = await run(['status'], b.repo, b.env);
+    expect(refused.code).toBe(0);
+    expect(refused.err).toMatch(/^tracker script: /);
+    for (const c of [E, '\u009b', '\u202e']) expect(refused.err).not.toContain(c);
+    expect(refused.err).toContain('<U+001B>[2K<U+001B>[1G<U+009B>2K<U+202E>node scripts/tracker.mjs');
+    const allowed = await allowTracker(b);
+    for (const c of [E, '\u009b', '\u202e']) expect(allowed.out).not.toContain(c);
+    expect(allowed.out).toContain('<U+001B>[2K');
+  });
+});
+
 describe('reach: the tracked files a command can run (round 3 CR-01)', () => {
   const tracked = ['README.md', 'accord/config.yml', 'accord/tickets/ST-1.md', 'lib/impl.mjs', 'package.json', 'scripts/deep/helper.mjs', 'scripts/sync.cmd', 'scripts/tracker.mjs', 'tools/run.py', 'tracker.mjs'];
   const dir = (pkg?: object): string => {

@@ -5,8 +5,28 @@
 // gate or lint result never changes with the adapter or the key (D-01, D-12, D-99).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adapterFor } from '../src/tracker/index.js';
+import { fetchIssues, githubAdapter } from '../src/tracker/github-issues.js';
 import { cleanup, makeRepo, run } from './helpers/repo.js';
+
+// `gh` is intercepted as in tracker.test.ts: a recorded call, never a spawn, so a case can say that adapter
+// `none` spawned nothing and the author's real `gh auth token` is never run. `git` stays real.
+const gh = vi.hoisted(() => ({ calls: [] as string[][] }));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    execFileSync: (file: string, args: string[], opts: unknown) => {
+      if (file !== 'gh') return (actual.execFileSync as unknown as (...a: unknown[]) => unknown)(file, args, opts);
+      gh.calls.push(args);
+      throw Object.assign(new Error('spawn gh ENOENT'), { code: 'ENOENT' });
+    },
+  };
+});
+beforeEach(() => {
+  gh.calls.length = 0;
+});
 
 const KEY = 'lin_api_never_printed';
 const TICKETS = 'accord/tickets';
@@ -266,6 +286,192 @@ describe('a Linear failure never changes the result (ST-LN-97 t3-ac-2)', () => {
     } finally {
       cleanup(plain);
       cleanup(linked);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// github-issues behind the same interface, and adapter none left untouched (D-12, D-99, t3-ac-1, t3-ac-3).
+// ---------------------------------------------------------------------------
+
+interface GhCall {
+  url: string;
+  auth: string | undefined;
+}
+
+/** A github fetch that never reaches the network: issue number to a body, a status, or an Error to throw. */
+function githubFetch(handler: (n: string) => unknown, calls: GhCall[] = []): { impl: typeof fetch; calls: GhCall[] } {
+  const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({ url, auth: new Headers(init?.headers).get('authorization') ?? undefined });
+    const out = handler(url.slice(url.lastIndexOf('/') + 1));
+    if (out instanceof Error) throw out;
+    return out;
+  }) as unknown as typeof fetch;
+  return { impl, calls };
+}
+const ghIssue = (title: string, state: string, labels: string[] = []) => ({
+  ok: true,
+  status: 200,
+  json: async () => ({ title, state, labels: labels.map((name) => ({ name })) }),
+});
+
+/** Point the sandbox's config.yml at github-issues for `acme/app`. */
+function configureGithub(repo: string): void {
+  const file = join(repo, 'accord', 'config.yml');
+  writeFileSync(
+    file,
+    readFileSync(file, 'utf8').replace('tracker:\n  adapter: none', 'tracker:\n  adapter: github-issues\n  repo: acme/app'),
+  );
+}
+
+/** An environment that fails the test the moment anything reads it: a property, a key test, or a key listing. */
+function untouchableEnv(): NodeJS.ProcessEnv {
+  const fail = (what: string): never => {
+    throw new Error('adapter none read the environment: ' + what);
+  };
+  return new Proxy({} as NodeJS.ProcessEnv, {
+    get: (_t, key) => fail('get ' + String(key)),
+    has: (_t, key) => fail('has ' + String(key)),
+    ownKeys: () => fail('ownKeys'),
+    getOwnPropertyDescriptor: (_t, key) => fail('descriptor ' + String(key)),
+  });
+}
+
+describe('github-issues behind the tracker interface (ST-LN-97 t3-ac-1)', () => {
+  it('risk:regression githubAdapter is the same interface with fetchIssues as its only work (ST-LN-97 t3-ac-1)', async () => {
+    const adapter = githubAdapter('acme/app');
+    expect(adapter.name).toBe('github-issues');
+    expect(adapter.label?.('12')).toBe('#12');
+    const handler = (n: string) => (n === '9' ? httpError(404) : ghIssue('Log in', 'open', ['ui', 'auth']));
+    const direct = await fetchIssues('acme/app', ['7', '9'], { GITHUB_TOKEN: 'ght_t' }, githubFetch(handler).impl);
+    const through = await adapter.fetch(['7', '9'], { GITHUB_TOKEN: 'ght_t' }, { fetchImpl: githubFetch(handler).impl, root: '.' });
+    expect(through).toEqual(direct);
+    expect(Object.keys(through.issues)).toEqual(['7']);
+    expect(through.warning).toBe('tracker acme/app: #9 HTTP 404');
+  });
+
+  it('risk:regression adapterFor hands github-issues the repository from the config and nothing when it is missing (ST-LN-97 t3-ac-1)', () => {
+    expect(adapterFor({ adapter: 'github-issues', repo: 'acme/app' })?.name).toBe('github-issues');
+    expect(adapterFor({ adapter: 'github-issues' })).toBeUndefined();
+  });
+
+  it('risk:regression a github-issues status run prints the same row cells and the same one warning as before (ST-LN-97 t3-ac-1)', async () => {
+    const repo = makeRepo('valid-build');
+    try {
+      configureGithub(repo);
+      addTicket(repo, 'ISS-7', 'status: open\ntracker:\n  github-issues: "7"');
+      addTicket(repo, 'ISS-9', 'status: open\ntracker:\n  github-issues: "9"');
+      const { impl, calls } = githubFetch((n) => (n === '9' ? httpError(404) : ghIssue('Log in', 'open', ['ui', 'auth'])));
+      vi.stubGlobal('fetch', impl);
+      const { code, out, err } = await run(['status'], repo, { GITHUB_TOKEN: 'ght_t' });
+      expect(code).toBe(0);
+      expect(calls.map((c) => c.url)).toEqual([
+        'https://api.github.com/repos/acme/app/issues/7',
+        'https://api.github.com/repos/acme/app/issues/9',
+      ]);
+      expect(calls[0].auth).toBe('Bearer ght_t');
+      expect(err).toBe('tracker acme/app: #9 HTTP 404\n');
+      expect(cellOf(out, 'ISS-7')).toBe('ISS-7    story  open    -       no   0/3       -      0/1 none  #7 open Log in ui,auth');
+      expect(cellOf(out, 'ISS-9').trimEnd()).toBe('ISS-9    story  open    -       no   0/3       -      0/1 none  -');
+      expect(out + err).not.toContain('ght_t');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('risk:regression gh is spawned only when GITHUB_TOKEN is unset, and the warning then names the missing token (ST-LN-97 t3-ac-1)', async () => {
+    const repo = makeRepo('valid-build');
+    try {
+      configureGithub(repo);
+      addTicket(repo, 'ISS-7', 'status: open\ntracker:\n  github-issues: "7"');
+      vi.stubGlobal('fetch', githubFetch(() => ghIssue('Log in', 'open')).impl);
+      const withToken = await run(['status'], repo, { GITHUB_TOKEN: 'ght_t' });
+      expect(gh.calls).toEqual([]);
+      expect(withToken.err).toBe('');
+      const without = await run(['status'], repo, {});
+      expect(gh.calls).toEqual([['auth', 'token']]);
+      expect(without.err).toBe('tracker acme/app: no GitHub token found (GITHUB_TOKEN unset, gh unavailable)\n');
+    } finally {
+      cleanup(repo);
+    }
+  });
+});
+
+describe('adapter none reads nothing and requests nothing (ST-LN-97 t3-ac-3)', () => {
+  it('risk:regression status under adapter none never reads the environment, calls fetch or spawns gh (ST-LN-97 t3-ac-3)', async () => {
+    const repo = makeRepo('valid-build');
+    try {
+      addTicket(repo, 'ISS-7', 'status: open\ntracker:\n  github-issues: "7"\n  linear: "ENG-7"');
+      const { impl, calls } = githubFetch(() => {
+        throw new Error('adapter none must not fetch');
+      });
+      vi.stubGlobal('fetch', impl);
+      const { code, out, err } = await run(['status'], repo, untouchableEnv());
+      expect(code).toBe(0);
+      expect(err).toBe('');
+      expect(calls).toEqual([]);
+      expect(gh.calls).toEqual([]);
+      // Today's table: the row's own tracker map renders, nothing was looked up.
+      expect(cellOf(out, 'ISS-7')).toContain('github-issues:7');
+      expect(out).toContain('EPIC-1');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it.each(['none', 'github-issues', 'linear'] as const)(
+    'risk:regression status --json under %s makes no request and spawns no gh (ST-LN-97 t3-ac-3)',
+    async (adapter) => {
+      const repo = makeRepo('valid-build');
+      try {
+        if (adapter === 'github-issues') configureGithub(repo);
+        if (adapter === 'linear') configureLinear(repo);
+        addTicket(repo, 'ISS-7', 'status: open\ntracker:\n  github-issues: "7"\n  linear: "ENG-7"');
+        const { impl, calls } = githubFetch(() => {
+          throw new Error('--json must never request');
+        });
+        vi.stubGlobal('fetch', impl);
+        const { code, err } = await run(['status', '--json'], repo, adapter === 'none' ? untouchableEnv() : {});
+        expect(code).toBe(0);
+        expect(err).toBe('');
+        expect(calls).toEqual([]);
+        expect(gh.calls).toEqual([]);
+      } finally {
+        cleanup(repo);
+      }
+    },
+  );
+
+  it('risk:security gate and lint verdicts under github-issues equal those under adapter none, and nothing is requested (ST-LN-97 t3-ac-3)', async () => {
+    const none = makeRepo('gate-ready');
+    const github = makeRepo('gate-ready');
+    try {
+      configureGithub(github);
+      // The same link in both sandboxes, so finding line numbers match; only `github` configures an adapter.
+      for (const repo of [none, github]) {
+        const file = join(repo, ...TICKETS.split('/'), 'CLEAN.md');
+        writeFileSync(file, readFileSync(file, 'utf8').replace('id: CLEAN', 'id: CLEAN\ntracker:\n  github-issues: "7"'));
+      }
+      const { impl, calls } = githubFetch(() => {
+        throw new Error('a gate or lint must never reach the tracker');
+      });
+      vi.stubGlobal('fetch', impl);
+      // A passing `gate ready` writes ac_hash into the ticket (D-96); settle that write before comparing.
+      await run(['gate', 'ready', 'CLEAN', '--json'], none, untouchableEnv());
+      await run(['gate', 'ready', 'CLEAN', '--json'], github, { GITHUB_TOKEN: 'ght_t' });
+      for (const args of [['gate', 'ready', 'CLEAN', '--json'], ['gate', 'done', 'CLEAN', '--json'], ['lint', '--json']]) {
+        const a = await run(args, none, untouchableEnv());
+        const b = await run(args, github, { GITHUB_TOKEN: 'ght_t' });
+        expect(b.code).toBe(a.code);
+        expect(b.out).toBe(a.out);
+        expect(b.out + b.err).not.toContain('ght_t');
+      }
+      expect(calls).toEqual([]);
+      expect(gh.calls).toEqual([]);
+    } finally {
+      cleanup(none);
+      cleanup(github);
     }
   });
 });

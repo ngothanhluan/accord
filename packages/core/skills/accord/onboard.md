@@ -45,7 +45,9 @@ team's settings are changed from the main checkout, not from a ticket branch. Re
    not run them until the person allows them once with `accord trust`: a local record inside `.git`, never committed,
    bound to the command and the files it reaches, so a change to either asks again; `accord trust --revoke` withdraws
    it. After setting one, say so and name the command. Run `accord trust` only when the user asks you to, never on your
-   own. The built-in trackers (`none`, `github-issues`, `jira`, `linear`) run no repository script.
+   own. The built-in trackers (`none`, `github-issues`, `jira`, `linear`) run no repository script; a Jira
+   `tracker.url` is sent the credential only when the default branch's `accord/config.yml` holds the same url, so
+   after setting it say it must be committed to the default branch first.
 5. When the last proposal is answered, run `git diff -- accord/config.yml` and show it. Say that this skill does not
    commit: the user commits the file in the team's usual way. Then say that the first ticket starts with
    `/accord <request>`.

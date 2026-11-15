@@ -52,6 +52,23 @@ describe('the onboarding skill confirms each proposal and writes only what the u
     for (const phrase of ['## Onboard: `/accord onboard`', '`./onboard.md`', '`proposal:`']) expect(body).toContain(phrase);
   });
 
+  // Owner decision (2026-11-15): a repository script runs only after the person ran `accord trust`, so the skills name it and never run it on their own.
+  it('risk:security the onboarding and worktree skills say accord trust is for the person to run, and what it binds (repository scripts trust)', () => {
+    const onboard = flat(source('accord/onboard.md'));
+    const missing = [
+      '`git.sync` and `tracker.command`',
+      'does not run them until the person allows them once with `accord trust`',
+      'a local record inside `.git`, never committed',
+      'bound to the command and the files it reaches',
+      '`accord trust --revoke` withdraws it',
+      'Run `accord trust` only when the user asks you to, never on your own',
+      'must be committed to the default branch first',
+    ].filter((p) => !onboard.includes(p));
+    expect(missing).toEqual([]);
+    const worktree = flat(source('accord/worktree.md'));
+    for (const p of ['git.sync is not allowed to run here yet - run accord trust', "`accord trust` is the owner's to run, never yours"]) expect(worktree, p).toContain(p);
+  });
+
   // WR-14: the consequence table is what the agent relays before the yes, so it must not claim more than the code keeps working.
   it('risk:regression the consequence table does not promise what git.merge rebase and a changed branch template break (WR-14)', () => {
     const onboard = flat(source('accord/onboard.md'));

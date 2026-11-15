@@ -2,6 +2,7 @@
 name: accord-build
 description: Use when a lane M ticket has a plan that passed accord gate plan and needs building. Dispatches one fresh executor per task from accord brief, runs the affected tests itself, and records each task with accord task-done.
 license: MIT
+argument-hint: "[ticket id]"
 kind: skill
 loads: [build/no-plan.md, shared/ask.md, shared/scout.md]
 ---

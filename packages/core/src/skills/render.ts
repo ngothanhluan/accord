@@ -1,6 +1,6 @@
 // SKILL-02 rendering (D-106, D-111): one authored definition becomes the text that lands in a user's
 // repository. The source frontmatter carries authoring keys (`kind`, `loads`) that must never ship, so the
-// renderer keeps only the six Agent Skills spec fields and drops the rest; a bundled reference carries no
+// renderer keeps only the six Agent Skills spec fields and `argument-hint`, and drops the rest; a bundled reference carries no
 // spec frontmatter at all and renders with no `---` block, which is precisely why the marker cannot live
 // inside frontmatter (D-111).
 //
@@ -18,7 +18,12 @@ const options = { schema: 'core', customTags: stringNumerics } as const;
 // SKILL-02 is an allowlist, not a checklist: only `name` and `description` are required by the spec, so an
 // absent optional field is simply not emitted. The order here is the order the rendered block carries, so
 // the output is deterministic whatever order the source was authored in.
-const SPEC_FIELDS = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'] as const;
+//
+// `argument-hint` is the one key outside the Agent Skills spec. It is display-only: the slash-command picker
+// of two runtimes shows it after the skill's name, and the other two ignore an unknown key without a warning,
+// so one text still serves both target directories (D-108). A spec-strict packager or uploader refuses it;
+// accord installs into a repository and never packages or uploads a skill.
+const SPEC_FIELDS = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools', 'argument-hint'] as const;
 
 // D-111: one HTML comment line, immediately after the closing `---` — frontmatter must start at line 1 or a
 // runtime ignores it. It states generation, says do not edit, and carries the drift hash; it claims nothing

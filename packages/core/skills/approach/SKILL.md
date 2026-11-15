@@ -2,6 +2,7 @@
 name: accord-approach
 description: Use when a lane M ticket has its intent and acceptance criteria and needs an approach. Has the planner draft the lightest approach that works, has a critic argue against it in capped rounds, and takes the owner's explicit yes before accord approve.
 license: MIT
+argument-hint: "[ticket id]"
 kind: skill
 loads: [approach/approval.md, approach/critique.md, shared/ask.md, shared/scout.md]
 ---

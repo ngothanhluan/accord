@@ -2,6 +2,7 @@
 name: accord-debug
 description: Use when a lane M ticket's work behaves unexpectedly, a test fails for a reason nobody has shown, or a fix did not work. Finds the root cause with a debugger before any fix, fixes it once through a fresh executor test first, and keeps its state in debug.md.
 license: MIT
+argument-hint: "[ticket id] [failure]"
 kind: skill
 loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---

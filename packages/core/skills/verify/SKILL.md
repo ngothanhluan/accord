@@ -2,6 +2,7 @@
 name: accord-verify
 description: Use when a lane M ticket's review.md ends with a verdict and the work needs verifying. Runs the full suite, has a fresh verifier write verification.md, builds the owner's report, and runs accord gate done once the owner has approved verified.
 license: MIT
+argument-hint: "[ticket id]"
 kind: skill
 loads: [verify/ci.md, accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md]
 ---

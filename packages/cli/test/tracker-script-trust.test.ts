@@ -332,6 +332,73 @@ describe('the command text is printed with its control characters escaped (round
   });
 });
 
+/** Declare `git.sync` as well, committed on the current branch: a script in scripts/ that only records its tag. */
+function withSync(b: Box): void {
+  const file = join(b.repo, 'accord', 'config.yml');
+  writeFileSync(file, readFileSync(file, 'utf8') + 'git:\n  sync: "node scripts/sync.mjs"\n');
+  b.commit('scripts/sync.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.env.TRUST_MARKER, 'sync A\\n');\n");
+}
+
+describe('accord trust shows each script before it allows it, and allows only the scripts named (round 3 WR-02)', () => {
+  it('risk:security accord trust with no script named shows each declared script and what it covers, and allows nothing', async () => {
+    const b = sandbox();
+    withSync(b);
+    const shown = await run(['trust'], b.repo, b.env);
+    expect(shown.code).toBe(0);
+    expect(shown.out).toMatch(/^tracker\.command "node scripts\/tracker\.mjs"/m);
+    expect(shown.out).toMatch(/^git\.sync "node scripts\/sync\.mjs"/m);
+    expect(shown.out).toMatch(/covers: scripts\/ \(3 files\)/);
+    expect(shown.out).toMatch(/accord trust tracker\.command git\.sync/);
+    expect(shown.out).not.toMatch(/^allowed:/m);
+    const r = await run(['status'], b.repo, b.env);
+    expect(b.ran()).toEqual([]);
+    expect(r.err).toMatch(/^tracker script: /);
+  });
+
+  it('risk:security accord trust git.sync allows git.sync only, so a changed tracker script the person was not shown stays refused', async () => {
+    const b = sandbox();
+    withSync(b);
+    expect((await run(['trust', 'tracker.command', 'git.sync'], b.repo, b.env)).code).toBe(0);
+    await run(['status'], b.repo, b.env);
+    expect(b.ran()).toEqual(['ran A']);
+    gitRun(b.repo, 'switch', '-q', '-c', 'pr');
+    b.commit('scripts/sync.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.env.TRUST_MARKER, 'sync B\\n');\n");
+    b.commit('scripts/tracker.mjs', body('ran B'));
+    const synced = await run(['trust', 'git.sync'], b.repo, b.env);
+    expect(synced.code).toBe(0);
+    expect(synced.out).toMatch(/^allowed: git\.sync "node scripts\/sync\.mjs"/m);
+    expect(synced.out).not.toMatch(/tracker\.command/);
+    expect(synced.out).toMatch(/changed since it was allowed: scripts\/sync\.mjs, scripts\/tracker\.mjs/);
+    const r = await run(['status'], b.repo, b.env);
+    expect(b.ran()).toEqual(['ran A']);
+    expect(r.err).toMatch(/^tracker script: .*changed: scripts\/sync\.mjs, scripts\/tracker\.mjs/);
+  });
+
+  it('risk:security the preview and the refusal name the files that changed since the script was allowed', async () => {
+    const b = sandbox();
+    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    gitRun(b.repo, 'switch', '-q', '-c', 'pr');
+    b.commit('scripts/lib.mjs', 'export const x = 2;\n');
+    const shown = await run(['trust'], b.repo, b.env);
+    expect(shown.out).toMatch(/^tracker\.command "node scripts\/tracker\.mjs" - changed since it was allowed$/m);
+    expect(shown.out).toMatch(/changed since it was allowed: scripts\/lib\.mjs$/m);
+    const r = await run(['status'], b.repo, b.env);
+    expect(r.err).toMatch(/\(changed: scripts\/lib\.mjs\)/);
+  });
+
+  it('risk:regression accord trust refuses a script name it does not know, or one accord/config.yml does not declare, with exit 2 and writes nothing', async () => {
+    const b = sandbox();
+    const unknown = await run(['trust', 'setup'], b.repo, b.env);
+    expect(unknown.code).toBe(2);
+    expect(unknown.err).toMatch(/tracker\.command or git\.sync/);
+    const undeclared = await run(['trust', 'git.sync'], b.repo, b.env);
+    expect(undeclared.code).toBe(2);
+    expect(undeclared.err).toMatch(/declares no git\.sync/);
+    const common = resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim());
+    expect(existsSync(join(common, 'accord-trust.json'))).toBe(false);
+  });
+});
+
 describe('reach: the tracked files a command can run (round 3 CR-01)', () => {
   const tracked = ['README.md', 'accord/config.yml', 'accord/tickets/ST-1.md', 'lib/impl.mjs', 'package.json', 'scripts/deep/helper.mjs', 'scripts/sync.cmd', 'scripts/tracker.mjs', 'tools/run.py', 'tracker.mjs'];
   const dir = (pkg?: object): string => {

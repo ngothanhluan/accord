@@ -132,12 +132,12 @@ describe('config.schema.json', () => {
     expect(has(tracker({ adapter: 'script', command: 'a\nb' }), '/tracker/command', 'schema.pattern')).toBe(true);
   });
 
-  it('risk:security tracker.url is https only: http, a bare host, a query and a space fail; a context path passes (ST-LN-97 t3-ac-2)', () => {
+  it('risk:security tracker.url is https only: http, a bare host, userinfo, a query and a space fail; a context path passes (ST-LN-97 t3-ac-2)', () => {
     const jira = (url: string) => validate('config', { ...minimal.config, tracker: { adapter: 'jira', url } });
     expect(jira('https://jira.example.com/jira')).toEqual([]);
     expect(jira('https://jira.example.com/jira/')).toEqual([]);
     expect(jira('https://example.atlassian.net')).toEqual([]);
-    for (const bad of ['http://example.com', 'http://localhost:8080', 'HTTP://example.com', 'example.com', 'ftp://example.com', 'https://example.com?x=1', 'https://example.com#f', 'https://exa mple.com', 'https://']) {
+    for (const bad of ['http://example.com', 'http://localhost:8080', 'HTTP://example.com', 'example.com', 'ftp://example.com', 'https://example.com?x=1', 'https://example.com#f', 'https://good.atlassian.net@attacker.example', 'https://user:pw@jira.example.com', 'https://exa mple.com', 'https://']) {
       expect(has(jira(bad), '/tracker/url', 'schema.pattern'), bad).toBe(true);
     }
   });

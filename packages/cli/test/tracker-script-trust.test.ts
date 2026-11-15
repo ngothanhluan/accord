@@ -3,9 +3,11 @@
 // every worktree) and bound to the command text and to the files the command can reach; a branch that changes only the script file, with the command text
 // unchanged, is not run again until the person allows it again. Built-in adapters are unaffected. The sandboxes are removed with no retry loop; the marker the
 // script writes lives in a folder of its own, outside the repository.
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { inspect, reach, scriptDigest } from '../src/load/script-trust.js';
 import { commitAll, gitRun, makeRepo, run } from './helpers/repo.js';
@@ -539,5 +541,43 @@ describe('a check hashes only what it needs, and an argument word does not widen
     expect(reach(d, 'node tracker', tracked)).toEqual(tracked);
     expect(reach(d, 'env A=1 node --no-warnings tracker', tracked)).toEqual(tracked);
     expect(reach(d, 'build', tracked)).toEqual(tracked);
+  });
+});
+
+/** The built CLI, spawned where a test needs a second process running beside it. */
+const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+
+describe('the trust record is written under a lock, merged into what is on disk, and read without crashing on a bad entry (round 4 IN-01)', () => {
+  it('risk:regression an allow waits while another writer holds the record lock, then merges into the record as that writer left it', async () => {
+    const b = sandbox();
+    const record = join(resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim()), 'accord-trust.json');
+    writeFileSync(record + '.lock', String(process.pid));
+    const child = spawn(process.execPath, [cli, 'trust', 'tracker.command'], { cwd: b.repo, env: b.env, stdio: 'ignore' });
+    const exited = new Promise<number>((done) => child.on('exit', (code) => done(code ?? -1)));
+    await new Promise((done) => setTimeout(done, 2000));
+    expect(existsSync(record)).toBe(false);
+    // the other writer, holding the lock, recorded an allow of git.sync
+    const other = { kind: 'git.sync', command: 'node scripts/sync.mjs', digest: 'sha256:' + '0'.repeat(64), allowedAt: '2026-11-16T00:00:00.000Z' };
+    writeFileSync(record, JSON.stringify({ version: 2, allows: [other] }));
+    rmSync(record + '.lock');
+    expect(await exited).toBe(0);
+    const kinds = (JSON.parse(readFileSync(record, 'utf8')) as { allows: Array<{ kind: string }> }).allows.map((a) => a.kind);
+    expect(kinds.sort()).toEqual(['git.sync', 'tracker.command']);
+  }, 60_000);
+
+  it('risk:regression an allow whose files is not a map of strings is ignored with a warning, and status does not crash', async () => {
+    const b = sandbox();
+    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    const record = join(resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim()), 'accord-trust.json');
+    const text = JSON.parse(readFileSync(record, 'utf8')) as { allows: Array<Record<string, unknown>> };
+    text.allows[0].files = null;
+    writeFileSync(record, JSON.stringify(text));
+    gitRun(b.repo, 'switch', '-q', '-c', 'pr');
+    b.commit('scripts/lib.mjs', 'export const x = 2;\n');
+    const r = await run(['status'], b.repo, b.env);
+    expect(r.code).toBe(0);
+    expect(b.ran()).toEqual([]);
+    expect(r.err).toMatch(/accord-trust\.json.*1 entry .*ignored/);
+    expect(r.err).toMatch(/^tracker script: .*has not been allowed/m);
   });
 });

@@ -71,7 +71,7 @@ export function trust(ctx: CommandContext, names: readonly string[], options: { 
     return 0;
   }
   for (const i of allowScripts(ctx.root, scripts.filter((s) => kinds.includes(s.kind)))) {
-    ctx.stdout.write(`allowed: ${i.kind} "${shown(i.command)}" (${i.digest.slice(0, 19)})\n${details(i)}`);
+    ctx.stdout.write(`allowed: ${i.kind} "${shown(i.command)}" (${(i.digest ?? '').slice(0, 19)})\n${details(i)}`);
   }
   ctx.stdout.write('the allow is local to this repository (inside .git); it holds until the command or those files change, and accord trust --revoke withdraws it\n');
   return 0;

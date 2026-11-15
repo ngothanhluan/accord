@@ -87,9 +87,13 @@ export function trustFile(root: string): string {
   return join(resolve(root, common), 'accord-trust.json');
 }
 
-/** The words of a command, shell quotes removed and a quoted run kept whole, so `"./my scripts/sync.sh"` is one word. */
-function words(command: string): string[] {
+/**
+ * The words of a command, shell quotes removed and a quoted run kept whole, so `"./my scripts/sync.sh"` is one word; `starts` holds the index of each word that
+ * begins a command of its own (the first word, and the first after `;`, `&`, `|`, `(`, `)` or a line break).
+ */
+function words(command: string): { ws: string[]; starts: Set<number> } {
   const out: string[] = [];
+  const starts = new Set<number>([0]);
   let word = '';
   let quote: string | undefined;
   const flush = (): void => {
@@ -101,11 +105,40 @@ function words(command: string): string[] {
       if (ch === quote) quote = undefined;
       else word += ch;
     } else if (ch === '"' || ch === "'") quote = ch;
-    else if (/[\s;&|<>()]/.test(ch)) flush();
+    else if (/[;&|()\n\r]/.test(ch)) {
+      flush();
+      starts.add(out.length);
+    } else if (/[\s<>]/.test(ch)) flush();
     else word += ch;
   }
   flush();
-  return out;
+  return { ws: out, starts };
+}
+
+/** The programs that run the word after their options as a script or a program of its own: interpreters, shells and the wrappers that start one. */
+const LAUNCHERS = /^(node|nodejs|deno|bun|tsx|ts-node|python[0-9.]*|py|pypy[0-9.]*|bash|sh|zsh|dash|ksh|fish|pwsh|powershell|ruby|perl|php|env|npx|bunx|pnpx|cross-env|time|nice|nohup|exec|command|call|cmd|start)$/i;
+
+/**
+ * Round 4 WR-06 (Ruling R10): the indexes of the words in script position, the only ones a bare word (no `/` or `\`) is tried at with an added extension. A word
+ * is in script position when it starts a command, or is the first word after one in script position that is not an option (`-x`, `/c`) or an assignment
+ * (`A=1`), when that one is the command itself or a launcher (`node`, `bash`, `env`, `npx` ...). So `node tracker` and `env A=1 node tracker` reach `tracker.mjs`,
+ * and the `main` of `--since main` or the `origin main` of `git pull origin main` is matched only as it is written.
+ */
+function scriptPositions(ws: readonly string[], starts: ReadonlySet<number>): Set<number> {
+  const at = new Set<number>();
+  let expect = false;
+  ws.forEach((w, i) => {
+    if (starts.has(i)) {
+      at.add(i);
+      expect = true;
+      return;
+    }
+    if (!expect) return;
+    if (w.startsWith('-') || /^\/[a-z?]$/i.test(w) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) return;
+    at.add(i);
+    expect = LAUNCHERS.test((w.split(/[\\/]/).pop() ?? '').replace(/\.(exe|cmd|bat|ps1)$/i, ''));
+  });
+  return at;
 }
 
 /** The extensions tried after a word with none, in the order Node's resolver and the Windows PATHEXT try theirs, then the common script interpreters'. */
@@ -178,9 +211,9 @@ export function cover(root: string, command: string, tracked: readonly string[] 
     const prefix = rel.toLowerCase() + '/';
     return [...new Set(tracked.filter((f) => f.toLowerCase().startsWith(prefix)).map((f) => f.slice(0, prefix.length)))];
   };
-  /** Bind what `rel` names as a script or a directory; true when it names something tracked. */
-  const script = (rel: string): boolean => {
-    const hits = [rel, ...EXTENSIONS.map((e) => rel + e)].flatMap(files);
+  /** Bind what `rel` names as a script or a directory; true when it names something tracked. `probe` adds the extensions (a word in script position, or a path). */
+  const script = (rel: string, probe = true): boolean => {
+    const hits = [rel, ...(probe ? EXTENSIONS.map((e) => rel + e) : [])].flatMap(files);
     for (const f of hits) units.add(f.includes('/') ? f.slice(0, f.lastIndexOf('/') + 1) : ROOT_UNIT);
     const dirs = rel === '' ? [] : directories(rel);
     for (const d of dirs) units.add(d);
@@ -192,7 +225,8 @@ export function cover(root: string, command: string, tracked: readonly string[] 
   const pkg = packageOf(root);
   const followed = new Set<string>();
   const visit = (text: string, depth: number): void => {
-    const ws = words(text);
+    const { ws, starts } = words(text);
+    const positions = scriptPositions(ws, starts);
     // `run` and the script name after it name no file; a bare name (`yarn x`, `npm test`) is still tried as a path too, since a flag with a value can shift it
     const scriptNames = new Set<number>();
     ws.forEach((word, i) => {
@@ -221,7 +255,7 @@ export function cover(root: string, command: string, tracked: readonly string[] 
           for (const f of files('package.json')) units.add(f);
           const main = inside(root, typeof pkg?.main === 'string' && pkg.main !== '' ? pkg.main : 'index');
           if (main !== undefined && main !== '' && script(main)) named = true;
-        } else if (script(rel)) named = true;
+        } else if (script(rel, positions.has(i) || /[\\/]/.test(raw))) named = true;
       }
     });
   };
@@ -387,7 +421,8 @@ export type TrustState = 'allowed' | 'never' | 'changed' | 'other-command';
 export interface Inspection extends Cover {
   kind: ScriptKind;
   command: string;
-  digest: string;
+  /** Undefined only from an `if-allowed` inspection of a command no allow names: there is nothing to compare a digest with, so none is computed. */
+  digest: string | undefined;
   state: TrustState;
   changed: string[];
 }
@@ -399,10 +434,14 @@ function changedFiles(was: Record<string, string> | undefined, now: Record<strin
 }
 
 /** How `command` stands, for `kind`, in the working tree at `root`. */
-export function inspect(root: string, kind: ScriptKind, command: string): Inspection & { hashes: Record<string, string> } {
-  const now = scriptDigest(root, command);
+export function inspect(root: string, kind: ScriptKind, command: string, hash: 'always' | 'if-allowed' = 'always'): Inspection & { hashes: Record<string, string> } {
+  // round 4 WR-06: the allows are read first; a check (`if-allowed`) with no allow of this command to compare with computes the cover and hashes nothing
   const mine = read(root).allows.filter((a) => a.kind === kind);
   const same = mine.filter((a) => a.command === command);
+  if (hash === 'if-allowed' && same.length === 0) {
+    return { kind, command, ...cover(root, command), digest: undefined, hashes: {}, state: mine.length === 0 ? 'never' : 'other-command', changed: [] };
+  }
+  const now = scriptDigest(root, command);
   const state: TrustState = mine.length === 0 ? 'never' : same.length === 0 ? 'other-command' : same.some((a) => a.digest === now.digest) ? 'allowed' : 'changed';
   // the files that changed are named against the newest allow of this command that still holds its hashes
   const last = [...same].reverse().find((a) => a.files !== undefined);
@@ -419,7 +458,7 @@ export function listed(paths: readonly string[], max: number): string {
  * it did not run (and which covered files changed, when an allow of this command exists), what an allow covers, and the commands that show and allow it.
  */
 export function scriptRefusal(root: string, kind: ScriptKind, command: string): string | undefined {
-  const i = inspect(root, kind, command);
+  const i = inspect(root, kind, command, 'if-allowed');
   if (i.state === 'allowed') return undefined;
   const why =
     i.state === 'never'
@@ -439,7 +478,8 @@ export function allowScripts(root: string, scripts: ReadonlyArray<{ kind: Script
   let allows = read(root).allows;
   const bound = scripts.map((s) => {
     const { hashes, ...seen } = inspect(root, s.kind, s.command);
-    allows = [...allows.filter((a) => !(a.kind === s.kind && a.command === s.command && a.digest === seen.digest)), { kind: s.kind, command: s.command, digest: seen.digest, files: hashes, allowedAt: new Date().toISOString() }];
+    const digest = seen.digest ?? '';
+    allows = [...allows.filter((a) => !(a.kind === s.kind && a.command === s.command && a.digest === digest)), { kind: s.kind, command: s.command, digest, files: hashes, allowedAt: new Date().toISOString() }];
     return seen;
   });
   if (bound.length === 0) return bound;

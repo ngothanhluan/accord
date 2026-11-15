@@ -111,6 +111,12 @@ describe('config.schema.json', () => {
     expect(has(validate('config', withRepo('owner/name/extra')), '/tracker/repo', 'schema.pattern')).toBe(true);
   });
 
+  it('risk:complex-branching tracker.adapter accepts linear and refuses an unknown adapter (ST-LN-97 t3-ac-1)', () => {
+    const adapter = (a: string) => validate('config', { ...minimal.config, tracker: { adapter: a } });
+    expect(adapter('linear')).toEqual([]);
+    expect(has(adapter('jira2'), '/tracker/adapter', 'schema.enum')).toBe(true);
+  });
+
   it('design accepts only tokens', () => {
     const withSource = { ...minimal.config, design: { tokens: '', source: 'figma' } };
     expect(has(validate('config', withSource), '/design', 'schema.additionalProperties')).toBe(true);

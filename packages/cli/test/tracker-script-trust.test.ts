@@ -581,3 +581,42 @@ describe('the trust record is written under a lock, merged into what is on disk,
     expect(r.err).toMatch(/^tracker script: .*has not been allowed/m);
   });
 });
+
+/** The short digest `accord trust` shows on the head line of `kind`. */
+const shownDigest = (out: string, kind: string): string | undefined => new RegExp(`^${kind.replace('.', '\.')} ".*\(digest ([0-9a-f]{16})\)$`, 'm').exec(out)?.[1];
+
+describe('accord trust allows only the content the person was shown (round 4 WR-04)', () => {
+  it('risk:security accord trust shows a digest per script, and <script>@<digest> refuses with nothing written when the files changed since it was shown', async () => {
+    const b = sandbox();
+    const shown = await run(['trust'], b.repo, b.env);
+    const digest = shownDigest(shown.out, 'tracker.command');
+    expect(digest).toMatch(/^[0-9a-f]{16}$/);
+    expect(shown.out).toMatch(new RegExp(`accord trust tracker\.command@${digest ?? ''}`));
+    // between show and allow, something else (an agent in the worktree, a pull) changes a covered file
+    writeFileSync(join(b.repo, 'scripts', 'lib.mjs'), 'export const x = 3;\n');
+    const stale = await run(['trust', `tracker.command@${digest ?? ''}`], b.repo, b.env);
+    expect(stale.code).toBe(2);
+    expect(stale.err).toMatch(/changed since accord trust showed it.*nothing was allowed/);
+    const common = resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim());
+    expect(existsSync(join(common, 'accord-trust.json'))).toBe(false);
+    await run(['status'], b.repo, b.env);
+    expect(b.ran()).toEqual([]);
+    // shown again, then allowed with the digest shown: it runs
+    const again = shownDigest((await run(['trust'], b.repo, b.env)).out, 'tracker.command');
+    expect(again).not.toBe(digest);
+    const allowed = await run(['trust', `tracker.command@${again ?? ''}`], b.repo, b.env);
+    expect(allowed.code).toBe(0);
+    expect(allowed.out).toMatch(new RegExp(`^allowed: tracker\.command "node scripts/tracker\.mjs" \(digest ${again ?? ''}\)$`, 'm'));
+    await run(['status'], b.repo, b.env);
+    expect(b.ran()).toEqual(['ran A']);
+  });
+
+  it('risk:security accord trust <script> with no digest allows nothing and says to copy the digest accord trust shows', async () => {
+    const b = sandbox();
+    const r = await run(['trust', 'tracker.command'], b.repo, b.env);
+    expect(r.code).toBe(2);
+    expect(r.err).toMatch(/accord trust tracker\.command@<digest>/);
+    const common = resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim());
+    expect(existsSync(join(common, 'accord-trust.json'))).toBe(false);
+  });
+});

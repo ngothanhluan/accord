@@ -69,6 +69,16 @@ describe('the onboarding skill confirms each proposal and writes only what the u
     for (const p of ['git.sync is not allowed to run here yet - run accord trust', "`accord trust` is the owner's to run, never yours"]) expect(worktree, p).toContain(p);
   });
 
+  // Round 3 WR-02, WR-03: `accord trust` alone only shows; naming a script allows it, in the checkout the line names.
+  it('risk:security the skills say accord trust alone only shows, accord trust <script> allows that one, and where to run it (round 3 WR-02, WR-03)', () => {
+    const onboard = flat(source('accord/onboard.md'));
+    for (const p of ['`accord trust` shows each script, the files an allow covers and the ones that changed, and allows nothing', '`accord trust git.sync` or `accord trust tracker.command` allows that one']) {
+      expect(onboard, p).toContain(p);
+    }
+    const worktree = flat(source('accord/worktree.md'));
+    for (const p of ['run accord trust git.sync in "<path>"', 'the checkout it names']) expect(worktree, p).toContain(p);
+  });
+
   // WR-14: the consequence table is what the agent relays before the yes, so it must not claim more than the code keeps working.
   it('risk:regression the consequence table does not promise what git.merge rebase and a changed branch template break (WR-14)', () => {
     const onboard = flat(source('accord/onboard.md'));

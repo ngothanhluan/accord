@@ -227,3 +227,35 @@ it('risk:complex-branching status names the stages that are off (ST-LN-50 t2-ac-
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:complex-branching every view names the stages that are off (ST-LN-50 t2-ac-5)', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + OFF('discuss', 'review') });
+  try {
+    gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
+    gitRun(repo, 'config', 'user.name', 'fixture');
+    gitRun(repo, 'config', 'commit.gpgsign', 'false');
+    commitMsg(repo, 'claim: T-1');
+    const views: string[][] = [['anchor', 'T-1'], ['show', 'T-1'], ['show', 'T-1', '--approval'], ['show', 'T-1', '--approval', '--short'], ['dashboard'], ['status']];
+    const LINE = 'stages off for lane M: discuss, review';
+    for (const args of views) {
+      const r = await run(args, repo);
+      expect(r.code, args.join(' ')).toBe(0);
+      expect(r.out, args.join(' ')).toContain(LINE);
+      // one line, however often the view prints the lane
+      expect(r.out.split(LINE).length, args.join(' ')).toBe(2);
+    }
+    // the machine views stay as they were: show --json holds no such line
+    expect((await run(['show', 'T-1', '--json'], repo)).out).not.toContain('stages off');
+
+    // the anchor names it with the stage, before the sections
+    const anchor = (await run(['anchor', 'T-1'], repo)).out;
+    expect(anchor.indexOf(LINE)).toBeGreaterThan(anchor.indexOf('Stage:'));
+    expect(anchor.indexOf(LINE)).toBeLessThan(anchor.indexOf('## Intent'));
+
+    // with nothing off none of them prints it
+    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    for (const args of views) expect((await run(args, repo)).out, args.join(' ')).not.toContain('stages off');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

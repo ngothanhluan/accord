@@ -1421,6 +1421,21 @@ it('risk:regression the approach-off path re-runs only the approval on a no, and
   expect(missing).toEqual([]);
 });
 
+// WR-12: after a rebase sync the verify skill retypes the review heads the pairs name, shows every sync line, and is routed to when the review stage is off.
+it('risk:regression the verify skill retypes review heads after a rebase, shows every sync line and covers review off (WR-12)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const verify = read('.claude/skills/accord-verify/SKILL.md');
+  const missing = [
+    'its `synced:`, `rebased:`, `pushed:`, `rebound:` and `verify again:` lines verbatim',
+    'retype in `review.md` every round head that is the left side of a pair to its right side',
+    'a `plan.md` `baseline:` that is one',
+    'A line starting `push of`',
+    '`review.md` included when there is one',
+    'or its review stage is off',
+  ].filter((p) => !verify.includes(p));
+  expect(missing).toEqual([]);
+});
+
 // ST-LN-50 t2-ac-5, D-08: a team may turn the discuss, approach, plan and review stages off for lane M, L or P; `accord anchor` then prints `stages off for lane <L>:`.
 // Each skill of such a stage reads that line first and does not run its stage; the approval stays when approach is off; and with the plan stage off the build skill
 // follows build/no-plan.md (one task, `accord brief <id> 1`, `accord task-done <id> 1 --test`) and the final review reads from the default branch.

@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { reach, scriptDigest } from '../src/load/script-trust.js';
+import { inspect, reach, scriptDigest } from '../src/load/script-trust.js';
 import { commitAll, gitRun, makeRepo, run } from './helpers/repo.js';
 
 const posix = (p: string): string => p.replaceAll('\\', '/');
@@ -519,5 +519,25 @@ describe('a covered entry that is not a regular file still moves the digest when
     expect(scriptDigest(b.repo, 'node scripts/tracker.mjs').digest).not.toBe(was);
     commitAll(b.repo, 'retarget');
     expect(scriptDigest(b.repo, 'node scripts/tracker.mjs').digest).not.toBe(was);
+  });
+});
+
+describe('a check hashes only what it needs, and an argument word does not widen the cover to the whole tree (round 4 WR-06)', () => {
+  it('risk:regression the refusal reads the allows first: with no allow of the command it computes the cover and no digest', async () => {
+    const b = sandbox();
+    expect(inspect(b.repo, 'tracker.command', 'node scripts/tracker.mjs', 'if-allowed')).toMatchObject({ state: 'never', digest: undefined, units: ['scripts/'] });
+    expect(inspect(b.repo, 'tracker.command', 'node scripts/tracker.mjs', 'always').digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it('risk:regression an argument word that matches a root file only once an extension is added (main -> main.py) does not bind every tracked file', () => {
+    const d = mkdtempSync(join(tmpdir(), 'accord-reach-'));
+    dirs.push(d);
+    const tracked = ['README.md', 'build.sh', 'main.py', 'origin.js', 'scripts/tracker.mjs', 'src/app.ts', 'tracker.mjs'];
+    expect(reach(d, 'node scripts/tracker.mjs --since main', tracked)).toEqual(['scripts/tracker.mjs']);
+    expect(reach(d, 'git pull --rebase origin main && node scripts/tracker.mjs build', tracked)).toEqual(['scripts/tracker.mjs']);
+    // the script itself, named without its extension in script position, still binds the whole tree outside accord/
+    expect(reach(d, 'node tracker', tracked)).toEqual(tracked);
+    expect(reach(d, 'env A=1 node --no-warnings tracker', tracked)).toEqual(tracked);
+    expect(reach(d, 'build', tracked)).toEqual(tracked);
   });
 });

@@ -15,7 +15,8 @@ import { cleanup, makeRepo, run } from './helpers/repo.js';
 
 const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 // `ps` and `powershell` read the process table for the hold (D-17); `taskkill` ends a timed-out team command's whole process tree on Windows (ST-LN-96).
-const ALLOWED = ['git', 'gh', 'ps', 'powershell', 'taskkill'];
+// `/bin/sh` runs the POSIX guard of a team command (WR-04): a fixed script whose only argument is the numeric id of the command's process group, so no repository content reaches it.
+const ALLOWED = ['git', 'gh', 'ps', 'powershell', 'taskkill', '/bin/sh'];
 const SPAWN = /\b(?:execFileSync|execFile|spawnSync|spawn)\s*\(/g;
 const FIRST_ARG = /^\s*(['"])([^'"]*)\1\s*[,)]/;
 
@@ -70,7 +71,7 @@ describe('spawn surface', () => {
   });
 });
 
-it('risk:security only git gh ps powershell and taskkill are spawned by name and the setup and team-command sites use the shell', () => {
+it('risk:security only git gh ps powershell taskkill and /bin/sh are spawned by name and the setup and team-command sites use the shell', () => {
   const sites = spawnSites();
   const unnamed = sites.filter((s) => {
     const m = FIRST_ARG.exec(s.args);

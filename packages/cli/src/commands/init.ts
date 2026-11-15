@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { agentTargets, initFiles, loadConfig, loadSnapshot, pluginTargets, POINTER_FILES, pointerText, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
+import { detectProposals } from '../load/detect.js';
 import { loadFromFs, UsageError } from '../load/fs.js';
 import { pinMessage, versionOnDisk } from '../pin.js';
 import { planHooks, writeHooks, writeSkillFiles } from './skills.js';
@@ -157,5 +158,10 @@ export function init(ctx: InitContext): number {
   // accord thinks belongs here, and the list is the answer — a terse "nothing to do" is not. Outside the
   // try on purpose: inside it, a throw after this line would print the report twice.
   ctx.stdout.write(rendered());
+  // ST-LN-50 D-11: detected values are proposals, printed after the file list and never written here. The line
+  // format is a contract the onboarding skill reads: `proposal: <dotted key> = <JSON value>  (evidence: <text>)`.
+  const proposals = detectProposals(ctx.root);
+  for (const p of proposals) ctx.stdout.write(`proposal: ${p.key} = ${JSON.stringify(p.value)}  (evidence: ${p.evidence})\n`);
+  ctx.stdout.write(proposals.length === 0 ? 'proposals: 0\n' : `proposals: ${proposals.length}, none written to accord/config.yml\n`);
   return 0;
 }

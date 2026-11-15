@@ -2,6 +2,10 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- Argument hints: every installed skill now carries `argument-hint` in its frontmatter, so the slash-command picker shows what to type after the name: `/accord [request | continue <id> | pick-up <id> | upgrade]`, `/accord-intent`, `/accord-approach`, `/accord-plan`, `/accord-build`, `/accord-review` and `/accord-verify` `[ticket id]` (the ticket of the current branch when left out), `/accord-debug [ticket id] [failure]` and `/accord-designer <ticket id>`. It is the one frontmatter key outside the Agent Skills spec that accord ships: two runtimes show it, the other two ignore it, and the same text still goes into both `.claude/skills` and `.agents/skills`. A spec-strict packager or uploader refuses the key; an installed skill is never packaged or uploaded. Repositories pinned to an older accord get the hints at `accord upgrade`, which regenerates the skills.
+
 ## 0.5.0 — 2026-11-15
 
 Release 0.5.0 gives a team settings for how it merges, names its tickets and commits, how strict it is and what a ticket holds, which tracker it reads, and how it sets accord up on an existing repository (five groups below). A repository that sets none of the new keys behaves as in 0.4.1, except for the `ruleset` line a claim now writes into each new ticket. The rule that reads the ticket's own `ruleset` has a cut-off constant in `packages/core/src/round/pin.ts`, `RULESET_FROM`, which holds the first release that ships the rule and reads `0.5.0`.

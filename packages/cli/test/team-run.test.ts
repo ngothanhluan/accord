@@ -1,4 +1,5 @@
 // ST-LN-96 t1-ac-3: `runTeamCommand`, the one runner for committed team commands (git.sync, later tracker.command): the ticket reaches the script only in its environment.
+import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -118,4 +119,71 @@ it.each([
     expect(existsSync(folder)).toBe(false);
     expect(alive(Number(readFileSync(pidFile, 'utf8')))).toBe(false);
   },
+);
+
+// WR-04 (phase 3.1 review): on POSIX the script runs in its own session so a timeout can kill its group, which also hides it from the terminal's
+// Ctrl-C and from a harness that kills accord; `runTeamCommand` blocks, so no handler of accord's can forward the signal. The script and its
+// descendants must end within seconds of accord's death instead of running on for the 600 s sync limit.
+const pidsOf = (file: string): { script: number; grandchild: number } => JSON.parse(readFileSync(file, 'utf8'));
+
+async function until(ok: () => boolean, ms: number): Promise<boolean> {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (ok()) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return ok();
+}
+
+it.skipIf(process.platform === 'win32').each([
+  ['Ctrl-C reaches accord and its process group', 'group', 'SIGINT'],
+  ['a harness kills the accord process group', 'group', 'SIGTERM'],
+  ['accord alone is killed outright', 'pid', 'SIGKILL'],
+] as const)(
+  'risk:resource when %s the team command and its descendants end (WR-04)',
+  async (_name, scope, signal) => {
+    const pidFile = join(dir, `die-${scope}-${signal}.pid`).replaceAll('\\', '/');
+    const script = join(dir, `die-${signal}.mjs`).replaceAll('\\', '/');
+    // the script and a grandchild each live 60 s, far past the bound below
+    writeFileSync(
+      script,
+      `import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+const c = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
+writeFileSync(${JSON.stringify(pidFile)}, JSON.stringify({ script: process.pid, grandchild: c.pid }));
+setTimeout(() => {}, 60000);
+`,
+    );
+    // a stand-in for accord: it runs the script through runTeamCommand, which blocks until the script ends
+    const host = join(dir, `die-host-${signal}.mjs`).replaceAll('\\', '/');
+    const source = new URL('../src/load/team-run.ts', import.meta.url).href;
+    writeFileSync(
+      host,
+      `import { runTeamCommand } from ${JSON.stringify(source)};
+runTeamCommand(${JSON.stringify(`node ${script}`)}, { cwd: ${JSON.stringify(dir)}, env: process.env, timeoutMs: 120000, maxBuffer: 1024 * 1024 });
+`,
+    );
+    // Node before 22.18 strips types only behind the flag
+    const flags = process.features.typescript ? [] : ['--experimental-strip-types'];
+    // detached: the stand-in leads its own group, so a group kill reaches it and what shares its group, as Ctrl-C does accord
+    const accord = spawn(process.execPath, [...flags, host], { detached: true, stdio: 'ignore' });
+    let pids: { script: number; grandchild: number } | undefined;
+    try {
+      expect(await until(() => existsSync(pidFile) && readFileSync(pidFile, 'utf8').endsWith('}'), 30_000)).toBe(true);
+      pids = pidsOf(pidFile);
+      process.kill(scope === 'group' ? -accord.pid! : accord.pid!, signal);
+      // wide for a loaded machine, and well below the 60 s the script lives
+      const gone = await until(() => !alive(pids!.script) && !alive(pids!.grandchild), 20_000);
+      expect({ gone, script: alive(pids.script), grandchild: alive(pids.grandchild) }).toEqual({ gone: true, script: false, grandchild: false });
+    } finally {
+      for (const p of [pids?.script, pids?.grandchild, accord.pid]) {
+        try {
+          if (p !== undefined) process.kill(p, 'SIGKILL');
+        } catch {
+          /* already gone */
+        }
+      }
+    }
+  },
+  60_000,
 );

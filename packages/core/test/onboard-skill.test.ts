@@ -52,6 +52,18 @@ describe('the onboarding skill confirms each proposal and writes only what the u
     for (const phrase of ['## Onboard: `/accord onboard`', '`./onboard.md`', '`proposal:`']) expect(body).toContain(phrase);
   });
 
+  // WR-14: the consequence table is what the agent relays before the yes, so it must not claim more than the code keeps working.
+  it('risk:regression the consequence table does not promise what git.merge rebase and a changed branch template break (WR-14)', () => {
+    const onboard = flat(source('accord/onboard.md'));
+    const missing = [
+      'nothing for `merge` and `squash`; under `rebase` a ticket's branch is rebased and force-pushed with a lease at verify',
+      'new branches; an in-flight branch with the old name stops being found once the new value reaches the default branch, so change it between tickets',
+    ].filter((phrase) => !onboard.includes(phrase));
+    expect(missing).toEqual([]);
+    expect(onboard).not.toContain('everything, nothing is rewritten');
+    expect(onboard).not.toContain('| branches that already exist |');
+  });
+
   it('risk:regression the onboarding skill is the same in all four tools (ST-LN-50 t2-ac-9)', () => {
     const expected = renderSkill('accord/onboard.md' as SkillKey);
     const files = skillTargets(config(['claude', 'codex', 'cursor', 'copilot']));

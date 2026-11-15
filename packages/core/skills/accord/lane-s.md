@@ -12,7 +12,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
 - New request: the accord skill ran `accord new ticket <id> --lane S --worktree`. Before you follow the `enter:` or
   `stop:` line it printed as `./worktree.md` says, write the title, the two lines of step 1 and the `## Scope` lines `./lane.md` describes into
   `<path>/accord/tickets/<id>.md`, asking step 1's question first when it needs one. Then run
-  `git -C "<path>" commit -m "ticket: <id> understood" -- accord/tickets/<id>.md` and
+  `git -C "<path>" commit -m "<subject>" -- accord/tickets/<id>.md`, `<subject>` being the line `accord subject ticket_understood <id>` prints, and
   `git -C "<path>" push -u origin <branch>`. After `enter:`, go on at step 1 in that worktree; after `stop:`, the
   session opened there finds the two lines in the ticket.
 - Pick up: run `accord worktree open <id>` and follow `./worktree.md`.

@@ -91,7 +91,7 @@ line.
    passed (after an acceptance, run it once more): go to step 7 of the
    skill.
 5. **Fix.** Otherwise commit `plan.md` and `plan-review.md` with the
-   subject `plan: <id> round <n>, <m> Must, <s> Should`, where `<m>` and
+   subject that `accord subject plan_round <id> round <n>, <m> Must, <s> Should` prints, where `<m>` and
    `<s>` count the Musts and the Shoulds after the last `## Closed` line
    that are `open` or `unverified` once this round is recorded; the next
    `diff` round reads from that commit. Dispatch `accord-planner` with the

@@ -55,7 +55,7 @@ New request whose text is the whole text after `/accord`: for
 ## Pick up
 
 Run `accord worktree open <id>`: it makes its `branch` from
-`accord status --json` and commits `claim: <id>` on it. Follow
+`accord status --json` and commits the claim on it, with the subject of `commits.subjects.claim`. Follow
 `./worktree.md`; it says when to push it (the pushed branch is the claim).
 
 ## New request: `/accord <request>`

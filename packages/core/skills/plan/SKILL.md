@@ -11,8 +11,8 @@ one at a time. You run it in the main session.
 
 ## Steps
 
-1. Run `accord anchor`. When `plan.md` exists but the last commit that
-   touched it is not `plan: <id> ready`, or `git status --porcelain` on
+1. Run `accord anchor`. When `plan.md` exists and the anchor still prints
+   `Stage: plan` (the plan is not committed as ready), or `git status --porcelain` on
    `plan.md` prints anything, resume at step 4, reading `plan-review.md`
    as `./critique.md` says.
 
@@ -61,7 +61,7 @@ one at a time. You run it in the main session.
    When `accord round <id> --plan` prints no `Critics:` line, round 1 of the plan critique of a ticket claimed under an older accord follows `./legacy-round1.md`, as `./critique.md` says.
 
 6. **Rounds.** Run `accord round <id> --plan` before each critique round, as `./critique.md` says. On
-   `stop: report to owner`, stop and tell the owner what is still open (a Must or Should still `open` or `unverified`, or `accord gate plan <id>` still fails), and show the revision with the fewest Must findings: its round and its commit, read from `git log` since the last `plan: <id> ready`, if any. Never continue on a failing plan.
+   `stop: report to owner`, stop and tell the owner what is still open (a Must or Should still `open` or `unverified`, or `accord gate plan <id>` still fails), and show the revision with the fewest Must findings: its round and its commit, read from `git log` since the last plan-ready commit, if any. Never continue on a failing plan.
 
 7. **Baseline tests.** Before the first build commit, run the
    `tests.full` command from `accord/config.yml` at the current HEAD, and
@@ -75,8 +75,8 @@ one at a time. You run it in the main session.
 
 8. **Finish.** If `git status` shows `accord/tests-baseline.txt` new, commit it
    alone first and add its Ruling if absent, per `./baseline.md`. Append a `## Closed` line to `plan-review.md`. Commit `plan.md` and `plan-review.md`, with the ledger if it changed, with the
-   subject `plan: <id> ready`. That commit marks the plan finished;
-   `accord-build` checks for it. Then run `accord worktree push <id>`; go on even if it fails.
+   subject that `accord subject plan_ready <id>` prints. That commit marks the plan finished;
+   `accord anchor` reads it, and `accord-build` relies on that. Then run `accord worktree push <id>`; go on even if it fails.
 
 9. Next: `accord-build`.
 

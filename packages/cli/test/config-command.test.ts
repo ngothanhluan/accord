@@ -1,9 +1,9 @@
 // ST-LN-50 D-11 (t2-ac-9, command half): `accord config get|set|unset|check` on real files. Every case runs in its
 // own sandbox repository through runCli; a refusal must leave accord/config.yml byte-identical.
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { commitAll, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, pinned } from '../../../test/helpers/lane.js';
 
 const repos: string[] = [];
@@ -156,4 +156,60 @@ it('risk:complex-branching accord config needs accord/config.yml (ST-LN-50 t2-ac
     expect(r.err, argv.join(' ')).toContain('accord/config.yml');
   }
   expect(existsSync(file(repo))).toBe(false);
+});
+
+const tickets = (repo: string): Record<string, string> =>
+  Object.fromEntries(readdirSync(join(repo, 'accord', 'tickets')).sort().map((f) => [f, readFileSync(join(repo, 'accord', 'tickets', f), 'utf8')]));
+
+it('risk:complex-branching changing the id pattern keeps every id and fills legacy_ids (ST-LN-50 t2-ac-2)', async () => {
+  const repo = sandbox();
+  // the clone's ids: ST-LN-1 on the checked-out branch, ST-LN-2 only on another branch
+  expect((await run(['new', 'ticket', 'ST-LN-1', '--type', 'story'], repo)).code).toBe(0);
+  commitAll(repo);
+  const home = gitRun(repo, 'branch', '--show-current').trim();
+  gitRun(repo, 'checkout', '-q', '-b', 'side');
+  expect((await run(['new', 'ticket', 'ST-LN-2', '--type', 'story'], repo)).code).toBe(0);
+  commitAll(repo);
+  gitRun(repo, 'checkout', '-q', home);
+  const before = tickets(repo);
+  expect(Object.keys(before)).toEqual(['ST-LN-1.md']);
+
+  const set = await run(['config', 'set', 'ids.pattern', 'FEAT-{n}'], repo);
+  expect(set.code).toBe(0);
+  expect(set.out).toMatch(/^changed: ids\.pattern unset -> "?FEAT-\{n\}"?\n/);
+  expect(set.out.endsWith('legacy_ids +ST-LN-1\nlegacy_ids +ST-LN-2\n')).toBe(true);
+  // one edit: the pattern and the legacy ids together, nothing else moved
+  expect(text(repo).startsWith(CONFIG + 'ids:\n')).toBe(true);
+  expect(text(repo).endsWith('legacy_ids: [ST-LN-1, ST-LN-2]\n')).toBe(true);
+  // no ticket renamed or edited, and the pattern change left lint green
+  expect(tickets(repo)).toEqual(before);
+  expect(gitRun(repo, 'status', '--porcelain', '--', 'accord/tickets')).toBe('');
+  const lint = await run(['lint'], repo);
+  expect(lint.err + lint.out).not.toContain('lint.id-convention');
+  expect(lint.code).toBe(0);
+  // the next ticket follows the new pattern
+  expect((await run(['new', 'ticket', '--type', 'story'], repo)).out).toBe('accord/tickets/FEAT-1.md\n');
+
+  // a second change appends after the entries already there (never sorted among them, never dropped), and --json names them
+  const bytes = text(repo);
+  const next = await run(['config', 'set', 'ids.pattern', 'WORK-{n}', '--json'], repo);
+  expect(next.code).toBe(0);
+  expect(JSON.parse(next.out)).toEqual({ key: 'ids.pattern', from: 'FEAT-{n}', to: 'WORK-{n}', consequences: [{ key: 'legacy_ids', added: ['FEAT-1'] }] });
+  expect(text(repo)).toContain('legacy_ids: [ST-LN-1, ST-LN-2, FEAT-1]\n');
+  expect(text(repo)).not.toBe(bytes);
+  expect(Object.keys(tickets(repo))).toEqual(['FEAT-1.md', 'ST-LN-1.md']);
+  expect((await run(['lint'], repo)).code).toBe(0);
+
+  // the same value again: unchanged, no consequence; a change that breaks no id adds none
+  const again = await run(['config', 'set', 'ids.pattern', 'WORK-{n}'], repo);
+  expect(again.out).toBe('unchanged: ids.pattern\n');
+  const types = await run(['config', 'set', 'ids.types', '{ bug: DEFECT }'], repo);
+  expect(types.code).toBe(0);
+  expect(types.out).toMatch(/^changed: ids\.types unset -> \{bug: DEFECT\}\n$/);
+
+  // a refused change writes nothing, legacy_ids included
+  const kept = text(repo);
+  const refused = await run(['config', 'set', 'ids.pattern', 'no number here'], repo);
+  expect(refused.code).toBe(2);
+  expect(text(repo)).toBe(kept);
 });

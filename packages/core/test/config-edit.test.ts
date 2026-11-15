@@ -3,7 +3,8 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { appendConfigList, loadConfig, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from '../src/index.js';
+import { appendConfigList, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from '../src/index.js';
+import type { AccordConfig } from '../src/index.js';
 
 // This repository's own config: comments, a quoted "14", a flow list and flow maps, as a team's file would have.
 const REPO = readFileSync(new URL('../../../accord/config.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -150,4 +151,48 @@ it('risk:parsing a value that starts with [ or { is a YAML flow collection, any 
   expect(parseValue('')).toBe('');
   // a flow collection that does not parse throws rather than becoming a string
   expect(() => parseValue('[a, b')).toThrow(/flow|bracket|\]|parse/i);
+});
+
+// ST-LN-50 D-05 (t2-ac-2): what a changed id convention leaves behind.
+const cfg = (extra: string): AccordConfig => {
+  const { config, findings } = loadConfig('accord/config.yml', SMALL + extra);
+  expect(findings).toEqual([]);
+  return config as AccordConfig;
+};
+const PEOPLE = 'people:\n  dev@example.com: LN\n';
+
+it('risk:complex-branching idConsequences lists exactly the ids that break the new convention (ST-LN-50 t2-ac-2)', () => {
+  const known = [
+    { id: 'ST-LN-1', type: 'story' as const },
+    { id: 'BUG-LN-2', type: 'bug' as const },
+    { id: 'FEAT-3', type: 'story' as const },
+    { id: 'ASK-1' }, // already in legacy_ids
+    { id: 'H-9' }, // seen only in history: no type
+    { id: 'ST-LN-1' }, // the same id twice (a ticket and its history) counts once
+  ];
+  const before = cfg(PEOPLE);
+  // a team pattern: ST-LN-1 and BUG-LN-2 break it, FEAT-3 follows it; an id with no type breaks it only when it fits for no type
+  expect(idConsequences(before, cfg(PEOPLE + 'ids:\n  pattern: "FEAT-{n}"\n'), known)).toEqual(['BUG-LN-2', 'H-9', 'ST-LN-1']);
+  // tracker mode with a project list: only keys of that project follow it
+  expect(
+    idConsequences(before, cfg(PEOPLE + 'ids:\n  mode: tracker\n  projects: [ENG]\n'), [...known, { id: 'ENG-4', type: 'story' as const }, { id: 'OPS-4' }]),
+  ).toEqual(['BUG-LN-2', 'FEAT-3', 'H-9', 'OPS-4', 'ST-LN-1']);
+  // the convention keeps its meaning: nothing is listed
+  expect(idConsequences(before, before, known)).toEqual([]);
+  expect(idConsequences(before, cfg(PEOPLE + 'ids:\n  pattern: "{type}-{initials}-{n}"\n'), known)).toEqual([]);
+  // a prefix per type counts: with story -> FEAT, FEAT-3 follows `{type}-{n}` for a story, ST-LN-1 does not
+  expect(
+    idConsequences(undefined, cfg('ids:\n  pattern: "{type}-{n}"\n  types: { story: FEAT }\n'), [
+      { id: 'FEAT-3', type: 'story' },
+      { id: 'ST-LN-1', type: 'story' },
+    ]),
+  ).toEqual(['ST-LN-1']);
+  // from no convention to one: every id the clone knows that breaks it is listed
+  expect(idConsequences(undefined, cfg('ids:\n  pattern: "FEAT-{n}"\n'), known)).toEqual(['BUG-LN-2', 'H-9', 'ST-LN-1']);
+  // to no convention: nothing is listed
+  expect(idConsequences(before, cfg(''), known)).toEqual([]);
+  // code-point order; an id the schema would refuse is never listed
+  expect(
+    idConsequences(undefined, cfg('ids:\n  pattern: "FEAT-{n}"\n'), [{ id: 'b-1' }, { id: 'B-2' }, { id: 'ST-LN-10' }, { id: 'ST-LN-2' }, { id: 'a b' }, { id: '.hidden' }, { id: '' }]),
+  ).toEqual(['B-2', 'ST-LN-10', 'ST-LN-2', 'b-1']);
 });

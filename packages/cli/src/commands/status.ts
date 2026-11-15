@@ -7,40 +7,45 @@ import { statusRows } from '@accord-dev/accord-core';
 import type { StatusRow } from '@accord-dev/accord-core';
 import { stagesOffLines } from '../render/stages-off.js';
 import { EMPTY_CELL, renderRows } from '../render/table.js';
-import { fetchIssues } from '../tracker/github-issues.js';
+import { adapterFor, issueKeyOf } from '../tracker/index.js';
 import type { CommandContext } from '../run.js';
 
 const plural = (n: number, word: string): string => n + ' ' + word + (n === 1 ? '' : 's');
 
 /**
- * INTG-01: the `trackerCells` seam `renderRows` already accepts, filled from the tracker when one is
+ * INTG-01 / ST-LN-97 D-12: the `trackerCells` seam `renderRows` already accepts, filled from the tracker when one is
  * configured and reachable. A row that declares no issue keeps its own flattened tracker map; a row
  * whose issue could not be read gets the empty cell, because "not linked" and "could not fetch" must
  * not look the same — the difference is the one line this writes to stderr (D-100). Nothing here
  * changes the return value, and the adapter is never reached from a gate or from lint (D-99).
  */
 async function trackerCells(ctx: CommandContext, rows: StatusRow[]): Promise<Record<string, string> | undefined> {
-  const tracker = ctx.snapshot.config?.tracker;
-  if (tracker?.adapter !== 'github-issues' || tracker.repo === undefined) return undefined;
+  const config = ctx.snapshot.config;
+  const adapter = adapterFor(config?.tracker);
+  if (adapter === undefined) return undefined;
 
   const linked = rows.flatMap((r) => {
-    const n = r.tracker?.['github-issues'];
-    return n === undefined ? [] : [[r.id, n] as const];
+    const key = issueKeyOf(r, adapter.name, config?.ids?.mode);
+    return key === undefined ? [] : [[r.id, key] as const];
   });
   if (linked.length === 0) return undefined;
 
-  // D-101: one GET per referenced issue and none for an issue nothing references, so the archived
-  // filter the caller already applied is what keeps a hidden ticket free.
-  const { issues, warning } = await fetchIssues(tracker.repo, [...new Set(linked.map(([, n]) => n))], ctx.env);
+  // D-101: one request per referenced issue and none for an issue nothing references, so the archived
+  // filter the caller already applied is what keeps a hidden ticket free. `fetch` is read here, at call
+  // time, so a test that stubs the global reaches the adapter.
+  const { issues, warning } = await adapter.fetch([...new Set(linked.map(([, key]) => key))], ctx.env, {
+    fetchImpl: fetch,
+    root: ctx.root,
+  });
   if (warning !== undefined) ctx.stderr.write(warning + '\n');
 
   const cells: Record<string, string> = {};
-  for (const [id, n] of linked) {
-    const facts = issues[n];
+  for (const [id, key] of linked) {
+    const facts = issues[key];
     cells[id] =
       facts === undefined
         ? EMPTY_CELL
-        : ['#' + n, facts.state, facts.title, facts.labels.join(',')].filter((p) => p !== '').join(' ');
+        : [adapter.label?.(key) ?? key, facts.state, facts.title, facts.labels.join(',')].filter((p) => p !== '').join(' ');
   }
   return cells;
 }

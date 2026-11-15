@@ -22,7 +22,7 @@ AI coding agents produce features that pass their own tests and still miss what 
 - A workflow shipped as skill files, one definition each, rendered for every coding agent you list: Claude Code, Codex, Cursor and Copilot.
 - Lanes sized to the work, each ticket worked in its own git worktree. See [Usage](#usage).
 - Tests as evidence, never as a claim. `accord task-done` and `accord gate done` read only the JUnit report that `tests.report` names in `config.yml`. The CLI never runs a test command itself.
-- Trackers, design tools and a future multi-repo hub are adapters, never requirements. The default tracker is `none`.
+- Trackers, design tools and a future multi-repo hub are adapters, never requirements. The default tracker is `none`. `tracker.adapter` also takes `github-issues` (`GITHUB_TOKEN`, or the `gh` CLI), `jira` (`JIRA_EMAIL` and `JIRA_API_TOKEN` for Cloud, or `JIRA_PAT` for Server and Data Center, with an https `url`), `linear` (`LINEAR_API_KEY`) and `script` (a `command` of your own that prints JSON). Tokens come from your environment and are never written to a file. Tracker data is display only: `accord status` shows title, state and labels, a failure is one warning, and it never changes a gate, a lint result or an exit code. See [docs/releases.md](https://github.com/ngothanhluan/accord/blob/main/docs/releases.md) for the script contract.
 
 ## What it is not
 

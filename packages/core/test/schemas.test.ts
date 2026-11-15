@@ -111,6 +111,37 @@ describe('config.schema.json', () => {
     expect(has(validate('config', withRepo('owner/name/extra')), '/tracker/repo', 'schema.pattern')).toBe(true);
   });
 
+  it('risk:complex-branching tracker.adapter accepts linear and refuses an unknown adapter (ST-LN-97 t3-ac-1)', () => {
+    const adapter = (a: string) => validate('config', { ...minimal.config, tracker: { adapter: a } });
+    expect(adapter('linear')).toEqual([]);
+    expect(has(adapter('jira2'), '/tracker/adapter', 'schema.enum')).toBe(true);
+  });
+
+  it('risk:complex-branching tracker.adapter accepts exactly none, github-issues, jira, linear and script, each with its required key (ST-LN-97 t3-ac-1)', () => {
+    const tracker = (t: unknown) => validate('config', { ...minimal.config, tracker: t });
+    expect(tracker({ adapter: 'none' })).toEqual([]);
+    expect(tracker({ adapter: 'linear' })).toEqual([]);
+    expect(tracker({ adapter: 'github-issues', repo: 'o/n' })).toEqual([]);
+    expect(tracker({ adapter: 'jira', url: 'https://example.atlassian.net' })).toEqual([]);
+    expect(tracker({ adapter: 'script', command: 'node tracker.mjs' })).toEqual([]);
+    expect(has(tracker({ adapter: 'github-issues' }), '/tracker', 'schema.required')).toBe(true);
+    expect(has(tracker({ adapter: 'jira' }), '/tracker', 'schema.required')).toBe(true);
+    expect(has(tracker({ adapter: 'script' }), '/tracker', 'schema.required')).toBe(true);
+    expect(has(tracker({ adapter: 'jira2' }), '/tracker/adapter', 'schema.enum')).toBe(true);
+    expect(has(tracker({ adapter: 'script', command: '' }), '/tracker/command', 'schema.minLength')).toBe(true);
+    expect(has(tracker({ adapter: 'script', command: 'a\nb' }), '/tracker/command', 'schema.pattern')).toBe(true);
+  });
+
+  it('risk:security tracker.url is https only: http, a bare host, a query and a space fail; a context path passes (ST-LN-97 t3-ac-2)', () => {
+    const jira = (url: string) => validate('config', { ...minimal.config, tracker: { adapter: 'jira', url } });
+    expect(jira('https://jira.example.com/jira')).toEqual([]);
+    expect(jira('https://jira.example.com/jira/')).toEqual([]);
+    expect(jira('https://example.atlassian.net')).toEqual([]);
+    for (const bad of ['http://example.com', 'http://localhost:8080', 'HTTP://example.com', 'example.com', 'ftp://example.com', 'https://example.com?x=1', 'https://example.com#f', 'https://exa mple.com', 'https://']) {
+      expect(has(jira(bad), '/tracker/url', 'schema.pattern'), bad).toBe(true);
+    }
+  });
+
   it('design accepts only tokens', () => {
     const withSource = { ...minimal.config, design: { tokens: '', source: 'figma' } };
     expect(has(validate('config', withSource), '/design', 'schema.additionalProperties')).toBe(true);

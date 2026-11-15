@@ -11,7 +11,11 @@ profile: build
 
 tracker:
   # none - accord needs nothing outside this repository.
-  # github-issues - also add `repo: owner/name` here.
+  # github-issues - also add `repo: owner/name` here. Token: GITHUB_TOKEN, or the gh CLI.
+  # jira - also add `url: https://<site>.atlassian.net`. Token: JIRA_EMAIL + JIRA_API_TOKEN (Cloud) or JIRA_PAT (Server/DC).
+  # linear - token: LINEAR_API_KEY.
+  # script - also add `command: node scripts/tracker.mjs` (JSON on stdout; on Windows do not use ./x.sh).
+  # Tokens come from your environment, never from this file. Tracker data is display only; it never changes a gate.
   adapter: none
 
 design:

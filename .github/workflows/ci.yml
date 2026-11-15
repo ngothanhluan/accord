@@ -5,15 +5,52 @@ on:
   pull_request:
 permissions:
   contents: read
+# A new push to a pull request cancels the run still going on its previous push; a push to main is never cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  check:
+  static:
+    name: build, lint and typecheck
+    # Once, not per test cell: lint and typecheck read the source, not the OS or the Node version the tests run on.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm run typecheck
+  test:
+    name: test (${{ matrix.target.os }}, ${{ matrix.node }}, ${{ matrix.target.shard }}/${{ matrix.target.of }})
+    # Every test file runs on both operating systems and both Node versions. Windows takes about 25 to 30 minutes
+    # for the whole suite on one runner (each test spawns git, and process spawn is slow there), so it is split into
+    # 5 shards balanced by measured cost per file (test/shard.ts); every shard must pass. Ubuntu runs it whole in
+    # about 3 minutes.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
         node: [22, 24]
-    runs-on: ${{ matrix.os }}
+        target:
+          - { os: ubuntu-latest, shard: 1, of: 1 }
+          - { os: windows-latest, shard: 1, of: 5 }
+          - { os: windows-latest, shard: 2, of: 5 }
+          - { os: windows-latest, shard: 3, of: 5 }
+          - { os: windows-latest, shard: 4, of: 5 }
+          - { os: windows-latest, shard: 5, of: 5 }
+    runs-on: ${{ matrix.target.os }}
     steps:
+      # The sandboxes go to the drive the workspace is on (D:), not the runner's default temp folder on C:; measured
+      # about 10% faster over the whole suite. Defender real-time scanning is already off on these runners.
+      - name: temp folder beside the workspace
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
@@ -21,13 +58,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
+      # Two forks on the 4-CPU runners (the default, half the CPUs): four forks finished the light shards faster but
+      # doubled the heaviest file (worktree-clean.test.ts, 223 s to 453 s), which sets the length of a shard.
+      - run: npm test -- --shard=${{ matrix.target.shard }}/${{ matrix.target.of }}
   examples:
     name: run the generated workflow's commands against the examples
     # No matrix. This job demonstrates that the two commands `accord init` writes into a user's
-    # workflow actually work against a filled-in repository; `check` above already covers both
+    # workflow actually work against a filled-in repository; `test` above already covers both
     # operating systems and both Node versions.
     runs-on: ubuntu-latest
     steps:
@@ -79,3 +116,40 @@ jobs:
             rm -rf "$tmp"
           done
           exit $code
+  macos:
+    name: test (macos-latest, 24, ${{ matrix.shard }}/2) on a release pull request
+    # Only on a pull request from a release/ branch, so a release gets macOS evidence without slowing other runs.
+    # The runner has 3 CPUs, so the default is one fork: 13 minutes for the suite. Three forks took 9; two shards of
+    # three forks keep a release run under 10. test/lock.ts does not lower the fork count on macOS (D-08); 3 forks
+    # need about 1.8 GB of the runner's 7 GB.
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    runs-on: macos-latest
+    env:
+      ACCORD_TEST_WORKERS: 3
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test -- --shard=${{ matrix.shard }}/2
+  ci-ok:
+    name: ci-ok
+    # The one check to read or to require: it fails when any job above failed or was cancelled. The macOS job counts
+    # only on a release pull request, where it runs; elsewhere it is skipped by its condition.
+    if: always()
+    needs: [static, test, examples, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: every job passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'to_entries | all(.value.result == "success" or (.key == "macos" and .value.result == "skipped"))' > /dev/null

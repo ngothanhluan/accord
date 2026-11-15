@@ -92,7 +92,7 @@ export function pinBefore(from: string, pin: string | undefined, basePin?: strin
  * checker's round-1 grounds rule (PLAN_GROUNDS_FROM, D-19). ST-LN-96 D-02, CR-01: the read order is fixed. A failed claim read is false first. Then the claim fact's `ruleset`, the first
  * value the branch held (written at the claim from RULESET_FROM, so a rebase, which rewrites the claim commit, cannot change the rules the ticket was claimed under). Then, only when git
  * holds no claim fact with a pin (a squash merge dropped the claim commit), the ticket's own frontmatter `ruleset`, which is all there is there. A hand edit of the working-tree field never
- * outranks what git read, because `accord approve` runs no gate that could catch it. A `ruleset` that is not a plain x.y.z is ignored. Then the chain below. The five constants are one release, and a test names the equality (D-15). Other rules follow the record or the plan instead and do not ask this pin: the Phase 2 grounds rule (which a ticket claimed earlier keeps) and the plan fix scope read the pin at the first round of the record
+ * outranks what git read, because `accord approve` runs no gate that could catch it, and with no fact it counts only on a ticket that is done (it holds `verified_hash` and `verified_commit`). A `ruleset` that is not a plain x.y.z is ignored. Then the chain below. The five constants are one release, and a test names the equality (D-15). Other rules follow the record or the plan instead and do not ask this pin: the Phase 2 grounds rule (which a ticket claimed earlier keeps) and the plan fix scope read the pin at the first round of the record
  * (GROUNDS_V2_FROM, `recordPins`, and the round facts of review.md), the version 2 review record reads it at the first review round (RECORD_V2_FROM),
  * and the plan size rule reads the pin at the plan's baseline commit (PLAN_SIZE_FROM, `planPins`). So a record begun after an upgrade, on a ticket
  * claimed before it, gets the grounds rule and keeps the five approach rounds. The chain: the host's claim fact (`claimPins[id]`: the pin at the
@@ -104,9 +104,12 @@ export function claimPinBefore(snapshot: RepoSnapshot, id: string, from: string)
   const fact = Object.hasOwn(snapshot.claimPins ?? {}, id) ? snapshot.claimPins![id] : undefined;
   if (fact !== undefined && 'error' in fact) return false; // fail closed first: a hand edit cannot lower the rules past a failed read
   if (fact?.ruleset !== undefined && PLAIN.test(fact.ruleset)) return pinBefore(from, fact.ruleset); // what the branch first held
-  // CR-01: a claim fact with a pin is what git says, and nothing in the working tree outranks it. The field decides only when git has no usable fact (a squash or rebase merge
-  // lost the claim commit, no git): there it is all there is, as D-02 intends.
-  const own = fact?.pin !== undefined ? undefined : Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.ruleset : undefined;
+  // CR-01: a claim fact with a pin is what git says, and nothing in the working tree outranks it. The field decides only when git has no usable fact AND the ticket is done: that is a finished
+  // ticket whose claim commit a squash or rebase merge dropped (D-02), where the field is all there is. With no fact on a ticket that is not done, the ticket was never claimed (`accord approve`
+  // requires no claim) or is still in flight, and a field there is a hand edit that nothing checks (a later claim overwrites it): the working-tree pin decides, so the new rules apply.
+  const ticket = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id] : undefined;
+  const finished = ticket?.frontmatter?.verified_commit !== undefined && ticket.frontmatter.verified_hash !== undefined;
+  const own = fact?.pin !== undefined || !finished ? undefined : ticket?.frontmatter?.ruleset;
   if (own !== undefined && PLAIN.test(own)) return pinBefore(from, own);
   const { pin, basePin } = fact ?? { pin: snapshot.config?.accord, basePin: undefined };
   return pinBefore(from, pin, basePin);

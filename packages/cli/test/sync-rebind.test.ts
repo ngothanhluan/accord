@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { claimPinBefore, loadSnapshot, RULESET_FROM } from '@accord-dev/accord-core';
 import { cleanup, commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { gitClaimFacts } from '../src/load/claim-facts.js';
+import { gitClaimFacts, withClaimPins } from '../src/load/claim-facts.js';
 import { loadFromFs } from '../src/load/fs.js';
 import { copy, type Clone, doneBranch, EXPORT, exportText, lines, pushMain, useSandboxes, verifyStage, VERIFICATION } from './helpers/worktree.js';
 import { P, pinned } from '../../../test/helpers/lane.js';
@@ -322,7 +322,7 @@ async function expectKeptRules(wt: string): Promise<void> {
   expect(gitRun(wt, 'show', 'HEAD:' + TICKET)).toMatch(/\r?\nruleset: "0\.4\.1"\r?\n/);
   expect(gitRun(wt, 'show', 'HEAD:' + CONFIG_REL)).toContain(`accord: "${RULESET_FROM}"`);
   expect(gitClaimFacts(wt, ID)).toMatchObject({ pin: RULESET_FROM, ruleset: '0.4.1' }); // the rewritten claim commit says the new pin; the first-written ruleset says the old one
-  expect(claimPinBefore(loadSnapshot(loadFromFs(wt)), ID, RULESET_FROM)).toBe(true); // the Phase 3 rules answer as at 0.4.1
+  expect(claimPinBefore(withClaimPins(wt, loadSnapshot(loadFromFs(wt)), ID), ID, RULESET_FROM)).toBe(true); // the Phase 3 rules answer as at 0.4.1, read from the claim fact the gates read
   expect(await rulesetOf(wt)).toEqual({ ready: [], plan: [], done: [] });
 }
 

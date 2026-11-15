@@ -104,3 +104,36 @@ it('risk:security an unverified ticket with review off still fails gate.verifica
     cleanup(repo);
   }
 }, 180_000);
+
+const OFF = (...stages: string[]): string => 'strictness:\n  stages:\n    M:\n' + stages.map((s) => `      ${s}: "off"\n`).join('');
+
+it('risk:complex-branching approach off removes the approach critic, not the approval (ST-LN-50 t2-ac-5)', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + OFF('approach', 'plan') });
+  try {
+    commitMsg(repo, 'claim: T-1');
+    // the critic is the stage: no round to count, exit 2, and the message names the switch
+    const refused = await run(['round', 'T-1', '--approach'], repo);
+    expect(refused.code).toBe(2);
+    expect(refused.err).toContain('strictness.stages.M.approach');
+    expect(refused.out).toBe('');
+    const plan = await run(['round', 'T-1', '--plan'], repo);
+    expect(plan.code).toBe(2);
+    expect(plan.err).toContain('strictness.stages.M.plan');
+    // review rounds are not the approach critique: review is not off, so they answer
+    expect((await run(['round', 'T-1'], repo)).err).not.toContain('strictness.stages');
+
+    // the approval is LOCKED: accord approve still hashes the ticket's sections
+    const approved = await run(['approve', 'T-1'], repo);
+    expect(approved.code).toBe(0);
+    expect(approved.out).toMatch(/^approved accord\/tickets\/T-1\.md at /);
+
+    // with the stages on, the critic answers as today
+    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    const on = await run(['round', 'T-1', '--approach'], repo);
+    expect(on.code).toBe(0);
+    expect(on.out).toMatch(/^Round: 1 of /);
+    expect((await run(['round', 'T-1', '--plan'], repo)).code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

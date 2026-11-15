@@ -2,12 +2,13 @@
 // floor.ts) from every gate and from the ticket's lint findings, and progressOf skips the stage. The floor stages (intent, build, verify) and every stage of lanes S and R
 // never leave, and no LOCKED rule leaves with a stage.
 import { describe, expect, it } from 'vitest';
-import { gateDone, lintSnapshot, loadSnapshot, resolveStrictness, setFrontmatterKey, statusRows } from '../src/index.js';
+import { DISCUSS_FROM, gateDone, gateReady, lintSnapshot, loadSnapshot, resolveStrictness, setFrontmatterKey, statusRows } from '../src/index.js';
 import type { AccordConfig, RepoSnapshot } from '../src/index.js';
 import { stageOff } from '../src/gate/floor.js';
+import { nextStep } from '../src/status/stage.js';
 import { acHash } from '../src/gate/hash.js';
 import { approved } from './helpers/approve.js';
-import { CONFIG, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_BODY, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 const T1 = 'accord/tickets/T-1.md';
 const stagesConfig = (yaml: string): string => CONFIG + 'strictness:\n  stages:\n' + yaml;
@@ -131,5 +132,52 @@ describe('the floor never leaves (ST-LN-50 t2-ac-5)', () => {
     // values that are not an object, or a stage value that is not on or off, leave nothing off
     expect(resolveStrictness(config('off' as never)).stages.M.size).toBe(0);
     expect(resolveStrictness(config({ M: { review: 'maybe' } } as never)).stages.M.size).toBe(0);
+  });
+});
+
+describe('discuss and approach off for lane M (ST-LN-50 t2-ac-5)', () => {
+  const EMPTY_APPROACH = LANE_BODY.replace('Extend the existing report writer with a csv mode.\n', '');
+  /** A lane `lane` ticket claimed at the discuss cut-off with no discuss.md; `body` replaces the ticket body. */
+  const ready = (config: string, opts: { lane?: string; body?: string; approve?: boolean } = {}): string[] => {
+    const lane = opts.lane ?? 'M';
+    const base = { 'accord/config.yml': config, [T1]: laneTicket('T-1', { lane, ...(opts.body === undefined ? {} : { body: opts.body }) }) };
+    const files = opts.approve === false ? base : approved(base, 'T-1');
+    const s = { ...snap(files), claimPins: { 'T-1': { pin: DISCUSS_FROM } } };
+    return gateReady(s, 'T-1').findings.map((f) => f.rule);
+  };
+
+  it('risk:complex-branching discuss and approach off are skipped by the gates, the approval stays (ST-LN-50 t2-ac-5)', () => {
+    // today: no discuss.md fails, an empty Approach fails, an unapproved ticket fails gate.approval-missing
+    expect(ready(CONFIG)).toContain('gate.discuss-missing');
+    expect(ready(CONFIG, { body: EMPTY_APPROACH })).toContain('gate.approach-empty');
+
+    // discuss off for lane M: no discuss finding for M, still one for L
+    const discussOff = stagesConfig('    M:\n      discuss: off\n');
+    expect(ready(discussOff).filter((r) => r.startsWith('gate.discuss-'))).toEqual([]);
+    expect(ready(discussOff, { lane: 'L' })).toContain('gate.discuss-missing');
+
+    // approach off: gate.approach-empty leaves; gate.approval-missing and gate.approval-stale are LOCKED and stay
+    const approachOff = stagesConfig('    M:\n      approach: off\n');
+    expect(ready(approachOff, { body: EMPTY_APPROACH })).not.toContain('gate.approach-empty');
+    expect(ready(approachOff, { body: EMPTY_APPROACH, lane: 'L' })).toContain('gate.approach-empty');
+    expect(ready(approachOff, { approve: false })).toContain('gate.approval-missing');
+    const stale = (): string[] => {
+      const files = approved({ 'accord/config.yml': approachOff, [T1]: laneTicket('T-1') }, 'T-1');
+      files[T1] = files[T1].replace('csv mode.', 'csv mode, changed.');
+      return gateReady({ ...snap(files), claimPins: { 'T-1': { pin: DISCUSS_FROM } } }, 'T-1').findings.map((f) => f.rule);
+    };
+    expect(stale()).toContain('gate.approval-stale');
+  });
+
+  it('risk:complex-branching the stage trace and its next step never name an off discuss or approach step (ST-LN-50 t2-ac-5)', () => {
+    const cfg = stagesConfig('    M:\n      discuss: off\n      approach: off\n');
+    const unapproved = snap({ 'accord/config.yml': cfg, [T1]: laneTicket('T-1') });
+    const ticket = unapproved.tickets['T-1'];
+    expect(stageOf({ 'accord/config.yml': cfg, [T1]: laneTicket('T-1') })).toBe('intent');
+    expect(nextStep(ticket, 'intent')).toBe('the owner approves the ticket (accord approve)');
+    expect(nextStep(ticket, 'plan')).not.toMatch(/discuss|approach/i);
+    // the stage set the engines read holds both, nothing else, and no preset or floor key joins them
+    expect([...resolveStrictness(unapproved.config).stages.M].sort()).toEqual(['approach', 'discuss']);
+    expect(stageOf(approved({ 'accord/config.yml': cfg, [T1]: laneTicket('T-1') }, 'T-1'))).toBe('plan');
   });
 });

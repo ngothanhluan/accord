@@ -7,6 +7,8 @@ import type { AccordConfig } from '@accord-dev/accord-core';
 import { githubAdapter } from './github-issues.js';
 import { jiraAdapter } from './jira.js';
 import { linearAdapter } from './linear.js';
+import { scriptAdapter } from './script.js';
+import type { runTeamCommand } from '../load/team-run.js';
 
 /** What a tracker says about one issue, already reduced to printable ASCII. */
 export interface IssueFacts {
@@ -21,10 +23,14 @@ export interface TrackerResult {
   warning?: string;
 }
 
-/** The seams an adapter may use: the fetch to call (a test injects one) and the repository root. */
+/**
+ * The seams an adapter may use: the fetch to call (a test injects one), the repository root, and the one runner
+ * for committed team commands (the script adapter only; absent means the real `runTeamCommand`).
+ */
 export interface TrackerIo {
   fetchImpl: typeof fetch;
   root: string;
+  run?: typeof runTeamCommand;
 }
 
 export interface TrackerAdapter {
@@ -37,7 +43,7 @@ export interface TrackerAdapter {
 
 /**
  * The adapter the config names, or undefined for `none` (checked before anything else) and for an
- * adapter that cannot run without a setting the config lacks (github-issues with no `repo`, jira with no `url`). A missing
+ * adapter that cannot run without a setting the config lacks (github-issues with no `repo`, jira with no `url`, script with no `command`). A missing
  * environment secret is not decided here: the adapter's own warning names it.
  */
 export function adapterFor(tracker: AccordConfig['tracker'] | undefined): TrackerAdapter | undefined {
@@ -52,8 +58,7 @@ export function adapterFor(tracker: AccordConfig['tracker'] | undefined): Tracke
     case 'linear':
       return linearAdapter;
     case 'script':
-      // The script adapter is plan 03.1-31; until then a `script` config reads no tracker.
-      return undefined;
+      return tracker.command === undefined ? undefined : scriptAdapter(tracker.command);
   }
 }
 

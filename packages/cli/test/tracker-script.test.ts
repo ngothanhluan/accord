@@ -96,7 +96,6 @@ function scriptRepo(command: string): string {
 }
 
 const rowOf = (out: string, id: string): string => out.split('\n').find((l) => l.startsWith(id)) ?? '';
-const warningsOf = (err: string): string[] => err.split('\n').filter((l) => l.startsWith('tracker '));
 
 /** An adapter io whose runner is the real one, recording what it was asked. */
 function recordingIo(seen: { command?: string; options?: TeamRunOptions }): TrackerIo {
@@ -133,7 +132,7 @@ describe('the script contract version 1 (ST-LN-97 t3-ac-2)', () => {
         writeFileSync(${JSON.stringify(seenFile)}, JSON.stringify({ argv: process.argv.slice(2), input, tracker: process.env.ACCORD_TRACKER, root: process.env.ACCORD_ROOT, cwd: process.cwd() }));
         process.stdout.write(${JSON.stringify(
           answer({
-            'ENG-1': { title: 'Fix export', state: 'In Progress', labels: ['ui', 'csv'] },
+            'ENG-1': { title: 'Fix', state: 'Doing', labels: ['ui', 'csv'] },
             'ENG-2': { title: 'Add login', state: 'Todo', labels: [] },
             'ZZ-9': { title: 'Not asked for', state: 'Done', labels: [] },
           }),
@@ -145,7 +144,7 @@ describe('the script contract version 1 (ST-LN-97 t3-ac-2)', () => {
       const { code, out, err } = await run(['status'], repo, ENV);
       expect(code).toBe(0);
       expect(err).toBe('');
-      expect(rowOf(out, 'ISS-7')).toContain('ENG-1 In Progress Fix export ui,csv');
+      expect(rowOf(out, 'ISS-7')).toContain('ENG-1 Doing Fix ui,csv');
       expect(rowOf(out, 'ISS-8')).toContain('ENG-2 Todo Add login');
       expect(out).not.toContain('Not asked for');
 

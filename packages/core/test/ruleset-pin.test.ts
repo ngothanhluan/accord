@@ -1,8 +1,8 @@
 // ST-LN-96 t1-ac-1: claimPinBefore reads the ticket's own `ruleset` first, then the claim fact, then the working-tree pin.
 import { describe, expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, claimPinBefore, DISCUSS_FROM, loadSnapshot, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, RULESET_FROM } from '../src/index.js';
+import { APPROACH_CAP_FROM, claimPinBefore, DISCUSS_FROM, loadSnapshot, pinBefore, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, RULESET_FROM } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
-import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, RUNNING, laneTicket } from '../../../test/helpers/lane.js';
 
 const at = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
 
@@ -61,6 +61,11 @@ describe('claimPinBefore reads ruleset', () => {
     expect(RULESET_FROM).toBe('0.5.0');
     expect(before(RULESET_FROM, { ruleset: '0.5.0', pin: '0.4.0' })).toBe(false); // adjacency: pinBefore is strict
     expect(before(RULESET_FROM, { ruleset: '0.4.9', pin: '0.5.0' })).toBe(true);
+  });
+
+  it('risk:regression RULESET_FROM is the release that ships the rule: equal to the CLI version at 0.5.0, never after it (ST-LN-96 rel-ac-1)', () => {
+    expect(pinBefore(RULESET_FROM, RUNNING)).toBe(false); // the cut-off is never ahead of the running CLI
+    if (RUNNING === '0.5.0') expect(RULESET_FROM).toBe(RUNNING); // the release that ships it names itself
   });
 
   it('risk:security with no ruleset and no claim commit the working-tree pin decides, so the new rules apply at the running version (ST-LN-96 t1-ac-1)', () => {

@@ -6,7 +6,9 @@ import { expect, it, vi } from 'vitest';
 import { loadConfig } from '@accord-dev/accord-core';
 import type { AccordConfig } from '@accord-dev/accord-core';
 import { gitClaimFacts } from '../src/load/claim-facts.js';
-import { commitMsg, gitRun, run } from './helpers/repo.js';
+import type { StatusRow } from '@accord-dev/accord-core';
+import { approve, P, type Files } from '../../../test/helpers/lane.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run } from './helpers/repo.js';
 import { copy, type Clone, ME, PIN, teammate, useSandboxes } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
@@ -94,4 +96,78 @@ it('risk:complex-branching new ticket --worktree commits the templated claim sub
   expect(made.err).toBe('');
   expect(made.code).toBe(0);
   expect(subject(c, 't/ST-9')).toBe('chore(accord): claim ST-9');
+});
+
+// ST-LN-50 D-06 (t2-ac-3, the plan-ready half): `accord config` keeps the replaced template readable, `accord status` reads the plan-ready
+// commit under both, `accord subject` prints the current subject and `accord drop` writes it.
+const approveIn = (repo: string, id: string): void => {
+  const files: Files = { [P(id)]: readFileSync(`${repo}/${P(id)}`, 'utf8') };
+  approve(files, id);
+  writeFileSync(`${repo}/${P(id)}`, files[P(id)]);
+};
+const stageIn = async (repo: string): Promise<string | undefined> => (JSON.parse((await run(['status', '--json'], repo)).out) as StatusRow[]).find((r) => r.id === 'T-1')?.stage;
+const legacyOf = async (repo: string, name: string): Promise<unknown> => JSON.parse((await run(['config', 'get', `commits.legacy_subjects.${name}`, '--json'], repo)).out).value;
+
+it('risk:complex-branching accord config keeps the old template and accord subject prints the current one (ST-LN-50 t2-ac-3)', async () => {
+  const repo = makeLaneRepo();
+  try {
+    approveIn(repo, 'T-1');
+    commitAll(repo, 'plan: T-1 ready'); // committed under the default subject, before any template is set
+    expect(await stageIn(repo)).toBe('build');
+
+    // Setting a template appends the replaced one, here the default because none was set, and the plan keeps its fact.
+    const set = await run(['config', 'set', 'commits.subjects.plan_ready', 'chore(accord): plan {id} ready'], repo);
+    expect(set.err).toBe('');
+    expect(set.code).toBe(0);
+    expect(set.out.split('\n')).toEqual(['changed: commits.subjects.plan_ready unset -> "chore(accord): plan {id} ready"', 'commits.legacy_subjects.plan_ready +"plan: {id} ready"', '']);
+    expect(await legacyOf(repo, 'plan_ready')).toEqual(['plan: {id} ready']);
+    expect((await run(['config', 'check'], repo)).code).toBe(0);
+    expect(await stageIn(repo)).toBe('build'); // still past plan under the old subject
+    expect((await run(['subject', 'plan_ready', 'T-1'], repo)).out).toBe('chore(accord): plan T-1 ready\n');
+
+    // A second change appends the first template, not the default again; an unchanged value appends nothing.
+    const again = await run(['config', 'set', 'commits.subjects.plan_ready', 'plan({id}): ready'], repo);
+    expect(again.out.split('\n')).toEqual(['changed: commits.subjects.plan_ready "chore(accord): plan {id} ready" -> "plan({id}): ready"', 'commits.legacy_subjects.plan_ready +"chore(accord): plan {id} ready"', '']);
+    expect((await run(['config', 'set', 'commits.subjects.plan_ready', 'plan({id}): ready'], repo).then((r) => r.out))).toBe('unchanged: commits.subjects.plan_ready\n');
+    expect(await legacyOf(repo, 'plan_ready')).toEqual(['plan: {id} ready', 'chore(accord): plan {id} ready']);
+    expect(await stageIn(repo)).toBe('build');
+
+    // Setting it back to a template that is already listed appends only the one it replaces.
+    const back = await run(['config', 'set', 'commits.subjects.plan_ready', 'plan: {id} ready'], repo);
+    expect(back.out.split('\n').slice(1)).toEqual(['commits.legacy_subjects.plan_ready +"plan({id}): ready"', '']);
+    expect(await legacyOf(repo, 'plan_ready')).toEqual(['plan: {id} ready', 'chore(accord): plan {id} ready', 'plan({id}): ready']);
+
+    // A whole map appends once per name it changes, in the fixed order, and a name it leaves alone appends nothing.
+    const whole = await run(['config', 'set', 'commits.subjects', '{scout: "scout({id})", claim: "chore(accord): claim {id}", plan_ready: "plan: {id} ready"}', '--json'], repo);
+    expect(JSON.parse(whole.out).consequences).toEqual([
+      { key: 'commits.legacy_subjects.claim', added: ['claim: {id}'] },
+      { key: 'commits.legacy_subjects.scout', added: ['scout: {id} report'] },
+    ]);
+    expect((await run(['config', 'check'], repo)).code).toBe(0);
+
+    // Unsetting returns the name to its default and keeps the template it removes.
+    const unset = await run(['config', 'unset', 'commits.subjects.scout'], repo);
+    expect(unset.out.split('\n').slice(1)).toEqual(['commits.legacy_subjects.scout +"scout({id})"', '']);
+    expect(await legacyOf(repo, 'scout')).toEqual(['scout: {id} report', 'scout({id})']);
+
+    // accord subject: the tail follows the rendered head; an unknown name and a bad id exit 2.
+    expect((await run(['subject', 'claim', 'T-1'], repo)).out).toBe('chore(accord): claim T-1\n');
+    expect((await run(['subject', 'plan_round', 'T-1', 'round', '2,', '1', 'Must,', '0', 'Should'], repo)).out).toBe('plan: T-1 round 2, 1 Must, 0 Should\n');
+    const unknown = await run(['subject', 'nosuch', 'T-1'], repo);
+    expect(unknown.code).toBe(2);
+    expect(unknown.err).toContain('plan_ready');
+    expect((await run(['subject', 'claim', 'T 1'], repo)).code).toBe(2);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching accord drop commits the drop template subject (ST-LN-50 t2-ac-3)', async () => {
+  const c = copy({ tickets: ['ST-1', 'ST-2', 'ST-9', 'ST-10', 'ST-11'] });
+  commitConfig(c, readFileSync(`${c.root}/accord/config.yml`, 'utf8') + 'commits:\n  subjects:\n    drop: "chore(accord): drop {id}"\n');
+  const r = await run(['drop', 'ST-1', '--reason', 'x'], c.root);
+  expect(r.err).toBe('');
+  expect(r.code).toBe(0);
+  expect(r.out).toBe('branch: drop/ST-1\nbase: main\ntitle: chore(accord): drop ST-1\n');
+  expect(gitRun(c.remote, 'cat-file', 'commit', gitRun(c.remote, 'rev-parse', 'refs/heads/drop/ST-1').trim())).toContain('\n\nchore(accord): drop ST-1\n');
 });

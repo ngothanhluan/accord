@@ -1,5 +1,6 @@
 import { availableParallelism } from 'node:os';
 import { defineConfig } from 'vitest/config';
+import WeightedSequencer from './test/shard.js';
 
 // Each fork spawns git and the CLI; vitest's default of CPUs-1 forks ran a 32 GB host out of memory with two
 // sessions testing at once. ACCORD_TEST_WORKERS sets the cap, otherwise half the CPUs; once the run holds the lock,
@@ -18,6 +19,8 @@ export default defineConfig({
     maxWorkers: workers(process.env, availableParallelism()),
     // ST-LN-67: the cap is per run; this lock lets one run at a time hold the machine.
     globalSetup: ['./test/lock.ts'],
+    // `--shard` splits the files by measured cost, not by count (test/shard.ts); without `--shard` nothing changes.
+    sequence: { sequencer: WeightedSequencer },
     // Explicit list, not 'packages/*': the test-less packages/mcp stub is never a project.
     projects: ['packages/core', 'packages/cli'],
   },

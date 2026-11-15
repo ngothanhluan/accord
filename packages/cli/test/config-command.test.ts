@@ -213,3 +213,19 @@ it('risk:complex-branching changing the id pattern keeps every id and fills lega
   expect(refused.code).toBe(2);
   expect(text(repo)).toBe(kept);
 });
+
+// CR-02 (round 2): the value written is the value typed. A command whose quotes keep a path together, or whose backslashes are a Windows path, must not be
+// rewritten by `config set` into another command (a JSON unwrap turned a quoted backslash path into a TAB and a BACKSPACE, and exited 0).
+it('risk:data-loss accord config set stores a quoted command and a backslash path unchanged (CR-02)', async () => {
+  const repo = sandbox();
+  for (const [key, value] of [
+    ['git.sync', '"./my scripts/sync.sh"'],
+    ['git.sync', String.raw`"C:\tools\build.cmd"`],
+  ] as const) {
+    const set = await run(['config', 'set', key, value], repo);
+    expect(set.err, value).toBe('');
+    expect(set.code, value).toBe(0);
+    expect(JSON.parse((await run(['config', 'get', key, '--json'], repo)).out), value).toEqual({ key, value });
+    await run(['config', 'unset', key], repo);
+  }
+});

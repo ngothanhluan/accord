@@ -84,7 +84,9 @@ function mentions(files: SkillFile[]): Mention[] {
           // the word run above already stops at the first character that is not lowercase or a hyphen.
           const command = m[1].trim().replace(/\s+/g, ' ');
           // ST-LN-50: `accord subject` takes a subject name (`plan_ready`, `intent`) as its first argument, so the lowercase word after it is an argument, not a path.
-          found.push({ where: `${path}:${i + 1}`, command: command.startsWith('subject ') ? 'subject' : command });
+          // CR-02: `accord config set git.merge 'squash'` names a key, and the word run stops at its first dot: the key is an argument of config get, set and unset too.
+          const keyed = /^config (?:get|set|unset)\b/.exec(command)?.[0];
+          found.push({ where: `${path}:${i + 1}`, command: command.startsWith('subject ') ? 'subject' : (keyed ?? command) });
         }
       }
     });

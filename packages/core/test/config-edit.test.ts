@@ -148,10 +148,10 @@ it('risk:parsing a value that starts with [ or { is a YAML flow collection, any 
   expect(parseValue('true')).toBe('true');
   expect(parseValue('{ n: 0123 }')).toEqual({ n: '0123' });
   expect(parseValue('make sync [fast]')).toBe('make sync [fast]');
-  // a JSON string literal, as `accord init` prints a string proposal, is unwrapped; a lone quote is an ordinary string
-  expect(parseValue('"squash"')).toBe('squash');
-  expect(parseValue('"feat/{id}"')).toBe('feat/{id}');
-  expect(parseValue('"a \\"b\\" c"')).toBe('a "b" c');
+  // CR-02 (round 2): a value is never unwrapped. A quote that keeps a path with a space together, or a backslash path, is the command the user typed
+  expect(parseValue('"squash"')).toBe('"squash"');
+  expect(parseValue('"./my scripts/sync.sh"')).toBe('"./my scripts/sync.sh"');
+  expect(parseValue(String.raw`"C:\tools\build.cmd"`)).toBe(String.raw`"C:\tools\build.cmd"`);
   expect(parseValue('"')).toBe('"');
   expect(parseValue('"half')).toBe('"half');
   expect(parseValue('')).toBe('');

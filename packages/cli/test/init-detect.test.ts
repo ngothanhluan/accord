@@ -49,8 +49,9 @@ function history(shapes: Shape[]): string {
     shapes.forEach((shape, i) => {
       const n = i + 1;
       const parents = tip === undefined ? [] : [tip];
+      // Not conventional-commit subjects: the other detectors (plan 03.1-34) would add a subjects proposal to the output these cases read.
       if (shape === 'merge') tip = commit(`Merge pull request #${n} from team/topic-${n}`, [...parents, side]);
-      else tip = commit(shape === 'squash' ? `fix: change ${n} (#${n})` : `fix: change ${n}`, parents);
+      else tip = commit(shape === 'squash' ? `change ${n} (#${n})` : `change ${n}`, parents);
     });
     if (tip !== undefined) gitRun(repo, 'update-ref', 'refs/heads/main', tip);
     return repo;

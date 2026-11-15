@@ -2,7 +2,12 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.5.0 — 2026-11-15
+
+Release 0.5.0 gives a team settings for how it merges, names its tickets and commits, how strict it is and what a ticket holds, which tracker it reads, and how it sets accord up on an existing repository (five groups below). A repository that sets none of the new keys behaves as in 0.4.1, except for the `ruleset` line a claim now writes into each new ticket. The rule that reads the ticket's own `ruleset` has a cut-off constant in `packages/core/src/round/pin.ts`, `RULESET_FROM`, which holds the first release that ships the rule and reads `0.5.0`.
+
+- Tickets in flight: a ticket claimed under 0.4.x keeps the claim-commit reader of 0.4.1 (the five pin-reading rules read the `accord:` pin at its claim commit) until `accord upgrade`, or its first `accord worktree sync` or Continue, writes `ruleset: "<claim pin>"` into it. From then on a squash merge or a rebase merge, which drops or rewrites the claim commit, keeps the ticket's rules. A ticket claimed under 0.5.0 or later carries `ruleset` from its claim. A ticket that is done or has no claim branch is left as it is.
+- Repositories pinned to 0.4.1: they keep 0.4.1's answers and skills until `accord upgrade`, which moves the pin, regenerates the skills and backfills `ruleset` into the tickets in flight. Nothing in this release moves a pin by itself, and the repository's own pin moves after publish through `accord upgrade`. A config that uses one of the new keys (`git`, `ids`, `commits`, `strictness`, `template`, or a tracker adapter other than `none` and `github-issues`) needs 0.5.0 or later, and an older accord refuses it.
 
 Teams that merge pull requests by squash or rebase (ST-LN-96, group 1). Nothing below changes a repository that sets no `git:` key and keeps merging with merge commits, except the `ruleset` line the claim adds to a new ticket.
 

@@ -1400,6 +1400,21 @@ it('risk:regression the build skill takes the tests baseline before its single t
   expect(read('.claude/skills/accord-plan/baseline.md')).toContain('except `accord-build` with the plan stage off, as its `no-plan.md` says');
 });
 
+// WR-10 (round 2): an executor leaves its work uncommitted until the step 4 ledger commit, so a resumed run (anchor still at build, no ledger line, no baseline) must not take the
+// baseline on a dirty tree: the guard counts the working tree and untracked files as well as the commits. The loaded baseline.md names accord-plan's steps, not accord-build's.
+it('risk:regression the no-plan baseline guard counts uncommitted and untracked work, and baseline.md names accord-plan for its steps (WR-10)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const noPlan = read('.claude/skills/accord-build/no-plan.md');
+  for (const p of ['`git status --porcelain`', 'untracked', 'lists no path outside `accord/`']) expect(noPlan, p).toContain(p);
+  const baseline = read('.claude/skills/accord-plan/baseline.md');
+  expect(baseline).not.toMatch(/as step 7 says|plan-ready commit of step 8|does both at step 8/);
+  for (const p of ['step 7 of `accord-plan`', 'step 8 of `accord-plan`']) expect(baseline, p).toContain(p);
+  // the plan skill's own step 7 and 8 are the ones named
+  const plan = read('.claude/skills/accord-plan/SKILL.md');
+  expect(plan).toMatch(/\b7\. /);
+  expect(plan).toMatch(/\b8\. /);
+});
+
 // WR-11: with the approach stage off there is no option, no approach-review.md and no `## Approach`; the owner's no must not send the agent to the skipped step 2,
 // and the planner and the critic must know what to plan from and what not to check.
 it('risk:regression the approach-off path re-runs only the approval on a no, and the planner and critic cope with an empty Approach (WR-11)', () => {

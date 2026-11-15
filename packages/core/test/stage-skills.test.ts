@@ -1426,7 +1426,7 @@ it('risk:regression the verify skill retypes review heads after a rebase, shows 
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const verify = read('.claude/skills/accord-verify/SKILL.md');
   const missing = [
-    'its `synced:`, `rebased:`, `pushed:`, `rebound:` and `verify again:` lines verbatim',
+    'its `synced:`, `pushed:`, `rebased:`, `rebound:` and `verify again:` lines verbatim',
     'retype in `review.md` every round head that is the left side of a pair to its right side',
     'a `plan.md` `baseline:` that is one',
     'A line starting `push of`',

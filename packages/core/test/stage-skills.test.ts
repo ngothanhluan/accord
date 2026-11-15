@@ -1400,6 +1400,26 @@ it('risk:regression the build skill takes the tests baseline before its single t
   expect(read('.claude/skills/accord-plan/baseline.md')).toContain('except `accord-build` with the plan stage off, as its `no-plan.md` says');
 });
 
+// WR-11: with the approach stage off there is no option, no approach-review.md and no `## Approach`; the owner's no must not send the agent to the skipped step 2,
+// and the planner and the critic must know what to plan from and what not to check.
+it('risk:regression the approach-off path re-runs only the approval on a no, and the planner and critic cope with an empty Approach (WR-11)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const approval = read('.claude/skills/accord-approach/approval.md');
+  const missing = [
+    'When `accord anchor` names approach off',
+    'there is no option and no `approach-review.md`',
+    'run only this approval again',
+    'not step 2',
+  ].filter((p) => !approval.includes(p));
+  const planner = read('.claude/agents/accord-planner.md');
+  const critic = read('.claude/agents/accord-critic.md');
+  for (const [name, text] of [['planner', planner], ['critic', critic]] as const) {
+    if (!text.includes('skip this check when `## Approach` is empty because the approach stage is off')) missing.push(name + ': skip the approach check');
+  }
+  if (!planner.includes('plan from the Intent, the acceptance criteria, the Vetoes, the Decisions and the Corrections')) missing.push('planner: plan from the ticket without an Approach');
+  expect(missing).toEqual([]);
+});
+
 // ST-LN-50 t2-ac-5, D-08: a team may turn the discuss, approach, plan and review stages off for lane M, L or P; `accord anchor` then prints `stages off for lane <L>:`.
 // Each skill of such a stage reads that line first and does not run its stage; the approval stays when approach is off; and with the plan stage off the build skill
 // follows build/no-plan.md (one task, `accord brief <id> 1`, `accord task-done <id> 1 --test`) and the final review reads from the default branch.

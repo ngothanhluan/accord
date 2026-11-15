@@ -82,7 +82,8 @@ it('risk:regression with no strictness key every cap is today\'s (ST-LN-50 t2-ac
   }
   expect(resolveStrictness(undefined)).toEqual({ rounds: {}, levels: {} });
   expect(resolveStrictness(repo().config)).toEqual({ rounds: {}, levels: {} });
-  expect(PRESETS).toEqual({ build: { rounds: {}, levels: {} }, maintain: { rounds: {}, levels: {} } });
+  expect(PRESETS.build).toEqual({ rounds: {}, levels: {} });
+  expect(PRESETS.maintain.rounds).toEqual({});
   // an empty `strictness:` map, or a `rounds:` with no key, changes nothing either
   expect(capRulesOf(repo({ config: CONFIG + 'strictness:\n  rounds: {}\n', claim: cut }), 'T-1', 'plan')).toEqual(PLAN_CAP);
 });

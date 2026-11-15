@@ -4,6 +4,8 @@
 // D-88 keeps the one profile difference in v0.1 as data beside the table, never as a branch in a rule.
 import type { Finding, Level } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { MAINTAIN_DOWNGRADE, PRESETS } from '../config/strictness.js';
+import type { Strictness } from '../config/strictness.js';
 import {
   acChanged,
   acHashMissing,
@@ -361,20 +363,23 @@ export const DONE_R_RULES: readonly GateRule[] = [
 /** D-89: the three LINT-06 hygiene rules Ready promotes from warning to blocking. */
 export const READY_PROMOTE: readonly string[] = ['lint.sentinel', 'lint.open-question', 'lint.assumption-unconfirmed'];
 
-/** D-88/GATE-07: the token and size rules, softened on `maintain`. Disjoint from READY_PROMOTE. */
-export const MAINTAIN_DOWNGRADE: readonly string[] = [
-  'lint.token-hardcoded',
-  'lint.intent-oversize',
-  'lint.requirements-oversize',
-  'lint.scenarios-oversize',
-];
+/** D-88/GATE-07: the token and size rules, softened on `maintain`: the data of PRESETS.maintain (config/strictness.ts). Disjoint from READY_PROMOTE. */
+export { MAINTAIN_DOWNGRADE };
 
 /**
  * GATE-07: the whole profile matrix, applied once in the shared engine body so every gate inherits it.
- * `build` keeps every rule as configured; in v0.1 all four are already warnings, so the downgrade runs
- * correctly and changes no result. GATE-12 is then a one-cell table edit (D-88).
+ * `build` has no preset level, so a finding changes there only by a team key. On `maintain` a finding of one of the four MAINTAIN_DOWNGRADE rules takes the level the resolved strictness holds for it:
+ * the preset's warning, or the team's own `strictness.levels` key, which wins over the preset (D-09). The lint stamp has already applied that level to a table
+ * finding; this pass is what reaches a finding stamped elsewhere (a loader finding is stamped error, D-58). A rule the team turned off is left alone here: its table findings
+ * were dropped at the stamp. GATE-12 is then a one-cell table edit (D-88). `levels` defaults to the profile's preset.
  */
-export function downgradeMaintain(findings: Finding[], profile: 'build' | 'maintain'): Finding[] {
-  if (profile === 'build') return findings;
-  return findings.map((f) => (MAINTAIN_DOWNGRADE.includes(f.rule) ? { ...f, level: 'warning' as const } : f));
+export function downgradeMaintain(
+  findings: Finding[],
+  profile: 'build' | 'maintain',
+  levels: Strictness['levels'] = PRESETS[profile].levels,
+): Finding[] {
+  return findings.map((f) => {
+    const level = MAINTAIN_DOWNGRADE.includes(f.rule) && Object.hasOwn(levels, f.rule) ? levels[f.rule] : undefined;
+    return level === 'error' || level === 'warning' ? { ...f, level } : f;
+  });
 }

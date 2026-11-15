@@ -73,9 +73,10 @@ function run(
   // other check is silent without a ticket, and there is no scenario to hash. A table missing that row
   // would read its verdict off an empty list and pass a ticket that does not exist.
   const known = Object.hasOwn(snapshot.tickets, id);
-  // READY_PROMOTE and MAINTAIN_DOWNGRADE are disjoint, so the order of the two passes cannot matter.
+  // The profile preset and the team's key are one resolved level (strictness.levels), read by downgradeMaintain; READY_PROMOTE comes after it and is Ready's alone, so a team
+  // level never takes a promoted hygiene rule past Ready. The two lists are disjoint, so the order of the two passes cannot matter for any other rule.
   const lint = known
-    ? downgradeMaintain(scoped(lintSnapshot(snapshot).findings, id), profile).map((f) =>
+    ? downgradeMaintain(scoped(lintSnapshot(snapshot).findings, id), profile, strictness.levels).map((f) =>
         promote.includes(f.rule) ? { ...f, level: 'error' as const } : f,
       )
     : [];

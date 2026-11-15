@@ -137,7 +137,7 @@ describe('effectiveLevel', () => {
 
   it('risk:parsing resolveStrictness keeps a preset first, the team keys over it, and drops the keys the floor names (ST-LN-50 t2-ac-5)', () => {
     expect(PRESETS.build.levels).toEqual({});
-    expect(PRESETS.maintain.levels).toEqual({});
+    expect(PRESETS.maintain.levels).toEqual(Object.fromEntries(MAINTAIN_DOWNGRADE.map((id) => [id, 'warning'])));
     expect(resolveStrictness(undefined).levels).toEqual({});
     expect(
       resolveStrictness(levels({ 'gate.design-missing': 'off', 'gate.verification-missing': 'off', 'gate.review-missing': 'off', 'gate.nosuch': 'off', 'lint.sentinel': 'off', 'lint.vague-wording': 'error' })).levels,

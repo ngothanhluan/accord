@@ -15,12 +15,19 @@ export interface Strictness {
 }
 
 /**
- * The preset of each profile. Neither carries round values or levels: the claim pin's rules decide the caps and the rule tables decide the levels, so `profile` changes neither, as
- * today (D-09: an existing repository changes nothing).
+ * D-88/GATE-07: the token and size rules that `maintain` softens to warnings. Defined here, as the data of PRESETS.maintain, and re-exported by gate/rules.ts, so the gate
+ * module graph (which reaches this file through round/next.ts) is never read while this file is still being evaluated. Disjoint from READY_PROMOTE.
+ */
+export const MAINTAIN_DOWNGRADE: readonly string[] = ['lint.token-hardcoded', 'lint.intent-oversize', 'lint.requirements-oversize', 'lint.scenarios-oversize'];
+
+/**
+ * The preset of each profile, as data: `build` holds no level (the rule tables decide), `maintain` holds the four MAINTAIN_DOWNGRADE rules at warning. Neither carries round
+ * values: the claim pin's rules decide the caps. A team's key on the same rule wins over the preset (resolveStrictness), and the floor is never in a preset (D-09: an existing
+ * repository changes nothing; a rule on the floor takes no level from anywhere).
  */
 export const PRESETS: Record<'build' | 'maintain', Strictness> = {
   build: { rounds: {}, levels: {} },
-  maintain: { rounds: {}, levels: {} },
+  maintain: { rounds: {}, levels: Object.fromEntries(MAINTAIN_DOWNGRADE.map((id) => [id, 'warning' as const])) },
 };
 
 const ROUND_KINDS: readonly RoundKind[] = ['approach', 'plan', 'review'];

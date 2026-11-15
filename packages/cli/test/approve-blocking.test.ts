@@ -65,3 +65,24 @@ it("risk:security the owner's no closes a blocked approach cycle and the next ap
 }, 120_000);
 
 // A ticket claimed under 0.4.0 keeps its old rules: packages/cli/test/cutoff-pin.test.ts runs the CLI as 0.4.1, the only way that case can fail when the claim pin is not read.
+
+// CR-01 residual (round 2): `accord approve` does not require a claim. A ticket with no `claim:` commit reachable from HEAD that someone gave `ruleset: "0.4.0"` by hand must not lose the
+// approval block: nothing checks the field, and a later claim overwrites it.
+it('risk:security a hand-edited ruleset on a ticket with no claim commit does not lift the approval block (CR-01)', async () => {
+  const repo = makeLaneRepo();
+  writeFiles(repo, { 'accord/config.yml': CONFIG, [APPROACH]: rec(r(1, 'whole', LOSS, SEC)) });
+  commitAll(repo, 'T-1 approach rounds, never claimed');
+  try {
+    const ticket = readFileSync(join(repo, TICKET), 'utf8').replace(/\r\n/g, '\n');
+    writeFiles(repo, { [TICKET]: ticket.replace('\n---\n', '\nruleset: "0.4.0"\n---\n') });
+    expect(readFileSync(join(repo, TICKET), 'utf8')).toContain('ruleset: "0.4.0"');
+    commitAll(repo, 'a hand-edited ruleset');
+    const refused = await run(['approve', 'T-1'], repo);
+    expect(refused.err).toBe('');
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain('blocks the approval');
+    expect(readFileSync(join(repo, TICKET), 'utf8')).not.toContain('approved_hash');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

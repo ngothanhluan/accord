@@ -13,11 +13,12 @@ interface Opts {
   fact?: { error: string }; // a failed claim read
   factRuleset?: string; // the ruleset the host read from the branch's first commit that held one
   config?: string; // the working-tree config
+  done?: boolean; // the ticket carries verified_hash and verified_commit, as a ticket that finished verify does
 }
-const build = ({ ruleset, pin, basePin, fact, factRuleset, config = CONFIG }: Opts = {}): RepoSnapshot => {
+const build = ({ ruleset, pin, basePin, fact, factRuleset, config = CONFIG, done = false }: Opts = {}): RepoSnapshot => {
   const files: Record<string, string> = {
     'accord/config.yml': config,
-    'accord/tickets/T-1.md': laneTicket('T-1', ruleset === undefined ? {} : { frontmatter: [`ruleset: "${ruleset}"`] }),
+    'accord/tickets/T-1.md': laneTicket('T-1', { frontmatter: [...(ruleset === undefined ? [] : [`ruleset: "${ruleset}"`]), ...(done ? ['verified_hash: "fnv1a64:0123456789abcdef"', 'verified_commit: "abc1234def"'] : [])] }),
   };
   const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
   const claimed =
@@ -29,8 +30,8 @@ const before = (from: string, o: Opts = {}): boolean => claimPinBefore(build(o),
 describe('claimPinBefore reads ruleset', () => {
   it("risk:complex-branching claimPinBefore reads the ticket's ruleset when git holds no claim fact (ST-LN-96 t1-ac-1)", () => {
     // a squash or rebase merge loses the claim commit: no fact, so the field is all there is (D-02), in both directions
-    expect(before(DISCUSS_FROM, { ruleset: '0.4.0', config: at('0.4.1') })).toBe(true);
-    expect(before(DISCUSS_FROM, { ruleset: '0.4.1', config: at('0.4.0') })).toBe(false);
+    expect(before(DISCUSS_FROM, { ruleset: '0.4.0', config: at('0.4.1'), done: true })).toBe(true);
+    expect(before(DISCUSS_FROM, { ruleset: '0.4.1', config: at('0.4.0'), done: true })).toBe(false);
   });
 
   it('risk:security a hand-edited ruleset never outranks the claim fact the host read from git (CR-01)', () => {
@@ -60,23 +61,33 @@ describe('claimPinBefore reads ruleset', () => {
     const rc = '0.5.0-rc.1';
     expect(before(DISCUSS_FROM, { ruleset: rc, pin: '0.4.0' })).toBe(true);
     expect(before(DISCUSS_FROM, { ruleset: rc, pin: '0.4.1' })).toBe(false);
-    expect(before(DISCUSS_FROM, { ruleset: rc, config: at('0.4.0') })).toBe(true);
+    expect(before(DISCUSS_FROM, { ruleset: rc, config: at('0.4.0'), done: true })).toBe(true);
     expect(before(DISCUSS_FROM, { ruleset: rc, fact: { error: 'git failed' } })).toBe(false);
   });
 
   it('risk:complex-branching each of the five Phase 3 constants answers through the field when no claim fact exists, and a ruleset at the cut-off is not before it (ST-LN-96 t1-ac-1)', () => {
     for (const from of [DISCUSS_FROM, APPROACH_CAP_FROM, PLAN_FORMAT_FROM, PLAN_CAP_FROM, PLAN_GROUNDS_FROM]) {
-      expect(before(from, { ruleset: '0.4.0', config: at(from) }), from).toBe(true);
-      expect(before(from, { ruleset: from, config: at('0.4.0') }), from).toBe(false);
+      expect(before(from, { ruleset: '0.4.0', config: at(from), done: true }), from).toBe(true);
+      expect(before(from, { ruleset: from, config: at('0.4.0'), done: true }), from).toBe(false);
     }
     expect(RULESET_FROM).toBe('0.5.0');
-    expect(before(RULESET_FROM, { ruleset: '0.5.0', config: at('0.4.0') })).toBe(false); // adjacency: pinBefore is strict
-    expect(before(RULESET_FROM, { ruleset: '0.4.9', config: at('0.5.0') })).toBe(true);
+    expect(before(RULESET_FROM, { ruleset: '0.5.0', config: at('0.4.0'), done: true })).toBe(false); // adjacency: pinBefore is strict
+    expect(before(RULESET_FROM, { ruleset: '0.4.9', config: at('0.5.0'), done: true })).toBe(true);
   });
 
   it('risk:regression RULESET_FROM is the release that ships the rule: equal to the CLI version at 0.5.0, never after it (ST-LN-96 rel-ac-1)', () => {
     expect(pinBefore(RULESET_FROM, RUNNING)).toBe(false); // the cut-off is never ahead of the running CLI
     if (RUNNING === '0.5.0') expect(RULESET_FROM).toBe(RUNNING); // the release that ships it names itself
+  });
+
+  // CR-01 residual (round 2): `accord approve` does not require a claim, so a ticket with no claim commit reachable from HEAD is either unclaimed (its field is a hand edit that nothing
+  // checks, and a later claim overwrites it) or a claimed ticket whose claim commit a squash or rebase merge dropped (D-02). The ticket itself tells them apart: a merged ticket is done, so it
+  // carries the verified_hash and verified_commit that verify wrote; an unclaimed or in-flight one does not, and its working-tree pin decides.
+  it('risk:security with no claim fact a hand-edited ruleset lowers the rules only on a ticket that is done (CR-01)', () => {
+    for (const from of [DISCUSS_FROM, APPROACH_CAP_FROM, PLAN_FORMAT_FROM, PLAN_CAP_FROM, PLAN_GROUNDS_FROM]) {
+      expect(before(from, { ruleset: '0.4.0', config: at('0.5.0') }), from).toBe(false); // in flight, never claimed: the new rules apply
+      expect(before(from, { ruleset: '0.4.0', config: at('0.5.0'), done: true }), from).toBe(true); // D-02: merged by squash, the field is all there is
+    }
   });
 
   it('risk:security with no ruleset and no claim commit the working-tree pin decides, so the new rules apply at the running version (ST-LN-96 t1-ac-1)', () => {

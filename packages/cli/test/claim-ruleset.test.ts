@@ -105,7 +105,9 @@ function merged(how: 'squash' | 'rebase', ruleset: string | undefined): Clone {
   commitMsg(o, 'pin 0.4.0');
   gitRun(o, 'push', '-q', 'origin', 'main');
   gitRun(o, 'switch', '-q', '-c', 't/T-1');
-  writeFiles(o, { 'accord/tickets/T-1.md': laneTicket('T-1', ruleset === undefined ? {} : { frontmatter: [`ruleset: "${ruleset}"`] }) });
+  // the ticket is done when it is merged (verify wrote verified_hash and verified_commit): with no claim commit left, only a done ticket's ruleset counts (CR-01, round 2)
+  const verified = ['verified_hash: "fnv1a64:0123456789abcdef"', 'verified_commit: "abc1234def"'];
+  writeFiles(o, { 'accord/tickets/T-1.md': laneTicket('T-1', { frontmatter: [...(ruleset === undefined ? [] : [`ruleset: "${ruleset}"`]), ...verified] }) });
   commitMsg(o, 'claim: T-1');
   gitRun(o, 'push', '-q', 'origin', 't/T-1');
   gitRun(o, 'switch', '-q', 'main');

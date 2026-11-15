@@ -1,5 +1,6 @@
 // ST-LN-80: models.architect still validates so an old config loads, but nothing reads it any more.
 import { subjectCollisions } from '../commits/subjects.js';
+import { floorProblems } from '../gate/floor.js';
 import type { Rule } from './rules.js';
 
 export const modelRetired: Rule['check'] = (snapshot) =>
@@ -21,3 +22,7 @@ export const subjectDuplicate: Rule['check'] = (snapshot) =>
     pointer: c.pointer,
     reason: `${c.key} and ${c.other} render the same subject "${c.template.replace('{id}', '<id>')}"; a written subject would be read as a ${c.readAs.join(' or ')} commit - give them different templates`,
   }));
+
+/** ST-LN-50 D-08, D-09: a `strictness.levels` key the engines ignore (the rule is on the floor, belongs to a stage, does not exist, or cannot be turned off) is an error, so a hand edit never passes unseen. LOCKED itself. */
+export const configFloor: Rule['check'] = (snapshot) =>
+  floorProblems(snapshot.config).map((p) => ({ file: 'accord/config.yml', pointer: p.pointer, reason: p.reason }));

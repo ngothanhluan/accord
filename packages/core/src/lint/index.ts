@@ -1,6 +1,8 @@
 // D-58 one list: loader findings stamped error, plus every table rule for the profile, sorted (A8).
 import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { resolveStrictness } from '../config/strictness.js';
+import { effectiveLevel } from '../gate/floor.js';
 import { RULES } from './rules.js';
 
 export interface LintResult {
@@ -24,9 +26,12 @@ export function lintSnapshot(snapshot: RepoSnapshot): LintResult {
   const profile = snapshot.config?.profile ?? 'build';
   // Pitfall 4: ajv echoes a schema.required at the same pointer as schema.if; the required finding is the actionable one.
   const loaded = snapshot.errors.filter((f) => f.rule !== 'schema.if').map((f) => ({ ...f, level: 'error' as const }));
-  const linted = RULES.filter((r) => r.profiles.includes(profile)).flatMap((r) =>
-    r.check(snapshot).map((d) => ({ ...d, rule: r.id, level: r.level })),
-  );
+  const strictness = resolveStrictness(snapshot.config);
+  // The same stamp as the gates' (gate/index.ts): the table level, or the team's for an OVERRIDABLE rule; off drops the rule's findings.
+  const linted = RULES.filter((r) => r.profiles.includes(profile)).flatMap((r) => {
+    const level = effectiveLevel(r.id, r.level, strictness);
+    return level === 'off' ? [] : r.check(snapshot).map((d) => ({ ...d, rule: r.id, level }));
+  });
   const findings = [...loaded, ...linted].sort(byFileLineRule);
   const errors = findings.filter((f) => f.level === 'error').length;
   return { findings, errors, warnings: findings.length - errors };

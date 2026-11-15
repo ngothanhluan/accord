@@ -80,19 +80,19 @@ it('risk:regression with no strictness key every cap is today\'s (ST-LN-50 t2-ac
     expect(capRulesOf(none, 'T-1', 'approach')).toEqual(claim === cut ? APPROACH_CAP : LEGACY_CAP);
     expect(capRulesOf(none, 'T-1', 'review')).toEqual(LEGACY_CAP);
   }
-  expect(resolveStrictness(undefined)).toEqual({ rounds: {} });
-  expect(resolveStrictness(repo().config)).toEqual({ rounds: {} });
-  expect(PRESETS).toEqual({ build: { rounds: {} }, maintain: { rounds: {} } });
+  expect(resolveStrictness(undefined)).toEqual({ rounds: {}, levels: {} });
+  expect(resolveStrictness(repo().config)).toEqual({ rounds: {}, levels: {} });
+  expect(PRESETS).toEqual({ build: { rounds: {}, levels: {} }, maintain: { rounds: {}, levels: {} } });
   // an empty `strictness:` map, or a `rounds:` with no key, changes nothing either
   expect(capRulesOf(repo({ config: CONFIG + 'strictness:\n  rounds: {}\n', claim: cut }), 'T-1', 'plan')).toEqual(PLAN_CAP);
 });
 
 it('risk:complex-branching resolveStrictness reads each team key as a number and ignores what is no round cap (ST-LN-50 t2-ac-4)', () => {
   const config = repo({ config: strict({ approach: '1', plan: '42', review: '99' }) }).config;
-  expect(resolveStrictness(config)).toEqual({ rounds: { approach: 1, plan: 42, review: 99 } });
+  expect(resolveStrictness(config)).toEqual({ rounds: { approach: 1, plan: 42, review: 99 }, levels: {} });
   // a value outside 1..99 never reaches the seam as a cap (the schema refuses it; a hand-built config is read defensively)
   const raw = { ...config!, strictness: { rounds: { approach: '0', plan: '100', review: 'two' } } } as unknown as Parameters<typeof resolveStrictness>[0];
-  expect(resolveStrictness(raw)).toEqual({ rounds: {} });
+  expect(resolveStrictness(raw)).toEqual({ rounds: {}, levels: {} });
 });
 
 for (const cap of [1, 2, 9]) {

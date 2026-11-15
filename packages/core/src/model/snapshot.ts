@@ -315,7 +315,7 @@ export interface AccordConfig {
   git?: { merge?: 'merge' | 'rebase' | 'squash'; sync?: string }; // ST-LN-96 D-14: how `accord worktree sync` takes main; absent means merge, and squash names the team's PR merge style (the sync is still a merge). D-03: sync is the team's script, one command line
   ids?: { mode?: 'pattern' | 'tracker'; pattern?: string; types?: Partial<Record<'story' | 'bug' | 'epic', string>>; projects?: string[] }; // ST-LN-50 D-05: absent means ST/BUG/EP-<initials>-<n> while people exists; tracker mode takes the Jira or Linear key as the id
   disposable?: string[]; // ST-LN-55 D-08, D-12: file and folder names an ignored path may hold at any depth and still be deleted with its worktree; absent means node_modules, dist, .DS_Store, Thumbs.db
-  strictness?: { rounds?: Partial<Record<'approach' | 'plan' | 'review', string>> }; // ST-LN-50 D-07: the round cap of each critic record, '1'..'99'; YAML numerics stay strings; read through resolveStrictness
+  strictness?: { rounds?: Partial<Record<'approach' | 'plan' | 'review', string>>; levels?: Record<string, 'error' | 'warning' | 'off'> }; // ST-LN-50 D-07: the round cap of each critic record, '1'..'99'; YAML numerics stay strings. D-08: levels maps a rule id to its level; only an overridable rule takes one (gate/floor.ts). Both are read through resolveStrictness
 }
 
 export interface RepoSnapshot {

@@ -461,3 +461,28 @@ describe('reach: the tracked files a command can run (round 3 CR-01)', () => {
     expect(reach(dir(), 'node tracker.mjs', tracked)).toEqual(tracked.filter((f) => !f.startsWith('accord/')));
   });
 });
+
+// ---- round 4 review: real bugs inside the promised cover (owner answer, round 4) ----
+
+describe('the cover matches every path component without regard to case (round 4 WR-01)', () => {
+  it('risk:security an index entry whose directory differs from the named file only in case (Scripts/lib.mjs beside scripts/tracker.mjs) is in the cover', () => {
+    const d = mkdtempSync(join(tmpdir(), 'accord-reach-'));
+    dirs.push(d);
+    const tracked = ['ACCORD/config.yml', 'README.md', 'Scripts/lib.mjs', 'scripts/tracker.mjs'];
+    expect(reach(d, 'node scripts/tracker.mjs', tracked)).toEqual(['Scripts/lib.mjs', 'scripts/tracker.mjs']);
+    // a root script binds every tracked file outside accord/, whatever the case of that folder's name
+    expect(reach(d, 'node tracker.mjs', [...tracked, 'tracker.mjs'])).toEqual(['README.md', 'Scripts/lib.mjs', 'scripts/tracker.mjs', 'tracker.mjs']);
+  });
+
+  it('risk:security accord trust lists and counts the mixed-case index entry Scripts/lib.mjs in the cover of scripts/tracker.mjs', async () => {
+    const b = sandbox();
+    // the index holds Scripts/lib.mjs as a second entry; on a case-insensitive system both entries check out into the one folder
+    const blob = gitRun(b.repo, 'rev-parse', 'HEAD:scripts/lib.mjs').trim();
+    gitRun(b.repo, 'update-index', '--add', '--cacheinfo', `100644,${blob},Scripts/lib.mjs`);
+    gitRun(b.repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-m', 'mixed case entry');
+    gitRun(b.repo, 'reset', '-q', '--hard');
+    const shown = await run(['trust'], b.repo, b.env);
+    expect(shown.out).toMatch(/files: .*Scripts\/lib\.mjs/);
+    expect(shown.out).toMatch(/covers: scripts\/ \(3 files\)/);
+  });
+});

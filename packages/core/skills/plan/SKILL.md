@@ -11,7 +11,9 @@ one at a time. You run it in the main session.
 
 ## Steps
 
-1. Run `accord anchor`. When `plan.md` exists and the anchor still prints
+1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming plan, do not run this stage: tell the
+   owner so in one line and go to the stage it names next, `accord-build`, which builds the ticket as one
+   task. Otherwise, when `plan.md` exists and the anchor still prints
    `Stage: plan` (the plan is not committed as ready), or `git status --porcelain` on
    `plan.md` prints anything, resume at step 4, reading `plan-review.md`
    as `./critique.md` says.

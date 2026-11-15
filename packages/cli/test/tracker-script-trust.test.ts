@@ -110,7 +110,7 @@ describe('accord status runs a repository tracker command only when accord trust
     expect(before.err).toMatch(/^tracker script: .*node scripts\/tracker\.mjs.*accord trust/);
     expect(before.err.trim().split('\n')).toHaveLength(1);
 
-    const allowed = await run(['trust'], b.repo, b.env);
+    const allowed = await run(['trust', 'tracker.command'], b.repo, b.env);
     expect(allowed.code).toBe(0);
     expect(allowed.out).toMatch(/^allowed: tracker\.command "node scripts\/tracker\.mjs"/m);
     const after = await run(['status'], b.repo, b.env);
@@ -120,7 +120,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:security a branch that changes only the script file, the command text unchanged, is not run until it is allowed again', async () => {
     const b = sandbox();
-    expect((await run(['trust'], b.repo, b.env)).code).toBe(0);
+    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('scripts/tracker.mjs', body('ran B'));
     const refused = await run(['status'], b.repo, b.env);
@@ -133,7 +133,7 @@ describe('accord status runs a repository tracker command only when accord trust
     await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual([]);
 
-    expect((await run(['trust'], b.repo, b.env)).code).toBe(0);
+    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
     await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual(['ran C']);
     // and main's script is then the one that has changed
@@ -156,7 +156,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:security a file next to the script the command names counts as well (the script imports its neighbours)', async () => {
     const b = sandbox();
-    await run(['trust'], b.repo, b.env);
+    await run(['trust', 'tracker.command'], b.repo, b.env);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('scripts/lib.mjs', 'export const x = 2;\n');
     await run(['status'], b.repo, b.env);
@@ -165,7 +165,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:regression a change to a ticket or to a file the command does not reach does not ask again', async () => {
     const b = sandbox();
-    await run(['trust'], b.repo, b.env);
+    await run(['trust', 'tracker.command'], b.repo, b.env);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('README.md', 'edited\n');
     b.commit('accord/tickets/ISS-7.md', ticket('ISS-7').replace('fixture', 'edited'));
@@ -176,7 +176,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:security the allow lives inside .git, is never committed, and is shared by every worktree of the repository', async () => {
     const b = sandbox();
-    expect((await run(['trust'], b.repo, b.env)).code).toBe(0);
+    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
     expect(gitRun(b.repo, 'status', '--porcelain').trim()).toBe('');
     const common = resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim());
     expect(readFileSync(join(common, 'accord-trust.json'), 'utf8')).toContain('node scripts/tracker.mjs');
@@ -195,7 +195,7 @@ describe('accord status runs a repository tracker command only when accord trust
     writeFileSync(script, body('ran A'));
     const b = sandbox(`node "${script}"`);
     b.commit('package.json', '{ "name": "x", "scripts": {} }\n');
-    await run(['trust'], b.repo, b.env);
+    await run(['trust', 'tracker.command'], b.repo, b.env);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('README.md', 'edited\n');
     await run(['status'], b.repo, b.env);
@@ -207,7 +207,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:security trust --revoke withdraws the allow, and says so when there is none', async () => {
     const b = sandbox();
-    await run(['trust'], b.repo, b.env);
+    await run(['trust', 'tracker.command'], b.repo, b.env);
     const revoked = await run(['trust', '--revoke'], b.repo, b.env);
     expect(revoked.code).toBe(0);
     expect(revoked.out).toMatch(/^revoked: tracker\.command/m);
@@ -233,7 +233,7 @@ describe('accord status runs a repository tracker command only when accord trust
     const b = sandbox();
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('scripts/tracker.mjs', body('ran B'));
-    await run(['trust'], b.repo, b.env);
+    await run(['trust', 'tracker.command'], b.repo, b.env);
     const r = await run(['status'], b.repo, b.env);
     expect(r.err).toBe('');
     expect(b.ran()).toEqual(['ran B']);
@@ -249,7 +249,7 @@ process.stdout.write(JSON.stringify({ version: 1, issues: {} }));
 `;
 
 /** The person's `accord trust` for the tracker script. */
-const allowTracker = async (b: Box): Promise<{ code: number; out: string; err: string }> => run(['trust'], b.repo, b.env);
+const allowTracker = async (b: Box): Promise<{ code: number; out: string; err: string }> => run(['trust', 'tracker.command'], b.repo, b.env);
 
 /** Allow on main and check that it ran there, then commit `path` = `text` on a branch `pr` and run status there; returns its stderr. */
 async function editedOnBranch(b: Box, path: string, text: string): Promise<string> {

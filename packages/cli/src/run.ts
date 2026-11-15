@@ -305,11 +305,11 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   // Owner decision (2026-11-15): a script the repository declares (`tracker.command`, `git.sync`) runs only after the person allowed it here, once, in a record inside .git.
   program
-    .command('trust')
-    .description('allow the scripts accord/config.yml declares (tracker.command under tracker.adapter: script, and git.sync) to run in this repository: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; --revoke withdraws every allow')
-    .option('--revoke', 'withdraw every allow of this repository')
-    .action((o: { revoke?: boolean }) => {
-      setCode(trust(preflight(opts), o));
+    .command('trust [script...]')
+    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, and git.sync): the command, the files an allow covers and the ones that changed, and allow nothing; with tracker.command or git.sync named, allow that script to run in this repository: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; --revoke withdraws the allows of the scripts named, or every allow')
+    .option('--revoke', 'withdraw the allows of the scripts named, or every allow of this repository')
+    .action((scripts: string[], o: { revoke?: boolean }) => {
+      setCode(trust(preflight(opts), scripts, o));
     });
 
   // A stated exception to the pin check, like `--version` and `--help`: it runs as the newer accord against a

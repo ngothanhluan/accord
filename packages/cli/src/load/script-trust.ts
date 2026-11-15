@@ -10,16 +10,21 @@
 // the script loads from another directory, a make or just target's own scripts, and a path built from an environment variable are not covered by the digest.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { gitTracked } from './fs.js';
 
 /** The two repository-declared scripts, named as in accord/config.yml. */
 export type ScriptKind = 'tracker.command' | 'git.sync';
 
+/** Every kind, in the order accord trust shows them. */
+export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync'];
+
 interface Allow {
   command: string;
   digest: string;
+  /** Each covered file's own hash, so the next refusal and preview can name the files that changed. */
+  files?: Record<string, string>;
   allowedAt: string;
 }
 
@@ -238,10 +243,11 @@ function lf(bytes: Buffer): Buffer {
   return Buffer.from(bytes.toString('latin1').replaceAll('\r\n', '\n'), 'latin1');
 }
 
-/** One digest of the command text and of the bytes of every file it reaches, as they are in the working tree (that is what would run). */
-export function scriptDigest(root: string, command: string): { digest: string } & Cover {
+/** One digest of the command text and of the bytes of every file it reaches, as they are in the working tree (that is what would run), with each file's own hash. */
+export function scriptDigest(root: string, command: string): { digest: string; hashes: Record<string, string> } & Cover {
   const { units, files } = cover(root, command);
   const hash = createHash('sha256');
+  const hashes: Record<string, string> = {};
   hash.update('command\0' + command + '\n');
   for (const f of files) {
     let content: string;
@@ -250,9 +256,10 @@ export function scriptDigest(root: string, command: string): { digest: string } 
     } catch {
       content = 'missing';
     }
+    hashes[f] = content;
     hash.update(f + '\0' + content + '\n');
   }
-  return { digest: 'sha256:' + hash.digest('hex'), units, files };
+  return { digest: 'sha256:' + hash.digest('hex'), hashes, units, files };
 }
 
 function read(root: string): TrustFile {
@@ -266,33 +273,82 @@ function read(root: string): TrustFile {
   return { version: 1, allows: {} };
 }
 
-/**
- * Why `command` may not run, as one line, or undefined when the person allowed exactly this command and exactly these files. The line names the command
- * and the way to allow it; when an allow exists for this script but no longer matches it says that the command or the files changed.
- */
-export function scriptRefusal(root: string, kind: ScriptKind, command: string): string | undefined {
-  const allow = read(root).allows[kind];
-  const now = scriptDigest(root, command);
-  if (allow !== undefined && allow.command === command && allow.digest === now.digest) return undefined;
-  const why = allow === undefined ? 'has not been allowed in this repository' : allow.command === command ? 'or the files it reaches changed since it was allowed' : 'is not the command that was allowed';
-  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(now)}; run accord trust to allow it (accord trust --revoke withdraws it)`;
+/** Write the record whole through a file beside it and a rename, so a reader never sees half of it. */
+function write(root: string, record: TrustFile): void {
+  const file = trustFile(root);
+  const part = `${file}.${process.pid}.tmp`;
+  writeFileSync(part, JSON.stringify(record, null, 2) + '\n');
+  renameSync(part, file);
 }
 
-/** Record an allow for each script, replacing the one it had; returns what was bound, for the person to read. */
-export function allowScripts(root: string, scripts: ReadonlyArray<{ kind: ScriptKind; command: string }>): Array<{ kind: ScriptKind; command: string; digest: string } & Cover> {
+/** Where a script stands against the allows of this repository. */
+export type TrustState = 'allowed' | 'never' | 'changed' | 'other-command';
+
+/** A declared script as it is now: the cover, the digest, how it stands, and (when an allow of this command exists) the covered files that changed since. */
+export interface Inspection extends Cover {
+  kind: ScriptKind;
+  command: string;
+  digest: string;
+  state: TrustState;
+  changed: string[];
+}
+
+/** The files added, removed or edited between an allow's hashes and the ones now, sorted. */
+function changedFiles(was: Record<string, string> | undefined, now: Record<string, string>): string[] {
+  if (was === undefined) return [];
+  return [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((f) => was[f] !== now[f]).sort();
+}
+
+/** How `command` stands, for `kind`, in the working tree at `root`. */
+export function inspect(root: string, kind: ScriptKind, command: string): Inspection & { hashes: Record<string, string> } {
+  const now = scriptDigest(root, command);
+  const allow = read(root).allows[kind];
+  const state: TrustState = allow === undefined ? 'never' : allow.command !== command ? 'other-command' : allow.digest === now.digest ? 'allowed' : 'changed';
+  return { kind, command, ...now, state, changed: state === 'changed' ? changedFiles(allow?.files, now.hashes) : [] };
+}
+
+/** A list of paths for one line: the first `max`, then how many more. */
+export function listed(paths: readonly string[], max: number): string {
+  return paths.slice(0, max).map(shown).join(', ') + (paths.length > max ? ` and ${paths.length - max} more` : '');
+}
+
+/**
+ * Why `command` may not run, as one line, or undefined when the person allowed exactly this command and exactly these files. The line names the command, why
+ * it did not run (and which covered files changed, when an allow of this command exists), what an allow covers, and the commands that show and allow it.
+ */
+export function scriptRefusal(root: string, kind: ScriptKind, command: string): string | undefined {
+  const i = inspect(root, kind, command);
+  if (i.state === 'allowed') return undefined;
+  const why =
+    i.state === 'never'
+      ? 'has not been allowed in this repository'
+      : i.state === 'other-command'
+        ? 'is not the command that was allowed'
+        : `or the files it reaches changed since it was allowed${i.changed.length === 0 ? '' : ` (changed: ${listed(i.changed, 5)})`}`;
+  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(i)}; run accord trust to see it and accord trust ${kind} to allow it (accord trust --revoke withdraws every allow)`;
+}
+
+/** Record an allow for each script, replacing the one it had; returns each script as it stood just before, for the person to read. */
+export function allowScripts(root: string, scripts: ReadonlyArray<{ kind: ScriptKind; command: string }>): Array<Inspection> {
   const record = read(root);
   const bound = scripts.map((s) => {
-    const { digest, units, files } = scriptDigest(root, s.command);
-    record.allows[s.kind] = { command: s.command, digest, allowedAt: new Date().toISOString() };
-    return { ...s, digest, units, files };
+    const { hashes, ...seen } = inspect(root, s.kind, s.command);
+    record.allows[s.kind] = { command: s.command, digest: seen.digest, files: hashes, allowedAt: new Date().toISOString() };
+    return seen;
   });
-  if (bound.length > 0) writeFileSync(trustFile(root), JSON.stringify(record, null, 2) + '\n');
+  if (bound.length > 0) write(root, record);
   return bound;
 }
 
-/** Withdraw every allow of this repository; returns the kinds that were allowed. */
-export function revokeScripts(root: string): ScriptKind[] {
-  const kinds = Object.keys(read(root).allows) as ScriptKind[];
-  rmSync(trustFile(root), { force: true });
-  return kinds;
+/** Withdraw the allows of the kinds named, or of every kind when none is named; returns the kinds that were allowed and are not any more. */
+export function revokeScripts(root: string, kinds: readonly ScriptKind[] = []): ScriptKind[] {
+  const record = read(root);
+  const had = Object.keys(record.allows) as ScriptKind[];
+  const gone = kinds.length === 0 ? had : had.filter((k) => kinds.includes(k));
+  if (kinds.length === 0) rmSync(trustFile(root), { force: true });
+  else if (gone.length > 0) {
+    for (const k of gone) delete record.allows[k];
+    write(root, record);
+  }
+  return gone;
 }

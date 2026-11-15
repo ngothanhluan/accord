@@ -194,7 +194,7 @@ ${body}
   };
 }
 /** The person's one `accord trust` in `dir`: a repository script (git.sync) runs only once it is allowed. */
-const allow = async (dir: string): Promise<void> => expect((await run(['trust'], dir)).code).toBe(0);
+const allow = async (dir: string): Promise<void> => expect((await run(['trust', 'git.sync'], dir)).code).toBe(0);
 const MERGE = "git('merge', '--no-ff', '--no-edit', process.env.ACCORD_BASE_REF);";
 const REBASE = "git('rebase', process.env.ACCORD_BASE_REF);";
 const same = (a: string | undefined, b: string) => expect(fwd(a ?? '').toLowerCase()).toBe(fwd(b).toLowerCase());
@@ -422,7 +422,7 @@ it('risk:security git.sync is not run until accord trust allowed it, and not aga
   expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(head);
 
   // allowed, then a commit that changes only the script file (the command text is identical): refused again
-  expect((await run(['trust'], sib)).code).toBe(0);
+  expect((await run(['trust', 'git.sync'], sib)).code).toBe(0);
   commitScript('B');
   const changed = await run(['worktree', 'sync', 'ST-9'], sib);
   expect(changed.code).toBe(2);
@@ -431,7 +431,7 @@ it('risk:security git.sync is not run until accord trust allowed it, and not aga
   expect(tags(marker)).toEqual([]);
 
   // allowed again: it runs, and it is the changed script that ran
-  expect((await run(['trust'], sib)).code).toBe(0);
+  expect((await run(['trust', 'git.sync'], sib)).code).toBe(0);
   const ok = await run(['worktree', 'sync', 'ST-9'], sib);
   expect([ok.code, ok.err]).toEqual([0, '']);
   expect(lines(ok.out)).toContain('synced: t/ST-9 by git.sync');

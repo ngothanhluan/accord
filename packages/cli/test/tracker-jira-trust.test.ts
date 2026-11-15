@@ -49,14 +49,14 @@ const setUrl = (repo: string, url: string | undefined): void => {
 };
 
 /** A repository whose default branch names GOOD, with the checkout on a `pr` branch that `change` then edits. */
-function sandbox(defaultUrl: string | undefined = GOOD): string {
+function sandbox(defaultUrl: string | null = GOOD): string {
   const repo = makeRepo('valid-build');
   writeFileSync(join(repo, 'accord', 'tickets', 'ISS-7.md'), ticket('ISS-7'));
-  setUrl(repo, defaultUrl);
+  setUrl(repo, defaultUrl ?? undefined);
   commitAll(repo, 'default branch');
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'switch', '-q', '-c', 'pr');
-  setUrl(repo, GOOD); // the branch starts as the default branch names it when the default has a url; a case edits it
+  if (defaultUrl !== null) setUrl(repo, GOOD); // the branch starts as the default branch names it when the default has a url; a case edits it
   return repo;
 }
 
@@ -96,14 +96,10 @@ describe('accord status sends the Jira credential only where the default branch 
   });
 
   it('risk:security a branch that adds a url the default branch does not have sends nothing', async () => {
-    const repo = sandbox();
+    const repo = sandbox(null); // the default branch names no url at all
     repos.push(repo);
     const seen = stub();
-    setUrl(repo, undefined);
-    gitRun(repo, 'checkout', '-q', 'main', '--', 'accord/config.yml');
-    gitRun(repo, 'show', 'main:accord/config.yml');
-    const text = readFileSync(join(repo, 'accord', 'config.yml'), 'utf8').replace(/\n {2}url: \S+/, '\n  url: ' + EVIL);
-    writeFileSync(join(repo, 'accord', 'config.yml'), text);
+    setUrl(repo, EVIL);
     const { err } = await run(['status'], repo, CLOUD);
     expect(seen.urls).toEqual([]);
     expect(err).toMatch(/^tracker jira: /);

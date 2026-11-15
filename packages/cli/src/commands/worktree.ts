@@ -10,7 +10,7 @@ import { gitClaimFacts } from '../load/claim-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { DEFAULT_DISPOSABLE, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
-import { scriptRefusal } from '../load/script-trust.js';
+import { scriptRefusal, shown } from '../load/script-trust.js';
 import { runTeamCommand } from '../load/team-run.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
@@ -842,7 +842,7 @@ function runTeamSync(root: string, ref: string, branch: string, team: { command:
   if (why === undefined) return;
   const text = (r.stderr.trim() !== '' ? r.stderr : r.stdout).trim();
   const tail = text === '' ? '' : ' - ' + text.split('\n').slice(-20).map((l) => l.trimEnd()).join(' / ');
-  throw new UsageError(`git.sync "${team.command}" ${why}${tail} - ${branch} was not pushed`);
+  throw new UsageError(`git.sync "${shown(team.command)}" ${why}${tail} - ${branch} was not pushed`);
 }
 
 /**

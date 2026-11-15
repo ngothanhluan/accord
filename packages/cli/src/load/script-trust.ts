@@ -56,6 +56,15 @@ export const ROOT_MANIFESTS = [
   'go.mod',
 ] as const;
 
+/**
+ * Round 3 WR-01: a command text or a file name on its way to a terminal. Every control character (C0, DEL, C1) and every invisible format character (bidi overrides,
+ * zero-width marks) and line or paragraph separator is written as `<U+XXXX>`, so a command cannot hide its start behind ESC[2K or reorder what the person reads before
+ * allowing it. Every other character stays as it is. The form has no backslash, because a usage error prints every `\` as `/`.
+ */
+export function shown(text: string): string {
+  return text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (ch) => '<U+' + (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0') + '>');
+}
+
 /** `accord-trust.json` inside the repository's common git directory, which all worktrees share and git never tracks. */
 export function trustFile(root: string): string {
   const common = execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -221,7 +230,7 @@ export function coverText(c: Cover): string {
   if (c.units.length === 0) return 'no file of the repository';
   const count = (u: string): number => (u === ROOT_UNIT ? c.files.filter((f) => !f.startsWith('accord/')) : c.files.filter((f) => f.startsWith(u))).length;
   const plural = (n: number): string => `${n} file${n === 1 ? '' : 's'}`;
-  return c.units.map((u) => (u === ROOT_UNIT ? `./ (every tracked file outside accord/, ${plural(count(u))})` : u.endsWith('/') ? `${u} (${plural(count(u))})` : u)).join(', ');
+  return c.units.map((u) => (u === ROOT_UNIT ? `./ (every tracked file outside accord/, ${plural(count(u))})` : u.endsWith('/') ? `${shown(u)} (${plural(count(u))})` : shown(u))).join(', ');
 }
 
 /** The bytes with every CR LF read as LF, so a checkout with `core.autocrlf` (another worktree of the same repository) digests like one without. */
@@ -266,7 +275,7 @@ export function scriptRefusal(root: string, kind: ScriptKind, command: string): 
   const now = scriptDigest(root, command);
   if (allow !== undefined && allow.command === command && allow.digest === now.digest) return undefined;
   const why = allow === undefined ? 'has not been allowed in this repository' : allow.command === command ? 'or the files it reaches changed since it was allowed' : 'is not the command that was allowed';
-  return `${kind} "${command}" ${why}, so it was not run; an allow covers ${coverText(now)}; run accord trust to allow it (accord trust --revoke withdraws it)`;
+  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(now)}; run accord trust to allow it (accord trust --revoke withdraws it)`;
 }
 
 /** Record an allow for each script, replacing the one it had; returns what was bound, for the person to read. */

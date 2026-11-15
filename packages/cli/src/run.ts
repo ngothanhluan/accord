@@ -175,7 +175,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   program
     .command('review-package <id>')
     .description('print the commits, stat, and diff a reviewer reads')
-    .option('--base <ref>', "the commit or branch the work started from (default: the plan's baseline:)")
+    .option('--base <ref>', "the commit or branch the work started from (default: the plan's baseline:; with the plan stage off, the default branch)")
     .action((id: string, options: { base?: string }) => {
       setCode(reviewPackage(preflight(opts), id, options));
     });

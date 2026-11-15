@@ -1,7 +1,7 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { interfaceSigns, outsideScope, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { interfaceSigns, outsideScope, stageOff, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
@@ -37,13 +37,26 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   const v2 = rec?.version === 2;
   const old = rec !== undefined && !v2 && rec.cycles.some((c) => c.rounds.length > 0);
   const baseline = work?.plan?.baseline;
+  // ST-LN-50 D-08: with the plan stage off a ticket has no plan baseline, so its work is read from the default branch, as lane S's is (and as readWalk and the round facts read it).
+  const planOffDefault = !laneS && baseline === undefined && stageOff(ctx.snapshot, id, 'plan') ? defaultRefOf(ctx.root) : undefined;
   const loopBase = "in a version 2 review record every loop round is built from the last round's head; ";
   let lastHead: string | undefined;
   if (v2) {
     if (options.base !== undefined) {
       if (laneS) throw new UsageError(loopBase + 'lane S takes no --base');
       const given = commitOf(options.base);
-      if (baseline === undefined || given === undefined || given !== commitOf(baseline)) {
+      if (planOffDefault !== undefined) {
+        // the final review's base with no plan: the default branch, or where this branch left it
+        let mergeBase: string | undefined;
+        try {
+          mergeBase = git(['merge-base', planOffDefault, 'HEAD']).trim();
+        } catch {
+          mergeBase = undefined;
+        }
+        if (given === undefined || (given !== commitOf(planOffDefault) && given !== mergeBase)) {
+          throw new UsageError(loopBase + '--base is accepted only for the final review, as the default branch (the plan stage is off): ' + planOffDefault);
+        }
+      } else if (baseline === undefined || given === undefined || given !== commitOf(baseline)) {
         throw new UsageError(loopBase + "--base is accepted only for the final review, as the plan's baseline: " + (baseline ?? '(none)'));
       }
     } else {
@@ -64,12 +77,14 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   }
   // The default ref read for a lane S base is the one the exclusion below uses.
   const laneSDefault = laneS && (options.base === undefined || v2) ? defaultRefOf(ctx.root) : undefined;
-  const base = lastHead ?? options.base ?? (laneS ? laneSDefault : baseline);
+  const base = lastHead ?? options.base ?? (laneS ? laneSDefault : (baseline ?? planOffDefault));
   if (base === undefined) {
     throw new UsageError(
       laneS
         ? 'no --base given and no default branch: none of origin/HEAD, origin/main, origin/master, main or master resolves'
-        : 'no --base given and plan.md records no baseline:',
+        : stageOff(ctx.snapshot, id, 'plan')
+          ? 'no --base given, the plan stage is off so there is no plan baseline, and no default branch: none of origin/HEAD, origin/main, origin/master, main or master resolves'
+          : 'no --base given and plan.md records no baseline:',
     );
   }
   if (!REF.test(base)) throw new UsageError('not a git ref: ' + base);

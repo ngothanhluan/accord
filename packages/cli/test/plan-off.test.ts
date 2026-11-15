@@ -189,13 +189,29 @@ it('risk:complex-branching review-package needs no --base when the plan stage is
     const pkg = await run(['review-package', 'T-1'], repo);
     expect(pkg.err).toBe('');
     expect(pkg.code).toBe(0);
-    expect(pkg.out).toContain(`# Review package: T-1 (${def}...HEAD)`);
+    expect(pkg.out).toContain(`# Review package: T-1 (refs/heads/${def}...HEAD)`);
     expect(pkg.out).toContain('feat: T-1 export');
     expect(pkg.out).toContain('+export const write = 2;');
     expect(pkg.out).not.toContain('claim: T-1');
     // an explicit --base still wins
     const first = gitRun(repo, 'rev-parse', 'HEAD~1').trim();
     expect((await run(['review-package', 'T-1', '--base', first], repo)).out).toContain(`(${first}...HEAD)`);
+    // a version 2 record builds from the last round's head; the final review's --base is the default branch, and no other commit
+    const head = gitRun(repo, 'rev-parse', 'HEAD').trim();
+    writeFiles(repo, { 'accord/tickets/T-1/review.md': `Round record: 2
+
+## Round 1 head ${head}
+
+No findings
+` });
+    expect((await run(['review-package', 'T-1'], repo)).out).toContain(`(${head}...HEAD)`);
+    const final = await run(['review-package', 'T-1', '--base', def], repo);
+    expect(final.err).toBe('');
+    expect(final.out).toContain(`(${def}...HEAD)`);
+    const wrong = await run(['review-package', 'T-1', '--base', head], repo);
+    expect(wrong.code).toBe(2);
+    expect(wrong.err).toContain('the default branch (the plan stage is off)');
+    rmSync(join(repo, 'accord', 'tickets', 'T-1', 'review.md'));
     // with the plan stage on and no plan baseline the refusal stays
     writeFiles(repo, { 'accord/config.yml': AFFECTED });
     const on = await run(['review-package', 'T-1'], repo);

@@ -292,7 +292,7 @@ export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export interface AccordConfig {
   accord: string; // '0.1.0'
   profile: 'build' | 'maintain';
-  tracker: { adapter: 'none' | 'github-issues' | 'linear'; repo?: string };
+  tracker: { adapter: 'none' | 'github-issues' | 'jira' | 'linear' | 'script'; repo?: string; url?: string; command?: string }; // ST-LN-97 D-12: each adapter's own key, enforced by the schema: repo (github-issues), url (jira, https only), command (script)
   design: { tokens: string }; // 'src/styles/tokens.css' or ''
   roles: ('ba' | 'dev' | 'designer')[];
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];

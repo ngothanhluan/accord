@@ -5,6 +5,7 @@
 // exit code (D-99, D-100).
 import type { AccordConfig } from '@accord-dev/accord-core';
 import { githubAdapter } from './github-issues.js';
+import { jiraAdapter } from './jira.js';
 import { linearAdapter } from './linear.js';
 
 /** What a tracker says about one issue, already reduced to printable ASCII. */
@@ -36,7 +37,7 @@ export interface TrackerAdapter {
 
 /**
  * The adapter the config names, or undefined for `none` (checked before anything else) and for an
- * adapter that cannot run without a setting the config lacks (github-issues with no `repo`). A missing
+ * adapter that cannot run without a setting the config lacks (github-issues with no `repo`, jira with no `url`). A missing
  * environment secret is not decided here: the adapter's own warning names it.
  */
 export function adapterFor(tracker: AccordConfig['tracker'] | undefined): TrackerAdapter | undefined {
@@ -46,8 +47,13 @@ export function adapterFor(tracker: AccordConfig['tracker'] | undefined): Tracke
       return undefined;
     case 'github-issues':
       return tracker.repo === undefined ? undefined : githubAdapter(tracker.repo);
+    case 'jira':
+      return tracker.url === undefined ? undefined : jiraAdapter(tracker.url);
     case 'linear':
       return linearAdapter;
+    case 'script':
+      // The script adapter is plan 03.1-31; until then a `script` config reads no tracker.
+      return undefined;
   }
 }
 

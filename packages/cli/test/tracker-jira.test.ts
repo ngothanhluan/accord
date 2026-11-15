@@ -231,7 +231,7 @@ describe('fetchJira facts (ST-LN-97 t3-ac-1)', () => {
 });
 
 describe('fetchJira failures are one warning and leak nothing (ST-LN-97 t3-ac-2)', () => {
-  const failures: [string, () => unknown][] = [
+  const failures: [string, (secrets: string[]) => unknown][] = [
     ['HTTP 401', () => httpError(401)],
     ['HTTP 403', () => httpError(403)],
     ['HTTP 404', () => httpError(404)],
@@ -240,23 +240,24 @@ describe('fetchJira failures are one warning and leak nothing (ST-LN-97 t3-ac-2)
     ['a body that is not JSON', () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token < in JSON'); } })],
     ['a body that is not an issue', () => jsonBody({ errorMessages: ['Issue does not exist'] })],
     ['a null body', () => jsonBody(null)],
-    ['a rejection that quotes a secret', () => new Error('socket hang up ' + SECRET1 + ' ' + SECRET2 + ' ' + BASIC + ' Bearer ' + SECRET2)],
-    ['a non-JSON body that quotes a secret', () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token ' + SECRET1 + ' ' + BASIC); } })],
+    ['a rejection that quotes every secret the run holds', (secrets) => new Error('socket hang up ' + secrets.join(' '))],
+    ['a non-JSON body that quotes every secret the run holds', (secrets) => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token ' + secrets.join(' ')); } })],
   ];
 
   for (const env of [CLOUD, PAT, { ...CLOUD, ...PAT }]) {
     for (const [label, handler] of failures) {
       it(`risk:security ${label} omits that key, names it in one "tracker jira:" line and shows no secret (${Object.keys(env).join('+')}) (ST-LN-97 t3-ac-2)`, async () => {
-        const { impl } = fakeFetch((url) => (keyOf(url) === 'ENG-9' ? handler() : issueBody()));
+        // Every credential this run sends, as the header carries it: what a server or a socket could echo.
+        const held = Object.values(env).concat('JIRA_EMAIL' in env ? [BASIC, BASIC.slice(6)] : ['Bearer ' + SECRET2]);
+        const { impl } = fakeFetch((url) => (keyOf(url) === 'ENG-9' ? handler(held) : issueBody()));
         const result = await fetchJira(BASE, ['ENG-7', 'ENG-9'], env, impl);
         expect(Object.keys(result.issues)).toEqual(['ENG-7']);
         expect(result.warning).toMatch(/^tracker jira: /);
         expect(result.warning).toContain('ENG-9');
         expect(result.warning).not.toContain('\n');
         const all = JSON.stringify(result);
-        for (const secret of [SECRET1, SECRET2, BASIC, Buffer.from('a@b.c:' + SECRET1).toString('base64')]) {
-          expect(all).not.toContain(secret);
-        }
+        // The email is an identifier, not a secret; every token and header value must be gone.
+        for (const secret of held.filter((h) => h !== 'a@b.c')) expect(all).not.toContain(secret);
       });
     }
   }
@@ -355,7 +356,10 @@ Feature: ${id}
       const { code, out, err } = await run(['status'], repo, CLOUD);
       expect(code).toBe(0);
       expect(err).toBe('');
-      expect(calls.map((c) => c.url)).toEqual([BASE + '/rest/api/3/issue/ENG-7?fields=summary,status,labels']);
+      // The fixture's own LOGIN-1 links `jira: 1e3`, so that key is asked for too, once.
+      expect(calls.map((c) => c.url).sort()).toEqual(
+        [BASE + '/rest/api/3/issue/1e3?fields=summary,status,labels', BASE + '/rest/api/3/issue/ENG-7?fields=summary,status,labels'].sort(),
+      );
       expect(cellOf(out, 'ISS-7')).toContain('ENG-7 In Progress Fix export ui');
       expect(out).toContain('EPIC-1');
       expect(out + err).not.toContain(SECRET1);
@@ -374,9 +378,10 @@ Feature: ${id}
       const ok = await run(['status'], repo, PAT);
       expect(ok.code).toBe(0);
       expect(ok.err).toBe('');
-      expect(calls).toHaveLength(1);
-      expect(calls[0].url).toContain('/jira/rest/api/2/issue/ENG-7');
-      expect(headersOf(calls[0]).get('authorization')).toBe('Bearer ' + SECRET2);
+      const seven = calls.filter((c) => keyOf(c.url) === 'ENG-7');
+      expect(seven).toHaveLength(1);
+      expect(seven[0].url).toContain('/jira/rest/api/2/issue/ENG-7');
+      for (const c of calls) expect(headersOf(c).get('authorization')).toBe('Bearer ' + SECRET2);
       expect(cellOf(ok.out, 'ISS-7')).toContain('ENG-7 Todo Fix export');
 
       calls.length = 0;

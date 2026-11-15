@@ -40,11 +40,25 @@
       "additionalProperties": false,
       "required": ["adapter"],
       "properties": {
-        "adapter": { "type": "string", "enum": ["none", "github-issues", "linear"] },
-        "repo": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" }
+        "adapter": { "type": "string", "enum": ["none", "github-issues", "jira", "linear", "script"] },
+        "repo": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" },
+        "url": { "type": "string", "pattern": "^https://[^\\s/?#]+(/[^\\s?#]*)?$" },
+        "command": { "type": "string", "minLength": 1, "pattern": "^[^\\r\\n]*$" }
       },
-      "if": { "properties": { "adapter": { "const": "github-issues" } }, "required": ["adapter"] },
-      "then": { "required": ["repo"] }
+      "allOf": [
+        {
+          "if": { "properties": { "adapter": { "const": "github-issues" } }, "required": ["adapter"] },
+          "then": { "required": ["repo"] }
+        },
+        {
+          "if": { "properties": { "adapter": { "const": "jira" } }, "required": ["adapter"] },
+          "then": { "required": ["url"] }
+        },
+        {
+          "if": { "properties": { "adapter": { "const": "script" } }, "required": ["adapter"] },
+          "then": { "required": ["command"] }
+        }
+      ]
     },
     "design": {
       "type": "object",

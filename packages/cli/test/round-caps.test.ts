@@ -3,7 +3,7 @@
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { PLAN_CAP_FROM } from '@accord-dev/accord-core';
+import { APPROACH_CAP_FROM, PLAN_CAP_FROM } from '@accord-dev/accord-core';
 import { commitMsg, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, pinned } from '../../../test/helpers/lane.js';
 
@@ -73,3 +73,45 @@ it('risk:parsing a round cap of 0 is a config error for accord config and for ac
   const { findings } = JSON.parse(lint.out) as { findings: { file: string; rule: string; level: string; pointer?: string }[] };
   expect(findings.filter((f) => f.file === 'accord/config.yml' && f.level === 'error').map((f) => `${f.rule}@${f.pointer}`)).toEqual(['schema.pattern@/strictness/rounds/plan']);
 }, 120_000);
+
+// D-07: an open security or data-loss approach finding blocks `accord approve` at every cap, on real git.
+const APPROACH = join('accord', 'tickets', 'T-1', 'approach-review.md');
+const LOSS = '1. Must — the export overwrites the old file — open — risk: data-loss';
+const SEC = '1. Must — tokens are written to the log — open — risk: security';
+
+/** A ticket claimed at the approach cap's cut-off; HEAD holds `strictness.rounds.approach: cap` (none for undefined) and the approach record. */
+function claimedApproach(cap: string | undefined, record: string): string {
+  const repo = makeLaneRepo();
+  repos.push(repo);
+  writeFiles(repo, { 'accord/config.yml': pinned(APPROACH_CAP_FROM) });
+  commitMsg(repo, 'claim: T-1');
+  const config = cap === undefined ? CONFIG : CONFIG + `strictness:\n  rounds:\n    approach: "${cap}"\n`;
+  writeFiles(repo, { 'accord/config.yml': config, [APPROACH]: record });
+  commitMsg(repo, 'T-1 approach rounds');
+  return repo;
+}
+
+for (const [kind, finding] of [['data-loss', LOSS], ['security', SEC]] as const) {
+  it(`risk:security accord approve refuses an open ${kind} finding at caps of 1, 2, 9 and the default (ST-LN-50 t2-ac-4)`, async () => {
+    for (const cap of ['1', '2', '9', undefined]) {
+      const record = 'Round record: 1\n\n## Round 1\n\n' + finding + '\n\n';
+      const repo = claimedApproach(cap, record);
+      const label = `cap ${cap ?? 'default'}`;
+      const refused = await run(['approve', 'T-1'], repo);
+      expect(refused.code, label).toBe(1);
+      expect(refused.out, label).toContain('blocks the approval');
+      expect(refused.out, label).toContain(finding);
+      expect(refused.err, label).toBe('');
+      const shown = await run(['show', 'T-1', '--approval', '--short'], repo);
+      expect(shown.code, label).toBe(0);
+      const lines = shown.out.split('\n');
+      expect(lines, label).toContain('## Blocking findings');
+      expect(lines, label).toContain('- round 1: ' + finding);
+      // the owner never gets a yes to a ticket that still has the finding open; fixed, the same record is approved
+      writeFiles(repo, { [APPROACH]: record.replace(' — open — ', ' — fixed — ') });
+      const approved = await run(['approve', 'T-1'], repo);
+      expect(approved.out, label).toMatch(/^approved /);
+      expect(approved.code, label).toBe(0);
+    }
+  }, 120_000);
+}

@@ -2,7 +2,7 @@
 // only `cap` in whichever rules the ticket's claim pin picked (LEGACY_CAP, APPROACH_CAP, PLAN_CAP) through the one seam `capRulesOf`; the stop rules, the
 // allowances and the cap-is-a-refusal behaviour keep their data, and with no `strictness` key every cap is today's.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP, APPROACH_CAP_FROM, LEGACY_CAP, PLAN_CAP, PLAN_CAP_FROM, PRESETS, capRulesOf, cycleState, loadSnapshot, nextRound, planStopOf, resolveStrictness, roundText } from '../src/index.js';
+import { APPROACH_CAP, APPROACH_CAP_FROM, LEGACY_CAP, PLAN_CAP, PLAN_CAP_FROM, PRESETS, approvalBlockers, approvalFindings, capRulesOf, cycleState, loadSnapshot, nextRound, planStopOf, resolveStrictness, roundText } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot, RoundKind } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
@@ -184,4 +184,49 @@ it('risk:complex-branching cycleState and planStopOf read the replaced cap (ST-L
     // two rounds are recorded with findings: a cap of 2 or less ends the cycle at the cap, a cap of 9 leaves it open
     expect(planStopOf(cycle, [], 'plan', new Set(), rules)).toBe(cap <= 2 ? 2 : undefined);
   }
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// D-07 "an open security or data-loss finding still blocks approval at every setting" (carried Phase 2 D-12, Phase 3 D-22): the block reads the rule kind (`allowances`,
+// `capStop`), never `cap`, so it holds at caps 1, 2, 9 and with none.
+const LOSS = '1. Must — the export overwrites the old file — open — risk: data-loss';
+const SEC = '1. Must — tokens are written to the log — unverified — risk: security';
+const OPEN = '2. Should — the cache can go stale — open';
+const approachClaim = { pin: APPROACH_CAP_FROM };
+
+/** An approach record of `rounds` rounds whose last round holds `finding` beside an ordinary Should; earlier rounds hold only the Should. */
+const withRisk = (rounds: number, finding: string): string =>
+  HEAD + Array.from({ length: rounds }, (_, i) => `## Round ${i + 1}\n\n${i === rounds - 1 ? finding + '\n' : ''}${OPEN}\n\n`).join('');
+
+for (const [kind, finding] of [['data-loss', LOSS], ['security', SEC]] as const) {
+  it(`risk:security the risk block holds at every round cap for an open ${kind} finding (ST-LN-50 t2-ac-4)`, () => {
+    for (const cap of [undefined, 1, 2, 9]) {
+      const config = cap === undefined ? CONFIG : strict({ approach: String(cap) });
+      const at = cap ?? 2; // the cap's last round: the record ended there
+      for (const rounds of [Math.min(at, 3), at, at + 1]) {
+        if (rounds < 1) continue;
+        const snapshot = repo({ config, claim: approachClaim, approach: withRisk(rounds, finding) });
+        const label = `cap ${cap ?? 'default'}, ${rounds} rounds`;
+        // the approval lists the finding as blocking, and as nothing else
+        expect(approvalFindings(snapshot, 'T-1').blocking, label).toEqual([{ round: rounds, lines: [finding] }]);
+        expect(approvalBlockers(snapshot, 'T-1'), label).toEqual([{ round: rounds, lines: [finding] }]);
+        expect(approvalFindings(snapshot, 'T-1').risks.flatMap((r) => r.lines), label).not.toContain(finding);
+      }
+      // at the cap the critic is refused, and the refusal says the finding blocks the approval
+      const refused = nextRound(repo({ config, claim: approachClaim, approach: withRisk(at, finding) }), 'T-1', 'approach');
+      expect(refused.kind, `cap ${cap ?? 'default'}`).toBe('refused');
+      expect(refused.reasons.join('\n'), `cap ${cap ?? 'default'}`).toContain('blocks the approval');
+      expect(refused.blocking, `cap ${cap ?? 'default'}`).toEqual([{ round: at, lines: [finding] }]);
+      // fixed, it blocks nothing at any cap
+      const fixed = repo({ config, claim: approachClaim, approach: withRisk(at, finding.replace(/ — (open|unverified) — /, ' — fixed — ')) });
+      expect(approvalFindings(fixed, 'T-1').blocking, `cap ${cap ?? 'default'}`).toEqual([]);
+    }
+  });
+}
+
+it('risk:security a round cap above the rounds run never lets an open risk finding stand unblocked at a cap of 9 (ST-LN-50 t2-ac-4)', () => {
+  // the loop is still open at 9 (round 3 of 9): the finding blocks the approval all the same
+  const snapshot = repo({ config: strict({ approach: '9' }), claim: approachClaim, approach: withRisk(3, LOSS) });
+  expect(nextRound(snapshot, 'T-1', 'approach')).toMatchObject({ kind: 'next', round: 4, cap: 9 });
+  expect(approvalBlockers(snapshot, 'T-1')).toEqual([{ round: 3, lines: [LOSS] }]);
 });

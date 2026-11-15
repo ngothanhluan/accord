@@ -44,7 +44,7 @@ async function trackerCells(ctx: CommandContext, rows: StatusRow[]): Promise<Rec
   }
 
   const linked = rows.flatMap((r) => {
-    const key = issueKeyOf(r, adapter.name, config?.ids?.mode);
+    const key = issueKeyOf(r, adapter.name, config);
     return key === undefined ? [] : [[r.id, key] as const];
   });
   if (linked.length === 0) return undefined;

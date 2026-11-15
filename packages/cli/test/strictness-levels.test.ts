@@ -3,7 +3,9 @@
 // still fails on the rule.
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it } from 'vitest';
+import { loadSnapshot, resolveStrictness } from '@accord-dev/accord-core';
 import { makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, discussFiles, laneTicket } from '../../../test/helpers/lane.js';
 
@@ -112,3 +114,20 @@ it('risk:security accord config refuses a stage-owned rule, an unknown rule, and
   const asJson = JSON.parse((await run(['config', 'check', '--json'], repo)).out) as { findings: Found[] };
   expect(asJson.findings.map((f) => `${f.rule}@${f.pointer}`)).toEqual(['lint.config-floor@/strictness/levels/gate.verification-missing']);
 }, 120_000);
+
+it('risk:regression a repository with today\'s config answers as before: its configs load to their profile\'s preset (ST-LN-50 t2-ac-6)', () => {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const maintain = { rounds: {}, levels: Object.fromEntries(['lint.token-hardcoded', 'lint.intent-oversize', 'lint.requirements-oversize', 'lint.scenarios-oversize'].map((id) => [id, 'warning'])) };
+  const build = { rounds: {}, levels: {} };
+  for (const [file, profile, preset] of [
+    ['accord/config.yml', 'maintain', maintain],
+    ['examples/maintain/accord/config.yml', 'maintain', maintain],
+    ['examples/build/accord/config.yml', 'build', build],
+  ] as const) {
+    const files = { 'accord/config.yml': readFileSync(join(root, file), 'utf8') };
+    const loaded = loadSnapshot({ files, tree: Object.keys(files) });
+    expect(loaded.config?.profile, file).toBe(profile);
+    expect(loaded.config?.strictness, file).toBeUndefined();
+    expect(resolveStrictness(loaded.config), file).toEqual(preset);
+  }
+});

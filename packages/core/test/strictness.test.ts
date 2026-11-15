@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { PRESETS, effectiveLevel, floorProblems, gateDone, gateReady, lintSnapshot, loadSnapshot, resolveStrictness, LOCKED, NO_OFF, OVERRIDABLE, STAGE_OF } from '../src/index.js';
 import type { AccordConfig, RepoSnapshot } from '../src/index.js';
-import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from '../src/gate/rules.js';
+import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, MAINTAIN_DOWNGRADE, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
@@ -211,5 +211,66 @@ describe('the engines', () => {
     const empty = lintSnapshot(build({ 'accord/config.yml': CONFIG + 'strictness:\n  rounds:\n    plan: "2"\n' }));
     expect(empty.findings).toEqual(none.findings);
     expect(ready(CONFIG).verdict).toBe('fail');
+  });
+});
+
+// ST-LN-50 D-09, t2-ac-6: `profile` is the base preset of levels, held as data; one key overrides it; Ready's promotion comes after the team's level.
+describe('the profile is the base preset (ST-LN-50 t2-ac-6)', () => {
+  const MAINTAIN_PRESET = Object.fromEntries(MAINTAIN_DOWNGRADE.map((id) => [id, 'warning']));
+  const withLevels = (profile: 'build' | 'maintain', l: Record<string, 'error' | 'warning' | 'off'>): AccordConfig => ({ profile, strictness: { levels: l } }) as AccordConfig;
+
+  // A loader finding is stamped error (D-58) and reaches the maintain downgrade the way a real one does; the four ids are warnings in the lint table, so
+  // this is the one way to see the preset on an error row.
+  const gateLevels = (profile: 'build' | 'maintain', extra: string): Map<string, string> => {
+    const config = CONFIG.replace('profile: build', `profile: ${profile}`) + extra;
+    const files = { 'accord/config.yml': config, 'accord/tickets/T-1.md': laneTicket('T-1') };
+    const base = loadSnapshot({ files, tree: Object.keys(files).sort() });
+    const snap: RepoSnapshot = { ...base, errors: [...base.errors, ...MAINTAIN_DOWNGRADE.map((rule) => ({ file: 'accord/tickets/T-1.md', rule, reason: 'r' }))] };
+    return new Map(gateReady(snap, 'T-1').findings.filter((f) => MAINTAIN_DOWNGRADE.includes(f.rule)).map((f) => [f.rule, f.level]));
+  };
+
+  it('risk:regression PRESETS.maintain holds the four MAINTAIN_DOWNGRADE ids at warning and PRESETS.build none', () => {
+    expect(PRESETS.maintain.levels).toEqual(MAINTAIN_PRESET);
+    expect(PRESETS.build.levels).toEqual({});
+    expect(PRESETS.maintain.rounds).toEqual({});
+    expect(PRESETS.build.rounds).toEqual({});
+  });
+
+  it('risk:regression resolveStrictness starts from the profile, and one team key on the same rule wins over the preset', () => {
+    expect(resolveStrictness({ profile: 'maintain' } as AccordConfig).levels).toEqual(MAINTAIN_PRESET);
+    expect(resolveStrictness({ profile: 'build' } as AccordConfig).levels).toEqual({});
+    expect(resolveStrictness(withLevels('maintain', { 'lint.token-hardcoded': 'error' })).levels).toEqual({ ...MAINTAIN_PRESET, 'lint.token-hardcoded': 'error' });
+    expect(resolveStrictness(withLevels('build', { 'lint.intent-oversize': 'warning' })).levels).toEqual({ 'lint.intent-oversize': 'warning' });
+    // the preset object itself is never written to
+    expect(PRESETS.maintain.levels).toEqual(MAINTAIN_PRESET);
+  });
+
+  it('risk:regression on maintain the four rules are warnings as today, and a team key on one of them makes it an error', () => {
+    for (const [id, level] of gateLevels('maintain', '')) expect(level, id).toBe('warning');
+    const asked = gateLevels('maintain', 'strictness:\n  levels:\n    lint.token-hardcoded: error\n');
+    expect(asked.get('lint.token-hardcoded')).toBe('error');
+    for (const id of MAINTAIN_DOWNGRADE.filter((x) => x !== 'lint.token-hardcoded')) expect(asked.get(id), id).toBe('warning');
+  });
+
+  it('risk:regression on build the four rules keep their rows, and a team key sets one', () => {
+    for (const [id, level] of gateLevels('build', '')) expect(level, id).toBe('error');
+    const asked = gateLevels('build', 'strictness:\n  levels:\n    lint.intent-oversize: warning\n');
+    expect(asked.get('lint.intent-oversize')).toBe('warning');
+    expect(asked.get('lint.token-hardcoded')).toBe('error');
+  });
+
+  it('risk:security Ready keeps its promotion over a team level (ST-LN-50 t2-ac-5)', () => {
+    const files = (extra: string) => ({ 'accord/config.yml': CONFIG + extra, 'accord/tickets/T-1.md': laneTicket('T-1', { body: SENTINEL_BODY }) });
+    const snap = (extra: string) => loadSnapshot({ files: files(extra), tree: Object.keys(files(extra)).sort() });
+    const warn = 'strictness:\n  levels:\n    lint.sentinel: warning\n';
+    const ready = gateReady(snap(warn), 'T-1');
+    expect(ready.verdict).toBe('fail');
+    expect(ready.findings.filter((f) => f.rule === 'lint.sentinel').length).toBeGreaterThan(0);
+    expect(ready.findings.filter((f) => f.rule === 'lint.sentinel').every((f) => f.level === 'error')).toBe(true);
+    const plain = lintSnapshot(snap(warn)).findings.filter((f) => f.rule === 'lint.sentinel');
+    expect(plain.length).toBeGreaterThan(0);
+    expect(plain.every((f) => f.level === 'warning')).toBe(true);
+    // maintain's preset does not reach the three promoted rules either
+    expect(PRESETS.maintain.levels).not.toHaveProperty('lint.sentinel');
   });
 });

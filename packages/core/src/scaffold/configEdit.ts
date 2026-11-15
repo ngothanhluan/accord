@@ -5,8 +5,10 @@
 import { Document, Scalar, isMap, isScalar, isSeq, parse, parseDocument } from 'yaml';
 import type { Node } from 'yaml';
 import configSchema from '../../schemas/config.schema.json' with { type: 'json' };
+import { breaksConvention, conventionKey, LEGACY_ID } from '../lint/ids.js';
 import { normaliseText } from '../load/frontmatter.js';
 import { stringNumerics } from '../load/yaml.js';
+import type { AccordConfig } from '../model/snapshot.js';
 
 const BOM = String.fromCharCode(0xfeff);
 const READ = { schema: 'core', customTags: stringNumerics } as const;
@@ -209,6 +211,27 @@ export function appendConfigList(text: string, path: string[], items: string[]):
     return undefined;
   }
   return e.doc.toString(WRITE) === before ? text : finish(e, before, e.doc);
+}
+
+/**
+ * ST-LN-50 D-05: the ids a changed id convention strands, in code-point order: every known id that breaks the new
+ * convention and is not in its legacy_ids. Nothing when the convention is off afterwards or means the same as before.
+ * `known` is every id the clone knows (tickets with their type, records, claims, ids in history; a type is optional);
+ * an id the ticket schema would refuse is never listed, and an id given twice counts once.
+ */
+export function idConsequences(oldConfig: AccordConfig | undefined, newConfig: AccordConfig | undefined, known: readonly { id: string; type?: 'story' | 'bug' | 'epic' }[]): string[] {
+  const after = conventionKey(newConfig);
+  if (newConfig === undefined || after === undefined || after === conventionKey(oldConfig)) return [];
+  const legacy = new Set(newConfig.legacy_ids ?? []);
+  const types = new Map<string, 'story' | 'bug' | 'epic' | undefined>();
+  for (const { id, type } of known) {
+    if (LEGACY_ID.test(id) && (!types.has(id) || types.get(id) === undefined)) types.set(id, type);
+  }
+  // ids are ASCII (LEGACY_ID), so the code-unit order of `<` is the code-point order
+  return [...types]
+    .filter(([id, type]) => !legacy.has(id) && breaksConvention(id, type, newConfig))
+    .map(([id]) => id)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /** The value at `path` as plain data, or undefined when the key is not set or the text does not parse as a mapping. */

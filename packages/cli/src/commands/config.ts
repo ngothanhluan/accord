@@ -4,15 +4,15 @@
 // committed or pushed here: the onboarding skill does that.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { flowValue, getConfigValue, loadConfig, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from '@accord-dev/accord-core';
+import { appendConfigList, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from '@accord-dev/accord-core';
 import type { LoadFinding } from '@accord-dev/accord-core';
-import { UsageError } from '../load/fs.js';
+import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 
 const FILE = 'accord/config.yml';
 const KEYS = 'the keys are in packages/core/schemas/config.schema.json (schemas/config.schema.json in the published @accord-dev/accord-core)';
 
-/** What a change brings with it beyond the key itself: the ids it keeps valid, the subjects it still accepts (D-11). Empty until a key has one. */
+/** What a change brings with it beyond the key itself: the ids it keeps valid (`legacy_ids`), later the subjects it still accepts (D-11). One entry per list, each added item on its own output line. */
 interface Consequence {
   key: string;
   added: string[];
@@ -31,6 +31,23 @@ function read(ctx: CommandContext, key: string): { path: string[]; file: string;
   return { path, file, text };
 }
 
+/**
+ * ST-LN-50 D-05: a change under `ids` or `people` can leave ids that no longer follow the convention. They are appended to
+ * legacy_ids in the same edit, before the schema check, so no ticket is renamed and lint stays green; ids are only ever added.
+ * Every id the clone knows counts: tickets, records, claims, and the history of every ref already fetched.
+ */
+function withConsequences(ctx: CommandContext, path: string[], before: string, edited: string | undefined): { text: string | undefined; consequences: Consequence[] } {
+  if (edited === undefined || edited === before || (path[0] !== 'ids' && path[0] !== 'people')) return { text: edited, consequences: [] };
+  const next = loadConfig(FILE, edited).config; // an invalid result is refused by commit with its own findings
+  const known = [
+    ...Object.values(ctx.snapshot.tickets).map((t) => ({ id: t.id, type: t.frontmatter?.type })),
+    ...[...Object.keys(ctx.snapshot.work ?? {}), ...Object.keys(ctx.snapshot.claims ?? {}), ...gitTicketIdsInHistory(ctx.root)].map((id) => ({ id })),
+  ];
+  const added = idConsequences(ctx.snapshot.config, next, known);
+  if (added.length === 0) return { text: edited, consequences: [] };
+  return { text: appendConfigList(edited, ['legacy_ids'], added), consequences: [{ key: 'legacy_ids', added }] };
+}
+
 const describe = (f: LoadFinding): string => `${f.pointer !== undefined && f.pointer !== '' ? f.pointer + ' ' : ''}${f.reason}`;
 
 /** Validate the edited text as a whole and write it once; any finding, or a text the writers could not edit, writes nothing. */
@@ -43,8 +60,7 @@ function commit(key: string, file: string, before: string, after: string | undef
   if (after !== before) writeFileSync(file, after);
 }
 
-function report(ctx: CommandContext, key: string, from: unknown, to: unknown, options: { json?: boolean }): number {
-  const consequences: Consequence[] = [];
+function report(ctx: CommandContext, key: string, from: unknown, to: unknown, consequences: Consequence[], options: { json?: boolean }): number {
   const same = JSON.stringify(from ?? null) === JSON.stringify(to ?? null);
   const shown = (v: unknown): string => (v === undefined || v === null ? 'unset' : flowValue(v));
   ctx.stdout.write(
@@ -52,7 +68,7 @@ function report(ctx: CommandContext, key: string, from: unknown, to: unknown, op
       ? JSON.stringify({ key, from: from ?? null, to: to ?? null, consequences }, null, 2) + '\n'
       : same
         ? `unchanged: ${key}\n`
-        : `changed: ${key} ${shown(from)} -> ${shown(to)}\n` + consequences.map((c) => `${c.key} +${c.added.join(', ')}\n`).join(''),
+        : `changed: ${key} ${shown(from)} -> ${shown(to)}\n` + consequences.flatMap((c) => c.added.map((a) => `${c.key} +${a}\n`)).join(''),
   );
   return 0;
 }
@@ -74,15 +90,17 @@ export function configSet(ctx: CommandContext, key: string, raw: string, options
   }
   const from = getConfigValue(text, path);
   const same = from !== undefined && JSON.stringify(from) === JSON.stringify(value);
-  commit(key, file, text, same ? text : setConfigValue(text, path, value));
-  return report(ctx, key, from, value, options);
+  const out = withConsequences(ctx, path, text, same ? text : setConfigValue(text, path, value));
+  commit(key, file, text, out.text);
+  return report(ctx, key, from, value, out.consequences, options);
 }
 
 export function configUnset(ctx: CommandContext, key: string, options: { json?: boolean }): number {
   const { path, file, text } = read(ctx, key);
   const from = getConfigValue(text, path);
-  commit(key, file, text, from === undefined ? text : unsetConfigValue(text, path));
-  return report(ctx, key, from, undefined, options);
+  const out = withConsequences(ctx, path, text, from === undefined ? text : unsetConfigValue(text, path));
+  commit(key, file, text, out.text);
+  return report(ctx, key, from, undefined, out.consequences, options);
 }
 
 export function configCheck(ctx: CommandContext, options: { json?: boolean }): number {

@@ -108,6 +108,28 @@ export function trackerKeyOk(key: string, ids?: IdsConfig): boolean {
   return ids?.projects === undefined || ids.projects.includes(key.slice(0, key.lastIndexOf('-')));
 }
 
+/** ST-LN-50 D-05: what a legacy_ids entry may be, the ticket schema's own id form. */
+export const LEGACY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const TYPES = ['story', 'bug', 'epic'] as const;
+
+/**
+ * ST-LN-50 D-05: whether `id` breaks the convention `config` sets (legacy_ids is not looked at here). One predicate for
+ * lint and for the legacy_ids `accord config` fills in. An id whose type is not known (seen only in history) breaks a
+ * pattern only when it fits it for none of the three types.
+ */
+export function breaksConvention(id: string, type: TicketType | undefined, config: AccordConfig): boolean {
+  if (config.ids?.mode === 'tracker') return !trackerKeyOk(id, config.ids);
+  const pattern = config.ids?.pattern ?? DEFAULT_PATTERN;
+  return !(type === undefined ? TYPES : [type]).some((t) => compilePattern(pattern, prefixOf(t, config.ids)).regex.test(id));
+}
+
+/** ST-LN-50 D-05: the convention a config sets as a comparable string, or undefined while it is off (neither `people` nor `ids`). */
+export function conventionKey(config: AccordConfig | undefined): string | undefined {
+  if (config === undefined || (config.people === undefined && config.ids === undefined)) return undefined;
+  if (config.ids?.mode === 'tracker') return JSON.stringify(['tracker', config.ids.projects ?? null]);
+  return JSON.stringify(['pattern', config.ids?.pattern ?? DEFAULT_PATTERN, TYPES.map((t) => prefixOf(t, config.ids))]);
+}
+
 export const idConvention: Rule['check'] = (snapshot) => {
   const config = snapshot.config;
   if (config === undefined || (config.people === undefined && config.ids === undefined)) return []; // D-08: the convention is on when people or ids exists
@@ -131,8 +153,8 @@ export const idConvention: Rule['check'] = (snapshot) => {
   return Object.values(snapshot.tickets).flatMap((t) => {
     const type = t.frontmatter?.type;
     if (t.frontmatter === undefined || (type !== 'story' && type !== 'bug' && type !== 'epic') || legacy.includes(t.id)) return [];
+    if (!breaksConvention(t.id, type, config)) return [];
     const prefix = prefixOf(type, config.ids);
-    if (compilePattern(pattern, prefix).regex.test(t.id)) return [];
     // today's wording while no pattern is set; a team's own pattern is quoted as written, with only {type} rendered
     const shown = config.ids?.pattern === undefined ? `${prefix}-<initials>-<n>` : pattern.replace('{type}', prefix);
     return [

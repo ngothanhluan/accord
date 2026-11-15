@@ -145,7 +145,7 @@ export type { ScaffoldFile } from './scaffold/init.js';
 export { POINTER_END, POINTER_FILES, POINTER_START, pointerText } from './scaffold/pointer.js';
 export { refreshLintStep, repinConfig, repinWorkflow } from './scaffold/repin.js';
 export type { StepRefresh } from './scaffold/repin.js';
-export { appendConfigList, flowValue, getConfigValue, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from './scaffold/configEdit.js';
+export { appendConfigList, flowValue, getConfigValue, idConsequences, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from './scaffold/configEdit.js';
 export { mergePanel, panelSettings } from './scaffold/panel.js';
 export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.js';
 export type { HookEntries } from './scaffold/hooks.js';

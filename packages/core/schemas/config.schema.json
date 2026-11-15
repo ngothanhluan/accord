@@ -40,7 +40,7 @@
       "additionalProperties": false,
       "required": ["adapter"],
       "properties": {
-        "adapter": { "type": "string", "enum": ["none", "github-issues"] },
+        "adapter": { "type": "string", "enum": ["none", "github-issues", "linear"] },
         "repo": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" }
       },
       "if": { "properties": { "adapter": { "const": "github-issues" } }, "required": ["adapter"] },

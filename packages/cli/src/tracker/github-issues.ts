@@ -4,28 +4,10 @@
 // is GITHUB_TOKEN then `gh auth token`, and neither is required (D-102); one GET per referenced issue,
 // in parallel, with no list endpoint and no pagination (D-101).
 import { execFileSync } from 'node:child_process';
+import { REQUEST_TIMEOUT_MS, ascii } from './common.js';
+import type { IssueFacts } from './index.js';
 
-export interface IssueFacts {
-  title: string;
-  state: string;
-  labels: string[];
-}
-
-/**
- * Untrusted text on its way to a terminal (T-05-19). Anything outside printable ASCII — a C0 control,
- * an escape, a carriage return, a multi-byte character — becomes a space, runs collapse, and the
- * result is trimmed. One issue title is therefore always one line that no `padEnd` can mis-measure.
- */
-function ascii(value: unknown): string {
-  return [...String(value ?? '')]
-    .map((ch) => {
-      const cp = ch.codePointAt(0) ?? 0;
-      return cp >= 0x20 && cp <= 0x7e ? ch : ' ';
-    })
-    .join('')
-    .replace(/ +/g, ' ')
-    .trim();
-}
+export type { IssueFacts };
 
 /**
  * D-102: the environment variable first — it costs no spawn and is how CI supplies a token — then
@@ -58,9 +40,6 @@ function factsOf(body: unknown): IssueFacts | undefined {
     : [];
   return { title: ascii(raw.title), state: ascii(raw.state), labels };
 }
-
-/** `status` is a screen someone waits on, so a slow tracker is a failed tracker. */
-const REQUEST_TIMEOUT_MS = 5000;
 
 /**
  * Turn issue numbers into sanitised facts. Never rejects: a 404, an exhausted rate limit, a dead

@@ -292,7 +292,7 @@ export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export interface AccordConfig {
   accord: string; // '0.1.0'
   profile: 'build' | 'maintain';
-  tracker: { adapter: 'none' | 'github-issues'; repo?: string };
+  tracker: { adapter: 'none' | 'github-issues' | 'linear'; repo?: string };
   design: { tokens: string }; // 'src/styles/tokens.css' or ''
   roles: ('ba' | 'dev' | 'designer')[];
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];

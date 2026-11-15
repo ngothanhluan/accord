@@ -4,7 +4,7 @@ description: Use when a lane M ticket has a plan that passed accord gate plan an
 license: MIT
 argument-hint: "[ticket id]"
 kind: skill
-loads: [build/no-plan.md, shared/ask.md, shared/scout.md]
+loads: [build/no-plan.md, plan/baseline.md, shared/ask.md, shared/scout.md]
 ---
 
 This stage builds the plan one task at a time. You run it in the main
@@ -48,7 +48,7 @@ session and orchestrate: executors write the code.
    `plan.md`. If the owner made the change, `accord-plan` reviews it
    (critic, then `accord gate plan`); otherwise restore `plan.md` with the
    owner's yes and dispatch again. Only `accord-plan` changes the plan. Never run
-   `accord tests baseline` here; only the plan stage asks the owner about it.
+   `accord tests baseline` here except as `./no-plan.md` says, which follows `./baseline.md`; otherwise only the plan stage asks the owner about it.
 
 8. When every task has a ledger line, next: `accord-review`, or `accord-verify` when `accord anchor` names review off.
 

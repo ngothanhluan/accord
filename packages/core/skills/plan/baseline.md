@@ -22,4 +22,4 @@ The ledger goes in the plan-ready commit, so the baseline commit still holds tha
 
 On a team, the file reaches the main branch in its own small pull request, holding that file alone, before other tickets plan. On a merge conflict in it, keep only the lines both sides hold, never the union: a dropped case then fails loudly at the gate instead of being exempted silently.
 
-Never create the file in any other step, stage, or agent.
+Never create the file in any other step, stage, or agent, except `accord-build` with the plan stage off, as its `no-plan.md` says.

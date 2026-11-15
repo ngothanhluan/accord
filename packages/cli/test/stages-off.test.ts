@@ -165,7 +165,7 @@ it('risk:security a floor stage cannot be turned off: lint, accord config and th
     expect((await run(['config', 'set', 'strictness.stages.M.review', 'off'], repo)).code).toBe(0);
 
     // hand-edited into the file anyway: lint names the stage and the floor, config check exits 2
-    writeFiles(repo, { 'accord/config.yml': CONFIG + 'strictness:\n  stages:\n    M:\n      verify: "off"\n' });
+    writeFiles(repo, { 'accord/config.yml': CONFIG + 'strictness:\n  stages:\n    M:\n      review: "off"\n      verify: "off"\n' });
     const lint = await run(['lint', '--json'], repo);
     expect(lint.code).toBe(1);
     const floor = (JSON.parse(lint.out) as { findings: { rule: string; level: string; pointer?: string; reason: string }[] }).findings.filter((f) => f.rule === 'lint.config-floor');
@@ -175,7 +175,7 @@ it('risk:security a floor stage cannot be turned off: lint, accord config and th
     expect(floor[0].reason).toContain('independent verification before done');
     expect((await run(['config', 'check'], repo)).code).toBe(2);
 
-    // the engines ignore the key: the built ticket is at verify and gate done still fails without a verification
+    // the engines ignore the verify key (review off is the team's own): the built ticket is at verify and gate done still fails without a verification
     expect(await stageOf(repo)).toBe('verify');
     const done = await run(['gate', 'done', 'T-1', '--json'], repo);
     expect(done.code).toBe(1);

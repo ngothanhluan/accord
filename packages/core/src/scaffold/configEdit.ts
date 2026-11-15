@@ -15,13 +15,22 @@ const READ = { schema: 'core', customTags: stringNumerics } as const;
 const WRITE = { lineWidth: 0, flowCollectionPadding: false } as const;
 
 interface Schema {
+  $ref?: string;
   properties?: Record<string, Schema>;
   patternProperties?: Record<string, Schema>;
   additionalProperties?: boolean | Schema;
 }
 const ROOT = configSchema as unknown as Schema;
+const DEFS = (configSchema as unknown as { $defs?: Record<string, Schema> }).$defs ?? {};
 
-function walk(schema: Schema, segs: string[]): string[] | undefined {
+/** A `{ "$ref": "#/$defs/name" }` node is the definition it names, so a key under a shared definition (the stage switches of each lane) resolves like any other. */
+function deref(schema: Schema): Schema {
+  const name = schema.$ref?.startsWith('#/$defs/') === true ? schema.$ref.slice('#/$defs/'.length) : undefined;
+  return name !== undefined && Object.hasOwn(DEFS, name) ? DEFS[name] : schema;
+}
+
+function walk(node: Schema, segs: string[]): string[] | undefined {
+  const schema = deref(node);
   if (segs.length === 0) return [];
   const [head, ...rest] = segs;
   if (schema.properties !== undefined && Object.hasOwn(schema.properties, head)) {

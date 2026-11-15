@@ -162,14 +162,62 @@ export function effectiveLevel(id: string, tableLevel: 'error' | 'warning', stri
   return set;
 }
 
-/** Every key of `strictness.levels` the engines will ignore, each with why: lint reports them as lint.config-floor and `accord config` refuses them. */
+/** What each stage of the floor guards; the reason a refused stage key prints. */
+const FLOOR_STAGE_WHY: Readonly<Record<(typeof FLOOR_STAGES)[number], string>> = {
+  intent: 'intent and acceptance criteria before code',
+  build: 'the change itself',
+  verify: 'independent verification before done',
+};
+
+/** D-08 Ruling: lane S has no stage off the floor, by stage; its review is lane S's only independent check before done (DONE_S_RULES holds no verification row). */
+const LANE_S_WHY: Readonly<Record<string, string>> = {
+  intent: 'intent and acceptance criteria before code (Understood and Done when)',
+  build: 'the change itself',
+  review: "its review is lane S's only independent check before done (lane S has no verify stage)",
+};
+
+/** D-08 Ruling: lane R has no stage off the floor, by stage; it has no plan, review or verify to take the place of either. */
+const LANE_R_WHY: Readonly<Record<string, string>> = {
+  intent: 'the question, timebox and budget before the work',
+  research: 'the work itself, whose record the owner reads before done',
+};
+
+/** Why `strictness.stages.<lane>.<stage>: off` may not stand, or undefined when it may (a stage of lane M, L or P that is not on the floor, or any value but `off`). */
+function stageRefusal(lane: string, stage: string, value: unknown): string | undefined {
+  if (value !== 'off') return undefined;
+  if (lane === 'S') return `lane S has no stage off the floor: ${stage}: ${LANE_S_WHY[stage] ?? 'every stage of lane S is on the floor'}`;
+  if (lane === 'R') return `lane R has no stage off the floor: ${stage}: ${LANE_R_WHY[stage] ?? 'every stage of lane R is on the floor'}`;
+  if (lane === 'M' || lane === 'L' || lane === 'P') {
+    return (FLOOR_STAGES as readonly string[]).includes(stage) ? `${stage} is on the floor: ${FLOOR_STAGE_WHY[stage as (typeof FLOOR_STAGES)[number]]}` : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Every key of `strictness.levels` and `strictness.stages` the engines will ignore, each with why: lint reports them as lint.config-floor and `accord config` refuses them.
+ * A stage key is refused when it says `off` for a floor stage (intent, build, verify) of lane M, L or P, or for any stage of lane S or lane R.
+ */
 export function floorProblems(config: AccordConfig | undefined): { pointer: string; reason: string }[] {
   const levels = config?.strictness?.levels;
-  if (levels === undefined || levels === null || typeof levels !== 'object') return [];
-  return Object.entries(levels).flatMap(([id, value]) => {
-    const reason = levelRefusal(id, value);
-    return reason === undefined ? [] : [{ pointer: `/strictness/levels/${id}`, reason }];
-  });
+  const found =
+    levels === undefined || levels === null || typeof levels !== 'object'
+      ? []
+      : Object.entries(levels).flatMap(([id, value]) => {
+          const reason = levelRefusal(id, value);
+          return reason === undefined ? [] : [{ pointer: `/strictness/levels/${id}`, reason }];
+        });
+  const stages = config?.strictness?.stages;
+  if (stages === undefined || stages === null || typeof stages !== 'object') return found;
+  return [
+    ...found,
+    ...Object.entries(stages).flatMap(([lane, keys]) => {
+      if (keys === undefined || keys === null || typeof keys !== 'object') return [];
+      return Object.entries(keys).flatMap(([stage, value]) => {
+        const reason = stageRefusal(lane, stage, value);
+        return reason === undefined ? [] : [{ pointer: `/strictness/stages/${lane}/${stage}`, reason }];
+      });
+    }),
+  ];
 }
 
 /**

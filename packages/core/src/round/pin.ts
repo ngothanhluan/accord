@@ -89,9 +89,10 @@ export function pinBefore(from: string, pin: string | undefined, basePin?: strin
  * working-tree pin says after an upgrade. The reader of the claim pin for every Phase 3 rule that follows the claim: the discuss rule (DISCUSS_FROM), the
  * approach cap with its `## Closed` and no-allowance rules and the approval block that goes with it (APPROACH_CAP_FROM), the plan format rules (PLAN_FORMAT_FROM:
  * the `after:` line, the interfaces block, the task length), the plan cap with its count stop and the plan checker at round 1 (PLAN_CAP_FROM), and the plan
- * checker's round-1 grounds rule (PLAN_GROUNDS_FROM, D-19). ST-LN-96 D-02: the read order is fixed. First the ticket's own frontmatter `ruleset` when it is a plain x.y.z (written
- * at the claim from RULESET_FROM, so a squash or a rebase merge, which drops or rewrites the claim commit, cannot change the rules the ticket was claimed under); a `ruleset` that
- * is not a plain x.y.z is ignored. Then the chain below, unchanged. The five constants are one release, and a test names the equality (D-15). Other rules follow the record or the plan instead and do not ask this pin: the Phase 2 grounds rule (which a ticket claimed earlier keeps) and the plan fix scope read the pin at the first round of the record
+ * checker's round-1 grounds rule (PLAN_GROUNDS_FROM, D-19). ST-LN-96 D-02, CR-01: the read order is fixed. A failed claim read is false first. Then the claim fact's `ruleset`, the first
+ * value the branch held (written at the claim from RULESET_FROM, so a rebase, which rewrites the claim commit, cannot change the rules the ticket was claimed under). Then, only when git
+ * holds no claim fact with a pin (a squash merge dropped the claim commit), the ticket's own frontmatter `ruleset`, which is all there is there. A hand edit of the working-tree field never
+ * outranks what git read, because `accord approve` runs no gate that could catch it. A `ruleset` that is not a plain x.y.z is ignored. Then the chain below. The five constants are one release, and a test names the equality (D-15). Other rules follow the record or the plan instead and do not ask this pin: the Phase 2 grounds rule (which a ticket claimed earlier keeps) and the plan fix scope read the pin at the first round of the record
  * (GROUNDS_V2_FROM, `recordPins`, and the round facts of review.md), the version 2 review record reads it at the first review round (RECORD_V2_FROM),
  * and the plan size rule reads the pin at the plan's baseline commit (PLAN_SIZE_FROM, `planPins`). So a record begun after an upgrade, on a ticket
  * claimed before it, gets the grounds rule and keeps the five approach rounds. The chain: the host's claim fact (`claimPins[id]`: the pin at the
@@ -100,10 +101,13 @@ export function pinBefore(from: string, pin: string | undefined, basePin?: strin
  * the working-tree pin decides, as `planSizeMissing` falls back.
  */
 export function claimPinBefore(snapshot: RepoSnapshot, id: string, from: string): boolean {
-  const own = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.ruleset : undefined;
-  if (own !== undefined && PLAIN.test(own)) return pinBefore(from, own);
   const fact = Object.hasOwn(snapshot.claimPins ?? {}, id) ? snapshot.claimPins![id] : undefined;
-  if (fact !== undefined && 'error' in fact) return false;
+  if (fact !== undefined && 'error' in fact) return false; // fail closed first: a hand edit cannot lower the rules past a failed read
+  if (fact?.ruleset !== undefined && PLAIN.test(fact.ruleset)) return pinBefore(from, fact.ruleset); // what the branch first held
+  // CR-01: a claim fact with a pin is what git says, and nothing in the working tree outranks it. The field decides only when git has no usable fact (a squash or rebase merge
+  // lost the claim commit, no git): there it is all there is, as D-02 intends.
+  const own = fact?.pin !== undefined ? undefined : Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.ruleset : undefined;
+  if (own !== undefined && PLAIN.test(own)) return pinBefore(from, own);
   const { pin, basePin } = fact ?? { pin: snapshot.config?.accord, basePin: undefined };
   return pinBefore(from, pin, basePin);
 }

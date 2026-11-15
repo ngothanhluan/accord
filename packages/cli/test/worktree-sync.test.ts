@@ -340,26 +340,40 @@ it('risk:complex-branching Continue runs git.sync instead of merging and pushes 
 
 it('risk:complex-branching the behind line of Continue names the configured way (ST-LN-96 t1-ac-3)', async () => {
   const s = script(MERGE);
-  const ways: Array<{ yaml: string; line: string | RegExp }> = [
+  // before verify `accord worktree sync` refuses, so the line says when it runs; at verify it is the command to run (WR-13)
+  const ways: Array<{ yaml: string; line: string | RegExp; early?: string }> = [
     { yaml: '', line: BEHIND },
     { yaml: '  merge: merge\n', line: BEHIND },
     { yaml: '  merge: squash\n', line: BEHIND },
-    { yaml: '  merge: rebase\n', line: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it with accord worktree sync ST-9' },
-    { yaml: `  sync: '${s.command}'\n`, line: /^behind: t\/ST-9 is 2 commits behind origin\/main; .*git\.sync/ },
+    {
+      yaml: '  merge: rebase\n',
+      line: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it with accord worktree sync ST-9',
+      early: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it, which accord worktree sync ST-9 does at verify',
+    },
+    {
+      yaml: `  sync: '${s.command}'\n`,
+      line: /^behind: t\/ST-9 is 2 commits behind origin\/main; .*git\.sync.*\(accord worktree sync ST-9 runs it\)$/,
+      early: 'behind: t/ST-9 is 2 commits behind origin/main; sync them with git.sync, the team command, which accord worktree sync ST-9 runs at verify',
+    },
   ];
-  for (const w of ways) {
-    const c = copy();
-    if (w.yaml !== '') withGit(c, w.yaml);
-    ticketWorktree(c, 'ST-9');
-    // an uncommitted tracked change: Continue does not sync and says it is behind
-    writeFiles(c.sibling('ST-9'), { 'ST-9.txt': 'changed\n' });
-    twoOnMain(c);
-    const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
-    expect(r.code, w.yaml).toBe(0);
-    const behind = lines(r.out).filter((l) => l.startsWith('behind:'));
-    expect(behind, w.yaml).toHaveLength(1);
-    if (typeof w.line === 'string') expect(behind[0], w.yaml).toBe(w.line);
-    else expect(behind[0], w.yaml).toMatch(w.line);
-    expect(s.calls(), w.yaml).toEqual([]);
+  for (const atVerifyStage of [false, true]) {
+    for (const w of ways) {
+      const c = copy();
+      if (w.yaml !== '') withGit(c, w.yaml);
+      ticketWorktree(c, 'ST-9');
+      if (atVerifyStage) verifyStage(c.sibling('ST-9'), 'ST-9');
+      // an uncommitted tracked change: Continue does not sync and says it is behind
+      writeFiles(c.sibling('ST-9'), { 'ST-9.txt': 'changed\n' });
+      twoOnMain(c);
+      const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+      const where = w.yaml + (atVerifyStage ? ' at verify' : ' before verify');
+      expect(r.code, where).toBe(0);
+      const behind = lines(r.out).filter((l) => l.startsWith('behind:'));
+      expect(behind, where).toHaveLength(1);
+      const want = atVerifyStage ? w.line : (w.early ?? w.line);
+      if (typeof want === 'string') expect(behind[0], where).toBe(want);
+      else expect(behind[0], where).toMatch(want);
+      expect(s.calls(), where).toEqual([]);
+    }
   }
-}, 360_000);
+}, 600_000);

@@ -2,7 +2,7 @@
 // Every git error fails closed: `{ error }` makes the new rules apply.
 import { execFileSync } from 'node:child_process';
 import { pinOf, rulesetOfTicket } from '@accord-dev/accord-core';
-import type { RepoSnapshot } from '@accord-dev/accord-core';
+import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import { catBatch, defaultRefOf } from './fs.js';
 import { claimCommitOf } from './research-facts.js';
 import type { Claim } from './research-facts.js';
@@ -22,9 +22,9 @@ const GIT = {
  * The commit a ticket's claim pin is read at (ST-LN-91 D-15, WR-02, RR-CR-02, RR-IN-01): its `claim: <id>` commit, and only that. A ticket with no
  * such commit has no claim fact, so the working-tree pin decides and a ticket added under an older accord gets the new rules after the upgrade.
  * claimCommitOf (research-facts.ts, shared with the lane R research fact) picks it: the newest `claim: <id>` commit reachable from HEAD and not
- * from the default ref, else the newest one overall. Undefined with none of them.
+ * from the default ref, else the newest one overall. Undefined with none of them. ST-LN-50 D-06: `claim` is the team's template (`commits.subjects.claim`) and every legacy one.
  */
-const claimCommit = (root: string, id: string, ref: string | undefined): Claim | undefined => claimCommitOf(root, id, ref)?.claim;
+const claimCommit = (root: string, id: string, ref: string | undefined, config: Pick<AccordConfig, 'commits'> | undefined): Claim | undefined => claimCommitOf(root, id, ref, 'HEAD', config)?.claim;
 
 /**
  * ST-LN-96 D-02: the commits after `claim` (up to HEAD) that add or remove a `ruleset:` line of the ticket file `rel`, oldest first: one git process. The caller reads each one's blob and takes the
@@ -46,11 +46,12 @@ function commitsWritingRuleset(root: string, claim: string, rel: string): string
  * ST-LN-96 D-02: `ruleset` is the string `ruleset` the ticket file FIRST held on this branch (a rebase replays that commit's content, so it survives where the config pin moves): the one at the
  * claim commit, else (a claim made before RULESET_FROM wrote none) the one in the first commit since the claim that wrote it, the sync-time backfill; `rulesetCommit` is that commit. Absent when no commit wrote one.
  * ST-LN-94 D-11: `time` is the claim commit's author time in seconds (REVIEW2 WR-03: a rebase keeps it), read in the same log call; accord budget clocks a research ticket from it.
+ * ST-LN-50 D-06: `config` is the checkout's config, whose `commits.subjects.claim` and `commits.legacy_subjects.claim` name the claim subjects to look for; undefined looks for today's.
  */
-export function gitClaimFacts(root: string, id: string): ClaimFacts | undefined {
+export function gitClaimFacts(root: string, id: string, config?: Pick<AccordConfig, 'commits'>): ClaimFacts | undefined {
   try {
     const ref = defaultRefOf(root);
-    const claim = claimCommit(root, id, ref);
+    const claim = claimCommit(root, id, ref, config);
     if (claim === undefined) return undefined;
     const { sha, time } = claim;
     let base: string | undefined;
@@ -98,6 +99,6 @@ export function gitClaimFacts(root: string, id: string): ClaimFacts | undefined 
 export function withClaimPins(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot {
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
   if (lane === undefined || snapshot.git === undefined) return snapshot;
-  const fact = gitClaimFacts(root, id);
+  const fact = gitClaimFacts(root, id, snapshot.config);
   return fact === undefined ? snapshot : { ...snapshot, claimPins: { ...snapshot.claimPins, [id]: fact } };
 }

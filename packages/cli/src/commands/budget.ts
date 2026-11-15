@@ -24,7 +24,7 @@ export function budget(ctx: CommandContext, id: string): number {
   const timebox = allowance(sectionValue(ticket, 'Timebox'), 'Timebox', readTimebox);
   const budgetLine = allowance(sectionValue(ticket, 'Token budget'), 'Token budget', readTokenBudget);
   // D-11 Ruling: the clock starts at the claim commit; with no commit at all there is none.
-  const fact = ctx.snapshot.git === undefined ? undefined : gitClaimFacts(ctx.root, id);
+  const fact = ctx.snapshot.git === undefined ? undefined : gitClaimFacts(ctx.root, id, ctx.snapshot.config);
   if (fact === undefined) throw new UsageError(`no claim commit for ${id}: run accord worktree open ${id}`);
   if ('error' in fact) throw new UsageError(fact.error);
   // A claim commit dated after now (clock skew) counts as no time spent.

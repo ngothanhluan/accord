@@ -2,8 +2,8 @@
 // or changed after that commit (with no claim commit, from the commit that added the ticket file on), each with the time of its last change. Every git failure is `{ error }`, which core reads as no record of the
 // ticket's own (fail closed). This module imports nothing from fs.ts, so fs.ts and claim-facts.ts may both use it.
 import { execFileSync } from 'node:child_process';
-import { isResearchRecord } from '@accord-dev/accord-core';
-import type { ResearchFact, Ticket } from '@accord-dev/accord-core';
+import { isResearchRecord, subjectsFor } from '@accord-dev/accord-core';
+import type { AccordConfig, ResearchFact, Ticket } from '@accord-dev/accord-core';
 
 const GIT = {
   encoding: 'utf8' as const,
@@ -21,20 +21,24 @@ export interface Claim {
   time: number;
 }
 
-/** The commits reachable from `rev` (and not from the `notIn` refs) whose subject is exactly `claim: <id>`, oldest first (topological: a claim is never listed before its ancestor, whatever the commit dates). */
-export function claimsOf(root: string, id: string, notIn: string[], rev = 'HEAD'): Claim[] {
-  const claim = 'claim: ' + id;
-  // `--grep` only narrows the log (it also matches `claim: <id>0` and a body line), so the subject is compared exactly.
+/**
+ * The commits reachable from `rev` (and not from the `notIn` refs) whose subject is exactly one of `subjects` (ST-LN-50 D-06: the claim subjects of the ticket,
+ * the current template's and every legacy one's, from subjectsFor(config, 'claim', id)), oldest first (topological: a claim is never listed before its ancestor,
+ * whatever the commit dates).
+ */
+export function claimsOf(root: string, subjects: readonly string[], notIn: string[], rev = 'HEAD'): Claim[] {
+  // `--grep` only narrows the log (it also matches `claim: <id>0` and a body line; git ORs several), so each subject is compared exactly.
   const log = execFileSync(
     'git',
-    ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--fixed-strings', '--grep=' + claim, '--topo-order', '--reverse', '--format=%H %at %s', rev, ...notIn],
+    ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--fixed-strings', ...subjects.map((s) => '--grep=' + s), '--topo-order', '--reverse', '--format=%H %at %s', rev, ...notIn],
     { cwd: root, ...GIT },
   );
+  const wanted = new Set(subjects);
   const hits: Claim[] = [];
   for (const line of log.split('\n')) {
     const space = line.indexOf(' ');
     const second = space > 0 ? line.indexOf(' ', space + 1) : -1;
-    if (second > 0 && line.slice(second + 1) === claim) {
+    if (second > 0 && wanted.has(line.slice(second + 1))) {
       hits.push({ sha: line.slice(0, space).toLowerCase(), time: Number(line.slice(space + 1, second)) });
     }
   }
@@ -44,12 +48,19 @@ export function claimsOf(root: string, id: string, notIn: string[], rev = 'HEAD'
 /**
  * The commit a ticket's claim is read at (ST-LN-91 D-15): the newest `claim: <id>` commit reachable from `rev` (HEAD by default) and not from
  * the default ref `ref`, else the newest one overall. `offDefault` says which: the first is a claim on a working branch, whose own commits are
- * those not on `ref`. At `ref` itself only the second is asked.
+ * those not on `ref`. At `ref` itself only the second is asked. `config` is the team's `commits.subjects` and `commits.legacy_subjects`; undefined looks for today's subject only.
  */
-export function claimCommitOf(root: string, id: string, ref: string | undefined, rev = 'HEAD'): { claim: Claim; offDefault: boolean } | undefined {
-  const off = ref === rev ? [] : claimsOf(root, id, ref === undefined ? [] : ['--not', ref], rev);
+export function claimCommitOf(
+  root: string,
+  id: string,
+  ref: string | undefined,
+  rev = 'HEAD',
+  config?: Pick<AccordConfig, 'commits'>,
+): { claim: Claim; offDefault: boolean } | undefined {
+  const subjects = subjectsFor(config, 'claim', id);
+  const off = ref === rev ? [] : claimsOf(root, subjects, ref === undefined ? [] : ['--not', ref], rev);
   if (off.length > 0) return { claim: off[off.length - 1], offDefault: ref !== undefined };
-  const any = ref === undefined ? [] : claimsOf(root, id, [], rev);
+  const any = ref === undefined ? [] : claimsOf(root, subjects, [], rev);
   return any.length > 0 ? { claim: any[any.length - 1], offDefault: false } : undefined;
 }
 
@@ -84,11 +95,11 @@ const why = (e: unknown): string => {
  * The time of a record's change is the author time (REVIEW2 WR-03, kept by a rebase) of the newest such commit that touches it. File names are
  * read NUL-separated and unquoted (REVIEW2 WR-02). Pathspecs are literal.
  */
-export function gitResearchFact(root: string, t: Ticket, o: { ref: string | undefined; rev?: string; now: number }): ResearchFact {
+export function gitResearchFact(root: string, t: Ticket, o: { ref: string | undefined; rev?: string; now: number; config?: Pick<AccordConfig, 'commits'> }): ResearchFact {
   try {
     const records = [...new Set((t.frontmatter?.research ?? []).filter(isResearchRecord))];
     const rev = o.rev ?? 'HEAD';
-    const found = claimCommitOf(root, t.id, o.ref, rev);
+    const found = claimCommitOf(root, t.id, o.ref, rev, o.config);
     let range: string[];
     if (found === undefined) {
       const ticketPath = 'accord/tickets/' + t.id + '.md';
@@ -133,13 +144,13 @@ export function gitResearchFact(root: string, t: Ticket, o: { ref: string | unde
 export function researchFactsFor(
   root: string,
   tickets: Record<string, Ticket>,
-  o: { ref: string | undefined; rev?: string; now?: number },
+  o: { ref: string | undefined; rev?: string; now?: number; config?: Pick<AccordConfig, 'commits'> },
 ): Record<string, ResearchFact> | undefined {
   const now = o.now ?? Math.floor(Date.now() / 1000);
   const out: Record<string, ResearchFact> = {};
   for (const t of Object.values(tickets)) {
     if (t.frontmatter?.lane !== 'R' || (t.frontmatter.research ?? []).length === 0) continue;
-    out[t.id] = gitResearchFact(root, t, { ref: o.ref, ...(o.rev === undefined ? {} : { rev: o.rev }), now });
+    out[t.id] = gitResearchFact(root, t, { ref: o.ref, ...(o.rev === undefined ? {} : { rev: o.rev }), now, ...(o.config === undefined ? {} : { config: o.config }) });
   }
   return Object.keys(out).length === 0 ? undefined : out;
 }

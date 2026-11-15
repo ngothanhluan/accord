@@ -148,7 +148,7 @@ run it again.
    acceptance after a stop: go to step 4 of the skill.
 5. **Fix.** Otherwise commit `accord/tickets/<id>.md` and
    `approach-review.md`, with the ledger if it changed, with the subject
-   `approach: <id> round <n>, <m> Must, <s> Should`, `<m>` and `<s>` counting
+   that `accord subject approach_round <id> round <n>, <m> Must, <s> Should` prints, `<m>` and `<s>` counting
    the Musts and the Shoulds after the last `## Closed` line that are `open`
    or `unverified`; the next `diff` round reads from that commit. Dispatch
    `accord-planner` in its `direction` mode with the ticket path, the name of

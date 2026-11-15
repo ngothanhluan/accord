@@ -11,7 +11,7 @@ session and orchestrate: executors write the code.
 
 ## Steps
 
-1. Run `accord anchor`. It names the next task. If `git log -1 --format=%s -- accord/tickets/<id>/plan.md` does not print `plan: <id> ready`, or `git status --porcelain` on `plan.md` prints anything, the plan stage has not finished: load `accord-plan` and resume there instead of building.
+1. Run `accord anchor`. It names the next task. If it prints `Stage: plan` (the plan is not committed as ready), or `git status --porcelain` on `plan.md` prints anything, the plan stage has not finished: load `accord-plan` and resume there instead of building.
 
 2. **Dispatch.** For each task in `plan.md` without a line in `accord/tickets/<id>/ledger.md`, in order, one at a time: run `accord brief <id> <n>` into a file outside the working tree (for example the system temp directory), so it is never committed, and dispatch a fresh `accord-executor` with the path of that file only. Never pass chat history.
 

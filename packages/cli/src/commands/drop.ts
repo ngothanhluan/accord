@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isResearchPath, isResearchRecord, lintSnapshot, loadSnapshot, markDropped } from '@accord-dev/accord-core';
+import { isResearchPath, isResearchRecord, lintSnapshot, loadSnapshot, markDropped, renderSubject } from '@accord-dev/accord-core';
 import { droppedOn, gitDefaultRef, gitFilesAt, loadRefInput, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { branchOf, git, gitNoPrompt, gitOk, ID, listWorktrees } from './worktree.js';
@@ -128,6 +128,7 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     );
   }
 
+  const subject = renderSubject(ctx.snapshot.config, 'drop', id); // ST-LN-50 D-06: the team's template, else `drop: <id>`
   const folder = mkdtempSync(join(tmpdir(), 'accord-drop-'));
   let sha: string;
   try {
@@ -137,7 +138,7 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     gitIn(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${path}`], { env });
     for (const [p, b2] of Object.entries(carried)) gitIn(root, ['update-index', '--add', '--cacheinfo', `100644,${b2},${p}`], { env });
     const tree = gitIn(root, ['write-tree'], { env }).trim();
-    sha = gitIn(root, ['commit-tree', tree, '-p', base], { input: Buffer.from(`drop: ${id}\n`, 'utf8') }).trim();
+    sha = gitIn(root, ['commit-tree', tree, '-p', base], { input: Buffer.from(subject + '\n', 'utf8') }).trim();
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
@@ -148,6 +149,6 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
       `the drop commit ${sha} was made but the push failed: ${String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0]} - push it with git push origin ${sha}:refs/heads/drop/${id}`,
     );
   }
-  ctx.stdout.write(`branch: drop/${id}\nbase: ${short}\ntitle: drop: ${id}\n`);
+  ctx.stdout.write(`branch: drop/${id}\nbase: ${short}\ntitle: ${subject}\n`);
   return 0;
 }

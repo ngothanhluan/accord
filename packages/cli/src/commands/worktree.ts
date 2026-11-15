@@ -3,8 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, RULESET_FROM, rulesetOfTicket, setFrontmatterKey, shaEqual, statusRows, trailerReason } from '@accord-dev/accord-core';
-import type { RepoSnapshot } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderSubject, RULESET_FROM, rulesetOfTicket, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
+import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
@@ -398,11 +398,13 @@ export function printStop(ctx: CommandContext, path: string, id: string): void {
 /** Pick up reuses an existing branch only when its claim is the user's own (same email); otherwise exit 2, nothing created. */
 function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
   const def = gitDefaultRef(ctx.root);
-  const log = git(ctx.root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--fixed-strings', '--grep=claim: ' + id, '--format=%ae%x00%s', ref, ...(def === undefined ? [] : ['--not', def])]);
+  // ST-LN-50 D-06: the claim subject is the team's template and every legacy one still names a claimant; `--grep` only narrows the log, each subject is compared exactly.
+  const subjects = subjectsFor(ctx.snapshot.config, 'claim', id);
+  const log = git(ctx.root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--fixed-strings', ...subjects.map((s) => '--grep=' + s), '--format=%ae%x00%s', ref, ...(def === undefined ? [] : ['--not', def])]);
   let claimant: string | undefined;
   for (const line of log.split('\n')) {
     const [email, subject] = line.split('\0');
-    if (subject === 'claim: ' + id) {
+    if (subject !== undefined && subjects.includes(subject)) {
       claimant = email;
       break;
     }
@@ -561,7 +563,7 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   recordQuietly(ctx, id, path);
   const wrote = claimRuleset(path, `accord/tickets/${id}.md`);
   if (wrote) git(path, ['add', '--', ':(literal)' + `accord/tickets/${id}.md`]);
-  git(path, ['commit', ...(wrote ? [] : ['--allow-empty']), '-q', '-m', 'claim: ' + id]);
+  git(path, ['commit', ...(wrote ? [] : ['--allow-empty']), '-q', '-m', renderSubject(ctx.snapshot.config, 'claim', id)]);
   if (enter) {
     takeHold(ctx, id, path);
     checkPin(ctx, id, path, branch, mainPath);
@@ -619,7 +621,7 @@ function claimRuleset(path: string, rel: string): boolean {
  * could read it. A ticket whose file is only on its branch cannot be backfilled by `accord upgrade` (the upgrade branch has no such file), so its first sync does it. A rebase replays
  * the claim commit onto the new base, so after one the claim pin is the new base's: the pin is read BEFORE the sync, while the original claim commit is reachable (backfillRuleset's `ref`).
  */
-function claimPinToBackfill(path: string, id: string): string | undefined {
+function claimPinToBackfill(path: string, id: string, config: Pick<AccordConfig, 'commits'> | undefined): string | undefined {
   let text: string;
   try {
     text = readFileSync(`${path}/accord/tickets/${id}.md`, 'utf8');
@@ -627,7 +629,7 @@ function claimPinToBackfill(path: string, id: string): string | undefined {
     return undefined;
   }
   if (rulesetOfTicket(text) !== undefined) return undefined;
-  const fact = gitClaimFacts(path, id);
+  const fact = gitClaimFacts(path, id, config);
   // a ruleset an earlier commit wrote and the file has lost is a hand removal: gate.ruleset-missing reports it, it is not backfilled
   if (fact === undefined || 'error' in fact || fact.ruleset !== undefined) return undefined;
   return fact.pin !== undefined && /^\d+\.\d+\.\d+$/.test(fact.pin) && pinBefore(RULESET_FROM, fact.pin) ? fact.pin : undefined;
@@ -649,14 +651,14 @@ interface Backfill {
  */
 function backfillRuleset(ctx: CommandContext, id: string, path: string, ref?: string): Backfill | undefined {
   if (rulesetPinOf(path) === undefined && (ref === undefined || refPinOf(path, ref) === undefined)) return undefined;
-  const pin = claimPinToBackfill(path, id);
+  const pin = claimPinToBackfill(path, id, ctx.snapshot.config);
   if (pin === undefined) return undefined;
   const rel = ':(literal)' + `accord/tickets/${id}.md`;
   try {
     const before = git(path, ['rev-parse', 'HEAD']).trim();
     if (!writeKey(path, `accord/tickets/${id}.md`, 'ruleset', pin)) return undefined;
     git(path, ['add', '--', rel]);
-    git(path, ['commit', '-q', '-m', `ruleset: ${id} from its claim commit`]);
+    git(path, ['commit', '-q', '-m', renderSubject(ctx.snapshot.config, 'ruleset_backfill', id)]);
     return { pin, commit: git(path, ['rev-parse', 'HEAD']).trim(), before };
   } catch (e) {
     gitOk(path, ['checkout', 'HEAD', '--', rel]);
@@ -1002,7 +1004,7 @@ function rebindAfterRebase(ctx: CommandContext, id: string, root: string): void 
   try {
     for (const t of todo) writeKey(root, t.rel(id), t.key, head);
     git(root, ['add', '--', ...rels]);
-    git(root, ['commit', '-q', '-m', `verify: ${id} rebound after rebase`]);
+    git(root, ['commit', '-q', '-m', renderSubject(ctx.snapshot.config, 'rebind', id)]);
   } catch (e) {
     // the rebase stands; the two records go back as the rebase left them, so the branch is never left half written
     gitOk(root, ['checkout', 'HEAD', '--', ...rels]);
@@ -1892,7 +1894,7 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   const ruleset = rulesetPinOf(path);
   writeFileSync(path + '/' + rel, ruleset === undefined ? text : setFrontmatterKey(text, 'ruleset', ruleset));
   git(path, ['add', '--', rel]);
-  git(path, ['commit', '-q', '-m', 'claim: ' + id]);
+  git(path, ['commit', '-q', '-m', renderSubject(ctx.snapshot.config, 'claim', id)]);
   let holdError: unknown;
   if (enter) {
     try {

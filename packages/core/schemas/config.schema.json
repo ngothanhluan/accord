@@ -5,6 +5,19 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["accord", "profile", "tracker", "design", "roles", "runtimes"],
+  "$defs": {
+    "subject": {
+      "type": "string",
+      "allOf": [
+        { "pattern": "^[^{}]*\\{id\\}[^{}]*$" },
+        { "pattern": "^(?!\\{id\\}$)" },
+        { "pattern": "^[^\\r\\n]*$" },
+        { "pattern": "^(?!-)" },
+        { "pattern": "^(?!\\s)" },
+        { "pattern": "\\S$" }
+      ]
+    }
+  },
   "properties": {
     "accord": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$" },
     "profile": { "type": "string", "enum": ["build", "maintain"] },
@@ -107,7 +120,43 @@
     "commits": {
       "type": "object",
       "additionalProperties": false,
-      "properties": { "trailers": { "type": "string", "enum": ["allow", "forbid"] } }
+      "properties": {
+        "trailers": { "type": "string", "enum": ["allow", "forbid"] },
+        "subjects": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "claim": { "$ref": "#/$defs/subject" },
+            "plan_ready": { "$ref": "#/$defs/subject" },
+            "plan_round": { "$ref": "#/$defs/subject" },
+            "approach_round": { "$ref": "#/$defs/subject" },
+            "intent": { "$ref": "#/$defs/subject" },
+            "ticket_understood": { "$ref": "#/$defs/subject" },
+            "ticket_question": { "$ref": "#/$defs/subject" },
+            "scout": { "$ref": "#/$defs/subject" },
+            "drop": { "$ref": "#/$defs/subject" },
+            "rebind": { "$ref": "#/$defs/subject" },
+            "ruleset_backfill": { "$ref": "#/$defs/subject" }
+          }
+        },
+        "legacy_subjects": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "claim": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "plan_ready": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "plan_round": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "approach_round": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "intent": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "ticket_understood": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "ticket_question": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "scout": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "drop": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "rebind": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "ruleset_backfill": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } }
+          }
+        }
+      }
     },
     "generated": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1, "allOf": [ { "pattern": "^[A-Za-z0-9._@-](?:[A-Za-z0-9._@/ -]*[A-Za-z0-9._@/-])?$" }, { "pattern": "^(?!(?:.*/)?\\.\\.(?:/|$))" }, { "pattern": "^(?!(?:.*/)?\\.(?:/|$))" }, { "pattern": "^(?!.*//)" } ] } },
     "sensitive": {
@@ -122,6 +171,40 @@
       "properties": {
         "merge": { "type": "string", "enum": ["merge", "rebase", "squash"] },
         "sync": { "type": "string", "minLength": 1, "pattern": "^[^\\r\\n]+$" }
+      }
+    },
+    "ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["pattern", "tracker"] },
+        "pattern": {
+          "type": "string",
+          "maxLength": 64,
+          "allOf": [
+            { "pattern": "^(?:[A-Za-z0-9._-]|\\{type\\}|\\{initials\\}|\\{n\\})+$" },
+            { "pattern": "\\{n\\}" },
+            { "pattern": "^(?!.*\\{n\\}.*\\{n\\})" },
+            { "pattern": "^(?!.*\\{type\\}.*\\{type\\})" },
+            { "pattern": "^(?!.*\\{initials\\}.*\\{initials\\})" },
+            { "pattern": "^(?:[A-Za-z0-9]|\\{type\\}|\\{initials\\})" }
+          ]
+        },
+        "types": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "story": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{0,9}$" },
+            "bug": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{0,9}$" },
+            "epic": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{0,9}$" }
+          }
+        },
+        "projects": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,19}$" }
+        }
       }
     }
   }

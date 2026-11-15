@@ -13,7 +13,7 @@ main checkout. It has no approach, plan, critic, code review or verification, an
 
 - New request: the accord skill ran `accord new ticket <id> --lane R --worktree`. Before you follow the `enter:` or
   `stop:` line it printed as `./worktree.md` says, write step 1's question and title into
-  `<path>/accord/tickets/<id>.md`. Then run `git -C "<path>" commit -m "ticket: <id> question" -- accord/tickets/<id>.md`
+  `<path>/accord/tickets/<id>.md`. Then run `git -C "<path>" commit -m "<subject>" -- accord/tickets/<id>.md`, `<subject>` being the line `accord subject ticket_question <id>` prints,
   and `git -C "<path>" push -u origin <branch>`. After `enter:`, go on at step 2 in that worktree; after `stop:`, the
   session opened there finds the question in the ticket.
 - Pick up: run `accord worktree open <id>` and follow `./worktree.md`.

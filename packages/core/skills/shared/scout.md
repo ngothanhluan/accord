@@ -25,7 +25,7 @@ ticket, so no agent after it searches again.
    lane S or M, after `accord new ticket` and before you follow the `enter:` or `stop:` line it printed, copy
    the checked file to `<path>/accord/tickets/<id>/scout.md`, run
    `git -C "<path>" add -- accord/tickets/<id>/scout.md`, then
-   `git -C "<path>" commit -m "scout: <id> report" -- accord/tickets/<id>/scout.md` and
+   `git -C "<path>" commit -m "<subject>" -- accord/tickets/<id>/scout.md` (`<subject>` is the line `accord subject scout <id>` prints) and
    `git -C "<path>" push -u origin <branch>`. At intent step 2, when `accord/tickets/<id>/scout.md` does not
    exist, copy the checked reply there, add and commit it the same way and run `accord worktree push <id>`;
    when it exists, use the checked reply for your questions and leave `scout.md` as it is.
@@ -33,7 +33,7 @@ ticket, so no agent after it searches again.
    `accord scout check "accord/tickets/<id>/scout.md"`; when that file does not exist, dispatch `accord-scout`
    with the path of `accord/tickets/<id>.md`, asking for the existing files the approach touches, then check its
    reply as steps 1 to 3 say, copy it to `accord/tickets/<id>/scout.md`, run
-   `git add -- accord/tickets/<id>/scout.md` and `git commit -m "scout: <id> report" -- accord/tickets/<id>/scout.md`,
+   `git add -- accord/tickets/<id>/scout.md` and `git commit -m "<subject>" -- accord/tickets/<id>/scout.md` (the same `accord subject scout <id>` line),
    then `accord worktree push <id>`, all before the owner's yes; check that reply with `--ticket <id>`. A saved report that fails is corrected in place
    as step 2 says, then committed and pushed the same way before the owner's yes.
    `accord approve <id>` runs the same check on `scout.md` as of the commit that last changed it, or on the

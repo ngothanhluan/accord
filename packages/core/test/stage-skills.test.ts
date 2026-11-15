@@ -20,12 +20,12 @@ const config: AccordConfig = {
 };
 
 const REQUIRED: Record<string, readonly string[]> = {
-  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'claim: <id>', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
+  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
-  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'plan: <id> ready', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last `plan: <id> ready`'],
-  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', 'plan: <id> ready', 'accord-debug', 'git status --porcelain', './scout.md'],
+  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit'],
+  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done'],
   debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'last `## ` heading', 'its step 3 for the task that entered debug'],
@@ -915,7 +915,7 @@ it('risk:regression the stage skills run accord worktree push after each stage c
   const ROWS: [stage: string, from: string, to: string, commit: string, go: boolean, file?: string][] = [
     // ST-LN-91 plan 03-05: the approach yes procedure, with its commit and push, lives in approval.md.
     ['approach', '4. On yes, run', '5. If the owner picks another option', 'Then commit the ticket, with `approved_hash:` and `ac_hash:` in it', true, 'approval.md'],
-    ['plan', '8. **Finish.**', '9. Next', 'with the subject `plan: <id> ready`', true],
+    ['plan', '8. **Finish.**', '9. Next', 'with the subject that `accord subject plan_ready <id>` prints', true],
     ['build', '3. **Record.**', '4. **Blocked.**', 'commit the ticket together with `accord/tickets/<id>/ledger.md`', true],
     ['build', '6. **Change of course.**', '7. **Plan changed.**', 'on yes run `accord approve <id>`, commit the ticket', true],
   ];
@@ -1000,7 +1000,8 @@ it('ac-4 a lane M ticket moved to lane S at intent is changed in place and no sk
     'an unchecked `- [ ]` item',
     'an uncommented `approved_hash:` line',
     "git log --full-history -G '^approved_hash:' --format=%h <origin's default branch>..HEAD -- accord/tickets/<id>.md",
-    'git commit -m "intent: <id> before the move to lane S"',
+    'git commit -m "<subject>"',
+    'the line `accord subject intent <id> before the move to lane S` prints',
     'replace the `lane:` line with `lane: "S"`,',
     'replace the `## Intent`, `## Acceptance criteria`, `## Open questions` and `## Approach` sections, headings included, with `## Understood` and `## Done when`,',
     'written from the intent interview already held, with no new interview',

@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
 import type { BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
@@ -1192,7 +1192,7 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
     }
   }
   // ST-LN-94 CR-01: a lane R ticket is done only on a record its branch changed since the claim, which git says; none of this runs without one.
-  const researchFacts = facts === undefined ? undefined : researchFactsFor(root, first.tickets, { ref: researchRef(root, first.tickets) });
+  const researchFacts = facts === undefined ? undefined : researchFactsFor(root, first.tickets, { ref: researchRef(root, first.tickets), ...(config === undefined ? {} : { config }) });
   const input: SnapshotInput = {
     files,
     tree,
@@ -1425,13 +1425,14 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   // ST-LN-94 REVIEW2 WR-01: a lane R ticket read from its claimed branch has its research fact read at that branch's tip, where its claim is.
   const researchFacts: Record<string, ResearchFact> = { ...bare.researchFacts };
   let defaultRef: { ref: string | undefined } | undefined;
+  const config = bare.files['accord/config.yml'] === undefined ? undefined : loadConfig('accord/config.yml', bare.files['accord/config.yml']).config; // ST-LN-50 D-06: the claim subjects to look for
   for (const [id, ref] of candidates) {
     const text = read.get(ref + ':' + recordPaths(id)[0]);
     if (text === undefined) continue;
     const t = loadSnapshot({ files: { [recordPaths(id)[0]]: text }, tree: [] }).tickets[id];
     if (t?.frontmatter?.lane !== 'R' || (t.frontmatter.research ?? []).length === 0) continue;
     defaultRef ??= { ref: defaultRefOf(root) };
-    researchFacts[id] = gitResearchFact(root, t, { ref: defaultRef.ref, rev: ref, now: Math.floor(Date.now() / 1000) });
+    researchFacts[id] = gitResearchFact(root, t, { ref: defaultRef.ref, rev: ref, now: Math.floor(Date.now() / 1000), ...(config === undefined ? {} : { config }) });
   }
   const afterVerify: Record<string, AfterVerify> = {
     ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
@@ -1860,7 +1861,7 @@ export function snapshotAt(root: string, ref: string, ids: readonly string[]): R
   const first = loadSnapshot({ files, tree: [] });
   const records = [...new Set(Object.values(first.tickets).filter((t) => t.frontmatter?.lane === 'R').flatMap((t) => (t.frontmatter?.research ?? []).filter(isResearchRecord)))];
   if (records.length === 0) return first;
-  const researchFacts = researchFactsFor(root, first.tickets, { ref, rev: ref });
+  const researchFacts = researchFactsFor(root, first.tickets, { ref, rev: ref, ...(first.config === undefined ? {} : { config: first.config }) });
   return loadSnapshot({ files: { ...files, ...gitFilesAt(root, ref, records) }, tree: [], ...(researchFacts === undefined ? {} : { researchFacts }) });
 }
 

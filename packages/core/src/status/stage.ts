@@ -6,6 +6,7 @@ import { hasOwnSpentRecord } from '../gate/lane-r.js';
 import { VERDICTS, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { cycleOpen } from '../round/record.js';
+import { matchesSubject } from '../commits/subjects.js';
 import type { AfterVerifyCommit, RepoSnapshot, Ticket } from '../model/snapshot.js';
 
 // ST-LN-94 D-10: 'research' is lane R's own stage, between Ready and its record.
@@ -25,8 +26,9 @@ const ticksBound = (ticket: Ticket): boolean => {
   return fm !== undefined && (fm.verified ?? []).length > 0 && hash !== undefined && fm.verified_hash === hash;
 };
 
-const planReady = (facts: NonNullable<RepoSnapshot['planFacts']>, id: string): boolean =>
-  Object.hasOwn(facts, id) && facts[id].clean && facts[id].subject === `plan: ${id} ready`;
+// ST-LN-50 D-06: the subject is compared exactly against the current and the legacy plan_ready templates.
+const planReady = (snapshot: RepoSnapshot, facts: NonNullable<RepoSnapshot['planFacts']>, id: string): boolean =>
+  Object.hasOwn(facts, id) && facts[id].clean && facts[id].subject !== undefined && matchesSubject(snapshot.config, 'plan_ready', id, facts[id].subject);
 
 const NEXT: Record<Exclude<Stage, 'build' | 'intent' | 'research'>, string> = {
   plan: 'write the plan and pass accord gate plan',
@@ -113,7 +115,7 @@ export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | u
   if (fm.approved_hash === undefined || fm.approved_hash !== approvedHash(ticket)) return { stage: 'intent', ...counts };
   if (tasks.length === 0) return { stage: 'plan', ...counts };
   // BUG-LN-2: a host that supplies plan facts holds the ticket at plan until plan.md's ready commit.
-  if (open.length > 0 && snapshot.planFacts !== undefined && !planReady(snapshot.planFacts, ticket.id)) return { stage: 'plan', ...counts };
+  if (open.length > 0 && snapshot.planFacts !== undefined && !planReady(snapshot, snapshot.planFacts, ticket.id)) return { stage: 'plan', ...counts };
   if (open.length > 0) return { stage: 'build', ...counts, next: open[0].n };
   if (!VERDICTS.includes(work?.review?.verdict ?? '')) return { stage: 'review', ...counts };
   // ST-LN-17: a versioned record that ends in an open cycle is at review, whatever the after-verify window reads.

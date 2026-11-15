@@ -1,5 +1,6 @@
 // D-28 input contract and the RepoSnapshot model (D-30 to D-32, D-42, D-46). Type-only file.
 // Plain records and arrays, never Map/Set, so JSON.stringify of a snapshot is the golden (D-54).
+import type { SubjectName } from '../commits/subjects.js';
 import type { LoadFinding } from './finding.js';
 
 export interface SnapshotInput {
@@ -31,7 +32,7 @@ export interface SnapshotInput {
   // The template a new claim is named by; absent when it is 't/{id}'.
   claimTemplate?: string;
   // Ticket id -> the subject of the last commit that touched its plan.md and whether plan.md has no uncommitted
-  // change. A plan is ready when clean and the subject is exactly `plan: <id> ready`. Absent when the host supplies none.
+  // change. A plan is ready when clean and the subject is exactly the `plan_ready` subject of the id (`plan: <id> ready`, or the current or a legacy template). Absent when the host supplies none.
   planFacts?: Record<string, { subject?: string; clean: boolean }>;
   // Ticket id -> the commits after its start commit (verified_commit, else verification.md's commit) on its own tip
   // that the default ref does not hold, oldest first. Present only for a ticket whose start commit is not on the default ref.
@@ -304,10 +305,15 @@ export interface AccordConfig {
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
   branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'
   setup?: string[]; // D-07: commands run in order in a new worktree
-  commits?: { trailers?: 'allow' | 'forbid' }; // ST-LN-8 D-01: absent or allow is off
+  commits?: {
+    trailers?: 'allow' | 'forbid'; // ST-LN-8 D-01: absent or allow is off
+    subjects?: Partial<Record<SubjectName, string>>; // ST-LN-50 D-06: the subject template of each commit accord writes, one `{id}`; absent means today's text
+    legacy_subjects?: Partial<Record<SubjectName, string[]>>; // ST-LN-50 D-06: earlier templates accord still reads back (claim and plan_ready)
+  };
   generated?: string[]; // ST-LN-62: paths a lane S ticket may change without listing them in ## Scope; an entry ending in / matches the folder
   sensitive?: Record<string, string[]>; // ST-LN-62: area name -> paths whose change fails a lane S ticket; an entry ending in / matches the folder
   git?: { merge?: 'merge' | 'rebase' | 'squash'; sync?: string }; // ST-LN-96 D-14: how `accord worktree sync` takes main; absent means merge, and squash names the team's PR merge style (the sync is still a merge). D-03: sync is the team's script, one command line
+  ids?: { mode?: 'pattern' | 'tracker'; pattern?: string; types?: Partial<Record<'story' | 'bug' | 'epic', string>>; projects?: string[] }; // ST-LN-50 D-05: absent means ST/BUG/EP-<initials>-<n> while people exists; tracker mode takes the Jira or Linear key as the id
   disposable?: string[]; // ST-LN-55 D-08, D-12: file and folder names an ignored path may hold at any depth and still be deleted with its worktree; absent means node_modules, dist, .DS_Store, Thumbs.db
 }
 

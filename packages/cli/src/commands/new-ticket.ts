@@ -6,7 +6,7 @@
 // nothing to generate — only to substitute.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
+import { DEFAULT_PATTERN, initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
 import type { Lane } from '@accord-dev/accord-core';
 import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
 import { cleanQuietly, fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
@@ -38,7 +38,7 @@ export function newTicket(
   } catch {
     // absent counts as empty
   }
-  const bad = /^people\s*:/m.test(raw)
+  const bad = /^(?:people|ids)\s*:/m.test(raw)
     ? ctx.snapshot.errors.find((f) => f.file === 'accord/config.yml' && f.rule !== 'load.config-missing')
     : undefined;
   if (bad !== undefined) {
@@ -46,41 +46,74 @@ export function newTicket(
     throw new UsageError('accord/config.yml' + where + ' ' + bad.reason + ' - fix accord/config.yml before creating a ticket');
   }
   const people = ctx.snapshot.config?.people;
+  const ids = ctx.snapshot.config?.ids;
+  // ST-LN-50 D-05: accord assigns ids while the convention is on, that is while `people` or `ids` exists
+  const assigns = people !== undefined || ids !== undefined;
+  // every id the clone knows: tickets, records, claims, and the history of every ref already fetched
+  const usedIds = (): string[] => [
+    ...Object.keys(ctx.snapshot.tickets),
+    ...Object.keys(ctx.snapshot.work ?? {}),
+    ...Object.keys(ctx.snapshot.claims ?? {}),
+    ...gitTicketIdsInHistory(ctx.root),
+  ];
   let id: string;
-  if (people !== undefined && givenId !== undefined) {
+  if (ids?.mode === 'tracker') {
+    // ST-LN-50 D-05: the creator gives the Jira or Linear key; accord checks its form, its project and that it is unused, and assigns nothing
+    if (givenId === undefined) {
+      throw new UsageError('ids.mode is tracker: give the Jira or Linear key, e.g. accord new ticket ENG-123 - nothing was written');
+    }
+    if (!TRACKER_KEY.test(givenId)) {
+      throw new UsageError(givenId + ' is not a tracker key: a project key in capital letters, a hyphen and the issue number, e.g. ENG-123 - nothing was written');
+    }
+    if (!trackerKeyOk(givenId, ids)) {
+      throw new UsageError(givenId + ' is not in ids.projects (' + (ids.projects ?? []).join(', ') + ') of accord/config.yml - nothing was written');
+    }
+    if (usedIds().includes(givenId)) {
+      throw new UsageError(givenId + ' is already used by a ticket, a record, a claim or the history of a branch in this clone - nothing was written');
+    }
+    id = givenId;
+  } else if (assigns && givenId !== undefined) {
     throw new UsageError(
-      givenId + ' was typed by hand; accord assigns ids while accord/config.yml has people - run accord new ticket --type ' + options.type + ' without an id',
+      givenId +
+        ' was typed by hand; accord assigns ids while accord/config.yml has ' +
+        (people !== undefined ? 'people' : 'ids') +
+        ' - run accord new ticket --type ' +
+        options.type +
+        ' without an id',
     );
   } else if (givenId !== undefined) id = givenId;
-  else if (people === undefined) throw new UsageError('a ticket id is required: accord new ticket <id>');
+  else if (!assigns) throw new UsageError('a ticket id is required: accord new ticket <id>');
   else {
-    const email = gitUserEmail(ctx.root);
-    if (email === '') {
-      throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>, then register it under people in accord/config.yml');
-    }
-    const initials = initialsOf(people, email);
-    if (initials === undefined) {
-      throw new UsageError(
-        email + ' is not registered - add "' + email + '": <INITIALS> (2 to 4 capital letters) under people in accord/config.yml, or ask /accord to register you',
-      );
-    }
-    if (gitIsShallow(ctx.root)) {
+    // a pattern holding {initials} keeps the people flow; one without it needs no people table and no email
+    let initials: string | undefined;
+    if ((ids?.pattern ?? DEFAULT_PATTERN).includes('{initials}')) {
+      if (people === undefined) {
+        throw new UsageError('ids.pattern has {initials} but accord/config.yml has no people - add people, or drop {initials} from ids.pattern');
+      }
+      const email = gitUserEmail(ctx.root);
+      if (email === '') {
+        throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>, then register it under people in accord/config.yml');
+      }
+      initials = initialsOf(people, email);
+      if (initials === undefined) {
+        throw new UsageError(
+          email + ' is not registered - add "' + email + '": <INITIALS> (2 to 4 capital letters) under people in accord/config.yml, or ask /accord to register you',
+        );
+      }
+      if (gitIsShallow(ctx.root)) {
+        throw new UsageError('this clone is shallow, so ticket numbers already used cannot be seen - run git fetch --unshallow, then try again');
+      }
+      const { byRef, defaultRef } = gitPeopleOnRefs(ctx.root);
+      const holder = initialsHolder(initials, email, byRef, defaultRef);
+      if (holder !== undefined) {
+        throw new UsageError(
+          'initials ' + initials + ' already belong to ' + holder + ' on another branch - choose other initials for ' + email + ' in accord/config.yml',
+        );
+      }
+    } else if (gitIsShallow(ctx.root)) {
       throw new UsageError('this clone is shallow, so ticket numbers already used cannot be seen - run git fetch --unshallow, then try again');
     }
-    const { byRef, defaultRef } = gitPeopleOnRefs(ctx.root);
-    const holder = initialsHolder(initials, email, byRef, defaultRef);
-    if (holder !== undefined) {
-      throw new UsageError(
-        'initials ' + initials + ' already belong to ' + holder + ' on another branch - choose other initials for ' + email + ' in accord/config.yml',
-      );
-    }
-    const seen = [
-      ...Object.keys(ctx.snapshot.tickets),
-      ...Object.keys(ctx.snapshot.work ?? {}),
-      ...Object.keys(ctx.snapshot.claims ?? {}),
-      ...gitTicketIdsInHistory(ctx.root),
-    ];
-    id = nextTicketId(options.type, initials, seen);
+    id = nextTicketId(options.type, initials, usedIds(), ids);
   }
 
   // T-05-14: this is the only guard between an argv string and a filesystem write, so it runs before

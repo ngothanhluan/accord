@@ -1,4 +1,5 @@
 import type { Rule } from './rules.js';
+import type { AccordConfig } from '../model/snapshot.js';
 import { normaliseText } from '../load/frontmatter.js';
 import { parseYamlMap } from '../load/yaml.js';
 // IDS-1: the ticket id convention `<ST|BUG|EP>-<initials>-<n>`; pure, no I/O.
@@ -10,14 +11,62 @@ export function initialsOf(people: Record<string, string>, email: string): strin
   return key === undefined ? undefined : people[key];
 }
 
-/** D-11: the creator's highest number for this type among `seen`, plus one; a number is never reused. */
-export function nextTicketId(type: keyof typeof ID_PREFIX, initials: string, seen: readonly string[]): string {
-  const head = `${ID_PREFIX[type]}-${initials}-`;
+export type IdsConfig = NonNullable<AccordConfig['ids']>;
+type TicketType = keyof typeof ID_PREFIX;
+
+/** ST-LN-50 D-05: today's pattern, used when `ids.pattern` is absent. */
+export const DEFAULT_PATTERN = '{type}-{initials}-{n}';
+
+/** ST-LN-50 D-05: the prefix `{type}` renders for a ticket type; the three defaults unless `ids.types` sets one. */
+export function prefixOf(type: TicketType, ids?: IdsConfig): string {
+  return ids?.types?.[type] ?? ID_PREFIX[type];
+}
+
+export interface CompiledPattern {
+  head: string; // the id up to the number, rendered (`<initials>` stands in when none were given)
+  tail: string; // the id after the number
+  regex: RegExp; // anchored; group 1 is the number, 1 to 9 digits with no leading zero
+}
+
+const escapeLiteral = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * ST-LN-50 D-05: a team pattern (tokens {type}, {initials}, {n}; {n} exactly once) compiled into a bounded matcher.
+ * Literal characters are escaped, {n} is at most nine digits and {initials} is the given initials or 2 to 4 capitals,
+ * so a raw regular expression is never taken from config and no input can make the match backtrack.
+ */
+export function compilePattern(pattern: string, prefix: string, initials?: string): CompiledPattern {
+  const parts = pattern.split(/(\{type\}|\{initials\}|\{n\})/);
+  if (parts.filter((p) => p === '{n}').length !== 1) throw new Error('an id pattern holds {n} exactly once: ' + pattern);
+  let head = '';
+  let tail = '';
+  let source = '';
+  let afterN = false;
+  for (const part of parts) {
+    if (part === '{n}') {
+      afterN = true;
+      source += '([1-9][0-9]{0,8})';
+      continue;
+    }
+    const text = part === '{type}' ? prefix : part === '{initials}' ? (initials ?? '<initials>') : part;
+    source += part === '{initials}' && initials === undefined ? '[A-Z]{2,4}' : escapeLiteral(text);
+    if (afterN) tail += text;
+    else head += text;
+  }
+  return { head, tail, regex: new RegExp('^' + source + '$') };
+}
+
+/** D-11: the highest number among `seen` that fits the pattern, plus one; a number is never reused, and FEAT-12 is not FEAT-120. */
+export function nextTicketId(type: TicketType, initials: string | undefined, seen: readonly string[], ids?: IdsConfig): string {
+  const pattern = ids?.pattern ?? DEFAULT_PATTERN;
+  if (pattern.includes('{initials}') && initials === undefined) throw new Error('the id pattern ' + pattern + " needs the creator's initials");
+  const { head, tail, regex } = compilePattern(pattern, prefixOf(type, ids), initials);
   let max = 0;
   for (const id of seen) {
-    if (id.startsWith(head) && /^[1-9][0-9]*$/.test(id.slice(head.length))) max = Math.max(max, Number(id.slice(head.length)));
+    const n = regex.exec(id)?.[1];
+    if (n !== undefined) max = Math.max(max, Number(n));
   }
-  return head + (max + 1);
+  return head + (max + 1) + tail;
 }
 
 /** D-17: only `people` is read from a config.yml text; any problem gives undefined, never a throw. */
@@ -50,19 +99,69 @@ export function initialsHolder(
   return undefined;
 }
 
+/** ST-LN-50 D-05 tracker mode: a Jira project key or Linear team key, a hyphen, then the issue number (bounded, no leading zero). */
+export const TRACKER_KEY = /^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}$/;
+
+/** ST-LN-50 D-05: the key has the tracker form and, when `ids.projects` is set, its project is on the list. */
+export function trackerKeyOk(key: string, ids?: IdsConfig): boolean {
+  if (!TRACKER_KEY.test(key)) return false;
+  return ids?.projects === undefined || ids.projects.includes(key.slice(0, key.lastIndexOf('-')));
+}
+
+/** ST-LN-50 D-05: what a legacy_ids entry may be, the ticket schema's own id form. */
+export const LEGACY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const TYPES = ['story', 'bug', 'epic'] as const;
+
+/**
+ * ST-LN-50 D-05: whether `id` breaks the convention `config` sets (legacy_ids is not looked at here). One predicate for
+ * lint and for the legacy_ids `accord config` fills in. An id whose type is not known (seen only in history) breaks a
+ * pattern only when it fits it for none of the three types.
+ */
+export function breaksConvention(id: string, type: TicketType | undefined, config: AccordConfig): boolean {
+  if (config.ids?.mode === 'tracker') return !trackerKeyOk(id, config.ids);
+  const pattern = config.ids?.pattern ?? DEFAULT_PATTERN;
+  return !(type === undefined ? TYPES : [type]).some((t) => compilePattern(pattern, prefixOf(t, config.ids)).regex.test(id));
+}
+
+/** ST-LN-50 D-05: the convention a config sets as a comparable string, or undefined while it is off (neither `people` nor `ids`). */
+export function conventionKey(config: AccordConfig | undefined): string | undefined {
+  if (config === undefined || (config.people === undefined && config.ids === undefined)) return undefined;
+  if (config.ids?.mode === 'tracker') return JSON.stringify(['tracker', config.ids.projects ?? null]);
+  return JSON.stringify(['pattern', config.ids?.pattern ?? DEFAULT_PATTERN, TYPES.map((t) => prefixOf(t, config.ids))]);
+}
+
 export const idConvention: Rule['check'] = (snapshot) => {
-  if (snapshot.config?.people === undefined) return []; // D-08
-  const legacy = snapshot.config.legacy_ids ?? [];
+  const config = snapshot.config;
+  if (config === undefined || (config.people === undefined && config.ids === undefined)) return []; // D-08: the convention is on when people or ids exists
+  const legacy = config.legacy_ids ?? [];
+  if (config.ids?.mode === 'tracker') {
+    // the id is the tracker's key: only its form and project are checked, whatever the ticket's type
+    const projects = config.ids.projects;
+    return Object.values(snapshot.tickets).flatMap((t) =>
+      t.frontmatter === undefined || legacy.includes(t.id) || trackerKeyOk(t.id, config.ids)
+        ? []
+        : [
+            {
+              file: t.file,
+              pointer: '/id',
+              reason: `id "${t.id}" is not a tracker key (<PROJECT>-<number>)${projects === undefined ? '' : ' of ' + projects.join(', ')}; if it predates tracker mode, add it to legacy_ids in accord/config.yml`,
+            },
+          ],
+    );
+  }
+  const pattern = config.ids?.pattern ?? DEFAULT_PATTERN;
   return Object.values(snapshot.tickets).flatMap((t) => {
     const type = t.frontmatter?.type;
     if (t.frontmatter === undefined || (type !== 'story' && type !== 'bug' && type !== 'epic') || legacy.includes(t.id)) return [];
-    const prefix = ID_PREFIX[type];
-    if (new RegExp(`^${prefix}-[A-Z]{2,4}-[1-9][0-9]*$`).test(t.id)) return [];
+    if (!breaksConvention(t.id, type, config)) return [];
+    const prefix = prefixOf(type, config.ids);
+    // today's wording while no pattern is set; a team's own pattern is quoted as written, with only {type} rendered
+    const shown = config.ids?.pattern === undefined ? `${prefix}-<initials>-<n>` : pattern.replace('{type}', prefix);
     return [
       {
         file: t.file,
         pointer: '/id',
-        reason: `id "${t.id}" does not follow ${prefix}-<initials>-<n> for a ${type}; if it predates the convention, add it to legacy_ids in accord/config.yml`,
+        reason: `id "${t.id}" does not follow ${shown} for a ${type}; if it predates the convention, add it to legacy_ids in accord/config.yml`,
       },
     ];
   });

@@ -64,6 +64,7 @@ function inFlightRulesets(root: string, ref: string, configText: string, input: 
       .map((t) => t.id);
     if (wanted.length === 0) return [];
     const templates = [...new Set([branchTemplateOf(configText) ?? DEFAULT_BRANCH_TEMPLATE, DEFAULT_BRANCH_TEMPLATE])];
+    const teamConfig = loadConfig(CONFIG, configText).config; // ST-LN-50 D-06: the claim subjects of the default ref's config
     const listed = new Set(gitIn(root, ['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n').map((l) => l.trim()));
     const refsOf = (id: string): string[] => {
       const names = templates.map((t) => t.replace('{id}', id));
@@ -77,7 +78,7 @@ function inFlightRulesets(root: string, ref: string, configText: string, input: 
       try {
         let claim: { sha: string } | undefined;
         for (const r of refsOf(id)) {
-          claim = claimCommitOf(root, id, ref, r)?.claim;
+          claim = claimCommitOf(root, id, ref, r, teamConfig)?.claim;
           if (claim !== undefined) break;
         }
         if (claim === undefined) continue; // a branch with no claim commit does not claim the ticket

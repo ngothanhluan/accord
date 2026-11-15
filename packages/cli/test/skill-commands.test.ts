@@ -82,7 +82,9 @@ function mentions(files: SkillFile[]): Mention[] {
         for (const m of chunk.matchAll(MENTION)) {
           // The trailing `<id>`, `--json`, or `--type story` is an argument, not part of the path, and
           // the word run above already stops at the first character that is not lowercase or a hyphen.
-          found.push({ where: `${path}:${i + 1}`, command: m[1].trim().replace(/\s+/g, ' ') });
+          const command = m[1].trim().replace(/\s+/g, ' ');
+          // ST-LN-50: `accord subject` takes a subject name (`plan_ready`, `intent`) as its first argument, so the lowercase word after it is an argument, not a path.
+          found.push({ where: `${path}:${i + 1}`, command: command.startsWith('subject ') ? 'subject' : command });
         }
       }
     });
@@ -92,7 +94,7 @@ function mentions(files: SkillFile[]): Mention[] {
 
 describe('the commands a skill may name (SKILL-08, D-110)', () => {
   it('reads the real paths off the commander tree the CLI runs', () => {
-    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'budget', 'dashboard', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'task-done', 'tests baseline', 'tests skipped', 'upgrade', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync']);
+    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'budget', 'config check', 'config get', 'config set', 'config unset', 'dashboard', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'subject', 'task-done', 'tests baseline', 'tests skipped', 'upgrade', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync']);
   });
 
   it('treats a namespace with no action of its own as not a command', () => {

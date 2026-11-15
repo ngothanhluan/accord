@@ -49,7 +49,7 @@ it('risk:complex-branching a ticket builds without a plan and reaches review wit
     const brief = await run(['brief', 'T-1', '1'], repo);
     expect(brief.code).toBe(0);
     expect(brief.out.startsWith(readFileSync(join(repo, T1), 'utf8').replace(/\n*$/, '\n') + '\n---\n\n' + PLAN_OFF_LINE + '\n')).toBe(true);
-    expect(brief.out).toContain('Test command: npx vitest run \n');
+    expect(brief.out).toContain('Test command: npx vitest run\n');
     expect(brief.out).not.toContain('## Task');
     // the whole ticket is task 1: nothing else exists, and the message names the switch
     for (const cmd of [['brief', 'T-1', '2'], ['task-done', 'T-1', '2', ...PAIRS]]) {

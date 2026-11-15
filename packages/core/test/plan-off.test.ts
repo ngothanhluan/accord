@@ -31,7 +31,7 @@ describe('plan off (ST-LN-50 t2-ac-5)', () => {
     expect(progress(base(PLAN_OFF, { 'accord/tickets/T-1/plan.md': PLAN }))).toEqual({ stage: 'build', tasksTotal: 1, tasksDone: 0, next: 1 });
 
     // plan on: its two tasks count, as today
-    expect(progress(base(CONFIG, { 'accord/tickets/T-1/plan.md': PLAN })).tasksTotal).toBe(2);
+    expect(progress(base(CONFIG, { 'accord/tickets/T-1/plan.md': PLAN }))?.tasksTotal).toBe(2);
 
     // task 1 done: review (default), verify with review also off
     const ledger = { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' };

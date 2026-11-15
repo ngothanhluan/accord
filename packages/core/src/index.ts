@@ -103,7 +103,7 @@ export { printedClaim, scoutCheck } from './scout/check.js';
 export type { AbsentRow, Citation, ScoutReport } from './scout/report.js';
 export type { ScoutFacts, ScoutLane, ScoutResult } from './scout/check.js';
 export type { GateResult } from './gate/index.js';
-export { taskVerdict } from './gate/task.js';
+export { taskVerdict, ticketTaskVerdict } from './gate/task.js';
 export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';

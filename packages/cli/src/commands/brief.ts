@@ -3,7 +3,7 @@
 // never a summary.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { normaliseText, planFile, workOf } from '@accord-dev/accord-core';
+import { normaliseText, planFile, stageOff, workOf } from '@accord-dev/accord-core';
 import type { PlanTask } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
@@ -35,10 +35,43 @@ function testBlock(ctx: CommandContext, t: PlanTask): string {
   return NO_COMMAND + '\n';
 }
 
+const NO_FILES = 'No file list applies: the plan stage is off, so no task names files; {files} is left out of the command.';
+
+/** The plan-off form of testBlock: the whole ticket is the task, so tests.affected runs with no file list. */
+function ticketTestBlock(ctx: CommandContext): string {
+  const tests = ctx.snapshot.config?.tests;
+  if (tests?.affected !== undefined) {
+    const note = tests.affected.includes('{files}') ? NO_FILES + '\n' : '';
+    return 'Test command: ' + tests.affected.split('{files}').join('').trim() + '\n' + ONLY + '\n' + note;
+  }
+  if (tests?.full !== undefined) return 'Test command: ' + tests.full + '\n' + ONLY + '\n' + FULL_WHY + '\n';
+  return NO_COMMAND + '\n';
+}
+
+// From disk, not the snapshot copy, so a BOM or CRLF reaches the brief as written (ST-LN-8 D-04).
+function conventionsTail(ctx: CommandContext): string {
+  const convPath = join(ctx.root, 'accord', 'product', 'conventions.md');
+  const conv = existsSync(convPath) ? readFileSync(convPath, 'utf8') : '';
+  // trim() strips whitespace and the byte order mark alike.
+  return conv.trim() === '' ? '' : '\n---\n\n' + conv;
+}
+
+// ST-LN-50 D-08 Ruling: with the plan stage off the whole ticket is task 1, briefed from the ticket itself; no plan.md is read, whatever it holds.
+function briefTicket(ctx: CommandContext, n: number, file: string, lane: string | undefined): number {
+  if (n !== 1) {
+    throw new UsageError(`the plan stage is off for lane ${lane} (strictness.stages.${lane}.plan): the whole ticket is task 1, there is no task ${n}`);
+  }
+  const text = normaliseText(readFileSync(join(ctx.root, file), 'utf8'));
+  const line = `The plan stage is off for lane ${lane}: build the whole ticket as task 1; every scenario that is not @ui needs one test that proves it.`;
+  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + ticketTestBlock(ctx) + conventionsTail(ctx));
+  return 0;
+}
+
 export function brief(ctx: CommandContext, id: string, task: string): number {
   const n = taskNumber(task);
   const ticket = requireLaneTicket(ctx, id);
   refuseLaneR(ticket, id, 'plan tasks');
+  if (stageOff(ctx.snapshot, id, 'plan')) return briefTicket(ctx, n, ticket.file, ticket.frontmatter?.lane);
   const plan = workOf(ctx.snapshot, id)?.plan;
   if (plan === undefined) throw new UsageError('no plan at ' + planFile(id));
   const t = plan.tasks.find((x) => x.n === n);
@@ -50,11 +83,6 @@ export function brief(ctx: CommandContext, id: string, task: string): number {
   while (pre.length > 0 && pre[0].trim() === '') pre.shift();
   while (pre.length > 0 && pre[pre.length - 1].trim() === '') pre.pop();
   const rules = pre.length > 0 ? pre.join('\n') + '\n\n' : '';
-  // From disk, not the snapshot copy, so a BOM or CRLF reaches the brief as written (ST-LN-8 D-04).
-  const convPath = join(ctx.root, 'accord', 'product', 'conventions.md');
-  const conv = existsSync(convPath) ? readFileSync(convPath, 'utf8') : '';
-  // trim() strips whitespace and the byte order mark alike.
-  const tail = conv.trim() === '' ? '' : '\n---\n\n' + conv;
-  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + testBlock(ctx, t) + tail);
+  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + testBlock(ctx, t) + conventionsTail(ctx));
   return 0;
 }

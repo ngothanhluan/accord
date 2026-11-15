@@ -159,9 +159,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('task-done <id> <task>')
-    .description('record a plan task as done when the test report shows its verify cases passed')
-    .action((id: string, task: string) => {
-      setCode(taskDone(preflight(opts), id, task));
+    .description('record a plan task as done when the test report shows its verify cases passed; with the plan stage off, task 1 is the whole ticket')
+    .option('--test <pair>', 'with the plan stage off: ac-<n>=<test id>, once per scenario', (value: string, previous: string[]) => [...previous, value], [])
+    .action((id: string, task: string, options: { test: string[] }) => {
+      setCode(taskDone(preflight(opts), id, task, options.test));
     });
 
   program

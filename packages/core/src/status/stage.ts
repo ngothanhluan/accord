@@ -109,14 +109,16 @@ export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | u
   if (fm.lane === 'S') return { stage: laneSStage(snapshot, ticket), tasksDone: 0, tasksTotal: 0 };
   if (fm.lane === 'R') return { stage: laneRStage(snapshot, ticket), tasksDone: 0, tasksTotal: 0 };
   const work = workOf(snapshot, ticket.id);
-  const tasks = [...(work?.plan?.tasks ?? [])].sort((a, b) => a.n - b.n);
+  // ST-LN-50 D-08 Ruling: with the plan stage off the build is one task, task 1, the whole ticket, whatever plan.md holds, and nothing holds it at plan.
+  const planOff = stageOff(snapshot, ticket.id, 'plan');
+  const tasks: { n: number }[] = planOff ? [{ n: 1 }] : [...(work?.plan?.tasks ?? [])].sort((a, b) => a.n - b.n);
   const done = work?.ledger?.done ?? {};
   const open = tasks.filter((t) => !Object.hasOwn(done, String(t.n)));
   const counts = { tasksDone: tasks.length - open.length, tasksTotal: tasks.length };
   if (fm.approved_hash === undefined || fm.approved_hash !== approvedHash(ticket)) return { stage: 'intent', ...counts };
   if (tasks.length === 0) return { stage: 'plan', ...counts };
   // BUG-LN-2: a host that supplies plan facts holds the ticket at plan until plan.md's ready commit.
-  if (open.length > 0 && snapshot.planFacts !== undefined && !planReady(snapshot, snapshot.planFacts, ticket.id)) return { stage: 'plan', ...counts };
+  if (!planOff && open.length > 0 && snapshot.planFacts !== undefined && !planReady(snapshot, snapshot.planFacts, ticket.id)) return { stage: 'plan', ...counts };
   if (open.length > 0) return { stage: 'build', ...counts, next: open[0].n };
   // ST-LN-50 D-08: a team may turn review off for this lane; the ticket then goes from its last task to verify, as if a verdict existed, and no review record puts it back at review.
   const reviewOff = stageOff(snapshot, ticket.id, 'review');

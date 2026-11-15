@@ -426,6 +426,16 @@ it('risk:parsing ids.pattern accepts the three tokens and refuses everything els
   expect(cfg({ pattern: 'F-' + 'x'.repeat(80) + '-{n}' })).toContain('schema.maxLength@/ids/pattern');
 });
 
+it('risk:data-loss ids.pattern refuses shapes that render an id git refuses as a branch name (WR-01)', () => {
+  const cfg = (ids: unknown) => at({ ...idsBase, ids });
+  // `t/FEAT..1`, `t/FEAT-1.` and `t/FEAT-1.lock` fail git check-ref-format, so the claim branch of every such ticket would be refused
+  for (const bad of ['FEAT..{n}', 'FEAT-{n}.', 'FEAT-{n}.lock', '{type}..{n}', '{initials}.{n}.lock', 'FEAT.{n}..'])
+    expect(cfg({ pattern: bad }), bad).toContain('schema.pattern@/ids/pattern');
+  // single dots and a `.lock` that does not end the id are valid ref names
+  for (const ok of ['FEAT.{n}', 'a.lock-{n}', 'FEAT-{n}.x', '{initials}.{n}', 'a.b.{n}'])
+    expect(validate('config', { ...idsBase, ids: { pattern: ok } }), ok).toEqual([]);
+});
+
 it('risk:parsing ids holds a mode, prefixes per type and a non-empty list of tracker projects (ST-LN-50 t2-ac-1)', () => {
   expect(validate('config', { ...idsBase, ids: { mode: 'tracker', projects: ['ENG', 'OPS_1'] } })).toEqual([]);
   expect(validate('config', { ...idsBase, ids: { types: { story: 'FEAT', bug: 'DEFECT', epic: 'EPIC' } } })).toEqual([]);

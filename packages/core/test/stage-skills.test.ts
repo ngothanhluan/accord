@@ -1411,8 +1411,9 @@ it('risk:regression the approach-off path re-runs only the approval on a no, and
     'run only this approval again',
     'not step 2',
   ].filter((p) => !approval.includes(p));
-  const planner = read('.claude/agents/accord-planner.md');
-  const critic = read('.claude/agents/accord-critic.md');
+  const agent = (name: string) => (agentTargets(config).find((f) => f.path === `.claude/agents/accord-${name}.md`)?.text ?? '').replace(/\s+/g, ' ');
+  const planner = agent('planner');
+  const critic = agent('critic');
   for (const [name, text] of [['planner', planner], ['critic', critic]] as const) {
     if (!text.includes('skip this check when `## Approach` is empty because the approach stage is off')) missing.push(name + ': skip the approach check');
   }

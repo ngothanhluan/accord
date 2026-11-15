@@ -2,6 +2,7 @@
 // all computed from the round records. Pure: the host supplies the records and the return-from-verify facts.
 import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
+import { resolveStrictness } from '../config/strictness.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
@@ -46,11 +47,21 @@ export const APPROACH_CAP: CapRules = { cap: 2, fall: false, allowances: false, 
 /** ST-LN-91 D-07, D-17: three plan critique rounds, the stop from round 3 beside the count stop, and the owner's allowance Rulings kept. */
 export const PLAN_CAP: CapRules = { cap: 3, firstStop: 3, fall: true, allowances: true, capStop: true };
 
-/** The rules of the record `kind` of ticket `id`; the approach and plan records read the ticket's claim pin (D-15), never their own record pin. */
+/**
+ * The rules of the record `kind` of ticket `id`; the approach and plan records read the ticket's claim pin (D-15), never their own record pin.
+ * ST-LN-50 D-07: a team's `strictness.rounds.<kind>` replaces only `cap` in whichever rules the pin picked; the stop rules, the allowances and the
+ * cap-is-a-refusal behaviour keep their data, so the approval block (which reads `allowances` and `capStop`, never `cap`) is the same at every cap.
+ * This is the one seam the cap is read through.
+ */
 export function capRulesOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): CapRules {
-  if (kind === 'review') return LEGACY_CAP;
-  if (kind === 'approach') return claimPinBefore(snapshot, id, APPROACH_CAP_FROM) ? LEGACY_CAP : APPROACH_CAP;
-  return claimPinBefore(snapshot, id, PLAN_CAP_FROM) ? LEGACY_CAP : PLAN_CAP;
+  const rules =
+    kind === 'review'
+      ? LEGACY_CAP
+      : kind === 'approach'
+        ? claimPinBefore(snapshot, id, APPROACH_CAP_FROM) ? LEGACY_CAP : APPROACH_CAP
+        : claimPinBefore(snapshot, id, PLAN_CAP_FROM) ? LEGACY_CAP : PLAN_CAP;
+  const team = resolveStrictness(snapshot.config).rounds[kind];
+  return team === undefined ? rules : { ...rules, cap: team };
 }
 
 const ALLOWANCE =

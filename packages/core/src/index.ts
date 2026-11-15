@@ -74,6 +74,8 @@ export {
   roundText,
 } from './round/next.js';
 export type { Allowance, CapRules, RoundAnswer, RoundKind } from './round/next.js';
+export { PRESETS, resolveStrictness } from './config/strictness.js';
+export type { Strictness } from './config/strictness.js';
 export { checkFixDispatch } from './round/dispatch.js';
 export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';

@@ -206,6 +206,21 @@
           "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,19}$" }
         }
       }
+    },
+    "strictness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rounds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "approach": { "type": "string", "pattern": "^[1-9][0-9]?$" },
+            "plan": { "type": "string", "pattern": "^[1-9][0-9]?$" },
+            "review": { "type": "string", "pattern": "^[1-9][0-9]?$" }
+          }
+        }
+      }
     }
   }
 }

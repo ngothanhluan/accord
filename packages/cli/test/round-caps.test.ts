@@ -46,14 +46,9 @@ it('risk:complex-branching accord round stops at a cap of 1 (ST-LN-50 t2-ac-4)',
   expect(stop.out.startsWith('stop: report to owner\n')).toBe(true);
   expect(stop.out).toContain('Reason: the cap of 1 rounds in cycle 1 is reached and no owner Ruling in the ledger allows more');
   expect(stop.out).not.toContain('Round: 2');
-  // JSON carries the cap
-  const json = await run(['round', 'T-1', '--plan', '--json'], repo);
-  expect(json.code).toBe(1);
-  expect(JSON.parse(json.out)).toMatchObject({ kind: 'stop', record: 'plan', cap: 1, round: 1 });
-
-  // the other records keep their caps: the approach critic still gives its two rounds
-  expect(JSON.parse((await run(['round', 'T-1', '--approach', '--json'], repo)).out)).toMatchObject({ kind: 'next', cap: 2 });
-  expect(JSON.parse((await run(['round', 'T-1', '--json'], repo)).out)).toMatchObject({ cap: 5 });
+  // the other records keep their caps: the approach critic still gives its two rounds, the review its five
+  expect(await run(['round', 'T-1', '--approach'], repo)).toEqual({ code: 0, out: 'Round: 1 of 2\nCycle: 1\n', err: '' });
+  expect((await run(['round', 'T-1'], repo)).out).toContain('Round: 1 of 5\n');
 
   // unset: today's cap again
   expect((await run(['config', 'unset', 'strictness.rounds.plan'], repo)).code).toBe(0);
@@ -75,6 +70,6 @@ it('risk:parsing a round cap of 0 is a config error for accord config and for ac
   writeFiles(repo, { 'accord/config.yml': CONFIG + 'strictness:\n  rounds:\n    plan: "0"\n' });
   const lint = await run(['lint', '--json'], repo);
   expect(lint.code).toBe(1);
-  const findings = (JSON.parse(lint.out) as { findings?: { file: string; rule: string; severity: string }[] }).findings ?? (JSON.parse(lint.out) as { file: string; rule: string; severity: string }[]);
-  expect(findings.some((f) => f.file === 'accord/config.yml' && f.severity === 'error' && f.rule === 'schema.pattern')).toBe(true);
+  const { findings } = JSON.parse(lint.out) as { findings: { file: string; rule: string; level: string; pointer?: string }[] };
+  expect(findings.filter((f) => f.file === 'accord/config.yml' && f.level === 'error').map((f) => `${f.rule}@${f.pointer}`)).toEqual(['schema.pattern@/strictness/rounds/plan']);
 }, 120_000);

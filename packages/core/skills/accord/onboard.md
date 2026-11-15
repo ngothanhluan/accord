@@ -32,9 +32,11 @@ team's settings are changed from the main checkout, not from a ticket branch. Re
    | `ids` | how new ticket ids are made, or taken from the tracker | ids in use: they are kept as `legacy_ids` |
    | `tracker` | the tracker `accord status` reads, for display only | nothing else reads it |
 
-4. Run `accord config set <key> '<value>'` only after the user's yes, or with a value the user gives. Pass the value
-   exactly as the proposal printed it, in single quotes so the shell keeps it as one argument, a string's double
-   quotes included (the printed value "squash" is passed as '"squash"'). Show its `changed:` line and every line
+4. Run `accord config set <key> '<value>'` only after the user's yes, or with a value the user gives. `config set` stores
+   the text it is given, quotes included, so pass the bare value in single quotes (so the shell keeps it as one
+   argument). A printed value that is a JSON string is passed without its outer double quotes (the printed
+   `proposal: git.merge = "squash"` is run as `accord config set git.merge 'squash'`); a printed `[` or `{` collection is
+   passed as printed. A value the user types is passed as typed, never wrapped in quotes of its own. Show its `changed:` line and every line
    after it verbatim, and say in one sentence what each added line keeps working. When it exits 2, show its reason and
    ask again or skip. On a no, write nothing; never edit `accord/config.yml` by hand, never set a value the user did
    not confirm, and never take silence or "whatever" for a yes.

@@ -66,19 +66,10 @@ export function resolveKeyPath(dotted: string): string[] | undefined {
 }
 
 /**
- * A value that starts with `[` or `{` is a YAML flow collection (JSON included); a value that is one JSON string literal (`"squash"`, as `accord init` prints a string proposal) is that string
- * unwrapped; any other value is a plain string, so numerics stay strings. Throws on a flow collection that does not parse.
+ * A value that starts with `[` or `{` is a YAML flow collection (JSON included); any other value is a plain string, quotes and backslashes included, so numerics stay
+ * strings and a command such as `"./my scripts/sync.sh"` is stored as typed (CR-02: the value written is the value given). Throws on a flow collection that does not parse.
  */
 export function parseValue(raw: string): unknown {
-  if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
-    try {
-      const unwrapped: unknown = JSON.parse(raw);
-      if (typeof unwrapped === 'string') return unwrapped;
-    } catch {
-      /* not one JSON string literal: a plain string, quotes and all */
-    }
-    return raw;
-  }
   if (!raw.startsWith('[') && !raw.startsWith('{')) return raw;
   try {
     return parse(raw, READ);

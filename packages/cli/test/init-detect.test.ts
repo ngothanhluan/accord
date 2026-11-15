@@ -5,20 +5,21 @@
 // The histories are built with `git commit-tree -F <file>` over the empty tree, so forty commits cost forty
 // short processes rather than forty `add`/`commit` rounds, and a message still reaches git through a file,
 // never `-m` (conventions.md). Identity and signing come from `-c` flags, never from the host's git config.
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initFiles } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
-import { cleanup, gitRun, makeEmptyRepo, run } from './helpers/repo.js';
+import { gitRun, makeEmptyRepo, run } from './helpers/repo.js';
 
 const CONFIG = join('accord', 'config.yml');
 const SCAFFOLD_CONFIG = initFiles({ name: pkg.name, version: pkg.version }).find((f) => f.path === 'accord/config.yml')?.text ?? '';
 
 const repos: string[] = [];
 afterEach(() => {
-  while (repos.length > 0) cleanup(repos.pop() as string);
+  // No retries (owner rule): a sandbox this file made must be removable at once on Windows, so a lingering handle fails here.
+  while (repos.length > 0) rmSync(repos.pop() as string, { recursive: true, force: true });
 });
 
 type Shape = 'squash' | 'plain' | 'merge';
@@ -52,7 +53,7 @@ function history(shapes: Shape[]): string {
     if (tip !== undefined) gitRun(repo, 'update-ref', 'refs/heads/main', tip);
     return repo;
   } finally {
-    cleanup(folder);
+    rmSync(folder, { recursive: true, force: true });
   }
 }
 

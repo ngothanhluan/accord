@@ -50,8 +50,14 @@ const PLAIN = /^\d+\.\d+\.\d+$/;
 const firstLine = (e: unknown): string => String((e as { stderr?: string }).stderr ?? (e as Error).message ?? e).trim().split('\n')[0];
 
 /**
- * ST-LN-96 rel-ac-1, D-02 Ruling, T-03.1-13: `ruleset: "<pin at the ticket's claim commit>"` for every ticket of `ref` that is in flight: it has a lane, is not dropped, has no `ruleset`,
- * is not done on `ref`, and has a claim branch (the `branch` template with its id, local or on origin, local first) that holds a `claim: <id>` commit. The value is only what that commit's
+ * A copy on the default branch that is still an unapproved draft (no `approved_hash`, no `ac_hash`) has no rules to pin: its authoritative file is on its claim branch, where the
+ * sync-time backfill gives it its `ruleset`. Writing one on the default branch fails Done in CI for the whole upgrade pull request and conflicts with the branch's approve on the next sync.
+ */
+const isApproved = (fm: { approved_hash?: string; ac_hash?: string }): boolean => fm.approved_hash !== undefined || fm.ac_hash !== undefined;
+
+/**
+ * ST-LN-96 rel-ac-1, D-02 Ruling, T-03.1-13: `ruleset: "<pin at the ticket's claim commit>"` for every ticket of `ref` that is in flight: it has a lane, is not dropped, is approved on `ref`
+ * (CR-03), has no `ruleset`, is not done on `ref`, and has a claim branch (the `branch` template with its id, local or on origin, local first) that holds a `claim: <id>` commit. The value is only what that commit's
  * committed accord/config.yml pins, and only a plain x.y.z, so it is the value the rules compare with later (the first one the branch wrote). A ticket whose claim pin cannot be read gets
  * no field and a line in `notes`; a git failure on the whole lookup writes nothing and adds one line. One claim lookup per candidate, one cat-file for it, no network.
  */
@@ -60,7 +66,7 @@ function inFlightRulesets(root: string, ref: string, configText: string, input: 
   try {
     const tickets = loadSnapshot(input).tickets;
     const wanted = Object.values(tickets)
-      .filter((t) => t.frontmatter?.lane !== undefined && t.frontmatter.status !== 'dropped' && input.files[path(t.id)] !== undefined && rulesetOfTicket(input.files[path(t.id)]) === undefined)
+      .filter((t) => t.frontmatter?.lane !== undefined && t.frontmatter.status !== 'dropped' && isApproved(t.frontmatter) && input.files[path(t.id)] !== undefined && rulesetOfTicket(input.files[path(t.id)]) === undefined)
       .map((t) => t.id);
     if (wanted.length === 0) return [];
     const templates = [...new Set([branchTemplateOf(configText) ?? DEFAULT_BRANCH_TEMPLATE, DEFAULT_BRANCH_TEMPLATE])];

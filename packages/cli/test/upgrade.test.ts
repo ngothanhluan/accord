@@ -359,24 +359,27 @@ it('risk:data-loss upgrade deletes the retired architect agent only when its mar
 // and every history pins its own versions, so the cases do not move when a release moves CONFIG's pin.
 const OLD = '0.4.1';
 const OLDER = '0.4.0';
+const APPROVED = 'approved_hash: "fnv1a64:0123456789abcdef"';
 
 /**
  * A clone whose origin/main (pin OLD) holds T-1 (claimed on origin/t/T-1), T-2 (done, with a claim branch), T-3 (no claim branch), T-4 (claimed, already has
- * ruleset), ST-9 (no claim branch) and T-5, claimed only on a LOCAL branch made when main still pinned OLDER. `unreadable` gives T-1's claim commit a config of its own whose blob is then lost.
+ * ruleset), ST-9 (no claim branch), T-6 (a draft on main with a claim branch) and T-5, claimed only on a LOCAL branch made when main still pinned OLDER. `unreadable` gives T-1's claim commit a config of its own whose blob is then lost.
  */
 function inFlight(unreadable = false): Clone & { others: string[] } {
   const c = copy(plain, plainOther);
   running.v = RULESET_FROM;
   const o = c.others[0];
   const files: Record<string, string> = { 'accord/config.yml': pinnedConfig(OLDER) };
-  for (const id of ['T-1', 'T-3', 'T-5']) files[P(id)] = laneTicket(id);
+  // T-1 and T-5 are approved on main (the hash is the approval); T-3 and T-6 are drafts there
+  for (const id of ['T-1', 'T-5']) files[P(id)] = laneTicket(id, { frontmatter: [APPROVED] });
+  for (const id of ['T-3', 'T-6']) files[P(id)] = laneTicket(id);
   files[P('T-4')] = laneTicket('T-4', { frontmatter: [`ruleset: "${OLD}"`] });
   doneFiles(files, 'T-2');
   writeFiles(o, files);
   const first = commitMsg(o, 'tickets at ' + OLDER);
   writeFiles(o, { 'accord/config.yml': pinnedConfig(OLD) });
   commitMsg(o, 'pin ' + OLD);
-  for (const id of ['T-1', 'T-2', 'T-4']) {
+  for (const id of ['T-1', 'T-2', 'T-4', 'T-6']) {
     gitRun(o, 'switch', '-q', '-c', 't/' + id, 'main');
     if (unreadable && id === 'T-1') {
       writeFiles(o, { 'accord/config.yml': pinnedConfig(OLD) + '# claimed\n' });
@@ -416,8 +419,8 @@ it('risk:complex-branching accord upgrade writes ruleset into every in-flight ti
     const added = gitRun(c.remote, 'diff', '-U0', 'main', `upgrade/${RULESET_FROM}`, '--', P(id)).split('\n').filter((l) => /^[+-][^+-]/.test(l));
     expect(added, id).toEqual([`+ruleset: "${id === 'T-1' ? OLD : OLDER}"`]);
   }
-  // done, unclaimed and already-written tickets are byte-identical to main's
-  for (const id of ['T-2', 'T-3', 'T-4', 'ST-9']) expect(onUpgrade(c, P(id)), id).toBe(onMain(c, P(id)));
+  // done, unclaimed, already-written and unapproved draft tickets are byte-identical to main's (CR-03: a draft's file is on its branch, and sync gives that one its ruleset)
+  for (const id of ['T-2', 'T-3', 'T-4', 'T-6', 'ST-9']) expect(onUpgrade(c, P(id)), id).toBe(onMain(c, P(id)));
   expect(onUpgrade(c, P('T-4'))).toContain(`ruleset: "${OLD}"`);
   // the same commit moved the pin, and nothing else about the tickets
   expect(onUpgrade(c, 'accord/config.yml')).toContain(`accord: "${RULESET_FROM}"`);

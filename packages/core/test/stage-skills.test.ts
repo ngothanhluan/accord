@@ -855,7 +855,10 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
 
 it('risk:regression the accord skill routes upgrade to its reference and the worktree reference names the continue merge and the automatic clean', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  for (const s of ['## Upgrade: `/accord upgrade`', '`./upgrade.md`', 'Any other text, but `upgrade`, starts']) expect(acc).toContain(s);
+  for (const s of ['## Upgrade: `/accord upgrade`', '`./upgrade.md`', 'Any other text, but `upgrade` or `onboard`, starts']) expect(acc).toContain(s);
+  // WR-09: onboard is excluded from the New-request rule, and the session check still runs before it
+  expect(acc).not.toContain('Any other text, but `upgrade`, starts');
+  expect(acc).toContain('It is not a New request, and the session check above runs first.');
   const up = flatS('.claude/skills/accord/upgrade.md');
   expect(up.length).toBeGreaterThan(0);
   for (const s of [

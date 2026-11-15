@@ -332,10 +332,12 @@ describe('reach: the tracked files a command can run (round 3 CR-01)', () => {
 
   it('risk:security pnpm run, yarn run, a bare yarn <name> and npm run-script resolve to the package.json script, its pre script, and the files they name', () => {
     const d = dir({ scripts: { tracker: 'python tools/run.py', pretracker: 'node lib/impl.mjs' } });
-    for (const cmd of ['pnpm run tracker', 'yarn run tracker', 'yarn tracker', 'npm run-script tracker']) {
+    for (const cmd of ['pnpm run tracker', 'yarn run tracker', 'npm run-script tracker']) {
       expect(reach(d, cmd, tracked).filter((f) => f !== 'package.json'), cmd).toEqual(['lib/impl.mjs', 'tools/run.py']);
       expect(reach(d, cmd, tracked), cmd).toContain('package.json');
     }
+    // a bare name is also tried as a path, so here it binds the root tracker.mjs (and with it ./) as well: over-binding asks more, never less
+    expect(reach(d, 'yarn tracker', tracked)).toEqual(expect.arrayContaining(['lib/impl.mjs', 'package.json', 'tools/run.py']));
   });
 
   it('risk:security a script at the repository root reaches every tracked file outside accord/', () => {

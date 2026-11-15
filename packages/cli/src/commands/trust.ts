@@ -2,7 +2,7 @@
 // `accord trust --revoke` withdraws every allow of the repository. The allow is a local record inside .git, bound to the command text and to the files the command
 // can reach (see load/script-trust.ts); nothing is written under accord/ and nothing is committed. A person runs this, after reading what it printed: an agent never
 // runs it on its own.
-import { allowScripts, revokeScripts } from '../load/script-trust.js';
+import { allowScripts, coverText, revokeScripts } from '../load/script-trust.js';
 import type { ScriptKind } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 
@@ -27,9 +27,7 @@ export function trust(ctx: CommandContext, options: { revoke?: boolean }): numbe
     return 0;
   }
   for (const b of allowScripts(ctx.root, scripts)) {
-    const dirs = [...new Set(b.files.map((f) => (f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '.')))];
-    const reach = b.files.length === 0 ? 'no repository file' : `${b.files.length} file${b.files.length === 1 ? '' : 's'} in ${dirs.join(', ')}`;
-    ctx.stdout.write(`allowed: ${b.kind} "${b.command}" (${reach}, ${b.digest.slice(0, 19)})\n`);
+    ctx.stdout.write(`allowed: ${b.kind} "${b.command}" (${b.digest.slice(0, 19)})\n  covers: ${coverText(b)}\n`);
   }
   ctx.stdout.write('the allow is local to this repository (inside .git); it holds until the command or those files change, and accord trust --revoke withdraws it\n');
   return 0;

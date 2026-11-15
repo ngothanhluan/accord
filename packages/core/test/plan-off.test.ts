@@ -1,7 +1,8 @@
 // ST-LN-50 t2-ac-5 (stage half), D-08 and its Ruling: with `strictness.stages.<lane>.plan: off` an approved lane ticket builds as one task, task 1, the whole ticket.
 // Its tests are tied to its scenarios by `ticketTaskVerdict`, and the verification floor (gate.test-tag-missing, LOCKED) stays.
 import { describe, expect, it } from 'vitest';
-import { loadSnapshot, ticketTaskVerdict } from '../src/index.js';
+import { gateDone, loadSnapshot, setFrontmatterKey, ticketTaskVerdict } from '../src/index.js';
+import { acHash } from '../src/gate/hash.js';
 import type { RepoSnapshot } from '../src/index.js';
 import { progressOf } from '../src/status/stage.js';
 import { approved } from './helpers/approve.js';
@@ -93,5 +94,85 @@ describe('ticketTaskVerdict (ST-LN-50 t2-ac-5)', () => {
   it('a @ui scenario needs no test (ST-LN-50 t2-ac-5)', () => {
     const body = laneTicket('T-1').split('---\n')[2].replace('@ac-2 @test:export#escapes-commas', '@ac-2 @ui');
     expect(ticketTaskVerdict(withReport(PASS, body), 'T-1', [MAPS[0]])).toEqual({ verdict: 'pass', reasons: [] });
+  });
+});
+
+// D-08 and its Ruling: the plan rules leave with the plan stage, the verification floor does not.
+describe('gate done without a plan (ST-LN-50 t2-ac-5)', () => {
+  const COMMIT = '1234567890abcdef1234567890abcdef12345678';
+  const VERIFICATION = [
+    '---',
+    'ticket: "T-1"',
+    'commit: "1234567"',
+    'reviewed_on: "2026-10-12"',
+    '---',
+    '',
+    '## @ac-1 export writes a csv',
+    '',
+    'Result: pass',
+    '',
+    'Evidence: export#writes-csv passed in reports/junit.xml',
+    '',
+    '## @ac-2 commas are escaped',
+    '',
+    'Result: pass',
+    '',
+    'Evidence: export#escapes-commas passed in reports/junit.xml',
+    '',
+  ].join('\n');
+  const PASS = { 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' } as const;
+
+  /** A lane M ticket with no plan.md and no ledger line that passes Done with the plan stage off; `over` replaces files afterwards, `ticket` the ticket text. */
+  function files(config: string, over: Record<string, string> = {}, ticket = laneTicket('T-1')): Record<string, string> {
+    const f = approved(
+      {
+        'accord/config.yml': config,
+        [T1]: ticket,
+        'accord/tickets/T-1/review.md': '## Round 1\nverdict: converged\n',
+        'accord/tickets/T-1/verification.md': VERIFICATION,
+        [REPORT]: junit(PASS),
+      },
+      'T-1',
+    );
+    const hash = acHash(loadSnapshot({ files: f, tree: [] }).tickets['T-1'].scenarios) as string;
+    let text = setFrontmatterKey(f[T1], 'ac_hash', hash);
+    text = setFrontmatterKey(text, 'verified', ['ac-1', 'ac-2']);
+    text = setFrontmatterKey(text, 'verified_hash', hash);
+    text = setFrontmatterKey(text, 'verified_commit', '1234567');
+    return { ...f, [T1]: text, ...over };
+  }
+  const done = (f: Record<string, string>) =>
+    gateDone(
+      loadSnapshot({
+        files: f,
+        tree: Object.keys(f).sort(),
+        git: { commit: COMMIT, authors: { [COMMIT]: 'dev@example.test', 'accord/tickets/T-1/verification.md': 'reviewer@example.test' } },
+        branchFacts: { 'T-1': { base: 'b'.repeat(40), changes: [{ path: T1, kind: 'modified', lines: 1 }], synced: [] } },
+      }),
+      'T-1',
+    );
+  const errors = (f: Record<string, string>): string[] => done(f).findings.filter((x) => x.level === 'error').map((x) => x.rule);
+  const PLAN_RULE = /^gate\.(plan-|task-|tests-baseline-missing)/;
+
+  it('risk:security a ticket built without a plan still meets the verification floor (ST-LN-50 t2-ac-5)', () => {
+    // plan on, no plan.md: the plan rules fire, so the switch is what removes them
+    expect(errors(files(CONFIG)).filter((r) => PLAN_RULE.test(r))).toContain('gate.task-incomplete');
+
+    // plan off: no plan-stage finding at all, no ledger line needed, and the verdict is pass
+    const ok = done(files(PLAN_OFF));
+    expect(ok.findings.filter((x) => PLAN_RULE.test(x.rule))).toEqual([]);
+    expect(ok.verdict).toBe('pass');
+
+    // a scenario with its @test: tag removed fails the floor
+    const untagged = laneTicket('T-1').replace(' @test:export#escapes-commas', '');
+    expect(errors(files(PLAN_OFF, {}, untagged))).toContain('gate.test-tag-missing');
+
+    // no verification fails the floor
+    const noVerification = files(PLAN_OFF);
+    delete noVerification['accord/tickets/T-1/verification.md'];
+    expect(errors(noVerification)).toContain('gate.verification-missing');
+
+    // a failing test fails the floor
+    expect(errors(files(PLAN_OFF, { [REPORT]: junit({ ...PASS, 'export#escapes-commas': 'failed' }) }))).toContain('gate.test-not-passed');
   });
 });

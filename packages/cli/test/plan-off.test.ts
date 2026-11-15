@@ -159,3 +159,49 @@ it('risk:security a malformed --test pair exits 2 and writes nothing (ST-LN-50 t
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:security with the plan stage off gate plan passes with no plan finding and round --plan names the switch (ST-LN-50 t2-ac-5)', async () => {
+  const repo = repoWith(AFFECTED + OFF);
+  try {
+    const plan = await run(['gate', 'plan', 'T-1'], repo);
+    expect(plan.code).toBe(0);
+    expect(plan.out).not.toMatch(/gate\.(plan-|task-|tests-baseline)/);
+    const round = await run(['round', 'T-1', '--plan'], repo);
+    expect(round.code).toBe(2);
+    expect(round.err).toContain('strictness.stages.M.plan');
+    // with the plan stage on, the same ticket has no plan and gate plan fails on it
+    writeFiles(repo, { 'accord/config.yml': AFFECTED });
+    const on = await run(['gate', 'plan', 'T-1'], repo);
+    expect(on.code).toBe(1);
+    expect(on.out).toContain('gate.plan-missing');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching review-package needs no --base when the plan stage is off: the work is read from the default branch, as lane S does (ST-LN-50 t2-ac-5)', async () => {
+  const repo = repoWith(AFFECTED + OFF);
+  try {
+    const def = gitRun(repo, 'symbolic-ref', '--short', 'HEAD').trim();
+    gitRun(repo, 'switch', '-c', 't/T-1');
+    writeFiles(repo, { 'src/export.ts': 'export const write = 2;\n' });
+    commitAll(repo, 'feat: T-1 export');
+    const pkg = await run(['review-package', 'T-1'], repo);
+    expect(pkg.err).toBe('');
+    expect(pkg.code).toBe(0);
+    expect(pkg.out).toContain(`# Review package: T-1 (${def}...HEAD)`);
+    expect(pkg.out).toContain('feat: T-1 export');
+    expect(pkg.out).toContain('+export const write = 2;');
+    expect(pkg.out).not.toContain('claim: T-1');
+    // an explicit --base still wins
+    const first = gitRun(repo, 'rev-parse', 'HEAD~1').trim();
+    expect((await run(['review-package', 'T-1', '--base', first], repo)).out).toContain(`(${first}...HEAD)`);
+    // with the plan stage on and no plan baseline the refusal stays
+    writeFiles(repo, { 'accord/config.yml': AFFECTED });
+    const on = await run(['review-package', 'T-1'], repo);
+    expect(on.code).toBe(2);
+    expect(on.err).toContain('no --base given and plan.md records no baseline:');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

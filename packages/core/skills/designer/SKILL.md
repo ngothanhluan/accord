@@ -2,6 +2,7 @@
 name: accord-designer
 description: Use when a ticket is marked ui and the Ready gate is asking for a design reference. Establishes whether the ticket has an interface, picks a design link or a prototype from the profile, produces the missing one, and re-runs the gate.
 license: MIT
+argument-hint: "<ticket id>"
 kind: role
 loads: [shared/prototype.md]
 ---

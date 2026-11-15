@@ -2,6 +2,7 @@
 name: accord-plan
 description: Use when a lane M ticket has an approved approach and needs a plan. Has the planner write plan.md task by task, checks it with accord gate plan and the critic, and runs the full test suite on the baseline before build.
 license: MIT
+argument-hint: "[ticket id]"
 kind: skill
 loads: [plan/baseline.md, plan/critique.md, plan/legacy-round1.md, shared/ask.md]
 ---

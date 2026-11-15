@@ -198,10 +198,10 @@ describe('the tracker interface (ST-LN-97 t3-ac-1)', () => {
 
   it('risk:complex-branching the issue key is the ticket id under ids.mode tracker and the adapter value otherwise (ST-LN-97 t3-ac-1)', () => {
     const row = { id: 'ENG-9', tracker: { linear: 'ENG-7' } };
-    expect(issueKeyOf(row, 'linear', 'tracker')).toBe('ENG-9');
-    expect(issueKeyOf(row, 'linear', undefined)).toBe('ENG-7');
-    expect(issueKeyOf(row, 'linear', 'pattern')).toBe('ENG-7');
-    expect(issueKeyOf({ id: 'ST-1' }, 'linear', undefined)).toBeUndefined();
-    expect(issueKeyOf({ id: 'ST-1', tracker: { 'github-issues': '4' } }, 'linear', undefined)).toBeUndefined();
+    expect(issueKeyOf(row, 'linear', { ids: { mode: 'tracker' } })).toBe('ENG-9');
+    expect(issueKeyOf(row, 'linear', {})).toBe('ENG-7');
+    expect(issueKeyOf(row, 'linear', { ids: { mode: 'pattern' } })).toBe('ENG-7');
+    expect(issueKeyOf({ id: 'ST-1' }, 'linear', {})).toBeUndefined();
+    expect(issueKeyOf({ id: 'ST-1', tracker: { 'github-issues': '4' } }, 'linear', {})).toBeUndefined();
   });
 });

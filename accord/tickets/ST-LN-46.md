@@ -25,6 +25,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
+ruleset: "0.4.0"
 ---
 
 ## Intent

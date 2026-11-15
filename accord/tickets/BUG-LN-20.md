@@ -13,6 +13,7 @@ lane: "S" # S: one small change, worked from this ticket alone
 ui: false
 # Written by `gate ready`; never edit by hand.
 # ac_hash:
+ruleset: "0.4.0"
 ---
 
 ## Understood

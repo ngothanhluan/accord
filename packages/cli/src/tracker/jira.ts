@@ -118,7 +118,7 @@ export async function fetchJira(
   const issues: Record<string, IssueFacts> = {};
   const failures: string[] = [];
   for (const [key, result] of settled) {
-    if (typeof result === 'string') failures.push(key + ' ' + result);
+    if (typeof result === 'string') failures.push(ascii(key) + ' ' + result);
     else issues[key] = result;
   }
   const warning = warningLine('jira', failures, auth.note === undefined ? [] : [auth.note]);

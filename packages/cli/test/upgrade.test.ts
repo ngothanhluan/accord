@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
-import { contentHash, hookEntries, initFiles, mergeHooks, RULESET_FROM, rulesetOfTicket } from '@accord-dev/accord-core';
+import { contentHash, hookEntries, initFiles, mergeHooks, RULESET_FROM, rulesetOfTicket, setFrontmatterKey } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { done as doneFiles, laneTicket, P, pinned as pinnedConfig } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
@@ -438,4 +438,31 @@ it('risk:complex-branching a ticket whose claim pin cannot be read gets no field
   const lines = r.err.split('\n').filter((l) => l !== '');
   expect(lines).toHaveLength(1);
   expect(lines[0]).toContain('warning: T-1: ruleset not written, the claim pin could not be read (');
+});
+
+// CR-03, WR-08 (round 2): a ticket approved on the default branch that is still in flight is on its claim branch too, and that branch keeps appending to the same end of the
+// frontmatter (`ac_hash`, `plan_hash`). An upgrade that wrote `ruleset` there conflicted with the branch's next write when the branch took the upgrade in, and put a ticket that is not
+// done into the upgrade pull request, where the workflow's gate fails it. The upgrade leaves such a ticket alone; its first sync writes the field into the branch.
+it('risk:complex-branching accord upgrade does not touch an approved in-flight ticket, so the branch that took the upgrade in merges without a conflict (CR-03, WR-08)', async () => {
+  const c = inFlight();
+  c.git('fetch', '-q', 'origin');
+  c.git('switch', '-q', '-c', 't/T-1', 'origin/t/T-1');
+  const file = join(c.root, P('T-1'));
+  writeFileSync(file, setFrontmatterKey(readFileSync(file, 'utf8'), 'ac_hash', 'fnv1a64:fedcba9876543210'));
+  commitMsg(c.root, 'gate ready: T-1');
+  const r = await run(['upgrade'], c.root);
+  expect(r.code, r.err).toBe(0);
+  // the branch takes the upgrade in without a conflict on the ticket (git merge-file reported one: base approved_hash, main +ruleset, branch +ac_hash)
+  c.git('fetch', '-q', 'origin');
+  let merged = true;
+  try {
+    c.git('merge', '--no-edit', `origin/upgrade/${RULESET_FROM}`);
+  } catch {
+    merged = false;
+    c.git('merge', '--abort');
+  }
+  expect(merged).toBe(true);
+  // and the upgrade pull request carries no ticket that is not done
+  const changed = gitRun(c.remote, 'diff', '--name-only', 'main', `upgrade/${RULESET_FROM}`, '--', 'accord/tickets').trim();
+  expect(changed).toBe('');
 });

@@ -33,7 +33,8 @@ team's settings are changed from the main checkout, not from a ticket branch. Re
    | `tracker` | the tracker `accord status` reads, for display only | nothing else reads it |
 
 4. Run `accord config set <key> '<value>'` only after the user's yes, or with a value the user gives. Pass the value
-   as the proposal printed it, quoted so the shell keeps it as one argument. Show its `changed:` line and every line
+   exactly as the proposal printed it, in single quotes so the shell keeps it as one argument, a string's double
+   quotes included (the printed value "squash" is passed as '"squash"'). Show its `changed:` line and every line
    after it verbatim, and say in one sentence what each added line keeps working. When it exits 2, show its reason and
    ask again or skip. On a no, write nothing; never edit `accord/config.yml` by hand, never set a value the user did
    not confirm, and never take silence or "whatever" for a yes.

@@ -148,6 +148,12 @@ it('risk:parsing a value that starts with [ or { is a YAML flow collection, any 
   expect(parseValue('true')).toBe('true');
   expect(parseValue('{ n: 0123 }')).toEqual({ n: '0123' });
   expect(parseValue('make sync [fast]')).toBe('make sync [fast]');
+  // a JSON string literal, as `accord init` prints a string proposal, is unwrapped; a lone quote is an ordinary string
+  expect(parseValue('"squash"')).toBe('squash');
+  expect(parseValue('"feat/{id}"')).toBe('feat/{id}');
+  expect(parseValue('"a \\"b\\" c"')).toBe('a "b" c');
+  expect(parseValue('"')).toBe('"');
+  expect(parseValue('"half')).toBe('"half');
   expect(parseValue('')).toBe('');
   // a flow collection that does not parse throws rather than becoming a string
   expect(() => parseValue('[a, b')).toThrow(/flow|bracket|\]|parse/i);

@@ -120,6 +120,20 @@ describe('accord init proposes values and writes none of them', () => {
     expect(set.code).toBe(0);
     expect(readFileSync(join(repo, CONFIG), 'utf8')).toContain('squash');
   });
+
+  it('risk:regression the value exactly as the proposal printed it, JSON quotes included, is one `accord config set` accepts (the onboard skill step 4)', async () => {
+    const repo = squashHistory();
+    const { out } = await run(['init'], repo);
+    const printed = /^proposal: (git\.merge) = (.*?) {2}\(evidence: /m.exec(out);
+    expect(printed).not.toBeNull();
+    expect(printed?.[2]).toBe('"squash"');
+    const set = await run(['config', 'set', 'git.merge', printed?.[2] as string], repo);
+    expect(set.err).toBe('');
+    expect(set.code).toBe(0);
+    expect(set.out).toBe('changed: git.merge unset -> squash\n');
+    expect(readFileSync(join(repo, CONFIG), 'utf8')).toContain('merge: squash');
+    expect(readFileSync(join(repo, CONFIG), 'utf8')).not.toContain('"squash"');
+  });
 });
 
 interface Build {

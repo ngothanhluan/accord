@@ -4,6 +4,7 @@ import type { TicketDetail } from '@accord-dev/accord-core';
 import { colourApproval } from '../render/color.js';
 import { UsageError } from '../load/fs.js';
 import { isUnsafe } from '../render/dashboard.js';
+import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
 import { approachFacts, claimNote } from './approval-blockers.js';
 import { requireLaneTicket, requireTicket } from './lane-args.js';
@@ -11,11 +12,12 @@ import { requireLaneTicket, requireTicket } from './lane-args.js';
 // Control, bidi and line-separator code points become one space each; nothing is cut or collapsed.
 const clean = (s: string): string => [...s].map((ch) => (isUnsafe(ch.codePointAt(0) ?? 0) ? ' ' : ch)).join('');
 
-function text(d: TicketDetail): string {
+function text(d: TicketDetail, off: string[]): string {
   const lines = [
     d.id + ' ' + d.title,
     'Stage: ' + d.stage,
     'Lane: ' + d.lane,
+    ...off,
     'Tasks: ' + d.tasksDone + '/' + d.tasksTotal,
     'Branch: ' + d.branch,
     'Holder: ' + (d.holder ?? 'none'),
@@ -41,6 +43,15 @@ function text(d: TicketDetail): string {
   return lines.map(clean).join('\n') + '\n';
 }
 
+/**
+ * ST-LN-50 D-08: the `stages off for lane <L>: ...` line closing an approval view, as its own paragraph; empty when nothing is off for the lane.
+ * `short` views end in a newline, the full view does not.
+ */
+function offLines(ctx: CommandContext, lane: string | undefined, short: boolean): string {
+  const off = stagesOffLines(ctx.snapshot.config, lane);
+  return off.length === 0 ? '' : (short ? '\n' : '\n\n') + off.join('\n') + '\n';
+}
+
 export function show(ctx: CommandContext, id: string, options: { json?: boolean; approval?: boolean; short?: boolean }): number {
   if (options.short === true && options.approval !== true) throw new UsageError('--short goes with --approval');
   if (options.approval === true) {
@@ -62,15 +73,16 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
       const show = (rounds: { round: number; lines: string[] }[]): string[] => rounds.flatMap((r) => r.lines.map((l) => `round ${r.round}: ${l}`));
       // CR-01: a record accord cannot read is listed there too, as `record problem:` lines: the approval waits for it.
       const note = facts.error !== undefined && (facts.blocking.length > 0 || facts.problems.length > 0) ? claimNote(facts.error) : undefined;
-      ctx.stdout.write(colourApproval(approvalShort(ticket, show(facts.risks), show(facts.blocking), note, facts.problems).split('\n').map(clean).join('\n'), ctx.stdout));
+      // ST-LN-50 D-08: the owner's report names the stages off for the ticket's lane, in plain text after the view (the colour map reads headings only).
+      ctx.stdout.write(colourApproval(approvalShort(ticket, show(facts.risks), show(facts.blocking), note, facts.problems).split('\n').map(clean).join('\n'), ctx.stdout) + offLines(ctx, ticket.frontmatter?.lane, true));
       return 0;
     }
-    ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout));
+    ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout) + offLines(ctx, ticket.frontmatter?.lane, false));
     return 0;
   }
   requireLaneTicket(ctx, id);
   const d = ticketDetail(ctx.snapshot, id, ctx.plain);
   if (d === undefined) throw new Error('no detail for ' + id); // unreachable after requireLaneTicket
-  ctx.stdout.write(options.json === true ? JSON.stringify(d, null, 2) + '\n' : text(d));
+  ctx.stdout.write(options.json === true ? JSON.stringify(d, null, 2) + '\n' : text(d, stagesOffLines(ctx.snapshot.config, d.lane)));
   return 0;
 }

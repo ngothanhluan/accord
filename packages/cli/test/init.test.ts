@@ -29,6 +29,8 @@ const bytes = (file: string): string => readFileSync(file, 'latin1'); // byte-ex
 const lines = (out: string): string[] => out.split('\n').filter((l) => l !== '');
 /** The exact stdout a list of report lines produces, for the two whole-report assertions (D-133). */
 const report = (rows: string[]): string => rows.map((r) => r + '\n').join('');
+/** ST-LN-50 D-11: a repository with no history to read ends the report with this line (init-detect.test.ts covers the proposals). */
+const NO_PROPOSALS = 'proposals: 0';
 
 // STACK.md Decision 2: core schema, numerics stay strings. A local copy — the CLI test tree has no import
 // path to core's test helpers, and it is three lines.
@@ -119,7 +121,7 @@ describe('accord init — the first run', () => {
     // then the skill half in `skillTargets` order, read off the config this run wrote, then the two pointer
     // files. `toBe` on the whole stdout string, never `toContain`: D-133 is a claim about the whole list.
     expect(out).toBe(
-      report([...SCAFFOLD, ...skillPaths(repo), '.claude/settings.json', ...POINTER_FILES].map((p) => 'created ' + p)),
+      report([...[...SCAFFOLD, ...skillPaths(repo), '.claude/settings.json', ...POINTER_FILES].map((p) => 'created ' + p), NO_PROPOSALS]),
     );
     expect(err).toBe('');
   });
@@ -211,6 +213,7 @@ describe('accord init — running it again', () => {
         ...skillPaths(repo).map((p) => 'unchanged ' + p),
         'unchanged .claude/settings.json',
         ...POINTER_FILES.map((p) => 'skipped ' + p),
+        NO_PROPOSALS,
       ]),
     );
     expect(bytes(at(repo, CONFIG))).toBe(before);

@@ -215,7 +215,10 @@
             { "pattern": "^(?!.*\\{n\\}.*\\{n\\})" },
             { "pattern": "^(?!.*\\{type\\}.*\\{type\\})" },
             { "pattern": "^(?!.*\\{initials\\}.*\\{initials\\})" },
-            { "pattern": "^(?:[A-Za-z0-9]|\\{type\\}|\\{initials\\})" }
+            { "pattern": "^(?:[A-Za-z0-9]|\\{type\\}|\\{initials\\})" },
+            { "pattern": "^(?!.*\\.\\.)" },
+            { "pattern": "[^.]$" },
+            { "pattern": "^(?!.*\\.lock$)" }
           ]
         },
         "types": {

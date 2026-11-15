@@ -870,12 +870,22 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   // ST-LN-96 D-03, D-14: the way this team takes main is git.sync (a team command) before git.merge; absent both, a merge
   const strategy = ctx.snapshot.config?.git?.merge;
   const sync = ctx.snapshot.config?.git?.sync;
-  const way = sync !== undefined ? `sync them with git.sync, the team command (accord worktree sync ${id} runs it)` : strategy === 'rebase' ? `rebase onto it with accord worktree sync ${id}` : `merge them with git merge ${def}`;
-  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way}\n`);
+  // `accord worktree sync` refuses before verify (and after it unless the built-in rebase applies), so the line names it as the command to run only where it works (WR-13)
+  const stageOf = (): string | undefined => statusRows(snapshotAt(ctx.root, 'refs/heads/' + branch, [id])).find((r) => r.id === id)?.stage;
+  const syncRuns = (): boolean => {
+    const at = stageOf();
+    return at === 'verify' || (at === 'done' && strategy === 'rebase' && sync === undefined);
+  };
+  const way = (): string => {
+    if (sync !== undefined) return syncRuns() ? `sync them with git.sync, the team command (accord worktree sync ${id} runs it)` : `sync them with git.sync, the team command, which accord worktree sync ${id} runs at verify`;
+    if (strategy === 'rebase') return syncRuns() ? `rebase onto it with accord worktree sync ${id}` : `rebase onto it, which accord worktree sync ${id} does at verify`;
+    return `merge them with git merge ${def}`;
+  };
+  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}\n`);
   // a remote branch with commits this clone lacks (a teammate pushed): the stage here may be stale, and the push would be refused
   const own = 'refs/remotes/origin/' + branch;
   if (gitOk(path, ['rev-parse', '-q', '--verify', own]) && !gitOk(path, ['merge-base', '--is-ancestor', own, 'HEAD'])) return behind();
-  const stage = statusRows(snapshotAt(ctx.root, 'refs/heads/' + branch, [id])).find((r) => r.id === id)?.stage;
+  const stage = stageOf();
   if (stage === undefined || !['intent', 'plan', 'build', 'review'].includes(stage)) return behind();
   if (git(path, ['status', '--porcelain', '--untracked-files=no']).trim() !== '' || gitOk(path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) return behind();
   try {

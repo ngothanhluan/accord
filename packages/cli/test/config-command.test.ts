@@ -102,11 +102,12 @@ it('risk:complex-branching accord config sets a value deterministically and refu
 });
 
 it('risk:data-loss accord config keeps CRLF and comments in a real file (ST-LN-50 t2-ac-9)', async () => {
-  const withComments = '# the team config\n' + CONFIG.replace('profile: build', 'profile: build # strict') + '# end\n';
-  const repo = sandbox(withComments.replace(/\n/g, '\r\n'));
+  const head = '# the team config\n' + CONFIG.replace('profile: build', 'profile: build # strict');
+  const repo = sandbox((head + '# end\n').replace(/\n/g, '\r\n'));
   const r = await run(['config', 'set', 'git.merge', 'squash'], repo);
   expect(r.code).toBe(0);
-  expect(text(repo)).toBe((withComments + 'git:\n  merge: squash\n').replace(/\n/g, '\r\n'));
+  // the key goes before the comment that closes the file, and no other line moves
+  expect(text(repo)).toBe((head + 'git:\n  merge: squash\n# end\n').replace(/\n/g, '\r\n'));
   expect(text(repo)).not.toMatch(/[^\r]\n/);
 });
 

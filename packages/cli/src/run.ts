@@ -12,6 +12,7 @@ import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
 import { budget } from './commands/budget.js';
+import { configCheck, configGet, configSet, configUnset } from './commands/config.js';
 import { gate } from './commands/gate.js';
 import { hook, HOOK_EVENTS } from './commands/hook.js';
 import { init } from './commands/init.js';
@@ -257,6 +258,38 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--reason <reason>', 'why the ticket is dropped; replaces the ## Dropped section')
     .action((id: string, o: { reason?: string }) => {
       setCode(drop(preflight(opts), id, o));
+    });
+
+  // ST-LN-50 D-11: the deterministic way to change accord/config.yml; every subcommand reads the repository, so each goes
+  // through the same preflight and the pin check. Nothing is committed: the onboarding skill does that.
+  const config = program.command('config').description('read or change accord/config.yml by dotted key; a change is validated against the schema as a whole before the file is written, and nothing is committed');
+  config
+    .command('get <key>')
+    .description('print the value of a key as YAML flow, or unset')
+    .option('--json', 'print { key, value } instead of text')
+    .action((key: string, o: { json?: boolean }) => {
+      setCode(configGet(preflight(opts), key, o));
+    });
+  config
+    .command('set <key> <value>')
+    .description('set a key: a value starting with [ or { is a YAML flow collection, any other value a string; a refusal exits 2 and leaves the file untouched')
+    .option('--json', 'print { key, from, to, consequences } instead of text')
+    .action((key: string, value: string, o: { json?: boolean }) => {
+      setCode(configSet(preflight(opts), key, value, o));
+    });
+  config
+    .command('unset <key>')
+    .description('remove a key, and a parent mapping it leaves empty')
+    .option('--json', 'print { key, from, to, consequences } instead of text')
+    .action((key: string, o: { json?: boolean }) => {
+      setCode(configUnset(preflight(opts), key, o));
+    });
+  config
+    .command('check')
+    .description('report every finding in accord/config.yml and write nothing')
+    .option('--json', 'print { findings } instead of text')
+    .action((o: { json?: boolean }) => {
+      setCode(configCheck(preflight(opts), o));
     });
 
   // A stated exception to the pin check, like `--version` and `--help`: it runs as the newer accord against a

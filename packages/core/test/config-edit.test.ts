@@ -2,6 +2,7 @@
 // config.yml survives an edit, and a text that does not parse gives undefined rather than a guess.
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
+import { parse } from 'yaml';
 import { appendConfigList, loadConfig, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from '../src/index.js';
 
 // This repository's own config: comments, a quoted "14", a flow list and flow maps, as a team's file would have.
@@ -56,6 +57,23 @@ it('risk:data-loss a config edit keeps every other byte (ST-LN-50 t2-ac-9)', () 
 
   // the result still passes the schema
   expect(loadConfig('accord/config.yml', next as string).findings).toEqual([]);
+});
+
+it('risk:data-loss blank lines, padded flow maps and a closing comment stay where they are (ST-LN-50 t2-ac-9)', () => {
+  const text = ['# top', 'accord: "1.0.0"', '', 'profile: maintain', 'tracker: { adapter: none }', '', 'models:', '  planner: { model: opus, effort: high }', '', 'stale_days: "14"', '# closing', ''].join('\n');
+  expect(setConfigValue(text, ['profile'], 'build')).toBe(text.replace('maintain', 'build'));
+  expect(setConfigValue(text, ['stale_days'], '20')).toBe(text.replace('"14"', '"20"'));
+  expect(setConfigValue(text, ['git', 'merge'], 'squash')).toBe(text.replace('# closing\n', 'git:\n  merge: squash\n# closing\n'));
+  // a key takes the blank line before it along, as yaml's own model does
+  expect(unsetConfigValue(text, ['models', 'planner'])).toBe(text.replace('models:\n  planner: { model: opus, effort: high }\n\n', ''));
+  expect(unsetConfigValue(text, ['profile'])).toBe(text.replace('\nprofile: maintain\n', ''));
+});
+
+it('risk:data-loss an indentation the splice cannot match falls back to the whole document, which says the same (ST-LN-50 t2-ac-9)', () => {
+  const text = ['accord: "1.0.0"', 'git:', '    merge: rebase', 'stale_days: "14"', ''].join('\n');
+  const next = setConfigValue(text, ['git', 'sync'], 'make sync') as string;
+  expect(parse(next)).toEqual({ accord: '1.0.0', git: { merge: 'rebase', sync: 'make sync' }, stale_days: '14' });
+  expect(next).toContain('stale_days: "14"');
 });
 
 it('risk:data-loss unsetConfigValue removes the key and an emptied parent (ST-LN-50 t2-ac-9)', () => {

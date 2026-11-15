@@ -5,7 +5,7 @@
 // in parallel, with no list endpoint and no pagination (D-101).
 import { execFileSync } from 'node:child_process';
 import { REQUEST_TIMEOUT_MS, ascii } from './common.js';
-import type { IssueFacts } from './index.js';
+import type { IssueFacts, TrackerAdapter } from './index.js';
 
 export type { IssueFacts };
 
@@ -100,4 +100,17 @@ export async function fetchIssues(
   if (failures.length > 0) parts.push(failures.join(', '));
   if (token === undefined) parts.push('no GitHub token found (GITHUB_TOKEN unset, gh unavailable)');
   return { issues, ...(parts.length === 0 ? {} : { warning: 'tracker ' + repo + ': ' + parts.join('; ') }) };
+}
+
+/**
+ * github-issues on the tracker interface (D-12 "moved onto it"): its requests, token lookup and warning
+ * wording stay exactly as `fetchIssues` has them, and a cell names the issue `#<n>` as it always has. The
+ * repository is configuration, not a call argument, so the adapter is made from it.
+ */
+export function githubAdapter(repo: string): TrackerAdapter {
+  return {
+    name: 'github-issues',
+    label: (key) => '#' + key,
+    fetch: (keys, env, io) => fetchIssues(repo, keys, env, io.fetchImpl),
+  };
 }

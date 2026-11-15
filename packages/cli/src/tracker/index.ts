@@ -4,7 +4,7 @@
 // to no file, and never rejects: a failure is the warning, so a tracker cannot change a verdict or an
 // exit code (D-99, D-100).
 import type { AccordConfig } from '@accord-dev/accord-core';
-import { fetchIssues } from './github-issues.js';
+import { githubAdapter } from './github-issues.js';
 import { linearAdapter } from './linear.js';
 
 /** What a tracker says about one issue, already reduced to printable ASCII. */
@@ -32,15 +32,6 @@ export interface TrackerAdapter {
   label?(key: string): string;
   /** Never rejects. */
   fetch(keys: readonly string[], env: NodeJS.ProcessEnv, io: TrackerIo): Promise<TrackerResult>;
-}
-
-/** github-issues on the interface: its requests, token lookup and warning wording stay exactly as `fetchIssues` has them (D-12 "moved onto it"). */
-function githubAdapter(repo: string): TrackerAdapter {
-  return {
-    name: 'github-issues',
-    label: (key) => '#' + key,
-    fetch: (keys, env, io) => fetchIssues(repo, keys, env, io.fetchImpl),
-  };
 }
 
 /**

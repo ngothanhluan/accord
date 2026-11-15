@@ -32,6 +32,9 @@ export interface TeamRunOptions {
  * worktree. The worker starts the shell with the event loop `spawnSync` lacks, so on a timeout or oversize output it can kill the
  * whole process tree first (`taskkill /T /F` on Windows; on POSIX the shell leads its own process group and the group is killed),
  * wait until the output pipes close, and only then report - the caller removes the folder the moment `runTeamCommand` returns.
+ * The POSIX group is also out of the terminal's reach, and the caller blocks in `Atomics.wait` where no signal handler can run, so Ctrl-C
+ * or a kill of accord would leave the script running. A guard process in a session of its own holds a pipe the worker keeps open: a normal
+ * end writes a line to it and the guard leaves; the pipe closing any other way (accord gone) makes the guard kill the script's group.
  */
 const RUNNER = String.raw`
 const { workerData } = require('node:worker_threads');
@@ -43,16 +46,36 @@ const size = { stdout: 0, stderr: 0 };
 let timedOut = false;
 let oversize = false;
 let child;
+let guard;
 let timer;
 let settled = false;
+
+/** Tells the guard the command ended normally, so it leaves the group alone, and waits until the line is written: a closed pipe is the signal to kill. */
+function release(next) {
+  const g = guard;
+  guard = undefined;
+  if (!g) return next();
+  let called = false;
+  const go = () => {
+    if (called) return;
+    called = true;
+    clearTimeout(wait);
+    next();
+  };
+  const wait = setTimeout(go, 2000);
+  g.stdio[3].on('error', go);
+  g.stdio[3].end('\n', go);
+}
 
 function done(result) {
   if (settled) return;
   settled = true;
   clearTimeout(timer);
-  port.postMessage(result);
-  Atomics.store(flag, 0, 1);
-  Atomics.notify(flag, 0);
+  release(() => {
+    port.postMessage(result);
+    Atomics.store(flag, 0, 1);
+    Atomics.notify(flag, 0);
+  });
 }
 
 function finish(code, signal, error) {
@@ -107,6 +130,12 @@ function take(name, chunk) {
 
 try {
   child = spawn(command, { cwd, env, shell: true, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: !win });
+  if (!win && child.pid !== undefined) {
+    guard = spawn('/bin/sh', ['-c', 'read -r _ <&3 && exit 0; kill -s KILL "-$1" 2>/dev/null || kill -s KILL -- "-$1"', 'guard', String(child.pid)], { detached: true, stdio: ['ignore', 'ignore', 'ignore', 'pipe'] });
+    guard.on('error', () => {});
+    guard.stdio[3].on('error', () => {});
+    guard.unref();
+  }
   child.stdout.on('data', (c) => take('stdout', c));
   child.stderr.on('data', (c) => take('stderr', c));
   child.stdin.on('error', () => {});

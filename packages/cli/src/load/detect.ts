@@ -15,8 +15,10 @@
 // question the user would answer for nothing; the key stays unproposed and the team sets it later through `accord config`.
 // A commitlint config file and a tracker link are not shapes held by a share of something: each is the repository saying so.
 //
-// Every proposal is checked as `accord config set` would check it (schema, floor, subject collisions) against the repository's
-// own config.yml before it is returned, and one that fails is dropped, so what init prints is what `config set` accepts.
+// Every proposal's value is checked as `accord config set` would check that value (schema, floor, subject collisions) against the repository's
+// own config.yml before it is returned, and one that fails is dropped. What init prints is that value as JSON (`"squash"`), which is not
+// itself the argument `config set` takes: `config set` stores its argument as typed, so the onboarding skill passes the bare value
+// (`accord config set git.merge 'squash'`).
 //
 // Evidence lines carry counts, fixed names and file names (T-03.1-46); no commit subject or body text is ever repeated.
 import { execFileSync } from 'node:child_process';

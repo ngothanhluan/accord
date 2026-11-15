@@ -26,9 +26,9 @@ team's settings are changed from the main checkout, not from a ticket branch. Re
 
    | Key | What it controls | What a change keeps working |
    |---|---|---|
-   | `git.merge` | how the team merges pull requests, which sets how a ticket branch takes the default branch in | everything, nothing is rewritten |
+   | `git.merge` | how the team merges pull requests, which sets how a ticket branch takes the default branch in | nothing for `merge` and `squash`; under `rebase` a ticket's branch is rebased and force-pushed with a lease at verify |
    | `commits.subjects` | the wording of every commit accord writes | tickets in flight: the old wording is kept as `commits.legacy_subjects` |
-   | `branch` | the name shape of a new ticket branch | branches that already exist |
+   | `branch` | the name shape of a new ticket branch | new branches; an in-flight branch with the old name stops being found once the new value reaches the default branch, so change it between tickets |
    | `ids` | how new ticket ids are made, or taken from the tracker | ids in use: they are kept as `legacy_ids` |
    | `tracker` | the tracker `accord status` reads, for display only | nothing else reads it |
 

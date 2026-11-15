@@ -162,6 +162,6 @@ export function init(ctx: InitContext): number {
   // format is a contract the onboarding skill reads: `proposal: <dotted key> = <JSON value>  (evidence: <text>)`.
   const proposals = detectProposals(ctx.root);
   for (const p of proposals) ctx.stdout.write(`proposal: ${p.key} = ${JSON.stringify(p.value)}  (evidence: ${p.evidence})\n`);
-  ctx.stdout.write(proposals.length === 0 ? 'proposals: 0\n' : `proposals: ${proposals.length}, none written to accord/config.yml\n`);
+  ctx.stdout.write(proposals.length === 0 ? 'proposals: 0\n' : `proposals: ${proposals.length}, none written to accord/config.yml; type /accord onboard to confirm them one by one\n`);
   return 0;
 }

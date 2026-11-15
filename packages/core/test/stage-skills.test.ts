@@ -1381,6 +1381,25 @@ it('risk:regression the plan skill and the planner run a measurement one arm on 
   expect(intent).toContain('Expected size: <N> tasks');
 });
 
+// WR-10: with the plan stage off nothing else asks for accord/tests-baseline.txt, and the locked gate.test-untraced fails every existing test at Done without it.
+it('risk:regression the build skill takes the tests baseline before its single task when the plan stage is off (WR-10)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const noPlan = read('.claude/skills/accord-build/no-plan.md');
+  const missing = [
+    'Before step 1',
+    '`accord/tests-baseline.txt` is absent',
+    '`tests.report` is set',
+    './baseline.md',
+    'before any executor is dispatched',
+    'no change outside `accord/`',
+  ].filter((p) => !noPlan.includes(p));
+  expect(missing).toEqual([]);
+  expect(noPlan.indexOf('Before step 1')).toBeLessThan(noPlan.indexOf('1. Run `accord brief'));
+  // the build rule and the baseline rule name the one exception, so neither forbids what no-plan.md asks
+  expect(read('.claude/skills/accord-build/SKILL.md')).toContain('except as `./no-plan.md` says');
+  expect(read('.claude/skills/accord-plan/baseline.md')).toContain('except `accord-build` with the plan stage off, as its `no-plan.md` says');
+});
+
 // ST-LN-50 t2-ac-5, D-08: a team may turn the discuss, approach, plan and review stages off for lane M, L or P; `accord anchor` then prints `stages off for lane <L>:`.
 // Each skill of such a stage reads that line first and does not run its stage; the approval stays when approach is off; and with the plan stage off the build skill
 // follows build/no-plan.md (one task, `accord brief <id> 1`, `accord task-done <id> 1 --test`) and the final review reads from the default branch.

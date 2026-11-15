@@ -887,7 +887,10 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   };
   // a git.sync the person has not allowed is not run by Continue either: the branch stays as it is and the line says how to allow it
   const unallowed = sync !== undefined && scriptRefusal(path, 'git.sync', sync) !== undefined;
-  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}${unallowed ? '; git.sync is not allowed to run here yet - run accord trust' : ''}\n`);
+  // round 3 WR-03: the allow is checked against the ticket's worktree, not the checkout Continue runs from, so the line names that worktree
+  const where = `"${shown(path.replaceAll('\\', '/'))}"`;
+  const unallowedHint = `; git.sync is not allowed to run here yet - run accord trust git.sync in ${where} once accord trust there has shown what it covers`;
+  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}${unallowed ? unallowedHint : ''}\n`);
   // a remote branch with commits this clone lacks (a teammate pushed): the stage here may be stale, and the push would be refused
   const own = 'refs/remotes/origin/' + branch;
   if (gitOk(path, ['rev-parse', '-q', '--verify', own]) && !gitOk(path, ['merge-base', '--is-ancestor', own, 'HEAD'])) return behind();

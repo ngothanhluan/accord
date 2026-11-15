@@ -20,18 +20,29 @@ export type ScriptKind = 'tracker.command' | 'git.sync';
 /** Every kind, in the order accord trust shows them. */
 export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync'];
 
+/** One allow: a binding of a script kind, its command text and the digest of what it covers. */
 interface Allow {
+  kind: ScriptKind;
   command: string;
   digest: string;
-  /** Each covered file's own hash, so the next refusal and preview can name the files that changed. */
+  /** Each covered file's own hash, so the next refusal and preview can name the files that changed; kept on the newest few allows of a kind only. */
   files?: Record<string, string>;
   allowedAt: string;
 }
 
+/**
+ * Round 3 WR-03: the allows are a list keyed by binding, oldest first, not one slot per kind. Parallel worktrees whose reached files differ (ticket A edits a
+ * script, ticket B matches main) each keep their allow, so allowing in one never cancels the other. A version-1 record (one slot per kind, never released) reads
+ * as no allow at all.
+ */
 interface TrustFile {
-  version: 1;
-  allows: Partial<{ [K in ScriptKind]: Allow }>;
+  version: 2;
+  allows: Allow[];
 }
+
+/** How many allows a kind keeps (the oldest go first), and how many of the newest keep their per-file hashes. */
+const KEEP_PER_KIND = 16;
+const KEEP_FILES_PER_KIND = 4;
 
 /** The root-level files an interpreter or a task runner reads from its working directory, bound when the command names no tracked file. */
 export const ROOT_MANIFESTS = [
@@ -266,11 +277,15 @@ function read(root: string): TrustFile {
   try {
     const parsed: unknown = JSON.parse(readFileSync(trustFile(root), 'utf8'));
     const file = parsed as TrustFile;
-    if (typeof file === 'object' && file !== null && file.version === 1 && typeof file.allows === 'object' && file.allows !== null) return file;
+    if (typeof file === 'object' && file !== null && file.version === 2 && Array.isArray(file.allows)) {
+      const ok = (a: unknown): a is Allow =>
+        typeof a === 'object' && a !== null && SCRIPT_KINDS.includes((a as Allow).kind) && typeof (a as Allow).command === 'string' && typeof (a as Allow).digest === 'string';
+      return { version: 2, allows: file.allows.filter(ok) };
+    }
   } catch {
     /* no record, or one that is not ours: nothing is allowed */
   }
-  return { version: 1, allows: {} };
+  return { version: 2, allows: [] };
 }
 
 /** Write the record whole through a file beside it and a rename, so a reader never sees half of it. */
@@ -302,9 +317,12 @@ function changedFiles(was: Record<string, string> | undefined, now: Record<strin
 /** How `command` stands, for `kind`, in the working tree at `root`. */
 export function inspect(root: string, kind: ScriptKind, command: string): Inspection & { hashes: Record<string, string> } {
   const now = scriptDigest(root, command);
-  const allow = read(root).allows[kind];
-  const state: TrustState = allow === undefined ? 'never' : allow.command !== command ? 'other-command' : allow.digest === now.digest ? 'allowed' : 'changed';
-  return { kind, command, ...now, state, changed: state === 'changed' ? changedFiles(allow?.files, now.hashes) : [] };
+  const mine = read(root).allows.filter((a) => a.kind === kind);
+  const same = mine.filter((a) => a.command === command);
+  const state: TrustState = mine.length === 0 ? 'never' : same.length === 0 ? 'other-command' : same.some((a) => a.digest === now.digest) ? 'allowed' : 'changed';
+  // the files that changed are named against the newest allow of this command that still holds its hashes
+  const last = [...same].reverse().find((a) => a.files !== undefined);
+  return { kind, command, ...now, state, changed: state === 'changed' ? changedFiles(last?.files, now.hashes) : [] };
 }
 
 /** A list of paths for one line: the first `max`, then how many more. */
@@ -325,30 +343,36 @@ export function scriptRefusal(root: string, kind: ScriptKind, command: string): 
       : i.state === 'other-command'
         ? 'is not the command that was allowed'
         : `or the files it reaches changed since it was allowed${i.changed.length === 0 ? '' : ` (changed: ${listed(i.changed, 5)})`}`;
-  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(i)}; run accord trust to see it and accord trust ${kind} to allow it (accord trust --revoke withdraws every allow)`;
+  // round 3 WR-03: the digest is read from this checkout's files, so the line names the checkout; an allow made in another one does not cover this one
+  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(i)}; run accord trust in "${shown(root.replaceAll('\\', '/'))}" to see it, then accord trust ${kind} there to allow it (accord trust --revoke withdraws every allow)`;
 }
 
-/** Record an allow for each script, replacing the one it had; returns each script as it stood just before, for the person to read. */
+/**
+ * Record an allow for each script beside the allows already held (the same binding allowed again moves to the newest place); a kind keeps its newest
+ * `KEEP_PER_KIND` allows, and only the newest `KEEP_FILES_PER_KIND` keep their per-file hashes. Returns each script as it stood just before, for the person to read.
+ */
 export function allowScripts(root: string, scripts: ReadonlyArray<{ kind: ScriptKind; command: string }>): Array<Inspection> {
-  const record = read(root);
+  let allows = read(root).allows;
   const bound = scripts.map((s) => {
     const { hashes, ...seen } = inspect(root, s.kind, s.command);
-    record.allows[s.kind] = { command: s.command, digest: seen.digest, files: hashes, allowedAt: new Date().toISOString() };
+    allows = [...allows.filter((a) => !(a.kind === s.kind && a.command === s.command && a.digest === seen.digest)), { kind: s.kind, command: s.command, digest: seen.digest, files: hashes, allowedAt: new Date().toISOString() }];
     return seen;
   });
-  if (bound.length > 0) write(root, record);
+  if (bound.length === 0) return bound;
+  const kept = SCRIPT_KINDS.flatMap((k) => {
+    const mine = allows.filter((a) => a.kind === k).slice(-KEEP_PER_KIND);
+    return mine.map((a, i) => (i < mine.length - KEEP_FILES_PER_KIND ? { kind: a.kind, command: a.command, digest: a.digest, allowedAt: a.allowedAt } : a));
+  });
+  write(root, { version: 2, allows: kept });
   return bound;
 }
 
 /** Withdraw the allows of the kinds named, or of every kind when none is named; returns the kinds that were allowed and are not any more. */
 export function revokeScripts(root: string, kinds: readonly ScriptKind[] = []): ScriptKind[] {
   const record = read(root);
-  const had = Object.keys(record.allows) as ScriptKind[];
+  const had = SCRIPT_KINDS.filter((k) => record.allows.some((a) => a.kind === k));
   const gone = kinds.length === 0 ? had : had.filter((k) => kinds.includes(k));
   if (kinds.length === 0) rmSync(trustFile(root), { force: true });
-  else if (gone.length > 0) {
-    for (const k of gone) delete record.allows[k];
-    write(root, record);
-  }
+  else if (gone.length > 0) write(root, { version: 2, allows: record.allows.filter((a) => !gone.includes(a.kind)) });
   return gone;
 }

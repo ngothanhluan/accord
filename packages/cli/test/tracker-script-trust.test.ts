@@ -136,11 +136,14 @@ describe('accord status runs a repository tracker command only when accord trust
     expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
     await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual(['ran C']);
-    // and main's script is then the one that has changed
+    // the branch's committed script B was never allowed, and still is not
     gitRun(b.repo, 'checkout', '-q', '--', 'scripts/tracker.mjs');
-    gitRun(b.repo, 'switch', '-q', 'main');
     await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual(['ran C']);
+    // main's script A was allowed first, and that allow is kept beside the newer one (round 3 WR-03: allows are kept per binding, not one slot per script)
+    gitRun(b.repo, 'switch', '-q', 'main');
+    await run(['status'], b.repo, b.env);
+    expect(b.ran()).toEqual(['ran C', 'ran A']);
   });
 
   // the pull request case itself: the default branch names this very command, so a pin on the command text passes, and only the script file differs

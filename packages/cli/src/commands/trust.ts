@@ -6,7 +6,7 @@
 // Round 3 WR-02 (Ruling): with no script named it only shows each script (the command, what an allow covers, the files that changed since the last allow) and writes
 // nothing; `accord trust git.sync` allows git.sync alone and prints the same block for what it allowed. No prompt, so it is safe where nothing can answer one (CI, an agent
 // shell): a changed tracker script is never allowed by a person who ran `accord trust git.sync` after reading the sync diff.
-import { allowScripts, coverText, inspect, listed, revokeScripts, SCRIPT_KINDS, shown } from '../load/script-trust.js';
+import { allowScripts, coverText, inspect, listed, recordWarning, revokeScripts, SCRIPT_KINDS, shown } from '../load/script-trust.js';
 import type { Inspection, ScriptKind } from '../load/script-trust.js';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
@@ -44,6 +44,8 @@ function kindsOf(names: readonly string[]): ScriptKind[] {
 
 export function trust(ctx: CommandContext, names: readonly string[], options: { revoke?: boolean }): number {
   const kinds = kindsOf(names);
+  const warning = recordWarning(ctx.root);
+  if (warning !== undefined) ctx.stderr.write(warning + '\n');
   if (options.revoke === true) {
     const gone = revokeScripts(ctx.root, kinds);
     ctx.stdout.write(gone.length === 0 ? 'nothing was allowed in this repository - nothing to revoke\n' : `revoked: ${gone.join(', ')}\n`);

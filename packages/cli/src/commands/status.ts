@@ -8,7 +8,7 @@ import type { StatusRow } from '@accord-dev/accord-core';
 import { stagesOffLines } from '../render/stages-off.js';
 import { EMPTY_CELL, renderRows } from '../render/table.js';
 import { adapterFor, issueKeyOf } from '../tracker/index.js';
-import { scriptRefusal } from '../load/script-trust.js';
+import { recordWarning, scriptRefusal } from '../load/script-trust.js';
 import { jiraUrlRefusal } from '../tracker/trust.js';
 import type { CommandContext } from '../run.js';
 
@@ -37,6 +37,9 @@ async function trackerCells(ctx: CommandContext, rows: StatusRow[]): Promise<Rec
 
   // Repository scripts trust: the script runs with the whole environment, so it runs only after the person allowed this command and these files with `accord trust`.
   if (adapter.name === 'script' && config?.tracker?.command !== undefined) {
+    // round 4 IN-01: an entry of the record accord cannot read is ignored (read as no allow), and said so
+    const unread = recordWarning(ctx.root);
+    if (unread !== undefined) ctx.stderr.write(unread + '\n');
     const refusal = scriptRefusal(ctx.root, 'tracker.command', config.tracker.command);
     if (refusal !== undefined) {
       ctx.stderr.write('tracker script: ' + refusal + '\n');

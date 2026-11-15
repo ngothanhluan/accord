@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { DISCUSS_FROM, gateDone, gateReady, lintSnapshot, loadSnapshot, resolveStrictness, setFrontmatterKey, statusRows } from '../src/index.js';
 import type { AccordConfig, RepoSnapshot } from '../src/index.js';
-import { stageOff } from '../src/gate/floor.js';
+import { floorProblems, stageOff } from '../src/gate/floor.js';
 import { nextStep } from '../src/status/stage.js';
 import { acHash } from '../src/gate/hash.js';
 import { approved } from './helpers/approve.js';
@@ -179,5 +179,51 @@ describe('discuss and approach off for lane M (ST-LN-50 t2-ac-5)', () => {
     // the stage set the engines read holds both, nothing else, and no preset or floor key joins them
     expect([...resolveStrictness(unapproved.config).stages.M].sort()).toEqual(['approach', 'discuss']);
     expect(stageOf(approved({ 'accord/config.yml': cfg, [T1]: laneTicket('T-1') }, 'T-1'))).toBe('plan');
+  });
+});
+
+describe('floorProblems names a stage key it refuses (ST-LN-50 t2-ac-5)', () => {
+  const problems = (stages: unknown): { pointer: string; reason: string }[] => floorProblems(config(stages as never));
+  const FLOOR_WHY = {
+    intent: 'intent and acceptance criteria before code',
+    build: 'the change itself',
+    verify: 'independent verification before done',
+  } as const;
+
+  it('risk:security floorProblems names every floor-stage key (ST-LN-50 t2-ac-5)', () => {
+    const got = problems({
+      M: { verify: 'off', discuss: 'off', approach: 'off', plan: 'off', review: 'off' },
+      L: { intent: 'off', build: 'on' },
+      P: { build: 'off' },
+      S: { review: 'off', intent: 'off', build: 'off' },
+      R: { intent: 'off', research: 'off' },
+    });
+    const by = Object.fromEntries(got.map((p) => [p.pointer, p.reason]));
+    // floor stages of lanes M, L and P, each with the floor it guards
+    expect(by['/strictness/stages/M/verify']).toBe(`verify is on the floor: ${FLOOR_WHY.verify}`);
+    expect(by['/strictness/stages/L/intent']).toBe(`intent is on the floor: ${FLOOR_WHY.intent}`);
+    expect(by['/strictness/stages/P/build']).toBe(`build is on the floor: ${FLOOR_WHY.build}`);
+    // lane S: every key, review by the reason that lane S has no verify stage
+    expect(by['/strictness/stages/S/review']).toContain("lane S's only independent check before done");
+    expect(by['/strictness/stages/S/review']).toContain('lane S has no stage off the floor');
+    expect(by['/strictness/stages/S/intent']).toContain('lane S has no stage off the floor');
+    expect(by['/strictness/stages/S/intent']).toContain(FLOOR_WHY.intent);
+    expect(by['/strictness/stages/S/build']).toContain(FLOOR_WHY.build);
+    // lane R: every key
+    expect(by['/strictness/stages/R/intent']).toContain('lane R has no stage off the floor');
+    expect(by['/strictness/stages/R/intent']).toContain('the question, timebox and budget before the work');
+    expect(by['/strictness/stages/R/research']).toContain('lane R has no stage off the floor');
+    expect(by['/strictness/stages/R/research']).toContain('the work itself');
+    // nothing else: `on` values and the discuss, approach, plan and review keys of lanes M, L and P give none
+    expect(Object.keys(by).sort()).toEqual([
+      '/strictness/stages/L/intent', '/strictness/stages/M/verify', '/strictness/stages/P/build',
+      '/strictness/stages/R/intent', '/strictness/stages/R/research',
+      '/strictness/stages/S/build', '/strictness/stages/S/intent', '/strictness/stages/S/review',
+    ]);
+    expect(problems({ M: { discuss: 'off', approach: 'off', plan: 'off', review: 'off' }, L: { verify: 'on', intent: 'on' }, S: { review: 'on' }, R: { research: 'on' } })).toEqual([]);
+    // a hand-built value the engines read as unset is not a refusal either, and nothing throws
+    expect(problems('off')).toEqual([]);
+    expect(problems({ M: 'off', S: null, X: { review: 'off' } })).toEqual([]);
+    expect(floorProblems(undefined)).toEqual([]);
   });
 });

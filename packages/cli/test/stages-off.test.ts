@@ -4,7 +4,7 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
-import { approve, CONFIG, discussFiles, discussPath, gateReadyIn, P, PLAN, type Files } from '../../../test/helpers/lane.js';
+import { approve, CONFIG, discussFiles, discussPath, gateReadyIn, LANE_S_BODY, laneTicket, P, PLAN, type Files } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 const STAGES = 'strictness:\n  stages:\n    M:\n      review: "off"\n';
@@ -133,6 +133,73 @@ it('risk:complex-branching approach off removes the approach critic, not the app
     expect(on.code).toBe(0);
     expect(on.out).toMatch(/^Round: 1 of /);
     expect((await run(['round', 'T-1', '--plan'], repo)).code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+const cfg = (repo: string): string => readFileSync(join(repo, 'accord', 'config.yml'), 'utf8');
+
+it('risk:security a floor stage cannot be turned off: lint, accord config and the gates say so (ST-LN-50 t2-ac-5)', async () => {
+  const repo = await built(CONFIG);
+  try {
+    // accord config set refuses, names the stage and the floor it guards, and leaves config.yml byte-identical
+    const kept = cfg(repo);
+    for (const [key, floor] of [
+      ['strictness.stages.M.intent', 'intent and acceptance criteria before code'],
+      ['strictness.stages.L.build', 'the change itself'],
+      ['strictness.stages.P.verify', 'independent verification before done'],
+      ['strictness.stages.S.review', "lane S's only independent check before done"],
+      ['strictness.stages.S.intent', 'lane S has no stage off the floor'],
+      ['strictness.stages.R.research', 'lane R has no stage off the floor'],
+    ] as const) {
+      const r = await run(['config', 'set', key, 'off'], repo);
+      expect(r.code, key).toBe(2);
+      expect(r.err, key).toContain(key);
+      expect(r.err, key).toContain(floor);
+      expect(r.err, key).toContain('accord/config.yml was not changed');
+      expect(cfg(repo), key).toBe(kept);
+    }
+    // a switch that may be turned off, and any key set to on, is not refused
+    expect((await run(['config', 'set', 'strictness.stages.M.verify', 'on'], repo)).code).toBe(0);
+    expect((await run(['config', 'set', 'strictness.stages.M.review', 'off'], repo)).code).toBe(0);
+
+    // hand-edited into the file anyway: lint names the stage and the floor, config check exits 2
+    writeFiles(repo, { 'accord/config.yml': CONFIG + 'strictness:\n  stages:\n    M:\n      verify: "off"\n' });
+    const lint = await run(['lint', '--json'], repo);
+    expect(lint.code).toBe(1);
+    const floor = (JSON.parse(lint.out) as { findings: { rule: string; level: string; pointer?: string; reason: string }[] }).findings.filter((f) => f.rule === 'lint.config-floor');
+    expect(floor).toHaveLength(1);
+    expect(floor[0]).toMatchObject({ level: 'error', pointer: '/strictness/stages/M/verify' });
+    expect(floor[0].reason).toContain('verify');
+    expect(floor[0].reason).toContain('independent verification before done');
+    expect((await run(['config', 'check'], repo)).code).toBe(2);
+
+    // the engines ignore the key: the built ticket is at verify and gate done still fails without a verification
+    expect(await stageOf(repo)).toBe('verify');
+    const done = await run(['gate', 'done', 'T-1', '--json'], repo);
+    expect(done.code).toBe(1);
+    const rules = (JSON.parse(done.out) as { findings: { rule: string }[] }).findings.map((f) => f.rule);
+    expect(rules).toContain('gate.verification-missing');
+  } finally {
+    cleanup(repo);
+  }
+}, 180_000);
+
+it('risk:security a hand-edited S.review off still leaves a lane S ticket without review.md failing gate.review-missing (ST-LN-50 t2-ac-5)', async () => {
+  const repo = makeLaneRepo({
+    'accord/config.yml': CONFIG + 'strictness:\n  stages:\n    S:\n      review: "off"\n',
+    'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
+  });
+  try {
+    commitMsg(repo, 'claim: S-1');
+    const lint = await run(['lint', '--json'], repo);
+    const floor = (JSON.parse(lint.out) as { findings: { rule: string; pointer?: string; reason: string }[] }).findings.filter((f) => f.rule === 'lint.config-floor');
+    expect(floor.map((f) => f.pointer)).toEqual(['/strictness/stages/S/review']);
+    expect(floor[0].reason).toContain("lane S's only independent check before done");
+    const done = await run(['gate', 'done', 'S-1', '--json'], repo);
+    expect(done.code).toBe(1);
+    expect((JSON.parse(done.out) as { findings: { rule: string }[] }).findings.map((f) => f.rule)).toContain('gate.review-missing');
   } finally {
     cleanup(repo);
   }

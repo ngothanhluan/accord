@@ -397,7 +397,7 @@ function diffNames(root: string, args: string[]): string[] {
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 64 * 1024 * 1024,
   });
-  return raw.split(' ').filter((p) => p !== '');
+  return raw.split('\0').filter((p) => p !== '');
 }
 
 /** Paths per `git diff` command line: a long list is cut into batches, never handed over unbounded. */

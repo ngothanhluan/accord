@@ -8,6 +8,7 @@ import type { StatusRow } from '@accord-dev/accord-core';
 import { stagesOffLines } from '../render/stages-off.js';
 import { EMPTY_CELL, renderRows } from '../render/table.js';
 import { adapterFor, issueKeyOf } from '../tracker/index.js';
+import { jiraUrlRefusal } from '../tracker/trust.js';
 import type { CommandContext } from '../run.js';
 
 const plural = (n: number, word: string): string => n + ' ' + word + (n === 1 ? '' : 's');
@@ -23,6 +24,15 @@ async function trackerCells(ctx: CommandContext, rows: StatusRow[]): Promise<Rec
   const config = ctx.snapshot.config;
   const adapter = adapterFor(config?.tracker);
   if (adapter === undefined) return undefined;
+
+  // WR-02: the branch's own tracker.url never decides where the Jira credential goes; the default branch's does.
+  if (adapter.name === 'jira' && config?.tracker?.url !== undefined) {
+    const refusal = jiraUrlRefusal(ctx.root, config.tracker.url);
+    if (refusal !== undefined) {
+      ctx.stderr.write(refusal + '\n');
+      return undefined;
+    }
+  }
 
   const linked = rows.flatMap((r) => {
     const key = issueKeyOf(r, adapter.name, config?.ids?.mode);

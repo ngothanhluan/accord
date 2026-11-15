@@ -19,7 +19,7 @@ import { CONCURRENCY, REQUEST_TIMEOUT_MS, ascii, mapLimit, warningLine } from '.
 import type { IssueFacts, TrackerAdapter, TrackerResult } from './index.js';
 
 /** The same shape as the schema's `tracker.url`: https, a host, an optional path, no query or fragment. */
-const HTTPS_URL = /^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/;
+const HTTPS_URL = /^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/;
 
 interface Auth {
   header: string;

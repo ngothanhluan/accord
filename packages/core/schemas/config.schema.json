@@ -16,6 +16,20 @@
         { "pattern": "^(?!\\s)" },
         { "pattern": "\\S$" }
       ]
+    },
+    "onOff": { "type": "string", "enum": ["on", "off"] },
+    "stageSwitches": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intent": { "$ref": "#/$defs/onOff" },
+        "discuss": { "$ref": "#/$defs/onOff" },
+        "approach": { "$ref": "#/$defs/onOff" },
+        "plan": { "$ref": "#/$defs/onOff" },
+        "build": { "$ref": "#/$defs/onOff" },
+        "review": { "$ref": "#/$defs/onOff" },
+        "verify": { "$ref": "#/$defs/onOff" }
+      }
     }
   },
   "properties": {
@@ -224,6 +238,17 @@
           "type": "object",
           "propertyNames": { "pattern": "^(gate|lint)\\.[a-z0-9-]+$" },
           "additionalProperties": { "type": "string", "enum": ["error", "warning", "off"] }
+        },
+        "stages": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "M": { "$ref": "#/$defs/stageSwitches" },
+            "L": { "$ref": "#/$defs/stageSwitches" },
+            "P": { "$ref": "#/$defs/stageSwitches" },
+            "S": { "type": "object", "additionalProperties": false, "properties": { "intent": { "$ref": "#/$defs/onOff" }, "build": { "$ref": "#/$defs/onOff" }, "review": { "$ref": "#/$defs/onOff" } } },
+            "R": { "type": "object", "additionalProperties": false, "properties": { "intent": { "$ref": "#/$defs/onOff" }, "research": { "$ref": "#/$defs/onOff" } } }
+          }
         }
       }
     }

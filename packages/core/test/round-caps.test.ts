@@ -6,6 +6,9 @@ import { APPROACH_CAP, APPROACH_CAP_FROM, LEGACY_CAP, PLAN_CAP, PLAN_CAP_FROM, P
 import type { ClaimPin, RepoSnapshot, RoundKind } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
+// ST-LN-50 D-08: no stage is off in either preset, and a config with no `strictness.stages` key switches none
+const NO_STAGES = { M: new Set(), L: new Set(), P: new Set() };
+
 const LEDGER = '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n';
 const HEAD = 'Round record: 1\n\n';
 const strict = (rounds: Partial<Record<RoundKind, string>>): string =>
@@ -80,8 +83,8 @@ it('risk:regression with no strictness key every cap is today\'s (ST-LN-50 t2-ac
     expect(capRulesOf(none, 'T-1', 'approach')).toEqual(claim === cut ? APPROACH_CAP : LEGACY_CAP);
     expect(capRulesOf(none, 'T-1', 'review')).toEqual(LEGACY_CAP);
   }
-  expect(resolveStrictness(undefined)).toEqual({ rounds: {}, levels: {} });
-  expect(resolveStrictness(repo().config)).toEqual({ rounds: {}, levels: {} });
+  expect(resolveStrictness(undefined)).toEqual({ rounds: {}, levels: {}, stages: NO_STAGES });
+  expect(resolveStrictness(repo().config)).toEqual({ rounds: {}, levels: {}, stages: NO_STAGES });
   expect(PRESETS.build).toEqual({ rounds: {}, levels: {} });
   expect(PRESETS.maintain.rounds).toEqual({});
   // an empty `strictness:` map, or a `rounds:` with no key, changes nothing either
@@ -90,10 +93,10 @@ it('risk:regression with no strictness key every cap is today\'s (ST-LN-50 t2-ac
 
 it('risk:complex-branching resolveStrictness reads each team key as a number and ignores what is no round cap (ST-LN-50 t2-ac-4)', () => {
   const config = repo({ config: strict({ approach: '1', plan: '42', review: '99' }) }).config;
-  expect(resolveStrictness(config)).toEqual({ rounds: { approach: 1, plan: 42, review: 99 }, levels: {} });
+  expect(resolveStrictness(config)).toEqual({ rounds: { approach: 1, plan: 42, review: 99 }, levels: {}, stages: NO_STAGES });
   // a value outside 1..99 never reaches the seam as a cap (the schema refuses it; a hand-built config is read defensively)
   const raw = { ...config!, strictness: { rounds: { approach: '0', plan: '100', review: 'two' } } } as unknown as Parameters<typeof resolveStrictness>[0];
-  expect(resolveStrictness(raw)).toEqual({ rounds: {}, levels: {} });
+  expect(resolveStrictness(raw)).toEqual({ rounds: {}, levels: {}, stages: NO_STAGES });
 });
 
 for (const cap of [1, 2, 9]) {

@@ -7,7 +7,7 @@ import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { resolveStrictness } from '../config/strictness.js';
-import { effectiveLevel } from './floor.js';
+import { effectiveLevel, STAGE_OF, stageOff } from './floor.js';
 import { readyHash } from './hash.js';
 import { downgradeMaintain, DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule } from './rules.js';
@@ -63,8 +63,11 @@ function run(
   const profile = snapshot.config?.profile ?? 'build';
   const strictness = resolveStrictness(snapshot.config);
   // The one place a gate rule's level is set: the table's, or the team's for an OVERRIDABLE rule; off drops the rule's findings (floor.ts). No check reads the config for its own level.
+  // D-08: a rule of a stage the gated ticket's lane turned off is dropped before it runs (stageOff is false for the floor stages, lanes S and R, and an unknown id); the lint findings
+  // below arrive from lintSnapshot, which drops the same stages' rules by the ticket their file belongs to.
   const gated = rules
     .filter((r) => r.profiles.includes(profile))
+    .filter((r) => !Object.hasOwn(STAGE_OF, r.id) || !stageOff(snapshot, id, STAGE_OF[r.id]))
     .flatMap((r) => {
       const level = effectiveLevel(r.id, r.level, strictness);
       return level === 'off' ? [] : r.check(snapshot, id).map((d) => ({ ...d, rule: r.id, level }));

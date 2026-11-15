@@ -128,6 +128,6 @@ it('risk:regression a repository with today\'s config answers as before: its con
     const loaded = loadSnapshot({ files, tree: Object.keys(files) });
     expect(loaded.config?.profile, file).toBe(profile);
     expect(loaded.config?.strictness, file).toBeUndefined();
-    expect(resolveStrictness(loaded.config), file).toEqual(preset);
+    expect(resolveStrictness(loaded.config), file).toEqual({ ...preset, stages: { M: new Set(), L: new Set(), P: new Set() } });
   }
 });

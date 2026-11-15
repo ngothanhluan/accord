@@ -1,6 +1,7 @@
 // Spec §6: where a lane ticket stands, read from its records. A trace, never a verdict (D-91): only
 // `gate ready` decides Ready and only `gate done` decides Done.
 import { handMade, shaEqual } from '../gate/done.js';
+import { stageOff } from '../gate/floor.js';
 import { acHash, approvedHash, laneRHash, laneSHash } from '../gate/hash.js';
 import { hasOwnSpentRecord } from '../gate/lane-r.js';
 import { VERDICTS, workOf } from '../gate/work.js';
@@ -117,12 +118,14 @@ export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | u
   // BUG-LN-2: a host that supplies plan facts holds the ticket at plan until plan.md's ready commit.
   if (open.length > 0 && snapshot.planFacts !== undefined && !planReady(snapshot, snapshot.planFacts, ticket.id)) return { stage: 'plan', ...counts };
   if (open.length > 0) return { stage: 'build', ...counts, next: open[0].n };
-  if (!VERDICTS.includes(work?.review?.verdict ?? '')) return { stage: 'review', ...counts };
+  // ST-LN-50 D-08: a team may turn review off for this lane; the ticket then goes from its last task to verify, as if a verdict existed, and no review record puts it back at review.
+  const reviewOff = stageOff(snapshot, ticket.id, 'review');
+  if (!reviewOff && !VERDICTS.includes(work?.review?.verdict ?? '')) return { stage: 'review', ...counts };
   // ST-LN-17: a versioned record that ends in an open cycle is at review, whatever the after-verify window reads.
-  const midCycle = work?.rounds?.versioned === true && cycleOpen(work.rounds.cycles[work.rounds.cycles.length - 1]);
+  const midCycle = !reviewOff && work?.rounds?.versioned === true && cycleOpen(work.rounds.cycles[work.rounds.cycles.length - 1]);
   const after = snapshot.afterVerify !== undefined && Object.hasOwn(snapshot.afterVerify, ticket.id) ? snapshot.afterVerify[ticket.id] : undefined;
   if (after !== undefined && after.some((c) => c.parents.length > 1 || handMade(ticket.id, c))) {
-    const base = reviewBase(snapshot, ticket.id, after);
+    const base = reviewOff ? undefined : reviewBase(snapshot, ticket.id, after);
     return base === undefined ? { stage: midCycle ? 'review' : 'verify', ...counts } : { stage: 'review', ...counts, base };
   }
   if (midCycle) return { stage: 'review', ...counts };

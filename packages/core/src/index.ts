@@ -76,8 +76,8 @@ export {
 export type { Allowance, CapRules, RoundAnswer, RoundKind } from './round/next.js';
 export { PRESETS, resolveStrictness } from './config/strictness.js';
 export type { Strictness } from './config/strictness.js';
-export { LOCKED, NO_OFF, OVERRIDABLE, STAGE_OF, effectiveLevel, floorProblems, levelRefusal } from './gate/floor.js';
-export type { RuleLevel, StageName } from './gate/floor.js';
+export { FLOOR_STAGES, LOCKED, NO_OFF, OVERRIDABLE, STAGE_OF, SWITCHABLE_STAGES, effectiveLevel, floorProblems, levelRefusal, stageOff } from './gate/floor.js';
+export type { ConfigStage, RuleLevel, StageName } from './gate/floor.js';
 export { checkFixDispatch } from './round/dispatch.js';
 export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';

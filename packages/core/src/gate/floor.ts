@@ -7,11 +7,18 @@
 //               warning, never off, because Ready blocks on them.
 // A rule added to a table without a class here fails packages/core/test/strictness.test.ts, and that test names the LOCKED list as a literal, so a change to the
 // floor is a visible diff. Pure: no I/O, no config read beyond the value handed in.
-import type { AccordConfig } from '../model/snapshot.js';
+import type { AccordConfig, RepoSnapshot } from '../model/snapshot.js';
+import { resolveStrictness } from '../config/strictness.js';
 import type { Strictness } from '../config/strictness.js';
 
 export type RuleLevel = 'error' | 'warning' | 'off';
-export type StageName = 'discuss' | 'approach' | 'plan' | 'review';
+/** The stages a team may switch off (D-08), by lane M, L or P; each owns rules in STAGE_OF. */
+export const SWITCHABLE_STAGES = ['discuss', 'approach', 'plan', 'review'] as const;
+export type StageName = (typeof SWITCHABLE_STAGES)[number];
+/** D-08 floor: no key turns one of these off for any lane: intent and acceptance criteria before code, the change itself, independent verification before done. */
+export const FLOOR_STAGES = ['intent', 'build', 'verify'] as const;
+/** Every stage name a `strictness.stages.<lane>` key accepts for lanes M, L and P. */
+export type ConfigStage = StageName | (typeof FLOOR_STAGES)[number];
 
 /** The floor, by what each rule guards; the reason a refused key prints is the group's. */
 const FLOOR: Record<string, readonly string[]> = {
@@ -148,7 +155,7 @@ export function levelRefusal(id: string, value: RuleLevel): string | undefined {
  * whatever `strictness.levels` holds, so the floor holds even for a hand-edited config; a NO_OFF rule given `off` keeps the table level. The only place a level
  * changes: the engines call it where they stamp a finding, and no rule's check ever reads the config for its own level.
  */
-export function effectiveLevel(id: string, tableLevel: 'error' | 'warning', strictness: Strictness): RuleLevel {
+export function effectiveLevel(id: string, tableLevel: 'error' | 'warning', strictness: Omit<Strictness, 'stages'>): RuleLevel {
   const set = Object.hasOwn(strictness.levels, id) ? strictness.levels[id] : undefined;
   if (set === undefined || !OVERRIDABLE_SET.has(id)) return tableLevel;
   if (set === 'off' && NO_OFF.includes(id)) return tableLevel;
@@ -163,4 +170,15 @@ export function floorProblems(config: AccordConfig | undefined): { pointer: stri
     const reason = levelRefusal(id, value);
     return reason === undefined ? [] : [{ pointer: `/strictness/levels/${id}`, reason }];
   });
+}
+
+/**
+ * D-08: is `stage` turned off for ticket `id`'s lane? Only a stage of lane M, L or P that is not on the floor can be: false for a floor stage, for every stage of lane S and lane R
+ * (each of them is the floor: lane S's review is its only independent check, see 03.1-21's Rulings), for a ticket without a lane and for an unknown id. Resolved from the
+ * config on every call, so a stage turned back on applies from the next command and nothing is cached.
+ */
+export function stageOff(snapshot: RepoSnapshot, id: string, stage: ConfigStage): boolean {
+  const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
+  if (lane !== 'M' && lane !== 'L' && lane !== 'P') return false;
+  return (resolveStrictness(snapshot.config).stages[lane] as ReadonlySet<string>).has(stage);
 }

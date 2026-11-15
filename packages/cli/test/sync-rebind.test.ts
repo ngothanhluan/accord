@@ -137,6 +137,7 @@ it('risk:complex-branching a hand rebase and a git.sync rebase are not re-bound 
     writeFileSync(file, "import { execFileSync } from 'node:child_process';\nexecFileSync('git', ['rebase', process.env.ACCORD_BASE_REF], { stdio: 'pipe' });\n");
     const script = doneBranch(s, { gitKeys: [`  sync: 'node ${file}'`], after: true });
     pushMain(s, 'notes.txt', 'main moves\n');
+    expect((await run(['trust'], script.sib)).code).toBe(0); // a repository script runs only once the person allowed it
     const r = await run(['worktree', 'sync', ID], script.sib);
     expect([r.code, r.err]).toEqual([0, '']);
     expect(lines(r.out)).toContain(`synced: t/${ID} by git.sync`);
@@ -310,6 +311,7 @@ async function syncedAfterUpgrade(way: Way, via: Via, dir: string): Promise<{ c:
   writeFiles(c.root, { [CONFIG_REL]: pinned(RULESET_FROM) + keys });
   commitMsg(c.root, 'upgrade');
   c.git('push', '-q', 'origin', 'main');
+  if (way === 'git.sync') expect((await run(['trust'], via === 'sync' ? wt : c.root)).code).toBe(0); // a repository script runs only once the person allowed it
   const r = via === 'sync' ? await run(['worktree', 'sync', ID], wt) : await run(['worktree', 'open', ID, '--continue'], c.root);
   expect([r.code, r.err]).toEqual([0, '']);
   return { c, wt, out: r.out };

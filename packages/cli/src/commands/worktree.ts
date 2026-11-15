@@ -10,6 +10,7 @@ import { gitClaimFacts } from '../load/claim-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { DEFAULT_DISPOSABLE, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
+import { scriptRefusal } from '../load/script-trust.js';
 import { runTeamCommand } from '../load/team-run.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
@@ -821,6 +822,9 @@ const TEAM_SYNC_MAX_BUFFER = 64 * 1024 * 1024;
  * quoted in the refusal, never read as a verdict. The ignored-file clash check is not made: accord cannot know what a team script writes.
  */
 function runTeamSync(root: string, ref: string, branch: string, team: { command: string; ticket: string }): void {
+  // the callers check this before any network call; it is checked here too, so no path runs a repository script that `accord trust` did not allow
+  const refusal = scriptRefusal(root, 'git.sync', team.command);
+  if (refusal !== undefined) throw new UsageError(`${refusal} - ${branch} was not pushed`);
   const r = runTeamCommand(team.command, {
     cwd: root,
     env: { ...process.env, ACCORD_TICKET: team.ticket, ACCORD_BRANCH: branch, ACCORD_BASE_REF: ref, ACCORD_ROOT: root },
@@ -881,10 +885,13 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
     if (strategy === 'rebase') return syncRuns() ? `rebase onto it with accord worktree sync ${id}` : `rebase onto it, which accord worktree sync ${id} does at verify`;
     return `merge them with git merge ${def}`;
   };
-  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}\n`);
+  // a git.sync the person has not allowed is not run by Continue either: the branch stays as it is and the line says how to allow it
+  const unallowed = sync !== undefined && scriptRefusal(path, 'git.sync', sync) !== undefined;
+  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}${unallowed ? '; git.sync is not allowed to run here yet - run accord trust' : ''}\n`);
   // a remote branch with commits this clone lacks (a teammate pushed): the stage here may be stale, and the push would be refused
   const own = 'refs/remotes/origin/' + branch;
   if (gitOk(path, ['rev-parse', '-q', '--verify', own]) && !gitOk(path, ['merge-base', '--is-ancestor', own, 'HEAD'])) return behind();
+  if (unallowed) return behind();
   const stage = stageOf();
   if (stage === undefined || !['intent', 'plan', 'build', 'review'].includes(stage)) return behind();
   if (git(path, ['status', '--porcelain', '--untracked-files=no']).trim() !== '' || gitOk(path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) return behind();
@@ -1050,6 +1057,10 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   if (stage !== 'verify' && !(stage === 'done' && builtInRebase)) {
     throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree sync runs only at verify, after review - nothing was merged`);
   }
+  // a repository script runs only once the person allowed it: refused before any network call, like the checks above
+  const declared = ctx.snapshot.config?.git?.sync;
+  const refusal = declared === undefined ? undefined : scriptRefusal(ctx.root, 'git.sync', declared);
+  if (refusal !== undefined) throw new UsageError(`${refusal} - nothing was synced`);
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   fetchOrigin(ctx, true);
   const ref = gitDefaultRef(ctx.root);

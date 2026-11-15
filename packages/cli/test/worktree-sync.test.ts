@@ -193,6 +193,8 @@ ${body}
     calls: () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter((l) => l !== '').map((l) => JSON.parse(l) as Record<string, string>) : []),
   };
 }
+/** The person's one `accord trust` in `dir`: a repository script (git.sync) runs only once it is allowed. */
+const allow = async (dir: string): Promise<void> => expect((await run(['trust'], dir)).code).toBe(0);
 const MERGE = "git('merge', '--no-ff', '--no-edit', process.env.ACCORD_BASE_REF);";
 const REBASE = "git('rebase', process.env.ACCORD_BASE_REF);";
 const same = (a: string | undefined, b: string) => expect(fwd(a ?? '').toLowerCase()).toBe(fwd(b).toLowerCase());
@@ -202,6 +204,7 @@ it('risk:complex-branching git.sync replaces the built-in merge and rebase (ST-L
   const s = script(MERGE);
   // git.merge: rebase is set too: the team command wins
   const sib = atVerify(c, 'rebase', undefined, s.command);
+  await allow(sib);
   const tip = pushMain(c, 'next.txt', 'next\n');
   const r = await run(['worktree', 'sync', 'ST-9'], sib);
   expect(r.err).toBe('');
@@ -232,6 +235,7 @@ it('risk:complex-branching a git.sync that rebases is pushed with the lease (ST-
   const c = copy();
   const s = script(REBASE);
   const sib = atVerify(c, undefined, undefined, s.command);
+  await allow(sib);
   pushMain(c, 'next.txt', 'next\n');
   const r = await run(['worktree', 'sync', 'ST-9'], sib);
   expect([r.code, r.err]).toEqual([0, '']);
@@ -257,6 +261,7 @@ it('risk:data-loss a git.sync that fails, hangs or leaves work half done is refu
     }
     const s = script(k.body);
     const sib = atVerify(c, undefined, k.conflict === true ? 'shared.txt' : undefined, s.command);
+    await allow(sib);
     if (k.conflict === true) pushMain(c, 'shared.txt', 'main\n');
     else pushMain(c, 'next.txt', 'next\n');
     const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
@@ -311,6 +316,7 @@ it('risk:complex-branching Continue runs git.sync instead of merging and pushes 
   const c = copy();
   const s = script(MERGE);
   withGit(c, `  merge: rebase\n  sync: '${s.command}'\n`);
+  await allow(c.root);
   ticketWorktree(c, 'ST-9');
   const sib = c.sibling('ST-9');
   twoOnMain(c);
@@ -329,6 +335,7 @@ it('risk:complex-branching Continue runs git.sync instead of merging and pushes 
   const f = copy();
   const bad = script('process.exit(4);');
   withGit(f, `  sync: '${bad.command}'\n`);
+  await allow(f.root);
   ticketWorktree(f, 'ST-9');
   const before = gitRun(f.remote, 'rev-parse', 'refs/heads/t/ST-9').trim();
   twoOnMain(f);
@@ -360,6 +367,7 @@ it('risk:complex-branching the behind line of Continue names the configured way 
     for (const w of ways) {
       const c = copy();
       if (w.yaml !== '') withGit(c, w.yaml);
+      if (w.yaml.includes('sync')) await allow(c.root);
       ticketWorktree(c, 'ST-9');
       if (atVerifyStage) verifyStage(c.sibling('ST-9'), 'ST-9');
       // an uncommitted tracked change: Continue does not sync and says it is behind

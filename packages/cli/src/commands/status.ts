@@ -8,7 +8,8 @@ import type { StatusRow } from '@accord-dev/accord-core';
 import { stagesOffLines } from '../render/stages-off.js';
 import { EMPTY_CELL, renderRows } from '../render/table.js';
 import { adapterFor, issueKeyOf } from '../tracker/index.js';
-import { jiraUrlRefusal, scriptCommandRefusal } from '../tracker/trust.js';
+import { scriptRefusal } from '../load/script-trust.js';
+import { jiraUrlRefusal } from '../tracker/trust.js';
 import type { CommandContext } from '../run.js';
 
 const plural = (n: number, word: string): string => n + ' ' + word + (n === 1 ? '' : 's');
@@ -34,11 +35,11 @@ async function trackerCells(ctx: CommandContext, rows: StatusRow[]): Promise<Rec
     }
   }
 
-  // WR-03: the same for the script, which runs with the whole environment: only the command the default branch names is run.
+  // Repository scripts trust: the script runs with the whole environment, so it runs only after the person allowed this command and these files with `accord trust`.
   if (adapter.name === 'script' && config?.tracker?.command !== undefined) {
-    const refusal = scriptCommandRefusal(ctx.root, config.tracker.command);
+    const refusal = scriptRefusal(ctx.root, 'tracker.command', config.tracker.command);
     if (refusal !== undefined) {
-      ctx.stderr.write(refusal + '\n');
+      ctx.stderr.write('tracker script: ' + refusal + '\n');
       return undefined;
     }
   }

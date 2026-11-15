@@ -28,6 +28,7 @@ import { skills } from './commands/skills.js';
 import { subject } from './commands/subject.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
+import { trust } from './commands/trust.js';
 import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
@@ -300,6 +301,15 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--json', 'print { findings } instead of text')
     .action((o: { json?: boolean }) => {
       setCode(configCheck(preflight(opts), o));
+    });
+
+  // Owner decision (2026-11-15): a script the repository declares (`tracker.command`, `git.sync`) runs only after the person allowed it here, once, in a record inside .git.
+  program
+    .command('trust')
+    .description('allow the scripts accord/config.yml declares (tracker.command under tracker.adapter: script, and git.sync) to run in this repository: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; --revoke withdraws every allow')
+    .option('--revoke', 'withdraw every allow of this repository')
+    .action((o: { revoke?: boolean }) => {
+      setCode(trust(preflight(opts), o));
     });
 
   // A stated exception to the pin check, like `--version` and `--help`: it runs as the newer accord against a

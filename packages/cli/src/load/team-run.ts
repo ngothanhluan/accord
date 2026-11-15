@@ -1,5 +1,5 @@
-// ST-LN-96 D-03, D-01: the one runner for committed team commands (`git.sync` now, `tracker.command` later).
-// The second shell site, beside `runSetup` in proc.ts (it runs in a worker thread so a timeout can kill the whole process tree): the command is committed repository content, trusted as `setup` is.
+// ST-LN-96 D-03, D-01: the one runner for committed team commands (`git.sync`, `tracker.command`).
+// The second shell site, beside `runSetup` in proc.ts (it runs in a worker thread so a timeout can kill the whole process tree): the command is committed repository content, so its callers run it only after `accord trust` allowed it (load/script-trust.ts).
 // The ticket id, branch and paths reach the script ONLY through the `env` the caller passes (ACCORD_TICKET, ACCORD_BRANCH,
 // ACCORD_BASE_REF, ACCORD_ROOT), never through the command text. A script's output is never a verdict: the caller judges
 // the result by exit code and by re-reading git.

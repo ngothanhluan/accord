@@ -227,3 +227,24 @@ describe('floorProblems names a stage key it refuses (ST-LN-50 t2-ac-5)', () => 
     expect(floorProblems(undefined)).toEqual([]);
   });
 });
+
+describe('the status row names the stages that are off (ST-LN-50 t2-ac-5)', () => {
+  it('risk:complex-branching stagesOff is on the row of a lane ticket only when a stage is off for its lane (ST-LN-50 t2-ac-5)', () => {
+    // review off for lane M: a lane M row carries it, a lane L row with the same config does not
+    const m = statusRows(snap(builtFiles(REVIEW_OFF_M)))[0];
+    expect(m.stagesOff).toEqual(['review']);
+    expect(Object.keys(m)).toContain('stagesOff');
+    const l = statusRows(snap(builtFiles(REVIEW_OFF_M, 'L')))[0];
+    expect(Object.keys(l)).not.toContain('stagesOff');
+    // two switches, in the order the stages run
+    const two = statusRows(snap(builtFiles(stagesConfig(['    M:', '      review: off', '      discuss: off', ''].join(String.fromCharCode(10))))))[0];
+    expect(two.stagesOff).toEqual(['discuss', 'review']);
+    // nothing off: no key, so a row and its JSON are today's
+    const none = statusRows(snap(builtFiles(CONFIG)))[0];
+    expect(Object.keys(none)).not.toContain('stagesOff');
+    expect(JSON.stringify(none)).not.toContain('stagesOff');
+    // a lane S ticket never has one, whatever a hand-edited file says
+    const s = statusRows(snap({ 'accord/config.yml': stagesConfig(['    S:', '      review: off', ''].join(String.fromCharCode(10))), [T1]: laneTicket('T-1', { lane: 'S', body: LANE_S_BODY }) }))[0];
+    expect(Object.keys(s)).not.toContain('stagesOff');
+  });
+});

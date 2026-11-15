@@ -204,3 +204,26 @@ it('risk:security a hand-edited S.review off still leaves a lane S ticket withou
     cleanup(repo);
   }
 }, 120_000);
+
+const textOf = async (repo: string, ...args: string[]): Promise<string> => (await run(args, repo)).out;
+
+it('risk:complex-branching status names the stages that are off (ST-LN-50 t2-ac-5)', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + OFF('review') });
+  try {
+    commitMsg(repo, 'claim: T-1');
+    const json = JSON.parse(await textOf(repo, 'status', '--json')) as Record<string, unknown>[];
+    expect(json[0].stagesOff).toEqual(['review']);
+    const text = await textOf(repo, 'status');
+    expect(text).toContain('stages off for lane M: review' + String.fromCharCode(10));
+    // after the table, before the summary line
+    expect(text.indexOf('stages off for lane M: review')).toBeLessThan(text.indexOf('1 ticket shown'));
+    expect(text.indexOf('stages off for lane M: review')).toBeGreaterThan(text.indexOf('T-1'));
+
+    // with nothing off the outputs are today's: no key, no line
+    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    expect(JSON.stringify(JSON.parse(await textOf(repo, 'status', '--json')))).not.toContain('stagesOff');
+    expect(await textOf(repo, 'status')).not.toContain('stages off');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

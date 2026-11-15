@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { Tags } from 'yaml';
-import { agentTargets, allSkillDirs, contentHash, installedName, markerHash, renderSkill, skillDirs, skills, STAGES, skillTargets, withoutMarker } from '../src/index.js';
+import { agentTargets, allSkillDirs, contentHash, installedName, markerHash, renderSkill, skillDirs, skills, STAGES, skillTargets, SUBJECT_NAMES, withoutMarker } from '../src/index.js';
 import type { SkillFile, SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, READY_RULES } from '../src/gate/rules.js';
@@ -185,6 +185,34 @@ it('risk:regression no skill source says the sync is a merge commit (ST-LN-96 t1
     for (const phrase of MERGE_WORDING) if (text.includes(phrase)) found.push(`${relative(skillsDir, join(e.parentPath, e.name)).split(sep).join('/')}: ${phrase}`);
   }
   expect(found.sort()).toEqual([]);
+});
+
+// ST-LN-50 t2-ac-3, D-06: a team may rewrite every commit subject in `commits.subjects`, so no skill source may hold one as text. A skill that commits
+// says "the subject `accord subject <name> <id>` prints"; the plan and build skills read the plan state from `accord anchor`, never from a subject.
+// The pattern holds no complete subject, so this file stays out of its own scan; text is read with whitespace collapsed so a wrapped phrase is still found.
+const LITERAL_SUBJECT = /\b(claim|plan|approach|intent|ticket|scout|drop): (<id>|\{id\})/;
+const SUBJECT_CALL = /accord subject ([a-z_]+)/g;
+
+it('risk:regression no skill source carries a literal commit subject and every subject comes from accord subject (ST-LN-50 t2-ac-3)', () => {
+  const literal: string[] = [];
+  const used = new Set<string>();
+  const unknown: string[] = [];
+  const sources = readdirSync(skillsDir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile());
+  expect(sources.length, 'nothing was scanned').toBeGreaterThan(0);
+  for (const e of sources) {
+    const path = relative(skillsDir, join(e.parentPath, e.name)).split(sep).join('/');
+    const text = readFileSync(join(e.parentPath, e.name), 'utf8').replace(/\s+/g, ' ');
+    if (LITERAL_SUBJECT.test(text)) literal.push(path);
+    if (/git log -1 --format=%s/.test(text)) literal.push(path + ': reads a subject with git log');
+    for (const m of text.matchAll(SUBJECT_CALL)) {
+      if ((SUBJECT_NAMES as readonly string[]).includes(m[1])) used.add(m[1]);
+      else unknown.push(`${path}: ${m[1]}`);
+    }
+  }
+  expect(literal.sort()).toEqual([]);
+  expect(unknown.sort()).toEqual([]);
+  // every subject the skills write has a call: claim is written by the CLI, drop and the rest by commands
+  expect([...used].sort()).toEqual(['approach_round', 'intent', 'plan_ready', 'plan_round', 'scout', 'ticket_question', 'ticket_understood']);
 });
 
 // Everything below iterates the whole render output rather than a named role, so a definition added by a

@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { reach } from '../src/load/script-trust.js';
 import { commitAll, gitRun, makeRepo, run } from './helpers/repo.js';
 
 const posix = (p: string): string => p.replaceAll('\\', '/');
@@ -93,6 +94,7 @@ function sandbox(command: string | undefined = 'node scripts/tracker.mjs'): Box 
     marker,
     ran: () => (existsSync(marker) ? readFileSync(marker, 'utf8').split('\n').filter((l) => l !== '') : []),
     commit: (path, text) => {
+      mkdirSync(resolve(join(repo, ...path.split('/')), '..'), { recursive: true });
       writeFileSync(join(repo, ...path.split('/')), text);
       commitAll(repo, 'change ' + path);
     },
@@ -235,5 +237,108 @@ describe('accord status runs a repository tracker command only when accord trust
     const r = await run(['status'], b.repo, b.env);
     expect(r.err).toBe('');
     expect(b.ran()).toEqual(['ran B']);
+  });
+});
+
+// ---- round 3 review CR-01, owner answer (direnv-like): the allow binds what the command runs, not only the words it names ----
+
+/** The same script as `body`, in CommonJS, for a file Node loads with require (an extensionless `node scripts/tracker` finds `scripts/tracker.js`). */
+const cjs = (tag: string): string => `const { appendFileSync } = require('node:fs');
+appendFileSync(process.env.TRUST_MARKER, '${tag}\\n');
+process.stdout.write(JSON.stringify({ version: 1, issues: {} }));
+`;
+
+/** The person's `accord trust` for the tracker script. */
+const allowTracker = async (b: Box): Promise<{ code: number; out: string; err: string }> => run(['trust'], b.repo, b.env);
+
+/** Allow on main and check that it ran there, then commit `path` = `text` on a branch `pr` and run status there; returns its stderr. */
+async function editedOnBranch(b: Box, path: string, text: string): Promise<string> {
+  expect((await allowTracker(b)).code).toBe(0);
+  await run(['status'], b.repo, b.env);
+  expect(b.ran()).toEqual(['ran A']);
+  gitRun(b.repo, 'switch', '-q', '-c', 'pr');
+  b.commit(path, text);
+  const r = await run(['status'], b.repo, b.env);
+  expect(r.code).toBe(0);
+  return r.err;
+}
+
+describe('the allow covers the files the command runs through npm run, Node resolution and the script directory (round 3 CR-01)', () => {
+  it('risk:security npm run <name> binds the package.json script and the files it names, so a branch that edits only that script is not run', async () => {
+    const b = sandbox('npm run --silent tracker');
+    b.commit('package.json', JSON.stringify({ name: 'x', private: true, scripts: { tracker: 'node scripts/tracker.mjs' } }) + '\n');
+    const err = await editedOnBranch(b, 'scripts/tracker.mjs', body('ran B'));
+    expect(b.ran()).toEqual(['ran A']);
+    expect(err).toMatch(/^tracker script: .*npm run --silent tracker.*changed.*accord trust/);
+  });
+
+  it('risk:security an extensionless node scripts/x resolves like Node (scripts/x.js), so a branch that edits scripts/x.js is not run', async () => {
+    const b = sandbox('node scripts/tracker');
+    b.commit('scripts/tracker.js', cjs('ran A'));
+    const err = await editedOnBranch(b, 'scripts/tracker.js', cjs('ran B'));
+    expect(b.ran()).toEqual(['ran A']);
+    expect(err).toMatch(/changed/);
+  });
+
+  it('risk:security node . runs the main of package.json, so a branch that edits that file is not run', async () => {
+    const b = sandbox('node .');
+    b.commit('scripts/tracker.cjs', cjs('ran A'));
+    b.commit('package.json', JSON.stringify({ name: 'x', private: true, main: 'scripts/tracker.cjs' }) + '\n');
+    await editedOnBranch(b, 'scripts/tracker.cjs', cjs('ran B'));
+    expect(b.ran()).toEqual(['ran A']);
+  });
+
+  it('risk:security a script at the repository root binds its whole directory recursively, so a branch that edits a file it imports from a subfolder is not run', async () => {
+    const b = sandbox('node tracker.mjs');
+    b.commit('lib/impl.mjs', `import { appendFileSync } from 'node:fs';\nappendFileSync(process.env.TRUST_MARKER, 'ran A\\n');\n`);
+    b.commit('tracker.mjs', `import './lib/impl.mjs';\nprocess.stdout.write(JSON.stringify({ version: 1, issues: {} }));\n`);
+    await editedOnBranch(b, 'lib/impl.mjs', `import { appendFileSync } from 'node:fs';\nappendFileSync(process.env.TRUST_MARKER, 'ran B\\n');\n`);
+    expect(b.ran()).toEqual(['ran A']);
+  });
+
+  it('risk:security a script directory is bound recursively, so a branch that edits a file in a subfolder of it is not run', async () => {
+    const b = sandbox();
+    b.commit('scripts/deep/helper.mjs', 'export const y = 1;\n');
+    await editedOnBranch(b, 'scripts/deep/helper.mjs', 'export const y = 2;\n');
+    expect(b.ran()).toEqual(['ran A']);
+  });
+
+  it('risk:security accord trust and the refusal both name exactly what the allow covers', async () => {
+    const b = sandbox();
+    const refused = await run(['status'], b.repo, b.env);
+    expect(refused.err).toMatch(/covers:? scripts\/ \(2 files\)/);
+    const allowed = await allowTracker(b);
+    expect(allowed.out).toMatch(/covers:? scripts\/ \(2 files\)/);
+  });
+});
+
+describe('reach: the tracked files a command can run (round 3 CR-01)', () => {
+  const tracked = ['README.md', 'accord/config.yml', 'accord/tickets/ST-1.md', 'lib/impl.mjs', 'package.json', 'scripts/deep/helper.mjs', 'scripts/sync.cmd', 'scripts/tracker.mjs', 'tools/run.py', 'tracker.mjs'];
+  const dir = (pkg?: object): string => {
+    const d = mkdtempSync(join(tmpdir(), 'accord-reach-'));
+    dirs.push(d);
+    if (pkg !== undefined) writeFileSync(join(d, 'package.json'), JSON.stringify(pkg));
+    return d;
+  };
+
+  it('risk:security a path that differs from the tracked one only in case is matched, so a differently-cased path cannot escape the digest on Windows', () => {
+    expect(reach(dir(), 'node Scripts/Tracker.MJS', tracked)).toEqual(['scripts/deep/helper.mjs', 'scripts/sync.cmd', 'scripts/tracker.mjs']);
+  });
+
+  it('risk:security an extensionless word resolves to the tracked file with a script extension (PATHEXT .cmd, .py and the Node extensions)', () => {
+    expect(reach(dir(), 'cmd /c scripts\\sync', tracked)).toContain('scripts/sync.cmd');
+    expect(reach(dir(), 'python tools/run', tracked)).toEqual(['tools/run.py']);
+  });
+
+  it('risk:security pnpm run, yarn run, a bare yarn <name> and npm run-script resolve to the package.json script, its pre script, and the files they name', () => {
+    const d = dir({ scripts: { tracker: 'python tools/run.py', pretracker: 'node lib/impl.mjs' } });
+    for (const cmd of ['pnpm run tracker', 'yarn run tracker', 'yarn tracker', 'npm run-script tracker']) {
+      expect(reach(d, cmd, tracked).filter((f) => f !== 'package.json'), cmd).toEqual(['lib/impl.mjs', 'tools/run.py']);
+      expect(reach(d, cmd, tracked), cmd).toContain('package.json');
+    }
+  });
+
+  it('risk:security a script at the repository root reaches every tracked file outside accord/', () => {
+    expect(reach(dir(), 'node tracker.mjs', tracked)).toEqual(tracked.filter((f) => !f.startsWith('accord/')));
   });
 });

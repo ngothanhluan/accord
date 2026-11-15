@@ -3,11 +3,11 @@
 // every worktree) and bound to the command text and to the files the command can reach; a branch that changes only the script file, with the command text
 // unchanged, is not run again until the person allows it again. Built-in adapters are unaffected. The sandboxes are removed with no retry loop; the marker the
 // script writes lives in a folder of its own, outside the repository.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { reach } from '../src/load/script-trust.js';
+import { reach, scriptDigest } from '../src/load/script-trust.js';
 import { commitAll, gitRun, makeRepo, run } from './helpers/repo.js';
 
 const posix = (p: string): string => p.replaceAll('\\', '/');
@@ -484,5 +484,40 @@ describe('the cover matches every path component without regard to case (round 4
     const shown = await run(['trust'], b.repo, b.env);
     expect(shown.out).toMatch(/files: .*Scripts\/lib\.mjs/);
     expect(shown.out).toMatch(/covers: scripts\/ \(3 files\)/);
+  });
+});
+
+describe('a covered entry that is not a regular file still moves the digest when it changes (round 4 WR-02)', () => {
+  const commitIndex = (repo: string, message: string): void =>
+    void gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-m', message);
+
+  it('risk:security a submodule (gitlink) inside a covered directory bumped to another commit changes the digest', () => {
+    const b = sandbox();
+    const first = gitRun(b.repo, 'rev-parse', 'HEAD').trim();
+    b.commit('README.md', 'second\n');
+    const second = gitRun(b.repo, 'rev-parse', 'HEAD').trim();
+    // an uninitialised submodule: the gitlink in the index, an empty folder in the working tree
+    mkdirSync(join(b.repo, 'scripts', 'sub'));
+    gitRun(b.repo, 'update-index', '--add', '--cacheinfo', `160000,${first},scripts/sub`);
+    commitIndex(b.repo, 'add the submodule');
+    const was = scriptDigest(b.repo, 'node scripts/tracker.mjs');
+    expect(was.files).toContain('scripts/sub');
+    gitRun(b.repo, 'update-index', '--cacheinfo', `160000,${second},scripts/sub`);
+    commitIndex(b.repo, 'bump the submodule');
+    expect(scriptDigest(b.repo, 'node scripts/tracker.mjs').digest).not.toBe(was.digest);
+  });
+
+  it.skipIf(process.platform === 'win32')('risk:security a directory symlink inside a covered directory retargeted elsewhere changes the digest', () => {
+    const b = sandbox();
+    b.commit('shared/x.mjs', 'export const x = 1;\n');
+    b.commit('evil/x.mjs', 'export const x = 2;\n');
+    symlinkSync('../shared', join(b.repo, 'scripts', 'lib'));
+    commitAll(b.repo, 'link');
+    const was = scriptDigest(b.repo, 'node scripts/tracker.mjs').digest;
+    rmSync(join(b.repo, 'scripts', 'lib'));
+    symlinkSync('../evil', join(b.repo, 'scripts', 'lib'));
+    expect(scriptDigest(b.repo, 'node scripts/tracker.mjs').digest).not.toBe(was);
+    commitAll(b.repo, 'retarget');
+    expect(scriptDigest(b.repo, 'node scripts/tracker.mjs').digest).not.toBe(was);
   });
 });

@@ -399,6 +399,33 @@ describe('accord trust shows each script before it allows it, and allows only th
   });
 });
 
+/** A pattern for `"<a path ending in dir's own folder name>"`, which the refusal prints however the system spells the folders above it. */
+const quotedDir = (dir: string): string => `"[^"]*${(dir.replaceAll('\\', '/').split('/').pop() ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`;
+
+describe('parallel worktrees keep their own allows, and the refusal says where to run accord trust (round 3 WR-03)', () => {
+  it('risk:security an allow made in a second worktree with other script content does not cancel the allow of the first', async () => {
+    const b = sandbox();
+    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    const wt = join(mkdtempSync(join(tmpdir(), 'accord-script-trust-wt-')), 'sibling');
+    dirs.push(resolve(wt, '..'));
+    gitRun(b.repo, 'worktree', 'add', '-q', '-b', 'other', wt);
+    writeFileSync(join(wt, 'scripts', 'lib.mjs'), 'export const x = 2;\n');
+    commitAll(wt, 'other edits a file the script reaches');
+    expect((await run(['trust', 'tracker.command'], wt, b.env)).code).toBe(0);
+    const there = await run(['status'], wt, b.env);
+    expect(there.err).toBe('');
+    const here = await run(['status'], b.repo, b.env);
+    expect(here.err).toBe('');
+    expect(b.ran()).toEqual(['ran A', 'ran A']);
+  });
+
+  it('risk:security the refusal names the checkout to run accord trust in', async () => {
+    const b = sandbox();
+    const r = await run(['status'], b.repo, b.env);
+    expect(r.err).toMatch(new RegExp(`run accord trust in ${quotedDir(b.repo)} to see it, then accord trust tracker\\.command there to allow it`));
+  });
+});
+
 describe('reach: the tracked files a command can run (round 3 CR-01)', () => {
   const tracked = ['README.md', 'accord/config.yml', 'accord/tickets/ST-1.md', 'lib/impl.mjs', 'package.json', 'scripts/deep/helper.mjs', 'scripts/sync.cmd', 'scripts/tracker.mjs', 'tools/run.py', 'tracker.mjs'];
   const dir = (pkg?: object): string => {

@@ -471,4 +471,7 @@ it('risk:security Continue does not run an unallowed git.sync, leaves the branch
   const behind = lines(r.out).filter((l) => l.startsWith('behind:'));
   expect(behind).toHaveLength(1);
   expect(behind[0]).toContain('accord trust');
+  // round 3 WR-03: Continue checks the ticket's worktree, so the line names it, not the checkout Continue runs from
+  const sibName = (sib.replaceAll('\\', '/').split('/').pop() ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  expect(behind[0]).toMatch(new RegExp(`git\\.sync is not allowed to run here yet - run accord trust git\\.sync in "[^"]*${sibName}"`));
 }, 240_000);

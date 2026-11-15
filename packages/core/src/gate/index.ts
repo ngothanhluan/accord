@@ -1,10 +1,13 @@
 // GATE-01/GATE-06 Ready, spec §7 Plan, and GATE-02/GATE-03/GATE-11 Done (D-87, D-89): the ticket-scoped lint findings
 // plus the gate table for the gate being run, merged into one sorted list. The verdict is read off that
-// list and from nothing else — there is no flag, option, or config key that can produce a `pass` while
-// an error finding exists.
+// list and from nothing else. A team's config may lower an OVERRIDABLE rule (`strictness.levels`, stamped in `run` below), never a LOCKED one: the floor of intent and
+// acceptance criteria before code, independent verification before done, and the security and data-loss rules is named in floor.ts, so no config key can produce a
+// `pass` while a floor rule has an error finding.
 import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
+import { resolveStrictness } from '../config/strictness.js';
+import { effectiveLevel, STAGE_OF, stageOff } from './floor.js';
 import { readyHash } from './hash.js';
 import { downgradeMaintain, DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule } from './rules.js';
@@ -58,16 +61,25 @@ function run(
   id: string,
 ): GateResult {
   const profile = snapshot.config?.profile ?? 'build';
+  const strictness = resolveStrictness(snapshot.config);
+  // The one place a gate rule's level is set: the table's, or the team's for an OVERRIDABLE rule; off drops the rule's findings (floor.ts). No check reads the config for its own level.
+  // D-08: a rule of a stage the gated ticket's lane turned off is dropped before it runs (stageOff is false for the floor stages, lanes S and R, and an unknown id); the lint findings
+  // below arrive from lintSnapshot, which drops the same stages' rules by the ticket their file belongs to.
   const gated = rules
     .filter((r) => r.profiles.includes(profile))
-    .flatMap((r) => r.check(snapshot, id).map((d) => ({ ...d, rule: r.id, level: r.level })));
+    .filter((r) => !Object.hasOwn(STAGE_OF, r.id) || !stageOff(snapshot, id, STAGE_OF[r.id]))
+    .flatMap((r) => {
+      const level = effectiveLevel(r.id, r.level, strictness);
+      return level === 'off' ? [] : r.check(snapshot, id).map((d) => ({ ...d, rule: r.id, level }));
+    });
   // An unknown id short-circuits: gate.ticket-unknown is already in `gated` on every table, every
   // other check is silent without a ticket, and there is no scenario to hash. A table missing that row
   // would read its verdict off an empty list and pass a ticket that does not exist.
   const known = Object.hasOwn(snapshot.tickets, id);
-  // READY_PROMOTE and MAINTAIN_DOWNGRADE are disjoint, so the order of the two passes cannot matter.
+  // The profile preset and the team's key are one resolved level (strictness.levels), read by downgradeMaintain; READY_PROMOTE comes after it and is Ready's alone, so a team
+  // level never takes a promoted hygiene rule past Ready. The two lists are disjoint, so the order of the two passes cannot matter for any other rule.
   const lint = known
-    ? downgradeMaintain(scoped(lintSnapshot(snapshot).findings, id), profile).map((f) =>
+    ? downgradeMaintain(scoped(lintSnapshot(snapshot).findings, id), profile, strictness.levels).map((f) =>
         promote.includes(f.rule) ? { ...f, level: 'error' as const } : f,
       )
     : [];

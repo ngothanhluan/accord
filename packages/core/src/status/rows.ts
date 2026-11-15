@@ -4,6 +4,7 @@ import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
 import { acHash, readyHash } from '../gate/hash.js';
+import { resolveStrictness } from '../config/strictness.js';
 import { DEFAULT_BRANCH_TEMPLATE } from './branch.js';
 import { doneOnDefault, nextStep, progressOf } from './stage.js';
 import type { Stage } from './stage.js';
@@ -25,6 +26,7 @@ export interface StatusRow {
   title?: string; // ST-LN-2 D-07: lane rows only, so a 0.1.0 row stays byte-identical
   lane?: Lane;
   stage?: Stage;
+  stagesOff?: string[]; // ST-LN-50 D-08: the stages the team turned off for this lane, in the order they run; present only when one is off, so a row without a switch stays as it was
   next?: string; // what follows an unwritten or unapproved intent; set only at stage intent, for lane S also at review, and for lane R at every stage
   tasksDone?: number;
   tasksTotal?: number;
@@ -41,6 +43,13 @@ const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 /** 'none' when nothing is recorded, 'ok'/'bound' on an exact match, 'stale' otherwise. */
 const compare = <T extends string>(recorded: string | undefined, current: string | undefined, match: T) =>
   recorded === undefined ? 'none' : recorded === current ? match : 'stale';
+
+/** `{ stagesOff }` for lane M, L or P when the team turned a stage off for it; `{}` otherwise (lanes S and R have no switchable stage). */
+function stagesOffOf(snapshot: RepoSnapshot, lane: Lane): { stagesOff?: string[] } {
+  if (lane !== 'M' && lane !== 'L' && lane !== 'P') return {};
+  const off = [...resolveStrictness(snapshot.config).stages[lane]];
+  return off.length === 0 ? {} : { stagesOff: off };
+}
 
 /**
  * D-91: one `lintSnapshot` for the whole repository, split per ticket by `scoped`. `gateReady` and
@@ -87,6 +96,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
               title: fm.title,
               lane: fm.lane,
               stage: progress.stage,
+              ...stagesOffOf(snapshot, fm.lane),
               ...(progress.stage === 'intent' || (fm.lane === 'S' && progress.stage === 'review') || fm.lane === 'R'
                 ? { next: nextStep(ticket, progress.stage as 'intent' | 'review' | 'research' | 'done') }
                 : {}),

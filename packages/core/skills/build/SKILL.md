@@ -3,7 +3,7 @@ name: accord-build
 description: Use when a lane M ticket has a plan that passed accord gate plan and needs building. Dispatches one fresh executor per task from accord brief, runs the affected tests itself, and records each task with accord task-done.
 license: MIT
 kind: skill
-loads: [shared/ask.md, shared/scout.md]
+loads: [build/no-plan.md, shared/ask.md, shared/scout.md]
 ---
 
 This stage builds the plan one task at a time. You run it in the main
@@ -11,7 +11,7 @@ session and orchestrate: executors write the code.
 
 ## Steps
 
-1. Run `accord anchor`. It names the next task. If it prints `Stage: plan` (the plan is not committed as ready), or `git status --porcelain` on `plan.md` prints anything, the plan stage has not finished: load `accord-plan` and resume there instead of building.
+1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming plan, the ticket has no `plan.md` and builds as one task: follow `./no-plan.md` instead of steps 2 and 3. Otherwise it names the next task. If it prints `Stage: plan` (the plan is not committed as ready), or `git status --porcelain` on `plan.md` prints anything, the plan stage has not finished: load `accord-plan` and resume there instead of building.
 
 2. **Dispatch.** For each task in `plan.md` without a line in `accord/tickets/<id>/ledger.md`, in order, one at a time: run `accord brief <id> <n>` into a file outside the working tree (for example the system temp directory), so it is never committed, and dispatch a fresh `accord-executor` with the path of that file only. Never pass chat history.
 
@@ -49,7 +49,7 @@ session and orchestrate: executors write the code.
    owner's yes and dispatch again. Only `accord-plan` changes the plan. Never run
    `accord tests baseline` here; only the plan stage asks the owner about it.
 
-8. When every task has a ledger line, next: `accord-review`.
+8. When every task has a ledger line, next: `accord-review`, or `accord-verify` when `accord anchor` names review off.
 
 ## Rules
 

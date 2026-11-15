@@ -7,6 +7,9 @@ kind: reference
 Runs after the interview, in the main session. Every gray area the ticket leaves open is asked and settled
 before anyone drafts an approach.
 
+Run `accord anchor <id>` first. When it prints `stages off for lane <L>:` naming discuss, do not run this stage:
+tell the owner so in one line, write no discuss.md, and go to the stage `accord anchor` names next.
+
 1. Dispatch `accord-planner` in its `discuss` mode with the paths of `accord/tickets/<id>.md` and
    `accord/tickets/<id>/scout.md`. It replies with the gray areas by group: direction options, behaviour and
    output, failure and data loss, scope edges, interfaces, measurement rules or heuristics, test strategy. It always returns at least the test-strategy gray area; when a reply holds none, write that one yourself. When

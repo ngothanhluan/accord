@@ -11,7 +11,9 @@ the owner's yes before anyone plans. You run it in the main session.
 
 ## Steps
 
-1. Run `accord anchor`.
+1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming approach, do not run this stage:
+   tell the owner so in one line, skip steps 2 to 4, and run only the approval (step 5, `./approval.md`),
+   because the owner's yes stays.
 
 2. **Options.** Dispatch `accord-planner` in its `direction` mode with the path of
    `accord/tickets/<id>.md`. It writes only `accord/tickets/<id>/direction.md`, which the critic never reads. Its report holds an impact

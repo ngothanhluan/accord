@@ -14,25 +14,25 @@ export const idMismatch: Rule['check'] = (snapshot) =>
     }));
 
 // D-71 required headings by type; `## Verification notes` is never required.
-const REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
+export const REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
   story: ['Intent', 'Requirements', 'Acceptance criteria', 'Open questions', 'Plan'],
   bug: ['Intent', 'Requirements', 'Acceptance criteria', 'Open questions', 'Plan'],
   epic: ['Intent', 'Requirements', 'Open questions'],
 };
 // Spec §4: a ticket with `lane:` drops Requirements and Plan and adds the four owner sections.
-const LANE_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
+export const LANE_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
   story: ['Intent', 'Acceptance criteria', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
   bug: ['Intent', 'Acceptance criteria', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
   epic: ['Intent', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
 };
 // D-04: a lane S ticket holds two sections whatever its type.
-const LANE_S_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
+export const LANE_S_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
   story: ['Understood', 'Done when'],
   bug: ['Understood', 'Done when'],
   epic: ['Understood', 'Done when'],
 };
 // ST-LN-94 94-ac-1: a lane R ticket holds its question, timebox and token budget whatever its type; gate.research-field-missing reads them.
-const LANE_R_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
+export const LANE_R_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
   story: ['Question', 'Timebox', 'Token budget'],
   bug: ['Question', 'Timebox', 'Token budget'],
   epic: ['Question', 'Timebox', 'Token budget'],

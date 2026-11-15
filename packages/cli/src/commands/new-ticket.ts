@@ -6,7 +6,7 @@
 // nothing to generate — only to substitute.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_PATTERN, initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
+import { DEFAULT_PATTERN, initialsHolder, insertTeamSections, initialsOf, nextTicketId, setFrontmatterKey, templates, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
 import type { Lane } from '@accord-dev/accord-core';
 import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
 import { cleanQuietly, fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
@@ -38,7 +38,7 @@ export function newTicket(
   } catch {
     // absent counts as empty
   }
-  const bad = /^(?:people|ids)\s*:/m.test(raw)
+  const bad = /^(?:people|ids|template)\s*:/m.test(raw)
     ? ctx.snapshot.errors.find((f) => f.file === 'accord/config.yml' && f.rule !== 'load.config-missing')
     : undefined;
   if (bad !== undefined) {
@@ -154,6 +154,8 @@ export function newTicket(
   let text = setFrontmatterKey(templates[name].replaceAll(PLACEHOLDER, id), 'type', options.type);
   // Spec §3: the lane the caller chose; the template's own value is only a default for reading.
   if (options.lane !== undefined) text = setFrontmatterKey(text, 'lane', options.lane);
+  // ST-LN-50 D-10: the team's own sections go into every story and bug ticket, in the plain and the --worktree path alike; an epic holds none
+  if (options.type !== 'epic') text = insertTeamSections(text, ctx.snapshot.config?.template?.sections);
 
   const rel = 'accord/tickets/' + id + '.md';
   const file = join(ctx.root, rel);

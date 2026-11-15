@@ -1377,3 +1377,35 @@ it('risk:regression the plan skill and the planner run a measurement one arm on 
   for (const p of ['one arm on one sample', 'Expected size']) expect(planner, p).toContain(p);
   expect(intent).toContain('Expected size: <N> tasks');
 });
+
+// ST-LN-50 t2-ac-5, D-08: a team may turn the discuss, approach, plan and review stages off for lane M, L or P; `accord anchor` then prints `stages off for lane <L>:`.
+// Each skill of such a stage reads that line first and does not run its stage; the approval stays when approach is off; and with the plan stage off the build skill
+// follows build/no-plan.md (one task, `accord brief <id> 1`, `accord task-done <id> 1 --test`) and the final review reads from the default branch.
+it('risk:regression each stage skill skips its stage when the team turned it off and build goes without a plan (ST-LN-50 t2-ac-5)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const stages: Record<string, string> = {
+    discuss: '.claude/skills/accord-intent/discuss.md',
+    approach: '.claude/skills/accord-approach/SKILL.md',
+    plan: '.claude/skills/accord-plan/SKILL.md',
+    review: '.claude/skills/accord-review/SKILL.md',
+  };
+  const missing: string[] = [];
+  for (const [stage, path] of Object.entries(stages)) {
+    const text = read(path);
+    if (text.length === 0) missing.push(path + ' is missing from the render output');
+    for (const p of ['accord anchor', 'stages off for lane', 'naming ' + stage, 'do not run this stage']) if (!text.includes(p)) missing.push(stage + ': ' + p);
+  }
+  // approach keeps the owner's yes: the planner and critic steps are skipped, approval.md runs.
+  const approach = read(stages.approach);
+  for (const p of ['only the approval', './approval.md', 'skip steps 2 to 4']) if (!approach.includes(p)) missing.push('approach: ' + p);
+  // build: the plan-off line names no-plan.md, which the skill loads and the render ships beside it.
+  const build = read('.claude/skills/accord-build/SKILL.md');
+  if (!build.includes('./no-plan.md')) missing.push('build: ./no-plan.md');
+  const noPlan = read('.claude/skills/accord-build/no-plan.md');
+  if (noPlan.length === 0) missing.push('no-plan.md is missing from the render output');
+  for (const p of ['accord brief <id> 1', 'accord task-done <id> 1 --test', 'ac-<n>=<test id>', '@ui', 'tests.affected', 'tests.full']) if (!noPlan.includes(p)) missing.push('no-plan: ' + p);
+  // review: the plan baseline does not exist with the plan stage off, so the package and the final review read from the default branch.
+  const review = read(stages.review);
+  for (const p of ['plan stage is off', 'default branch']) if (!review.includes(p)) missing.push('review: ' + p);
+  expect(missing).toEqual([]);
+});

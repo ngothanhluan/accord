@@ -4,7 +4,7 @@
 // committed or pushed here: the onboarding skill does that.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { appendConfigList, DEFAULT_SUBJECTS, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
+import { appendConfigList, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
 import type { LoadFinding } from '@accord-dev/accord-core';
 import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
@@ -83,13 +83,29 @@ function withConsequences(ctx: CommandContext, path: string[], before: string, e
 
 const describe = (f: LoadFinding): string => `${f.pointer !== undefined && f.pointer !== '' ? f.pointer + ' ' : ''}${f.reason}`;
 
+/** `/strictness/levels/gate.design-missing` as the dotted key a person types. */
+const dotted = (pointer: string): string => pointer.slice(1).split('/').join('.');
+
+/**
+ * ST-LN-50 D-08, D-09, D-10: the `strictness.levels` keys the engines would ignore (a floor rule, a stage's rule, an unknown rule, a Ready-promoted rule turned off).
+ * An edit is refused when one stands at the key it edits or is new; one already in the file and not touched by this edit does not stop the edit, so a file
+ * holding two of them can be cleaned up one `unset` at a time. `accord config check` and `accord lint` still name every one.
+ */
+function refusedByFloor(path: string[], before: string, after: string): { pointer: string; reason: string }[] {
+  const edited = '/' + path.join('/');
+  const known = new Set(floorProblems(loadConfig(FILE, before).config).map((p) => p.pointer));
+  return floorProblems(loadConfig(FILE, after).config).filter((p) => p.pointer === edited || p.pointer.startsWith(edited + '/') || !known.has(p.pointer));
+}
+
 /** Validate the edited text as a whole and write it once; any finding, or a text the writers could not edit, writes nothing. */
-function commit(key: string, file: string, before: string, after: string | undefined): void {
+function commit(key: string, path: string[], file: string, before: string, after: string | undefined): void {
   if (after === undefined) {
     throw new UsageError(`${key}: ${FILE} is not a YAML mapping, or a parent of ${key} is not one - ${FILE} was not changed`);
   }
   const found = loadConfig(FILE, after).findings;
   if (found.length > 0) throw new UsageError(`${key}: ${found.map(describe).join('; ')} - ${FILE} was not changed`);
+  const floor = after === before ? [] : refusedByFloor(path, before, after);
+  if (floor.length > 0) throw new UsageError(`${floor.map((p) => `${dotted(p.pointer)}: ${p.reason}`).join('; ')} - ${FILE} was not changed`);
   if (after !== before) writeFileSync(file, after);
 }
 
@@ -124,7 +140,7 @@ export function configSet(ctx: CommandContext, key: string, raw: string, options
   const from = getConfigValue(text, path);
   const same = from !== undefined && JSON.stringify(from) === JSON.stringify(value);
   const out = withConsequences(ctx, path, text, same ? text : setConfigValue(text, path, value));
-  commit(key, file, text, out.text);
+  commit(key, path, file, text, out.text);
   return report(ctx, key, from, value, out.consequences, options);
 }
 
@@ -132,7 +148,7 @@ export function configUnset(ctx: CommandContext, key: string, options: { json?: 
   const { path, file, text } = read(ctx, key);
   const from = getConfigValue(text, path);
   const out = withConsequences(ctx, path, text, from === undefined ? text : unsetConfigValue(text, path));
-  commit(key, file, text, out.text);
+  commit(key, path, file, text, out.text);
   return report(ctx, key, from, undefined, out.consequences, options);
 }
 
@@ -143,7 +159,16 @@ export function configCheck(ctx: CommandContext, options: { json?: boolean }): n
   } catch {
     throw new UsageError(`no ${FILE} in ${ctx.root} - run accord init`);
   }
-  const findings = loadConfig(FILE, text).findings;
+  const loaded = loadConfig(FILE, text);
+  // A config the schema accepts can still name a rule the floor does not let a team set (D-08): those are findings too, and the exit code is 2, as for `accord config set`.
+  // A team section that replaces a required one (D-10) is named by its own rule, as `accord lint` names it.
+  const floor: LoadFinding[] = floorProblems(loaded.config).map((p) => ({
+    file: FILE,
+    rule: p.pointer.startsWith('/template/') ? 'lint.template-section' : 'lint.config-floor',
+    pointer: p.pointer,
+    reason: p.reason,
+  }));
+  const findings = [...loaded.findings, ...floor];
   ctx.stdout.write(
     options.json === true
       ? JSON.stringify({ findings }, null, 2) + '\n'
@@ -151,5 +176,5 @@ export function configCheck(ctx: CommandContext, options: { json?: boolean }): n
         ? `${FILE}: valid\n`
         : findings.map((f) => `${f.file}:${f.line ?? 1} ${describe(f)}\n`).join(''),
   );
-  return findings.length === 0 ? 0 : 1;
+  return floor.length > 0 ? 2 : findings.length === 0 ? 0 : 1;
 }

@@ -5,6 +5,7 @@
 // under `--json`, because D-98 reserves stdout there for the core array verbatim.
 import { statusRows } from '@accord-dev/accord-core';
 import type { StatusRow } from '@accord-dev/accord-core';
+import { stagesOffLines } from '../render/stages-off.js';
 import { EMPTY_CELL, renderRows } from '../render/table.js';
 import { fetchIssues } from '../tracker/github-issues.js';
 import type { CommandContext } from '../run.js';
@@ -69,10 +70,13 @@ export async function status(ctx: CommandContext, options: { json?: boolean; all
 
   // An empty table is a worse answer than a sentence; the hidden count still rides along when the
   // reason there is nothing to show is that everything was archived (D-93).
+  // ST-LN-50 D-08: the stages a team turned off, one line per lane, after the table and before the summary line; none when nothing is off.
+  const off = stagesOffLines(ctx.snapshot.config).map((l) => l + '\n').join('');
   ctx.stdout.write(
     visible.length === 0
-      ? 'no tickets to show' + (hidden === 0 ? ' in accord/tickets/' : '; ' + hiddenNote) + '\n'
+      ? 'no tickets to show' + (hidden === 0 ? ' in accord/tickets/' : '; ' + hiddenNote) + '\n' + off
       : renderRows(visible, cells) +
+          off +
           plural(visible.length, 'ticket') +
           ' shown, ' +
           (hiddenNote || '0 archived hidden') +

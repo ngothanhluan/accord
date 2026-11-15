@@ -16,6 +16,20 @@
         { "pattern": "^(?!\\s)" },
         { "pattern": "\\S$" }
       ]
+    },
+    "onOff": { "type": "string", "enum": ["on", "off"] },
+    "stageSwitches": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intent": { "$ref": "#/$defs/onOff" },
+        "discuss": { "$ref": "#/$defs/onOff" },
+        "approach": { "$ref": "#/$defs/onOff" },
+        "plan": { "$ref": "#/$defs/onOff" },
+        "build": { "$ref": "#/$defs/onOff" },
+        "review": { "$ref": "#/$defs/onOff" },
+        "verify": { "$ref": "#/$defs/onOff" }
+      }
     }
   },
   "properties": {
@@ -204,6 +218,56 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,19}$" }
+        }
+      }
+    },
+    "strictness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rounds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "approach": { "type": "string", "pattern": "^[1-9][0-9]?$" },
+            "plan": { "type": "string", "pattern": "^[1-9][0-9]?$" },
+            "review": { "type": "string", "pattern": "^[1-9][0-9]?$" }
+          }
+        },
+        "levels": {
+          "type": "object",
+          "propertyNames": { "pattern": "^(gate|lint)\\.[a-z0-9-]+$" },
+          "additionalProperties": { "type": "string", "enum": ["error", "warning", "off"] }
+        },
+        "stages": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "M": { "$ref": "#/$defs/stageSwitches" },
+            "L": { "$ref": "#/$defs/stageSwitches" },
+            "P": { "$ref": "#/$defs/stageSwitches" },
+            "S": { "type": "object", "additionalProperties": false, "properties": { "intent": { "$ref": "#/$defs/onOff" }, "build": { "$ref": "#/$defs/onOff" }, "review": { "$ref": "#/$defs/onOff" } } },
+            "R": { "type": "object", "additionalProperties": false, "properties": { "intent": { "$ref": "#/$defs/onOff" }, "research": { "$ref": "#/$defs/onOff" } } }
+          }
+        }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sections": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9 ,'()/&-]{0,59}$" },
+              "after": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9 ,'()/&-]{0,59}$" }
+            }
+          }
         }
       }
     }

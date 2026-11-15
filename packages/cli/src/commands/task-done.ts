@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { forbiddenLines, normaliseKey, recordTaskDone, taskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
+import { forbiddenLines, normaliseKey, recordTaskDone, stageOff, taskVerdict, ticketTaskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
 import { gitBranchCommits, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
@@ -38,9 +38,32 @@ export function staleReport(ctx: CommandContext): string | undefined {
   return written < committed ? `${rel} was written before the last commit; run the tests again` : undefined;
 }
 
-export function taskDone(ctx: CommandContext, id: string, task: string): number {
+// T-03.1-28: an anchored pattern, so a pair is exactly `ac-<n>=<test id>` and the id is one tag with no whitespace.
+const PAIR = /^ac-([1-9][0-9]*)=(\S+)$/;
+
+/** `--test ac-<n>=<test id>` pairs as plan-style maps (`ac` as `@ac-n`); a malformed pair is a UsageError. */
+function parsePairs(pairs: string[]): { ac: string; test: string }[] {
+  return pairs.map((p) => {
+    const m = PAIR.exec(p);
+    if (m === null) throw new UsageError(`not a test pair: ${p}; write --test ac-<n>=<test id>`);
+    return { ac: '@ac-' + m[1], test: m[2] };
+  });
+}
+
+export function taskDone(ctx: CommandContext, id: string, task: string, pairs: string[] = []): number {
   const n = taskNumber(task);
-  refuseLaneR(requireLaneTicket(ctx, id), id, 'plan tasks');
+  const laneTicket = requireLaneTicket(ctx, id);
+  refuseLaneR(laneTicket, id, 'plan tasks');
+  // ST-LN-50 D-08 Ruling: with the plan stage off the whole ticket is task 1 and its tests are named by --test; with it on, --test has no meaning.
+  const planOff = stageOff(ctx.snapshot, id, 'plan');
+  const lane = laneTicket.frontmatter?.lane;
+  if (!planOff && pairs.length > 0) {
+    throw new UsageError(`--test is for a ticket built without a plan: the plan stage is on for lane ${lane}; name the verify cases in plan.md, or turn it off with strictness.stages.${lane}.plan`);
+  }
+  if (planOff && n !== 1) {
+    throw new UsageError(`the plan stage is off for lane ${lane} (strictness.stages.${lane}.plan): the whole ticket is task 1, there is no task ${n}`);
+  }
+  const testMaps = planOff ? parsePairs(pairs) : [];
   const commit = ctx.snapshot.git?.commit;
   if (commit === undefined) throw new UsageError('the repository has no commit; commit the task before recording it');
   // T-05-07: `id` is a key the loader found on disk, so it is a file stem and never a traversal.
@@ -48,10 +71,10 @@ export function taskDone(ctx: CommandContext, id: string, task: string): number 
   const file = join(ctx.root, 'accord', 'tickets', id, 'ledger.md');
   const sha = commit.slice(0, 12);
   const next = recordTaskDone(existsSync(file) ? readFileSync(file, 'utf8') : undefined, n, sha);
-  const verdict = taskVerdict(ctx.snapshot, id, n);
+  const verdict = planOff ? ticketTaskVerdict(ctx.snapshot, id, testMaps) : taskVerdict(ctx.snapshot, id, n);
   const ticket = ctx.snapshot.tickets[id];
   const ticketFile = join(ctx.root, ...ticket.file.split('/'));
-  const maps = workOf(ctx.snapshot, id)?.plan?.tasks.find((t) => t.n === n)?.maps ?? [];
+  const maps = planOff ? testMaps : (workOf(ctx.snapshot, id)?.plan?.tasks.find((t) => t.n === n)?.maps ?? []);
   // A recorded task is re-checked only for tags: the committed ledger makes HEAD newer than the report.
   const stale = next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx) : undefined;
   const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale])];
@@ -69,7 +92,7 @@ export function taskDone(ctx: CommandContext, id: string, task: string): number 
   if (next !== undefined || verdict.verdict === 'pass') {
     const tagged = writeTestTags(readFileSync(ticketFile, 'utf8'), ticket.scenarios, maps);
     if (tagged.conflicts.length > 0) {
-      return refuse(tagged.conflicts.map((c) => `${c.ac} already carries @test:${c.existing}; the plan maps it to ${c.test}`));
+      return refuse(tagged.conflicts.map((c) => `${c.ac} already carries @test:${c.existing}; ${planOff ? '--test names' : 'the plan maps it to'} ${c.test}`));
     }
     if (tagged.written.length > 0) writeFileSync(ticketFile, tagged.text);
     for (const w of tagged.written) ctx.stdout.write(`wrote @test:${w.test} on ${w.ac} in ${ticket.file}\n`);

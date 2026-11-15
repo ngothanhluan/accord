@@ -74,6 +74,10 @@ export {
   roundText,
 } from './round/next.js';
 export type { Allowance, CapRules, RoundAnswer, RoundKind } from './round/next.js';
+export { PRESETS, resolveStrictness } from './config/strictness.js';
+export type { Strictness } from './config/strictness.js';
+export { FLOOR_STAGES, LOCKED, NO_OFF, OVERRIDABLE, STAGE_OF, SWITCHABLE_STAGES, effectiveLevel, floorProblems, levelRefusal, stageOff } from './gate/floor.js';
+export type { ConfigStage, RuleLevel, StageName } from './gate/floor.js';
 export { checkFixDispatch } from './round/dispatch.js';
 export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
@@ -99,7 +103,7 @@ export { printedClaim, scoutCheck } from './scout/check.js';
 export type { AbsentRow, Citation, ScoutReport } from './scout/report.js';
 export type { ScoutFacts, ScoutLane, ScoutResult } from './scout/check.js';
 export type { GateResult } from './gate/index.js';
-export { taskVerdict } from './gate/task.js';
+export { taskVerdict, ticketTaskVerdict } from './gate/task.js';
 export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';
@@ -147,6 +151,8 @@ export type { ScaffoldFile } from './scaffold/init.js';
 export { POINTER_END, POINTER_FILES, POINTER_START, pointerText } from './scaffold/pointer.js';
 export { refreshLintStep, repinConfig, repinWorkflow } from './scaffold/repin.js';
 export type { StepRefresh } from './scaffold/repin.js';
+export { insertTeamSections, reservedSections, TEAM_HINT, teamSectionProblems } from './scaffold/sections.js';
+export type { TeamSection } from './scaffold/sections.js';
 export { appendConfigList, flowValue, getConfigValue, idConsequences, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from './scaffold/configEdit.js';
 export { mergePanel, panelSettings } from './scaffold/panel.js';
 export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.js';

@@ -12,11 +12,12 @@ fix.
 
 ## Steps
 
-1. Run `accord anchor`.
+1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming review, do not run this stage: tell the
+   owner so in one line and go to the stage it names next, `accord-verify`.
 
 2. **Package.** Run `accord review-package <id>` into a file outside the working tree. After a round with a head in
    `review.md`, it holds the commits, the stat, and the diff after that head, without what a merge brought in from
-   the default branch; before round 1, from the plan's `baseline:`. It prints `Head: <sha>` for the round's heading,
+   the default branch; before round 1, from the plan's `baseline:` (when the plan stage is off there is none: from the default branch). It prints `Head: <sha>` for the round's heading,
    and lists under `## Undeclared files` every changed file no task's `files:` line names, and under
    `## Interface signs` each sign of a new interface the branch adds.
 
@@ -45,7 +46,7 @@ fix.
      `accord review-package <id>` into a file outside the working tree, one
      reviewer, lens `both`. When it reported only Should findings, no reviewer is dispatched again for
      that fix: that command passing checks it.
-   - A plan gap goes back to `accord-plan` as a re-plan, where the critic runs again.
+   - A plan gap goes back to `accord-plan` as a re-plan, where the critic runs again; with the plan stage off, stop and ask the owner.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
 
@@ -58,7 +59,7 @@ fix.
    or `refused:`, act as `./record.md` says; never report the work finished.
 
 7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from
-   `accord review-package <id> --base <the plan's baseline:>`, its round headed `(final review)` (over about 1500
+   `accord review-package <id> --base <the plan's baseline:>` (when the plan stage is off, `--base <the default branch>`), its round headed `(final review)` (over about 1500
    changed lines, dispatch it with lens `integration`). If it finds a Must: one fix and one scoped re-review, as in
    step 4. If it finds only Should findings, fix them and run that command as in step 4, with no re-review. If a Must is
    still open after that, stop and ask the owner.

@@ -33,3 +33,33 @@ export function taskVerdict(snapshot: RepoSnapshot, id: string, n: number): Task
   );
   return reasons.length === 0 ? { verdict: 'pass', reasons: [] } : { verdict: 'fail', reasons };
 }
+
+/**
+ * ST-LN-50 D-08 Ruling: with the plan stage off task 1 is the whole ticket, and its tests are named at task-done by `maps` (`ac` as `@ac-n`, like a plan
+ * task's maps). The verdict is a pass when every scenario that is not @ui is mapped exactly once, every map names a scenario of the ticket, and each named test
+ * passed in the report: the verification floor (gate.test-tag-missing, LOCKED) never depends on the plan stage.
+ */
+export function ticketTaskVerdict(snapshot: RepoSnapshot, id: string, maps: { ac: string; test: string }[]): TaskVerdict {
+  const ticket = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id] : undefined;
+  if (ticket === undefined) return fail(`no ticket ${id}`);
+  const tests = snapshot.tests;
+  if (!reportLoaded(snapshot) || tests === undefined) return fail('no test report is loaded; set tests.report and run the tests');
+  const report = normaliseKey(reportPath(snapshot) ?? '');
+  const known = new Set(ticket.scenarios.flatMap((s) => (s.acTag === undefined ? [] : ['@' + s.acTag])));
+  const reasons: string[] = [];
+  for (const ac of new Set(maps.map((m) => m.ac))) {
+    if (!known.has(ac)) reasons.push(`${ac} is not a scenario of the ticket`);
+    else if (maps.filter((m) => m.ac === ac).length > 1) reasons.push(`${ac} is named by more than one --test`);
+  }
+  if (reasons.length > 0) return { verdict: 'fail', reasons };
+  for (const s of ticket.scenarios) {
+    if (s.acTag !== undefined && !s.tags.includes('@ui') && !maps.some((m) => m.ac === '@' + s.acTag)) {
+      reasons.push(`@${s.acTag} has no --test: every scenario that is not @ui needs one test`);
+    }
+  }
+  for (const test of new Set(maps.map((m) => m.test))) {
+    if (!Object.hasOwn(tests, test)) reasons.push(`${test} is not in ${report}`);
+    else if (tests[test] !== 'passed') reasons.push(`${test} is recorded ${tests[test]} in ${report}`);
+  }
+  return reasons.length === 0 ? { verdict: 'pass', reasons: [] } : { verdict: 'fail', reasons };
+}

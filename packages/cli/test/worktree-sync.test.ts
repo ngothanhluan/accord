@@ -377,3 +377,72 @@ it('risk:complex-branching the behind line of Continue names the configured way 
     }
   }
 }, 600_000);
+
+// ---- owner decision (2026-11-15): git.sync is a repository script, so it is not run until `accord trust` allowed it, and not again when its files changed ----
+
+/** A sync script that is a committed file of the repository: it records its tag in the file named by SYNC_MARKER, then merges the fetched main. */
+const inRepo = (tag: string): string => `import { appendFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+appendFileSync(process.env.SYNC_MARKER, '${tag}\\n');
+execFileSync('git', ['merge', '--no-ff', '--no-edit', process.env.ACCORD_BASE_REF], { stdio: 'pipe' });
+`;
+const tags = (marker: string): string[] => (existsSync(marker) ? readFileSync(marker, 'utf8').split('\n').filter((l) => l !== '') : []);
+
+it('risk:security git.sync is not run until accord trust allowed it, and not again when only its script file changed (owner decision, repository scripts trust)', async () => {
+  const c = copy();
+  const marker = fwd(join(fx, `trust-${++count}.log`));
+  vi.stubEnv('SYNC_MARKER', marker);
+  const sib = atVerify(c, undefined, 'scripts/sync.mjs', 'node scripts/sync.mjs');
+  // each change of the script is committed with a new review verdict line, so the ticket stays at verify and `worktree sync` is what refuses
+  const commitScript = (tag: string): void => {
+    writeFiles(sib, { 'scripts/sync.mjs': inRepo(tag), 'accord/tickets/ST-9/review.md': `verdict: converged\n<!-- ${tag} -->\n` });
+    gitRun(sib, 'add', '-A');
+    gitRun(sib, 'commit', '-q', '-m', 'script ' + tag);
+    gitRun(sib, 'push', '-q', 'origin', 't/ST-9');
+  };
+  commitScript('A');
+  pushMain(c, 'next.txt', 'next\n');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+
+  // never allowed: refused with one reason that names the command and the way to allow it; nothing ran, nothing moved
+  const never = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(never.code).toBe(2);
+  expect(never.err).toContain('git.sync "node scripts/sync.mjs"');
+  expect(never.err).toContain('accord trust');
+  expect(tags(marker)).toEqual([]);
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(head);
+
+  // allowed, then a commit that changes only the script file (the command text is identical): refused again
+  expect((await run(['trust'], sib)).code).toBe(0);
+  commitScript('B');
+  const changed = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(changed.code).toBe(2);
+  expect(changed.err).toContain('accord trust');
+  expect(changed.err).toContain('changed');
+  expect(tags(marker)).toEqual([]);
+
+  // allowed again: it runs, and it is the changed script that ran
+  expect((await run(['trust'], sib)).code).toBe(0);
+  const ok = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect([ok.code, ok.err]).toEqual([0, '']);
+  expect(lines(ok.out)).toContain('synced: t/ST-9 by git.sync');
+  expect(tags(marker)).toEqual(['B']);
+}, 240_000);
+
+it('risk:security Continue does not run an unallowed git.sync, leaves the branch alone and says how to allow it (owner decision, repository scripts trust)', async () => {
+  const c = copy();
+  const s = script(MERGE);
+  withGit(c, `  sync: '${s.command}'\n`);
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  twoOnMain(c);
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect([r.code, r.err]).toEqual([0, '']);
+  expect(s.calls()).toEqual([]);
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  const behind = lines(r.out).filter((l) => l.startsWith('behind:'));
+  expect(behind).toHaveLength(1);
+  expect(behind[0]).toContain('accord trust');
+}, 240_000);

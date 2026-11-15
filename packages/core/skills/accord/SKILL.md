@@ -27,7 +27,7 @@ ticket id, the id of a ticket in `accord/tickets/`, an id that
 `accord worktree open <id> --continue` finds; with none,
 `/accord continue ST-99` is a New request. Then run Pick up or
 Continue below on that ticket, without showing the dashboard first. Continue on a ticket nobody has claimed
-says so, offers Pick up, and never claims it. Any other text, but `upgrade`, starts a
+says so, offers Pick up, and never claims it. Any other text, but `upgrade` or `onboard`, starts a
 New request whose text is the whole text after `/accord`: for
 `/accord continue the refactor` it is `continue the refactor`, and
 `/accord continue ST-2 now` is a new request too.
@@ -90,7 +90,7 @@ Follow `./upgrade.md`.
 
 ## Onboard: `/accord onboard`
 
-After `accord init` printed `proposal:` lines, or on `/accord onboard`, follow `./onboard.md`. It is not a New request.
+After `accord init` printed `proposal:` lines, or on `/accord onboard`, follow `./onboard.md`. It is not a New request, and the session check above runs first.
 
 ## Rules
 

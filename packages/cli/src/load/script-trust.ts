@@ -227,13 +227,24 @@ export function cover(root: string, command: string, tracked: readonly string[] 
   };
   visit(command, 0);
   if (!named) for (const m of ROOT_MANIFESTS) for (const f of files(m)) units.add(f);
+  // round 4 WR-01: every component is matched without regard to case, so an index entry `Scripts/lib.mjs` (one folder on Windows and macOS) is held by `scripts/`
   const held = new Set<string>();
   for (const u of units) {
-    if (u === ROOT_UNIT) for (const f of tracked) if (!f.startsWith('accord/')) held.add(f);
-    if (u !== ROOT_UNIT && u.endsWith('/')) for (const f of tracked) if (f.startsWith(u)) held.add(f);
+    if (u === ROOT_UNIT) for (const f of tracked) if (!isRecords(f)) held.add(f);
+    if (u !== ROOT_UNIT && u.endsWith('/')) for (const f of tracked) if (under(f, u)) held.add(f);
     if (!u.endsWith('/')) held.add(u);
   }
   return { units: [...units].sort(), files: [...held].sort() };
+}
+
+/** True when the tracked path `f` lies below the directory unit `u` (ending in `/`), compared without regard to case. */
+function under(f: string, u: string): boolean {
+  return f.toLowerCase().startsWith(u.toLowerCase());
+}
+
+/** True for a path under accord/ (the ticket records), whatever the case of the folder's name. */
+function isRecords(f: string): boolean {
+  return under(f, 'accord/');
 }
 
 /** The tracked files the command can reach (the `files` of its `cover`), as posix paths relative to the root, sorted. */
@@ -244,7 +255,7 @@ export function reach(root: string, command: string, tracked: readonly string[] 
 /** The units of a cover as one phrase a person reads: `scripts/ (2 files), package.json`, or `no file of the repository`. */
 export function coverText(c: Cover): string {
   if (c.units.length === 0) return 'no file of the repository';
-  const count = (u: string): number => (u === ROOT_UNIT ? c.files.filter((f) => !f.startsWith('accord/')) : c.files.filter((f) => f.startsWith(u))).length;
+  const count = (u: string): number => (u === ROOT_UNIT ? c.files.filter((f) => !isRecords(f)) : c.files.filter((f) => under(f, u))).length;
   const plural = (n: number): string => `${n} file${n === 1 ? '' : 's'}`;
   return c.units.map((u) => (u === ROOT_UNIT ? `./ (every tracked file outside accord/, ${plural(count(u))})` : u.endsWith('/') ? `${shown(u)} (${plural(count(u))})` : shown(u))).join(', ');
 }

@@ -143,7 +143,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'git', 'ids']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'git', 'ids', 'strictness']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -406,4 +406,21 @@ it('risk:parsing ids holds a mode, prefixes per type and a non-empty list of tra
   expect(at({ ...idsBase, ids: { types: { story: 'feat' } } })).toContain('schema.pattern@/ids/types/story');
   expect(at({ ...idsBase, ids: { types: { task: 'TSK' } } })).toContain('schema.additionalProperties@/ids/types');
   expect(at({ ...idsBase, ids: { regex: '.*' } })).toContain('schema.additionalProperties@/ids');
+});
+
+it('risk:parsing strictness.rounds takes a round cap of 1 to 99 as a string and refuses 0, a negative, a non-number and 100 (ST-LN-50 t2-ac-4)', () => {
+  for (const ok of ['1', '9', '42', '99']) {
+    for (const key of ['approach', 'plan', 'review']) expect(validate('config', { ...idsBase, strictness: { rounds: { [key]: ok } } }), `${key} ${ok}`).toEqual([]);
+  }
+  expect(validate('config', { ...idsBase, strictness: { rounds: { approach: '2', plan: '3', review: '5' } } })).toEqual([]);
+  expect(validate('config', { ...idsBase, strictness: {} })).toEqual([]);
+  expect(validate('config', { ...idsBase, strictness: { rounds: {} } })).toEqual([]);
+  for (const bad of ['0', '-1', '100', 'two', '01', '', '1.5', ' 2']) {
+    expect(at({ ...idsBase, strictness: { rounds: { plan: bad } } }), JSON.stringify(bad)).toEqual(['schema.pattern@/strictness/rounds/plan']);
+  }
+  // YAML numerics stay strings: a number is refused as the wrong type, like every other numeric key
+  expect(at({ ...idsBase, strictness: { rounds: { plan: 2 } } })).toEqual(['schema.type@/strictness/rounds/plan']);
+  // an unknown stage and an unknown strictness key are refused by name
+  expect(at({ ...idsBase, strictness: { rounds: { critic: '2' } } })).toEqual(['schema.additionalProperties@/strictness/rounds']);
+  expect(at({ ...idsBase, strictness: { depth: '2' } })).toEqual(['schema.additionalProperties@/strictness']);
 });

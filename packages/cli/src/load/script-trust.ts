@@ -10,9 +10,9 @@
 // the script loads from another directory, a make or just target's own scripts, and a path built from an environment variable are not covered by the digest.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readlinkSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { gitTracked } from './fs.js';
+import { gitTracked, UsageError } from './fs.js';
 
 /** The two repository-declared scripts, named as in accord/config.yml. */
 export type ScriptKind = 'tracker.command' | 'git.sync';
@@ -260,28 +260,101 @@ export function coverText(c: Cover): string {
   return c.units.map((u) => (u === ROOT_UNIT ? `./ (every tracked file outside accord/, ${plural(count(u))})` : u.endsWith('/') ? `${shown(u)} (${plural(count(u))})` : shown(u))).join(', ');
 }
 
-/** The bytes with every CR LF read as LF, so a checkout with `core.autocrlf` (another worktree of the same repository) digests like one without. */
-function lf(bytes: Buffer): Buffer {
-  return Buffer.from(bytes.toString('latin1').replaceAll('\r\n', '\n'), 'latin1');
+/** git, run in `cwd`, with its output as text; `input` goes to its stdin. */
+function gitText(cwd: string, args: readonly string[], input?: string | Buffer): string {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, ...(input === undefined ? {} : { input }) });
 }
 
-/** One digest of the command text and of the bytes of every file it reaches, as they are in the working tree (that is what would run), with each file's own hash. */
-export function scriptDigest(root: string, command: string): { digest: string; hashes: Record<string, string> } & Cover {
-  const { units, files } = cover(root, command);
-  const hash = createHash('sha256');
-  const hashes: Record<string, string> = {};
-  hash.update('command\0' + command + '\n');
-  for (const f of files) {
-    let content: string;
-    try {
-      content = createHash('sha256').update(lf(readFileSync(join(root, ...f.split('/'))))).digest('hex');
-    } catch {
-      content = 'missing';
-    }
-    hashes[f] = content;
-    hash.update(f + '\0' + content + '\n');
+/** The working tree's index: the object id and mode of each path at stage 0. A conflicted path has no id here, so it is read from the working tree. */
+interface IndexEntries {
+  paths: string[];
+  id: Map<string, { mode: string; oid: string }>;
+}
+
+/** `git ls-files -s -z`, read NUL-separated: every tracked path, sorted, and the id git holds for each one. */
+function indexEntries(root: string): IndexEntries {
+  let out: string;
+  try {
+    out = gitText(root, ['ls-files', '-s', '-z']);
+  } catch {
+    throw new UsageError('git ls-files failed in ' + root);
   }
-  return { digest: 'sha256:' + hash.digest('hex'), hashes, units, files };
+  const id = new Map<string, { mode: string; oid: string }>();
+  const paths = new Set<string>();
+  for (const rec of out.split('\0')) {
+    const m = /^(\d+) ([0-9a-f]+) (\d)\t(.*)$/s.exec(rec);
+    if (m === null) continue;
+    paths.add(m[4]);
+    if (m[3] === '0') id.set(m[4], { mode: m[1], oid: m[2] });
+  }
+  return { paths: [...paths].sort(), id };
+}
+
+/**
+ * Round 4 WR-02, WR-06: the content id of each covered file as it is in the working tree (that is what would run), read through git rather than by reading every
+ * file. A file git sees unchanged takes the object id the index holds: the blob of a regular file (a file of any size, with its line endings as git stores
+ * them, so a checkout with `core.autocrlf` digests like one without), the link text of a symlink, the commit of a submodule (gitlink). A file `git diff-files`
+ * reports changed is hashed the way `git add` would store it: a regular file by `git hash-object` (streamed), a symlink by its link text, a checked-out
+ * submodule by the commit it has checked out. `missing` is kept for a path that is not on disk.
+ */
+function contentIds(root: string, files: readonly string[], index: IndexEntries): Record<string, string> {
+  const changed = new Set(gitText(root, ['diff-files', '--name-only', '-z', '--ignore-submodules=none']).split('\0'));
+  const ids: Record<string, string> = {};
+  const hashLater: string[] = [];
+  for (const f of files) {
+    const entry = index.id.get(f);
+    const abs = join(root, ...f.split('/'));
+    if (entry?.mode === '160000') {
+      // a submodule: the commit checked out when it is, else the commit the index records
+      let head = '';
+      try {
+        if (existsSync(join(abs, '.git'))) head = gitText(abs, ['rev-parse', '--verify', '-q', 'HEAD']).trim();
+      } catch {
+        /* a submodule git cannot read: the commit the index records */
+      }
+      ids[f] = head === '' ? entry.oid : head;
+      continue;
+    }
+    if (entry !== undefined && !changed.has(f)) {
+      ids[f] = entry.oid;
+      continue;
+    }
+    let st: ReturnType<typeof lstatSync>;
+    try {
+      st = lstatSync(abs);
+    } catch {
+      ids[f] = 'missing';
+      continue;
+    }
+    if (st.isSymbolicLink()) ids[f] = gitText(root, ['hash-object', '--no-filters', '--stdin'], readlinkSync(abs, { encoding: 'buffer' })).trim();
+    else if (st.isFile()) hashLater.push(f);
+    else ids[f] = 'missing';
+  }
+  // `--stdin-paths` reads one path per line; a name holding a line break or starting with a quote is hashed on its own
+  const plain = hashLater.filter((f) => !f.includes('\n') && !f.startsWith('"'));
+  const alone = hashLater.filter((f) => f.includes('\n') || f.startsWith('"'));
+  if (plain.length > 0) {
+    const out = gitText(root, ['hash-object', '--stdin-paths'], plain.join('\n') + '\n').trim().split('\n');
+    plain.forEach((f, i) => (ids[f] = out[i]));
+  }
+  for (const f of alone) ids[f] = gitText(root, ['hash-object', '--', f]).trim();
+  return ids;
+}
+
+/** The digest of the command text and of each covered file's content id, in path order. */
+function digestOf(command: string, files: readonly string[], ids: Record<string, string>): string {
+  const hash = createHash('sha256');
+  hash.update('command\0' + command + '\n');
+  for (const f of files) hash.update(f + '\0' + ids[f] + '\n');
+  return 'sha256:' + hash.digest('hex');
+}
+
+/** One digest of the command text and of every file it reaches, as they are in the working tree (that is what would run), with each file's own content id. */
+export function scriptDigest(root: string, command: string): { digest: string; hashes: Record<string, string> } & Cover {
+  const index = indexEntries(root);
+  const { units, files } = cover(root, command, index.paths);
+  const hashes = contentIds(root, files, index);
+  return { digest: digestOf(command, files, hashes), hashes, units, files };
 }
 
 function read(root: string): TrustFile {

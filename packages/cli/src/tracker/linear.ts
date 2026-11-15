@@ -10,7 +10,7 @@ import type { IssueFacts, TrackerAdapter, TrackerResult } from './index.js';
 const ENDPOINT = 'https://api.linear.app/graphql';
 
 // `issue(id:)` takes a team key and number ("ENG-123") as well as a uuid (linear.app/developers/graphql).
-// The field names `state { name }` and `labels { nodes { name } }` are checked live in plan 03.1-32.
+// The field names `state { name }` and `labels { nodes { name } }` follow the GraphQL schema and are not yet checked against a live workspace.
 const QUERY =
   'query Issue($id: String!) { issue(id: $id) { identifier title state { name } labels { nodes { name } } } }';
 

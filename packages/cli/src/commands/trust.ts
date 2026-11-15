@@ -6,7 +6,7 @@
 // Round 3 WR-02 (Ruling): with no script named it only shows each script (the command, what an allow covers, the files that changed since the last allow) and writes
 // nothing; `accord trust git.sync` allows git.sync alone and prints the same block for what it allowed. No prompt, so it is safe where nothing can answer one (CI, an agent
 // shell): a changed tracker script is never allowed by a person who ran `accord trust git.sync` after reading the sync diff.
-import { allowScripts, coverText, inspect, listed, recordWarning, revokeScripts, SCRIPT_KINDS, shown } from '../load/script-trust.js';
+import { allowScripts, coverText, inspect, listed, recordWarning, revokeScripts, SCRIPT_KINDS, shortDigest, shown } from '../load/script-trust.js';
 import type { Inspection, ScriptKind } from '../load/script-trust.js';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
@@ -34,16 +34,26 @@ function details(i: Inspection): string {
   return `  covers: ${coverText(i)}\n${files}${changed}`;
 }
 
-/** Names on the command line as script kinds; a name that is no kind is a usage error. */
-function kindsOf(names: readonly string[]): ScriptKind[] {
+/**
+ * Names on the command line as script kinds, each with the digest the person copied from the preview (`git.sync@1a2b3c4d5e6f7a8b`); a name that is no kind, or
+ * a digest that is not hex, is a usage error.
+ */
+function namesOf(names: readonly string[]): Array<{ kind: ScriptKind; digest?: string }> {
+  const out: Array<{ kind: ScriptKind; digest?: string }> = [];
   for (const n of names) {
-    if (!(SCRIPT_KINDS as readonly string[]).includes(n)) throw new UsageError(`accord trust takes tracker.command or git.sync, not "${shown(n)}" - nothing was changed`);
+    const at = n.indexOf('@');
+    const kind = at === -1 ? n : n.slice(0, at);
+    if (!(SCRIPT_KINDS as readonly string[]).includes(kind)) throw new UsageError(`accord trust takes tracker.command or git.sync, not "${shown(kind)}" - nothing was changed`);
+    const digest = at === -1 ? undefined : n.slice(at + 1).replace(/^sha256:/i, '').toLowerCase();
+    if (digest !== undefined && !/^[0-9a-f]{16,64}$/.test(digest)) throw new UsageError(`"${shown(n)}" carries no digest accord trust shows (16 hex characters) - nothing was changed`);
+    if (!out.some((o) => o.kind === kind)) out.push({ kind: kind as ScriptKind, ...(digest === undefined ? {} : { digest }) });
   }
-  return [...new Set(names)] as ScriptKind[];
+  return out;
 }
 
 export function trust(ctx: CommandContext, names: readonly string[], options: { revoke?: boolean }): number {
-  const kinds = kindsOf(names);
+  const named = namesOf(names);
+  const kinds = named.map((n) => n.kind);
   const warning = recordWarning(ctx.root);
   if (warning !== undefined) ctx.stderr.write(warning + '\n');
   if (options.revoke === true) {
@@ -63,17 +73,25 @@ export function trust(ctx: CommandContext, names: readonly string[], options: { 
   }
   if (kinds.length === 0) {
     const seen = scripts.map((s) => inspect(ctx.root, s.kind, s.command));
-    for (const i of seen) ctx.stdout.write(`${i.kind} "${shown(i.command)}" - ${STATE[i.state]}\n${details(i)}`);
-    const open = seen.filter((i) => i.state !== 'allowed').map((i) => i.kind);
+    for (const i of seen) ctx.stdout.write(`${i.kind} "${shown(i.command)}" - ${STATE[i.state]} (digest ${shortDigest(i.digest)})\n${details(i)}`);
+    const open = seen.filter((i) => i.state !== 'allowed');
     ctx.stdout.write(
       open.length === 0
         ? 'every declared script is allowed here - nothing to do\n'
-        : `nothing was allowed; read the files above, then run accord trust ${open.join(' ')} to allow ${open.length === 1 ? 'it' : 'them'} here (in ${shown(ctx.root.replaceAll('\\', '/'))})\n`,
+        : `nothing was allowed; read the files above, then run accord trust ${open.map((i) => `${i.kind}@${shortDigest(i.digest)}`).join(' ')} to allow ${open.length === 1 ? 'it' : 'them'} here (in ${shown(ctx.root.replaceAll('\\', '/'))}), with the digest exactly as shown, so the allow binds only what you read\n`,
     );
     return 0;
   }
-  for (const i of allowScripts(ctx.root, scripts.filter((s) => kinds.includes(s.kind)))) {
-    ctx.stdout.write(`allowed: ${i.kind} "${shown(i.command)}" (${(i.digest ?? '').slice(0, 19)})\n${details(i)}`);
+  // round 4 WR-04 (Ruling R11): an allow names the digest the preview showed, and binds only that content
+  const bare = named.filter((n) => n.digest === undefined).map((n) => n.kind);
+  if (bare.length > 0) {
+    throw new UsageError(
+      `accord trust allows only what it showed you: run accord trust here to see ${bare.join(' and ')} with the digest of what ${bare.length === 1 ? 'it covers' : 'they cover'}, then ${bare.map((k) => `accord trust ${k}@<digest>`).join(' ')} with the digest it shows - nothing was allowed`,
+    );
+  }
+  const wanted = scripts.filter((s) => kinds.includes(s.kind)).map((s) => ({ ...s, digest: named.find((n) => n.kind === s.kind)?.digest }));
+  for (const i of allowScripts(ctx.root, wanted)) {
+    ctx.stdout.write(`allowed: ${i.kind} "${shown(i.command)}" (digest ${shortDigest(i.digest)})\n${details(i)}`);
   }
   ctx.stdout.write('the allow is local to this repository (inside .git); it holds until the command or those files change, and accord trust --revoke withdraws it\n');
   return 0;

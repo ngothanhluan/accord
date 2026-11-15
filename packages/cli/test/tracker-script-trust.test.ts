@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { inspect, reach, scriptDigest } from '../src/load/script-trust.js';
-import { commitAll, gitRun, makeRepo, run } from './helpers/repo.js';
+import { commitAll, gitRun, makeRepo, run, trustAllow } from './helpers/repo.js';
 
 const posix = (p: string): string => p.replaceAll('\\', '/');
 
@@ -112,7 +112,7 @@ describe('accord status runs a repository tracker command only when accord trust
     expect(before.err).toMatch(/^tracker script: .*node scripts\/tracker\.mjs.*accord trust/);
     expect(before.err.trim().split('\n')).toHaveLength(1);
 
-    const allowed = await run(['trust', 'tracker.command'], b.repo, b.env);
+    const allowed = await trustAllow(b.repo, ['tracker.command'], b.env);
     expect(allowed.code).toBe(0);
     expect(allowed.out).toMatch(/^allowed: tracker\.command "node scripts\/tracker\.mjs"/m);
     const after = await run(['status'], b.repo, b.env);
@@ -122,7 +122,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:security a branch that changes only the script file, the command text unchanged, is not run until it is allowed again', async () => {
     const b = sandbox();
-    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    expect((await trustAllow(b.repo, ['tracker.command'], b.env)).code).toBe(0);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('scripts/tracker.mjs', body('ran B'));
     const refused = await run(['status'], b.repo, b.env);
@@ -135,7 +135,7 @@ describe('accord status runs a repository tracker command only when accord trust
     await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual([]);
 
-    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    expect((await trustAllow(b.repo, ['tracker.command'], b.env)).code).toBe(0);
     await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual(['ran C']);
     // the branch's committed script B was never allowed, and still is not
@@ -161,7 +161,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:security a file next to the script the command names counts as well (the script imports its neighbours)', async () => {
     const b = sandbox();
-    await run(['trust', 'tracker.command'], b.repo, b.env);
+    await trustAllow(b.repo, ['tracker.command'], b.env);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('scripts/lib.mjs', 'export const x = 2;\n');
     await run(['status'], b.repo, b.env);
@@ -170,7 +170,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:regression a change to a ticket or to a file the command does not reach does not ask again', async () => {
     const b = sandbox();
-    await run(['trust', 'tracker.command'], b.repo, b.env);
+    await trustAllow(b.repo, ['tracker.command'], b.env);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('README.md', 'edited\n');
     b.commit('accord/tickets/ISS-7.md', ticket('ISS-7').replace('fixture', 'edited'));
@@ -181,7 +181,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:security the allow lives inside .git, is never committed, and is shared by every worktree of the repository', async () => {
     const b = sandbox();
-    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    expect((await trustAllow(b.repo, ['tracker.command'], b.env)).code).toBe(0);
     expect(gitRun(b.repo, 'status', '--porcelain').trim()).toBe('');
     const common = resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim());
     expect(readFileSync(join(common, 'accord-trust.json'), 'utf8')).toContain('node scripts/tracker.mjs');
@@ -200,7 +200,7 @@ describe('accord status runs a repository tracker command only when accord trust
     writeFileSync(script, body('ran A'));
     const b = sandbox(`node "${script}"`);
     b.commit('package.json', '{ "name": "x", "scripts": {} }\n');
-    await run(['trust', 'tracker.command'], b.repo, b.env);
+    await trustAllow(b.repo, ['tracker.command'], b.env);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('README.md', 'edited\n');
     await run(['status'], b.repo, b.env);
@@ -212,7 +212,7 @@ describe('accord status runs a repository tracker command only when accord trust
 
   it('risk:security trust --revoke withdraws the allow, and says so when there is none', async () => {
     const b = sandbox();
-    await run(['trust', 'tracker.command'], b.repo, b.env);
+    await trustAllow(b.repo, ['tracker.command'], b.env);
     const revoked = await run(['trust', '--revoke'], b.repo, b.env);
     expect(revoked.code).toBe(0);
     expect(revoked.out).toMatch(/^revoked: tracker\.command/m);
@@ -238,7 +238,7 @@ describe('accord status runs a repository tracker command only when accord trust
     const b = sandbox();
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('scripts/tracker.mjs', body('ran B'));
-    await run(['trust', 'tracker.command'], b.repo, b.env);
+    await trustAllow(b.repo, ['tracker.command'], b.env);
     const r = await run(['status'], b.repo, b.env);
     expect(r.err).toBe('');
     expect(b.ran()).toEqual(['ran B']);
@@ -254,7 +254,7 @@ process.stdout.write(JSON.stringify({ version: 1, issues: {} }));
 `;
 
 /** The person's `accord trust` for the tracker script. */
-const allowTracker = async (b: Box): Promise<{ code: number; out: string; err: string }> => run(['trust', 'tracker.command'], b.repo, b.env);
+const allowTracker = async (b: Box): Promise<{ code: number; out: string; err: string }> => trustAllow(b.repo, ['tracker.command'], b.env);
 
 /** Allow on main and check that it ran there, then commit `path` = `text` on a branch `pr` and run status there; returns its stderr. */
 async function editedOnBranch(b: Box, path: string, text: string): Promise<string> {
@@ -353,7 +353,7 @@ describe('accord trust shows each script before it allows it, and allows only th
     expect(shown.out).toMatch(/^tracker\.command "node scripts\/tracker\.mjs"/m);
     expect(shown.out).toMatch(/^git\.sync "node scripts\/sync\.mjs"/m);
     expect(shown.out).toMatch(/covers: scripts\/ \(3 files\)/);
-    expect(shown.out).toMatch(/accord trust tracker\.command git\.sync/);
+    expect(shown.out).toMatch(/accord trust tracker\.command@[0-9a-f]{16} git\.sync@[0-9a-f]{16}/);
     expect(shown.out).not.toMatch(/^allowed:/m);
     const r = await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual([]);
@@ -363,13 +363,13 @@ describe('accord trust shows each script before it allows it, and allows only th
   it('risk:security accord trust git.sync allows git.sync only, so a changed tracker script the person was not shown stays refused', async () => {
     const b = sandbox();
     withSync(b);
-    expect((await run(['trust', 'tracker.command', 'git.sync'], b.repo, b.env)).code).toBe(0);
+    expect((await trustAllow(b.repo, ['tracker.command', 'git.sync'], b.env)).code).toBe(0);
     await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual(['ran A']);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('scripts/sync.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.env.TRUST_MARKER, 'sync B\\n');\n");
     b.commit('scripts/tracker.mjs', body('ran B'));
-    const synced = await run(['trust', 'git.sync'], b.repo, b.env);
+    const synced = await trustAllow(b.repo, ['git.sync'], b.env);
     expect(synced.code).toBe(0);
     expect(synced.out).toMatch(/^allowed: git\.sync "node scripts\/sync\.mjs"/m);
     expect(synced.out).not.toMatch(/tracker\.command/);
@@ -381,11 +381,11 @@ describe('accord trust shows each script before it allows it, and allows only th
 
   it('risk:security the preview and the refusal name the files that changed since the script was allowed', async () => {
     const b = sandbox();
-    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    expect((await trustAllow(b.repo, ['tracker.command'], b.env)).code).toBe(0);
     gitRun(b.repo, 'switch', '-q', '-c', 'pr');
     b.commit('scripts/lib.mjs', 'export const x = 2;\n');
     const shown = await run(['trust'], b.repo, b.env);
-    expect(shown.out).toMatch(/^tracker\.command "node scripts\/tracker\.mjs" - changed since it was allowed$/m);
+    expect(shown.out).toMatch(/^tracker\.command "node scripts\/tracker\.mjs" - changed since it was allowed \(digest [0-9a-f]{16}\)$/m);
     expect(shown.out).toMatch(/changed since it was allowed: scripts\/lib\.mjs$/m);
     const r = await run(['status'], b.repo, b.env);
     expect(r.err).toMatch(/\(changed: scripts\/lib\.mjs\)/);
@@ -410,13 +410,13 @@ const quotedDir = (dir: string): string => `"[^"]*${(dir.replaceAll('\\', '/').s
 describe('parallel worktrees keep their own allows, and the refusal says where to run accord trust (round 3 WR-03)', () => {
   it('risk:security an allow made in a second worktree with other script content does not cancel the allow of the first', async () => {
     const b = sandbox();
-    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    expect((await trustAllow(b.repo, ['tracker.command'], b.env)).code).toBe(0);
     const wt = join(mkdtempSync(join(tmpdir(), 'accord-script-trust-wt-')), 'sibling');
     dirs.push(resolve(wt, '..'));
     gitRun(b.repo, 'worktree', 'add', '-q', '-b', 'other', wt);
     writeFileSync(join(wt, 'scripts', 'lib.mjs'), 'export const x = 2;\n');
     commitAll(wt, 'other edits a file the script reaches');
-    expect((await run(['trust', 'tracker.command'], wt, b.env)).code).toBe(0);
+    expect((await trustAllow(wt, ['tracker.command'], b.env)).code).toBe(0);
     const there = await run(['status'], wt, b.env);
     expect(there.err).toBe('');
     const here = await run(['status'], b.repo, b.env);
@@ -427,7 +427,7 @@ describe('parallel worktrees keep their own allows, and the refusal says where t
   it('risk:security the refusal names the checkout to run accord trust in', async () => {
     const b = sandbox();
     const r = await run(['status'], b.repo, b.env);
-    expect(r.err).toMatch(new RegExp(`run accord trust in ${quotedDir(b.repo)} to see it, then accord trust tracker\\.command there to allow it`));
+    expect(r.err).toMatch(new RegExp(`run accord trust in ${quotedDir(b.repo)} to see it, then accord trust tracker\\.command@<the digest it shows> there to allow it`));
   });
 });
 
@@ -552,7 +552,8 @@ describe('the trust record is written under a lock, merged into what is on disk,
     const b = sandbox();
     const record = join(resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim()), 'accord-trust.json');
     writeFileSync(record + '.lock', String(process.pid));
-    const child = spawn(process.execPath, [cli, 'trust', 'tracker.command'], { cwd: b.repo, env: b.env, stdio: 'ignore' });
+    const digest = shownDigest((await run(['trust'], b.repo, b.env)).out, 'tracker.command') ?? '';
+    const child = spawn(process.execPath, [cli, 'trust', 'tracker.command@' + digest], { cwd: b.repo, env: b.env, stdio: 'ignore' });
     const exited = new Promise<number>((done) => child.on('exit', (code) => done(code ?? -1)));
     await new Promise((done) => setTimeout(done, 2000));
     expect(existsSync(record)).toBe(false);
@@ -567,7 +568,7 @@ describe('the trust record is written under a lock, merged into what is on disk,
 
   it('risk:regression an allow whose files is not a map of strings is ignored with a warning, and status does not crash', async () => {
     const b = sandbox();
-    expect((await run(['trust', 'tracker.command'], b.repo, b.env)).code).toBe(0);
+    expect((await trustAllow(b.repo, ['tracker.command'], b.env)).code).toBe(0);
     const record = join(resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim()), 'accord-trust.json');
     const text = JSON.parse(readFileSync(record, 'utf8')) as { allows: Array<Record<string, unknown>> };
     text.allows[0].files = null;
@@ -583,7 +584,7 @@ describe('the trust record is written under a lock, merged into what is on disk,
 });
 
 /** The short digest `accord trust` shows on the head line of `kind`. */
-const shownDigest = (out: string, kind: string): string | undefined => new RegExp(`^${kind.replace('.', '\.')} ".*\(digest ([0-9a-f]{16})\)$`, 'm').exec(out)?.[1];
+const shownDigest = (out: string, kind: string): string | undefined => new RegExp(`^${kind.replace('.', '\\.')} ".*\\(digest ([0-9a-f]{16})\\)$`, 'm').exec(out)?.[1];
 
 describe('accord trust allows only the content the person was shown (round 4 WR-04)', () => {
   it('risk:security accord trust shows a digest per script, and <script>@<digest> refuses with nothing written when the files changed since it was shown', async () => {
@@ -591,7 +592,7 @@ describe('accord trust allows only the content the person was shown (round 4 WR-
     const shown = await run(['trust'], b.repo, b.env);
     const digest = shownDigest(shown.out, 'tracker.command');
     expect(digest).toMatch(/^[0-9a-f]{16}$/);
-    expect(shown.out).toMatch(new RegExp(`accord trust tracker\.command@${digest ?? ''}`));
+    expect(shown.out).toMatch(new RegExp(`accord trust tracker\\.command@${digest ?? ''}`));
     // between show and allow, something else (an agent in the worktree, a pull) changes a covered file
     writeFileSync(join(b.repo, 'scripts', 'lib.mjs'), 'export const x = 3;\n');
     const stale = await run(['trust', `tracker.command@${digest ?? ''}`], b.repo, b.env);
@@ -606,7 +607,7 @@ describe('accord trust allows only the content the person was shown (round 4 WR-
     expect(again).not.toBe(digest);
     const allowed = await run(['trust', `tracker.command@${again ?? ''}`], b.repo, b.env);
     expect(allowed.code).toBe(0);
-    expect(allowed.out).toMatch(new RegExp(`^allowed: tracker\.command "node scripts/tracker\.mjs" \(digest ${again ?? ''}\)$`, 'm'));
+    expect(allowed.out).toMatch(new RegExp(`^allowed: tracker\\.command "node scripts/tracker\\.mjs" \\(digest ${again ?? ''}\\)$`, 'm'));
     await run(['status'], b.repo, b.env);
     expect(b.ran()).toEqual(['ran A']);
   });

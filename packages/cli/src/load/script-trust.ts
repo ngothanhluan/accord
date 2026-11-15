@@ -536,6 +536,11 @@ export function inspect(root: string, kind: ScriptKind, command: string, hash: '
   return { kind, command, ...now, state, changed: state === 'changed' ? changedFiles(last?.files, now.hashes) : [] };
 }
 
+/** The short form of a digest that accord trust shows and `accord trust <script>@<digest>` takes: its first 16 hex characters (64 bits). */
+export function shortDigest(digest: string | undefined): string {
+  return (digest ?? '').replace(/^sha256:/, '').slice(0, 16);
+}
+
 /** A list of paths for one line: the first `max`, then how many more. */
 export function listed(paths: readonly string[], max: number): string {
   return paths.slice(0, max).map(shown).join(', ') + (paths.length > max ? ` and ${paths.length - max} more` : '');
@@ -555,17 +560,24 @@ export function scriptRefusal(root: string, kind: ScriptKind, command: string): 
         ? 'is not the command that was allowed'
         : `or the files it reaches changed since it was allowed${i.changed.length === 0 ? '' : ` (changed: ${listed(i.changed, 5)})`}`;
   // round 3 WR-03: the digest is read from this checkout's files, so the line names the checkout; an allow made in another one does not cover this one
-  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(i)}; run accord trust in "${shown(root.replaceAll('\\', '/'))}" to see it, then accord trust ${kind} there to allow it (accord trust --revoke withdraws every allow)`;
+  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(i)}; run accord trust in "${shown(root.replaceAll('\\', '/'))}" to see it, then accord trust ${kind}@<the digest it shows> there to allow it (accord trust --revoke withdraws every allow)`;
 }
 
 /**
  * Record an allow for each script beside the allows already held (the same binding allowed again moves to the newest place); a kind keeps its newest
  * `KEEP_PER_KIND` allows, and only the newest `KEEP_FILES_PER_KIND` keep their per-file hashes. Returns each script as it stood just before, for the person to read.
  */
-export function allowScripts(root: string, scripts: ReadonlyArray<{ kind: ScriptKind; command: string }>): Array<Inspection> {
+export function allowScripts(root: string, scripts: ReadonlyArray<{ kind: ScriptKind; command: string; digest?: string }>): Array<Inspection> {
   // hashed outside the lock (a large cover takes a while), then merged into the record as it is once the lock is held
   const seen = scripts.map((s) => inspect(root, s.kind, s.command));
   if (seen.length === 0) return [];
+  // round 4 WR-04: a digest the person copied from the preview must still be the content's, or nothing is written
+  for (const [n, s] of scripts.entries()) {
+    const now = (seen[n].digest ?? '').replace(/^sha256:/, '');
+    if (s.digest !== undefined && !now.startsWith(s.digest)) {
+      throw new UsageError(`${s.kind} "${shown(s.command)}" changed since accord trust showed it (digest ${s.digest.slice(0, 16)} is not what it covers now) - nothing was allowed; run accord trust again and read what it shows`);
+    }
+  }
   const allowedAt = new Date().toISOString();
   update(root, (record) => {
     let allows = record.allows;

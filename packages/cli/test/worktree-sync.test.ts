@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, it, vi } from 'vitest';
-import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
+import { commitMsg, gitRun, run, trustAllow, writeFiles } from './helpers/repo.js';
 import { BEHIND, copy, type Clone, doneBranch, lines, pushMain, ticketWorktree, twoOnMain, useSandboxes, verifyStage } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
@@ -194,7 +194,7 @@ ${body}
   };
 }
 /** The person's one `accord trust` in `dir`: a repository script (git.sync) runs only once it is allowed. */
-const allow = async (dir: string): Promise<void> => expect((await run(['trust', 'git.sync'], dir)).code).toBe(0);
+const allow = async (dir: string): Promise<void> => expect((await trustAllow(dir, ['git.sync'])).code).toBe(0);
 const MERGE = "git('merge', '--no-ff', '--no-edit', process.env.ACCORD_BASE_REF);";
 const REBASE = "git('rebase', process.env.ACCORD_BASE_REF);";
 const same = (a: string | undefined, b: string) => expect(fwd(a ?? '').toLowerCase()).toBe(fwd(b).toLowerCase());
@@ -422,7 +422,7 @@ it('risk:security git.sync is not run until accord trust allowed it, and not aga
   expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(head);
 
   // allowed, then a commit that changes only the script file (the command text is identical): refused again
-  expect((await run(['trust', 'git.sync'], sib)).code).toBe(0);
+  expect((await trustAllow(sib, ['git.sync'])).code).toBe(0);
   commitScript('B');
   const changed = await run(['worktree', 'sync', 'ST-9'], sib);
   expect(changed.code).toBe(2);
@@ -431,7 +431,7 @@ it('risk:security git.sync is not run until accord trust allowed it, and not aga
   expect(tags(marker)).toEqual([]);
 
   // allowed again: it runs, and it is the changed script that ran
-  expect((await run(['trust', 'git.sync'], sib)).code).toBe(0);
+  expect((await trustAllow(sib, ['git.sync'])).code).toBe(0);
   const ok = await run(['worktree', 'sync', 'ST-9'], sib);
   expect([ok.code, ok.err]).toEqual([0, '']);
   expect(lines(ok.out)).toContain('synced: t/ST-9 by git.sync');
@@ -473,5 +473,5 @@ it('risk:security Continue does not run an unallowed git.sync, leaves the branch
   expect(behind[0]).toContain('accord trust');
   // round 3 WR-03: Continue checks the ticket's worktree, so the line names it, not the checkout Continue runs from
   const sibName = (sib.replaceAll('\\', '/').split('/').pop() ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  expect(behind[0]).toMatch(new RegExp(`git\\.sync is not allowed to run here yet - run accord trust git\\.sync in "[^"]*${sibName}"`));
+  expect(behind[0]).toMatch(new RegExp(`git\\.sync is not allowed to run here yet - run accord trust in "[^"]*${sibName}" to see what it covers, then accord trust git\\.sync@<the digest it shows> there`));
 }, 240_000);

@@ -74,6 +74,7 @@ const LOCKED_LIST = [
   'lint.no-scenarios',
   'lint.step-empty',
   'lint.subject-duplicate',
+  'lint.template-section',
   'lint.test-tag-duplicate',
 ];
 

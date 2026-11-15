@@ -2,7 +2,7 @@
 // requires or ships, never gives acceptance criteria another form than the Gherkin block, and sits outside every hash, so a change to the config changes no
 // approval in flight. Pure text in, text out.
 import { describe, expect, it } from 'vitest';
-import { approvedHash, insertTeamSections, loadSnapshot, lintSnapshot, templates } from '../src/index.js';
+import { approvedHash, insertTeamSections, loadConfig, loadSnapshot, lintSnapshot, reservedSections, teamSectionProblems, templates } from '../src/index.js';
 import { scan } from '../src/load/sections.js';
 import { acHash } from '../src/gate/hash.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
@@ -74,5 +74,57 @@ describe('insertTeamSections (ST-LN-50 t2-ac-7)', () => {
     // and lint raises nothing for a ticket that holds them
     const lint = lintSnapshot(loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': withTeam }, tree: [] }));
     expect(lint.findings.filter((f) => f.level === 'error')).toEqual([]);
+  });
+});
+
+describe('required sections and the Gherkin form stay (ST-LN-50 t2-ac-7)', () => {
+  it('risk:security a team section can never replace a required one (ST-LN-50 t2-ac-7)', () => {
+    const refused = ['Acceptance criteria', 'acceptance criteria', 'ACCEPTANCE CRITERIA', 'Intent', 'Done when', 'Verification notes', 'Acceptance checklist', 'Approach', 'Scope', 'Token budget'];
+    for (const name of refused) {
+      const found = teamSectionProblems([{ name }]);
+      expect(found, name).toHaveLength(1);
+      expect(found[0].pointer, name).toBe('/template/sections/0/name');
+      expect(found[0].reason, name).toContain(name);
+    }
+    expect(teamSectionProblems([{ name: 'Acceptance checklist' }])[0].reason).toContain('Gherkin');
+    expect(teamSectionProblems([{ name: 'Intent' }])[0].reason).toContain('cannot replace');
+    for (const name of ['Problem', 'Out of scope', 'Already on main']) expect(teamSectionProblems([{ name }]), name).toEqual([]);
+    // a duplicate name is named at the second entry
+    expect(teamSectionProblems([{ name: 'Problem' }, { name: 'problem' }])).toMatchObject([{ pointer: '/template/sections/1/name' }]);
+    expect(teamSectionProblems(undefined)).toEqual([]);
+
+    // the reserved set holds every heading of every shipped ticket and epic template
+    const reserved = reservedSections();
+    for (const name of [...STORY_TEMPLATES, 'epic.md', 'epic-lane.md'] as const) for (const h of headings(templates[name])) expect(reserved.has(h.toLowerCase()), h).toBe(true);
+
+    // a refused entry is never inserted
+    const text = templates['ticket-build.md'];
+    expect(insertTeamSections(text, [{ name: 'Acceptance criteria' }, { name: 'Intent', after: 'Intent' }])).toBe(text);
+    expect(headings(insertTeamSections(text, [{ name: 'Acceptance criteria' }, { name: 'Problem' }])).filter((h) => h.toLowerCase().includes('acceptance'))).toEqual(['Acceptance criteria']);
+
+    // the schema takes no key but name and after, so no form can be given
+    const cfg = (entry: string): number => loadConfig('accord/config.yml', CONFIG + 'template:\n  sections:\n    - ' + entry + '\n').findings.length;
+    expect(cfg('name: Problem')).toBe(0);
+    expect(cfg('{ name: Problem, after: Intent }')).toBe(0);
+    expect(cfg('{ name: Acceptance criteria, form: checkbox }')).toBeGreaterThan(0);
+    expect(cfg('{ name: Problem, required: true }')).toBeGreaterThan(0);
+    expect(cfg('{ name: "## Problem" }')).toBeGreaterThan(0);
+    expect(cfg('{ name: problem }')).toBeGreaterThan(0);
+    expect(cfg('{ after: Intent }')).toBeGreaterThan(0);
+  });
+
+  it('risk:security lint.template-section is an error at accord/config.yml for a reserved or acceptance-named section (ST-LN-50 t2-ac-7)', () => {
+    const lintOf = (sections: string) =>
+      lintSnapshot(loadSnapshot({ files: { 'accord/config.yml': CONFIG + 'template:\n  sections:\n' + sections }, tree: [] })).findings.filter((f) => f.rule === 'lint.template-section');
+    expect(lintOf('    - name: Problem\n')).toEqual([]);
+    const found = lintOf('    - name: Acceptance criteria\n    - name: Problem\n    - name: Vetoes\n');
+    expect(found.map((f) => [f.file, f.level, f.pointer])).toEqual([
+      ['accord/config.yml', 'error', '/template/sections/0/name'],
+      ['accord/config.yml', 'error', '/template/sections/2/name'],
+    ]);
+    expect(found[0].reason).toContain('Acceptance criteria');
+    // lint.config-floor does not name them a second time
+    const both = lintSnapshot(loadSnapshot({ files: { 'accord/config.yml': CONFIG + 'template:\n  sections:\n    - name: Vetoes\n' }, tree: [] })).findings;
+    expect(both.filter((f) => f.rule === 'lint.config-floor')).toEqual([]);
   });
 });

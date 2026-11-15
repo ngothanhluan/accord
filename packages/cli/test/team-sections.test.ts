@@ -70,3 +70,43 @@ it('risk:regression with no template key a new ticket is byte-identical to today
   expect((await run(['new', 'ticket', 'E-1', '--type', 'epic', '--lane', 'P'], epicRepo)).code).toBe(0);
   expect(headings(read(epicRepo, 'accord/tickets/E-1.md'))).not.toContain('Problem');
 }, 120_000);
+
+it('risk:security a config that replaces a required section is refused (ST-LN-50 t2-ac-7)', async () => {
+  const repo = sandbox(CONFIG + 'template:\n  sections:\n    - name: Acceptance criteria\n');
+
+  // lint names the section at accord/config.yml
+  const lint = await lintFound(repo);
+  expect(lint.code).toBe(1);
+  const found = lint.found.filter((f) => f.rule === 'lint.template-section');
+  expect(found).toHaveLength(1);
+  expect(found[0]).toMatchObject({ file: 'accord/config.yml', level: 'error', pointer: '/template/sections/0/name' });
+  expect(found[0].reason).toContain('Acceptance criteria');
+  expect(lint.found.filter((f) => f.rule === 'lint.config-floor')).toEqual([]);
+
+  // accord config check says the same and exits 2
+  const check = await run(['config', 'check', '--json'], repo);
+  expect(check.code).toBe(2);
+  expect((JSON.parse(check.out) as { findings: { rule: string }[] }).findings.map((f) => f.rule)).toEqual(['lint.template-section']);
+
+  // accord new ticket skips the reserved entry: no second Acceptance criteria
+  expect((await run(['new', 'ticket', 'T-2', '--lane', 'M'], repo)).code).toBe(0);
+  expect(headings(read(repo, 'accord/tickets/T-2.md')).filter((h) => h === 'Acceptance criteria')).toHaveLength(1);
+
+  // accord config set refuses a reserved name, names it, and leaves the file as it was
+  const clean = sandbox(TEAM);
+  const kept = read(clean, 'accord/config.yml');
+  const refused = await run(['config', 'set', 'template.sections', '[{name: Vetoes}]'], clean);
+  expect(refused.code).toBe(2);
+  expect(refused.err).toContain('Vetoes');
+  expect(refused.err).toContain('accord/config.yml was not changed');
+  expect(read(clean, 'accord/config.yml')).toBe(kept);
+  // a form key is refused by the schema, the file unchanged
+  const form = await run(['config', 'set', 'template.sections', '[{name: Problem, form: checkbox}]'], clean);
+  expect(form.code).toBe(2);
+  expect(read(clean, 'accord/config.yml')).toBe(kept);
+  // a plain team section is accepted
+  const ok = await run(['config', 'set', 'template.sections', '[{name: Problem, after: Intent}, {name: Already on main}]'], clean);
+  expect(ok.err).toBe('');
+  expect(ok.code).toBe(0);
+  expect(read(clean, 'accord/config.yml')).toContain('Already on main');
+}, 120_000);

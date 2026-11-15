@@ -1391,7 +1391,7 @@ it('risk:regression the build skill takes the tests baseline before its single t
     '`tests.report` is set',
     './baseline.md',
     'before any executor is dispatched',
-    'no change outside `accord/`',
+    'lists no path outside `accord/`',
   ].filter((p) => !noPlan.includes(p));
   expect(missing).toEqual([]);
   expect(noPlan.indexOf('Before step 1')).toBeLessThan(noPlan.indexOf('1. Run `accord brief'));
@@ -1407,7 +1407,7 @@ it('risk:regression the no-plan baseline guard counts uncommitted and untracked 
   const noPlan = read('.claude/skills/accord-build/no-plan.md');
   for (const p of ['`git status --porcelain`', 'untracked', 'lists no path outside `accord/`']) expect(noPlan, p).toContain(p);
   const baseline = read('.claude/skills/accord-plan/baseline.md');
-  expect(baseline).not.toMatch(/as step 7 says|plan-ready commit of step 8|does both at step 8/);
+  expect(baseline).not.toMatch(/step [78](?! of `accord-plan`)/);
   for (const p of ['step 7 of `accord-plan`', 'step 8 of `accord-plan`']) expect(baseline, p).toContain(p);
   // the plan skill's own step 7 and 8 are the ones named
   const plan = read('.claude/skills/accord-plan/SKILL.md');

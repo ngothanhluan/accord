@@ -1,6 +1,6 @@
 // ST-LN-17 `accord round <id> [--plan | --approach]`: the next review, plan critique or approach critique round, read from
 // review.md, plan-review.md or approach-review.md. Exit 0 only for a next round; 1 for a stop or a refusal; 2 for a usage error.
-import { nextRound, roundText } from '@accord-dev/accord-core';
+import { nextRound, roundText, stageOff } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError, withReturnFacts } from '../load/fs.js';
 import { withPlanFix } from '../load/plan-diff.js';
@@ -20,6 +20,13 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
   }
   if (approach && ticket.frontmatter?.lane === 'S') {
     throw new UsageError('lane S has no approach critique; accord round ' + id + ' counts its review rounds');
+  }
+  // ST-LN-50 D-08: a stage a team turned off for this lane has no critique to count; the approval itself is not a stage (gate.approval-missing is LOCKED), so accord approve is untouched.
+  for (const [asked, stage] of [[approach, 'approach'], [plan, 'plan']] as const) {
+    const lane = ticket.frontmatter?.lane;
+    if (asked && stageOff(ctx.snapshot, id, stage)) {
+      throw new UsageError(`the ${stage} stage is off for lane ${lane} (strictness.stages.${lane}.${stage}) - there is no ${stage} critique to count`);
+    }
   }
   // ST-LN-91 D-11: a plan or approach record is asked for grounds from round 2 under the pin of its own first round.
   // D-14: the plan's fix is checked from round 1 on, under the same pin, against the tasks its open findings name.

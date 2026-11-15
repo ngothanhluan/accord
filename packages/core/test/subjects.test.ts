@@ -83,7 +83,7 @@ const T1 = 'accord/tickets/T-1.md';
 const withCommits = (commits: string): string => CONFIG + commits;
 const stageOf = (config: string, subject: string | undefined): string | undefined => {
   const files = { ...approved({ 'accord/config.yml': config, [T1]: laneTicket('T-1') }, 'T-1'), 'accord/tickets/T-1/plan.md': PLAN };
-  const planFacts = subject === undefined ? {} : { 'T-1': { subject, clean: true } };
+  const planFacts: Record<string, { subject?: string; clean: boolean }> = subject === undefined ? {} : { 'T-1': { subject, clean: true } };
   return statusRows(loadSnapshot({ files, tree: [], planFacts })).find((r) => r.id === 'T-1')?.stage;
 };
 

@@ -4,7 +4,7 @@
 // committed or pushed here: the onboarding skill does that.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { appendConfigList, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from '@accord-dev/accord-core';
+import { appendConfigList, DEFAULT_SUBJECTS, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
 import type { LoadFinding } from '@accord-dev/accord-core';
 import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
@@ -12,7 +12,7 @@ import type { CommandContext } from '../run.js';
 const FILE = 'accord/config.yml';
 const KEYS = 'the keys are in packages/core/schemas/config.schema.json (schemas/config.schema.json in the published @accord-dev/accord-core)';
 
-/** What a change brings with it beyond the key itself: the ids it keeps valid (`legacy_ids`), later the subjects it still accepts (D-11). One entry per list, each added item on its own output line. */
+/** What a change brings with it beyond the key itself: the ids it keeps valid (`legacy_ids`) and the commit subjects it still reads (`commits.legacy_subjects.<name>`) (D-11). One entry per list, each added item on its own output line. */
 interface Consequence {
   key: string;
   added: string[];
@@ -36,7 +36,7 @@ function read(ctx: CommandContext, key: string): { path: string[]; file: string;
  * legacy_ids in the same edit, before the schema check, so no ticket is renamed and lint stays green; ids are only ever added.
  * Every id the clone knows counts: tickets, records, claims, and the history of every ref already fetched.
  */
-function withConsequences(ctx: CommandContext, path: string[], before: string, edited: string | undefined): { text: string | undefined; consequences: Consequence[] } {
+function withIdConsequences(ctx: CommandContext, path: string[], before: string, edited: string | undefined): { text: string | undefined; consequences: Consequence[] } {
   if (edited === undefined || edited === before || (path[0] !== 'ids' && path[0] !== 'people')) return { text: edited, consequences: [] };
   const next = loadConfig(FILE, edited).config; // an invalid result is refused by commit with its own findings
   const known = [
@@ -46,6 +46,39 @@ function withConsequences(ctx: CommandContext, path: string[], before: string, e
   const added = idConsequences(ctx.snapshot.config, next, known);
   if (added.length === 0) return { text: edited, consequences: [] };
   return { text: appendConfigList(edited, ['legacy_ids'], added), consequences: [{ key: 'legacy_ids', added }] };
+}
+
+/**
+ * ST-LN-50 D-06: a changed `commits.subjects.<name>` can strand a claim or a plan-ready commit written under the template it replaces. The
+ * replaced template, which is today's default when none was set, is appended to `commits.legacy_subjects.<name>` in the same edit, before the
+ * schema check, unless it is listed already or equals the new one. Read from the text, not the schema-checked config, so a file that
+ * fails the schema still gets the old template kept; templates are only ever added.
+ */
+function withSubjectConsequences(before: string, edited: string | undefined): { text: string | undefined; consequences: Consequence[] } {
+  if (edited === undefined || edited === before) return { text: edited, consequences: [] };
+  const template = (text: string, name: string): string | undefined => {
+    const v = getConfigValue(text, ['commits', 'subjects', name]);
+    return typeof v === 'string' ? v : undefined;
+  };
+  let text = edited;
+  const consequences: Consequence[] = [];
+  for (const name of SUBJECT_NAMES) {
+    const was = template(before, name) ?? DEFAULT_SUBJECTS[name];
+    const now = template(edited, name) ?? DEFAULT_SUBJECTS[name];
+    const listed = getConfigValue(text, ['commits', 'legacy_subjects', name]);
+    if (was === now || (Array.isArray(listed) && listed.includes(was))) continue;
+    const appended = appendConfigList(text, ['commits', 'legacy_subjects', name], [was]);
+    if (appended === undefined) continue; // a key that holds something else: `commit` refuses the result with its own finding
+    text = appended;
+    consequences.push({ key: `commits.legacy_subjects.${name}`, added: [was] });
+  }
+  return { text, consequences };
+}
+
+function withConsequences(ctx: CommandContext, path: string[], before: string, edited: string | undefined): { text: string | undefined; consequences: Consequence[] } {
+  const ids = withIdConsequences(ctx, path, before, edited);
+  if (path[0] !== 'commits') return ids;
+  return withSubjectConsequences(before, ids.text);
 }
 
 const describe = (f: LoadFinding): string => `${f.pointer !== undefined && f.pointer !== '' ? f.pointer + ' ' : ''}${f.reason}`;
@@ -68,7 +101,7 @@ function report(ctx: CommandContext, key: string, from: unknown, to: unknown, co
       ? JSON.stringify({ key, from: from ?? null, to: to ?? null, consequences }, null, 2) + '\n'
       : same
         ? `unchanged: ${key}\n`
-        : `changed: ${key} ${shown(from)} -> ${shown(to)}\n` + consequences.flatMap((c) => c.added.map((a) => `${c.key} +${a}\n`)).join(''),
+        : `changed: ${key} ${shown(from)} -> ${shown(to)}\n` + consequences.flatMap((c) => c.added.map((a) => `${c.key} +${c.key === 'legacy_ids' ? a : JSON.stringify(a)}\n`)).join(''),
   );
   return 0;
 }

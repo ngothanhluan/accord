@@ -25,6 +25,7 @@ import { reviewPackage } from './commands/review-package.js';
 import { round } from './commands/round.js';
 import { scoutCheckCommand } from './commands/scout.js';
 import { skills } from './commands/skills.js';
+import { subject } from './commands/subject.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
@@ -258,6 +259,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--reason <reason>', 'why the ticket is dropped; replaces the ## Dropped section')
     .action((id: string, o: { reason?: string }) => {
       setCode(drop(preflight(opts), id, o));
+    });
+
+  // ST-LN-50 D-06: the subject of a commit accord writes, rendered from the team's template, so skills never carry a literal one.
+  program
+    .command('subject <name> <id> [tail...]')
+    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill) and a ticket id, from commits.subjects; a tail, such as a round count, follows after one space')
+    .action((name: string, id: string, tail: string[]) => {
+      setCode(subject(preflight(opts), name, id, tail));
     });
 
   // ST-LN-50 D-11: the deterministic way to change accord/config.yml; every subcommand reads the repository, so each goes

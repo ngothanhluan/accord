@@ -86,7 +86,9 @@ function mentions(files: SkillFile[]): Mention[] {
           // ST-LN-50: `accord subject` takes a subject name (`plan_ready`, `intent`) as its first argument, so the lowercase word after it is an argument, not a path.
           // CR-02: `accord config set git.merge 'squash'` names a key, and the word run stops at its first dot: the key is an argument of config get, set and unset too.
           const keyed = /^config (?:get|set|unset)\b/.exec(command)?.[0];
-          found.push({ where: `${path}:${i + 1}`, command: command.startsWith('subject ') ? 'subject' : (keyed ?? command) });
+          // Round 3 WR-02: `accord trust git.sync` names a script, and a quoted refusal says `accord trust in "<path>"`: what follows trust is never a path.
+          const argued = ['subject', 'trust'].find((c) => command.startsWith(c + ' '));
+          found.push({ where: `${path}:${i + 1}`, command: argued ?? keyed ?? command });
         }
       }
     });

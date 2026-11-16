@@ -449,13 +449,19 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   };
   const textsOf = (n: number) => ({ round: n, lines: cyc.rounds[n - 1].findings.map((f) => f.text) });
   const findingsFor = (s: number) => (L === s ? [textsOf(s)] : [textsOf(s), textsOf(L)]);
+  // ST-LN-56 D-17: a stop names the fixes still waiting for their re-review, as a second reason, so no stop that names them is the cap-only stop that lets the verdict be written.
+  const pending =
+    awaiting.length === 0
+      ? []
+      : [`the fixes ${awaiting.join(', ')} still wait for their re-review (D-17): no verdict before a round not headed (added code round 1) answers them; past the cap that round needs the owner's Ruling allowing it`];
   const stop = (reasons: string[], s: number, extra: Partial<RoundAnswer> = {}): RoundAnswer => ({
     ...base,
     kind: 'stop',
     cycle: k,
     round: L,
     cap: st.cap,
-    reasons: [...reasons, ...(claimError === undefined ? [] : [claimError])],
+    reasons: [...reasons, ...pending, ...(claimError === undefined ? [] : [claimError])],
+    ...(awaiting.length === 0 ? {} : { reReview: awaiting }),
     findings: findingsFor(s),
     ...(lane ? { approach: approachOf(snapshot, id) } : {}),
     ...extra,
@@ -500,6 +506,8 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   if (L > 0 && cyc.rounds[L - 1].noFindings) {
     const blocked = blockedRefusal(`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached`);
     if (blocked !== undefined) return blocked;
+    // D-17: a fix still waits for its re-review, so the loop has not ended: the owner decides on one more round
+    if (awaiting.length > 0) return stop([`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached`], L);
     return { ...refuseCap(`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached; the loop has ended: write the verdict`), cycle: k, round: L, cap: st.cap };
   }
   if (capped) {
@@ -562,6 +570,9 @@ export function roundText(answer: RoundAnswer): string {
   const noun = NOUN[answer.record];
   const out = ['stop: report to owner'];
   for (const r of answer.reasons) out.push(`Reason: ${r}`);
+  if (answer.reReview !== undefined) {
+    out.push(`Re-review: ${answer.reReview.join(', ')}: no verdict before a round not headed (added code round 1) answers these fixes (D-17); past the cap, only after the owner's Ruling below allows that round`);
+  }
   for (const f of answer.findings ?? []) out.push(`Findings of round ${f.round}:`, ...f.lines);
   if (answer.approach !== undefined) out.push('Approach:', ...answer.approach);
   out.push(
@@ -570,7 +581,8 @@ export function roundText(answer: RoundAnswer): string {
       : answer.record === 'approach'
         ? "Ask the owner whether to change course: weigh the other options of the planner's direction report against going on."
         : 'Ask the owner whether to change course: weigh the options the Approach above rejected or held in reserve against going on.',
-    `To accept the open findings: end ${file} with the line verdict: accepted-by-owner "<the owner's sentence>"`,
+    `To accept the open findings: end ${file} with the line verdict: accepted-by-owner "<the owner's sentence>"` +
+      (answer.reReview === undefined ? '' : ' (it answers no fix still waiting for its re-review: allow that round instead)'),
     `To allow more rounds: add under ## Rulings in the ledger: Ruling: the owner allows <n> more ${noun} rounds after round ${answer.allowAfter ?? answer.round} of cycle ${answer.cycle} — "<the owner's sentence>" — <cost if wrong>`,
   );
   if (!answer.laneS && answer.record === 'approach') {

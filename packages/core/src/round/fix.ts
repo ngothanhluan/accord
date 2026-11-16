@@ -57,7 +57,7 @@ const RANK: Record<RoundFinding['severity'], number> = { Nice: 0, Should: 1, Mus
  * `not addressed:` answer names. `carried from` names a round of the same cycle only, so across a cycle the file and the severity are the match.
  */
 const reportedAgain = (round: { findings: readonly RoundFinding[] }, f: RoundFinding): boolean =>
-  round.findings.some((x) => RANK[x.severity] >= Math.max(RANK[f.severity], 1) && x.file !== undefined && (x.file === f.file || x.file === f.notAddressed?.file));
+  round.findings.some((x) => RANK[x.severity] >= RANK[f.severity] && x.file !== undefined && (x.file === f.file || x.file === f.notAddressed?.file));
 
 /** One way the fix record is wrong: `rule` says which gate row names it (`places`: gate.fix-places-missing, `answer`: gate.fix-not-addressed, `outside`: gate.fix-outside-open). */
 export interface FixProblem {
@@ -151,7 +151,7 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
         add(
           f.line,
           'answer',
-          `${where}, ${which} is marked not addressed: and round 1 of cycle ${at.cycle + 1} reports no ${f.severity === 'Must' ? 'Must' : 'Must or Should'} in ${files} again: ` +
+          `${where}, ${which} is marked not addressed: and round 1 of cycle ${at.cycle + 1} reports no ${f.severity === 'Must' ? 'Must' : f.severity === 'Should' ? 'Must or Should' : 'finding'} in ${files} again: ` +
             "round 1 of the next cycle reports a NOT ADDRESSED finding of a cycle's last round as its own open finding, in the same file and at least as severe (D-10)",
         );
       } else if (f.notAddressed !== undefined && carryAsked && !carried) {

@@ -1,7 +1,7 @@
 // ST-LN-56 56-ac-1 (D-08, D-16): the finding grammar reads the marks `checked:`, `addressed:` and `not addressed:`, and a fix recorded as `fixed in <sha>` without the places it
 // checked is refused at gate done from the 0.6.0 cut-off, in lane M and in lane S, naming the round and the finding.
 import { expect, it } from 'vitest';
-import { FIX_RECORD_FROM, fixProblems, gateDone, nextRound, parseRounds } from '../src/index.js';
+import { FIX_RECORD_FROM, blockingFindings, fixProblems, gateDone, nextRound, parseRounds } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 
@@ -128,4 +128,90 @@ it('ac-1 accord round refuses the review round for a fix recorded without the pl
   // with the mark the round is asked for, and a ticket claimed before 0.6.0 is answered as before
   expect(nextRound(build({ lines: [finding1, FIXED + places], claim }), 'T-1', 'review').kind).toBe('next');
   expect(nextRound(build({ lines: [finding1, FIXED], claim: { pin: '0.5.1' } }), 'T-1', 'review').kind).toBe('next');
+});
+
+// ST-LN-56 56-ac-2 (D-10, D-17), plan 04-08 Task 2: a fixed finding closes only on the re-review's `addressed:` mark.
+const ANSWER = 'gate.fix-not-addressed';
+const FIXC = FIXED + places; // finding 2 of its round, fixed with its places
+const ADDRESSED = ' — addressed: src/a.ts:5';
+const NOT_ADDRESSED = ' — not addressed: src/a.ts:5';
+const CARRY = 'Must 1 [patch]: the writer still drops the header — src/a.ts:3 — open — carried from 1.2';
+const buildN = (rounds: string[][], claim: ClaimPin | undefined = { pin: FIX_RECORD_FROM }, lane?: 'M' | 'S'): RepoSnapshot =>
+  withPin(
+    scopeSnapshot({
+      ...(lane === undefined ? {} : { lane }),
+      review: v2Review([rounds.map((lines) => ({ lines }))]),
+      facts: facts(rounds.map(() => [])),
+    }),
+    claim,
+  );
+const answers = (snap: RepoSnapshot): string[] => gateDone(snap, 'T-1').findings.filter((f) => f.rule === ANSWER).map((f) => f.reason);
+const next = (snap: RepoSnapshot) => nextRound(snap, 'T-1', 'review');
+const refusal = (snap: RepoSnapshot): string => {
+  const a = next(snap);
+  expect(a.kind).toBe('refused');
+  return a.reasons.join('\n');
+};
+
+it('ac-2 a fixed finding closes only on the re-review\'s addressed: mark (ST-LN-56 56-ac-2)', () => {
+  for (const lane of [undefined, 'S'] as const) {
+    const at = (rounds: string[][], claim?: ClaimPin | undefined) => buildN(rounds, claim ?? { pin: FIX_RECORD_FROM }, lane);
+    // a round followed by another with no answer on the fixed finding: gate done and accord round both refuse, naming it
+    const missing = at([[FIXC], []]);
+    expect(answers(missing), String(lane)).toHaveLength(1);
+    expect(answers(missing)[0], String(lane)).toContain('round 1');
+    expect(answers(missing)[0], String(lane)).toContain('finding 2');
+    expect(answers(missing)[0], String(lane)).toContain('addressed:');
+    expect(refusal(missing), String(lane)).toContain('finding 2');
+
+    // `addressed:` closes it
+    const closed = at([[FIXC + ADDRESSED], []]);
+    expect(answers(closed), String(lane)).toEqual([]);
+    expect(next(closed).kind, String(lane)).toBe('next');
+
+    // `not addressed:` must be carried by the next round
+    const carried = at([[FIXC + NOT_ADDRESSED], [CARRY]]);
+    expect(answers(carried), String(lane)).toEqual([]);
+    expect(next(carried).kind, String(lane)).toBe('next');
+    const dropped = at([[FIXC + NOT_ADDRESSED], []]);
+    expect(answers(dropped), String(lane)).toHaveLength(1);
+    expect(answers(dropped)[0], String(lane)).toContain('carried from 1.2');
+    expect(refusal(dropped), String(lane)).toContain('carried from 1.2');
+
+    // both marks on one line, and an answer on a finding that is not fixed in a commit
+    expect(refusal(at([[FIXC + ADDRESSED + NOT_ADDRESSED], []])), String(lane)).toContain('addressed');
+    const misplaced = at([['Must 1 [patch]: x — src/a.ts:3 — open' + ADDRESSED]]);
+    expect(answers(misplaced), String(lane)).toHaveLength(1);
+    expect(answers(misplaced)[0], String(lane)).toContain('not fixed');
+    expect(refusal(misplaced), String(lane)).toContain('finding 1');
+
+    // the last round's fix has had no re-review: gate done refuses it (D-17), accord round does not, whatever the fix carries
+    for (const line of [FIXC, FIXC + ADDRESSED]) {
+      const last = at([[line]]);
+      expect(answers(last), String(lane)).toHaveLength(1);
+      expect(answers(last)[0], String(lane)).toContain('D-17');
+      expect(answers(last)[0], String(lane)).toContain('round 1');
+      expect(next(last).kind, String(lane)).toBe('next');
+    }
+    // a final round with no fixed finding is not asked for an answer
+    expect(answers(at([[FIXC + ADDRESSED], [CARRY]])), String(lane)).toEqual([]);
+
+    // the cut-off: before 0.6.0, and for a claim fact whose ruleset is older, nothing is asked
+    for (const claim of [{ pin: '0.5.1' }, { pin: '0.6.0', ruleset: '0.5.1' }]) {
+      const old = at([[FIXC], []], claim);
+      expect(answers(old), String(lane)).toEqual([]);
+      expect(next(old).kind, String(lane)).toBe('next');
+    }
+  }
+});
+
+it('risk:security an open risk finding still blocks whatever marks it carries (ST-LN-56 56-ac-2)', () => {
+  const risk = 'Must 1 [patch]: the export leaks a token — src/a.ts:3 — open — risk: security';
+  for (const marks of ['', ADDRESSED, ' — checked: src/a.ts:3']) {
+    const snap = buildN([[], [], [risk + marks]]);
+    const cycle = snap.work?.['T-1']?.rounds?.cycles[0];
+    expect(blockingFindings(cycle!), marks).toEqual([{ round: 3, lines: [expect.stringContaining('risk: security')] }]);
+    // the stop and gate done: the round of an open risk finding still stops the loop for the owner, and a new mark closes nothing
+    expect(gateDone(snap, 'T-1').findings.some((f) => f.rule === 'gate.review-rounds' && f.reason.includes('still reports')), marks).toBe(true);
+  }
 });

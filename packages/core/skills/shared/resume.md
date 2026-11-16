@@ -1,0 +1,33 @@
+---
+kind: reference
+---
+
+# Resuming a file an agent was still writing
+
+The planner, the verifier and the debugger write their file in parts. The first
+thing each writes is the line `<!-- accord: unfinished -->`; each part follows
+when it is finished; the last thing each does is remove the line. A file that
+still carries it was left by an agent that stalled, so it is not finished.
+`accord gate plan` and `accord gate done` refuse such a file, and `accord anchor`
+prints an `Unfinished:` line for it. Never commit it as finished, and never
+finish the agent's parts yourself.
+
+**Plan.** A `plan.md` the anchor shows at `Stage: plan` is not committed as
+ready. When `accord anchor` prints
+`Unfinished: accord/tickets/<id>/plan.md: resume the planner`, dispatch
+`accord-planner` with the inputs of step 2 plus the path of `plan.md` and the
+words `resume mode`. It keeps every finished task and writes the rest. Then go
+on at step 4.
+
+**Verify.** When the line ends `: resume the verifier`, dispatch
+`accord-verifier` with the path of `accord/tickets/<id>.md`, the path of
+`accord/tickets/<id>/verification.md` and the words `resume mode`; it keeps
+every finished block. When it ends `: start the verifier over`, the work moved
+since the blocks were written, so remove `verification.md` and dispatch the
+verifier as step 3 does, with no `resume mode`.
+
+**Debug.** When the first line of `debug.md` is `<!-- accord: unfinished -->`, dispatch
+`accord-debugger` with the path of the ticket file, the failing command and its
+output, the path of `debug.md` and the words `resume mode`; it keeps every
+finished part and goes on from the last one. A debugger dispatched on one
+hypothesis in a parallel round writes nothing, so it never leaves the line.

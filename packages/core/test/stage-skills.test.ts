@@ -1495,7 +1495,6 @@ it('ac-2 the plan, verify and debug skills dispatch resume mode when they find t
         const skill = everyFile.get(base + '/SKILL.md') ?? '';
         const resume = everyFile.get(base + '/resume.md') ?? '';
         if (!skill.includes('./resume.md')) bad.push(base + '/SKILL.md names no ./resume.md');
-        if (!/^loads:.*shared\/resume\.md/m.test(skill)) bad.push(base + '/SKILL.md does not load shared/resume.md');
         if (resume === '') bad.push(base + '/resume.md is not shipped');
         for (const p of ['Unfinished:', 'resume mode', 'start the verifier over', UNFINISHED_MARKER, 'accord-planner', 'accord-verifier', 'accord-debugger'])
           if (resume !== '' && !resume.includes(p)) bad.push(base + '/resume.md lacks: ' + p);

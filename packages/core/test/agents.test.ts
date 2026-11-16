@@ -19,7 +19,7 @@ const AGENT_REQUIRED: Record<string, readonly string[]> = {
   critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should', '## Failure modes', '(new, like', 'spellings'],
   planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes', UNFINISHED_MARKER, 'under it first', 'append each task when it is finished', 'remove the line as your last step', '`resume mode`', 'keep every finished task'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S'],
-  verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md', UNFINISHED_MARKER, 'under it first', 'only once its `Result:` and evidence are final', 'remove the line as your last step', '`resume mode`', 'keep every finished block', 'told to start over, write the file anew'],
+  verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md', UNFINISHED_MARKER, 'under it first', 'only once its result and its evidence are final', 'remove the line as your last step', '`resume mode`', 'keep every finished block', 'told to start over, write the file anew'],
   debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>', UNFINISHED_MARKER, 'first line of `debug.md`', 'as soon as it is done', 'remove the line as your last step', '`resume mode`', 'keep every finished part'],
 };
 
@@ -94,7 +94,7 @@ it('ac-2 the planner, verifier and debugger write behind the unfinished marker, 
       const need = [UNFINISHED_MARKER, '`resume mode`', 'remove the line as your last step', 'keep every finished'];
       if (role === 'verifier') need.push('told to start over, write the file anew', 'never a half block');
       if (role === 'planner') need.push('append each task when it is finished', 'never a half task');
-      if (role === 'debugger') need.push('first line of `debug.md`', 'as soon as it is done', 'In a parallel round', 'write nothing');
+      if (role === 'debugger') need.push('first line of `debug.md`', 'as soon as it is done', 'in a parallel round, you test only that hypothesis, write nothing');
       for (const p of need) if (!text.includes(p)) bad.push(runtime + ' ' + f.path + ' lacks: ' + p);
       if (role === 'debugger' && !/^tools: "[^"]*\bEdit\b/m.test(f.text)) bad.push(runtime + ' ' + f.path + ' has no Edit tool');
     }

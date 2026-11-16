@@ -4,7 +4,7 @@ description: Use when a lane M ticket's work behaves unexpectedly, a test fails 
 license: MIT
 argument-hint: "[ticket id] [failure]"
 kind: skill
-loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
+loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/resume.md]
 ---
 
 This stage finds a root cause before anything is fixed. You run it in the
@@ -22,7 +22,7 @@ main session and orchestrate: debuggers investigate, executors fix.
    each episode by appending `## Episode <n>` to it; the episode is open
    while the last `## ` heading in the file is not `## Resolved`.
 
-3. **Root cause.** No fix before a root cause. Dispatch a fresh
+3. **Root cause.** No fix before a root cause. When `debug.md` starts with the unfinished marker, follow `./resume.md`. Dispatch a fresh
    `accord-debugger` with the path of the ticket file and the failing
    command and its output, or the report alone when it gives neither. It writes `debug.md`:
    - competing hypotheses, each with evidence for and against, ranked

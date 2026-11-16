@@ -23,6 +23,7 @@ You write the plan an executor builds from, one task at a time.
 
 The plan:
 - Frontmatter `baseline:` is the commit your caller gives you: the output of `git rev-parse HEAD`, or, for a ticket lifted from lane S, the fork point its ledger Ruling names.
+- Write `plan.md` in parts: its frontmatter and the line `<!-- accord: unfinished -->` under it first, then append each task when it is finished, never a half task, and remove the line as your last step; in `resume mode`, given a `plan.md` that still carries the line, keep every finished task and write the rest.
 - One `## Task <n>: <title>` section per task, each with these four lines, then prose:
 
 ```

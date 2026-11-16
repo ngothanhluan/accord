@@ -18,28 +18,37 @@ export function commitSeconds(out: string): number {
   return Number(text);
 }
 
-/** HEAD's committer time (`ct`) or author time (`at`) in whole seconds. */
-function headSeconds(root: string, field: 'ct' | 'at'): number {
-  return commitSeconds(
-    execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%' + field, 'HEAD'], {
-      cwd: root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      maxBuffer: 64 * 1024 * 1024,
-    }),
-  );
+/** HEAD's committer time (`ct`, the test report's freshness) and author time (`at`, the executor report's), in whole seconds. */
+export interface HeadTimes { ct: number; at: number }
+
+/** HeadTimes from one `git show -s`. */
+function headTimes(root: string): HeadTimes {
+  const out = execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%ct %at', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const [ct, at] = out.trim().split(' ');
+  return { ct: commitSeconds(ct ?? ''), at: commitSeconds(at ?? '') };
 }
+
+/** headTimes(root) read on the first call only, so task-done asks git once however many of its checks need HEAD's times. */
+const headTimesOnce = (root: string): (() => HeadTimes) => {
+  let times: HeadTimes | undefined;
+  return () => (times ??= headTimes(root));
+};
 
 /**
  * shortcut: compares whole seconds (git's %ct), so a report written in the same second as the commit, but
  * before it, counts as fresh; upgrade to a content check if that ever lets a stale report through.
  */
-export function staleReport(ctx: CommandContext): string | undefined {
+export function staleReport(ctx: CommandContext, times: () => HeadTimes = headTimesOnce(ctx.root)): string | undefined {
   const report = ctx.snapshot.config?.tests?.report;
   if (report === undefined || ctx.snapshot.tests === undefined) return undefined; // taskVerdict reports this
   // D-51: the raw config value may carry a backslash; the loader read the file under the slashed key.
   const rel = normaliseKey(report);
-  const committed = headSeconds(ctx.root, 'ct') * 1000;
+  const committed = times().ct * 1000;
   const written = Math.floor(statSync(join(ctx.root, ...rel.split('/'))).mtimeMs / 1000) * 1000;
   return written < committed ? `${rel} was written before the last commit; run the tests again` : undefined;
 }
@@ -49,12 +58,12 @@ export function staleReport(ctx: CommandContext): string | undefined {
  * wave's integration moves committer time and not this), or without its red-reason and self-review lines. None for a ticket claimed before TASK_REPORT_FROM; the same claim read
  * decides `accord brief`'s ask, and a failed read gives the check (fail closed). The CLI checks that the lines are there, not that they are true, and never reads `config.runtimes` (D-18).
  */
-function reportProblems(ctx: CommandContext, id: string, n: number, sha: string): string[] {
+function reportProblems(ctx: CommandContext, id: string, n: number, sha: string, times: () => HeadTimes): string[] {
   if (claimPinBefore(withClaimPins(ctx.root, ctx.snapshot, id), id, TASK_REPORT_FROM)) return [];
   const rel = reportRel(id, n);
   const report = readReport(ctx.root, id, n);
   if (report === undefined) return [`the executor report ${rel} is missing: the executor writes it as its last step`];
-  if (Math.floor(report.mtimeMs / 1000) < headSeconds(ctx.root, 'at')) {
+  if (Math.floor(report.mtimeMs / 1000) < times().at) {
     return [`the executor report ${rel} was written before HEAD's commit ${sha}: the executor writes it after its last commit`];
   }
   return reportReasons(report.text);
@@ -98,8 +107,9 @@ export function taskDone(ctx: CommandContext, id: string, task: string, pairs: s
   const ticketFile = join(ctx.root, ...ticket.file.split('/'));
   const maps = planOff ? testMaps : (workOf(ctx.snapshot, id)?.plan?.tasks.find((t) => t.n === n)?.maps ?? []);
   // A recorded task is re-checked only for tags: the committed ledger makes HEAD newer than the report.
-  const stale = next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx) : undefined;
-  const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale]), ...(next === undefined ? [] : reportProblems(ctx, id, n, sha))];
+  const times = headTimesOnce(ctx.root);
+  const stale = next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx, times) : undefined;
+  const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale]), ...(next === undefined ? [] : reportProblems(ctx, id, n, sha, times))];
   if (next !== undefined && ctx.snapshot.config?.commits?.trailers === 'forbid') {
     const done = workOf(ctx.snapshot, id)?.ledger?.done ?? {};
     const below = Object.keys(done).map(Number).filter((k) => k < n);

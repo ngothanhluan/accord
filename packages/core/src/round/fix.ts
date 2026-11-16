@@ -132,32 +132,38 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
   return out.sort((a, b) => a.line - b.line);
 }
 
+/**
+ * The verdict form of fixProblems, computed once per snapshot and ticket for the three gate rows that read it (gate done runs all three on one snapshot). The verdict form only adds
+ * `answer` problems, so `places` and `outside` read the same from it. A snapshot is never changed after load (a host that adds a fact builds a new object), so a kept answer cannot go stale.
+ */
+const verdictForms = new WeakMap<RepoSnapshot, Map<string, FixProblem[]>>();
+function verdictProblems(snapshot: RepoSnapshot, id: string): FixProblem[] {
+  let byId = verdictForms.get(snapshot);
+  if (byId === undefined) verdictForms.set(snapshot, (byId = new Map()));
+  let found = byId.get(id);
+  if (found === undefined) byId.set(id, (found = fixProblems(snapshot, id, { verdict: true })));
+  return found;
+}
+
+/** One gate row: the verdict-form problems of `rule`, as findings on review.md. */
+const fixRow =
+  (rule: FixProblem['rule']): GateRule['check'] =>
+  (snapshot, id) => {
+    const rec = workOf(snapshot, id)?.rounds;
+    if (rec === undefined) return [];
+    return verdictProblems(snapshot, id)
+      .filter((p) => p.rule === rule)
+      .map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
+  };
+
 /** gate.fix-places-missing: a fixed finding of review.md with no checked: mark, from FIX_RECORD_FROM, in lane M and lane S. */
-export const fixPlacesMissing: GateRule['check'] = (snapshot, id) => {
-  const rec = workOf(snapshot, id)?.rounds;
-  if (rec === undefined) return [];
-  return fixProblems(snapshot, id)
-    .filter((p) => p.rule === 'places')
-    .map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
-};
+export const fixPlacesMissing: GateRule['check'] = fixRow('places');
 
 /** gate.fix-not-addressed: a fix no re-review answered with `addressed:`, a `not addressed:` finding nothing carried, a misplaced answer, or the last round's fix, from FIX_RECORD_FROM, in lane M and lane S. */
-export const fixNotAddressed: GateRule['check'] = (snapshot, id) => {
-  const rec = workOf(snapshot, id)?.rounds;
-  if (rec === undefined) return [];
-  return fixProblems(snapshot, id, { verdict: true })
-    .filter((p) => p.rule === 'answer')
-    .map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
-};
+export const fixNotAddressed: GateRule['check'] = fixRow('answer');
 
 /** gate.fix-outside-open: a re-review finding outside the fix diff left open or deferred with no ledger line, from FIX_RECORD_FROM, in lane M and lane S (D-10). */
-export const fixOutsideOpen: GateRule['check'] = (snapshot, id) => {
-  const rec = workOf(snapshot, id)?.rounds;
-  if (rec === undefined) return [];
-  return fixProblems(snapshot, id)
-    .filter((p) => p.rule === 'outside')
-    .map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
-};
+export const fixOutsideOpen: GateRule['check'] = fixRow('outside');
 
 /** D-10: the findings of one cycle (0-based) that are outside the fix diff and written deferred with their ledger line; they leave the stop and start no round. */
 export function fixDeferred(snapshot: RepoSnapshot, id: string, cycle: number): ReadonlySet<RoundFinding> {

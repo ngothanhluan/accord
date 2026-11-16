@@ -65,3 +65,34 @@ it('risk:regression a ticket claimed under 0.5.1 answers as before while HEAD is
     cleanup(repo);
   }
 }, 120_000);
+
+it('ac-1 accord round refuses a lane M fix with no places-checked line on real git, reading the claim pin (ST-LN-56 56-ac-1)', async () => {
+  const { repo, write } = fixed('0.6.0');
+  try {
+    write('');
+    const refused = await run(['round', 'T-1'], repo);
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain('refused:');
+    expect(refused.out).toContain('round 1');
+    expect(refused.out).toContain('finding 1');
+    expect(refused.out).toContain('checked:');
+
+    write(' — checked: src/a.ts:1, src/b.ts');
+    const next = await run(['round', 'T-1'], repo);
+    expect(next.out).toContain('Round: 2 of 5');
+    expect(next.code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+
+  // the claim pin decides, not the working tree: claimed under 0.5.1 while HEAD is pinned 0.6.0
+  const older = fixed('0.5.1');
+  try {
+    older.write('');
+    const r = await run(['round', 'T-1'], older.repo);
+    expect(r.out).toContain('Round: 2 of 5');
+    expect(r.code).toBe(0);
+  } finally {
+    cleanup(older.repo);
+  }
+}, 120_000);

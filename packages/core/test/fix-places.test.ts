@@ -1,7 +1,7 @@
 // ST-LN-56 56-ac-1 (D-08, D-16): the finding grammar reads the marks `checked:`, `addressed:` and `not addressed:`, and a fix recorded as `fixed in <sha>` without the places it
 // checked is refused at gate done from the 0.6.0 cut-off, in lane M and in lane S, naming the round and the finding.
 import { expect, it } from 'vitest';
-import { FIX_RECORD_FROM, fixProblems, gateDone, parseRounds } from '../src/index.js';
+import { FIX_RECORD_FROM, fixProblems, gateDone, nextRound, parseRounds } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 
@@ -114,4 +114,18 @@ it('risk:regression a failed claim read applies the places rule with the git-err
   expect(reasons(build({ lines: [FIXED + places], claim: { error: 'fatal: bad object deadbeef' } }))).toEqual([]);
   // no claim fact at all: the working-tree pin decides, as every Phase 4 rule reads it
   expect(Array.isArray(reasons(build({ lines: [FIXED] })))).toBe(true);
+});
+
+// ST-LN-56 56-ac-1, the round half (plan 04-08 Task 1): `accord round` refuses the next review round while a fixed finding has no places-checked mark.
+it('ac-1 accord round refuses the review round for a fix recorded without the places it checked (ST-LN-56 56-ac-1)', () => {
+  const claim = { pin: FIX_RECORD_FROM };
+  const refused = nextRound(build({ lines: [finding1, FIXED], claim }), 'T-1', 'review');
+  expect(refused.kind).toBe('refused');
+  const text = refused.reasons.join('\n');
+  expect(text).toContain('round 1');
+  expect(text).toContain('finding 2');
+  expect(text).toContain('checked:');
+  // with the mark the round is asked for, and a ticket claimed before 0.6.0 is answered as before
+  expect(nextRound(build({ lines: [finding1, FIXED + places], claim }), 'T-1', 'review').kind).toBe('next');
+  expect(nextRound(build({ lines: [finding1, FIXED], claim: { pin: '0.5.1' } }), 'T-1', 'review').kind).toBe('next');
 });

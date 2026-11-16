@@ -6,17 +6,37 @@ import { headingKey, scan } from './sections.js';
 /** The not-finished marker: alone on its line in the body, which a writer puts right after the frontmatter's closing `---`. The writer removes it as its last step. */
 export const UNFINISHED_MARKER = '<!-- accord: unfinished -->';
 
+// A fence opener, indented or inside a list item (`- ```` / `1. ```` on the item's own line): the indentation is any run of spaces or tabs, since a fence nested in a list item sits at the item's own
+// indentation, deeper than CommonMark's three spaces. The section scanner reads column 0 only and its other callers (headings, scope, requirements) rely on that, so this check reads its own.
+const FENCE_OPEN = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/;
+const FENCE_CLOSE = /^[ \t]*(`{3,}|~{3,})[ \t]*$/;
+
 /**
  * The 1-based line of UNFINISHED_MARKER in `body`, the part of a file after its frontmatter that the loader already split (`bodyOffset` lines precede it): the first body line that is the marker
- * once trimmed and lies outside every fenced code block (``` or ~~~, the fences of the section scanner); undefined otherwise. It fails closed (ST-LN-72 review round 2): a heading or a paragraph
- * before the marker does not hide it, so a half-written file cannot pass a gate. Only a quote inside a fence (pasted test output, a plan's example) is evidence rather than a flag. The marker in the
- * frontmatter is a YAML comment, never a body line. The body is normalised already (no BOM, LF), so a CRLF file reads as an LF one.
+ * once trimmed and lies outside every fenced code block (``` or ~~~, at column 0, indented, or inside a list item); undefined otherwise. It fails closed (ST-LN-72 review round 2): a heading or a
+ * paragraph before the marker does not hide it, so a half-written file cannot pass a gate. Only a quote inside a fence (pasted test output, a plan's example, evidence under a list item) is evidence
+ * rather than a flag (round 3: an indented fence counts too). A fence closes on the same character, at least as long as its opener; an unterminated one runs to the end. The marker in the frontmatter
+ * is a YAML comment, never a body line. The body is normalised already (no BOM, LF), so a CRLF file reads as an LF one.
  */
 export function unfinishedLine(body: string, bodyOffset = 0): number | undefined {
-  const quoted = new Set<number>();
-  for (const f of scan(body, bodyOffset).fences) for (let n = f.open; n <= f.close; n++) quoted.add(n);
-  const i = body.split('\n').findIndex((l, k) => l.trim() === UNFINISHED_MARKER && !quoted.has(bodyOffset + k + 1));
-  return i >= 0 ? bodyOffset + i + 1 : undefined;
+  let fence: string | undefined;
+  const lines = body.split('\n');
+  for (let k = 0; k < lines.length; k++) {
+    const text = lines[k];
+    if (fence !== undefined) {
+      const close = FENCE_CLOSE.exec(text);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = undefined;
+      continue;
+    }
+    const open = FENCE_OPEN.exec(text);
+    // CommonMark: a backtick fence's info string may not contain a backtick.
+    if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
+      fence = open[1];
+      continue;
+    }
+    if (text.trim() === UNFINISHED_MARKER) return bodyOffset + k + 1;
+  }
+  return undefined;
 }
 
 /**

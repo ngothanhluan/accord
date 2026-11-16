@@ -107,6 +107,33 @@ describe('unfinished marker: read on the raw text', () => {
   });
 });
 
+describe('unfinished marker: indented fences', () => {
+  it('risk:parsing a marker quoted inside a fence indented under a list item is evidence, while one outside any fence still counts (ST-LN-72 review round 3)', () => {
+    const M = UNFINISHED_MARKER;
+    const read = (...lines: string[]) => unfinishedLine(lines.join('\n'));
+    // the finding's case: a fence inside a list item
+    expect(read('- Evidence:', '  ```', `  ${M}`, '  ```', '')).toBeUndefined();
+    // up to three spaces (CommonMark), a tilde fence, a numbered item, a deeper nesting, and a fence opened on the item's own line
+    expect(read('   ```', `   ${M}`, '   ```')).toBeUndefined();
+    expect(read('  ~~~text', `  ${M}`, '  ~~~')).toBeUndefined();
+    expect(read('1. Output:', '   ```', `   ${M}`, '   ```')).toBeUndefined();
+    expect(read('- a', '  - b', '    ```', `    ${M}`, '    ```')).toBeUndefined();
+    expect(read('- ```', `  ${M}`, '  ```')).toBeUndefined();
+    // fail closed: a plain marker after the indented fence closes counts, at its own line
+    expect(read('- Evidence:', '  ```', `  ${M}`, '  ```', M, '')).toBe(5);
+    expect(read('- Evidence:', '  ```', '  out', '  ```', '', `  ${M}`)).toBe(6);
+    // a closing fence must match the opener's character and be at least as long, as at column 0
+    expect(read('  ```', '  ~~~', M, '  ```', M)).toBe(5);
+    // a column-0 fence still hides it, and an unterminated indented fence runs to the end of the file
+    expect(read('```', M, '```')).toBeUndefined();
+    expect(read('  ```', M)).toBeUndefined();
+    // a backtick in a backtick fence's info string is no fence, so the marker below it counts
+    expect(read('  ``` a`b', M)).toBe(2);
+    // the offset still shifts the line
+    expect(unfinishedLine(['  ```', `  ${M}`, '  ```', M].join('\n'), 10)).toBe(14);
+  });
+});
+
 describe('unfinished marker: gate plan', () => {
   it('risk:complex-branching a plan quoting the marker inside a fence is not refused, and one carrying it under a heading is (ST-LN-72 review round 2)', () => {
     const quoting = planWith(undefined) + ['```', UNFINISHED_MARKER, '```', ''].join('\n');

@@ -849,7 +849,7 @@ describe('plan contract checks', () => {
       expect(r.code).toBe(1);
       expect(r.out).toContain('gate.task-file-unknown');
       expect(r.out).toContain('src/nope.ts');
-      writeFiles(repo, { 'accord/tickets/T-1/plan.md': readFileSync(planPath(repo), 'utf8').replace('src/nope.ts', 'src/nope.ts (new)') });
+      writeFiles(repo, { 'accord/tickets/T-1/plan.md': readFileSync(planPath(repo), 'utf8').replace('src/nope.ts', 'src/nope.ts (new, like src/export.ts)') });
       expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
     } finally {
       cleanup(repo);

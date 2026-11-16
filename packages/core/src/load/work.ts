@@ -80,6 +80,56 @@ function afterField(lines: Line[]): PlanTask['after'] {
   return undefined;
 }
 
+// ST-LN-10 D-12: the two clauses a new path may carry. Each pattern is anchored with one flat quantifier per group, no nested quantifier. The model is one token with no whitespace, comma or parenthesis,
+// in one optional pair of backticks; the reason holds no parenthesis (a clause ends at its first `)`) and at least one non-space character, checked after the match.
+const LIKE_CLAUSE = /^\(new,\s*like\s+(`[^\s,()`]+`|[^\s,()`]+)\s*\)$/;
+const NO_MODEL_CLAUSE = /^\(new,\s*no model:([^()]*)\)$/;
+
+/** What a `(new…` clause says of its path, `clause` being the text from `(new` to its first `)` (or the end of the value), trimmed: a model, a reason, or itself as unread. */
+function clauseModel(clause: string): Omit<PlanTask['models'][number], 'path'> {
+  const like = LIKE_CLAUSE.exec(clause);
+  if (like !== null) return { like: like[1].startsWith('`') ? like[1].slice(1, -1) : like[1] };
+  const none = NO_MODEL_CLAUSE.exec(clause);
+  const reason = none === null ? '' : none[1].trim();
+  return reason === '' ? { unread: clause } : { none: reason };
+}
+
+/**
+ * The `files:` value of a task as `{ files, newFiles, models }`. A path is a token (whitespace or commas separate them); a bare `(new)` marks the path before it as created, and a
+ * leading one marks nothing. ST-LN-10 D-12: a clause that opens at `(new` followed by whitespace, a comma or the end of the value, in any case, and ends at its first `)` (or at the end of
+ * the value when unclosed), marks the path before it as created too, and says its model (`(new, like <path>)`) or why there is none (`(new, no model: <reason>)`), or is `unread`. The clause is lifted
+ * before the value is split, so its words never become paths, and `files` and `newFiles` hold what a bare `(new)` makes them hold. One pass over the value: each clause is read once and the scan resumes after it.
+ */
+function readFiles(value: string): { files: string[]; newFiles: string[]; models: PlanTask['models'] } {
+  const files: string[] = [];
+  const newFiles: string[] = [];
+  const models: PlanTask['models'] = [];
+  const mark = (what: Omit<PlanTask['models'][number], 'path'>): void => {
+    if (files.length === 0) return;
+    const path = files[files.length - 1];
+    newFiles.push(path);
+    models.push({ path, ...what });
+  };
+  const paths = (text: string): void => {
+    for (const t of tokens(text)) {
+      if (t !== '(new)') files.push(t);
+      else mark({});
+    }
+  };
+  const open = /\(new(?=[\s,]|$)/gi;
+  let from = 0;
+  for (let m = open.exec(value); m !== null; m = open.exec(value)) {
+    paths(value.slice(from, m.index));
+    const close = value.indexOf(')', m.index);
+    const end = close === -1 ? value.length : close + 1;
+    mark(clauseModel(value.slice(m.index, end).trim()));
+    from = end;
+    open.lastIndex = end;
+  }
+  paths(value.slice(from));
+  return { files, newFiles, models };
+}
+
 // The body lines above the first task heading (1-based Markdown line), or the whole body when there is none.
 function preamble(body: string, bodyOffset: number, taskLine: number | undefined): string {
   if (taskLine === undefined) return body;
@@ -113,17 +163,11 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
     }
     const found = fieldLines(s.lines);
     const fields: Partial<Record<Field, string[]>> = {};
-    for (const k of ['covers', 'files', 'verify'] as const) {
+    for (const k of ['covers', 'verify'] as const) {
       const v = found[k];
       if (v !== undefined) fields[k] = tokens(v.value);
     }
-    // `(new)` marks the path before it; a leading one marks nothing.
-    const files: string[] = [];
-    const newFiles: string[] = [];
-    for (const t of fields.files ?? []) {
-      if (t !== '(new)') files.push(t);
-      else if (files.length > 0) newFiles.push(files[files.length - 1]);
-    }
+    const { files, newFiles, models } = found.files === undefined ? { files: [], newFiles: [], models: [] } : readFiles(found.files.value);
     // `(@ac-n)` maps the test id before it to that scenario; a leading one maps nothing.
     const verify: string[] = [];
     const maps: PlanTask['maps'] = [];
@@ -139,6 +183,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       covers: fields.covers ?? [],
       files,
       newFiles,
+      models,
       verify,
       maps,
       lines: s.lines,

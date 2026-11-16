@@ -66,6 +66,8 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.task-code-block': 'plan',
   'gate.task-too-long': 'plan',
   'gate.task-file-unknown': 'plan',
+  'gate.task-model-missing': 'plan',
+  'gate.task-model-unknown': 'plan',
   'gate.plan-ac-uncovered': 'plan',
   'gate.plan-decision-uncited': 'plan',
   'gate.plan-ref-unknown': 'plan',

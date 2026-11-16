@@ -2,6 +2,10 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- A new path in a plan names a model file (from 0.6.0). A path a plan task creates is written on its `files:` line as `<path> (new, like <path of an existing file of the same kind>)`, or `<path> (new, no model: <reason>)` when no file of that kind exists yet. `accord gate plan` refuses a bare `(new)` (`gate.task-model-missing`) and a model that does not exist at the plan baseline (`gate.task-model-unknown`), each naming the task and the path. A ticket claimed before 0.6.0 keeps the bare `(new)` and answers as before; a repository pinned to 0.5.x keeps its answers, and the planner and plan checker it has installed, until `accord upgrade`. The planner and the plan checker also ask for the valid spellings of a `risk:parsing` task's input and for a `## Failure modes` section after the last task (the likeliest failures no task's tests exercise); that adds no gate rule. Every tool that installs accord agents gets the asks (today Claude Code only).
+
 ## 0.5.1 — 2026-11-16
 
 - Argument hints: every installed skill now carries `argument-hint` in its frontmatter, so the slash-command picker shows what to type after the name: `/accord [request | continue <id> | pick-up <id> | upgrade]`, `/accord-intent`, `/accord-approach`, `/accord-plan`, `/accord-build`, `/accord-review` and `/accord-verify` `[ticket id]` (the ticket of the current branch when left out), `/accord-debug [ticket id] [failure]` and `/accord-designer <ticket id>`. It is the one frontmatter key outside the Agent Skills spec that accord ships: two runtimes show it, the other two ignore it, and the same text still goes into both `.claude/skills` and `.agents/skills`. A spec-strict packager or uploader refuses the key; an installed skill is never packaged or uploaded. Repositories pinned to an older accord get the hints at `accord upgrade`, which regenerates the skills.

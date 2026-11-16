@@ -1,7 +1,7 @@
 // ST-LN-91 mig-ac-1 and D-15 in core: a ticket at approach claimed under 0.4.0 answers as before at the discuss cut-off, for gate ready,
 // `accord round --approach` and gate plan; the new rules read the claim pin, never the working-tree pin or the approach record's own pin.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, DISCUSS_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, DISCUSS_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_MODEL_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { building, CONFIG } from '../../../test/helpers/lane.js';
 
@@ -252,4 +252,13 @@ it('risk:regression the five Phase 3 cut-offs are one release, so one claim pin 
   const cutoffs = { DISCUSS_FROM, APPROACH_CAP_FROM, PLAN_FORMAT_FROM, PLAN_CAP_FROM, PLAN_GROUNDS_FROM };
   expect(new Set(Object.values(cutoffs)).size, JSON.stringify(cutoffs)).toBe(1);
   expect(CUT).toBe(DISCUSS_FROM);
+});
+
+// Phase 4 (D-16): every rule it adds cuts off at one release, so one claim pin decides them all at once. Plans 04-04, 04-06, 04-07 and 04-13 append
+// UNFINISHED_FROM, TASK_REPORT_FROM, FIX_RECORD_FROM and PLAN_WAVES_FROM here.
+const PHASE4_CUT: string[] = [PLAN_MODEL_FROM];
+
+it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
+  expect(PHASE4_CUT.length, 'the list names no constant').toBeGreaterThan(0);
+  for (const v of PHASE4_CUT) expect(v).toBe('0.6.0');
 });

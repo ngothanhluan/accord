@@ -333,7 +333,17 @@ export function gitPlanHistory(
   const sha = plan?.baseline;
   if (plan === undefined || sha === undefined || !isSha(sha)) return {};
   const ancestors = gitAncestors(root, [sha]);
-  const wanted = { [sha]: [...new Set(plan.tasks.flatMap((t) => t.files.filter((f) => !t.newFiles.includes(f))))] };
+  // ST-LN-10: the model file of each new path is asked of git too, so baselineFiles answers for it (gate.task-model-unknown).
+  const wanted = {
+    [sha]: [
+      ...new Set(
+        plan.tasks.flatMap((t) => [
+          ...t.files.filter((f) => !t.newFiles.includes(f)),
+          ...t.models.flatMap((m) => (m.like === undefined ? [] : [m.like])),
+        ]),
+      ),
+    ],
+  };
   const baselineFiles = gitBaselineFiles(root, wanted, ancestors);
   const pins = gitPlanPins(root, sha);
   return {

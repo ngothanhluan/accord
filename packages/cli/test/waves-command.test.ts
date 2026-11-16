@@ -1,8 +1,15 @@
 // ST-LN-92 92-ac-1: `accord waves <id>` prints the parallel cap and the plan's tasks left to build, grouped into waves, end to end on real git.
-// The cap (build.parallel, D-05) never changes how the tasks are grouped.
-import { describe, expect, it } from 'vitest';
-import { cleanup, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG } from '../../../test/helpers/lane.js';
+// The cap (build.parallel, D-05) never changes how the tasks are grouped. The CLI here runs as the cut-off release (0.6.0) while the package is still
+// 0.5.1, so gate plan's after: cycle rule (PLAN_WAVES_FROM) is read at the version that ships it; CONFIG pins the running version, so 0.6.0 too.
+import { describe, expect, it, vi } from 'vitest';
+import { PLAN_WAVES_FROM } from '@accord-dev/accord-core';
+import { cleanup, commitAll, commitMsg, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, laneTicket, pinned } from '../../../test/helpers/lane.js';
+
+vi.mock('../package.json', async (orig) => {
+  const m = await orig<{ default: Record<string, unknown> }>();
+  return { default: { ...m.default, version: '0.6.0' } };
+});
 
 const HEAD = ['---', 'baseline: abc1234', '---', '', '# Plan', ''];
 const task = (n: number, files: string, after: string): string =>
@@ -40,6 +47,50 @@ describe('accord waves', () => {
       expect(none.out).toBe('Parallel: 1\nNo task left to build\n');
     } finally {
       cleanup(repo);
+    }
+  });
+});
+
+interface Found { rule: string; level: string; reason?: string; file?: string; line?: number }
+/** `accord gate plan T-1 --json`: its exit code and its gate.task-after-cycle findings. */
+const cycleGate = async (repo: string): Promise<{ code: number; found: Found[] }> => {
+  const r = await run(['gate', 'plan', 'T-1', '--json'], repo);
+  return { code: r.code, found: (JSON.parse(r.out).findings as Found[]).filter((f) => f.rule === 'gate.task-after-cycle') };
+};
+/** Tasks 2 and 3 name each other in their after: lines; `fixed` gives task 3 `after: 1` instead. */
+const cyclePlan = (fixed = false): string =>
+  [...HEAD, task(1, 'src/export.ts', 'none'), task(2, 'src/export.ts', '3'), task(3, 'src/export.ts', fixed ? '1' : '2')].join('\n');
+const cycleRuntimes = (config: string, runtimes: string): string => config.replace(/^runtimes: .*$/m, `runtimes: ${runtimes}`);
+
+describe('gate plan and the after: cycle', () => {
+  it('ac-1 gate plan refuses an after: cycle on real git (ST-LN-92 92-ac-1)', async () => {
+    for (const runtimes of ['[claude]', '[codex, cursor, copilot]']) {
+      // D-18: the rule is a CLI check, so a repository with no accord agent installed (runtimes without claude) gets it too
+      const head = cycleRuntimes(CONFIG, runtimes);
+      expect(head, runtimes).toContain(`runtimes: ${runtimes}\n`);
+      const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1'), 'accord/config.yml': head });
+      try {
+        await run(['approve', 'T-1'], repo);
+        writeFiles(repo, { 'accord/config.yml': cycleRuntimes(pinned(PLAN_WAVES_FROM), runtimes) });
+        commitMsg(repo, 'claim: T-1');
+        writeFiles(repo, { 'accord/config.yml': head, 'notes.txt': 'work after the claim\n' });
+        const baseline = commitAll(repo);
+        writeFiles(repo, { 'accord/tickets/T-1/plan.md': cyclePlan().replace('abc1234', baseline) });
+        commitAll(repo);
+
+        const got = await cycleGate(repo);
+        expect(got.code, runtimes).toBe(1);
+        expect(got.found.map((f) => [f.file, f.level, f.reason]), runtimes).toEqual([
+          ['accord/tickets/T-1/plan.md', 'error', 'tasks 2, 3 name each other in their after: lines, a cycle no wave order can meet'],
+        ]);
+
+        // the cycle removed: no finding
+        writeFiles(repo, { 'accord/tickets/T-1/plan.md': cyclePlan(true).replace('abc1234', baseline) });
+        commitAll(repo);
+        expect((await cycleGate(repo)).found, runtimes).toEqual([]);
+      } finally {
+        cleanup(repo);
+      }
     }
   });
 });

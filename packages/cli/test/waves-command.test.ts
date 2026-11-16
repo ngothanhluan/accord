@@ -84,6 +84,15 @@ describe('gate plan and the after: cycle', () => {
           ['accord/tickets/T-1/plan.md', 'error', 'tasks 2, 3 name each other in their after: lines, a cycle no wave order can meet'],
         ]);
 
+        // accord waves reads the same cycle: one task at a time, in number order, with its reason; the Order: line describes the plan, so it stays
+        // when no task is left (04-13 Ruling)
+        const seq = await run(['waves', 'T-1'], repo);
+        expect(seq.code, runtimes).toBe(0);
+        expect(seq.out, runtimes).toBe('Parallel: 3\nOrder: one task at a time — tasks 2, 3 form a cycle\nWave 1: 1\nWave 2: 2\nWave 3: 3\n');
+        writeFiles(repo, { 'accord/tickets/T-1/ledger.md': LEDGER });
+        expect((await run(['waves', 'T-1'], repo)).out, runtimes).toBe('Parallel: 3\nOrder: one task at a time — tasks 2, 3 form a cycle\nNo task left to build\n');
+        writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n' });
+
         // the cycle removed: no finding
         writeFiles(repo, { 'accord/tickets/T-1/plan.md': cyclePlan(true).replace('abc1234', baseline) });
         commitAll(repo);

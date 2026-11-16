@@ -1,8 +1,8 @@
 // ST-LN-92 92-ac-1: the wave builder groups a plan's tasks into waves from their `after:` and `files:` lines. Every task an `after:` line names sits in an
 // earlier wave, no two tasks of one wave share a path, and the tasks the ledger records are left out. Plans are parsed from text, as the loader reads them.
 import { describe, expect, it } from 'vitest';
-import { buildWaves, gatePlan, loadSnapshot, PLAN_WAVES_FROM } from '../src/index.js';
-import type { Finding, PlanTask } from '../src/index.js';
+import { afterCycles, buildWaves, DEFAULT_PARALLEL, gatePlan, loadSnapshot, parallelOf, PLAN_WAVES_FROM, sequentialReason } from '../src/index.js';
+import type { AccordConfig, Finding, PlanTask } from '../src/index.js';
 import { parsePlan } from '../src/load/work.js';
 import { approved } from './helpers/approve.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
@@ -81,5 +81,57 @@ describe('the wave builder', () => {
   it('risk:complex-branching after: to a higher-numbered task is honoured (ST-LN-92 92-ac-1)', () => {
     const tasks = tasksOf(task(1, 'src/a.ts', '3'), task(2, 'src/b.ts', 'none'), task(3, 'src/c.ts', 'none'));
     expect(buildWaves(tasks, new Set())).toEqual([[2, 3], [1]]);
+  });
+
+  it('risk:complex-branching the wave builder falls back to one task at a time and splits case-folded paths (ST-LN-92 92-ac-1)', () => {
+    const SEQ = [[1], [2], [3]];
+    // a task with no after: line (a plan written before the format): one task per wave, in number order
+    const noAfter = tasksOf(task(1, 'src/a.ts', 'none'), task(2, 'src/b.ts', 'none'), task(3, 'src/c.ts', 'none').replace('after: none\n', ''));
+    expect(noAfter[2].after).toBeUndefined();
+    expect(sequentialReason(noAfter)).toBe('a task has no after: line');
+    expect(buildWaves(noAfter, new Set())).toEqual(SEQ);
+
+    // an after: token that is not read: sequential, naming the token
+    const unread = tasksOf(task(1, 'src/a.ts', 'none'), task(2, 'src/b.ts', 'first'), task(3, 'src/c.ts', 'none'));
+    expect(unread[1].after?.unread).toEqual(['first']);
+    expect(sequentialReason(unread)).toBe('task 2 after: holds first, which is not read');
+    expect(buildWaves(unread, new Set())).toEqual(SEQ);
+
+    // a self reference, a three-task cycle and two separate cycles: sequential with the reason, and the builder returns (no hang)
+    const self = tasksOf(task(1, 'src/a.ts', 'none'), task(2, 'src/b.ts', '2'), task(3, 'src/c.ts', 'none'));
+    expect(sequentialReason(self)).toBe('task 2 after: names itself');
+    expect(buildWaves(self, new Set())).toEqual(SEQ);
+    const three = tasksOf(task(1, 'src/a.ts', '3'), task(2, 'src/b.ts', '1'), task(3, 'src/c.ts', '2'));
+    expect(afterCycles(three)).toEqual([[1, 2, 3]]);
+    expect(sequentialReason(three)).toBe('tasks 1, 2, 3 form a cycle');
+    expect(buildWaves(three, new Set())).toEqual(SEQ);
+    expect(buildWaves(three, new Set([2]))).toEqual([[1], [3]]); // a recorded task never appears, the order stays sequential
+    const twoCycles = tasksOf(task(1, 'src/a.ts', '2'), task(2, 'src/b.ts', '1'), task(3, 'src/c.ts', '4'), task(4, 'src/d.ts', '3'));
+    expect(afterCycles(twoCycles)).toEqual([[1, 2], [3, 4]]);
+    expect(sequentialReason(twoCycles)).toBe('tasks 1, 2 form a cycle');
+    expect(buildWaves(twoCycles, new Set())).toEqual([[1], [2], [3], [4]]);
+    // a long chain closed into a cycle: the iterative cycle reading neither overflows nor hangs
+    const chain = tasksOf(...Array.from({ length: 400 }, (_, i) => task(i + 1, `src/f${i + 1}.ts`, String(i === 0 ? 400 : i))));
+    expect(afterCycles(chain)).toHaveLength(1);
+    expect(buildWaves(chain, new Set())).toHaveLength(400);
+
+    // two paths that differ only in letter case never share a wave (they collide on Windows and macOS)
+    const cased = tasksOf(task(1, 'src/A.ts', 'none'), task(2, 'src/a.ts', 'none'), task(3, 'src/b.ts', 'none'));
+    expect(buildWaves(cased, new Set())).toEqual([[1, 3], [2]]);
+
+    // an after: naming a recorded task sets no order, and a recorded task never appears
+    const recorded = tasksOf(task(1, 'src/a.ts', 'none'), task(2, 'src/b.ts', '1'), task(3, 'src/c.ts', '2'));
+    expect(buildWaves(recorded, new Set([1]))).toEqual([[2], [3]]);
+    expect(buildWaves(recorded, new Set([2]))).toEqual([[1, 3]]);
+    expect(buildWaves(recorded, new Set([1, 2, 3]))).toEqual([]);
+  });
+
+  it('risk:parsing the cap reads 1 to 99 and falls back to 3 outside it (ST-LN-92 92-ac-2)', () => {
+    const cap = (parallel?: string): number => parallelOf(parallel === undefined ? undefined : ({ build: { parallel } } as unknown as AccordConfig));
+    expect(cap()).toBe(DEFAULT_PARALLEL);
+    expect(DEFAULT_PARALLEL).toBe(3);
+    expect(cap('1')).toBe(1);
+    expect(cap('99')).toBe(99);
+    for (const v of ['0', '100', '03', 'x', '']) expect(cap(v), v).toBe(DEFAULT_PARALLEL); // the schema refuses these; a hand edit past it still builds
   });
 });

@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
+import { loadSnapshot } from '@accord-dev/accord-core';
+import { worksTicket } from '../src/commands/worktree.js';
 import * as proc from '../src/load/proc.js';
 import { cleanup, commitMsg, gitRun, run } from './helpers/repo.js';
 import { A, A2, B, C, C3, clearOf, clone, copy, DEAD, doneOnRemote, envOf, HELD, heldBy, holdsFile, lines, LIVE, mergeOnRemote, PIN, pinnedWorktree, readHolds, setTable, stopLines, T, tableOf, ticketWorktree, useSandboxes, verifyStage, WORKS, writeHolds } from './helpers/worktree.js';
@@ -816,4 +818,25 @@ it('risk:parsing a hold written without a folder is refused as folder not record
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(B));
   expect(r.code).toBe(2);
   expect(r.err).toContain('Claude Code session sess-H (pid 4242), folder not recorded, since 2026-10-18 07:00 (UTC+07:00) - work it there');
+}, 120_000);
+
+it('risk:security a session in a task worktree is not taken for the ticket worktree (ST-LN-92 92-ac-2)', async () => {
+  const c = copy();
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin'); // H7: no fetch in this scenario
+  // made with git as `accord worktree task open` would (the running version is below the 0.6.0 cut-off until the release)
+  const task = `${sib}-t2`;
+  gitRun(sib, 'worktree', 'add', '-q', '-b', 'accord-task/ST-9/2', task, 'HEAD');
+  const snapshot = loadSnapshot({ files: { 'accord/config.yml': readFileSync(`${c.root}/accord/config.yml`, 'utf8'), 'accord/tickets/ST-9.md': readFileSync(`${c.root}/accord/tickets/ST-9.md`, 'utf8') }, tree: [] });
+  expect(worksTicket(task, undefined, snapshot)).toBeUndefined();
+  expect(worksTicket(sib, undefined, snapshot)?.id).toBe('ST-9');
+  // through the guard: the task worktree's session is refused nothing, as in a folder of no ticket; the ticket worktree's is refused other work
+  setTable(tableOf(A));
+  const there = await run(['worktree', 'check'], task, envOf(A));
+  expect(there.err).toBe('');
+  expect(there.code).toBe(0);
+  const ticket = await run(['worktree', 'check'], sib, envOf(A));
+  expect(ticket.code).toBe(2);
+  for (const w of WORKS) expect(ticket.err).toContain(w);
 }, 120_000);

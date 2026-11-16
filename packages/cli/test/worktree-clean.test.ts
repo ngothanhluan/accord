@@ -1286,3 +1286,22 @@ for (const how of ['squash', 'rebase'] as const) {
     expect(has(bulk.root, 'refs/heads/t/ST-9')).toBe(true);
   }, 180_000);
 }
+
+it('risk:data-loss accord worktree clean leaves a live task worktree and its branch (ST-LN-92 92-ac-2)', async () => {
+  const c = copy();
+  ticketWorktree(c, 'ST-9');
+  // made with git as `accord worktree task open` would (the running version is below the 0.6.0 cut-off until the release); its commit is in no other branch
+  const task = `${c.sibling('ST-9')}-t2`;
+  gitRun(c.sibling('ST-9'), 'worktree', 'add', '-q', '-b', 'accord-task/ST-9/2', task, 'HEAD');
+  writeFiles(task, { 'task2.txt': 'task 2\n' });
+  const work = commitMsg(task, 'task 2');
+  doneOnRemote(c, ['ST-9']);
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(existsSync(c.sibling('ST-9'))).toBe(false);
+  expect(existsSync(task)).toBe(true);
+  expect(c.git('rev-parse', 'refs/heads/accord-task/ST-9/2').trim()).toBe(work);
+  expect(readFileSync(`${task}/task2.txt`, 'utf8')).toBe('task 2\n');
+  expect(out).not.toContain('accord-task/');
+});

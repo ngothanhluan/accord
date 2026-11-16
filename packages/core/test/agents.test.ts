@@ -15,7 +15,7 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 
 // What each agent must name, asserted over the RENDERED agent file, as REQUIRED is over a rendered skill.
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
-  executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings', 'red reason:', 'self-review: missing:', 'concerns:', 'Report file:', 'only what your own change caused', 'git revert', 'own fix commits', 'never a reset', 'BLOCKED: conflict', 'places checked:'],
+  executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings', 'red reason:', 'red reason: no red test — <why>', 'self-review: missing:', 'concerns:', 'Report file:', 'only what your own change caused', 'git revert', 'own fix commits', 'never a reset', 'BLOCKED: conflict', 'places checked:'],
   critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should', '## Failure modes', '(new, like', 'spellings'],
   planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes', UNFINISHED_MARKER, 'under it first', 'append each task when it is finished', 'remove the line as your last step', '`resume mode`', 'keep every finished task'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S', 'ADDRESSED <path>:<line>', 'NOT ADDRESSED', 'Deferred:'],

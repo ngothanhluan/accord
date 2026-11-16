@@ -43,6 +43,11 @@ it('risk:parsing the report lines read one way whatever their spacing and line e
     ]);
   }
   expect(reportReasons(SELF + '\n')).toEqual(['the executor report has no "red reason:" line naming the behaviour the red test showed missing']);
+  // a task with honestly no red test (its test came with an earlier task, or every scenario is @ui) says so with its reason; the contract and the executor are told how
+  for (const value of ['no red test — the test was written in task 1', 'No red test: every scenario of this ticket is @ui']) {
+    expect(reportReasons('red reason: ' + value + '\n' + SELF + '\n'), value).toEqual([]);
+  }
+  expect(REPORT_CONTRACT).toContain('red reason: no red test — <why>');
   // the contract's own lines, pasted unchanged, pass nothing
   expect(reportReasons(REPORT_CONTRACT)).toHaveLength(4);
 

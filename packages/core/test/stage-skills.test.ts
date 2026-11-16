@@ -436,9 +436,7 @@ it('ac-1 record.md and lane S step 4 name the places-checked and re-review marks
     '`- review <r>.<n>[ cycle <k>]: <finding> — failing case: <case>`',
     'never deferred',
     'closes on its',
-    'gate.fix-places-missing',
-    'gate.fix-not-addressed',
-    'gate.fix-outside-open',
+    'refuse a fix',
     'from accord 0.6.0',
   ];
   for (const dir of skillDirs(all)) {

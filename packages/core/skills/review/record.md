@@ -33,6 +33,13 @@ Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <path>[:<line>] 
   `command: <command>` when a failing test or a command reproduces it; `rests on: ac-<n>`, `rests on: D-<nn>`,
   `rests on: Veto "<quote>"`, `rests on: Correction "<quote>"` (from accord 0.4.1) or `rests on: Intent "<quote>"`, a quote
   of at least three words from that section.
+- From accord 0.6.0 a finding `fixed in <sha>` also carries `checked: <path>[:<line>], …`, the places the executor's
+  `places checked: <n>: …` line for that finding lists, copied. The re-review, the next round, is given the findings it
+  re-checks and answers each, `<r>.<n>: ADDRESSED <path>:<line>` or `<r>.<n>: NOT ADDRESSED <path>:<line> — <what still fails>`;
+  write that answer on the finding it answers, in round `<r>`, as `addressed: <path>:<line>` or `not addressed: <path>:<line>`.
+  `fixed in <sha>` records the fix only: a finding closes on its `addressed:` answer, never on `fixed in` alone. A NOT
+  ADDRESSED finding is written again in the re-review round as an open finding marked `carried from <r>.<n>`, and is fixed
+  and re-reviewed like any other. A ticket claimed before 0.6.0 and a version 1 record keep their rules.
 - Rounds are counted within the cycle. From round 2 (accord 0.4.1 and later; round 3 before it) a Must or Should not
   carried from an earlier round, whose location is not a file the previous round's fix changed, blocks only with
   `test:`, `command:` or a `risk:` mark. Otherwise write it `deferred` and add the line
@@ -46,6 +53,13 @@ Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <path>[:<line>] 
   new Must or Should also needs `rests on:`, `test:`, `command:` or a `risk:` mark; without one, write it `deferred`
   with the ledger line above ending ` — failing case: <case>` (before accord 0.4.1 a Should is written as a Nice). A
   `risk:` finding is never deferred: it blocks in every round.
+- From accord 0.6.0 a Must or Should the re-review reports outside the fix diff (in a file the previous round's fix did not
+  change, or located `none`; not carried, not in an `(added code round 1)` or `(final review)` round, no `risk:` mark) is
+  written `deferred` with the line `- review <r>.<n>[ cycle <k>]: <finding> — failing case: <case>` under `## Deferred`, and
+  starts no round. A `risk: data-loss` or `risk: security` finding is never deferred, in any round: it stays an open numbered finding.
+- From accord 0.6.0 `accord round` and `accord gate done` refuse a fixed finding with no `checked:` mark; one with no
+  `addressed:` or `not addressed:` answer after a later round of its cycle, a `not addressed:` finding no later round
+  carries, or a last round whose fix no re-review has answered; and an outside-diff finding left open.
 - A round's fix is every commit after its head, up to the next round's head or, after the last round, to the
   last commit, but merges of the default branch, a debug episode's commits and commits that change only the
   ticket's records. Each file a fix changes is the location of a finding of that round, or a Ruling under
@@ -69,8 +83,8 @@ Before writing the verdict, run `accord round <id>`. Exit 0, or a stop whose onl
 
 The single last line of the file is the verdict:
 
-- `verdict: converged` when, after the final review, no Must is open and
-  every Should is fixed with that command passing: `tests.affected` over
+- `verdict: converged` when, after the final review, no Must or Should is open, every fixed finding is answered `addressed:`, and the test command passes
+  (a ticket claimed before 0.6.0: every Should is fixed, no answer needed): `tests.affected` over
   the files the fix touched, or `tests.full` when `tests.affected` is not
   configured or finds no test file; a Must or Should deferred under the
   evidence rule, with its `## Deferred` line, does not block it;

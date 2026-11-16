@@ -35,7 +35,7 @@ fix.
 4. **Classify.** De-duplicate the findings, then mark each one `patch`, `plan-gap`, or `intent-gap`.
    - Fix every Must and Should marked `patch` through `accord-build`'s executor path. Commit the round to `review.md` as
      `./record.md` says. Write a brief file outside the working tree: copy the ticket file byte
-     for byte (never retype it), then append the findings to fix. Dispatch a fresh `accord-executor` with its path and
+     for byte (never retype it), then append the findings to fix and ask for one `places checked: <n>: <path>[:<line>], …` line per finding. Dispatch a fresh `accord-executor` with its path and
      step 6's `model`, and route its stops as `accord-build` does.
    - When it reports, run the `tests.affected` command over the files the fix touched, or `tests.full`
      when `tests.affected` is not configured or finds no test file. If it fails, dispatch a fresh
@@ -43,15 +43,15 @@ fix.
    - Copy every Ruling in its report, and each file outside the plan you accept, or that the fix changed with no
      finding of the round in it, as a Ruling naming the file and its reason, into
      `accord/tickets/<id>/ledger.md` under `## Rulings`; commit the ledger.
-   - When the round reported a Must, re-review only the fix diff:
+   - After every fix round, a Should-only one included, re-review only the fix diff:
      `accord review-package <id>` into a file outside the working tree, one
-     reviewer, lens `both`. When it reported only Should findings, no reviewer is dispatched again for
-     that fix: that command passing checks it.
+     reviewer, lens `both`, given the findings it re-checks and asked for one line each,
+     `<r>.<n>: ADDRESSED <path>:<line>` or `<r>.<n>: NOT ADDRESSED <path>:<line>`; record its answers as `./record.md` says.
    - A plan gap goes back to `accord-plan` as a re-plan, where the critic runs again; with the plan stage off, stop and ask the owner.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
 
-5. **Converged** means no Must is open and every Should is fixed with that command passing; a finding deferred
+5. **Converged** means no Must or Should is open, every fixed finding is answered `addressed:`, and that command passes; a finding deferred
    under `./record.md`'s evidence rule, with its `## Deferred` line, does not block it.
 
 6. **Cap.** Run `accord round <id>` before each round and before the verdict. Exit 0 prints `Round: <n> of <cap>` and
@@ -61,9 +61,8 @@ fix.
 
 7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from
    `accord review-package <id> --base <the plan's baseline:>` (when the plan stage is off, `--base <the default branch>`), its round headed `(final review)` (over about 1500
-   changed lines, dispatch it with lens `integration`). If it finds a Must: one fix and one scoped re-review, as in
-   step 4. If it finds only Should findings, fix them and run that command as in step 4, with no re-review. If a Must is
-   still open after that, stop and ask the owner.
+   changed lines, dispatch it with lens `integration`). If it finds a Must or a Should: one fix and one scoped re-review, as in
+   step 4. If a Must is still open after that, stop and ask the owner.
 
 8. **Record.** Write every round to `accord/tickets/<id>/review.md` as `./record.md` says, ending `verdict: converged`, or,
    when the owner accepts any stop with findings still open, `verdict: accepted-by-owner` followed by the owner's sentence

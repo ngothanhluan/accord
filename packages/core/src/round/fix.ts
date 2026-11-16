@@ -50,8 +50,23 @@ const withNote = (snapshot: RepoSnapshot, id: string, reason: string): string =>
   return error === undefined ? reason : `${reason}; ${error}; the claim pin could not be read, so the fix record rules apply`;
 };
 
+const RANK: Record<RoundFinding['severity'], number> = { Nice: 0, Should: 1, Must: 2 };
+
+/**
+ * True when `round` (round 1 of the next cycle) reports the NOT ADDRESSED finding `f` again: a finding at least as severe, located in `f`'s file or in the file its
+ * `not addressed:` answer names. `carried from` names a round of the same cycle only, so across a cycle the file and the severity are the match.
+ */
+const reportedAgain = (round: { findings: readonly RoundFinding[] }, f: RoundFinding): boolean =>
+  round.findings.some((x) => RANK[x.severity] >= Math.max(RANK[f.severity], 1) && x.file !== undefined && (x.file === f.file || x.file === f.notAddressed?.file));
+
 /** One way the fix record is wrong: `rule` says which gate row names it (`places`: gate.fix-places-missing, `answer`: gate.fix-not-addressed, `outside`: gate.fix-outside-open). */
-export interface FixProblem { line: number; reason: string; rule: 'places' | 'answer' | 'outside' }
+export interface FixProblem {
+  line: number;
+  reason: string;
+  rule: 'places' | 'answer' | 'outside';
+  /** Set on the problems only the verdict form adds: the fix (`<r>.<n>`, ` cycle <k>` from cycle 2) whose re-review round has not run yet. `accord round` lists these and refuses none of them. */
+  awaiting?: string;
+}
 
 /**
  * The fix record rules, as problems in record line order, for each finding written `fixed in <sha>` (every severity and class: lane S lines have no class, and the grammar does not store it):
@@ -62,13 +77,15 @@ export interface FixProblem { line: number; reason: string; rule: 'places' | 'an
  * - outside (D-10): a re-review finding outside the fix diff (fixOutside) that is not written deferred with its ledger line;
  * - answer, with `o.verdict`: no fixed finding in the record's last round, which no re-review has answered yet (D-17), whatever marks it carries, and no unanswered fix that only
  *   `(added code round 1)` rounds followed.
- * `accord round` asks without `verdict` (the last round's fixes are the ones the round it is about to start re-reviews); gate done asks with it. None when the rules do not apply to this ticket.
+ * Each problem the verdict form adds carries `awaiting`. Gate done refuses them all; `accord round` refuses the others and prints the awaiting fixes on its `Re-review:` line, because the
+ * round it is about to start may be their re-review. None when the rules do not apply to this ticket.
  */
 export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: boolean } = {}): FixProblem[] {
   const rec = workOf(snapshot, id)?.rounds;
   if (rec === undefined || !fixOn(snapshot, id)) return [];
   const out: FixProblem[] = [];
-  const add = (line: number, rule: FixProblem['rule'], reason: string): number => out.push({ line, rule, reason: withNote(snapshot, id, reason) });
+  const add = (line: number, rule: FixProblem['rule'], reason: string, awaiting?: string): number =>
+    out.push({ line, rule, reason: withNote(snapshot, id, reason), ...(awaiting === undefined ? {} : { awaiting }) });
   const placed = placedRounds(rec);
   const lastRound = placed[placed.length - 1]?.round;
   for (const at of placed) {
@@ -84,6 +101,7 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
     const carryAsked = carriers.length > 0 && (k >= 0 || (o.verdict === true && rec.cycles[at.cycle] === undefined));
     for (const f of at.round.findings) {
       const which = `finding ${f.n ?? 'at line ' + f.line}`;
+      const fixId = `${at.p}.${f.n ?? '<n>'}${at.cycle >= 2 ? ' cycle ' + at.cycle : ''}`;
       const answered = f.addressed !== undefined || f.notAddressed !== undefined;
       if ((f.state === undefined || f.state === 'open' || f.state === 'deferred') && !deferredWithLine(snapshot, id, at, f) && outsideOf(snapshot, id, at, f)) {
         const cycle = at.cycle >= 2 ? ` cycle ${at.cycle}` : '';
@@ -119,15 +137,30 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
         add(
           f.line,
           'answer',
-          `${where}, ${which} is fixed in a commit after the last review round: every fix round gets a re-review that answers it before the verdict (D-17)`,
+          at.round === lastRound
+            ? `${where}, ${which} is fixed in a commit after the last review round: every fix round gets a re-review that answers it before the verdict (D-17)`
+            : `${where}, ${which} is fixed in a commit and only (added code round 1) rounds followed it, which are not asked for the answer: ` +
+                'run a re-review round given this finding and record its answer before the verdict (D-17)',
+          fixId,
         );
       }
-      if (f.notAddressed !== undefined && carryAsked && !carriers.some((r) => r.findings.some((x) => x.carried?.round === at.p && x.carried.n === f.n))) {
+      const carried = carriers.some((r) => r.findings.some((x) => x.carried?.round === at.p && x.carried.n === f.n));
+      const crossNext = k < 0 ? rec.cycles[at.cycle]?.rounds[0] : undefined;
+      if (f.notAddressed !== undefined && crossNext !== undefined && !carried && !reportedAgain(crossNext, f)) {
+        const files = [...new Set([f.file, f.notAddressed.file].filter((p) => p !== undefined))].join(' or ');
+        add(
+          f.line,
+          'answer',
+          `${where}, ${which} is marked not addressed: and round 1 of cycle ${at.cycle + 1} reports no ${f.severity === 'Must' ? 'Must' : 'Must or Should'} in ${files} again: ` +
+            "round 1 of the next cycle reports a NOT ADDRESSED finding of a cycle's last round as its own open finding, in the same file and at least as severe (D-10)",
+        );
+      } else if (f.notAddressed !== undefined && carryAsked && !carried) {
         add(
           f.line,
           'answer',
           `${where}, ${which} is marked not addressed: and no round from round ${at.p + 1} to round ${at.p + carriers.length} holds a finding "carried from ${at.p}.${f.n ?? '<n>'}": ` +
             'a later round of the cycle carries a finding that was not addressed (D-10)',
+          k < 0 ? fixId : undefined, // only added-code rounds so far: the re-review round to come may still carry it
         );
       }
     }

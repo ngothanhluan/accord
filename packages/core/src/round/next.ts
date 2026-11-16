@@ -31,6 +31,7 @@ export interface RoundAnswer {
   model?: string;
   modelFor?: number; // the round `model` is for
   addedCode?: true; // next on a version 2 review record: a debug episode or a merge added code that no round has reviewed (ST-LN-57)
+  reReview?: string[]; // next on a review record under the fix record rules: the fixes (`<r>.<n>[ cycle <k>]`) no re-review round has answered yet (ST-LN-56 D-17)
   checker?: true; // a plan `next` answer at round 1 whose cap rules are PLAN_CAP: the plan skill dispatches one plan checker (ST-LN-91 D-12)
 }
 
@@ -383,6 +384,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const lane = isLaneM(snapshot, id);
   const file = FILE[kind];
   const rec = recordOf(workOf(snapshot, id), kind);
+  let awaiting: string[] = []; // the fixes whose re-review round has not run yet (set below, read by `next`)
 
   const next = (round: number, cycle: number, cap: number): RoundAnswer => {
     const answer: RoundAnswer = { ...base, kind: 'next', cycle, round, cap, ...(kind === 'plan' && claimError !== undefined ? { reasons: [claimError] } : {}) };
@@ -395,6 +397,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
       }
     }
     if (kind === 'review' && pendingAddedCode(snapshot, id)) answer.addedCode = true;
+    if (awaiting.length > 0) answer.reReview = awaiting;
     // ST-LN-91 D-12: round 1 under the new plan rules names its critic; under LEGACY_CAP nothing is added to the 0.4.0 output.
     if (kind === 'plan' && round === 1 && rules.fall) answer.checker = true;
     return answer;
@@ -419,9 +422,12 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   // Round 2 review IN-01: the grounds rule reads the record's pin; only a plan's grounds rule from round 1 is decided by the claim pin.
   if (grounds.length > 0) return (kind === 'plan' ? refuseCap : refuse)(...grounds.map(scopeReason));
   // ST-LN-56 D-08, D-10: from the fix record cut-off a fix recorded `fixed in <sha>` lists the places it checked, and a fix a later round followed carries the re-review's answer,
-  // before the next review round. The last round's own fixes are asked for their answer at gate done (the verdict form), not here.
-  const fixes = kind === 'review' ? fixProblems(snapshot, id) : [];
+  // before the next review round. A fix whose re-review round has not run yet (the last round's, or one only added-code rounds followed) is refused at gate done, not here: the round
+  // about to start may be that re-review, so it is listed on the `Re-review:` line, which also tells a session about to write the verdict to run that round first (D-17).
+  const allFixes = kind === 'review' ? fixProblems(snapshot, id, { verdict: true }) : [];
+  const fixes = allFixes.filter((p) => p.awaiting === undefined);
   if (fixes.length > 0) return refuse(...fixes.map(scopeReason));
+  awaiting = [...new Set(allFixes.flatMap((p) => (p.awaiting === undefined ? [] : [p.awaiting])))];
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];
@@ -533,6 +539,9 @@ export function roundText(answer: RoundAnswer): string {
       `Round: ${answer.round} of ${answer.cap}\nCycle: ${answer.cycle}\n` +
       (answer.checker === true ? 'Critics: plan checker\n' : '') +
       (answer.addedCode === true ? `Added code: head round ${answer.round} as ## Round ${answer.round} head <sha> (added code round 1)\n` : '') +
+      (answer.reReview === undefined
+        ? ''
+        : `Re-review: ${answer.reReview.join(', ')}: a round not headed (added code round 1) re-checks these fixes and answers each; no verdict before it does (D-17)\n`) +
       (answer.model === undefined ? '' : `Fix executor model: ${answer.model}\n`) +
       answer.reasons.map((r) => `Note: ${r}\n`).join('')
     );

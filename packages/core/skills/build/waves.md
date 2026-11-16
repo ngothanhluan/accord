@@ -64,6 +64,5 @@ this worktree, the ticket's own, unless a step names another folder.
 8. **Next wave.** The next wave starts only when `accord waves <id>` lists no task of this wave; then go back to step 1.
    A `Task <n> worktree:` line ending `(recorded: clean it)` names a task already recorded: run
    `accord worktree task clean <id> <n>` for it; its `kept task`, or a line ending `— owner`, goes to step 6. After a
-   compaction, run `accord waves <id>`: for each other
-   `Task <n> worktree:` line whose brief's `Report file:` exists, merge and record that task as step 4 says; dispatch
-   the others again.
+   compaction, run `accord waves <id>`: for each other `Task <n> worktree:` line whose brief's `Report file:` exists,
+   merge and record that task as step 4 says; dispatch the others again, except a line ending `— owner` (step 6).

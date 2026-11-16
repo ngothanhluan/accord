@@ -63,6 +63,8 @@ Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <path>[:<line>] 
   carries, or a last round whose fix no re-review has answered; and an outside-diff finding left open. A fix in the last
   round of a cycle that `## Return from verify` closed is answered by round 1 of the next cycle: give its reviewer those
   findings to re-check, and write the answer on them; a NOT ADDRESSED one is reported again in that round, not carried.
+  An `(added code round 1)` round reviews the merged code and is not asked for the answer: the next round after it is
+  the re-review, given the findings, and a NOT ADDRESSED finding is carried by either round.
 - A round's fix is every commit after its head, up to the next round's head or, after the last round, to the
   last commit, but merges of the default branch, a debug episode's commits and commits that change only the
   ticket's records. Each file a fix changes is the location of a finding of that round, or a Ruling under

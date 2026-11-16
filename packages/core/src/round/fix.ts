@@ -53,10 +53,12 @@ export interface FixProblem { line: number; reason: string; rule: 'places' | 'an
 /**
  * The fix record rules, as problems in record line order, for each finding written `fixed in <sha>` (every severity and class: lane S lines have no class, and the grammar does not store it):
  * - places: no `checked:` mark (D-08);
- * - answer: a round another round followed (the next round of its cycle, or round 1 of the next cycle for a cycle's last round) must carry exactly one of `addressed:` and `not addressed:`
- *   on the fixed finding (D-10, D-17), a `not addressed:` finding is carried by the next round of its cycle (`carried from <r>.<n>`), and an answer sits only on a fixed finding;
+ * - answer: once its re-review round exists (the next round of its cycle not headed `(added code round 1)`, else round 1 of the next cycle), the fixed finding carries one of `addressed:`
+ *   and `not addressed:` (D-10, D-17; the grammar refuses both), a `not addressed:` finding is carried by a round of its cycle up to that re-review (`carried from <r>.<n>`), and an
+ *   answer sits only on a fixed finding;
  * - outside (D-10): a re-review finding outside the fix diff (fixOutside) that is not written deferred with its ledger line;
- * - answer, with `o.verdict`: no fixed finding in the record's last round, which no re-review has answered yet (D-17), whatever marks it carries.
+ * - answer, with `o.verdict`: no fixed finding in the record's last round, which no re-review has answered yet (D-17), whatever marks it carries, and no unanswered fix that only
+ *   `(added code round 1)` rounds followed.
  * `accord round` asks without `verdict` (the last round's fixes are the ones the round it is about to start re-reviews); gate done asks with it. None when the rules do not apply to this ticket.
  */
 export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: boolean } = {}): FixProblem[] {
@@ -68,11 +70,15 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
   const lastRound = placed[placed.length - 1]?.round;
   for (const at of placed) {
     const where = `round ${at.p} of cycle ${at.cycle}`;
-    // the round that re-reviews this round's fix: the next round of its cycle, or, for the last round of a cycle a `## Return from verify` closed, round 1 of the next cycle (D-17:
-    // that cycle's verdict was written without one, and round 1 reads the whole work). A NOT ADDRESSED answer is carried only within a cycle; across one, round 1 reports it afresh.
-    const inCycle = rec.cycles[at.cycle - 1].rounds[at.p];
-    const followedBy = inCycle ?? rec.cycles[at.cycle]?.rounds[0];
-    const nextName = inCycle !== undefined ? `round ${at.p + 1}` : `round 1 of cycle ${at.cycle + 1}`;
+    // The round that re-reviews this round's fix: the next round of its cycle not headed (added code round 1), or, when none is, round 1 of the next cycle a `## Return from verify`
+    // opened (D-17: that cycle's verdict was written without one, and round 1 reads the whole work). An added-code round reviews the merged code; its reviewer may answer too, so its
+    // answer counts, but nothing is asked of it. A NOT ADDRESSED finding is carried within a cycle, by a round up to the re-review; across a cycle, round 1 reports it afresh.
+    const later = rec.cycles[at.cycle - 1].rounds.slice(at.p);
+    const k = later.findIndex((r) => r.added !== true);
+    const reReview = k >= 0 ? later[k] : rec.cycles[at.cycle]?.rounds[0];
+    const reName = k >= 0 ? `round ${at.p + k + 1}` : `round 1 of cycle ${at.cycle + 1}`;
+    const carriers = k >= 0 ? later.slice(0, k + 1) : later;
+    const carryAsked = carriers.length > 0 && (k >= 0 || (o.verdict === true && rec.cycles[at.cycle] === undefined));
     for (const f of at.round.findings) {
       const which = `finding ${f.n ?? 'at line ' + f.line}`;
       const answered = f.addressed !== undefined || f.notAddressed !== undefined;
@@ -97,27 +103,28 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
           `${where}, ${which} is fixed in a commit with no checked: mark listing every place the same claim or pattern was checked (checked: <path>[:<line>], <path>[:<line>]…, D-08)`,
         );
       }
-      if (f.addressed !== undefined && f.notAddressed !== undefined) {
-        add(f.line, 'answer', `${where}, ${which} is marked both addressed: and not addressed:: the re-review gives one answer`);
-      } else if (followedBy !== undefined && !answered) {
+      // both marks on one line never reach here: the finding grammar refuses that line as a record problem (record.ts)
+      if (reReview !== undefined && !answered) {
         add(
           f.line,
           'answer',
-          `${where}, ${which} is fixed in a commit and ${nextName} followed with no addressed: or not addressed: mark on it: the re-review's answer is recorded on the fixed finding's own line ` +
+          `${where}, ${which} is fixed in a commit and ${reName} followed with no addressed: or not addressed: mark on it: the re-review's answer is recorded on the fixed finding's own line ` +
             '(addressed: <path>:<line> or not addressed: <path>:<line>, D-10, D-17)',
         );
-      } else if (inCycle !== undefined && f.notAddressed !== undefined && !inCycle.findings.some((x) => x.carried?.round === at.p && x.carried.n === f.n)) {
-        add(
-          f.line,
-          'answer',
-          `${where}, ${which} is marked not addressed: and round ${at.p + 1} holds no finding "carried from ${at.p}.${f.n ?? '<n>'}": the next round carries a finding that was not addressed (D-10)`,
-        );
-      }
-      if (o.verdict === true && at.round === lastRound) {
+      } else if (reReview === undefined && o.verdict === true && (at.round === lastRound || !answered)) {
+        // the record's last round, whatever marks it carries, or a fix only (added code round 1) rounds followed and none answered
         add(
           f.line,
           'answer',
           `${where}, ${which} is fixed in a commit after the last review round: every fix round gets a re-review that answers it before the verdict (D-17)`,
+        );
+      }
+      if (f.notAddressed !== undefined && carryAsked && !carriers.some((r) => r.findings.some((x) => x.carried?.round === at.p && x.carried.n === f.n))) {
+        add(
+          f.line,
+          'answer',
+          `${where}, ${which} is marked not addressed: and no round from round ${at.p + 1} to round ${at.p + carriers.length} holds a finding "carried from ${at.p}.${f.n ?? '<n>'}": ` +
+            'a later round of the cycle carries a finding that was not addressed (D-10)',
         );
       }
     }

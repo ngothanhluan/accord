@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, recordHeaderFaults, skillDirs, skillTargets, STAGES, UNFINISHED_MARKER } from '../src/index.js';
+import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, parseRounds, recordHeaderFaults, skillDirs, skillTargets, STAGES, UNFINISHED_MARKER } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
 import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
@@ -26,7 +26,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict'],
-  review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify'],
+  review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify', 're-review', 'places checked:', 'ADDRESSED'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
   debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
 };
@@ -380,29 +380,99 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   expect(criticPhrases.filter((p) => !critic.includes(p))).toEqual([]);
 });
 
-it('ac-2 a review round with only should findings converges without a re-review', () => {
-  const flat = (t: string) => t.replace(/\s+/g, ' ');
-  const skill = flat(files.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '');
-  const record = flat(files.find((f) => f.path === '.claude/skills/accord-review/record.md')?.text ?? '');
-  expect(skill.length, 'accord-review/SKILL.md is missing').toBeGreaterThan(0);
-  expect(record.length, 'accord-review/record.md is missing').toBeGreaterThan(0);
-  const step4 = skill.slice(skill.indexOf('4. **Classify.**'), skill.indexOf('5. **Converged**'));
-  const step7 = skill.slice(skill.indexOf('7. **Final review.**'), skill.indexOf('8. **Record.**'));
-  expect(step4.length).toBeGreaterThan(0);
-  expect(step7.length).toBeGreaterThan(0);
-  expect(
-    [
+// ST-LN-56 D-17 (owner choice 2026-11-16) replaces 'ac-2 a review round with only should findings converges without a re-review': every fix round gets a re-review.
+it('ac-2 every fix round, a Should-only one included, gets a re-review (ST-LN-56 56-ac-2)', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text.replace(/\s+/g, ' ')]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const skillPath = dir + '/accord-review/SKILL.md';
+    const skill = everyFile.get(skillPath) ?? '';
+    const record = everyFile.get(dir + '/accord-review/record.md') ?? '';
+    const lane = everyFile.get(dir + '/accord/lane-s.md') ?? '';
+    if (skill === '' || record === '' || lane === '') {
+      bad.push(dir + ': accord-review/SKILL.md, accord-review/record.md or accord/lane-s.md is missing');
+      continue;
+    }
+    const step4 = skill.slice(skill.indexOf('4. **Classify.**'), skill.indexOf('5. **Converged**'));
+    const step7 = skill.slice(skill.indexOf('7. **Final review.**'), skill.indexOf('8. **Record.**'));
+    for (const p of [
       'run the `tests.affected` command over the files the fix touched, or `tests.full` when `tests.affected` is not configured or finds no test file.',
-      'When the round reported a Must, re-review only the fix diff',
-      'When it reported only Should findings, no reviewer is dispatched again for that fix: that command passing checks it.',
-    ].filter((p) => !step4.includes(p)),
-  ).toEqual([]);
-  expect(skill).toContain('**Converged** means no Must is open and every Should is fixed with that command passing;');
-  expect(skill).not.toContain('zero Must and zero Should');
-  expect(step7).toContain('If it finds only Should findings, fix them and run that command as in step 4, with no re-review.');
-  expect(record).toContain('every Should is fixed with that command passing');
-  expect(record).toContain('or `tests.full` when `tests.affected` is not configured or finds no test file');
-  expect(record).not.toContain('zero Must and zero Should');
+      'After every fix round, a Should-only one included, re-review only the fix diff: `accord review-package <id>` into',
+      '`<r>.<n>: ADDRESSED <path>:<line>` or `<r>.<n>: NOT ADDRESSED <path>:<line>`',
+    ]) {
+      if (!step4.includes(p)) bad.push(skillPath + ' step 4 lacks: ' + p);
+    }
+    for (const p of ['no reviewer is dispatched again for that fix', 'When the round reported a Must, re-review']) {
+      if (skill.includes(p)) bad.push(skillPath + ' still holds: ' + p);
+    }
+    if (!skill.includes('**Converged** means no Must or Should is open, every fixed finding is answered `addressed:`')) bad.push(skillPath + ' step 5 lacks the addressed: convergence');
+    if (!step7.includes('If it finds a Must or a Should: one fix and one scoped re-review, as in step 4.')) bad.push(skillPath + ' step 7 lacks the re-review of a Should');
+    if (step7.includes('with no re-review')) bad.push(skillPath + ' step 7 still holds: with no re-review');
+    if (skill.includes('zero Must and zero Should') || record.includes('zero Must and zero Should')) bad.push(dir + ': zero Must and zero Should');
+    for (const p of [
+      'a finding closes on its `addressed:` answer, never on `fixed in` alone',
+      'no Must or Should is open, every fixed finding is answered `addressed:`, and the test command passes',
+      'or `tests.full` when `tests.affected` is not configured or finds no test file',
+    ]) {
+      if (!record.includes(p)) bad.push(dir + '/accord-review/record.md lacks: ' + p);
+    }
+    if (record.includes('every Should is fixed with that command passing')) bad.push(dir + '/accord-review/record.md still holds the old verdict');
+    if (!lane.includes('a fix no reviewer has seen never ships')) bad.push(dir + '/accord/lane-s.md lacks: a fix no reviewer has seen never ships');
+    if (!lane.includes('a finding closes on its `addressed:` answer')) bad.push(dir + '/accord/lane-s.md lacks: a finding closes on its `addressed:` answer');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-1 record.md and lane S step 4 name the places-checked and re-review marks, in all four tools (ST-LN-56 56-ac-1)', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text.replace(/\s+/g, ' ')]));
+  const bad: string[] = [];
+  const marks = [
+    '`checked: <path>[:<line>], …`',
+    '`addressed: <path>:<line>`',
+    '`not addressed: <path>:<line>`',
+    'carried from <r>.<n>',
+    '`- review <r>.<n>[ cycle <k>]: <finding> — failing case: <case>`',
+    'never deferred',
+    'closes on its',
+    'gate.fix-places-missing',
+    'gate.fix-not-addressed',
+    'gate.fix-outside-open',
+    'from accord 0.6.0',
+  ];
+  for (const dir of skillDirs(all)) {
+    for (const path of [dir + '/accord-review/record.md', dir + '/accord/lane-s.md']) {
+      const text = everyFile.get(path) ?? '';
+      if (text === '') {
+        bad.push(path + ' is missing');
+        continue;
+      }
+      const low = text.toLowerCase();
+      for (const p of marks) if (!low.includes(p.toLowerCase())) bad.push(path + ' lacks: ' + p);
+    }
+    const rec = everyFile.get(dir + '/accord-review/record.md') ?? '';
+    if (!rec.includes('`places checked: <n>:')) bad.push(dir + '/accord-review/record.md lacks the places checked: line it copies from');
+    // D-18: the asks that make the executor and the re-reviewer write what the marks need ride in skills every tool renders
+    const skill = everyFile.get(dir + '/accord-review/SKILL.md') ?? '';
+    const step4 = skill.slice(skill.indexOf('4. **Classify.**'), skill.indexOf('5. **Converged**'));
+    for (const p of ['ask for one `places checked: <n>: <path>[:<line>], …` line per finding', '<r>.<n>: ADDRESSED <path>:<line>']) {
+      if (!step4.includes(p)) bad.push(dir + '/accord-review/SKILL.md step 4 lacks: ' + p);
+    }
+    const lane = everyFile.get(dir + '/accord/lane-s.md') ?? '';
+    if (!lane.includes('<r>.<n>: ADDRESSED <path>:<line>')) bad.push(dir + '/accord/lane-s.md reviewer dispatch lacks the ADDRESSED answer line');
+  }
+  expect(bad).toEqual([]);
+  // the mark keys the skills tell the session to write are the keys core's record reader reads
+  const line = (marks: string) => 'Should 1 [patch]: f — src/a.ts:3 — fixed in abc1234' + marks;
+  const read = (marks: string) => {
+    const r = parseRounds('review.md', 'Round record: 2\n\n## Round 1 head abc1234\n\n' + line(marks) + '\n', 'review');
+    expect(r.unreadable, marks).toEqual([]);
+    return r.cycles[0].rounds[0].findings[0];
+  };
+  expect(read(' — checked: src/a.ts:3, src/b.ts')).toMatchObject({ checked: ['src/a.ts:3', 'src/b.ts'] });
+  expect(read(' — addressed: src/a.ts:3')).toMatchObject({ addressed: { file: 'src/a.ts', line: 3 } });
+  expect(read(' — not addressed: src/a.ts:3')).toMatchObject({ notAddressed: { file: 'src/a.ts', line: 3 } });
 });
 
 it('risk:regression the accord skill takes an id that accord status lists with a branch', () => {

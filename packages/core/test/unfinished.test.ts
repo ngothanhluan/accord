@@ -49,7 +49,7 @@ const unfinished = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.
 const NEW: Claim = { pin: '0.6.0' };
 
 describe('unfinished marker: read on the raw text', () => {
-  it('risk:parsing the unfinished marker is read on the raw text wherever it stands as a whole line (ST-LN-72 72-ac-1)', () => {
+  it('risk:parsing the unfinished marker is read on the raw text, as the first body line only (ST-LN-72 72-ac-1, review round 1)', () => {
     expect(UNFINISHED_MARKER).toBe('<!-- accord: unfinished -->');
     const read = (text: string) => parsePlan('accord/tickets/T-1/plan.md', text).plan.unfinished;
 
@@ -63,10 +63,14 @@ describe('unfinished marker: read on the raw text', () => {
     expect(read(planWith(`  ${UNFINISHED_MARKER}\t`))).toBe(5);
     // above the frontmatter: detected too, although the frontmatter then no longer parses
     expect(read([UNFINISHED_MARKER, ...FRONT, '', '# Plan', '', TASKS].join('\n'))).toBe(1);
-    // lower down in the file: still an unfinished file, the first such line is the one named
-    expect(read([planWith(undefined), UNFINISHED_MARKER, UNFINISHED_MARKER].join('\n'))).toBe(planWith(undefined).split('\n').length + 1);
-    // the HTML-comment stripping of the section readers cannot hide it: it stands inside a task section too
-    expect(read(planWith(undefined) + `${UNFINISHED_MARKER}\n`)).toBeDefined();
+    // blank lines between the closing --- and the marker do not hide it: the first non-blank body line is the one read
+    expect(read([...FRONT, '', '', UNFINISHED_MARKER, '# Plan', '', TASKS].join('\n'))).toBe(7);
+    // ST-LN-72 review round 1: only that first body line counts. The marker quoted as a whole line lower down (pasted test output, a fenced block, a task's prose) is evidence, not a flag
+    expect(read([planWith(undefined), UNFINISHED_MARKER, UNFINISHED_MARKER].join('\n'))).toBeUndefined();
+    expect(read(planWith(undefined) + `${UNFINISHED_MARKER}\n`)).toBeUndefined();
+    expect(read(planWith(undefined) + ['```', UNFINISHED_MARKER, '```', ''].join('\n'))).toBeUndefined();
+    // in the frontmatter it is a YAML comment, never the body's first line
+    expect(read(['---', UNFINISHED_MARKER, `baseline: ${BASELINE}`, '---', '', '# Plan', '', TASKS].join('\n'))).toBeUndefined();
 
     // quoted inside a sentence, or with other text on its line, it is not the marker
     expect(read(planWith(`The line \`${UNFINISHED_MARKER}\` marks a file still being written.`))).toBeUndefined();
@@ -80,13 +84,19 @@ describe('unfinished marker: read on the raw text', () => {
     expect(Object.hasOwn(clean, 'unfinished')).toBe(false);
 
     // the reader itself: 1-based, pure on a string
-    expect(unfinishedLine(`a\n${UNFINISHED_MARKER}\nb`)).toBe(2);
+    expect(unfinishedLine(`${UNFINISHED_MARKER}\nb`)).toBe(1);
+    expect(unfinishedLine(`a\n${UNFINISHED_MARKER}\nb`)).toBeUndefined();
     expect(unfinishedLine('')).toBeUndefined();
     expect(unfinishedLine(`${BOM}${UNFINISHED_MARKER}\r\nx`)).toBe(1);
   });
 });
 
 describe('unfinished marker: gate plan', () => {
+  it('risk:complex-branching a plan quoting the marker as a whole line below its first body line is not refused (ST-LN-72 review round 1)', () => {
+    const quoting = planWith(undefined) + ['```', UNFINISHED_MARKER, '```', ''].join('\n');
+    expect(unfinished(check({ plan: quoting, claim: NEW }))).toEqual([]);
+  });
+
   it('ac-1 gate plan refuses a plan.md that carries the unfinished marker, naming the file (ST-LN-72 72-ac-1)', () => {
     const got = unfinished(check({ claim: NEW }));
     expect(got).toHaveLength(1);
@@ -183,6 +193,13 @@ describe('unfinished marker: gate done', () => {
     expect(verifUnfinished(doneOf({ claim: NEW, config: loosened }))).toHaveLength(1);
     // the answer is the same on every run
     expect(JSON.stringify(doneOf({ claim: NEW }))).toBe(JSON.stringify(doneOf({ claim: NEW })));
+  });
+
+  it('risk:complex-branching a verification quoting the marker in its evidence is not refused, so it cannot be locked out of Done (ST-LN-72 review round 1)', () => {
+    const quoting = verificationWith(undefined).replace('Evidence: export#writes-csv passed', `Evidence: the run printed\n${UNFINISHED_MARKER}\nexport#writes-csv passed`);
+    expect(quoting).toContain(`\n${UNFINISHED_MARKER}\n`);
+    expect(verifUnfinished(doneOf({ verification: quoting, claim: NEW }))).toEqual([]);
+    expect(anchor({ verification: quoting })).toEqual([]);
   });
 });
 

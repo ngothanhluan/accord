@@ -7,7 +7,9 @@ import { expect, it, vi } from 'vitest';
 import { REPORT_CONTRACT } from '@accord-dev/accord-core';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, pinned, REPORT } from '../../../test/helpers/lane.js';
+import { spawnLog } from './helpers/git-spawns.js';
 
+vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 vi.mock('../package.json', async (orig) => {
   const m = await orig<{ default: Record<string, unknown> }>();
   return { default: { ...m.default, version: '0.6.0' } };
@@ -268,6 +270,28 @@ it("risk:regression a failed claim read gives the brief's report lines, its writ
     const none = await run(['task-done', 'T-1', '1'], repo);
     expect(none.code).toBe(1);
     expect(none.out).toContain(REL);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:regression task-done reads HEAD\'s commit and author times with one git call (ST-LN-59 59-ac-1)', async () => {
+  const repo = makeLaneRepo();
+  try {
+    commitMsg(repo, 'claim: T-1');
+    freshen(repo);
+    writeReport(repo, RED + '\n' + SELF + '\n');
+    spawnLog.calls = [];
+    spawnLog.on = true;
+    let done;
+    try {
+      done = await run(['task-done', 'T-1', '1'], repo);
+    } finally {
+      spawnLog.on = false;
+    }
+    expect(done.code).toBe(0);
+    // the test report's freshness (committer time) and the executor report's (author time) both ran, from one `git show -s`
+    expect(spawnLog.calls.filter((a) => a.includes('show') && a.includes('-s'))).toHaveLength(1);
   } finally {
     cleanup(repo);
   }

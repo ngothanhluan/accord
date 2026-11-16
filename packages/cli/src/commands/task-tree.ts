@@ -8,11 +8,11 @@ import { claimPinBefore, matches, PLAN_WAVES_FROM } from '@accord-dev/accord-cor
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { currentBranch, UsageError } from '../load/fs.js';
-import { scriptRefusal } from '../load/script-trust.js';
+import { scriptDigest, scriptRefusal } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { requireTicket, taskNumber } from './lane-args.js';
 import { norm } from './leftover.js';
-import { branchOf, git, gitOk, ID, listWorktrees, prepare, rebaseBranch, setupMarker, siblingOf } from './worktree.js';
+import { branchOf, git, gitOk, ID, listWorktrees, prepare, rebaseBranch, setupMarker, siblingOf, worktrees } from './worktree.js';
 import type { PrunableEntry } from './worktree.js';
 
 /**
@@ -70,11 +70,6 @@ function atTask(list: PrunableEntry[], id: string, n: number): AtTask | undefine
   return { w, state: 'detached ' + w.head.slice(0, 12), other: `${slash(w.path)} holds a detached HEAD${stopped}, not ${branch}: its commits may be on no branch` };
 }
 
-/** The task's live worktree, read from `git worktree list`: its path (forward slashes) and HEAD; undefined when there is none or its folder is in another state. */
-export function findTaskWorktree(root: string, id: string, n: number): { path: string; head: string } | undefined {
-  const at = atTask(listWorktrees(root), id, n);
-  return at === undefined || at.other !== undefined ? undefined : { path: slash(at.w.path), head: at.w.head };
-}
 
 /**
  * Every live worktree at a task folder of `id`, by task number, from one listing (`accord waves`): its path, and `state` when it is not the task's own (round 2 finding 2:
@@ -100,9 +95,13 @@ export function taskWorktrees(root: string, id: string): Map<number, { path: str
  * Undefined for a ticket claimed before 0.6.0, which is built one task at a time as before and whose brief names no Work dir (D-16 cut-off Ruling).
  * `claimed` is the snapshot with the claim read (`withClaimPins`), so brief and task-done decide on the read they already made; a failed read gives the folder.
  */
-export function workRootOf(root: string, claimed: RepoSnapshot, id: string, n: number): string | undefined {
+export function workRootOf(root: string, claimed: RepoSnapshot, id: string, n: number, what: string): string | undefined {
   if (claimPinBefore(claimed, id, PLAN_WAVES_FROM)) return undefined;
-  return findTaskWorktree(root, id, n)?.path ?? slash(root);
+  const list = listWorktrees(root);
+  const at = atTask(list, id, n);
+  // round 3 finding 4: a task folder off its task branch holds the task's work, so the ticket checkout is never taken for it (exit 2, as a wrong checkout)
+  if (at?.other !== undefined) throw new UsageError(`${what} reads task ${n}'s worktree, and ${at.other} - put it back on its task branch, or tell the owner; nothing was changed`);
+  return at === undefined ? slash(root) : slash(at.w.path);
 }
 
 /** The refusal of a command run outside the ticket's own checkout, naming the checkout that holds the ticket branch, or how to open one. */
@@ -119,7 +118,7 @@ function wrongCheckout(what: string, id: string, ticketBranch: string, list: Pru
  * anything. A ticket whose branch exists neither locally nor on origin (never claimed) has no branch to compare with and passes. Undefined for a ticket claimed before 0.6.0, unchecked.
  */
 export function briefWorkRoot(root: string, claimed: RepoSnapshot, id: string, n: number): string | undefined {
-  const dir = workRootOf(root, claimed, id, n);
+  const dir = workRootOf(root, claimed, id, n, `accord brief ${id} ${n}`);
   if (dir === undefined || norm(dir) !== norm(slash(root))) return dir;
   const ticketBranch = branchOf(claimed, id);
   const here = currentBranch(root);
@@ -158,13 +157,30 @@ const unmerged = (dir: string): string[] => git(dir, ['diff', '--name-only', '--
  * the ticket branch's committed content. The skill runs the command in the task folder. Round 2 finding 8: the schema keeps the command on one line with no control
  * character, so it is printed as written.
  */
+/**
+ * Review round 3 finding 1: the allowed command runs in the task folder, so what it reaches there must be what was allowed in the ticket checkout. Every file the
+ * trust cover hashes, in either checkout, is compared by git content id (the same id the digest is built from), leaving out only the unmerged paths the regenerate
+ * command is to rewrite; the first file that differs (a task commit or an edit there changed it, or it exists on one side only) is named and the command is refused.
+ */
+function coverDiffers(root: string, task: string, command: string, unmergedPaths: readonly string[]): string | undefined {
+  const here = scriptDigest(root, command);
+  const there = scriptDigest(task, command);
+  const skip = new Set(unmergedPaths);
+  const first = [...new Set([...here.files, ...there.files])]
+    .filter((f) => !skip.has(f))
+    .sort()
+    .find((f) => here.hashes[f] !== there.hashes[f]);
+  if (first === undefined) return undefined;
+  return `build.regenerate "${command}" would run in ${task}, where ${first} is not the content allowed in ${slash(root)} (a commit or an edit in the task folder changed it), so it was not printed to run; resolve the conflict as with no build.regenerate`;
+}
+
 function conflict(ctx: CommandContext, n: number, path: string, paths: string[]): number {
   const generated = ctx.snapshot.config?.generated ?? [];
   const isGenerated = paths.map((p) => generated.some((e) => matches(e, p)));
   const lines = paths.map((p, i) => (isGenerated[i] ? 'generated: ' : 'hand-written: ') + p);
   const regenerate = ctx.snapshot.config?.build?.regenerate;
   if (regenerate !== undefined && isGenerated.every(Boolean)) {
-    const refusal = scriptRefusal(ctx.root, 'build.regenerate', regenerate);
+    const refusal = scriptRefusal(ctx.root, 'build.regenerate', regenerate) ?? coverDiffers(ctx.root, path, regenerate, paths);
     lines.push(refusal === undefined ? 'regenerate: ' + regenerate : 'regenerate refused: ' + refusal);
   }
   ctx.stdout.write(`conflict: task ${n} in ${path}\n` + lines.map((l) => l + '\n').join(''));
@@ -232,7 +248,13 @@ export function taskMerge(ctx: CommandContext, id: string, task: string): number
       return undefined;
     } catch (err) {
       // D-06: a conflict leaves the rebase stopped where it stands, for the build skill to regenerate or resolve; any other failure is git's own message
-      const paths = rebaseBranch(path) === taskBranch(id, n) ? unmerged(path) : [];
+      // round 3 finding 5: a failure reading the stopped rebase never hides git's own rebase error
+      let paths: string[];
+      try {
+        paths = rebaseBranch(path) === taskBranch(id, n) ? unmerged(path) : [];
+      } catch {
+        throw err;
+      }
       if (paths.length === 0) throw err;
       return conflict(ctx, n, path, paths);
     }
@@ -275,8 +297,18 @@ export function taskClean(ctx: CommandContext, id: string, task: string): number
     ctx.stdout.write(`removed: nothing for task ${n}\n`);
     return 0;
   }
+  let live = list;
+  // round 3 finding 2: the task folder deleted by hand (git lists it as prunable) is pruned, as `accord worktree clean` prunes (each pruned record printed, and
+  // nothing pruned while a missing folder holds a detached HEAD on no branch); the branch then goes only when the ticket branch holds its tip, as below
+  const path = taskPath(list[0].path, id, n);
+  if (w === undefined && list.some((x) => norm(x.path) === norm(path) && x.prunable !== undefined)) {
+    live = worktrees(ctx.root, ctx.stdout);
+    if (live.some((x) => norm(x.path) === norm(path))) {
+      return refuse(`git still registers ${slash(path)}, whose folder is missing, and no prune runs while a missing folder holds a detached HEAD on no branch - nothing was removed`);
+    }
+  }
   // round 2 finding 4: the task branch checked out in a folder other than the task's (as taskOpen refuses it); its work there is not the ticket branch's to drop
-  const holder = w === undefined ? list.find((x) => x.branch === branch) : undefined;
+  const holder = w === undefined ? live.find((x) => x.branch === branch && x.prunable === undefined) : undefined;
   if (holder !== undefined) return refuse(`${branch} is checked out in ${slash(holder.path)}, not in its task folder - nothing was removed`);
   if (w !== undefined && w.branch === undefined) return refuse(`a rebase is stopped in ${slash(w.path)}: finish it with accord worktree task merge ${id} ${n} first`);
   for (const sha of [tip, w?.head]) {

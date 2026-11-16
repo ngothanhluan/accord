@@ -63,7 +63,7 @@ function reportProblems(ctx: CommandContext, id: string, n: number, sha: string,
   const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
   if (claimPinBefore(claimed, id, TASK_REPORT_FROM)) return [];
   // ST-LN-92 D-03: the report lies where `accord brief` put it, under the task's worktree while it exists (it is cleaned only after task-done), named there by its absolute path.
-  const root = workRootOf(ctx.root, claimed, id, n) ?? ctx.root;
+  const root = workRootOf(ctx.root, claimed, id, n, `accord task-done ${id} ${n}`) ?? ctx.root;
   const rel = root === ctx.root.replace(/\\/g, '/') ? reportRel(id, n) : reportPath(root, id, n);
   const report = readReport(root, id, n);
   if (report === undefined) return [`the executor report ${rel} is missing: the executor writes it as its last step`];

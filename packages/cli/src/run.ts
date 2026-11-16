@@ -368,7 +368,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   const taskTree = worktree.command('task').description("a build task's own worktree beside the ticket's, for a ticket claimed at 0.6.0 or later; run in the ticket's checkout");
   taskTree
     .command('open <id> <n>')
-    .description("create task n's worktree <main folder>-<id>-t<n> on branch accord-task/<id>/<n> from the ticket branch's HEAD, run the setup list there, and print path: and branch:; run again it prints the same lines")
+    .description("create task n's worktree <main folder>-<id>+t<n> on branch accord-task/<id>/<n> from the ticket branch's HEAD, run the setup list there, and print path: and branch:; run again it prints the same lines")
     .action((id: string, n: string) => {
       setCode(taskOpen(preflight(opts), id, n));
     });

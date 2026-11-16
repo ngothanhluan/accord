@@ -36,8 +36,9 @@ export function waves(ctx: CommandContext, id: string): number {
   const left = new Set(grouped.flat());
   const planned = new Set(tasks.map((t) => t.n));
   for (const [n, { path, state }] of [...live].sort((a, b) => a[0] - b[0])) {
-    if (state !== undefined && planned.has(n)) out.push(`Task ${n} worktree: ${path} (${state}): not on its task branch — owner`);
-    else if (state !== undefined) continue;
+    // round 3 finding 9: a task folder whose number is no task of the plan is named for the owner too, never dropped
+    if (!planned.has(n)) out.push(`Task ${n} worktree: ${path}${state === undefined ? '' : ` (${state})`} (not in the plan) — owner`);
+    else if (state !== undefined) out.push(`Task ${n} worktree: ${path} (${state}): not on its task branch — owner`);
     else if (left.has(n)) out.push(`Task ${n} worktree: ${path}`);
     else if (done.has(n)) out.push(`Task ${n} worktree: ${path} (recorded: clean it)`);
   }

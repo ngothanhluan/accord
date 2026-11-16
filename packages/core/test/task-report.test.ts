@@ -48,6 +48,16 @@ it('risk:parsing the report lines read one way whatever their spacing and line e
     expect(reportReasons('red reason: ' + value + '\n' + SELF + '\n'), value).toEqual([]);
   }
   expect(REPORT_CONTRACT).toContain('red reason: no red test — <why>');
+  // the contract's line copied with its slot unfilled, a slot left anywhere, or `no red test` with no reason after it, says nothing
+  for (const value of ['no red test — <why>', 'no red test', 'No red test.', 'no red test —', 'no red test: ', 'the export wrote <...> rows', 'no red test — <the reason>']) {
+    expect(reportReasons('red reason: ' + value + '\n' + SELF + '\n'), value).toEqual([
+      'the executor report has no "red reason:" line naming the behaviour the red test showed missing',
+    ]);
+  }
+  // a generic type is no slot
+  expect(reportReasons('red reason: parse returned Array<string> with no rows\n' + SELF + '\n')).toEqual([]);
+  // a self-review part holding an unfilled slot is named too
+  expect(reportReasons(RED + '\nself-review: missing: none; extra: the <…> helper; misread: none\n')).toEqual(['the executor report\'s "self-review:" line has no text after "extra:"']);
   // the contract's own lines, pasted unchanged, pass nothing
   expect(reportReasons(REPORT_CONTRACT)).toHaveLength(4);
 

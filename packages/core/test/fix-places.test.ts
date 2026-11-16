@@ -205,6 +205,28 @@ it('ac-2 a fixed finding closes only on the re-review\'s addressed: mark (ST-LN-
   }
 });
 
+it('risk:complex-branching the last round of an earlier cycle needs its answer from the next cycle\'s round 1 (ST-LN-56 56-ac-2, D-17)', () => {
+  // cycle 1 ends on a fixed finding, the verdict is written, verify returns and cycle 2 opens: its round 1 is that fix's re-review
+  const cycles = (one: string[], two?: string[][]): RepoSnapshot =>
+    withPin(
+      scopeSnapshot({ review: v2Review([[{ lines: one }], ...(two === undefined ? [] : [two.map((lines) => ({ lines }))])]), facts: facts([[], ...(two ?? []).map(() => [])]) }),
+      { pin: FIX_RECORD_FROM },
+    );
+  const unanswered = cycles([FIXC], [[]]);
+  expect(answers(unanswered)).toHaveLength(1);
+  expect(answers(unanswered)[0]).toContain('round 1 of cycle 1');
+  expect(answers(unanswered)[0]).toContain('finding 2');
+  expect(answers(unanswered)[0]).toContain('round 1 of cycle 2');
+  expect(refusal(unanswered)).toContain('round 1 of cycle 1');
+  // the answer written from cycle 2's round 1 closes it; NOT ADDRESSED is reported again by that round, which reads the whole work, so no carry across a cycle is asked
+  expect(answers(cycles([FIXC + ADDRESSED], [[]]))).toEqual([]);
+  expect(next(cycles([FIXC + ADDRESSED], [[]])).kind).toBe('next');
+  expect(answers(cycles([FIXC + NOT_ADDRESSED], [['Must 1 [patch]: the writer still drops the header — src/a.ts:3 — open']]))).toEqual([]);
+  // cycle 2 not started yet: accord round is not refused (its round 1 is the re-review), gate done is (the record's last round is the fix)
+  const between = cycles([FIXC]);
+  expect(answers(between)).toHaveLength(1);
+});
+
 it('risk:security an open risk finding still blocks whatever marks it carries (ST-LN-56 56-ac-2)', () => {
   const risk = 'Must 1 [patch]: the export leaks a token — src/a.ts:3 — open — risk: security';
   for (const marks of ['', ADDRESSED, ' — checked: src/a.ts:3']) {

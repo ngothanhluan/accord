@@ -113,7 +113,8 @@ describe('gate plan', () => {
       ]);
     });
     it('a (new) path passes; no facts, or facts for another baseline, skip the rule', () => {
-      expect(errors(gate({ abc1234: [] }, PLAN.replace(/files: src\/export.ts/g, 'files: src/export.ts (new)')))).toEqual([]);
+      // From 0.6.0 a new path names a model that exists at the baseline (ST-LN-10), so this case writes one.
+      expect(errors(gate({ abc1234: ['src/json.ts'] }, PLAN.replace(/files: src\/export.ts/g, 'files: src/export.ts (new, like src/json.ts)')))).toEqual([]);
       expect(errors(gate())).toEqual([]);
       expect(errors(gate({ other12: [] }))).toEqual([]);
     });

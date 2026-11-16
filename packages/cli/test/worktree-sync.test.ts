@@ -475,3 +475,26 @@ it('risk:security Continue does not run an unallowed git.sync, leaves the branch
   const sibName = (sib.replaceAll('\\', '/').split('/').pop() ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   expect(behind[0]).toMatch(new RegExp(`git\\.sync is not allowed to run here yet - run accord trust in "[^"]*${sibName}" to see what it covers, then accord trust git\\.sync@<the digest it shows> there`));
 }, 240_000);
+
+it('risk:security Continue checks and runs the git.sync of the ticket worktree, so following its behind: hint lets the next Continue sync when the two texts differ (round 4 WR-05)', async () => {
+  const c = copy();
+  const s = script(MERGE);
+  withGit(c, `  sync: '${s.command}'\n`);
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  // the ticket edits git.sync, so its text is not the one in the checkout Continue runs from
+  const file = sib + '/accord/config.yml';
+  writeFiles(sib, { 'accord/config.yml': readFileSync(file, 'utf8').replace(/\r\n/g, '\n').replace(`sync: '${s.command}'`, `sync: '${s.command} --ticket'`) });
+  commitMsg(sib, 'config: the ticket edits git.sync');
+  twoOnMain(c);
+  const first = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect([first.code, first.err]).toEqual([0, '']);
+  expect(s.calls()).toEqual([]);
+  expect(lines(first.out).find((l) => l.startsWith('behind:'))).toContain('accord trust');
+  // follow the hint: show and allow in the worktree it names, then Continue again
+  expect((await trustAllow(sib, ['git.sync'])).code).toBe(0);
+  const second = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect([second.code, second.err]).toEqual([0, '']);
+  expect(lines(second.out)).toContain('synced: t/ST-9 by git.sync');
+  expect(s.calls()).toHaveLength(1);
+}, 240_000);

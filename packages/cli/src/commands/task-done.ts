@@ -88,9 +88,10 @@ function parsePairs(pairs: string[]): { ac: string; test: string }[] {
 
 export function taskDone(ctx: CommandContext, id: string, task: string, pairs: string[] = []): number {
   const n = taskNumber(task);
-  // T-04-12: the id names the ledger and report paths; a ticket file `accord/tickets/...md` loads under the key `..`.
-  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const laneTicket = requireLaneTicket(ctx, id);
+  // T-04-12: the id names the ledger and report paths; a ticket file `accord/tickets/...md` loads under the key `..`. Checked after the lookup, so an
+  // unknown id keeps its `no ticket` refusal.
+  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   refuseLaneR(laneTicket, id, 'plan tasks');
   // ST-LN-50 D-08 Ruling: with the plan stage off the whole ticket is task 1 and its tests are named by --test; with it on, --test has no meaning.
   const planOff = stageOff(ctx.snapshot, id, 'plan');

@@ -95,9 +95,10 @@ function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: 
 
 export function brief(ctx: CommandContext, id: string, task: string): number {
   const n = taskNumber(task);
-  // T-04-12: the id names the report path; a ticket file `accord/tickets/...md` loads under the key `..`.
-  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const ticket = requireLaneTicket(ctx, id);
+  // T-04-12: the id names the report path; a ticket file `accord/tickets/...md` loads under the key `..`. Checked after the lookup, so an unknown id
+  // keeps its `no ticket` refusal.
+  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   refuseLaneR(ticket, id, 'plan tasks');
   const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
   if (stageOff(ctx.snapshot, id, 'plan')) return briefTicket(ctx, claimed, id, n, ticket.file, ticket.frontmatter?.lane);

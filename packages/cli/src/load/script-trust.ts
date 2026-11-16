@@ -176,6 +176,36 @@ export const ROOT_UNIT = './';
 export interface Cover {
   units: string[];
   files: string[];
+  /** The forms in the command (or a package.json script it follows) that accord knows run more code and does not follow, named as NOT_CHECKED names them. */
+  unfollowed: string[];
+}
+
+/** Owner answer, round 4: the cover is frozen at the forms above, and the output says plainly what it does not check. Printed by `accord trust`, shown and allowing. */
+export const NOT_CHECKED =
+  'accord checks only the files listed above; anything else the command loads is not checked: other runner forms (node --run, npm -w/--workspace, bash -c or sh -c "...", node -e, python -m, npm install lifecycle scripts, .npmrc node-options), files outside the listed directories, make or just targets, paths built from environment variables, programs on PATH and node_modules - whoever allows a script must review the pull request that changed it';
+
+/**
+ * Round 4 CR-01, WR-03, IN-02 (documented gaps): the forms word `i` starts that run more code than the cover follows. This only names them, so the output does not
+ * read as complete; it binds nothing more (the coverage is frozen).
+ */
+function unfollowedIn(ws: readonly string[], i: number, runner: string | undefined): string[] {
+  const base = (ws[i].split(/[\\/]/).pop() ?? '').replace(/\.(exe|cmd|bat|ps1)$/i, '').toLowerCase();
+  const after = ws.slice(i + 1);
+  const has = (re: RegExp): boolean => after.some((w) => re.test(w));
+  const found: string[] = [];
+  if (/^(node|nodejs)$/.test(base) && has(/^--run(=|$)/)) found.push('node --run');
+  if (runner !== undefined && has(/^(-w|--workspaces?(=.*)?|--prefix(=.*)?|-C|--dir(=.*)?|--filter(=.*)?|-F|--cwd(=.*)?|workspaces?)$/)) found.push('npm -w/--workspace');
+  if (runner !== undefined && has(/^(install|i|ci|add|rebuild|install-test|it|install-ci-test)$/)) found.push('npm install lifecycle scripts');
+  if (/^(npx|bunx|pnpx)$/.test(base) || (runner !== undefined && has(/^(exec|x|dlx)$/))) found.push('npx');
+  if (/^(bash|sh|zsh|dash|ksh|fish|pwsh|powershell)$/.test(base) && has(/^(-c|-command|-encodedcommand)$/i)) found.push('bash -c');
+  if (base === 'cmd' && has(/^\/[ck]$/i)) found.push('bash -c');
+  if (/^(node|nodejs|deno|bun|ruby|perl|php)$/.test(base) && has(/^(-e|--eval(=.*)?|-p|--print(=.*)?|eval)$/)) found.push('node -e');
+  if (/^(python[0-9.]*|py|pypy[0-9.]*)$/.test(base) && has(/^-c$/)) found.push('node -e');
+  if (/^(python[0-9.]*|py|pypy[0-9.]*)$/.test(base) && has(/^-m/)) found.push('python -m');
+  if (/^(make|gmake|just|task|rake|gradle|gradlew|mvn|mvnw)$/.test(base)) found.push('make or just targets');
+  if (/\$|%[A-Za-z_][A-Za-z0-9_]*%/.test(ws[i])) found.push('paths built from environment variables');
+  if (/\s/.test(ws[i])) found.push('bash -c');
+  return found;
 }
 
 /** The package.json of the working tree, when it parses: its scripts and its main. */
@@ -231,6 +261,7 @@ export function cover(root: string, command: string, tracked: readonly string[] 
   };
   const pkg = packageOf(root);
   const followed = new Set<string>();
+  const unfollowed = new Set<string>();
   const visit = (text: string, depth: number): void => {
     const { ws, starts } = words(text);
     const positions = scriptPositions(ws, starts);
@@ -239,12 +270,14 @@ export function cover(root: string, command: string, tracked: readonly string[] 
     ws.forEach((word, i) => {
       if (scriptNames.has(i)) return;
       const runner = /^(npm|pnpm|yarn|bun)(\.cmd|\.exe|\.ps1)?$/i.exec(word.split(/[\\/]/).pop() ?? '')?.[1].toLowerCase();
+      for (const u of unfollowedIn(ws, i, runner)) unfollowed.add(u);
       if (runner !== undefined) {
         for (const f of RUNNERS[runner]) runnerFiles(f);
         const rest = ws.map((w, j) => ({ w, j })).filter(({ w, j }) => j > i && !w.startsWith('-'));
         const at = rest[0] !== undefined && RUN_WORDS.has(rest[0].w) ? 1 : 0;
         if (at === 1) for (const r of rest.slice(0, 2)) scriptNames.add(r.j);
         const name = rest[at] === undefined ? undefined : at === 1 ? rest[at].w : (SCRIPT_ALIASES[rest[at].w] ?? rest[at].w);
+        if (name !== undefined && depth >= SCRIPT_DEPTH) unfollowed.add(`a package.json script chain deeper than ${SCRIPT_DEPTH}`);
         if (name !== undefined && depth < SCRIPT_DEPTH) {
           for (const n of ['pre' + name, name, 'post' + name]) {
             const body = pkg?.scripts[n];
@@ -275,7 +308,7 @@ export function cover(root: string, command: string, tracked: readonly string[] 
     if (u !== ROOT_UNIT && u.endsWith('/')) for (const f of tracked) if (under(f, u)) held.add(f);
     if (!u.endsWith('/')) held.add(u);
   }
-  return { units: [...units].sort(), files: [...held].sort() };
+  return { units: [...units].sort(), files: [...held].sort(), unfollowed: [...unfollowed].sort() };
 }
 
 /** True when the tracked path `f` lies below the directory unit `u` (ending in `/`), compared without regard to case. */
@@ -393,9 +426,9 @@ function digestOf(command: string, files: readonly string[], ids: Record<string,
 /** One digest of the command text and of every file it reaches, as they are in the working tree (that is what would run), with each file's own content id. */
 export function scriptDigest(root: string, command: string): { digest: string; hashes: Record<string, string> } & Cover {
   const index = indexEntries(root);
-  const { units, files } = cover(root, command, index.paths);
+  const { units, files, unfollowed } = cover(root, command, index.paths);
   const hashes = contentIds(root, files, index);
-  return { digest: digestOf(command, files, hashes), hashes, units, files };
+  return { digest: digestOf(command, files, hashes), hashes, units, files, unfollowed };
 }
 
 /** One allow as read from disk: a known kind, a command and a digest as strings, and `files`, when present, a plain map of strings. */
@@ -560,7 +593,7 @@ export function scriptRefusal(root: string, kind: ScriptKind, command: string): 
         ? 'is not the command that was allowed'
         : `or the files it reaches changed since it was allowed${i.changed.length === 0 ? '' : ` (changed: ${listed(i.changed, 5)})`}`;
   // round 3 WR-03: the digest is read from this checkout's files, so the line names the checkout; an allow made in another one does not cover this one
-  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(i)}; run accord trust in "${shown(root.replaceAll('\\', '/'))}" to see it, then accord trust ${kind}@<the digest it shows> there to allow it (accord trust --revoke withdraws every allow)`;
+  return `${kind} "${shown(command)}" ${why}, so it was not run; an allow covers ${coverText(i)} only, and no other file the command loads is checked${i.unfollowed.length === 0 ? '' : ` (not followed here: ${i.unfollowed.join(', ')})`}; run accord trust in "${shown(root.replaceAll('\\', '/'))}" to see it, then accord trust ${kind}@<the digest it shows> there to allow it (accord trust --revoke withdraws every allow)`;
 }
 
 /**
@@ -591,7 +624,7 @@ export function allowScripts(root: string, scripts: ReadonlyArray<{ kind: Script
     });
     return { version: 2, allows: kept };
   });
-  return seen.map((i) => ({ kind: i.kind, command: i.command, digest: i.digest, state: i.state, changed: i.changed, units: i.units, files: i.files }));
+  return seen.map((i) => ({ kind: i.kind, command: i.command, digest: i.digest, state: i.state, changed: i.changed, units: i.units, files: i.files, unfollowed: i.unfollowed }));
 }
 
 /** Withdraw the allows of the kinds named, or of every kind when none is named; returns the kinds that were allowed and are not any more. */

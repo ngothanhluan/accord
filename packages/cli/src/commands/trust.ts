@@ -6,7 +6,7 @@
 // Round 3 WR-02 (Ruling): with no script named it only shows each script (the command, what an allow covers, the files that changed since the last allow) and writes
 // nothing; `accord trust git.sync` allows git.sync alone and prints the same block for what it allowed. No prompt, so it is safe where nothing can answer one (CI, an agent
 // shell): a changed tracker script is never allowed by a person who ran `accord trust git.sync` after reading the sync diff.
-import { allowScripts, coverText, inspect, listed, recordWarning, revokeScripts, SCRIPT_KINDS, shortDigest, shown } from '../load/script-trust.js';
+import { allowScripts, coverText, inspect, listed, NOT_CHECKED, recordWarning, revokeScripts, SCRIPT_KINDS, shortDigest, shown } from '../load/script-trust.js';
 import type { Inspection, ScriptKind } from '../load/script-trust.js';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
@@ -31,7 +31,9 @@ const STATE: Record<Inspection['state'], string> = {
 function details(i: Inspection): string {
   const files = i.files.length > 0 && i.files.length <= 20 ? `  files: ${listed(i.files, 20)}\n` : '';
   const changed = i.changed.length > 0 ? `  changed since it was allowed: ${listed(i.changed, 50)}\n` : '';
-  return `  covers: ${coverText(i)}\n${files}${changed}`;
+  // round 4 (documented gaps): a form the command uses that accord does not follow is named, so the cover does not read as complete
+  const unfollowed = i.unfollowed.length > 0 ? `  not followed: ${i.unfollowed.join(', ')} - the files ${i.unfollowed.length === 1 ? 'it runs are' : 'they run are'} not checked\n` : '';
+  return `  covers: ${coverText(i)}\n${unfollowed}${files}${changed}`;
 }
 
 /**
@@ -74,6 +76,7 @@ export function trust(ctx: CommandContext, names: readonly string[], options: { 
   if (kinds.length === 0) {
     const seen = scripts.map((s) => inspect(ctx.root, s.kind, s.command));
     for (const i of seen) ctx.stdout.write(`${i.kind} "${shown(i.command)}" - ${STATE[i.state]} (digest ${shortDigest(i.digest)})\n${details(i)}`);
+    ctx.stdout.write(NOT_CHECKED + '\n');
     const open = seen.filter((i) => i.state !== 'allowed');
     ctx.stdout.write(
       open.length === 0
@@ -93,6 +96,7 @@ export function trust(ctx: CommandContext, names: readonly string[], options: { 
   for (const i of allowScripts(ctx.root, wanted)) {
     ctx.stdout.write(`allowed: ${i.kind} "${shown(i.command)}" (digest ${shortDigest(i.digest)})\n${details(i)}`);
   }
+  ctx.stdout.write(NOT_CHECKED + '\n');
   ctx.stdout.write('the allow is local to this repository (inside .git); it holds until the command or those files change, and accord trust --revoke withdraws it\n');
   return 0;
 }

@@ -1,5 +1,8 @@
 // ST-LN-91 mig-ac-1 and D-15 in core: a ticket at approach claimed under 0.4.0 answers as before at the discuss cut-off, for gate ready,
 // `accord round --approach` and gate plan; the new rules read the claim pin, never the working-tree pin or the approach record's own pin.
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { APPROACH_CAP_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, TASK_REPORT_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
@@ -256,9 +259,97 @@ it('risk:regression the five Phase 3 cut-offs are one release, so one claim pin 
 
 // Phase 4 (D-16): every rule it adds cuts off at one release, so one claim pin decides them all at once, the after: cycle rule
 // (PLAN_WAVES_FROM) included (the unfinished-marker rules of plan 04-04 read no claim pin: owner decision 2026-11-16).
-const PHASE4_CUT: string[] = [PLAN_MODEL_FROM, TASK_REPORT_FROM, FIX_RECORD_FROM, PLAN_WAVES_FROM];
+const PHASE4: Record<string, string> = { PLAN_MODEL_FROM, TASK_REPORT_FROM, FIX_RECORD_FROM, PLAN_WAVES_FROM };
+const PHASE4_CUT: string[] = Object.values(PHASE4);
 
 it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
   expect(PHASE4_CUT.length, 'the list names no constant').toBeGreaterThan(0);
   for (const v of PHASE4_CUT) expect(v).toBe('0.6.0');
+});
+
+// Release 0.6.0 (plan 04-17, D-16): the cut-offs name the release that ships them, and each rule reads its cut-off from the ticket's claim fact and
+// `ruleset` through claimPinBefore, never from a date or a bare version literal.
+const CLI_VERSION = (JSON.parse(readFileSync(new URL('../../cli/package.json', import.meta.url), 'utf8')) as { version: string }).version;
+const SRC_ROOTS = ['packages/core/src', 'packages/cli/src'];
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const PIN_FILE = 'packages/core/src/round/pin.ts';
+const LITERAL = /(['"`])0\.6\.0\1/g;
+const isComment = (line: string): boolean => /^(\/\/|\*|\/\*)/.test(line.trim());
+
+/** Every index of `name` (a whole word) on `line` that does not sit between the parentheses of a `claimPinBefore(` call on the same line. */
+function outsideClaimPinBefore(line: string, name: string): number[] {
+  const out: number[] = [];
+  for (const m of line.matchAll(new RegExp(`\\b${name}\\b`, 'g'))) {
+    const at = m.index;
+    const call = line.lastIndexOf('claimPinBefore(', at);
+    let depth = 0;
+    if (call >= 0) for (let i = call + 'claimPinBefore'.length; i < at; i++) depth += line[i] === '(' ? 1 : line[i] === ')' ? -1 : 0;
+    if (depth <= 0) out.push(at);
+  }
+  return out;
+}
+
+/**
+ * The lines of one source file that break rel-ac-1, as `<path>:<line>: <text>`: a code line that uses a Phase 4 cut-off outside a `claimPinBefore(` call
+ * (its declaration in pin.ts and an import or re-export line excepted), and a code line that holds a whole string literal `0.6.0` in any quote style (the
+ * declarations in pin.ts excepted). A line whose trimmed text starts with `//`, `*` or `/*` is a comment and compares nothing.
+ */
+function cutOffOffences(text: string, path: string): string[] {
+  const out: string[] = [];
+  const names = Object.keys(PHASE4);
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (isComment(line)) return;
+    const where = `${path}:${i + 1}: ${line.trim()}`;
+    const declaration = path === PIN_FILE && names.some((n) => new RegExp(`^export const ${n} = '0\\.6\\.0';$`).test(line.trim()));
+    if (declaration) return;
+    const importOrExport = /^(import|export)\s.*\bfrom\s+['"]/.test(line.trim());
+    if (!importOrExport && names.some((n) => outsideClaimPinBefore(line, n).length > 0)) out.push(where);
+    else if (LITERAL.test(line)) out.push(where);
+    LITERAL.lastIndex = 0;
+  });
+  return out;
+}
+
+/** The `.ts` files below `dir` (repository-relative, `/` separated); packages/core/src/generated/ is skipped by name: rendered prose, not comparisons. */
+function sources(dir: string): string[] {
+  return readdirSync(join(REPO_ROOT, dir), { recursive: true, encoding: 'utf8' })
+    .map((p) => `${dir}/${p.replace(/\\/g, '/')}`)
+    .filter((p) => p.endsWith('.ts') && !p.startsWith('packages/core/src/generated/'))
+    .sort();
+}
+
+it('risk:regression every Phase 4 cut-off equals the release version (rel-ac-1)', () => {
+  expect(Object.keys(PHASE4).sort()).toEqual(['FIX_RECORD_FROM', 'PLAN_MODEL_FROM', 'PLAN_WAVES_FROM', 'TASK_REPORT_FROM']);
+  for (const [name, v] of Object.entries(PHASE4)) {
+    expect(v, name).toBe('0.6.0');
+    expect(v, `${name} against packages/cli/package.json`).toBe(CLI_VERSION);
+  }
+});
+
+it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac-1)', () => {
+  // The scan catches a literal comparison, and leaves prose holding the version inside a longer string alone.
+  expect(cutOffOffences("  return pinBefore('0.6.0', pin);", 'packages/core/src/x.ts')).toEqual(["packages/core/src/x.ts:1: return pinBefore('0.6.0', pin);"]);
+  expect(cutOffOffences('  if (claimPinBefore(s, id, `0.6.0`)) return;', 'packages/cli/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  throw new UsageError(`T-1 was claimed before 0.6.0, so it is built one task at a time`);', 'packages/cli/src/x.ts')).toEqual([]);
+  expect(cutOffOffences("  // pinBefore('0.6.0', pin) in a comment compares nothing", 'packages/core/src/x.ts')).toEqual([]);
+  // A cut-off used outside the claim read is caught; inside it, and on an import line, it is not.
+  expect(cutOffOffences('  if (pinBefore(PLAN_MODEL_FROM, pin)) return;', 'packages/core/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (claimPinBefore(withPins(root, s, id), id, PLAN_WAVES_FROM)) return;', 'packages/cli/src/x.ts')).toEqual([]);
+  expect(cutOffOffences("import { claimPinBefore, TASK_REPORT_FROM } from './pin.js';", 'packages/cli/src/x.ts')).toEqual([]);
+
+  const files = SRC_ROOTS.flatMap(sources);
+  expect(files).toContain(PIN_FILE);
+  expect(files.some((f) => f.startsWith('packages/core/src/generated/'))).toBe(false);
+  const offences = files.flatMap((f) => cutOffOffences(readFileSync(join(REPO_ROOT, f), 'utf8'), f));
+  expect(offences).toEqual([]);
+
+  // The guard that the pattern finds them: pin.ts's code lines hold one whole literal per cut-off, and nothing else does.
+  const pinLiterals = readFileSync(join(REPO_ROOT, PIN_FILE), 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => !isComment(line))
+    .flatMap((line) => [...line.matchAll(LITERAL)]);
+  expect(pinLiterals).toHaveLength(PHASE4_CUT.length);
+  // Every use of the cut-offs in source sits inside a claimPinBefore( call: at least one per constant, so the scan is not empty.
+  const uses = files.flatMap((f) => readFileSync(join(REPO_ROOT, f), 'utf8').split(/\r?\n/).filter((line) => !isComment(line) && line.includes('claimPinBefore(')));
+  for (const name of Object.keys(PHASE4)) expect(uses.some((line) => new RegExp(`\\b${name}\\b`).test(line)), name).toBe(true);
 });

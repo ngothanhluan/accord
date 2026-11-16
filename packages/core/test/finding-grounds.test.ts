@@ -4,7 +4,7 @@ import { expect, it } from 'vitest';
 import { GROUNDS_V2_FROM, gateDone, nextRound } from '../src/index.js';
 import type { BranchFact, RangeCommit, RepoSnapshot } from '../src/index.js';
 import { groundsProblems, mentionsPath } from '../src/round/grounds.js';
-import { commit, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
+import { claimedUnder, commit, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
 
 const GROUNDS = 'gate.finding-grounds';
@@ -174,11 +174,16 @@ it('risk:regression a ticket research record the fix added and a Wording-only li
 
 // ST-LN-91 D-11: the ST-LN-57 grounds rule lowered to round 2 and widened to Must and Should, from the cut-off pin.
 it('risk:complex-branching from pin 0.4.1 a round 2 must or should needs a ticket line or a risk tag (ST-LN-91 ac-1)', () => {
+  // The ticket is claimed under the record's pin (0.4.0 when the record has none), so its history is pinned: from 0.6.0 a
+  // re-review finding outside the fix diff is deferred (FIX_RECORD_FROM), a later rule this test is not about (plan 02-10).
   const two = (round2: string[], o: { pin?: string; basePin?: string; one?: string[] } = {}): RepoSnapshot =>
-    scopeSnapshot({
-      review: v2Review([[{ lines: o.one ?? [] }, { lines: round2 }]]),
-      facts: facts(none(2), { ...(o.pin === undefined ? {} : { pin: o.pin }), ...(o.basePin === undefined ? {} : { basePin: o.basePin }) }),
-    });
+    claimedUnder(
+      scopeSnapshot({
+        review: v2Review([[{ lines: o.one ?? [] }, { lines: round2 }]]),
+        facts: facts(none(2), { ...(o.pin === undefined ? {} : { pin: o.pin }), ...(o.basePin === undefined ? {} : { basePin: o.basePin }) }),
+      }),
+      o.pin ?? '0.4.0',
+    );
   const from = (round2: string[], one?: string[]): RepoSnapshot => two(round2, { pin: GROUNDS_V2_FROM, ...(one === undefined ? {} : { one }) });
   const should = (...marks: string[]): string => line('Should', 1, 'src/a.ts:1', 'open', ...marks);
   const must = (...marks: string[]): string => line('Must', 1, 'src/a.ts:1', 'open', ...marks);

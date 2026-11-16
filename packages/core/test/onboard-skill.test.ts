@@ -72,11 +72,12 @@ describe('the onboarding skill confirms each proposal and writes only what the u
   // Round 3 WR-02, WR-03: `accord trust` alone only shows; naming a script allows it, in the checkout the line names.
   it('risk:security the skills say accord trust alone only shows, accord trust <script> allows that one, and where to run it (round 3 WR-02, WR-03)', () => {
     const onboard = flat(source('accord/onboard.md'));
-    for (const p of ['`accord trust` shows each script, the files an allow covers and the ones that changed, and allows nothing', '`accord trust git.sync` or `accord trust tracker.command` allows that one']) {
+    // round 4 WR-04: the allow names the digest the preview showed (`<script>@<digest>`), so the round 3 wording moved to the forms below
+    for (const p of ['the files an allow covers and the ones that changed, and allows nothing', 'allows that one']) {
       expect(onboard, p).toContain(p);
     }
     const worktree = flat(source('accord/worktree.md'));
-    for (const p of ['run accord trust git.sync in "<path>"', 'the checkout it names']) expect(worktree, p).toContain(p);
+    for (const p of ['run accord trust in "<path>"', 'the checkout it names']) expect(worktree, p).toContain(p);
   });
 
   // Round 4 WR-04 and the owner's round 4 answer: an allow names the digest the preview showed, and the skills say what accord does not check.

@@ -184,3 +184,31 @@ it('risk:regression the fix-record rules hold in a repository whose runtimes ins
     }
   }
 }, 240_000);
+
+// ST-LN-56 56-ac-2, the outside-diff half (plan 04-09): a re-review finding outside the fix diff goes to Deferred and starts no round; `accord round` refuses it left open.
+const LEDGER = 'accord/tickets/T-1/ledger.md';
+const DEFERRED_LINE = '## Deferred\n- review 2.1: a cell is wrong — failing case: the export of a two-row table drops the second row\n';
+const outsideLine = (state: string, klass: string, marks = ''): string => `Should 1${klass}: a cell is wrong — src/z.ts:1 — ${state}${marks}`;
+
+it('ac-2 accord round refuses an open outside-diff re-review finding on real git (ST-LN-56 56-ac-2)', async () => {
+  const { repo, rounds } = fixed('0.6.0');
+  try {
+    rounds(PLACES + ADDRESSED, outsideLine('open', ' [patch]', ' — test: export#writes-csv'));
+    const refused = await run(['round', 'T-1'], repo);
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain('refused:');
+    expect(refused.out).toContain('round 2');
+    expect(refused.out).toContain('finding 1');
+    expect(refused.out).toContain('src/z.ts');
+
+    // written deferred with its ledger line, the round command goes on
+    rounds(PLACES + ADDRESSED, outsideLine('deferred', ' [patch]'));
+    writeFiles(repo, { [LEDGER]: DEFERRED_LINE });
+    commitMsg(repo, 'T-1 ledger');
+    const next = await run(['round', 'T-1'], repo);
+    expect(next.out).toContain('Round: 3 of 5');
+    expect(next.code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 240_000);

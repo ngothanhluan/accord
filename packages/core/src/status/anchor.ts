@@ -1,6 +1,7 @@
 // Spec §6 re-anchoring: after a compaction the orchestrator re-reads the owner's words instead of
 // remembering them. Comments and blank lines are dropped; every other line is printed as written.
-import { shaEqual } from '../gate/done.js';
+import { shaEqual, unfinishedVerification } from '../gate/done.js';
+import { unfinishedPlan } from '../gate/plan.js';
 import { workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { RULING } from '../load/work.js';
@@ -12,16 +13,16 @@ const SECTIONS = ['Intent', 'Vetoes', 'Decisions', 'Corrections'];
 const has = (ticket: { sections: { heading: string }[] }, name: string): boolean => ticket.sections.some((x) => headingKey(x.heading) === headingKey(name));
 
 /**
- * ST-LN-72 D-11 and its Ruling: the resume-or-restart fact for a plan.md or verification.md that still carries the unfinished marker, plan first. The skills have no byte room for the rule, so the
- * tool prints it and the skill follows the line. A verifier resumes only on the commit it began on: the frontmatter `commit:` against HEAD by prefix (shaEqual: both at least 7 hex characters); a
+ * ST-LN-72 D-11 and its Ruling: the resume-or-restart fact for a plan.md or verification.md that still carries the unfinished marker, plan first, for exactly the tickets the gates refuse them on
+ * (unfinishedPlan, unfinishedVerification). The skills have no byte room for the rule, so the tool prints it and the skill follows the line. A verifier resumes only on the commit it began on: the frontmatter `commit:` against HEAD by prefix (shaEqual: both at least 7 hex characters); a
  * difference, no `commit:` or no HEAD says start over.
  */
 function unfinishedLines(snapshot: RepoSnapshot, id: string): string[] {
-  const work = workOf(snapshot, id);
   const lines: string[] = [];
-  if (work?.plan?.unfinished !== undefined) lines.push(`Unfinished: ${work.plan.file}: resume the planner`);
-  const v = Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id] : undefined;
-  if (v?.unfinished !== undefined) {
+  const plan = unfinishedPlan(snapshot, id);
+  if (plan !== undefined) lines.push(`Unfinished: ${plan.file}: resume the planner`);
+  const v = unfinishedVerification(snapshot, id);
+  if (v !== undefined) {
     const written = v.frontmatter?.commit;
     const head = snapshot.git?.commit;
     lines.push(

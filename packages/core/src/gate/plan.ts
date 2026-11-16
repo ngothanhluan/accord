@@ -4,8 +4,8 @@
 import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
-import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
-import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, pinBefore, UNFINISHED_FROM } from '../round/pin.js';
+import type { Plan, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
@@ -183,12 +183,22 @@ const withNote =
   };
 
 /**
- * ST-LN-72 D-11 and D-16: a plan.md that still carries UNFINISHED_MARKER is a plan the planner has not finished, so it never passes gate plan and never reaches a brief. Lane tickets other than
- * lane S, unless the claim pin is below UNFINISHED_FROM (claimPinBefore: a failed read applies the rule). The plan stage's own switch removes the row (STAGE_OF 'plan').
+ * The plan.md of a lane ticket other than lane S (no plan) and lane R (its own plan table refuses any plan) that still carries UNFINISHED_MARKER; undefined otherwise. The one predicate for gate plan's refusal and for the Unfinished line of `accord anchor`
+ * (status/anchor.ts), so the two cannot disagree on which tickets it applies to.
  */
-export const planUnfinished: GateRule['check'] = withNote((snapshot, id) => {
+export const unfinishedPlan = (snapshot: RepoSnapshot, id: string): Plan | undefined => {
   const t = laneTicket(snapshot, id);
-  const plan = t === undefined || t.frontmatter?.lane === 'S' || claimPinBefore(snapshot, id, UNFINISHED_FROM) ? undefined : workOf(snapshot, id)?.plan;
+  const plan = t === undefined || t.frontmatter?.lane === 'S' || t.frontmatter?.lane === 'R' ? undefined : workOf(snapshot, id)?.plan;
+  return plan?.unfinished === undefined ? undefined : plan;
+};
+
+/**
+ * ST-LN-72 D-11: a plan.md that still carries UNFINISHED_MARKER is a plan the planner has not finished, so it never passes gate plan and never reaches a brief. Lane tickets other than lane S, whatever
+ * their claim pin: the owner's decision of 2026-11-16, an exception to D-16 (only a 0.6.0 agent writes the marker, so a ticket claimed earlier cannot be refused wrongly, and exempting it would let a
+ * stalled agent's half-written plan through after an upgrade). The plan stage's own switch removes the row (STAGE_OF 'plan').
+ */
+export const planUnfinished: GateRule['check'] = (snapshot, id) => {
+  const plan = unfinishedPlan(snapshot, id);
   if (plan?.unfinished === undefined) return [];
   return [
     {
@@ -197,7 +207,7 @@ export const planUnfinished: GateRule['check'] = withNote((snapshot, id) => {
       reason: `${plan.file} still carries the line ${UNFINISHED_MARKER}: the planner has not finished it; the plan stage resumes the planner, which removes the line as its last step`,
     },
   ];
-});
+};
 
 const NEAR_AFTER = /^(after\s*:)/i;
 

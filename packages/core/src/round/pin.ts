@@ -85,12 +85,6 @@ export const RULESET_FROM = '0.5.0';
  */
 export const PLAN_MODEL_FROM = '0.6.0';
 
-/**
- * ST-LN-72 D-11 and D-16: the release from which a file still being written carries the line `<!-- accord: unfinished -->` (UNFINISHED_MARKER), and a gate refuses it: `accord gate plan`
- * refuses a plan.md that carries it, and `accord gate done` a verification.md that does. A ticket claimed before it answers as before. Read through claimPinBefore.
- */
-export const UNFINISHED_FROM = '0.6.0';
-
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

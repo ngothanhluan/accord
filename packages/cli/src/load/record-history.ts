@@ -1,7 +1,7 @@
 // ST-LN-57: which commit recorded each review round, the pin at the first round, the base pin and each debug
 // episode's commits, all read from git along first parents (D-12, ledger Rulings 22 and 26).
 import { execFileSync } from 'node:child_process';
-import { parseRounds, pinOf } from '@accord-dev/accord-core';
+import { debugHeadings, parseRounds, pinOf } from '@accord-dev/accord-core';
 import { catBatch } from './fs.js';
 import { reach } from './walk.js';
 import type { Walk } from './walk.js';
@@ -88,24 +88,6 @@ function mergeBase(root: string, a: string, b: string): string | undefined {
     if ((e as { status?: number }).status === 1) return undefined;
     throw e;
   }
-}
-
-/** The `## Episode` and `## Resolved` headings of a debug.md text outside fenced blocks, in order. */
-function debugHeadings(text: string): ('E' | 'R')[] {
-  const kinds: ('E' | 'R')[] = [];
-  let fence: string | undefined;
-  for (const line of text.split(/\r?\n/)) {
-    const f = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (f !== null) {
-      if (fence === undefined) fence = f[1][0];
-      else if (f[1][0] === fence) fence = undefined;
-      continue;
-    }
-    if (fence !== undefined) continue;
-    if (/^## Episode\b/.test(line)) kinds.push('E');
-    else if (/^## Resolved\b/.test(line)) kinds.push('R');
-  }
-  return kinds;
 }
 
 /** An entry list cut at its newest creation (status A); empty when the newest entry deleted the file. */

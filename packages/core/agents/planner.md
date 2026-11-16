@@ -27,7 +27,7 @@ The plan:
 
 ```
 covers: @ac-1, D-02
-files: src/export.ts, src/csv.ts (new)
+files: src/export.ts, src/csv.ts (new, like src/json.ts)
 verify: src/export.test.ts#writes-the-csv (@ac-1), src/csv.test.ts#risk:data-loss-quotes
 after: 1, 2
 ```
@@ -35,15 +35,13 @@ after: 1, 2
 - Every `@ac-n` and every `D-nn` in the ticket is cited by some task's `covers:`. Nothing in `covers:` is foreign to the ticket.
 - `verify:` names the test report case ids that will exist once the task's tests are written. `after:` names the tasks this one follows (`after: 1, 2`), or `after: none` when it follows none.
 - Write `(@ac-n)` after the id of the test that proves scenario `@ac-n`: each scenario that is not `@ui` is mapped to exactly one test; an id may carry two markers; an id that proves no scenario carries none; no `@ui` scenario is mapped.
-- A test whose verify id maps no scenario carries `risk:<kind>` in its name, the kind from the reviewer's list
-  (parsing, money or calculation, security or permission, concurrency, data loss, complex branching, regression
-  of a real bug). A test that would only repeat a criterion test at another layer is not planned.
+- A test whose verify id maps no scenario carries `risk:<kind>` in its name, the kind from the reviewer's list (parsing, money or calculation, security or permission, concurrency, data loss, complex branching, regression of a real bug). A test that would only repeat a criterion test at another layer is not planned. A `risk:parsing` task lists the valid spellings of its input (YAML's several ways to write a map, for one) and its tests cover them first.
 - A test name never holds `@` or a comma.
-- A path the task creates is followed by `(new)` on its `files:` line. Every other path must exist at the baseline.
+- A path the task creates is followed on its `files:` line by `(new, like <an existing file of the same kind>)`, the file the executor models it on, or by `(new, no model: <why>)` when no file of that kind exists yet; a bare `(new)` is refused from 0.6.0. Every model and every other path must exist at the baseline.
 - A task says what, never how: its prose gives the interface (what the task consumes, what it produces) and the test written first, and the executor chooses the how. The interfaces between tasks go in interfaces blocks, each of this form: its first line is three backticks and the word interfaces, at column 0, and the first line after it that is three backticks, at column 0, closes it; either line may end in spaces or tabs, and holds nothing else. No other line of a task starts with three backticks or tildes, even after spaces, a list marker or `>`, inside a block or out.
 - A task that edits an existing file names the behaviour there that must not change.
 - A task fits in about half an executor's context and at most 120 non-blank lines; split anything larger. Keep the plan within twice the `Expected size:` of `## Intent` unless the ledger holds the owner's size Ruling. A ticket that measures something gets as its first task one arm on one sample, which the owner sees before any task widens it.
-- Order tasks so the one that proves the approach end to end (the wiring) comes first; polish comes last.
+- Order tasks so the one that proves the approach end to end (the wiring) comes first; polish comes last. Write a `## Failure modes` section after the last task: one line each for the few failures most likely to bite the person the `## Intent` names that no task's tests exercise, naming the task that owns the code, whose `verify:` gets the test.
 - A bug ticket's first task is the failing reproduction test.
 - Under review mode `human`, group the tasks into slices: each slice is one pull request covering a stated subset of the acceptance criteria, green on its own. Write each slice into `plan.md`: the tasks it holds and the criteria it covers. Under `outcome`, one branch and no slices.
 - No TODO, TBD, placeholder, "v1", "for now", or "later" anywhere in task text.
@@ -53,8 +51,8 @@ Before you reply, run these checks of the critic's plan mode on your plan and fi
 - Check that nothing goes beyond the acceptance criteria.
 - Check that the approved `## Approach` is followed; skip this check when `## Approach` is empty because the approach stage is off.
 - Check that each task fits in half an executor's context.
-- Check that, assuming every task passes its `verify:` line, the `## Intent` holds for the person it names. A criterion covered on paper with a step nobody wired or a state nobody reaches is a Must.
-- Check that an executor holding only the ticket and one task could finish that task without asking; a task that fails this is a Should.
+- Check that, assuming every task passes its `verify:` line, the `## Intent` holds for the person it names. A criterion covered on paper with a step nobody wired or a state nobody reaches is a Must. A likely failure of that person's use that the `## Failure modes` section after the last task lacks and no task's tests exercise is a Should.
+- Check that an executor holding only the ticket and one task could finish that task without asking; a task that fails this is a Should, as is a new path with no `(new, like <path>)` or `(new, no model: <why>)` model, and a `risk:parsing` task that lists no valid spellings of its input.
 - Check every Decision and every Correction of the ticket: a task that contradicts one is a Must that names the Decision's `D-nn` or quotes the Correction.
 
 When you finish, reply with the path of `plan.md`, the number of tasks, and for each finding you were given its `<round>.<n>` label, which you reply with, and `fixed` or `unverified: <reason>`.

@@ -24,8 +24,8 @@ Mode `plan`:
 - Check that nothing goes beyond the acceptance criteria.
 - Check that the approved `## Approach` is followed; skip this check when `## Approach` is empty because the approach stage is off.
 - Check that each task fits in half an executor's context.
-- Check that, assuming every task passes its `verify:` line, the `## Intent` holds for the person it names. A criterion covered on paper with a step nobody wired or a state nobody reaches is a Must.
-- Check that an executor holding only the ticket and one task could finish that task without asking; a task that fails this is a Should.
+- Check that, assuming every task passes its `verify:` line, the `## Intent` holds for the person it names. A criterion covered on paper with a step nobody wired or a state nobody reaches is a Must. A likely failure of that person's use that the `## Failure modes` section after the last task lacks and no task's tests exercise is a Should.
+- Check that an executor holding only the ticket and one task could finish that task without asking; a task that fails this is a Should, as is a new path with no `(new, like <path>)` or `(new, no model: <why>)` model, and a `risk:parsing` task that lists no valid spellings of its input.
 - Check every Decision and every Correction of the ticket: a task that contradicts one is a Must that names the Decision's `D-nn` or quotes the Correction.
 
 Mode `diff`: you get the paths of `plan.md`, of a file holding `git diff` of `plan.md` since the last round, and of `plan-review.md`.

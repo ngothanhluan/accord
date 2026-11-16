@@ -55,7 +55,7 @@ it("risk:regression every agent file any runtime installs carries its role's req
 });
 
 it('ac-2 the planner asks for a model file per new path, the parsing spellings and the untested failure modes in every tool that installs accord agents (ST-LN-10 10-ac-2)', () => {
-  const flat = (s: string): string => s.replace(/s+/g, ' ');
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
   const bad: string[] = [];
   for (const runtime of RUNTIME_LIST) {
     const files = agentTargets(config({ runtimes: [runtime] })).filter((f) => f.path === '.claude/agents/accord-planner.md');

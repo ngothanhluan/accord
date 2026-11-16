@@ -133,25 +133,16 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
 }
 
 /**
- * The verdict form of fixProblems, computed once per snapshot and ticket for the three gate rows that read it (gate done runs all three on one snapshot). The verdict form only adds
- * `answer` problems, so `places` and `outside` read the same from it. A snapshot is never changed after load (a host that adds a fact builds a new object), so a kept answer cannot go stale.
+ * One gate row: the problems of `rule` in the verdict form of fixProblems, as findings on review.md. The three rows take that form from the gate run's `once`, so a gate done computes
+ * it once; the verdict form only adds `answer` problems, so `places` and `outside` read the same from it.
  */
-const verdictForms = new WeakMap<RepoSnapshot, Map<string, FixProblem[]>>();
-function verdictProblems(snapshot: RepoSnapshot, id: string): FixProblem[] {
-  let byId = verdictForms.get(snapshot);
-  if (byId === undefined) verdictForms.set(snapshot, (byId = new Map()));
-  let found = byId.get(id);
-  if (found === undefined) byId.set(id, (found = fixProblems(snapshot, id, { verdict: true })));
-  return found;
-}
-
-/** One gate row: the verdict-form problems of `rule`, as findings on review.md. */
 const fixRow =
   (rule: FixProblem['rule']): GateRule['check'] =>
-  (snapshot, id) => {
+  (snapshot, id, once) => {
     const rec = workOf(snapshot, id)?.rounds;
     if (rec === undefined) return [];
-    return verdictProblems(snapshot, id)
+    const compute = (): FixProblem[] => fixProblems(snapshot, id, { verdict: true });
+    return (once === undefined ? compute() : once('fixProblems', compute))
       .filter((p) => p.rule === rule)
       .map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
   };

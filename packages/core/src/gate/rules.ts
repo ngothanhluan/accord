@@ -109,11 +109,14 @@ import {
 /** What a check returns; the engine adds `rule` and `level` from the table row. */
 export type GateDraft = Omit<Finding, 'level' | 'rule'>;
 
+/** A value computed once per gate run, by key: rows that read one shared answer (the three fix record rows) take it here instead of each computing it. */
+export type RunOnce = <T>(key: string, compute: () => T) => T;
+
 export interface GateRule {
   id: `gate.${string}`; // D-59: mirrors the loader's `load.<name>` and lint's `lint.<name>` ids
   level: Level; // D-56
   profiles: readonly ('build' | 'maintain')[]; // D-57
-  check: (snapshot: RepoSnapshot, id: string) => GateDraft[]; // pure; reads the snapshot only
+  check: (snapshot: RepoSnapshot, id: string, once?: RunOnce) => GateDraft[]; // pure; reads the snapshot only; the engine passes `once`
 }
 
 /**

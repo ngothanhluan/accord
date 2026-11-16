@@ -10,7 +10,7 @@ import { resolveStrictness } from '../config/strictness.js';
 import { effectiveLevel, STAGE_OF, stageOff } from './floor.js';
 import { readyHash } from './hash.js';
 import { downgradeMaintain, DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
-import type { GateRule } from './rules.js';
+import type { GateRule, RunOnce } from './rules.js';
 import { laneTicket, workOf } from './work.js';
 
 export interface GateResult {
@@ -65,12 +65,18 @@ function run(
   // The one place a gate rule's level is set: the table's, or the team's for an OVERRIDABLE rule; off drops the rule's findings (floor.ts). No check reads the config for its own level.
   // D-08: a rule of a stage the gated ticket's lane turned off is dropped before it runs (stageOff is false for the floor stages, lanes S and R, and an unknown id); the lint findings
   // below arrive from lintSnapshot, which drops the same stages' rules by the ticket their file belongs to.
+  // One answer per key for this run only: rows that share a computation read it once, and nothing outlives the run.
+  const memo = new Map<string, unknown>();
+  const once: RunOnce = <T>(key: string, compute: () => T): T => {
+    if (!memo.has(key)) memo.set(key, compute());
+    return memo.get(key) as T;
+  };
   const gated = rules
     .filter((r) => r.profiles.includes(profile))
     .filter((r) => !Object.hasOwn(STAGE_OF, r.id) || !stageOff(snapshot, id, STAGE_OF[r.id]))
     .flatMap((r) => {
       const level = effectiveLevel(r.id, r.level, strictness);
-      return level === 'off' ? [] : r.check(snapshot, id).map((d) => ({ ...d, rule: r.id, level }));
+      return level === 'off' ? [] : r.check(snapshot, id, once).map((d) => ({ ...d, rule: r.id, level }));
     });
   // An unknown id short-circuits: gate.ticket-unknown is already in `gated` on every table, every
   // other check is silent without a ticket, and there is no scenario to hash. A table missing that row

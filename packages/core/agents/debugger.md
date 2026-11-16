@@ -39,7 +39,7 @@ Write `debug.md` in this format, under its last `## Episode <n>` heading, keepin
 
 Keep `## Fixes` as you found it; the debug stage writes it.
 
-Write `debug.md` in parts: put the line `<!-- accord: unfinished -->` on the first line of `debug.md` before anything else, append each part of your episode (the symptom, each hypothesis, each probe, the root cause) as soon as it is done, and remove the line as your last step. In `resume mode` you also get a `debug.md` whose first line is that marker: keep every finished part and go on from the last one.
+Write `debug.md` in parts: put the line `<!-- accord: unfinished -->` as the first line under the last `## Episode <n>` heading before anything else, keeping every earlier episode as it is, append each part of your episode (the symptom, each hypothesis, each probe, the root cause) as soon as it is done, and remove the line as your last step. In `resume mode` you also get a `debug.md` whose last episode starts with that marker: keep every finished part and go on from the last one.
 
 Return, at most 15 lines: the root cause with its evidence, the failing reproduction test you propose (its file, its name, and what it asserts), and the hypotheses ruled out with what ruled each out. Without evidence, return your ranked hypotheses and say no root cause is shown.
 

@@ -209,6 +209,12 @@ export interface Plan {
   unfinished?: number; // ST-LN-72 D-11: 1-based line of the `<!-- accord: unfinished -->` marker in the raw text; absent when the file does not carry it
 }
 
+/** ST-LN-72 review round 1: debug.md, read only for the marker of its last open episode. */
+export interface Debug {
+  file: string; // 'accord/tickets/LOGIN-1/debug.md'
+  unfinished?: number; // 1-based line of the `<!-- accord: unfinished -->` marker that is the first line under the last open `## Episode <n>` heading; absent otherwise
+}
+
 export interface Ledger {
   file: string; // 'accord/tickets/LOGIN-1/ledger.md'
   done: Record<string, string>; // task number -> commit sha of its first done line
@@ -282,6 +288,7 @@ export interface Discuss {
 export interface TicketWork {
   discuss?: Discuss; // discuss.md (ST-LN-91)
   plan?: Plan;
+  debug?: Debug; // debug.md (ST-LN-72)
   ledger?: Ledger;
   review?: Review;
   rounds?: RoundRecord; // review.md as round records (ST-LN-17)

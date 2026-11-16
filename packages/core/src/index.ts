@@ -45,7 +45,7 @@ export type {
   PlanHunk,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
-export { UNFINISHED_MARKER, unfinishedLine } from './load/unfinished.js';
+export { UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from './load/unfinished.js';
 export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
 export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, DISCUSS_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, RECORD_V2_FROM, RULESET_FROM, pinAllowsV1, pinBefore, pinOf, rulesetOfTicket } from './round/pin.js';

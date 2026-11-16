@@ -2,10 +2,10 @@
 // review.md under accord/tickets/<id>/, and accord/tests-baseline.txt. Pure string work; every parser
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
-import type { Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
+import type { Debug, Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
-import { unfinishedLine } from './unfinished.js';
+import { unfinishedEpisode, unfinishedLine } from './unfinished.js';
 import { headingKey, LIST_MARKER, scan, stripHtmlComments, taskBlocks } from './sections.js';
 import { parseYamlMap } from './yaml.js';
 
@@ -211,6 +211,12 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
  * `- task <n> done <sha>` lines, the first per task winning, every `Ruling:` line anywhere in the file, and
  * the first `## Rulings` section as written, comments and blank lines dropped, when the file has one.
  */
+/** ST-LN-72 review round 1: debug.md, kept only for the marker of its last open episode (the raw text, so no comment stripping hides it). */
+export function parseDebug(file: string, text: string): Debug {
+  const unfinished = unfinishedEpisode(text);
+  return { file, ...(unfinished === undefined ? {} : { unfinished }) };
+}
+
 export function parseLedger(file: string, text: string): Ledger {
   const done: Record<string, string> = {};
   const rulings: string[] = [];

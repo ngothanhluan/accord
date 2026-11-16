@@ -2,7 +2,7 @@
 // remembering them. Comments and blank lines are dropped; every other line is printed as written.
 import { shaEqual, unfinishedVerification } from '../gate/done.js';
 import { unfinishedPlan } from '../gate/plan.js';
-import { workOf } from '../gate/work.js';
+import { unfinishedDebug, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { RULING } from '../load/work.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
@@ -13,8 +13,8 @@ const SECTIONS = ['Intent', 'Vetoes', 'Decisions', 'Corrections'];
 const has = (ticket: { sections: { heading: string }[] }, name: string): boolean => ticket.sections.some((x) => headingKey(x.heading) === headingKey(name));
 
 /**
- * ST-LN-72 D-11 and its Ruling: the resume-or-restart fact for a plan.md or verification.md that still carries the unfinished marker, plan first, for exactly the tickets the gates refuse them on
- * (unfinishedPlan, unfinishedVerification). The skills have no byte room for the rule, so the tool prints it and the skill follows the line. A verifier resumes only on the commit it began on: the frontmatter `commit:` against HEAD by prefix (shaEqual: both at least 7 hex characters); a
+ * ST-LN-72 D-11 and its Ruling: the resume-or-restart fact for a plan.md, a verification.md or a debug.md that still carries the unfinished marker, in that order, for exactly the tickets the gates refuse them on
+ * (unfinishedPlan, unfinishedVerification) and, for debug.md, the lanes of the debug stage (unfinishedDebug). The skills have no byte room for the rule, so the tool prints it and the skill follows the line. A verifier resumes only on the commit it began on: the frontmatter `commit:` against HEAD by prefix (shaEqual: both at least 7 hex characters); a
  * difference, no `commit:` or no HEAD says start over.
  */
 function unfinishedLines(snapshot: RepoSnapshot, id: string): string[] {
@@ -31,6 +31,8 @@ function unfinishedLines(snapshot: RepoSnapshot, id: string): string[] {
         : `Unfinished: ${v.file}: written at ${written ?? 'unknown'}, HEAD is ${head ?? 'unknown'}: start the verifier over`,
     );
   }
+  const debug = unfinishedDebug(snapshot, id);
+  if (debug !== undefined) lines.push(`Unfinished: ${debug.file}: resume the debugger`);
   return lines;
 }
 

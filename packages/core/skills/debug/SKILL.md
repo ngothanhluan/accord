@@ -22,7 +22,7 @@ main session and orchestrate: debuggers investigate, executors fix.
    each episode by appending `## Episode <n>` to it; the episode is open
    while the last `## ` heading in the file is not `## Resolved`.
 
-3. **Root cause.** No fix before a root cause. When `debug.md` starts with the unfinished marker, follow `./resume.md`. Dispatch a fresh
+3. **Root cause.** No fix before a root cause. On an `Unfinished:` line in `accord anchor`, follow `./resume.md`. Dispatch a fresh
    `accord-debugger` with the path of the ticket file and the failing
    command and its output, or the report alone when it gives neither. It writes `debug.md`:
    - competing hypotheses, each with evidence for and against, ranked

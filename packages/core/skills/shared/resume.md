@@ -26,8 +26,10 @@ every finished block. When it ends `: start the verifier over`, the work moved
 since the blocks were written, so remove `verification.md` and dispatch the
 verifier as step 3 does, with no `resume mode`.
 
-**Debug.** When the first line of `debug.md` is `<!-- accord: unfinished -->`, dispatch
-`accord-debugger` with the path of the ticket file, the failing command and its
-output, the path of `debug.md` and the words `resume mode`; it keeps every
-finished part and goes on from the last one. A debugger dispatched on one
-hypothesis in a parallel round writes nothing, so it never leaves the line.
+**Debug.** In `debug.md` the line sits first under the last `## Episode <n>`
+heading, with earlier episodes above it. When the line ends
+`: resume the debugger`, dispatch `accord-debugger` with the path of the ticket
+file, the failing command and its output, the path of `debug.md` and the words
+`resume mode`; it keeps every finished part and goes on from the last one. A
+debugger dispatched on one hypothesis in a parallel round writes nothing, so it
+never leaves the line.

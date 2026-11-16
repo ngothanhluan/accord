@@ -134,19 +134,30 @@ const LAUNCHERS = /^(node|nodejs|deno|bun|tsx|ts-node|python[0-9.]*|py|pypy[0-9.
 function scriptPositions(ws: readonly string[], starts: ReadonlySet<number>): Set<number> {
   const at = new Set<number>();
   let expect = false;
+  let skip = false;
   ws.forEach((w, i) => {
     if (starts.has(i)) {
       at.add(i);
       expect = true;
+      skip = false;
       return;
     }
-    if (!expect) return;
-    if (w.startsWith('-') || /^\/[a-z?]$/i.test(w) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) return;
+    if (!expect || skip) {
+      skip = false;
+      return;
+    }
+    if (w.startsWith('-') || /^\/[a-z?]$/i.test(w) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) {
+      skip = VALUE_OPTIONS.test(w);
+      return;
+    }
     at.add(i);
     expect = LAUNCHERS.test((w.split(/[\\/]/).pop() ?? '').replace(/\.(exe|cmd|bat|ps1)$/i, ''));
   });
   return at;
 }
+
+/** Round 5 WR-01: the Node options whose value is the next word (`--env-file .env`, `-r dotenv/config`), so that word is not taken for the script. */
+const VALUE_OPTIONS = /^(-r|--require|--import|--loader|--experimental-loader|--env-file|--env-file-if-exists|-C|--conditions|--input-type|--title|--disable-warning|--inspect-port|--debug-port|--redirect-warnings|--watch-path|--experimental-config-file|--test-reporter|--test-reporter-destination|--test-name-pattern|--test-skip-pattern)$/;
 
 /** The extensions tried after a word with none, in the order Node's resolver and the Windows PATHEXT try theirs, then the common script interpreters'. */
 const EXTENSIONS = ['.js', '.json', '.node', '.mjs', '.cjs', '.ts', '.mts', '.cts', '.cmd', '.bat', '.ps1', '.exe', '.com', '.sh', '.bash', '.py', '.rb', '.pl'];
@@ -498,17 +509,18 @@ function update(root: string, change: (record: TrustFile) => TrustFile | 'remove
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code;
       if (code !== 'EEXIST' && code !== 'EPERM' && code !== 'EBUSY') throw e;
-      let age: number;
+      let age = -1;
       try {
         age = Date.now() - statSync(lock).mtimeMs;
       } catch {
-        continue;
+        // round 5 WR-04: no lock file to wait for (EPERM where accord cannot create files): retried until the wait ends, then the OS error is thrown
       }
       if (age > LOCK_STALE_MS) {
         rmSync(lock, { force: true });
         continue;
       }
       if (Date.now() > until) {
+        if (age < 0) throw e;
         throw new UsageError(`another accord trust is writing the trust record (its lock ${shown(lock.replaceAll('\\', '/'))} is held) - nothing was changed; run it again, or remove that file if no accord trust is running`);
       }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);

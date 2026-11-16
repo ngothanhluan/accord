@@ -85,6 +85,20 @@ export const RULESET_FROM = '0.5.0';
  */
 export const PLAN_MODEL_FROM = '0.6.0';
 
+/**
+ * ST-LN-59 D-07 and D-16: the release from which `accord task-done` refuses a task whose executor report file is missing, written before HEAD's commit, or without its
+ * red-reason and self-review lines, and from which `accord brief` names the report file, prints the report contract and clears the task's old report. A ticket claimed under
+ * a pin below it records as before and gets today's brief, with nothing written. Read through claimPinBefore, one read for the brief and the check.
+ */
+export const TASK_REPORT_FROM = '0.6.0';
+
+/**
+ * ST-LN-56 D-08, D-10, D-16 and D-17: the release from which a review finding recorded as `fixed in <sha>` carries `checked: <place>, <place>…`, the places the same claim or pattern was
+ * checked, refused by `accord gate done` without it (lane M and lane S), and from which a fix counts closed only with the re-reviewer's `addressed:` mark. A ticket claimed under a pin below it,
+ * and every version 1 record, answer as before. Read through claimPinBefore.
+ */
+export const FIX_RECORD_FROM = '0.6.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

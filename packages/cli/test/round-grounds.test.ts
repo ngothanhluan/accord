@@ -13,7 +13,8 @@ const should = (...marks: string[]): string => `Should 1 [patch]: the export dro
 function reviewRepo(pin: string): { repo: string; write: (round2: string) => void } {
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': pinned('0.4.0'), 'accord/tickets/T-1.md': laneTicket('T-1') });
-  commitMsg(repo, 'base');
+  // The ticket is claimed under 0.4.0, so ST-LN-56's 0.6.0 outside-diff rule does not meet these cases about the grounds rule (plan 02-10 pattern).
+  commitMsg(repo, 'claim: T-1');
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/T-1');
   writeFiles(repo, { 'src/a.ts': 'export const a = 1;\n' });

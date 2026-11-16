@@ -4,7 +4,7 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
-import { approve, CONFIG, discussFiles, discussPath, gateReadyIn, LANE_S_BODY, laneTicket, P, PLAN, type Files } from '../../../test/helpers/lane.js';
+import { approve, CONFIG, discussFiles, discussPath, gateReadyIn, LANE_S_BODY, laneTicket, P, PLAN, writeReport, type Files } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 const STAGES = 'strictness:\n  stages:\n    M:\n      review: "off"\n';
@@ -16,10 +16,11 @@ const evidence = (sha: string): string =>
     '## @ac-2 commas are escaped', '', 'Result: pass', '', 'Evidence: export#escapes-commas passed in reports/junit.xml', '',
   ].join('\n');
 
-/** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
+/** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD, and the executor report task-done asks for from 0.6.0 (both tasks'). */
 function freshReport(repo: string): void {
   const later = new Date(Date.now() + 5000);
   utimesSync(join(repo, 'reports', 'junit.xml'), later, later);
+  for (const n of [1, 2]) writeReport(repo, 'T-1', n);
 }
 
 /** A lane M repository built to its last task: approved, Ready, planned, both tasks recorded with task-done, no review.md. */

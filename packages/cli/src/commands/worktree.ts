@@ -9,7 +9,7 @@ import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
-import { DEFAULT_DISPOSABLE, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
+import { disposableNames, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
 import { runTeamCommand } from '../load/team-run.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
@@ -1233,7 +1233,7 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
 `);
     return undefined;
   }
-  const names = ctx.snapshot.config?.disposable ?? DEFAULT_DISPOSABLE;
+  const names = disposableNames(ctx.snapshot.config?.disposable);
   const real = status.find((e) => !isDisposable(e.slice(3), names));
   if (real !== undefined) {
     ctx.stdout.write(`kept ${w.path}: ${real.slice(3)}
@@ -1343,7 +1343,7 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
   else {
     // git unregistered the folder, but may leave links (Git for Windows leaves npm's junctions) or files behind; "removed" means the folder is gone
     const own = norm(w.path);
-    const left = sweepRemoved(w.path, ctx.snapshot.config?.disposable ?? DEFAULT_DISPOSABLE, [...(seen?.listed ?? [])].filter((p) => p !== own));
+    const left = sweepRemoved(w.path, disposableNames(ctx.snapshot.config?.disposable), [...(seen?.listed ?? [])].filter((p) => p !== own));
     folderLine(ctx, line, w.path, left === undefined ? `removed ${w.path}` : `kept ${w.path}: ${left}`);
     if (left === undefined) {
       try {

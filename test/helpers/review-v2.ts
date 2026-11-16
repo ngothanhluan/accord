@@ -34,6 +34,9 @@ export function v2Review(cycles: RoundSpec[][], tail = ''): string {
   return out.join('\n') + tail;
 }
 
+/** `snap` as a ticket claimed under `pin`: the claim fact every rule that follows the claim reads (a test about an older rule pins its history, plan 02-10 pattern). */
+export const claimedUnder = (snap: RepoSnapshot, pin: string, id = 'T-1'): RepoSnapshot => ({ ...snap, claimPins: { ...snap.claimPins, [id]: { pin } } });
+
 /** Round facts: `ranges[j - 1]` is round j's range; heads default to `{ high: H(j), bound: true }`. */
 export function facts(
   ranges: RangeCommit[][],
@@ -57,9 +60,10 @@ export function scopeSnapshot(o: {
   facts?: RoundFacts;
   branch?: BranchFact;
   doneOnDefault?: true;
+  config?: string; // accord/config.yml, CONFIG when absent
 }): RepoSnapshot {
   const id = o.id ?? 'T-1';
-  const files: Files = { 'accord/config.yml': CONFIG };
+  const files: Files = { 'accord/config.yml': o.config ?? CONFIG };
   if (o.lane === 'S') files[P(id)] = laneTicket(id, { lane: 'S', body: LANE_S_BODY });
   else done(files, id);
   files['accord/tickets/' + id + '/ledger.md'] = '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n' + (o.ledger ?? '');

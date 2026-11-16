@@ -4,13 +4,14 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { recordTaskDone, setFrontmatterKey } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
-import { approve, discussFiles, discussPath, gateReadyIn, P, PLAN, type Files } from '../../../test/helpers/lane.js';
+import { approve, discussFiles, discussPath, gateReadyIn, P, PLAN, writeReport, type Files } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
-/** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
+/** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD, and the executor report task-done asks for from 0.6.0 (both tasks'). */
 function freshReport(repo: string): void {
   const later = new Date(Date.now() + 5000);
   utimesSync(join(repo, 'reports', 'junit.xml'), later, later);
+  for (const n of [1, 2]) writeReport(repo, 'T-1', n);
 }
 
 const evidence = (sha: string) =>

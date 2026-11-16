@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { CONFIG } from '../../../test/helpers/lane.js';
+import { CONFIG, writeReport } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 const FORBID = CONFIG + 'commits:\n  trailers: forbid\n';
@@ -16,6 +16,7 @@ function commitMessage(repo: string, message: string): string {
 const fresh = (repo: string) => {
   const later = new Date(Date.now() + 5000);
   utimesSync(join(repo, 'reports', 'junit.xml'), later, later);
+  for (const n of [1, 2]) writeReport(repo, 'T-1', n); // the executor report task-done asks for from 0.6.0
 };
 
 it('ac-3 task-done refuses a task whose commit carries a forbidden line when the repository forbids trailers', async () => {

@@ -30,8 +30,9 @@ its Ruling goes into the ledger commit of step 4.
 
 4. When it refuses, handle it as step 3 of `./SKILL.md` handles a refusal of `accord task-done <id> <n>`: a failed or
    absent test, or a scenario with no pair, gets a fresh executor with the same brief plus the reasons it printed, and
-   a second refusal of that kind loads `accord-debug`; a missing or old report, a forbidden commit line, or a
-   scenario that already carries a different `@test:` tag are handled as it says. On success it writes the ledger
+   a second refusal of that kind loads `accord-debug`; a missing or old `tests.report` file, an executor report that is
+   missing, old or lacks its lines, a forbidden commit line, or a scenario that already carries a different `@test:` tag
+   are handled as it says. On success it writes the ledger
    line and the `@test:` tags: copy every Ruling in the executor's report into `accord/tickets/<id>/ledger.md` under
    `## Rulings`, commit the ticket with the ledger, then run `accord worktree push <id>`; go on even if it fails.
 

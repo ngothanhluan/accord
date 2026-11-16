@@ -168,7 +168,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('brief <id> <task>')
-    .description('print the ticket and one plan task: the brief an executor receives')
+    .description("print the ticket and one plan task: the brief an executor receives; from 0.6.0 it names the task's report file and clears that task's old report")
     .action((id: string, task: string) => {
       setCode(brief(preflight(opts), id, task));
     });

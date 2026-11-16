@@ -4,9 +4,26 @@
 // directory scans and add goldens nobody asked for. Both test trees import DOWNWARDS from here.
 
 import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '../../packages/core/src/index.js';
+import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import cliPkg from '../../packages/cli/package.json' with { type: 'json' };
 
 export const REPORT = 'reports/junit.xml';
+
+/** The executor report of task `n`: the two lines `accord task-done` asks from 0.6.0 (ST-LN-59 D-07). */
+export const report = (n: number): string =>
+  [`red reason: task ${n}'s test failed because the behaviour it names was missing`, 'self-review: missing: none; extra: none; misread: none', ''].join('\n');
+
+/** Writes task `n`'s report as an executor would, last: `.accord-reports/<id>/task-<n>.md`, the folder's own `.gitignore`, and a modification time after HEAD's commit. */
+export function writeReport(repo: string, id: string, n: number): void {
+  const dir = join(repo, '.accord-reports');
+  mkdirSync(join(dir, id), { recursive: true });
+  writeFileSync(join(dir, '.gitignore'), '*\n');
+  const file = join(dir, id, `task-${n}.md`);
+  writeFileSync(file, report(n));
+  const later = new Date(Date.now() + 5000);
+  utimesSync(file, later, later);
+}
 
 /**
  * The version of the CLI under test. CONFIG pins it, because every command that reads the repository refuses any other pin: a test about the

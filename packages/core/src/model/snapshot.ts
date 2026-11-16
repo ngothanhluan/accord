@@ -250,6 +250,10 @@ export interface RoundFinding {
   command?: string;
   restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Correction' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
   restsOnAlso?: NonNullable<RoundFinding['restsOn']>[]; // ST-LN-91 round 7 CR-02: the further, different grounds the critic's block names after the first (never a record problem)
+  // Version 2 review records only (ST-LN-56 D-08, D-10): the marks of a fixed finding.
+  checked?: string[]; // `checked: <place>, <place>…`: each place `<path>` or `<path>:<line>`, at least one
+  addressed?: { file: string; line: number }; // the re-reviewer's `addressed: <path>:<line>`
+  notAddressed?: { file: string; line: number }; // the re-reviewer's `not addressed: <path>:<line>`
 }
 export interface RecordedRound {
   line: number; // of its ## Round heading
@@ -326,7 +330,7 @@ export interface AccordConfig {
   sensitive?: Record<string, string[]>; // ST-LN-62: area name -> paths whose change fails a lane S ticket; an entry ending in / matches the folder
   git?: { merge?: 'merge' | 'rebase' | 'squash'; sync?: string }; // ST-LN-96 D-14: how `accord worktree sync` takes main; absent means merge, and squash names the team's PR merge style (the sync is still a merge). D-03: sync is the team's script, one command line
   ids?: { mode?: 'pattern' | 'tracker'; pattern?: string; types?: Partial<Record<'story' | 'bug' | 'epic', string>>; projects?: string[] }; // ST-LN-50 D-05: absent means ST/BUG/EP-<initials>-<n> while people exists; tracker mode takes the Jira or Linear key as the id
-  disposable?: string[]; // ST-LN-55 D-08, D-12: file and folder names an ignored path may hold at any depth and still be deleted with its worktree; absent means node_modules, dist, .DS_Store, Thumbs.db
+  disposable?: string[]; // ST-LN-55 D-08, D-12: file and folder names an ignored path may hold at any depth and still be deleted with its worktree; absent means node_modules, dist, .DS_Store, Thumbs.db; accord's .accord-reports folder is disposable either way (ST-LN-59)
   template?: { sections?: { name: string; after?: string }[] }; // ST-LN-50 D-10: a team's own sections in every new story and bug ticket (scaffold/sections.ts); outside every hash
   strictness?: { rounds?: Partial<Record<'approach' | 'plan' | 'review', string>>; levels?: Record<string, 'error' | 'warning' | 'off'>; stages?: Partial<Record<'M' | 'L' | 'P' | 'S' | 'R', Partial<Record<string, 'on' | 'off'>>>> }; // ST-LN-50 D-07: the round cap of each critic record, '1'..'99'; YAML numerics stay strings. D-08: levels maps a rule id to its level; only an overridable rule takes one (gate/floor.ts). D-08: stages maps a lane to the stages a team turned off (`off`); only a stage that is not on the floor, of lane M, L or P, takes effect (gate/floor.ts). All three are read through resolveStrictness
 }

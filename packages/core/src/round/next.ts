@@ -4,6 +4,7 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { resolveStrictness } from '../config/strictness.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
+import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
@@ -30,6 +31,7 @@ export interface RoundAnswer {
   model?: string;
   modelFor?: number; // the round `model` is for
   addedCode?: true; // next on a version 2 review record: a debug episode or a merge added code that no round has reviewed (ST-LN-57)
+  reReview?: string[]; // next on a review record under the fix record rules: the fixes (`<r>.<n>[ cycle <k>]`) no re-review round has answered yet (ST-LN-56 D-17)
   checker?: true; // a plan `next` answer at round 1 whose cap rules are PLAN_CAP: the plan skill dispatches one plan checker (ST-LN-91 D-12)
 }
 
@@ -261,11 +263,11 @@ export function approvalProblems(snapshot: RepoSnapshot, id: string): string[] {
 const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);
 
 /**
- * The findings of one cycle (0-based) that leave the stop: a review record's evidence deferrals (ST-LN-57 D-08) and, for every record
- * kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12).
+ * The findings of one cycle (0-based) that leave the stop: a review record's evidence deferrals (ST-LN-57 D-08) and re-review findings outside the fix diff written
+ * deferred with their ledger line (ST-LN-56 D-10) and, for every record kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12).
  */
 export const deferredFor = (snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> =>
-  new Set([...(kind === 'review' ? deferredOf(snapshot, id, cycle) : []), ...groundsDeferred(snapshot, id, kind, cycle)]);
+  new Set([...(kind === 'review' ? deferredOf(snapshot, id, cycle) : []), ...(kind === 'review' ? fixDeferred(snapshot, id, cycle) : []), ...groundsDeferred(snapshot, id, kind, cycle)]);
 
 /** Every reason the record cannot be read as it stands, in line order. */
 export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line: number; reason: string }[] {
@@ -382,6 +384,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const lane = isLaneM(snapshot, id);
   const file = FILE[kind];
   const rec = recordOf(workOf(snapshot, id), kind);
+  let awaiting: string[] = []; // the fixes whose re-review round has not run yet (set below, read by `next`)
 
   const next = (round: number, cycle: number, cap: number): RoundAnswer => {
     const answer: RoundAnswer = { ...base, kind: 'next', cycle, round, cap, ...(kind === 'plan' && claimError !== undefined ? { reasons: [claimError] } : {}) };
@@ -394,6 +397,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
       }
     }
     if (kind === 'review' && pendingAddedCode(snapshot, id)) answer.addedCode = true;
+    if (awaiting.length > 0) answer.reReview = awaiting;
     // ST-LN-91 D-12: round 1 under the new plan rules names its critic; under LEGACY_CAP nothing is added to the 0.4.0 output.
     if (kind === 'plan' && round === 1 && rules.fall) answer.checker = true;
     return answer;
@@ -417,6 +421,13 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const grounds = groundsOn(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
   // Round 2 review IN-01: the grounds rule reads the record's pin; only a plan's grounds rule from round 1 is decided by the claim pin.
   if (grounds.length > 0) return (kind === 'plan' ? refuseCap : refuse)(...grounds.map(scopeReason));
+  // ST-LN-56 D-08, D-10: from the fix record cut-off a fix recorded `fixed in <sha>` lists the places it checked, and a fix a later round followed carries the re-review's answer,
+  // before the next review round. A fix whose re-review round has not run yet (the last round's, or one only added-code rounds followed) is refused at gate done, not here: the round
+  // about to start may be that re-review, so it is listed on the `Re-review:` line, which also tells a session about to write the verdict to run that round first (D-17).
+  const allFixes = kind === 'review' ? fixProblems(snapshot, id, { verdict: true }) : [];
+  const fixes = allFixes.filter((p) => p.awaiting === undefined);
+  if (fixes.length > 0) return refuse(...fixes.map(scopeReason));
+  awaiting = [...new Set(allFixes.flatMap((p) => (p.awaiting === undefined ? [] : [p.awaiting])))];
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];
@@ -438,13 +449,19 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   };
   const textsOf = (n: number) => ({ round: n, lines: cyc.rounds[n - 1].findings.map((f) => f.text) });
   const findingsFor = (s: number) => (L === s ? [textsOf(s)] : [textsOf(s), textsOf(L)]);
+  // ST-LN-56 D-17: a stop names the fixes still waiting for their re-review, as a second reason, so no stop that names them is the cap-only stop that lets the verdict be written.
+  const pending =
+    awaiting.length === 0
+      ? []
+      : [`the fixes ${awaiting.join(', ')} still wait for their re-review (D-17): no verdict before a round not headed (added code round 1) answers them; past the cap that round needs the owner's Ruling allowing it`];
   const stop = (reasons: string[], s: number, extra: Partial<RoundAnswer> = {}): RoundAnswer => ({
     ...base,
     kind: 'stop',
     cycle: k,
     round: L,
     cap: st.cap,
-    reasons: [...reasons, ...(claimError === undefined ? [] : [claimError])],
+    reasons: [...reasons, ...pending, ...(claimError === undefined ? [] : [claimError])],
+    ...(awaiting.length === 0 ? {} : { reReview: awaiting }),
     findings: findingsFor(s),
     ...(lane ? { approach: approachOf(snapshot, id) } : {}),
     ...extra,
@@ -489,6 +506,8 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   if (L > 0 && cyc.rounds[L - 1].noFindings) {
     const blocked = blockedRefusal(`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached`);
     if (blocked !== undefined) return blocked;
+    // D-17: a fix still waits for its re-review, so the loop has not ended: the owner decides on one more round
+    if (awaiting.length > 0) return stop([`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached`], L);
     return { ...refuseCap(`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached; the loop has ended: write the verdict`), cycle: k, round: L, cap: st.cap };
   }
   if (capped) {
@@ -528,6 +547,9 @@ export function roundText(answer: RoundAnswer): string {
       `Round: ${answer.round} of ${answer.cap}\nCycle: ${answer.cycle}\n` +
       (answer.checker === true ? 'Critics: plan checker\n' : '') +
       (answer.addedCode === true ? `Added code: head round ${answer.round} as ## Round ${answer.round} head <sha> (added code round 1)\n` : '') +
+      (answer.reReview === undefined
+        ? ''
+        : `Re-review: ${answer.reReview.join(', ')}: a round not headed (added code round 1) re-checks these fixes and answers each; no verdict before it does (D-17)\n`) +
       (answer.model === undefined ? '' : `Fix executor model: ${answer.model}\n`) +
       answer.reasons.map((r) => `Note: ${r}\n`).join('')
     );
@@ -548,6 +570,9 @@ export function roundText(answer: RoundAnswer): string {
   const noun = NOUN[answer.record];
   const out = ['stop: report to owner'];
   for (const r of answer.reasons) out.push(`Reason: ${r}`);
+  if (answer.reReview !== undefined) {
+    out.push(`Re-review: ${answer.reReview.join(', ')}: no verdict before a round not headed (added code round 1) answers these fixes (D-17); past the cap, only after the owner's Ruling below allows that round`);
+  }
   for (const f of answer.findings ?? []) out.push(`Findings of round ${f.round}:`, ...f.lines);
   if (answer.approach !== undefined) out.push('Approach:', ...answer.approach);
   out.push(
@@ -556,7 +581,8 @@ export function roundText(answer: RoundAnswer): string {
       : answer.record === 'approach'
         ? "Ask the owner whether to change course: weigh the other options of the planner's direction report against going on."
         : 'Ask the owner whether to change course: weigh the options the Approach above rejected or held in reserve against going on.',
-    `To accept the open findings: end ${file} with the line verdict: accepted-by-owner "<the owner's sentence>"`,
+    `To accept the open findings: end ${file} with the line verdict: accepted-by-owner "<the owner's sentence>"` +
+      (answer.reReview === undefined ? '' : ' (it answers no fix still waiting for its re-review: allow that round instead)'),
     `To allow more rounds: add under ## Rulings in the ledger: Ruling: the owner allows <n> more ${noun} rounds after round ${answer.allowAfter ?? answer.round} of cycle ${answer.cycle} — "<the owner's sentence>" — <cost if wrong>`,
   );
   if (!answer.laneS && answer.record === 'approach') {

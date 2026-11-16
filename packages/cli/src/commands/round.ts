@@ -36,7 +36,8 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
     ? withPlanFix(ctx.root, withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'plan', 1), id)
     : approach
       ? withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'approach')
-      : withRoundFacts(ctx.root, withReturnFacts(ctx.root, ctx.snapshot, id), id);
+      : // ST-LN-56 D-08, D-16: the fix record rules read the ticket's claim pin (RESEARCH Pitfall 7), never the working-tree pin.
+        withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id);
   const answer = nextRound(snapshot, id, plan ? 'plan' : approach ? 'approach' : 'review');
   ctx.stdout.write(roundText(answer));
   return answer.kind === 'next' ? 0 : 1;

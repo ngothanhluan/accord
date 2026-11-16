@@ -3,7 +3,7 @@
 import { expect, it } from 'vitest';
 import { gateDone, nextRound, roundText } from '../src/index.js';
 import type { RangeCommit, RepoSnapshot } from '../src/index.js';
-import { commit, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
+import { claimedUnder, commit, facts, scopeSnapshot as scoped, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
 
 const RULE = 'gate.finding-evidence';
@@ -12,6 +12,8 @@ const ruleCount = (snap: RepoSnapshot, rule: string): number => gateDone(snap, '
 const line = (severity: 'Must' | 'Should' | 'Nice', n: number, where: string, state = 'open', ...marks: string[]): string =>
   `${severity} ${n} [patch]: x — ${where} — ${state}${marks.map((m) => ' — ' + m).join('')}`;
 const allow = (n: number, after: number): string => `- Ruling: the owner allows ${n} more review rounds after round ${after} of cycle 1 — "go on" — cost if wrong: ${n} rounds\n`;
+// These cases are about Phase 2's evidence rule: the ticket was claimed before 0.6.0, so ST-LN-56's outside-diff rule (fix-outside.test.ts) does not apply (plan 02-10 pattern).
+const scopeSnapshot = (o: Parameters<typeof scoped>[0]): RepoSnapshot => claimedUnder(scoped(o), '0.5.1');
 const none = (n: number): RangeCommit[][] => Array.from({ length: n }, () => []);
 
 it('ac-2 from round 3 a new finding outside the last fix files blocks only with evidence', () => {

@@ -739,6 +739,26 @@ it('risk:data-loss the disposable list in config.yml decides which ignored folde
   expect(gone(c.sibling('ST-10'))).toBe(true);
 }, 120_000);
 
+it('risk:regression a done worktree holding only executor report folders is removed, with the default list and with a disposable list in config.yml', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  for (const id of ['ST-9', 'ST-10']) {
+    claimWorktree(c, id);
+    writeFiles(c.sibling(id), { '.accord-reports/.gitignore': '*\n', [`.accord-reports/${id}/task-1.md`]: 'red reason: x\n' });
+  }
+  doneOnRemote(c, ['ST-9']);
+  const a = await run(['worktree', 'clean'], c.root);
+  expect(a.code).toBe(0);
+  expect(lines(a.out)).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(gone(c.sibling('ST-9'))).toBe(true);
+  const cfg = `${c.root}/accord/config.yml`;
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').trimEnd() + '\ndisposable: [node_modules]\n');
+  doneOnRemote(c, ['ST-10']);
+  const b = await run(['worktree', 'clean'], c.root);
+  expect(b.code).toBe(0);
+  expect(lines(b.out)).toContain(`removed ${c.sibling('ST-10')}`);
+  expect(gone(c.sibling('ST-10'))).toBe(true);
+}, 120_000);
+
 it('risk:regression a folder git reports removed but leaves links and disposable files in is deleted before removed is printed', async () => {
   const c = copy();
   claimWorktree(c, 'ST-9');

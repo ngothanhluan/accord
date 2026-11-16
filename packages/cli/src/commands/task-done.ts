@@ -7,9 +7,10 @@ import { join } from 'node:path';
 import { claimPinBefore, forbiddenLines, normaliseKey, recordTaskDone, reportReasons, stageOff, TASK_REPORT_FROM, taskVerdict, ticketTaskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { gitBranchCommits, UsageError } from '../load/fs.js';
-import { readReport, reportRel } from '../load/report.js';
+import { readReport, reportPath, reportRel } from '../load/report.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
+import { workRootOf } from './task-tree.js';
 
 /** `git show -s --format=%ct` output as seconds; anything but digits would make every report look fresh. */
 export function commitSeconds(out: string): number {
@@ -59,9 +60,12 @@ export function staleReport(ctx: CommandContext, times: () => HeadTimes = headTi
  * decides `accord brief`'s ask, and a failed read gives the check (fail closed). The CLI checks that the lines are there, not that they are true, and never reads `config.runtimes` (D-18).
  */
 function reportProblems(ctx: CommandContext, id: string, n: number, sha: string, times: () => HeadTimes): string[] {
-  if (claimPinBefore(withClaimPins(ctx.root, ctx.snapshot, id), id, TASK_REPORT_FROM)) return [];
-  const rel = reportRel(id, n);
-  const report = readReport(ctx.root, id, n);
+  const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
+  if (claimPinBefore(claimed, id, TASK_REPORT_FROM)) return [];
+  // ST-LN-92 D-03: the report lies where `accord brief` put it, under the task's worktree while it exists (it is cleaned only after task-done), named there by its absolute path.
+  const root = workRootOf(ctx.root, claimed, id, n) ?? ctx.root;
+  const rel = root === ctx.root.replace(/\\/g, '/') ? reportRel(id, n) : reportPath(root, id, n);
+  const report = readReport(root, id, n);
   if (report === undefined) return [`the executor report ${rel} is missing: the executor writes it as its last step`];
   if (Math.floor(report.mtimeMs / 1000) < times().at) {
     return [`the executor report ${rel} was written before HEAD's commit ${sha}: the executor writes it after its last commit`];

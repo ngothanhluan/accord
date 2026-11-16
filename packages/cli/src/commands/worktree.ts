@@ -148,7 +148,7 @@ export function prepare(path: string): void {
 }
 
 /** D-15: the file in the worktree's own git dir that says `setup` finished there. */
-function setupMarker(path: string): string {
+export function setupMarker(path: string): string {
   return git(path, ['rev-parse', '--path-format=absolute', '--git-dir']).trim() + '/accord-setup-done';
 }
 

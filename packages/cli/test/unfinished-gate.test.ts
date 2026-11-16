@@ -1,9 +1,9 @@
-// ST-LN-72 72-ac-1, plan half: `accord gate plan` on real git refuses a plan.md that still carries `<!-- accord: unfinished -->`, from UNFINISHED_FROM, naming the file.
+// ST-LN-72 72-ac-1, plan half: `accord gate plan` on real git refuses a plan.md that still carries `<!-- accord: unfinished -->`, whatever the claim pin, naming the file.
 // The CLI here runs as the cut-off release (0.6.0) while the package is still 0.5.1, so the new rule is read at the version that ships it.
 import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { recordTaskDone, setFrontmatterKey, UNFINISHED_FROM, UNFINISHED_MARKER } from '@accord-dev/accord-core';
+import { recordTaskDone, setFrontmatterKey, UNFINISHED_MARKER } from '@accord-dev/accord-core';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { approve, CONFIG, discussFiles, discussPath, gateReadyIn, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
@@ -46,7 +46,7 @@ const plan = (first: string | undefined): string =>
   ].join('\n');
 
 /** An approved ticket claimed under `claimPin`, then its plan committed against the baseline commit. */
-async function planned(text: string, claimPin = UNFINISHED_FROM): Promise<{ repo: string; baseline: string }> {
+async function planned(text: string, claimPin = '0.6.0'): Promise<{ repo: string; baseline: string }> {
   const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1') });
   await run(['approve', 'T-1'], repo);
   writeFiles(repo, { 'accord/config.yml': pinned(claimPin) });
@@ -94,10 +94,12 @@ it('risk:regression gate plan prints the same unfinished finding on every run, a
   }
 });
 
-it('risk:complex-branching a ticket claimed before 0.6.0 keeps its marked plan unrefused on real git (ST-LN-72 72-ac-1)', async () => {
+it('risk:complex-branching a ticket claimed before 0.6.0 is refused for its marked plan on real git, as owner decision 2026-11-16 says (ST-LN-72 72-ac-1)', async () => {
   const { repo } = await planned(plan(UNFINISHED_MARKER), '0.5.1');
   try {
-    expect((await gate(repo)).found).toEqual([]);
+    const got = await gate(repo);
+    expect(got.code).toBe(1);
+    expect(got.found.map((f) => f.line)).toEqual([4]);
   } finally {
     cleanup(repo);
   }
@@ -113,7 +115,7 @@ function doneRepo(first: string | undefined, runtimes?: string): { repo: string;
   const repo = makeLaneRepo(discussFiles('T-1'));
   try {
     // the working-tree pin is the cut-off release itself (no claim commit here), and every file the gate reads is committed or written below
-    writeFiles(repo, { 'accord/config.yml': pinned(UNFINISHED_FROM).replace('runtimes: [claude]', `runtimes: ${runtimes ?? '[claude]'}`) });
+    writeFiles(repo, { 'accord/config.yml': pinned('0.6.0').replace('runtimes: [claude]', `runtimes: ${runtimes ?? '[claude]'}`) });
     gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
     gitRun(repo, 'config', 'user.name', 'fixture');
     gitRun(repo, 'config', 'commit.gpgsign', 'false');

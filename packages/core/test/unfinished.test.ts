@@ -1,12 +1,12 @@
 // ST-LN-72 72-ac-1, plan half: a file still being written carries the fixed line `<!-- accord: unfinished -->`, and from UNFINISHED_FROM `accord gate plan` refuses a plan.md
 // that carries it, naming the file. The marker is read on the raw text, so the HTML-comment stripping of the section readers cannot hide it; the claim pin decides (D-16).
 import { describe, expect, it } from 'vitest';
-import { anchorText, gateDone, gatePlan, LOCKED, loadSnapshot, UNFINISHED_FROM, UNFINISHED_MARKER, unfinishedLine } from '../src/index.js';
+import { anchorText, gateDone, gatePlan, LOCKED, loadSnapshot, UNFINISHED_MARKER, unfinishedLine } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
 import { parseVerification } from '../src/load/verification.js';
 import { parsePlan } from '../src/load/work.js';
 import { approved } from './helpers/approve.js';
-import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { CONFIG, junit, LANE_S_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 const BASELINE = 'abc1234';
 const BOM = String.fromCharCode(0xfeff);
@@ -46,12 +46,11 @@ const build = ({ plan = planWith(UNFINISHED_MARKER), claim, lane, config = CONFI
 };
 const check = (o: Opts = {}): GateResult => gatePlan(build(o), 'T-1');
 const unfinished = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-unfinished');
-const NEW: Claim = { pin: UNFINISHED_FROM };
+const NEW: Claim = { pin: '0.6.0' };
 
 describe('unfinished marker: read on the raw text', () => {
   it('risk:parsing the unfinished marker is read on the raw text wherever it stands as a whole line (ST-LN-72 72-ac-1)', () => {
     expect(UNFINISHED_MARKER).toBe('<!-- accord: unfinished -->');
-    expect(UNFINISHED_FROM).toBe('0.6.0');
     const read = (text: string) => parsePlan('accord/tickets/T-1/plan.md', text).plan.unfinished;
 
     // first body line, right after the frontmatter's closing ---: line 5 of the file
@@ -104,14 +103,14 @@ describe('unfinished marker: gate plan', () => {
     const above = unfinished(check({ plan: [UNFINISHED_MARKER, ...FRONT, '', '# Plan', '', TASKS].join('\n'), claim: NEW }));
     expect(above.map((f) => f.line)).toEqual([1]);
 
-    // claimed before 0.6.0: answered as before
-    expect(unfinished(check({ claim: { pin: '0.5.1' } }))).toEqual([]);
-    expect(unfinished(check({ claim: { pin: '0.5.1', basePin: '0.5.0' } }))).toEqual([]);
-    // a failed claim read fails closed, and the finding says why
+    // owner decision 2026-11-16 (an exception to D-16): the rule reads no claim pin, so a ticket claimed before 0.6.0 is refused too
+    expect(unfinished(check({ claim: { pin: '0.5.1' } }))).toHaveLength(1);
+    expect(unfinished(check({ claim: { pin: '0.5.1', basePin: '0.5.0' } }))).toHaveLength(1);
+    expect(unfinished(check({}))).toHaveLength(1);
+    // a failed claim read changes nothing: the rule never asks for the pin, so no note about it
     const failed = unfinished(check({ claim: { error: 'fatal: bad object 1234567' } }));
     expect(failed).toHaveLength(1);
-    expect(failed[0].reason).toContain('fatal: bad object 1234567');
-    expect(failed[0].reason).toContain('the claim pin could not be read');
+    expect(failed[0].reason).not.toContain('the claim pin could not be read');
 
     // lane S and a switched-off plan stage have no plan gate to refuse it
     expect(unfinished(check({ claim: NEW, lane: 'S' }))).toEqual([]);
@@ -168,14 +167,13 @@ describe('unfinished marker: gate done', () => {
 
     // the same record once the verifier has removed the line: no finding
     expect(verifUnfinished(doneOf({ verification: verificationWith(undefined), claim: NEW }))).toEqual([]);
-    // claimed before 0.6.0: answered as before
-    expect(verifUnfinished(doneOf({ claim: { pin: '0.5.1' } }))).toEqual([]);
-    expect(verifUnfinished(doneOf({ claim: { pin: '0.5.1', basePin: '0.5.0' } }))).toEqual([]);
-    // a failed claim read fails closed, and the finding says why
+    // owner decision 2026-11-16 (an exception to D-16): no claim pin exempts a ticket, so one claimed before 0.6.0 is refused too
+    expect(verifUnfinished(doneOf({ claim: { pin: '0.5.1' } }))).toHaveLength(1);
+    expect(verifUnfinished(doneOf({ claim: { pin: '0.5.1', basePin: '0.5.0' } }))).toHaveLength(1);
+    expect(verifUnfinished(doneOf({}))).toHaveLength(1);
     const failed = verifUnfinished(doneOf({ claim: { error: 'fatal: bad object 1234567' } }));
     expect(failed).toHaveLength(1);
-    expect(failed[0].reason).toContain('fatal: bad object 1234567');
-    expect(failed[0].reason).toContain('the claim pin could not be read');
+    expect(failed[0].reason).not.toContain('the claim pin could not be read');
     // the rule reads no runtimes: a repository that installs no accord agent is refused the same way (D-18)
     expect(verifUnfinished(doneOf({ claim: NEW, config: CONFIG.replace('runtimes: [claude]', 'runtimes: [codex, cursor, copilot]') }))).toHaveLength(1);
 
@@ -216,5 +214,49 @@ describe('unfinished marker: accord anchor', () => {
     // the lines sit right after Stage:, before the owner's sections
     const text = anchorText(buildDone({ verification: verificationWith(UNFINISHED_MARKER) }), 'T-1') as string;
     expect(text.indexOf('Unfinished:')).toBeLessThan(text.indexOf('## Intent'));
+  });
+});
+
+describe('unfinished marker: anchor and gates agree', () => {
+  const planLines = (lane: string | undefined): string[] =>
+    (anchorText(build({ plan: planWith(UNFINISHED_MARKER), ...(lane === undefined ? {} : { lane }) }), 'T-1') ?? '').split('\n').filter((l) => l.startsWith('Unfinished:'));
+
+  it('risk:complex-branching anchor prints the plan line exactly where gate plan refuses it, and a claim pin changes neither (ST-LN-72 review round 1)', () => {
+    // lane M: refused, printed
+    expect(unfinished(check({}))).toHaveLength(1);
+    expect(planLines(undefined)).toEqual(['Unfinished: accord/tickets/T-1/plan.md: resume the planner']);
+    // lane S: gate plan does not read a plan, so the anchor does not tell anyone to resume one
+    expect(unfinished(check({ lane: 'S' }))).toEqual([]);
+    expect(planLines('S')).toEqual([]);
+    // lane R: its own plan table refuses any plan and never reads the marker, so the anchor prints no resume line either
+    expect(unfinished(check({ lane: 'R' }))).toEqual([]);
+    expect(planLines('R')).toEqual([]);
+    // the claim pin is in neither: a ticket claimed before 0.6.0 gets the line too (owner decision 2026-11-16)
+    const old = build({ plan: planWith(UNFINISHED_MARKER), claim: { pin: '0.5.1' } });
+    expect((anchorText(old, 'T-1') ?? '').split('\n').filter((l) => l.startsWith('Unfinished:'))).toHaveLength(1);
+  });
+
+  it.each(['S', 'R'])('risk:complex-branching anchor prints no verification line for lane %s, whose Done table has no such rule (ST-LN-72 review round 1)', (lane) => {
+    const files: Record<string, string> = approved(
+      {
+        'accord/config.yml': CONFIG,
+        'accord/tickets/T-1.md': laneTicket('T-1', { lane, ...(lane === 'S' ? { body: LANE_S_BODY } : {}) }),
+        [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
+        [VERIFICATION]: verificationWith(UNFINISHED_MARKER),
+      },
+      'T-1',
+    );
+    const snapshot = { ...loadSnapshot({ files, tree: Object.keys(files).sort() }), git: { commit: 'abc1234def56abc1234def56abc1234def56abcd', authors: {} } };
+    expect(verifUnfinished(gateDone(snapshot, 'T-1'))).toEqual([]);
+    expect((anchorText(snapshot, 'T-1') ?? '').split('\n').filter((l) => l.startsWith('Unfinished:'))).toEqual([]);
+  });
+
+  it('risk:complex-branching anchor prints the verification line for lane M, L and P, as gate done refuses it (ST-LN-72 review round 1)', () => {
+    for (const lane of ['M', 'L', 'P']) {
+      const snapshot = buildDone({ verification: verificationWith(UNFINISHED_MARKER), claim: { pin: '0.5.1' } });
+      snapshot.tickets['T-1'] = { ...snapshot.tickets['T-1'], frontmatter: { ...snapshot.tickets['T-1'].frontmatter!, lane } as never };
+      expect(verifUnfinished(gateDone(snapshot, 'T-1')), lane).toHaveLength(1);
+      expect((anchorText(snapshot, 'T-1') ?? '').split('\n').filter((l) => l.startsWith('Unfinished:')), lane).toEqual([`Unfinished: ${VERIFICATION}: resume the verifier`]);
+    }
   });
 });

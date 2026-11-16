@@ -84,28 +84,33 @@ const pathsOf = (t: PlanTask): string[] => [...new Set([...t.files, ...t.newFile
 
 /**
  * The tasks not in `done`, in waves, each wave's tasks ascending. With a sequential reason, one task per wave in number order. Otherwise a
- * topological pass, ties by task number: each task sits at the lowest wave above every not-done task its `after:` line names where no task
- * already placed shares one of its paths. The cap (build.parallel) never changes the grouping; it only batches a wave at dispatch.
+ * topological pass: each task sits at the lowest wave above every not-done task its `after:` line names and above every task already placed
+ * that shares one of its paths, so two tasks sharing a path never share a wave and land in the order they are placed. The next task placed is
+ * the lowest-numbered one whose `after:` targets are placed and that shares no path with a lower-numbered task still to place (review round 1:
+ * tasks sharing a file land in task order); only when an `after:` line puts that lower task after it does it go first. The cap
+ * (build.parallel) never changes the grouping; it only batches a wave at dispatch.
  */
 export function buildWaves(tasks: PlanTask[], done: ReadonlySet<number>): number[][] {
   const todo = tasks.filter((t) => !done.has(t.n)).sort((a, b) => a.n - b.n);
   if (sequentialReason(tasks) !== undefined) return todo.map((t) => [t.n]);
   const open = new Set(todo.map((t) => t.n));
   const waveOf = new Map<number, number>();
-  const taken: Set<string>[] = []; // wave index -> paths its tasks hold
+  const last = new Map<string, number>(); // path -> the highest wave a placed task holding it sits in
   const left = [...todo];
+  const ready = (t: PlanTask): boolean => (t.after?.tasks ?? []).every((a) => !open.has(a) || waveOf.has(a));
   while (left.length > 0) {
-    // the lowest-numbered task whose not-done after: targets are all placed; with no cycle (sequentialReason) one always exists
-    const at = left.findIndex((t) => (t.after?.tasks ?? []).every((a) => !open.has(a) || waveOf.has(a)));
+    // with no cycle (sequentialReason) a ready task always exists; among them, one whose path no lower-numbered task left to place shares, if any
+    const paths = left.map(pathsOf);
+    const free = (i: number): boolean => !left.slice(0, i).some((_, j) => paths[j].some((p) => paths[i].includes(p)));
+    let at = left.findIndex((t, i) => ready(t) && free(i));
+    if (at < 0) at = left.findIndex(ready);
     if (at < 0) return todo.map((t) => [t.n]);
     const [t] = left.splice(at, 1);
     let w = 0;
     for (const a of t.after?.tasks ?? []) if (open.has(a)) w = Math.max(w, waveOf.get(a)! + 1);
-    const paths = pathsOf(t);
-    while (paths.some((p) => taken[w]?.has(p) === true)) w++;
+    for (const p of paths[at]) if (last.has(p)) w = Math.max(w, last.get(p)! + 1);
     waveOf.set(t.n, w);
-    taken[w] ??= new Set();
-    for (const p of paths) taken[w].add(p);
+    for (const p of paths[at]) last.set(p, Math.max(w, last.get(p) ?? 0));
   }
   const out: number[][] = [];
   for (const [n, w] of waveOf) (out[w] ??= []).push(n);

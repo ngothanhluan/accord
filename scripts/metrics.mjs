@@ -207,8 +207,21 @@ function readRuns(folder, main, ids, before) {
   return { folders: names.map(labelOf), runs: runs.sort((a, b) => byPath(a.file, b.file)) };
 }
 
-// git log's fields: a record separator, then sha, parents, author time and committer time; the paths follow NUL-separated.
-const LOG_HEAD = /^\n?\x1e([0-9a-f]+)\x1f([0-9a-f ]*)\x1f(-?\d+)\x1f(-?\d+)$/;
+// git log's fields: a record separator, then sha, parents, author time and committer time split by unit separators; the paths follow NUL-separated.
+const RS = '\x1e';
+const US = '\x1f';
+const SHA = /^[0-9a-f]+$/;
+const PARENTS = /^[0-9a-f ]*$/;
+const SECONDS = /^-?\d+$/;
+
+/** A commit's format line, or undefined for a path. */
+function logHead(token) {
+  const t = token.startsWith('\n' + RS) ? token.slice(1) : token;
+  if (!t.startsWith(RS)) return undefined;
+  const f = t.slice(1).split(US);
+  if (f.length !== 4 || !SHA.test(f[0]) || !PARENTS.test(f[1]) || !SECONDS.test(f[2]) || !SECONDS.test(f[3])) return undefined;
+  return { sha: f[0], parents: f[1].split(' ').filter(Boolean), authorTime: Number(f[2]), commitTime: Number(f[3]), files: [] };
+}
 const QUIET_LOG = ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-color'];
 
 /**
@@ -228,7 +241,7 @@ function readWaveTime(git, sha, id) {
   const plans = git([...QUIET_LOG, '--first-parent', '--format=%H', '-z', sha, '--', `:(literal)accord/tickets/${id}/plan.md`]).split('\0').map((s) => s.trim()).filter(Boolean);
   if (plans.length === 0) throw new Error(`no accord/tickets/${id}/plan.md commit in the first-parent history of ${sha}`);
   const oldest = plans[plans.length - 1];
-  let base = [];
+  let base;
   try {
     base = [`^${git(['rev-parse', '--verify', '--end-of-options', `${oldest}^1^{commit}`]).trim()}`];
   } catch {
@@ -237,9 +250,9 @@ function readWaveTime(git, sha, id) {
   const raw = git([...QUIET_LOG, '--first-parent', '--reverse', '--no-renames', '--format=%x1e%H%x1f%P%x1f%at%x1f%ct', '-z', '--name-only', sha, ...base]);
   const commits = [];
   for (const token of raw.split('\0')) {
-    const head = LOG_HEAD.exec(token);
+    const head = logHead(token);
     if (head) {
-      commits.push({ sha: head[1], parents: head[2].split(' ').filter(Boolean), authorTime: Number(head[3]), commitTime: Number(head[4]), files: [] });
+      commits.push(head);
       continue;
     }
     const files = commits[commits.length - 1]?.files;

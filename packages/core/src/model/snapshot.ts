@@ -188,6 +188,9 @@ export interface PlanTask {
   covers: string[]; // tokens of the first 'covers:' line: ['@ac-1', 'D-02']
   files: string[]; // path tokens of the first 'files:' line, `(new)` dropped
   newFiles: string[]; // the paths of that line followed by `(new)`
+  // ST-LN-10 D-12: one entry per newFiles path, in `files:` line order: `like` the model path of `(new, like <path>)`, `none` the reason of `(new, no model: <reason>)`, `unread` a `(new…` clause
+  // that is neither form, as written; all absent for a bare `(new)`. The model path is never in `files`.
+  models: { path: string; like?: string; none?: string; unread?: string }[];
   verify: string[]; // report case ids of the first 'verify:' line, `(@ac-n)` markers dropped
   maps: { test: string; ac: string }[]; // each `(@ac-n)` marker with the test id before it: { test: 'a#x', ac: '@ac-1' }
   // ST-LN-91 D-09: the first `after:` line outside a fence and a comment: the task numbers it names and the tokens it holds that are neither `none` nor a task number; absent with no such line or no token on it

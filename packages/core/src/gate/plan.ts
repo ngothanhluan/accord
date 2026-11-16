@@ -4,7 +4,7 @@
 import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
-import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
@@ -284,6 +284,59 @@ export const taskFileUnknown: GateRule['check'] = (snapshot, id) => {
       })),
   );
 };
+
+/**
+ * ST-LN-10 D-12 and D-16: the tasks the model-file rules read: those of a lane ticket that is not lane S, unless its claim pin is below PLAN_MODEL_FROM (claimPinBefore: a failed read
+ * and a non-plain pin apply the rules). Its own reader, as formatTasks is for the plan format rules, so a ticket claimed before the release keeps its bare `(new)`.
+ */
+const modelTasks = (snapshot: RepoSnapshot, id: string): PlanTask[] => {
+  const t = laneTicket(snapshot, id);
+  if (t === undefined || t.frontmatter?.lane === 'S' || claimPinBefore(snapshot, id, PLAN_MODEL_FROM)) return [];
+  return workOf(snapshot, id)?.plan?.tasks ?? [];
+};
+
+/** ST-LN-10 10-ac-1: a new path names no model file: it is a bare `(new)`, or its clause is neither `(new, like <path>)` nor `(new, no model: <reason>)`. */
+export const taskModelMissing: GateRule['check'] = withNote((snapshot, id) =>
+  modelTasks(snapshot, id).flatMap((t) =>
+    t.models.flatMap((m) =>
+      m.like !== undefined || m.none !== undefined
+        ? []
+        : [
+            {
+              file: planFile(id),
+              line: t.line,
+              reason:
+                m.unread === undefined
+                  ? `task ${t.n} creates ${m.path} with no model file: write ${m.path} (new, like <an existing file to model it on>), or ${m.path} (new, no model: <why no file of its kind exists>)`
+                  : `task ${t.n} marks ${m.path} with "${m.unread}", which is not read: write (new, like <path>) or (new, no model: <reason>)`,
+            },
+          ],
+    ),
+  ),
+);
+
+/**
+ * ST-LN-10 10-ac-1: a model file that does not exist at the plan baseline. Only when the host supplied the baseline's files, as taskFileUnknown. A model the plan itself creates, and a path that
+ * names itself, are not at the baseline either, so they are refused here.
+ */
+export const taskModelUnknown: GateRule['check'] = withNote((snapshot, id) => {
+  const sha = planOf(snapshot, id)?.baseline;
+  if (sha === undefined || snapshot.baselineFiles === undefined || !Object.hasOwn(snapshot.baselineFiles, sha)) return [];
+  const exist = new Set(snapshot.baselineFiles[sha]);
+  return modelTasks(snapshot, id).flatMap((t) =>
+    t.models.flatMap((m) =>
+      m.like === undefined || exist.has(m.like)
+        ? []
+        : [
+            {
+              file: planFile(id),
+              line: t.line,
+              reason: `task ${t.n} models ${m.path} on ${m.like}, which does not exist at baseline ${sha}; name a file that exists at the baseline, or write (new, no model: <reason>)`,
+            },
+          ],
+    ),
+  );
+});
 
 export const acUncovered: GateRule['check'] = (snapshot, id) => {
   const t = laneTicket(snapshot, id);

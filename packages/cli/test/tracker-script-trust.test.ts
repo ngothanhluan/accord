@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { inspect, reach, scriptDigest } from '../src/load/script-trust.js';
+import { cover, inspect, reach, scriptDigest } from '../src/load/script-trust.js';
 import { commitAll, gitRun, makeRepo, run, trustAllow } from './helpers/repo.js';
 
 const posix = (p: string): string => p.replaceAll('\\', '/');
@@ -619,5 +619,40 @@ describe('accord trust allows only the content the person was shown (round 4 WR-
     expect(r.err).toMatch(/accord trust tracker\.command@<digest>/);
     const common = resolve(b.repo, gitRun(b.repo, 'rev-parse', '--git-common-dir').trim());
     expect(existsSync(join(common, 'accord-trust.json'))).toBe(false);
+  });
+});
+
+describe('accord trust and the refusal say plainly what is not checked (round 4 CR-01, WR-03, IN-02: documented gaps, owner answer round 4)', () => {
+  const GAPS = ['node --run', 'npm -w/--workspace', 'bash -c', 'node -e', 'python -m', 'npm install lifecycle scripts', '.npmrc node-options', 'files outside the listed directories', 'make or just targets', 'paths built from environment variables', 'programs on PATH', 'node_modules'];
+
+  it('risk:security accord trust, shown and allowing, states that only the listed files are checked, names the forms that are not, and says whoever allows must review the PR', async () => {
+    const b = sandbox();
+    for (const out of [(await run(['trust'], b.repo, b.env)).out, (await trustAllow(b.repo, ['tracker.command'], b.env)).out]) {
+      expect(out).toMatch(/accord checks only the files listed above; anything else the command loads is not checked/);
+      for (const gap of GAPS) expect(out).toContain(gap);
+      expect(out).toMatch(/whoever allows a script must review the pull request that changed it/);
+    }
+  });
+
+  it('risk:security a command that uses a form accord does not follow says so in accord trust and in the refusal, instead of listing package.json as if complete', async () => {
+    const b = sandbox('node --run tracker');
+    b.commit('package.json', JSON.stringify({ name: 'x', private: true, scripts: { tracker: 'node scripts/tracker.mjs' } }) + '\n');
+    const shown = await run(['trust'], b.repo, b.env);
+    expect(shown.out).toMatch(/^ {2}not followed: node --run - the files it runs are not checked$/m);
+    const refused = await run(['status'], b.repo, b.env);
+    expect(refused.err).toMatch(/an allow covers package\.json only, and no other file the command loads is checked \(not followed here: node --run\)/);
+    for (const [cmd, label] of [
+      ['npm run tracker -w trk', 'npm -w/--workspace'],
+      ['bash -c "node scripts/tracker.mjs"', 'bash -c'],
+      ['node -e "require(\'./scripts/tracker.cjs\')"', 'node -e'],
+      ['python -m tools.tracker', 'python -m'],
+      ['npm install && node scripts/tracker.mjs', 'npm install lifecycle scripts'],
+      ['npx trk', 'npx'],
+      ['make tracker', 'make or just targets'],
+      ['node $ACCORD_ROOT/scripts/tracker.mjs', 'paths built from environment variables'],
+    ]) {
+      expect(cover(b.repo, cmd).unfollowed, cmd).toContain(label);
+    }
+    expect(cover(b.repo, 'node scripts/tracker.mjs').unfollowed).toEqual([]);
   });
 });

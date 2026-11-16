@@ -1,8 +1,16 @@
 // ST-LN-55 D-04, D-08, D-12: what may be deleted from a worktree folder that git has already unregistered.
 import { lstatSync, readdirSync, rmSync, rmdirSync, unlinkSync } from 'node:fs';
+import { REPORT_DIR } from '../load/report.js';
 
 /** File and folder names, matched at any depth, that an ignored path may hold and still be deleted with its worktree. */
 export const DEFAULT_DISPOSABLE: readonly string[] = ['node_modules', 'dist', '.DS_Store', 'Thumbs.db'];
+
+/**
+ * The names a done worktree may hold and still be deleted: config.yml's `disposable` list, or DEFAULT_DISPOSABLE when it has none, and always accord's own executor
+ * report folder (ST-LN-59 D-07). accord writes that folder and ignores it with its own `.gitignore`; its reports are spent once task-done records the task, so a team's
+ * list, which names the team's own ignored output, neither has to name it nor can keep it.
+ */
+export const disposableNames = (configured: readonly string[] | undefined): readonly string[] => [...(configured ?? DEFAULT_DISPOSABLE), REPORT_DIR];
 
 /** True when a segment of `rel` (a `/`-separated path relative to the worktree root, a trailing `/` dropped) is in `names`. */
 export function isDisposable(rel: string, names: readonly string[]): boolean {

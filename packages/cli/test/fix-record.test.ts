@@ -27,10 +27,10 @@ interface Fixed {
 
 /**
  * A ticket claimed under `claimPin`, one code commit and a fix commit. `o.lane` 'S' makes it a lane S ticket (its finding lines carry no class);
- * `o.runtimes` replaces the config's runtimes (D-18).
+ * `o.runtimes` replaces the config's `runtimes: [claude]` line (D-18).
  */
 function fixed(claimPin: string, o: { lane?: 'S'; runtimes?: string } = {}): Fixed {
-  const cfg = (pin: string): string => (o.runtimes === undefined ? pinned(pin) : pinned(pin).replace('runtimes: [claude]', 'runtimes: ' + o.runtimes));
+  const cfg = (pin: string): string => (o.runtimes === undefined ? pinned(pin) : pinned(pin).replace('runtimes: [claude]', o.runtimes));
   const ticket = o.lane === 'S' ? laneTicket('T-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' }) : laneTicket('T-1');
   const klass = o.lane === 'S' ? '' : ' [patch]';
   const repo = makeEmptyRepo();
@@ -170,7 +170,7 @@ it('ac-1 lane S refuses a fix with no places-checked line and a fix with no re-r
 }, 240_000);
 
 it('risk:regression the fix-record rules hold in a repository whose runtimes install no accord agent (ST-LN-56 56-ac-1)', async () => {
-  for (const runtimes of ['[claude]', '[codex, cursor, copilot]']) {
+  for (const runtimes of ['runtimes: [claude]', 'runtimes: [codex, cursor, copilot]']) {
     const { repo, write } = fixed('0.6.0', { runtimes });
     try {
       write('');

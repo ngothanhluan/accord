@@ -72,7 +72,7 @@ export interface FixProblem {
  * The fix record rules, as problems in record line order, for each finding written `fixed in <sha>` (every severity and class: lane S lines have no class, and the grammar does not store it):
  * - places: no `checked:` mark (D-08);
  * - answer: once its re-review round exists (the next round of its cycle not headed `(added code round 1)`, else round 1 of the next cycle), the fixed finding carries one of `addressed:`
- *   and `not addressed:` (D-10, D-17; the grammar refuses both), a `not addressed:` finding is carried by a round of its cycle up to that re-review (`carried from <r>.<n>`), and an
+ *   and `not addressed:` (D-10, D-17; the grammar refuses both), a `not addressed:` finding is carried by a round of its cycle up to that re-review (`carried from <r>.<n>`) or, across a cycle, reported again (reportedAgain), and an
  *   answer sits only on a fixed finding;
  * - outside (D-10): a re-review finding outside the fix diff (fixOutside) that is not written deferred with its ledger line;
  * - answer, with `o.verdict`: no fixed finding in the record's last round, which no re-review has answered yet (D-17), whatever marks it carries, and no unanswered fix that only
@@ -92,7 +92,7 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
     const where = `round ${at.p} of cycle ${at.cycle}`;
     // The round that re-reviews this round's fix: the next round of its cycle not headed (added code round 1), or, when none is, round 1 of the next cycle a `## Return from verify`
     // opened (D-17: that cycle's verdict was written without one, and round 1 reads the whole work). An added-code round reviews the merged code; its reviewer may answer too, so its
-    // answer counts, but nothing is asked of it. A NOT ADDRESSED finding is carried within a cycle, by a round up to the re-review; across a cycle, round 1 reports it afresh.
+    // answer counts, but nothing is asked of it. A NOT ADDRESSED finding is carried within a cycle, by a round up to the re-review; across a cycle, round 1 reports it again (reportedAgain).
     const later = rec.cycles[at.cycle - 1].rounds.slice(at.p);
     const k = later.findIndex((r) => r.added !== true);
     const reReview = k >= 0 ? later[k] : rec.cycles[at.cycle]?.rounds[0];

@@ -848,6 +848,28 @@ it('risk:regression from 0.6.0 the evidence rule text lets only a risk: mark kee
   expect(bad).toEqual([]);
 });
 
+it('risk:regression the re-review rule is stated once: added-code rounds, the next cycle\'s round 1, the Re-review: line, in lane M and lane S (ST-LN-56 56-ac-2, D-17)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const record = read('.claude/skills/accord-review/record.md');
+  const lane = read('.claude/skills/accord/lane-s.md');
+  const skill = read('.claude/skills/accord-review/SKILL.md');
+  const bad: string[] = [];
+  // the old sentences that said the next round, whatever it is, answers a fix
+  for (const [name, text] of [['record.md', record], ['lane-s.md', lane]] as const) {
+    for (const old of ['The re-review, the next round', 'after a later round of its cycle', 'that next round is also the re-review', 'not carried. An `(added code round 1)`']) if (text.includes(old)) bad.push(name + ' still holds: ' + old);
+    if (!text.includes('`Re-review:`')) bad.push(name + ' has no route for the Re-review: line');
+    if (!text.includes('at least as severe')) bad.push(name + ' does not say how round 1 of the next cycle reports a NOT ADDRESSED finding again');
+  }
+  if (!record.includes("A fix's re-review is the next round of its cycle not headed `(added code round 1)`")) bad.push('record.md does not state the re-review round once');
+  // lane S names the outside-diff exemptions the code applies
+  if (!lane.includes('not a carried finding, nor one in an `(added code round 1)` round')) bad.push('lane-s.md outside-diff sentence lacks the exemptions');
+  const step5 = skill.slice(skill.indexOf('5. **Converged**'), skill.indexOf('6. **Cap.**'));
+  const step6 = skill.slice(skill.indexOf('6. **Cap.**'), skill.indexOf('7. **Final review.**'));
+  if (!step5.includes('a NOT ADDRESSED one is written open again')) bad.push('SKILL.md step 5 does not reopen a NOT ADDRESSED finding');
+  if (!step6.includes('`Re-review:`')) bad.push('SKILL.md step 6 has no route for the Re-review: line');
+  expect(bad).toEqual([]);
+});
+
 it('ac-5 the ids reference drops a ticket with accord drop', () => {
   const flat = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const ids = flat('.claude/skills/accord/ids.md');

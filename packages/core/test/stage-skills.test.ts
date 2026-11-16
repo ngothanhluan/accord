@@ -1518,7 +1518,7 @@ it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 line
   expect(bad).toEqual([]);
 });
 
-it('risk:regression the verify stage reads the Unfinished line from an anchor run after the sync, and never commits the verification it may resume (ST-LN-72 review round 1)', () => {
+it('risk:regression the verify stage reads the Unfinished line from an anchor run after the sync, and commits the verification it may resume before the sync (ST-LN-72 review rounds 1 and 2)', () => {
   for (const f of files.filter((x) => x.path.endsWith('/' + installedName('verify') + '/SKILL.md'))) {
     const text = f.text.replace(/\s+/g, ' ');
     const sync = text.indexOf('accord worktree sync');
@@ -1529,8 +1529,11 @@ it('risk:regression the verify stage reads the Unfinished line from an anchor ru
     expect(again, f.path).toBeGreaterThan(sync);
     expect(follow, f.path).toBeGreaterThan(again);
     expect(text.indexOf('./resume.md', follow), f.path).toBeGreaterThan(follow);
-    // the partial verification.md stays out of step 2's commit, so HEAD is still the commit it was written at
-    expect(text, f.path).toContain('commit everything except `verification.md`');
+    // ST-LN-72 review round 2: step 2 commits everything, the partial verification.md included, because `accord worktree sync` refuses uncommitted changes to tracked files; the anchor
+    // (not a raw HEAD comparison) decides resume or start over, so the moved HEAD does not break it. No sentence may say the tree is clean when a file stays out of the commit.
+    expect(text, f.path).toContain('commit everything uncommitted, `verification.md` included');
+    expect(text, f.path).not.toContain('commit everything except');
+    expect(text, f.path).not.toContain('the working tree is clean');
     // no decision from the step 1 anchor: the Unfinished line is named once, after the sync
     expect(text.indexOf('`Unfinished:`'), f.path).toBeGreaterThan(sync);
   }

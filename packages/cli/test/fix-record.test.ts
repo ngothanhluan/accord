@@ -212,3 +212,32 @@ it('ac-2 accord round refuses an open outside-diff re-review finding on real git
     cleanup(repo);
   }
 }, 240_000);
+
+it('ac-2 lane S defers an outside-diff re-review finding the same way (ST-LN-56 56-ac-2)', async () => {
+  const { repo, rounds } = fixed('0.6.0', { lane: 'S' });
+  const open = async (): Promise<string[]> => {
+    const r = await run(['gate', 'done', 'T-1', '--json'], repo);
+    return (JSON.parse(r.out).findings as Found[]).filter((f) => f.rule === 'gate.fix-outside-open').map((f) => f.reason ?? '');
+  };
+  try {
+    rounds(PLACES + ADDRESSED, outsideLine('open', '', ' — test: export#writes-csv'));
+    const refused = await run(['round', 'T-1'], repo);
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain('refused:');
+    expect(refused.out).toContain('round 2');
+    expect(refused.out).toContain('finding 1');
+    const listed = await open();
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toContain('src/z.ts');
+
+    rounds(PLACES + ADDRESSED, outsideLine('deferred', ''));
+    writeFiles(repo, { [LEDGER]: DEFERRED_LINE });
+    commitMsg(repo, 'T-1 ledger');
+    expect(await open()).toEqual([]);
+    const next = await run(['round', 'T-1'], repo);
+    expect(next.out).toContain('Round: 3 of 5');
+    expect(next.code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 240_000);

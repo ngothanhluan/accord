@@ -806,6 +806,29 @@ it('risk:regression the build skill re-briefs a task refused for its report, in 
   expect(bad).toEqual([]);
 });
 
+it('risk:regression the build skill tells a missing or old executor report from a missing or old tests.report file, in all four tools (ST-LN-59 59-ac-1)', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const text = (everyFile.get(dir + '/accord-build/SKILL.md') ?? '').replace(/\s+/g, ' ');
+    const step3 = text.slice(text.indexOf('3. **Record.**'), text.indexOf('4. **Blocked.**'));
+    const bullets = step3.split('- It refuses because ').slice(1);
+    // the owner bullet's condition (before its colon) names only the tests.report file, so task-done's executor report refusals never match it
+    const owner = bullets.find((b) => b.includes('Tell the owner'));
+    const ownerWhen = owner?.slice(0, owner.indexOf(':')) ?? '';
+    if (!ownerWhen.includes('`tests.report`') || ownerWhen.includes('executor') || /\bthe report is missing\b/.test(ownerWhen)) bad.push(dir + ' owner bullet: ' + ownerWhen);
+    // the re-brief bullet names every executor report refusal of task-done: missing, written before HEAD's commit, lacking its lines
+    const exec = bullets.find((b) => b.includes('Report file')) ?? '';
+    for (const p of ['is missing', "written before HEAD's commit", 'lacks its lines', 'run `accord brief <id> <n>` again']) if (!exec.includes(p)) bad.push(dir + ' executor bullet lacks ' + p);
+    const noPlan = (everyFile.get(dir + '/accord-build/no-plan.md') ?? '').replace(/\s+/g, ' ');
+    const step4 = noPlan.slice(noPlan.indexOf('4. When it refuses'), noPlan.indexOf('5. With the plan stage off'));
+    for (const p of ['`tests.report` file', 'executor report']) if (!step4.includes(p)) bad.push(dir + ' no-plan step 4 lacks ' + p);
+    if (/a missing or old report,/.test(step4)) bad.push(dir + ' no-plan step 4 still says "a missing or old report"');
+  }
+  expect(bad).toEqual([]);
+});
+
 it('ac-5 the ids reference drops a ticket with accord drop', () => {
   const flat = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const ids = flat('.claude/skills/accord/ids.md');

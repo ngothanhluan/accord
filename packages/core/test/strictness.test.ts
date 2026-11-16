@@ -64,6 +64,7 @@ const LOCKED_LIST = [
   'gate.tick-unbound',
   'gate.ticket-unknown',
   'gate.verification-missing',
+  'gate.verification-unfinished',
   'lint.ac-tag-duplicate',
   'lint.ac-tag-missing',
   'lint.ac-tag-multiple',

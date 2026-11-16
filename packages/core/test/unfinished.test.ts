@@ -1,8 +1,9 @@
 // ST-LN-72 72-ac-1, plan half: a file still being written carries the fixed line `<!-- accord: unfinished -->`, and from UNFINISHED_FROM `accord gate plan` refuses a plan.md
 // that carries it, naming the file. The marker is read on the raw text, so the HTML-comment stripping of the section readers cannot hide it; the claim pin decides (D-16).
 import { describe, expect, it } from 'vitest';
-import { gatePlan, loadSnapshot, UNFINISHED_FROM, UNFINISHED_MARKER, unfinishedLine } from '../src/index.js';
+import { anchorText, gateDone, gatePlan, LOCKED, loadSnapshot, UNFINISHED_FROM, UNFINISHED_MARKER, unfinishedLine } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
+import { parseVerification } from '../src/load/verification.js';
 import { parsePlan } from '../src/load/work.js';
 import { approved } from './helpers/approve.js';
 import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
@@ -117,5 +118,106 @@ describe('unfinished marker: gate plan', () => {
     expect(unfinished(check({ claim: NEW, config: CONFIG + 'strictness:\n  stages:\n    M:\n      plan: off\n' }))).toEqual([]);
     // the answer is the same on every run
     expect(JSON.stringify(check({ claim: NEW }))).toBe(JSON.stringify(check({ claim: NEW })));
+  });
+});
+
+// ST-LN-72 72-ac-1, verification half: `accord gate done` refuses a verification.md that carries the marker (LOCKED), and `accord anchor` prints the resume-or-restart fact.
+const VERIFICATION = 'accord/tickets/T-1/verification.md';
+/** A verification record whose first body line is `first` (the marker's place), then one evidence block. */
+const verificationWith = (first: string | undefined, commit = 'abc1234def56'): string =>
+  ['---', 'ticket: "T-1"', `commit: "${commit}"`, 'reviewed_on: "2026-11-16"', '---', ...(first === undefined ? [] : [first]), '', '## @ac-1 export writes a csv', '', 'Result: pass', '', 'Evidence: export#writes-csv passed', ''].join('\n');
+
+interface DoneOpts {
+  verification?: string;
+  plan?: string;
+  claim?: Claim;
+  head?: string | null;
+  config?: string;
+}
+const buildDone = ({ verification = verificationWith(UNFINISHED_MARKER), plan, claim, head = 'abc1234def56abc1234def56abc1234def56abcd', config = CONFIG }: DoneOpts = {}) => {
+  const files: Record<string, string> = approved(
+    {
+      'accord/config.yml': config,
+      'accord/tickets/T-1.md': laneTicket('T-1'),
+      [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
+      [VERIFICATION]: verification,
+      ...(plan === undefined ? {} : { 'accord/tickets/T-1/plan.md': plan }),
+    },
+    'T-1',
+  );
+  const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
+  return { ...snapshot, ...(claim === undefined ? {} : { claimPins: { 'T-1': claim } }), ...(head === null ? {} : { git: { commit: head, authors: {} } }) };
+};
+const doneOf = (o: DoneOpts = {}): GateResult => gateDone(buildDone(o), 'T-1');
+const verifUnfinished = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.verification-unfinished');
+const anchor = (o: DoneOpts = {}): string[] => (anchorText(buildDone(o), 'T-1') ?? '').split('\n').filter((l) => l.startsWith('Unfinished:'));
+
+describe('unfinished marker: gate done', () => {
+  it('ac-1 gate done refuses a verification.md that carries the unfinished marker, naming the file (ST-LN-72 72-ac-1)', () => {
+    expect(parseVerification(VERIFICATION, VERIFICATION, verificationWith(UNFINISHED_MARKER)).verification.unfinished).toBe(6);
+    expect(Object.hasOwn(parseVerification(VERIFICATION, VERIFICATION, verificationWith(undefined)).verification, 'unfinished')).toBe(false);
+
+    const got = verifUnfinished(doneOf({ claim: NEW }));
+    expect(got).toHaveLength(1);
+    expect(got[0].level).toBe('error');
+    expect(got[0].file).toBe(VERIFICATION);
+    expect(got[0].line).toBe(6);
+    expect(got[0].reason).toContain(VERIFICATION);
+    expect(got[0].reason).toContain(UNFINISHED_MARKER);
+    expect(doneOf({ claim: NEW }).verdict).toBe('fail');
+    // it prints before the verification-content rows
+    const rules = doneOf({ claim: NEW }).findings.map((f) => f.rule);
+    expect(rules.indexOf('gate.verification-unfinished')).toBeLessThan(rules.indexOf('gate.tags-differ'));
+
+    // the same record once the verifier has removed the line: no finding
+    expect(verifUnfinished(doneOf({ verification: verificationWith(undefined), claim: NEW }))).toEqual([]);
+    // claimed before 0.6.0: answered as before
+    expect(verifUnfinished(doneOf({ claim: { pin: '0.5.1' } }))).toEqual([]);
+    expect(verifUnfinished(doneOf({ claim: { pin: '0.5.1', basePin: '0.5.0' } }))).toEqual([]);
+    // a failed claim read fails closed, and the finding says why
+    const failed = verifUnfinished(doneOf({ claim: { error: 'fatal: bad object 1234567' } }));
+    expect(failed).toHaveLength(1);
+    expect(failed[0].reason).toContain('fatal: bad object 1234567');
+    expect(failed[0].reason).toContain('the claim pin could not be read');
+    // the rule reads no runtimes: a repository that installs no accord agent is refused the same way (D-18)
+    expect(verifUnfinished(doneOf({ claim: NEW, config: CONFIG.replace('runtimes: [claude]', 'runtimes: [codex, cursor, copilot]') }))).toHaveLength(1);
+
+    // the rule is on the floor: no strictness key lowers it, so the refusal stands under a loosened config
+    expect(LOCKED).toContain('gate.verification-unfinished');
+    const loosened = CONFIG + 'strictness:\n  levels:\n    gate.verification-unfinished: off\n';
+    expect(verifUnfinished(doneOf({ claim: NEW, config: loosened }))).toHaveLength(1);
+    // the answer is the same on every run
+    expect(JSON.stringify(doneOf({ claim: NEW }))).toBe(JSON.stringify(doneOf({ claim: NEW })));
+  });
+});
+
+describe('unfinished marker: accord anchor', () => {
+  const FULL = 'abc1234def56abc1234def56abc1234def56abcd';
+  it('risk:complex-branching accord anchor tells the plan and verify stages to resume or start over (ST-LN-72 72-ac-1)', () => {
+    // no marker, no line
+    expect(anchor({ verification: verificationWith(undefined) })).toEqual([]);
+    // a marked plan: resume the planner (the verification half is clean here)
+    expect(anchor({ verification: verificationWith(undefined), plan: planWith(UNFINISHED_MARKER) })).toEqual([
+      'Unfinished: accord/tickets/T-1/plan.md: resume the planner',
+    ]);
+    // a marked verification whose commit: is HEAD, in both abbreviation directions
+    expect(anchor({ verification: verificationWith(UNFINISHED_MARKER, 'abc1234def56') })).toEqual([`Unfinished: ${VERIFICATION}: resume the verifier`]);
+    expect(anchor({ verification: verificationWith(UNFINISHED_MARKER, FULL), head: 'abc1234def56' })).toEqual([`Unfinished: ${VERIFICATION}: resume the verifier`]);
+    // another commit: start over, naming both
+    expect(anchor({ verification: verificationWith(UNFINISHED_MARKER, '1111111aaaa') })).toEqual([
+      `Unfinished: ${VERIFICATION}: written at 1111111aaaa, HEAD is ${FULL}: start the verifier over`,
+    ]);
+    // a commit shorter than 7 characters never counts as equal
+    expect(anchor({ verification: verificationWith(UNFINISHED_MARKER, 'abc123') })[0]).toContain('start the verifier over');
+    // no git: start over
+    expect(anchor({ verification: verificationWith(UNFINISHED_MARKER), head: null })).toEqual([
+      `Unfinished: ${VERIFICATION}: written at abc1234def56, HEAD is unknown: start the verifier over`,
+    ]);
+    // both files marked: the plan first
+    const both = anchor({ plan: planWith(UNFINISHED_MARKER), verification: verificationWith(UNFINISHED_MARKER) });
+    expect(both.map((l) => l.split(':')[1].trim())).toEqual(['accord/tickets/T-1/plan.md', VERIFICATION]);
+    // the lines sit right after Stage:, before the owner's sections
+    const text = anchorText(buildDone({ verification: verificationWith(UNFINISHED_MARKER) }), 'T-1') as string;
+    expect(text.indexOf('Unfinished:')).toBeLessThan(text.indexOf('## Intent'));
   });
 });

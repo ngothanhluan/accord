@@ -1,9 +1,18 @@
 // ST-LN-72 72-ac-1, plan half: `accord gate plan` on real git refuses a plan.md that still carries `<!-- accord: unfinished -->`, from UNFINISHED_FROM, naming the file.
 // The CLI here runs as the cut-off release (0.6.0) while the package is still 0.5.1, so the new rule is read at the version that ships it.
+import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { UNFINISHED_FROM, UNFINISHED_MARKER } from '@accord-dev/accord-core';
-import { cleanup, commitAll, commitMsg, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
+import { recordTaskDone, setFrontmatterKey, UNFINISHED_FROM, UNFINISHED_MARKER } from '@accord-dev/accord-core';
+import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { approve, CONFIG, discussFiles, discussPath, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
+
+/** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
+function freshReport(repo: string): void {
+  const later = new Date(Date.now() + 5000);
+  utimesSync(join(repo, 'reports', 'junit.xml'), later, later);
+}
 
 vi.mock('../package.json', async (orig) => {
   const m = await orig<{ default: Record<string, unknown> }>();
@@ -93,3 +102,92 @@ it('risk:complex-branching a ticket claimed before 0.6.0 keeps its marked plan u
     cleanup(repo);
   }
 });
+
+// Verification half: a ticket at done whose verification.md still carries the marker is refused by `accord gate done`, and `accord anchor` prints the resume fact.
+const VERIFICATION = 'accord/tickets/T-1/verification.md';
+const evidence = (sha: string, first?: string): string =>
+  ['---', 'ticket: "T-1"', `commit: "${sha}"`, 'reviewed_on: "2026-11-16"', '---', ...(first === undefined ? [] : [first]), '', '## @ac-1 export writes a csv', '', 'Result: pass', '', 'Evidence: export#writes-csv passed in reports/junit.xml', '', '## @ac-2 commas are escaped', '', 'Result: pass', '', 'Evidence: export#escapes-commas passed in reports/junit.xml', ''].join('\n');
+
+/** The repository lane-flow.test.ts walks to Done, with verification.md written by `evidence` at the gated commit and left uncommitted. */
+function doneRepo(first: string | undefined, runtimes?: string): { repo: string; sha: string } {
+  const repo = makeLaneRepo(discussFiles('T-1'));
+  try {
+    if (runtimes !== undefined) writeFiles(repo, { 'accord/config.yml': CONFIG.replace('runtimes: [claude]', `runtimes: ${runtimes}`) });
+    gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
+    gitRun(repo, 'config', 'user.name', 'fixture');
+    gitRun(repo, 'config', 'commit.gpgsign', 'false');
+    commitMsg(repo, 'base');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    const files: Files = {};
+    for (const rel of ['accord/config.yml', P('T-1'), 'accord/tickets/T-1/plan.md', 'src/export.ts', 'reports/junit.xml', discussPath('T-1')]) {
+      files[rel] = readFileSync(join(repo, ...rel.split('/')), 'utf8');
+    }
+    approve(files, 'T-1');
+    writeFiles(repo, { [P('T-1')]: files[P('T-1')] });
+    const baseline = commitMsg(repo, 'fixture');
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
+    const planned = commitMsg(repo, 'plan: T-1 ready');
+    freshReport(repo);
+    const ledger = 'accord/tickets/T-1/ledger.md';
+    const one = recordTaskDone(undefined, 1, planned.slice(0, 12)) as string;
+    writeFiles(repo, { [ledger]: one });
+    const next = commitMsg(repo, 'fixture');
+    freshReport(repo);
+    writeFiles(repo, { [ledger]: recordTaskDone(one, 2, next.slice(0, 12)) as string });
+    writeFiles(repo, { 'src/export.ts': readFileSync(join(repo, 'src', 'export.ts'), 'utf8') + '// task 2\n' });
+    const head = commitMsg(repo, 'task 2: T-1');
+    freshReport(repo);
+    writeFiles(repo, { 'accord/tickets/T-1/review.md': `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nverdict: converged\n` });
+    const sha = commitAll(repo);
+    const file = join(repo, 'accord', 'tickets', 'T-1.md');
+    let ticket = readFileSync(file, 'utf8');
+    const hash = /^ac_hash: "(.+)"$/m.exec(ticket)?.[1] as string;
+    ticket = setFrontmatterKey(ticket, 'verified', ['ac-1', 'ac-2']);
+    ticket = setFrontmatterKey(ticket, 'verified_hash', hash);
+    ticket = setFrontmatterKey(ticket, 'verified_commit', sha);
+    writeFileSync(file, ticket);
+    writeFiles(repo, { [VERIFICATION]: evidence(sha, first) });
+    return { repo, sha };
+  } catch (e) {
+    cleanup(repo);
+    throw e;
+  }
+}
+const doneGate = async (repo: string): Promise<{ code: number; out: string; found: Found[] }> => {
+  const r = await run(['gate', 'done', 'T-1', '--json'], repo);
+  return { code: r.code, out: r.out, found: (JSON.parse(r.out).findings as Found[]).filter((f) => f.rule === 'gate.verification-unfinished') };
+};
+
+it('ac-1 gate done on real git refuses a verification still being written and anchor prints the resume line (ST-LN-72 72-ac-1)', async () => {
+  const { repo, sha } = doneRepo(UNFINISHED_MARKER);
+  try {
+    const got = await doneGate(repo);
+    expect(got.code).toBe(1);
+    expect(got.found).toHaveLength(1);
+    expect(got.found[0].file).toBe(VERIFICATION);
+    expect(got.found[0].line).toBe(6);
+    expect(got.found[0].reason).toContain(VERIFICATION);
+    expect(got.found[0].reason).toContain(UNFINISHED_MARKER);
+    expect((await run(['anchor', 'T-1'], repo)).out).toContain(`Unfinished: ${VERIFICATION}: resume the verifier`);
+
+    // the verifier's last step: the line is removed, nothing else was wrong with the record
+    writeFiles(repo, { [VERIFICATION]: evidence(sha) });
+    const clean = await doneGate(repo);
+    expect(clean.found).toEqual([]);
+    expect(clean.code).toBe(0);
+    expect((await run(['anchor', 'T-1'], repo)).out).not.toContain('Unfinished:');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:regression the marker rules hold in a repository whose runtimes install no accord agent (ST-LN-72 72-ac-1)', async () => {
+  const { repo } = doneRepo(UNFINISHED_MARKER, '[codex, cursor, copilot]');
+  try {
+    const got = await doneGate(repo);
+    expect(got.code).toBe(1);
+    expect(got.found.map((f) => f.file)).toEqual([VERIFICATION]);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

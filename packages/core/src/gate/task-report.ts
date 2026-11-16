@@ -37,13 +37,15 @@ function stripEdges(value: string, drop: string): string {
 /** The value as compared: no edge spaces or full stops, lower case. */
 const plain = (value: string): string => stripEdges(value, ' \t.').toLowerCase();
 
-// A template slot left unfilled anywhere in a value: `<...>`, `<…>` or `<lower-case words>`, at the start or after a space, so a generic type such as `Array<string>` is no slot.
-const SLOT = /(?:^|\s)<(?:\.\.\.|…|[a-z][a-z ,'-]*)>/;
+// The slots the contract (and executor.md's report block) print, lower case: one left anywhere in a value is unfilled. Any other `<word>` is real text a reason may name, such as
+// command syntax (`accord brief <id> <n>`), an HTML tag (`<details>`) or a review id (`review <r>.<n>`); a value that is nothing but a `<…>` is refused on its own (placeholder).
+const SLOTS = ['<why>', '<...>', '<…>', '<the behaviour the failing test showed missing, not an error in the test>'];
+const hasSlot = (v: string): boolean => SLOTS.some((s) => v.includes(s));
 
 /** The template's own placeholder (`<...>`), an unfilled slot anywhere, `TBD`, `-` and an empty text name nothing. */
 function placeholder(value: string): boolean {
   const v = plain(value);
-  return v === '' || v === '-' || v === 'tbd' || (v.startsWith('<') && v.endsWith('>')) || SLOT.test(v);
+  return v === '' || v === '-' || v === 'tbd' || (v.startsWith('<') && v.endsWith('>')) || hasSlot(v);
 }
 
 /** `none` and `n/a` also say nothing about the behaviour a red test showed missing, nor does `no red test` with no reason after it. */

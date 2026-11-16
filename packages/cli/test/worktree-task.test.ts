@@ -98,7 +98,7 @@ function sandbox(o: { claimPin?: string; config?: string; files?: Record<string,
     writeFiles(ticket, { 'accord/config.yml': head });
     commitMsg(ticket, 'T-1 work');
   }
-  return { main, ticket, base, task: (n) => `${main}-t-1-t${n}` };
+  return { main, ticket, base, task: (n) => `${main}-t-1+t${n}` };
 }
 
 const has = (dir: string, ref: string): boolean => {
@@ -142,7 +142,7 @@ it('ac-2 a task worktree is opened from the ticket branch, merged in task order 
     expect(r.err).toBe('');
     expect(r.code).toBe(0);
     expect(r.out).toBe(`path: ${b.task(n)}\nbranch: accord-task/T-1/${n}\n`);
-    expect(b.task(n).endsWith(`-t-1-t${n}`)).toBe(true);
+    expect(b.task(n).endsWith(`-t-1+t${n}`)).toBe(true);
     expect(r.out).not.toContain('\\');
     expect(head(b.task(n))).toBe(start);
     // run again: the same lines, nothing new
@@ -449,7 +449,7 @@ it('risk:data-loss a task folder switched to another branch is neither merged no
   expect(gitRun(b.task(2), 'rev-parse', 'refs/heads/side').trim()).toBe(work);
 }, 120_000);
 
-// Review round 1 finding 9: ticket T-1-T1's worktree `<main>-t-1-t1` is the folder task 1 of T-1 would take; no task command acts on it.
+// Review round 1 finding 9 (defence in depth since round 2 finding 3 moved task folders to `+t<n>`): a ticket branch checked out at the task folder is never merged, cleaned or opened as the task's.
 it("risk:data-loss another ticket's worktree at the task folder is never merged, cleaned or opened as the task's (ST-LN-92 92-ac-2)", async () => {
   const b = sandbox();
   gitRun(b.main, 'worktree', 'add', '-q', '-b', 't/T-1-T1', b.task(1), 'main');
@@ -511,6 +511,20 @@ it('risk:data-loss brief refuses to name a Work dir that is not on the ticket br
   expect(here.out).toContain(`Work dir: ${b.ticket}\n`);
 }, 120_000);
 
+// Review round 2 finding 7: a ticket branch that exists only on origin still exists: brief in the main checkout refuses.
+it('risk:data-loss brief refuses the main checkout when the ticket branch exists only on origin (ST-LN-92 92-ac-2)', async () => {
+  const b = sandbox();
+  const tip = head(b.ticket);
+  gitRun(b.main, 'worktree', 'remove', '--force', b.ticket);
+  gitRun(b.main, 'update-ref', 'refs/remotes/origin/t/T-1', tip);
+  gitRun(b.main, 'branch', '-q', '-D', 't/T-1');
+  const r = await run(['brief', 'T-1', '2'], b.main);
+  expect(r.code).toBe(2);
+  expect(r.out).toBe('');
+  expect(r.err).toContain('no worktree holds that branch - open it with accord worktree open T-1');
+  expect(existsSync(join(b.main, '.accord-reports'))).toBe(false);
+}, 120_000);
+
 // Review round 1 finding 7: build.regenerate is repository text like git.sync; the merge prints it to run only once accord trust allowed it, bound to the task folder's files.
 it('risk:security a generated-only conflict prints the regenerate command only when accord trust allowed it (ST-LN-92 92-ac-4)', async () => {
   const b = sandbox({
@@ -541,8 +555,8 @@ it('risk:security a generated-only conflict prints the regenerate command only w
   expect(printed.code).toBe(1);
   expect(printed.out).toBe(`conflict: task 3 in ${b.task(3)}\ngenerated: gen/out.txt\nregenerate: node scripts/regen.mjs\n`);
 
-  // the task folder's script changed: not the allowed content, so refused again
-  writeFiles(b.task(3), { 'scripts/regen.mjs': '// changed\n' });
+  // round 2 finding 5: the binding is read in the ticket checkout, where the owner allowed it; the script changed there is not the allowed content, so refused again
+  change(b.ticket, 'scripts/regen.mjs', '// changed\n', 'regen changed');
   const changed = await merge(b, 3);
   expect(changed.out).toContain('regenerate refused: build.regenerate "node scripts/regen.mjs"');
   expect(changed.out).not.toMatch(/^regenerate: /m);
@@ -550,3 +564,88 @@ it('risk:security a generated-only conflict prints the regenerate command only w
   const hand = await merge(b, 4);
   expect(hand.out).toBe(`conflict: task 4 in ${b.task(4)}\nhand-written: src/x.ts\n`);
 }, 180_000);
+
+// Review round 2 findings 5 and 6: a root-level script covers every tracked file outside accord/, the conflicted ones included, so the binding is read in the clean ticket
+// checkout, not in the task folder mid-rebase; and its allow lives where an older accord (0.5.1), which drops a kind it does not know when it rewrites its record, never writes.
+it('risk:security a root-level regenerate script allowed in the ticket checkout is printed mid-rebase, and an older accord rewriting its record keeps the allow (ST-LN-92 92-ac-4)', async () => {
+  const b = sandbox({
+    config: CONFIG + 'generated:\n  - gen/\nbuild:\n  regenerate: node regen.mjs\n',
+    files: { 'gen/out.txt': 'gen\n', 'regen.mjs': '// regen\n' },
+  });
+  for (const n of [2, 3]) expect((await open(b, n)).code).toBe(0);
+  change(b.task(2), 'gen/out.txt', 'two\n', 'task 2');
+  change(b.task(3), 'gen/out.txt', 'three\n', 'task 3');
+  expect((await merge(b, 2)).code).toBe(0);
+  const shown = await run(['trust'], b.ticket);
+  expect(shown.out).toContain('build.regenerate "node regen.mjs"');
+  const digest = /build\.regenerate@([0-9a-f]{16})/.exec(shown.out)?.[1];
+  expect((await run(['trust', `build.regenerate@${digest}`], b.ticket)).code).toBe(0);
+  const printed = await merge(b, 3);
+  expect(printed.code).toBe(1);
+  expect(printed.out).toBe(`conflict: task 3 in ${b.task(3)}\ngenerated: gen/out.txt\nregenerate: node regen.mjs\n`);
+
+  // what 0.5.1 does to accord-trust.json: on its next allow or revoke it writes back only the kinds it knows, and its revoke-all removes the file
+  const common = join(b.main, '.git');
+  const record = join(common, 'accord-trust.json');
+  if (existsSync(record)) {
+    const text = JSON.parse(readFileSync(record, 'utf8')) as { version: number; allows: { kind: string }[] };
+    writeFiles(common, { 'accord-trust.json': JSON.stringify({ version: 2, allows: text.allows.filter((a) => a.kind === 'tracker.command' || a.kind === 'git.sync') }, null, 2) + '\n' });
+  }
+  expect((await merge(b, 3)).out).toBe(printed.out);
+  rmSync(record, { force: true });
+  expect((await merge(b, 3)).out).toBe(printed.out);
+  // accord trust --revoke still withdraws it
+  expect((await run(['trust', '--revoke'], b.ticket)).out).toContain('build.regenerate');
+  expect((await merge(b, 3)).out).toContain('regenerate refused:');
+}, 180_000);
+
+// Review round 2 finding 4: the task branch checked out in a folder other than the task's: clean names that folder and deletes nothing.
+it('risk:data-loss clean refuses while another worktree holds the task branch (ST-LN-92 92-ac-2)', async () => {
+  const b = sandbox();
+  gitRun(b.ticket, 'branch', 'accord-task/T-1/2', 'HEAD');
+  const elsewhere = `${b.main}-elsewhere`;
+  gitRun(b.main, 'worktree', 'add', '-q', elsewhere, 'accord-task/T-1/2');
+  const c = await clean(b, 2);
+  expect(c.code).toBe(1);
+  expect(c.out).toContain(`accord-task/T-1/2 is checked out in ${elsewhere}`);
+  expect(c.out).not.toMatch(/^(removed|deleted):/m);
+  expect(has(b.ticket, 'refs/heads/accord-task/T-1/2')).toBe(true);
+  expect(existsSync(elsewhere)).toBe(true);
+}, 120_000);
+
+// Review round 2 finding 3: task folders are `<ticket folder>+t<n>`, a name no ticket id gives, so ticket T-1-T1's worktree `<main>-t-1-t1` and task 1 of T-1 never meet.
+it("risk:data-loss task 1 of T-1 and ticket T-1-T1 get different folders (ST-LN-92 92-ac-2)", async () => {
+  const b = sandbox();
+  const other = `${b.main}-t-1-t1`;
+  gitRun(b.main, 'worktree', 'add', '-q', '-b', 't/T-1-T1', other, 'main');
+  const o = await open(b, 1);
+  expect(o.err).toBe('');
+  expect(o.code).toBe(0);
+  expect(o.out).toBe(`path: ${b.main}-t-1+t1\nbranch: accord-task/T-1/1\n`);
+  expect((await clean(b, 1)).out).toBe(`removed: ${b.main}-t-1+t1\n`);
+  expect(existsSync(other)).toBe(true);
+  expect(gitRun(other, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('t/T-1-T1');
+}, 120_000);
+
+// Review round 2 findings 2 and 9: a task folder holding work off its task branch, or one git cannot read, is named by accord waves for the owner, and nothing crashes.
+it('risk:data-loss accord waves names a task folder off its task branch or unreadable, and brief and waves never crash on it (ST-LN-92 92-ac-2)', async () => {
+  const b = sandbox();
+  for (const n of [2, 3, 4]) expect((await open(b, n)).code).toBe(0);
+  gitRun(b.task(2), 'switch', '-q', '-c', 'side');
+  gitRun(b.task(3), 'checkout', '-q', '--detach');
+  const sha = head(b.task(3)).slice(0, 12);
+  gitRun(b.task(4), 'checkout', '-q', '--detach');
+  chmodSync(join(b.task(4), '.git'), 0o666);
+  rmSync(join(b.task(4), '.git'), { force: true });
+  writeFiles(b.task(4), { '.git': 'gitdir: ' + join(b.main, 'nowhere') + '\n' });
+  const r = await run(['waves', 'T-1'], b.ticket);
+  expect(r.err).toBe('');
+  expect(r.code).toBe(0);
+  const lines = r.out.split('\n');
+  expect(lines).toContain(`Task 2 worktree: ${b.task(2)} (side): not on its task branch — owner`);
+  expect(lines).toContain(`Task 3 worktree: ${b.task(3)} (detached ${sha}): not on its task branch — owner`);
+  expect(lines.find((l) => l.startsWith(`Task 4 worktree: ${b.task(4)} (unreadable: `))).toMatch(/\): not on its task branch — owner$/);
+  const brief = await run(['brief', 'T-1', '4'], b.ticket);
+  expect(brief.err).toBe('');
+  expect(brief.code).toBe(0);
+}, 120_000);

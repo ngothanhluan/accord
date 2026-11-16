@@ -1822,6 +1822,23 @@ it('risk:data-loss a live task worktree is merged and cleaned whatever the wave 
   expect(bad).toEqual([]);
 });
 
+// Review round 2 findings 1 and 2: a merge that prints `not merged:`, a clean that prints `kept task`, or a task folder off its task branch stops that task only, as a block:
+// nothing is removed or reset, the owner gets the folder, its branch and the CLI's words, the wave goes on, and such a task is never rebuilt in the ticket checkout.
+it('risk:data-loss a refused merge or clean, or a task folder off its branch, stops only that task and goes to the owner (ST-LN-92 92-ac-3)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const blocked = steps.find((s) => s.startsWith('6. **Blocked.**')) ?? '';
+    bad.push(...lacking(dir + ' waves.md step 6', blocked, ['`not merged:`', '`kept task`', '`— owner`', 'never remove its folder or reset anything', "the folder, its branch and the CLI's words", 'go on with']));
+    const first = steps.find((s) => s.startsWith('1. **Waves.**')) ?? '';
+    bad.push(...lacking(dir + ' waves.md step 1', first, ['`— owner`', 'never built in this worktree', 'step 6']));
+    for (const k of ['4. **Record.**', '8. **Next wave.**']) {
+      const step = steps.find((s) => s.startsWith(k)) ?? '';
+      bad.push(...lacking(dir + ' waves.md ' + k, step, ['step 6']));
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
 // Review round 1 finding 7: the build stage runs only the regenerate command the merge printed (the CLI prints it once accord trust allowed it), never the config text.
 it('risk:security the conflict step runs only the regenerate command accord worktree task merge printed (ST-LN-92 92-ac-4)', () => {
   const bad: string[] = [];

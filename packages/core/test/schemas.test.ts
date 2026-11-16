@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { schemaIds, validate } from '../src/index.js';
+import { loadConfig, schemaIds, validate } from '../src/index.js';
 import type { SchemaFinding } from '../src/index.js';
 import configSchema from '../schemas/config.schema.json' with { type: 'json' };
 import verificationSchema from '../schemas/verification.schema.json' with { type: 'json' };
@@ -364,6 +364,20 @@ describe('phase 2 config keys', () => {
     for (const parallel of ['0', '100', '03', 'x', '', 3]) expect(validate('config', { ...base, build: { parallel } }).length, String(parallel)).toBeGreaterThan(0);
     expect(validate('config', { ...base, build: { regenerate: '' } }).length).toBeGreaterThan(0);
     expect(validate('config', { ...base, build: { cap: '3' } }).length).toBeGreaterThan(0);
+  });
+
+  // review round 2 finding 8: the build skill runs the printed command exactly, so it is one line with no control character, printed raw
+  it('risk:security build.regenerate is one line with no control character (ST-LN-92 92-ac-4)', () => {
+    for (const ok of ['npm run gen', 'node "my scripts/regen.mjs" --all', 'pnpm -r gen && git status', 'génère ünïcode']) {
+      expect(validate('config', { ...base, build: { regenerate: ok } }), ok).toEqual([]);
+    }
+    for (const bad of ['npm run gen\nrm -rf x', 'a\rb', 'a\tb', 'a\u001bb', 'a\u007fb', 'a\u0085b', 'a b', 'a b']) {
+      expect(validate('config', { ...base, build: { regenerate: bad } }).map((f) => f.rule), JSON.stringify(bad)).toContain('schema.pattern');
+    }
+    // the loader reads such a config as no config, as for any schema refusal
+    const text = (regenerate: string): string => JSON.stringify({ ...base, build: { regenerate } });
+    expect(loadConfig('accord/config.yml', text('npm run gen')).config?.build?.regenerate).toBe('npm run gen');
+    expect(loadConfig('accord/config.yml', text('npm run gen\nrm -rf x')).config).toBeUndefined();
   });
 });
 

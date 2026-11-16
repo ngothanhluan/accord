@@ -1291,7 +1291,7 @@ it('risk:data-loss accord worktree clean leaves a live task worktree and its bra
   const c = copy();
   ticketWorktree(c, 'ST-9');
   // made with git as `accord worktree task open` would (the running version is below the 0.6.0 cut-off until the release); its commit is in no other branch
-  const task = `${c.sibling('ST-9')}-t2`;
+  const task = `${c.sibling('ST-9')}+t2`;
   gitRun(c.sibling('ST-9'), 'worktree', 'add', '-q', '-b', 'accord-task/ST-9/2', task, 'HEAD');
   writeFiles(task, { 'task2.txt': 'task 2\n' });
   const work = commitMsg(task, 'task 2');

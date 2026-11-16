@@ -826,7 +826,7 @@ it('risk:security a session in a task worktree is not taken for the ticket workt
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
   c.git('remote', 'remove', 'origin'); // H7: no fetch in this scenario
   // made with git as `accord worktree task open` would (the running version is below the 0.6.0 cut-off until the release)
-  const task = `${sib}-t2`;
+  const task = `${sib}+t2`;
   gitRun(sib, 'worktree', 'add', '-q', '-b', 'accord-task/ST-9/2', task, 'HEAD');
   const snapshot = loadSnapshot({ files: { 'accord/config.yml': readFileSync(`${c.root}/accord/config.yml`, 'utf8'), 'accord/tickets/ST-9.md': readFileSync(`${c.root}/accord/tickets/ST-9.md`, 'utf8') }, tree: [] });
   expect(worksTicket(task, undefined, snapshot)).toBeUndefined();

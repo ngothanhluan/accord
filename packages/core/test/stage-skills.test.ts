@@ -1560,6 +1560,18 @@ it('risk:regression the debug stage resumes on an Unfinished line or else dispat
   }
 });
 
+it('risk:regression only the debug.md resume line diverts the debug stage; a plan or verification Unfinished line leaves root-cause investigation to the debugger (ST-LN-72 review round 3)', () => {
+  for (const [path, text] of flat('/' + installedName('debug') + '/SKILL.md')) {
+    const step = text.replace(/\s+/g, ' ').slice(text.replace(/\s+/g, ' ').indexOf('**Root cause.**'));
+    const resume = step.indexOf('./resume.md');
+    expect(resume, path).toBeGreaterThan(-1);
+    // the condition names the debug.md line, not any Unfinished line
+    expect(step.slice(0, resume), path).toContain('debug.md: resume the debugger');
+    // any other Unfinished line is said to change nothing here
+    expect(step.slice(0, step.indexOf('accord-debugger')), path).toMatch(/other `Unfinished:`/);
+  }
+});
+
 it('risk:regression resume.md says where each writer puts the marker: after the frontmatter for plan and verification, under the last episode heading for debug (ST-LN-72 review round 2)', () => {
   for (const [path, text] of flat('/resume.md')) {
     expect(text, path).not.toContain('first thing each writes');

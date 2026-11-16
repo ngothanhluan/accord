@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { approve, CONFIG, discussFiles, junit, LANE_BODY, laneTicket, P, REPORT, type Files } from '../../../test/helpers/lane.js';
+import { approve, CONFIG, discussFiles, junit, LANE_BODY, laneTicket, P, REPORT, writeReport, type Files } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 const OFF = 'strictness:\n  stages:\n    M:\n      plan: "off"\n';
@@ -34,6 +34,7 @@ const row = async (repo: string): Promise<Record<string, unknown>> => (JSON.pars
 const fresh = (repo: string, offsetMs: number): void => {
   const at = new Date(Date.now() + offsetMs);
   utimesSync(join(repo, REPORT), at, at);
+  writeReport(repo, 'T-1', 1); // the executor report task-done asks for from 0.6.0
 };
 const PAIRS = ['--test', 'ac-1=export#writes-csv', '--test', 'ac-2=export#escapes-commas'];
 

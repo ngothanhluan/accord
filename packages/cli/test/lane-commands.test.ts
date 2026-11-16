@@ -5,8 +5,8 @@ import { platform } from 'node:os';
 import { join } from 'node:path';
 import { templates } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
-import { cleanup, commitAll, commitAllAt, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, discussFiles, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
+import { claimedUnder, cleanup, commitAll, commitAllAt, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, discussFiles, junit, LANE_BODY, laneTicket, PLAN, REPORT, writeReport } from '../../../test/helpers/lane.js';
 import { taskNumber } from '../src/commands/lane-args.js';
 import { commitSeconds } from '../src/commands/task-done.js';
 
@@ -134,10 +134,11 @@ describe('accord approve', () => {
 const REPORT_PATH = (repo: string) => join(repo, 'reports', 'junit.xml');
 const LEDGER_PATH = (repo: string) => join(repo, 'accord', 'tickets', 'T-1', 'ledger.md');
 const ledger = (repo: string) => readFileSync(LEDGER_PATH(repo), 'utf8');
-/** Make the report newer than HEAD, as running the tests after committing would. */
+/** Make the report newer than HEAD, as running the tests after committing would, and write the executor's report of tasks 1 and 2, which task-done also asks for from 0.6.0. */
 const freshen = (repo: string, file = REPORT_PATH(repo)) => {
   const later = new Date(Date.now() + 5000);
   utimesSync(file, later, later);
+  for (const n of [1, 2]) writeReport(repo, 'T-1', n);
 };
 const OLD = new Date('2000-01-01T00:00:00Z');
 
@@ -218,6 +219,7 @@ describe('accord task-done', () => {
     const repo = makeLaneRepo();
     try {
       commitAll(repo);
+      writeReport(repo, 'T-1', 1);
       utimesSync(REPORT_PATH(repo), OLD, OLD);
       const r = await run(['task-done', 'T-1', '1'], repo);
       expect(r.code).toBe(1);
@@ -335,6 +337,7 @@ it('ac-1 a brief carries the plan preamble', async () => {
   const repo = makeLaneRepo({
     'accord/tickets/T-1/plan.md': '---\nbaseline: abc1234\n---\n\n' + BRIEF_RULE + '\n\n## Task 1: A\ncovers: @ac-1\n\n## Task 2: B\ncovers: @ac-2\n',
   });
+  claimedUnder(repo, '0.5.1'); // a test about the brief's plan part: a ticket claimed before 0.6.0 gets no report lines
   try {
     const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
     const r = await run(['brief', 'T-1', '2'], repo);
@@ -350,6 +353,7 @@ it('ac-2 a plan with no preamble gives the same brief as before', async () => {
   const repo = makeLaneRepo({
     'accord/tickets/T-1/plan.md': '---\nbaseline: abc1234\n---\n\n  \n\n## Task 1: A\ncovers: @ac-1\n',
   });
+  claimedUnder(repo, '0.5.1');
   try {
     const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
     const r = await run(['brief', 'T-1', '1'], repo);
@@ -875,6 +879,7 @@ describe('plan contract checks', () => {
       expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
       const later = new Date(Date.now() + 5000);
       utimesSync(join(repo, 'reports', 'junit.xml'), later, later); // task-done needs a report newer than the commit
+      writeReport(repo, 'T-1', 1);
       const again = await run(['task-done', 'T-1', '1'], repo);
       expect(again.code).toBe(0);
       expect(readFileSync(join(repo, 'accord', 'tickets', 'T-1', 'ledger.md'), 'utf8')).toMatch(/- task 1 done [0-9a-f]{7,}/);
@@ -1389,6 +1394,7 @@ it('ac-1 the brief prints the task tests.affected command as the only one to run
     'test/csv.test.ts': '',
     'test/export.test.ts': '',
   });
+  claimedUnder(repo, '0.5.1');
   try {
     const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
     const r = await run(['brief', 'T-1', '2'], repo);
@@ -1407,6 +1413,7 @@ it('ac-1 the brief prints the task tests.affected command as the only one to run
 
 it('ac-2 without tests.affected the brief prints tests.full and says why', async () => {
   const repo = makeLaneRepo({ 'accord/config.yml': withTests(['full: npx vitest run --reporter=junit']) });
+  claimedUnder(repo, '0.5.1');
   try {
     const r = await run(['brief', 'T-1', '2'], repo);
     expect(r.code).toBe(0);
@@ -1422,6 +1429,7 @@ it('ac-2 without tests.affected the brief prints tests.full and says why', async
 
 it('ac-3 without either command the brief says no test command is configured', async () => {
   const repo = makeLaneRepo();
+  claimedUnder(repo, '0.5.1');
   try {
     for (const n of ['1', '2']) {
       const r = await run(['brief', 'T-1', n], repo);
@@ -1457,6 +1465,7 @@ it('risk:parsing the brief test command quotes odd paths and drops new marks rep
     'accord/tickets/T-1/plan.md': plan,
     'test/csv.test.ts': '',
   });
+  claimedUnder(repo, '0.5.1');
   try {
     const J = String.raw`src/export.ts lib/@scope/a+b=c.ts 'app/(group)/[slug]/page.tsx' 'routes/$id.tsx' 'src/$&.ts' 'docs/it'\''s.md' test/csv.test.ts`;
     const a = await run(['brief', 'T-1', '1'], repo);

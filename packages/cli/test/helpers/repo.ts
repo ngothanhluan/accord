@@ -5,7 +5,7 @@
 // run git against the author's working tree inside a green test run. It throws rather than expects, so
 // it fires outside a test body too.
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -210,6 +210,18 @@ export function makeLaneRepo(extra: Record<string, string> = {}): string {
   });
   seedScoutReports(repo, extra);
   return repo;
+}
+
+/**
+ * `repo` as a ticket claimed under accord `pin`: a `claim: <id>` commit whose config pins `pin`, then the config as it was. A test about the rules or the brief of an older release uses it
+ * to keep them (the claim pin, not the working-tree pin, decides: plan 02-10 pattern); the working tree keeps its own config, uncommitted.
+ */
+export function claimedUnder(repo: string, pin: string, id = 'T-1'): void {
+  const file = join(repo, 'accord', 'config.yml');
+  const head = readFileSync(file, 'utf8');
+  writeFiles(repo, { 'accord/config.yml': head.replace(/accord: "[^"]*"/, `accord: "${pin}"`) });
+  commitMsg(repo, `claim: ${id}`);
+  writeFiles(repo, { 'accord/config.yml': head });
 }
 
 /** ST-LN-81: a lane M ticket the sandbox holds gets a skipped scout report, so its approve reaches the code under test. */

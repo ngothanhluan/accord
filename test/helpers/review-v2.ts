@@ -34,6 +34,9 @@ export function v2Review(cycles: RoundSpec[][], tail = ''): string {
   return out.join('\n') + tail;
 }
 
+/** `snap` as a ticket claimed under `pin`: the claim fact every rule that follows the claim reads (a test about an older rule pins its history, plan 02-10 pattern). */
+export const claimedUnder = (snap: RepoSnapshot, pin: string, id = 'T-1'): RepoSnapshot => ({ ...snap, claimPins: { ...snap.claimPins, [id]: { pin } } });
+
 /** Round facts: `ranges[j - 1]` is round j's range; heads default to `{ high: H(j), bound: true }`. */
 export function facts(
   ranges: RangeCommit[][],

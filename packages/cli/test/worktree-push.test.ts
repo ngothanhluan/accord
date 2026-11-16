@@ -3,7 +3,7 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { trailerReason } from '@accord-dev/accord-core';
-import { CONFIG, junit, PLAN, REPORT } from '../../../test/helpers/lane.js';
+import { CONFIG, junit, PLAN, REPORT, writeReport } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { makeClone, type Clone } from './helpers/worktree.js';
 
@@ -43,6 +43,7 @@ function teammate(c: Clone): string {
 function freshReport(dir: string): void {
   const later = new Date(Date.now() + 5000);
   utimesSync(join(dir, REPORT), later, later);
+  writeReport(dir, 'ST-9', 1); // the executor report task-done asks for from 0.6.0
 }
 
 /** The dashboard row of ST-9 as `dir` shows it. */

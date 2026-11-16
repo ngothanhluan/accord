@@ -58,7 +58,7 @@ export function parseVerification(
     });
   }
 
-  const unfinished = unfinishedLine(text); // ST-LN-72 D-11: the raw text, so no section reader's comment stripping hides it
+  const unfinished = unfinishedLine(fm.body, fm.bodyOffset); // ST-LN-72 D-11: the body as split, comments kept, so no section reader's comment stripping hides it
   const verification: Verification = {
     ticket: id,
     file,

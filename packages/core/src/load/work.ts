@@ -194,7 +194,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   // A broken or non-string baseline is simply absent; gate.plan-baseline-missing says what to write.
   const map = yaml === null ? undefined : parseYamlMap(file, yaml, 1).map;
   const { baseline, plan_hash: planHash } = map ?? {};
-  const unfinished = unfinishedLine(text); // ST-LN-72 D-11: the raw text, so no section reader's comment stripping hides it
+  const unfinished = unfinishedLine(body, bodyOffset); // ST-LN-72 D-11: the body as split, comments kept, so no section reader's comment stripping hides it
   const plan: Plan = {
     file,
     tasks,

@@ -1,21 +1,22 @@
 // ST-LN-72 D-11: the fixed line a planner, verifier or debugger leaves in a file it is still writing. Read on the raw text, never through the section readers,
 // which strip HTML comments and would hide it. Pure: no node import.
-import { normaliseText, splitFrontmatter } from './frontmatter.js';
+import { normaliseText } from './frontmatter.js';
 import { scan } from './sections.js';
 
-/** The not-finished marker: alone on its line, the first body line right after the frontmatter's closing `---`. The writer removes it as its last step. */
+/** The not-finished marker: alone on its line in the body, which a writer puts right after the frontmatter's closing `---`. The writer removes it as its last step. */
 export const UNFINISHED_MARKER = '<!-- accord: unfinished -->';
 
 /**
- * The 1-based line of UNFINISHED_MARKER in `text` when it is the first non-blank line of the body (the lines after the frontmatter's closing `---`, or the whole text when there is no
- * frontmatter), once the BOM and CRLF are normalised and the line is trimmed; undefined otherwise. Only that line counts (ST-LN-72 review round 1): the marker quoted as a whole line lower down,
- * in a fence or in pasted evidence, is not a flag, and the marker inside the frontmatter is a YAML comment. Blank lines before it are skipped, so a stray one cannot hide a flag.
+ * The 1-based line of UNFINISHED_MARKER in `body`, the part of a file after its frontmatter that the loader already split (`bodyOffset` lines precede it): the first body line that is the marker
+ * once trimmed and lies outside every fenced code block (``` or ~~~, the fences of the section scanner); undefined otherwise. It fails closed (ST-LN-72 review round 2): a heading or a paragraph
+ * before the marker does not hide it, so a half-written file cannot pass a gate. Only a quote inside a fence (pasted test output, a plan's example) is evidence rather than a flag. The marker in the
+ * frontmatter is a YAML comment, never a body line. The body is normalised already (no BOM, LF), so a CRLF file reads as an LF one.
  */
-export function unfinishedLine(text: string): number | undefined {
-  const { body, bodyOffset } = splitFrontmatter(text);
-  const lines = body.split('\n');
-  const i = lines.findIndex((l) => l.trim() !== '');
-  return i >= 0 && lines[i].trim() === UNFINISHED_MARKER ? bodyOffset + i + 1 : undefined;
+export function unfinishedLine(body: string, bodyOffset = 0): number | undefined {
+  const quoted = new Set<number>();
+  for (const f of scan(body, bodyOffset).fences) for (let n = f.open; n <= f.close; n++) quoted.add(n);
+  const i = body.split('\n').findIndex((l, k) => l.trim() === UNFINISHED_MARKER && !quoted.has(bodyOffset + k + 1));
+  return i >= 0 ? bodyOffset + i + 1 : undefined;
 }
 
 /**

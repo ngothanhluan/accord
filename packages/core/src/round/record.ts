@@ -103,10 +103,13 @@ type Mark = Pick<RoundFinding, 'carried' | 'risk' | 'test' | 'command' | 'restsO
 const PLACE = /^(?:`([^`]+)`|([^\s,`:]+))(?::([1-9][0-9]*))?$/;
 const ADDRESS = /^(?:`([^`]+)`|([^\s,`:]+)):([1-9][0-9]*)$/;
 
-/** The `checked:` list of a version 2 finding: comma-separated places, at least one, each well formed; undefined when any part is not (the whole mark is then unread). */
+/** A path that names no place: `none`, `n/a`, `-`, `tbd` in any letter case, or a template slot such as `<path>`. */
+const NO_PLACE = /^(?:none|n\/a|-|tbd|<.*>)$/i;
+
+/** The `checked:` list of a version 2 finding: comma-separated places, at least one, each well formed and none a placeholder; undefined when any part is not (the whole mark is then unread). */
 function readPlaces(list: string): string[] | undefined {
   const places = list.split(',').map((p) => PLACE.exec(p.trim()));
-  if (places.some((p) => p === null)) return undefined;
+  if (places.some((p) => p === null || NO_PLACE.test(p[1] ?? p[2]))) return undefined;
   return places.map((p) => `${p![1] ?? p![2]}${p![3] === undefined ? '' : ':' + p![3]}`);
 }
 

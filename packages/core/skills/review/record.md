@@ -34,7 +34,8 @@ Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <path>[:<line>] 
   `rests on: Veto "<quote>"`, `rests on: Correction "<quote>"` (from accord 0.4.1) or `rests on: Intent "<quote>"`, a quote
   of at least three words from that section.
 - From accord 0.6.0 a finding `fixed in <sha>` also carries `checked: <path>[:<line>], …`, the places the executor's
-  `places checked: <n>: …` line for that finding lists, copied. The re-review, the next round, is given the findings it
+  `places checked: <n>: …` line for that finding lists, copied (at least one real place: `none`, `n/a`, `-`, `TBD` or a
+  `<…>` slot is refused). The re-review, the next round, is given the findings it
   re-checks and answers each, `<r>.<n>: ADDRESSED <path>:<line>` or `<r>.<n>: NOT ADDRESSED <path>:<line> — <what still fails>`;
   write that answer on the finding it answers, in round `<r>`, as `addressed: <path>:<line>` or `not addressed: <path>:<line>`.
   `fixed in <sha>` records the fix only: a finding closes on its `addressed:` answer, never on `fixed in` alone. A NOT

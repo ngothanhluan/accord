@@ -53,6 +53,7 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.discuss-unmapped': 'discuss',
   'gate.approach-empty': 'approach',
   // the plan gate and the plan record: every row of PLAN_RULES that is not on the floor, the plan-size rules among them, and the lint rules about the plan
+  'gate.plan-unfinished': 'plan',
   'gate.plan-missing': 'plan',
   'gate.plan-empty': 'plan',
   'gate.plan-size': 'plan',

@@ -95,7 +95,7 @@ describe('unfinished marker: gate plan', () => {
     expect(got[0].line).toBe(5);
     expect(got[0].reason).toContain('accord/tickets/T-1/plan.md');
     expect(got[0].reason).toContain(UNFINISHED_MARKER);
-    expect(check({ claim: NEW }).pass).toBe(false);
+    expect(check({ claim: NEW }).verdict).toBe('fail');
 
     // the same plan once the planner has removed the line: no finding
     expect(unfinished(check({ plan: planWith(undefined), claim: NEW }))).toEqual([]);

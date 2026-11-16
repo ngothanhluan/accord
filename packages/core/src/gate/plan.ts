@@ -2,9 +2,10 @@
 // nothing. Mechanical only — whether the plan is good is the critic's question; this gate answers whether
 // it is complete. Levels live in rules.ts (D-57).
 import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
+import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
-import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, pinBefore, UNFINISHED_FROM } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
@@ -180,6 +181,23 @@ const withNote =
     const drafts = check(snapshot, id);
     return note === undefined ? drafts : drafts.map((d) => ({ ...d, reason: `${d.reason}; ${note}` }));
   };
+
+/**
+ * ST-LN-72 D-11 and D-16: a plan.md that still carries UNFINISHED_MARKER is a plan the planner has not finished, so it never passes gate plan and never reaches a brief. Lane tickets other than
+ * lane S, unless the claim pin is below UNFINISHED_FROM (claimPinBefore: a failed read applies the rule). The plan stage's own switch removes the row (STAGE_OF 'plan').
+ */
+export const planUnfinished: GateRule['check'] = withNote((snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  const plan = t === undefined || t.frontmatter?.lane === 'S' || claimPinBefore(snapshot, id, UNFINISHED_FROM) ? undefined : workOf(snapshot, id)?.plan;
+  if (plan?.unfinished === undefined) return [];
+  return [
+    {
+      file: plan.file,
+      line: plan.unfinished,
+      reason: `${plan.file} still carries the line ${UNFINISHED_MARKER}: the planner has not finished it; the plan stage resumes the planner, which removes the line as its last step`,
+    },
+  ];
+});
 
 const NEAR_AFTER = /^(after\s*:)/i;
 

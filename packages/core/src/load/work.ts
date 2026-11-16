@@ -5,6 +5,7 @@ import type { LoadFinding } from '../model/finding.js';
 import type { Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
+import { unfinishedLine } from './unfinished.js';
 import { headingKey, LIST_MARKER, scan, stripHtmlComments, taskBlocks } from './sections.js';
 import { parseYamlMap } from './yaml.js';
 
@@ -193,6 +194,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   // A broken or non-string baseline is simply absent; gate.plan-baseline-missing says what to write.
   const map = yaml === null ? undefined : parseYamlMap(file, yaml, 1).map;
   const { baseline, plan_hash: planHash } = map ?? {};
+  const unfinished = unfinishedLine(text); // ST-LN-72 D-11: the raw text, so no section reader's comment stripping hides it
   const plan: Plan = {
     file,
     tasks,
@@ -200,6 +202,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
     bodyHash: fnv1a64(body),
     ...(typeof baseline === 'string' ? { baseline } : {}),
     ...(typeof planHash === 'string' ? { planHash } : {}),
+    ...(unfinished === undefined ? {} : { unfinished }),
   };
   return { plan, findings };
 }

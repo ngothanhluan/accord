@@ -1476,7 +1476,8 @@ it('risk:parsing the brief test command quotes odd paths and drops new marks rep
     writeFiles(repo, { 'accord/config.yml': withTests(['affected: ""']) });
     const d = await run(['brief', 'T-1', '1'], repo);
     expect(d.code).toBe(0);
-    expect(d.out.endsWith('\n---\n\n' + NO_COMMAND + '\n')).toBe(true);
+    // `affected: ""` fails the schema, so the config (and its pin) is unread and the claim read fails closed (ST-LN-59): the brief may carry the report lines before the test block.
+    expect(d.out.endsWith('\n\n' + NO_COMMAND + '\n')).toBe(true);
   } finally {
     cleanup(repo);
   }

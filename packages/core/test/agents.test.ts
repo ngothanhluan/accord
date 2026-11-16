@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { agents, agentTargets, contentHash, markerHash, renderAgent, rulesetText, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
+import { agents, agentTargets, contentHash, markerHash, renderAgent, REPORT_CONTRACT, reportReasons, rulesetText, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 
 const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
@@ -15,7 +15,7 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 
 // What each agent must name, asserted over the RENDERED agent file, as REQUIRED is over a rendered skill.
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
-  executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings'],
+  executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings', 'red reason:', 'self-review: missing:', 'concerns:', 'Report file:', 'only what your own change caused', 'git revert', 'own fix commits', 'never a reset', 'BLOCKED: conflict', 'places checked:'],
   critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should', '## Failure modes', '(new, like', 'spellings'],
   planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes', UNFINISHED_MARKER, 'under it first', 'append each task when it is finished', 'remove the line as your last step', '`resume mode`', 'keep every finished task'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S'],
@@ -108,6 +108,60 @@ it('ac-5 the planner and the executor say a test name holds no at sign and no co
     expect(text.length, `accord-${role}.md is missing from the render output`).toBeGreaterThan(0);
     expect(text, role).toContain('A test name never holds `@` or a comma.');
   }
+});
+
+const executorText = (): string => agentTargets(config()).find((f) => f.path === '.claude/agents/accord-executor.md')?.text ?? '';
+/** The lines of the executor's report block: its last fenced block. */
+const reportBlock = (text: string): string[] => {
+  const fences = text.split('\n').flatMap((l, i) => (l.startsWith('```') ? [i] : []));
+  const lines = text.split('\n');
+  return lines.slice(fences[fences.length - 2] + 1, fences[fences.length - 1]);
+};
+
+it('ac-2 the executor names its red reason, reads its diff against the brief and lists each warning as a concern, in every tool that installs accord agents (ST-LN-59 59-ac-2)', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const bad: string[] = [];
+  const need = ['red reason:', 'not an error in the test', 'self-review: missing:', 'extra:', 'misread:', 'concerns:', 'Report file:', 'no `Report file:` line'];
+  for (const runtime of RUNTIME_LIST) {
+    for (const f of agentTargets(config({ runtimes: [runtime] }))) {
+      if (roleOf(f.path) !== 'executor') continue;
+      for (const p of need) if (!flat(f.text).includes(p)) bad.push(runtime + ' ' + f.path + ' lacks ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
+  const text = executorText();
+  expect(text.length, 'accord-executor.md is missing from the render output').toBeGreaterThan(0);
+  expect(text).toContain('at most 20 lines');
+  const block = reportBlock(text);
+  expect(block.length).toBeLessThanOrEqual(20);
+  for (const key of ['red reason:', 'self-review: missing:', 'concerns:', 'deferred:', 'places checked:']) {
+    expect(block.some((l) => l.startsWith(key)), 'the report block lacks ' + key).toBe(true);
+  }
+  // The names the executor writes are the ones reportReasons reads and REPORT_CONTRACT prints in every brief.
+  const lineOf = (lines: string[], key: string): string => lines.find((l) => l.startsWith(key)) ?? '';
+  const filled = (l: string): string => l.replace(/<[^>]*>/g, 'text');
+  for (const key of ['red reason:', 'self-review:']) {
+    expect(lineOf(REPORT_CONTRACT.split('\n'), key).length, 'REPORT_CONTRACT lacks ' + key).toBeGreaterThan(0);
+    expect(lineOf(block, key).length, 'the report block lacks ' + key).toBeGreaterThan(0);
+  }
+  expect(reportReasons(block.map(filled).join('\n'))).toEqual([]);
+  expect(reportReasons(REPORT_CONTRACT.split('\n').map(filled).join('\n'))).toEqual([]);
+});
+
+it('ac-3 the executor fixes only what its change caused, reverts a red fix and returns a conflict, in every tool that installs accord agents (ST-LN-56 56-ac-3)', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const bad: string[] = [];
+  const need = ['only what your own change caused', 'deferred:', 'git revert', 'own fix commits', 'never a reset', 'BLOCKED: conflict', 'places checked:'];
+  for (const runtime of RUNTIME_LIST) {
+    for (const f of agentTargets(config({ runtimes: [runtime] }))) {
+      if (roleOf(f.path) !== 'executor') continue;
+      const text = flat(f.text);
+      for (const p of need) if (!text.includes(p)) bad.push(runtime + ' ' + f.path + ' lacks ' + p);
+      if (text.includes('Fix small bugs and blockers you meet on the way')) bad.push(runtime + ' ' + f.path + ' keeps the old fix rule');
+    }
+  }
+  expect(bad).toEqual([]);
+  expect(executorText().length).toBeGreaterThan(0);
 });
 
 it('ac-5 the verifier states how to cite a file', () => {

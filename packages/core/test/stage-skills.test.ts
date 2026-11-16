@@ -25,7 +25,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
-  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md'],
+  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
   debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
@@ -714,6 +714,28 @@ it('risk:complex-branching the build skill routes a task-done refusal over a for
   expect(e).toBeGreaterThan(r);
   expect(f).toBeGreaterThan(e);
   expect(g).toBeGreaterThan(f);
+});
+
+it('risk:regression the build skill re-briefs a task refused for its report, in all four tools (ST-LN-59 59-ac-1)', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const path = dir + '/accord-build/SKILL.md';
+    const text = (everyFile.get(path) ?? '').replace(/\s+/g, ' ');
+    if (text === '') {
+      bad.push(path + ' is missing');
+      continue;
+    }
+    const step3 = text.slice(text.indexOf('3. **Record.**'), text.indexOf('4. **Blocked.**'));
+    for (const p of ['Report file', 'run `accord brief <id> <n>` again into the brief file', 'dispatch a fresh executor with it plus the reasons']) {
+      if (!step3.includes(p)) bad.push(path + ' step 3 lacks ' + p);
+    }
+    const step4 = text.slice(text.indexOf('4. **Blocked.**'), text.indexOf('5. **Files.**'));
+    if (!step4.includes('`BLOCKED: conflict`')) bad.push(path + ' step 4 lacks BLOCKED: conflict');
+    if (!/`BLOCKED: conflict`[^.]*owner/.test(step4)) bad.push(path + ' step 4 does not send it to the owner');
+  }
+  expect(bad).toEqual([]);
 });
 
 it('ac-5 the ids reference drops a ticket with accord drop', () => {

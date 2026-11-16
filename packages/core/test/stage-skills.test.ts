@@ -829,6 +829,23 @@ it('risk:regression the build skill tells a missing or old executor report from 
   expect(bad).toEqual([]);
 });
 
+it('risk:regression from 0.6.0 the evidence rule text lets only a risk: mark keep an outside-diff finding open, in lane M and lane S (ST-LN-56 56-ac-2, D-10)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const bad: string[] = [];
+  for (const path of ['.claude/skills/accord-review/record.md', '.claude/skills/accord/lane-s.md']) {
+    const text = read(path);
+    const at = text.indexOf('blocks only with `test:`, `command:` or a `risk:` mark');
+    if (at < 0) {
+      bad.push(path + ': the evidence rule sentence is gone');
+      continue;
+    }
+    // the sentence that names the Phase 2 exemption says, in its own sentence, that from 0.6.0 an outside-diff finding keeps only the risk: exemption
+    const sentence = text.slice(at, text.indexOf('. ', at) + 1);
+    if (!sentence.includes('0.6.0') || !sentence.includes('only with a `risk:` mark')) bad.push(path + ': ' + sentence);
+  }
+  expect(bad).toEqual([]);
+});
+
 it('ac-5 the ids reference drops a ticket with accord drop', () => {
   const flat = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const ids = flat('.claude/skills/accord/ids.md');

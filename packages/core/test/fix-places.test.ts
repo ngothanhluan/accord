@@ -1,7 +1,7 @@
 // ST-LN-56 56-ac-1 (D-08, D-16): the finding grammar reads the marks `checked:`, `addressed:` and `not addressed:`, and a fix recorded as `fixed in <sha>` without the places it
 // checked is refused at gate done from the 0.6.0 cut-off, in lane M and in lane S, naming the round and the finding.
 import { expect, it } from 'vitest';
-import { FIX_RECORD_FROM, blockingFindings, fixProblems, gateDone, nextRound, parseRounds } from '../src/index.js';
+import { FIX_RECORD_FROM, blockingFindings, fixProblems, gateDone, nextRound, parseRounds, roundText } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { commit, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 
@@ -233,6 +233,16 @@ it('risk:complex-branching the last round of an earlier cycle needs its answer f
   expect(answers(cycles([FIXC + ADDRESSED], [[]]))).toEqual([]);
   expect(next(cycles([FIXC + ADDRESSED], [[]])).kind).toBe('next');
   expect(answers(cycles([FIXC + NOT_ADDRESSED], [['Must 1 [patch]: the writer still drops the header — src/a.ts:3 — open']]))).toEqual([]);
+  // ...and it must: a NOT ADDRESSED Must that cycle 2's round 1 does not report again, in its file and at least as severe, is refused (gate done and accord round)
+  for (const two of [[], ['Must 1 [patch]: another thing — src/z.ts:3 — open'], ['Should 1 [patch]: the writer still drops the header — src/a.ts:3 — open']]) {
+    const dropped = cycles([FIXC + NOT_ADDRESSED], [two]);
+    expect(answers(dropped), JSON.stringify(two)).toHaveLength(1);
+    expect(answers(dropped)[0]).toContain('round 1 of cycle 2');
+    expect(answers(dropped)[0]).toContain('src/a.ts');
+    expect(refusal(dropped)).toContain('round 1 of cycle 2');
+  }
+  // the not addressed: path counts as its file too
+  expect(answers(cycles([FIXC + ' — not addressed: src/q.ts:5'], [['Must 1 [patch]: still broken — src/q.ts:5 — open']]))).toEqual([]);
   // cycle 2 not started yet: accord round is not refused (its round 1 is the re-review), gate done is (the record's last round is the fix)
   const between = cycles([FIXC]);
   expect(answers(between)).toHaveLength(1);
@@ -265,7 +275,20 @@ it('risk:complex-branching an (added code round 1) round between a fix and its r
   // at the verdict a fix only an added-code round followed still needs its answer (D-17)
   expect(answers(added)).toHaveLength(1);
   expect(answers(added)[0]).toContain('D-17');
+  // the refusal names the real cause and the route, not "after the last review round"
+  expect(answers(added)[0]).toContain('only (added code round 1) rounds followed');
+  expect(answers(added)[0]).toContain('run a re-review round');
+  expect(answers(added)[0]).not.toContain('after the last review round');
   expect(answers(withAdded([{ lines: [FIXC + ADDRESSED] }, { lines: [], mark: 'added' }]))).toEqual([]);
+  // accord round, run before the verdict after the added-code round, names the fix still waiting for its re-review, so no verdict is written over it
+  const text = roundText(next(added));
+  expect(text).toContain('Re-review: 1.2');
+  expect(text).toContain('no verdict');
+  // the same line after a plain fix round, and none once the fix is answered
+  expect(roundText(next(buildN([[FIXC]])))).toContain('Re-review: 1.2');
+  expect(roundText(next(buildN([[FIXC + ADDRESSED], []])))).not.toContain('Re-review:');
+  // a ticket claimed before 0.6.0 prints what it printed
+  expect(roundText(next(buildN([[FIXC]], { pin: '0.5.1' })))).not.toContain('Re-review:');
 });
 
 it('risk:security an open risk finding still blocks whatever marks it carries (ST-LN-56 56-ac-2)', () => {

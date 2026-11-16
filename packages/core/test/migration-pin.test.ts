@@ -253,3 +253,12 @@ it('risk:regression the five Phase 3 cut-offs are one release, so one claim pin 
   expect(new Set(Object.values(cutoffs)).size, JSON.stringify(cutoffs)).toBe(1);
   expect(CUT).toBe(DISCUSS_FROM);
 });
+
+// Phase 4 (D-16): every rule it adds cuts off at one release, so one claim pin decides them all at once. Plans 04-04, 04-06, 04-07 and 04-13 append
+// UNFINISHED_FROM, TASK_REPORT_FROM, FIX_RECORD_FROM and PLAN_WAVES_FROM here.
+const PHASE4_CUT: string[] = [];
+
+it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
+  expect(PHASE4_CUT.length, 'the list names no constant').toBeGreaterThan(0);
+  for (const v of PHASE4_CUT) expect(v).toBe('0.6.0');
+});

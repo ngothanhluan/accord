@@ -3,7 +3,7 @@
 import { expect, it } from 'vitest';
 import { FIX_RECORD_FROM, blockingFindings, fixProblems, gateDone, nextRound, parseRounds } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
-import { facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
+import { commit, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 
 const REVIEW = 'accord/tickets/T-1/review.md';
 const RULE = 'gate.fix-places-missing';
@@ -236,6 +236,36 @@ it('risk:complex-branching the last round of an earlier cycle needs its answer f
   // cycle 2 not started yet: accord round is not refused (its round 1 is the re-review), gate done is (the record's last round is the fix)
   const between = cycles([FIXC]);
   expect(answers(between)).toHaveLength(1);
+});
+
+it('risk:complex-branching an (added code round 1) round between a fix and its re-review does not ask for the answer, the re-review round after it does (ST-LN-56 56-ac-2, D-17)', () => {
+  // round 1 is fixed, a merge adds code, round 2 reviews it headed (added code round 1), round 3 is the re-review of round 1's fix
+  const withAdded = (rounds: { lines: string[]; mark?: 'added' }[]): RepoSnapshot =>
+    withPin(
+      scopeSnapshot({
+        review: v2Review([rounds]),
+        facts: facts(rounds.map((_, i) => (i === 0 ? [commit(['src/a.ts']), commit(['src/m.ts'], 'merge')] : []))),
+      }),
+      { pin: FIX_RECORD_FROM },
+    );
+  // only the added-code round has followed: accord round asks for the re-review round, not for an answer the added-code reviewer was never asked
+  const added = withAdded([{ lines: [FIXC] }, { lines: [], mark: 'added' }]);
+  expect(next(added).reasons ?? []).toEqual([]);
+  expect(next(added).kind).toBe('next');
+  // the re-review round after it: its answer is asked, and given closes it
+  const unanswered = withAdded([{ lines: [FIXC] }, { lines: [], mark: 'added' }, { lines: [] }]);
+  expect(answers(unanswered)).toHaveLength(1);
+  expect(answers(unanswered)[0]).toContain('round 3 followed');
+  expect(refusal(unanswered)).toContain('round 3 followed');
+  expect(answers(withAdded([{ lines: [FIXC + ADDRESSED] }, { lines: [], mark: 'added' }, { lines: [] }]))).toEqual([]);
+  // a NOT ADDRESSED finding is carried by the added-code round or by the re-review round
+  expect(answers(withAdded([{ lines: [FIXC + NOT_ADDRESSED] }, { lines: [], mark: 'added' }, { lines: [CARRY] }]))).toEqual([]);
+  expect(answers(withAdded([{ lines: [FIXC + NOT_ADDRESSED] }, { lines: [CARRY], mark: 'added' }, { lines: [] }]))).toEqual([]);
+  expect(answers(withAdded([{ lines: [FIXC + NOT_ADDRESSED] }, { lines: [], mark: 'added' }, { lines: [] }]))).toHaveLength(1);
+  // at the verdict a fix only an added-code round followed still needs its answer (D-17)
+  expect(answers(added)).toHaveLength(1);
+  expect(answers(added)[0]).toContain('D-17');
+  expect(answers(withAdded([{ lines: [FIXC + ADDRESSED] }, { lines: [], mark: 'added' }]))).toEqual([]);
 });
 
 it('risk:security an open risk finding still blocks whatever marks it carries (ST-LN-56 56-ac-2)', () => {

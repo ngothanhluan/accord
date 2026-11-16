@@ -1,59 +1,54 @@
-// ST-LN-92 D-03, D-16: `accord worktree task open|merge|clean <id> <n>`: each task of a wave in its own worktree `<main>-<id lower-cased>-t<n>` on branch
+// ST-LN-92 D-03, D-16: `accord worktree task open|merge|clean <id> <n>`: each task of a wave in its own worktree `<main>-<id lower-cased>+t<n>` on branch
 // `accord-task/<id>/<n>`, cut from the ticket branch's HEAD; brought into the ticket branch linearly (rebase in the task worktree, then a fast-forward of the
 // ticket branch: the D-03 integration Ruling, so no merge commit enters the ticket history); removed only once the ticket branch holds its commits, never with a
 // forced remove (`sensitive.data-deletion`). Every command runs in the ticket's own checkout, where task-done and the ledger live. Names reach git only from the
 // loader's ticket key and the validated task number, as literal argument arrays.
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { claimPinBefore, matches, PLAN_WAVES_FROM } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { currentBranch, UsageError } from '../load/fs.js';
-import { scriptRefusal, shown } from '../load/script-trust.js';
+import { scriptRefusal } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { requireTicket, taskNumber } from './lane-args.js';
 import { norm } from './leftover.js';
-import { branchOf, git, gitOk, ID, listWorktrees, prepare, setupMarker, siblingOf } from './worktree.js';
+import { branchOf, git, gitOk, ID, listWorktrees, prepare, rebaseBranch, setupMarker, siblingOf } from './worktree.js';
 import type { PrunableEntry } from './worktree.js';
 
 /**
- * The task's worktree folder: the ticket's sibling folder name with `-t<n>`. Ticket `<id>-T<n>` has the same folder name (review round 1 finding 9), so a folder is
- * taken for the task's only by its branch (`atTask`), never by its name: no task command acts on another ticket's worktree.
+ * The task's worktree folder: the ticket's sibling folder name with `+t<n>`. Review round 2 finding 3: `+` is outside the ticket id characters, so no ticket's own
+ * folder (`<main>-<id>`) ever has this name; ticket `<id>-T<n>`'s folder is `<main>-<id>-t<n>`. A folder is still taken for the task's only by its branch (`atTask`).
  */
-export const taskPath = (mainPath: string, id: string, n: number): string => siblingOf(mainPath, id) + '-t' + n;
+export const taskPath = (mainPath: string, id: string, n: number): string => siblingOf(mainPath, id) + '+t' + n;
 
 /** The task's branch: a prefix no `branch:` template produces, so the session guard never takes it for a ticket (Pitfall 11). */
 export const taskBranch = (id: string, n: number): string => `accord-task/${id}/${n}`;
 
 const slash = (p: string): string => p.replace(/\\/g, '/');
 
-/** The branch a rebase stopped in `dir` is rebasing (`refs/heads/<name>`, or git's `detached HEAD`), or undefined when no rebase is stopped there. */
-function rebaseOf(dir: string): string | undefined {
-  for (const name of ['rebase-merge', 'rebase-apply']) {
-    const at = git(dir, ['rev-parse', '--path-format=absolute', '--git-path', name]).trim();
-    if (!existsSync(at)) continue;
-    try {
-      return readFileSync(join(at, 'head-name'), 'utf8').trim();
-    } catch {
-      return 'detached HEAD';
-    }
-  }
-  return undefined;
-}
+/** The last non-blank line of an error, the one git's own reason is on. */
+const reasonOf = (e: unknown): string =>
+  String(e instanceof Error ? e.message : e)
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '')
+    .pop() ?? 'unknown error';
 
-/** True while a rebase stopped in `dir` waits to be continued. */
-const rebasing = (dir: string): boolean => rebaseOf(dir) !== undefined;
-
-/** The live worktree at task n's folder: the task's own (`other` undefined), or in another state, `other` naming it for merge and clean to refuse on. */
+/**
+ * The live worktree at task n's folder: the task's own (`other` undefined), or in another state, with `other` naming it for merge and clean to refuse on and `state`
+ * the short form `accord waves` prints (`<branch>`, `detached <sha12>`, `unreadable: <reason>`).
+ */
 interface AtTask {
   w: PrunableEntry;
   other?: string;
+  state?: string;
 }
 
 /**
  * Review round 1 findings 2, 4 and 9: the worktree at task n's folder is the task's only on `accord-task/<id>/<n>`, or detached while a rebase OF that branch is stopped
- * there. Any other state (another branch the executor switched to, ticket `<id>-T<n>`'s own worktree, a detached HEAD whose commits may be on no branch) comes back with
- * `other`, a sentence naming it. Undefined when no live worktree is there. The list is `listWorktrees` (no `-z`, which needs git 2.36: findings 1 and 10).
+ * there (`rebaseBranch`, the one reader of a stopped rebase). Any other state (another branch the executor switched to, a ticket branch, a detached HEAD whose commits may
+ * be on no branch) comes back with `other`. Round 2 finding 9: a folder git cannot read is such a state too, never a crash. Undefined when no live worktree is there. The
+ * list is `listWorktrees` (no `-z`, which needs git 2.36: round 1 findings 1 and 10).
  */
 function atTask(list: PrunableEntry[], id: string, n: number): AtTask | undefined {
   if (list.length === 0) return undefined;
@@ -62,11 +57,17 @@ function atTask(list: PrunableEntry[], id: string, n: number): AtTask | undefine
   if (w === undefined || w.prunable !== undefined) return undefined;
   const branch = taskBranch(id, n);
   if (w.branch === branch) return { w };
-  if (w.branch !== undefined) return { w, other: `${slash(w.path)} is a worktree of ${w.branch}, not of ${branch}` };
-  const of = rebaseOf(w.path);
-  if (of === 'refs/heads/' + branch) return { w };
-  const stopped = of === undefined ? '' : ` (a rebase of ${of.replace(/^refs\/heads\//, '')} is stopped there)`;
-  return { w, other: `${slash(w.path)} holds a detached HEAD${stopped}, not ${branch}: its commits may be on no branch` };
+  if (w.branch !== undefined) return { w, state: w.branch, other: `${slash(w.path)} is a worktree of ${w.branch}, not of ${branch}` };
+  let of: string | undefined;
+  try {
+    of = rebaseBranch(w.path);
+  } catch (e) {
+    const why = reasonOf(e);
+    return { w, state: 'unreadable: ' + why, other: `${slash(w.path)} cannot be read by git (${why}), so it is not taken for ${branch}` };
+  }
+  if (of === branch) return { w };
+  const stopped = of === undefined ? '' : ` (a rebase of ${of} is stopped there)`;
+  return { w, state: 'detached ' + w.head.slice(0, 12), other: `${slash(w.path)} holds a detached HEAD${stopped}, not ${branch}: its commits may be on no branch` };
 }
 
 /** The task's live worktree, read from `git worktree list`: its path (forward slashes) and HEAD; undefined when there is none or its folder is in another state. */
@@ -75,18 +76,21 @@ export function findTaskWorktree(root: string, id: string, n: number): { path: s
   return at === undefined || at.other !== undefined ? undefined : { path: slash(at.w.path), head: at.w.head };
 }
 
-/** Every live task worktree of `id` (the task's own, as `atTask` reads it), by task number, from one listing (`accord waves`). */
-export function taskWorktrees(root: string, id: string): Map<number, string> {
+/**
+ * Every live worktree at a task folder of `id`, by task number, from one listing (`accord waves`): its path, and `state` when it is not the task's own (round 2 finding 2:
+ * a folder holding work off its task branch is named, never dropped).
+ */
+export function taskWorktrees(root: string, id: string): Map<number, { path: string; state?: string }> {
   const list = listWorktrees(root);
-  const found = new Map<number, string>();
+  const found = new Map<number, { path: string; state?: string }>();
   if (list.length === 0) return found;
-  const prefix = norm(siblingOf(list[0].path, id) + '-t');
+  const prefix = norm(siblingOf(list[0].path, id) + '+t');
   for (const w of list) {
     const rest = norm(w.path).startsWith(prefix) ? norm(w.path).slice(prefix.length) : '';
     if (!/^[1-9][0-9]*$/.test(rest)) continue;
     const n = Number(rest);
     const at = atTask(list, id, n);
-    if (at !== undefined && at.other === undefined && at.w === w) found.set(n, slash(w.path));
+    if (at !== undefined && at.w === w) found.set(n, { path: slash(w.path), ...(at.state === undefined ? {} : { state: at.state }) });
   }
   return found;
 }
@@ -112,7 +116,7 @@ function wrongCheckout(what: string, id: string, ticketBranch: string, list: Pru
 /**
  * Review round 1 finding 8: `workRootOf` for `accord brief`, which never names a folder that is not a checkout of the ticket branch or of task n's own branch. When the
  * folder would be `root` (no task worktree) and `root` is on neither, a UsageError names the ticket's checkout, as the task commands' refusal does, before the brief writes
- * anything. A ticket whose branch does not exist yet (never claimed) has no branch to compare with and passes. Undefined for a ticket claimed before 0.6.0, unchecked.
+ * anything. A ticket whose branch exists neither locally nor on origin (never claimed) has no branch to compare with and passes. Undefined for a ticket claimed before 0.6.0, unchecked.
  */
 export function briefWorkRoot(root: string, claimed: RepoSnapshot, id: string, n: number): string | undefined {
   const dir = workRootOf(root, claimed, id, n);
@@ -121,7 +125,9 @@ export function briefWorkRoot(root: string, claimed: RepoSnapshot, id: string, n
   const here = currentBranch(root);
   if (here === ticketBranch || here === taskBranch(id, n)) return dir;
   const list = listWorktrees(root);
-  if (!list.some((w) => w.branch === ticketBranch) && !gitOk(root, ['rev-parse', '--verify', '-q', 'refs/heads/' + ticketBranch])) return dir;
+  // round 2 finding 7: a ticket branch that only origin holds exists too (the claim pushed it; the local branch or worktree was removed)
+  const exists = list.some((w) => w.branch === ticketBranch) || ['refs/heads/', 'refs/remotes/origin/'].some((p) => gitOk(root, ['rev-parse', '--verify', '-q', p + ticketBranch]));
+  if (!exists) return dir;
   throw new UsageError(wrongCheckout(`accord brief ${id} ${n}`, id, ticketBranch, list));
 }
 
@@ -146,8 +152,11 @@ const unmerged = (dir: string): string[] => git(dir, ['diff', '--name-only', '--
  * D-06: `conflict: task <n> in <folder>`, then each path as `generated:` when an entry of the config's `generated:` list matches it, else `hand-written:`; exit 1.
  * The CLI runs no regenerate command (CONTEXT Ruling 2026-11-16): the build skill runs it, or a fresh executor resolves, then merge runs again.
  * Review round 1 finding 7: build.regenerate is repository text, like git.sync, so when every path is generated the CLI prints `regenerate: <command>` (the only
- * command the skill runs) only when `accord trust` allowed that command and the files it reaches in the task folder, where it runs; else `regenerate refused:` and
- * how to allow it, and the skill resolves as with no command set.
+ * command the skill runs) only when `accord trust` allowed that command and the files it reaches; else `regenerate refused:` and how to allow it, and the skill
+ * resolves as with no command set. Round 2 finding 5: the binding is read in the ticket checkout (`ctx.root`), where the owner allowed it, not in the task folder,
+ * whose conflicted files a root-level cover would hold mid-rebase; merge has already refused a ticket checkout with changed tracked files, so what is read there is
+ * the ticket branch's committed content. The skill runs the command in the task folder. Round 2 finding 8: the schema keeps the command on one line with no control
+ * character, so it is printed as written.
  */
 function conflict(ctx: CommandContext, n: number, path: string, paths: string[]): number {
   const generated = ctx.snapshot.config?.generated ?? [];
@@ -155,8 +164,8 @@ function conflict(ctx: CommandContext, n: number, path: string, paths: string[])
   const lines = paths.map((p, i) => (isGenerated[i] ? 'generated: ' : 'hand-written: ') + p);
   const regenerate = ctx.snapshot.config?.build?.regenerate;
   if (regenerate !== undefined && isGenerated.every(Boolean)) {
-    const refusal = scriptRefusal(path, 'build.regenerate', regenerate);
-    lines.push(refusal === undefined ? 'regenerate: ' + shown(regenerate) : 'regenerate refused: ' + refusal);
+    const refusal = scriptRefusal(ctx.root, 'build.regenerate', regenerate);
+    lines.push(refusal === undefined ? 'regenerate: ' + regenerate : 'regenerate refused: ' + refusal);
   }
   ctx.stdout.write(`conflict: task ${n} in ${path}\n` + lines.map((l) => l + '\n').join(''));
   return 1;
@@ -211,7 +220,8 @@ export function taskMerge(ctx: CommandContext, id: string, task: string): number
   }
   const path = slash(found.w.path);
   if (dirty(ctx.root)) throw new UsageError(`${ctx.root.replace(/\\/g, '/')} has uncommitted changes to tracked files - commit them first; nothing was merged`);
-  const stopped = rebasing(path);
+  // atTask takes a detached task folder only while a rebase of the task branch is stopped there
+  const stopped = found.w.branch === undefined;
   if (!stopped && dirty(path)) throw new UsageError(`task ${n}'s worktree ${path} has uncommitted changes to tracked files - commit them there first; nothing was merged`);
   const open = stopped ? unmerged(path) : [];
   if (open.length > 0) return conflict(ctx, n, path, open);
@@ -222,7 +232,7 @@ export function taskMerge(ctx: CommandContext, id: string, task: string): number
       return undefined;
     } catch (err) {
       // D-06: a conflict leaves the rebase stopped where it stands, for the build skill to regenerate or resolve; any other failure is git's own message
-      const paths = rebasing(path) ? unmerged(path) : [];
+      const paths = rebaseBranch(path) === taskBranch(id, n) ? unmerged(path) : [];
       if (paths.length === 0) throw err;
       return conflict(ctx, n, path, paths);
     }
@@ -265,7 +275,10 @@ export function taskClean(ctx: CommandContext, id: string, task: string): number
     ctx.stdout.write(`removed: nothing for task ${n}\n`);
     return 0;
   }
-  if (w !== undefined && rebasing(w.path)) return refuse(`a rebase is stopped in ${slash(w.path)}: finish it with accord worktree task merge ${id} ${n} first`);
+  // round 2 finding 4: the task branch checked out in a folder other than the task's (as taskOpen refuses it); its work there is not the ticket branch's to drop
+  const holder = w === undefined ? list.find((x) => x.branch === branch) : undefined;
+  if (holder !== undefined) return refuse(`${branch} is checked out in ${slash(holder.path)}, not in its task folder - nothing was removed`);
+  if (w !== undefined && w.branch === undefined) return refuse(`a rebase is stopped in ${slash(w.path)}: finish it with accord worktree task merge ${id} ${n} first`);
   for (const sha of [tip, w?.head]) {
     if (sha === undefined || sha === '') continue;
     if (!gitOk(ctx.root, ['merge-base', '--is-ancestor', sha, 'HEAD'])) return refuse(`task ${n}'s branch holds commits the ticket branch lacks: run accord worktree task merge ${id} ${n} first`);

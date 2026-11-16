@@ -1610,7 +1610,7 @@ export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'no
 }
 
 /** The branch a worktree's stopped rebase is rebuilding, or undefined. */
-function rebaseBranch(path: string): string | undefined {
+export function rebaseBranch(path: string): string | undefined {
   const dir = git(path, ['rev-parse', '--path-format=absolute', '--git-dir']).trim();
   for (const d of ['rebase-merge', 'rebase-apply']) {
     try {

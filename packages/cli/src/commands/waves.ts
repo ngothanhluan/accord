@@ -31,10 +31,14 @@ export function waves(ctx: CommandContext, id: string): number {
   grouped.forEach((w, k) => out.push(`Wave ${k + 1}: ${w.join(', ')}`));
   // ST-LN-92 D-03, Pitfall 13: a task left to build whose worktree is still there (a wave stopped half-way), so the build skill finds its folder again;
   // review round 1 finding 5: a recorded task whose worktree is still there (a compaction between task-done and clean) too, marked for the clean
+  // round 2 findings 2 and 9: a plan task's folder off its task branch (another branch, a detached HEAD, one git cannot read) is named for the owner, never dropped
   const live = taskWorktrees(ctx.root, id);
   const left = new Set(grouped.flat());
-  for (const [n, path] of [...live].sort((a, b) => a[0] - b[0])) {
-    if (left.has(n)) out.push(`Task ${n} worktree: ${path}`);
+  const planned = new Set(tasks.map((t) => t.n));
+  for (const [n, { path, state }] of [...live].sort((a, b) => a[0] - b[0])) {
+    if (state !== undefined && planned.has(n)) out.push(`Task ${n} worktree: ${path} (${state}): not on its task branch — owner`);
+    else if (state !== undefined) continue;
+    else if (left.has(n)) out.push(`Task ${n} worktree: ${path}`);
     else if (done.has(n)) out.push(`Task ${n} worktree: ${path} (recorded: clean it)`);
   }
   ctx.stdout.write(out.join('\n') + '\n');

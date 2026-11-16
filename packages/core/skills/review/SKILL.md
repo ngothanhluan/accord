@@ -62,7 +62,7 @@ fix.
 7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from
    `accord review-package <id> --base <the plan's baseline:>` (when the plan stage is off, `--base <the default branch>`), its round headed `(final review)` (over about 1500
    changed lines, dispatch it with lens `integration`). If it finds a Must or a Should: one fix and one scoped re-review, as in
-   step 4. If a Must is still open after that, stop and ask the owner.
+   step 4. If a Must or a Should is still open after that (a NOT ADDRESSED one is), stop and ask the owner.
 
 8. **Record.** Write every round to `accord/tickets/<id>/review.md` as `./record.md` says, ending `verdict: converged`, or,
    when the owner accepts any stop with findings still open, `verdict: accepted-by-owner` followed by the owner's sentence

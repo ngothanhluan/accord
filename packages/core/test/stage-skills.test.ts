@@ -1496,7 +1496,7 @@ it('ac-2 the plan, verify and debug skills dispatch resume mode when they find t
         const resume = everyFile.get(base + '/resume.md') ?? '';
         if (!skill.includes('./resume.md')) bad.push(base + '/SKILL.md names no ./resume.md');
         if (resume === '') bad.push(base + '/resume.md is not shipped');
-        for (const p of ['Unfinished:', 'resume mode', 'start the verifier over', UNFINISHED_MARKER, 'accord-planner', 'accord-verifier', 'accord-debugger'])
+        for (const p of ['Unfinished:', 'resume mode', 'start the verifier over', 'resume the debugger', UNFINISHED_MARKER, 'accord-planner', 'accord-verifier', 'accord-debugger'])
           if (resume !== '' && !resume.includes(p)) bad.push(base + '/resume.md lacks: ' + p);
         if (resume.includes('./critique.md')) bad.push(base + '/resume.md names ./critique.md');
         if (resume.includes('\\') || resume.includes('packages/')) bad.push(base + '/resume.md holds a backslash or packages/');

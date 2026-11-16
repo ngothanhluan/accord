@@ -1,7 +1,7 @@
 // ST-LN-72 72-ac-1, plan half: a file still being written carries the fixed line `<!-- accord: unfinished -->`, and from UNFINISHED_FROM `accord gate plan` refuses a plan.md
 // that carries it, naming the file. The marker is read on the raw text, so the HTML-comment stripping of the section readers cannot hide it; the claim pin decides (D-16).
 import { describe, expect, it } from 'vitest';
-import { anchorText, gateDone, gatePlan, LOCKED, loadSnapshot, UNFINISHED_MARKER, unfinishedLine } from '../src/index.js';
+import { anchorText, gateDone, gatePlan, LOCKED, loadSnapshot, UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
 import { parseVerification } from '../src/load/verification.js';
 import { parsePlan } from '../src/load/work.js';
@@ -275,5 +275,56 @@ describe('unfinished marker: anchor and gates agree', () => {
       expect(verifUnfinished(gateDone(snapshot, 'T-1')), lane).toHaveLength(1);
       expect((anchorText(snapshot, 'T-1') ?? '').split('\n').filter((l) => l.startsWith('Unfinished:')), lane).toEqual([`Unfinished: ${VERIFICATION}: resume the verifier`]);
     }
+  });
+});
+
+// ST-LN-72 review round 1, findings 5 and 6: debug.md keeps every episode, so its marker is the first line under the last `## Episode <n>` heading, and the anchor reports it.
+const DEBUG = 'accord/tickets/T-1/debug.md';
+const FINISHED = ['## Episode 1', '', '## Symptom', 'old failure', '', '## Root cause', 'a finished cause', ''];
+const episode = (n: number, ...first: string[]): string[] => [`## Episode ${n}`, ...first, '## Symptom', 'the failing command', ''];
+
+describe('unfinished marker: debug.md episodes', () => {
+  it('risk:parsing an episode is unfinished when its first line is the marker, and only the last open episode is read (ST-LN-72 review round 1)', () => {
+    const read = (...lines: string[]) => unfinishedEpisode(lines.join('\n'));
+    // the marker directly under the last episode heading, earlier episodes kept above it
+    expect(read(...FINISHED, ...episode(2, UNFINISHED_MARKER))).toBe(FINISHED.length + 2);
+    expect(read(...episode(1, UNFINISHED_MARKER))).toBe(2);
+    // blank lines under the heading do not hide it; CRLF and a BOM do not either
+    expect(read(...episode(1, '', UNFINISHED_MARKER))).toBe(3);
+    expect(unfinishedEpisode(`${BOM}${episode(1, UNFINISHED_MARKER).join('\r\n')}`)).toBe(2);
+    // a finished earlier episode that still shows the marker is not the open one
+    expect(read(...episode(1, UNFINISHED_MARKER), ...episode(2))).toBeUndefined();
+    // the marker quoted lower down in the episode, or in a fence, is evidence
+    expect(read(...episode(2), UNFINISHED_MARKER)).toBeUndefined();
+    expect(read(...FINISHED, '## Episode 2', '```', UNFINISHED_MARKER, '```', '## Symptom', 'x')).toBeUndefined();
+    // the marker on the first line of the file, above any heading, is not an episode's
+    expect(read(UNFINISHED_MARKER, ...FINISHED)).toBeUndefined();
+    // a resolved episode is closed: the debug stage's own definition of open is that the last heading is not `## Resolved`
+    expect(read(...episode(1, UNFINISHED_MARKER), '## Resolved', 'fixed in abc1234')).toBeUndefined();
+    // no episode heading, no episode
+    expect(read('# Debug', UNFINISHED_MARKER)).toBeUndefined();
+    expect(read()).toBeUndefined();
+  });
+
+  it('ac-1 the anchor tells the debug stage to resume the debugger, and says nothing about a finished debug.md (ST-LN-72 review round 1)', () => {
+    const withDebug = (debug: string | undefined, lane?: string) => {
+      const files: Record<string, string> = approved(
+        {
+          'accord/config.yml': CONFIG,
+          'accord/tickets/T-1.md': laneTicket('T-1', lane === undefined ? {} : { lane }),
+          ...(debug === undefined ? {} : { [DEBUG]: debug }),
+        },
+        'T-1',
+      );
+      const text = anchorText(loadSnapshot({ files, tree: Object.keys(files).sort() }), 'T-1') ?? '';
+      return text.split('\n').filter((l) => l.startsWith('Unfinished:'));
+    };
+    const marked = [...FINISHED, ...episode(2, UNFINISHED_MARKER)].join('\n');
+    expect(withDebug(marked)).toEqual([`Unfinished: ${DEBUG}: resume the debugger`]);
+    expect(withDebug([...FINISHED, ...episode(2)].join('\n'))).toEqual([]);
+    expect(withDebug(undefined)).toEqual([]);
+    // the same lanes the plan line reads: M, L and P, not S or R
+    expect(withDebug(marked, 'S')).toEqual([]);
+    expect(withDebug(marked, 'R')).toEqual([]);
   });
 });

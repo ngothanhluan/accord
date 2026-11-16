@@ -1,5 +1,6 @@
-// ST-LN-72 72-ac-1, plan half: a file still being written carries the fixed line `<!-- accord: unfinished -->`, and from UNFINISHED_FROM `accord gate plan` refuses a plan.md
-// that carries it, naming the file. The marker is read on the raw text, so the HTML-comment stripping of the section readers cannot hide it; the claim pin decides (D-16).
+// ST-LN-72 72-ac-1, plan half: a file still being written carries the fixed line `<!-- accord: unfinished -->`, and `accord gate plan` refuses a plan.md that carries it, naming the file,
+// on every ticket whatever its claim pin (owner decision 2026-11-16, an exception to D-16). The marker is read on the raw text, so the HTML-comment stripping of the section readers cannot
+// hide it, and it counts on any body line outside a fence (round 2: fail closed).
 import { describe, expect, it } from 'vitest';
 import { anchorText, gateDone, gatePlan, LOCKED, loadSnapshot, UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
@@ -49,7 +50,7 @@ const unfinished = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.
 const NEW: Claim = { pin: '0.6.0' };
 
 describe('unfinished marker: read on the raw text', () => {
-  it('risk:parsing the unfinished marker is read on the raw text, as the first body line only (ST-LN-72 72-ac-1, review round 1)', () => {
+  it('risk:parsing the unfinished marker is read on the raw text, on any body line outside a fence (ST-LN-72 72-ac-1, review rounds 1 and 2)', () => {
     expect(UNFINISHED_MARKER).toBe('<!-- accord: unfinished -->');
     const read = (text: string) => parsePlan('accord/tickets/T-1/plan.md', text).plan.unfinished;
 
@@ -63,13 +64,28 @@ describe('unfinished marker: read on the raw text', () => {
     expect(read(planWith(`  ${UNFINISHED_MARKER}\t`))).toBe(5);
     // above the frontmatter: detected too, although the frontmatter then no longer parses
     expect(read([UNFINISHED_MARKER, ...FRONT, '', '# Plan', '', TASKS].join('\n'))).toBe(1);
-    // blank lines between the closing --- and the marker do not hide it: the first non-blank body line is the one read
+    // blank lines between the closing --- and the marker do not hide it
     expect(read([...FRONT, '', '', UNFINISHED_MARKER, '# Plan', '', TASKS].join('\n'))).toBe(7);
-    // ST-LN-72 review round 1: only that first body line counts. The marker quoted as a whole line lower down (pasted test output, a fenced block, a task's prose) is evidence, not a flag
-    expect(read([planWith(undefined), UNFINISHED_MARKER, UNFINISHED_MARKER].join('\n'))).toBeUndefined();
-    expect(read(planWith(undefined) + `${UNFINISHED_MARKER}\n`)).toBeUndefined();
+    // ST-LN-72 review round 2: FAIL CLOSED. The marker counts on any body line outside a fence, so a heading or a paragraph before it cannot hide it
+    expect(read([...FRONT, '# Plan', UNFINISHED_MARKER, '', TASKS].join('\n'))).toBe(6);
+    expect(read([planWith(undefined), UNFINISHED_MARKER, UNFINISHED_MARKER].join('\n'))).toBe(planWith(undefined).split('\n').length + 1);
+    expect(read(planWith(undefined) + `${UNFINISHED_MARKER}
+`)).toBe(planWith(undefined).split('\n').length);
+    // a frontmatter with nothing in it (`---` then `---`) is still a frontmatter: the marker below it is found, and the body is not swallowed into it
+    expect(read(['---', '---', '# Plan', UNFINISHED_MARKER, '', 'text'].join('\n'))).toBe(4);
+    expect(read(['---', '---', UNFINISHED_MARKER, ''].join('\n'))).toBe(3);
+    expect(read(['---', '---', '# Plan', UNFINISHED_MARKER, '---', 'x', ''].join('\n'))).toBe(4);
+    expect(read(['---', '---', '# Plan', '---', 'x', ''].join('\n'))).toBeUndefined();
+    // a quote inside a fence (pasted test output, a plan's example) does not count, whatever the fence character
     expect(read(planWith(undefined) + ['```', UNFINISHED_MARKER, '```', ''].join('\n'))).toBeUndefined();
-    // in the frontmatter it is a YAML comment, never the body's first line
+    expect(read(planWith(undefined) + ['~~~', UNFINISHED_MARKER, '~~~', ''].join('\n'))).toBeUndefined();
+    expect(read(planWith(undefined) + ['```text', 'out', UNFINISHED_MARKER, '```', ''].join('\n'))).toBeUndefined();
+    // an unterminated fence runs to the end of the file, so a marker in it is quoted too
+    expect(read(planWith(undefined) + ['```', UNFINISHED_MARKER, ''].join('\n'))).toBeUndefined();
+    // outside a fence again after one closes: it counts, at its own line
+    const fenced = planWith(undefined) + ['```', UNFINISHED_MARKER, '```', UNFINISHED_MARKER, ''].join('\n');
+    expect(read(fenced)).toBe(fenced.split('\n').length - 1);
+    // in the frontmatter it is a YAML comment, never a body line
     expect(read(['---', UNFINISHED_MARKER, `baseline: ${BASELINE}`, '---', '', '# Plan', '', TASKS].join('\n'))).toBeUndefined();
 
     // quoted inside a sentence, or with other text on its line, it is not the marker
@@ -83,16 +99,16 @@ describe('unfinished marker: read on the raw text', () => {
     expect(clean.unfinished).toBeUndefined();
     expect(Object.hasOwn(clean, 'unfinished')).toBe(false);
 
-    // the reader itself: 1-based, pure on a string
+    // the reader itself takes the body the loader already split and its offset; 1-based, pure on a string
     expect(unfinishedLine(`${UNFINISHED_MARKER}\nb`)).toBe(1);
-    expect(unfinishedLine(`a\n${UNFINISHED_MARKER}\nb`)).toBeUndefined();
+    expect(unfinishedLine(`a\n${UNFINISHED_MARKER}\nb`)).toBe(2);
+    expect(unfinishedLine(`a\n${UNFINISHED_MARKER}\nb`, 4)).toBe(6);
     expect(unfinishedLine('')).toBeUndefined();
-    expect(unfinishedLine(`${BOM}${UNFINISHED_MARKER}\r\nx`)).toBe(1);
   });
 });
 
 describe('unfinished marker: gate plan', () => {
-  it('risk:complex-branching a plan quoting the marker as a whole line below its first body line is not refused (ST-LN-72 review round 1)', () => {
+  it('risk:complex-branching a plan quoting the marker inside a fence is not refused, and one carrying it under a heading is (ST-LN-72 review round 2)', () => {
     const quoting = planWith(undefined) + ['```', UNFINISHED_MARKER, '```', ''].join('\n');
     expect(unfinished(check({ plan: quoting, claim: NEW }))).toEqual([]);
   });
@@ -195,11 +211,15 @@ describe('unfinished marker: gate done', () => {
     expect(JSON.stringify(doneOf({ claim: NEW }))).toBe(JSON.stringify(doneOf({ claim: NEW })));
   });
 
-  it('risk:complex-branching a verification quoting the marker in its evidence is not refused, so it cannot be locked out of Done (ST-LN-72 review round 1)', () => {
-    const quoting = verificationWith(undefined).replace('Evidence: export#writes-csv passed', `Evidence: the run printed\n${UNFINISHED_MARKER}\nexport#writes-csv passed`);
+  it('risk:complex-branching a verification quoting the marker in a fenced evidence block is not refused, so it cannot be locked out of Done; one carrying it under a heading is (ST-LN-72 review round 2)', () => {
+    const fence = '```';
+    const quoting = verificationWith(undefined).replace('Evidence: export#writes-csv passed', `Evidence: the run printed\n${fence}\n${UNFINISHED_MARKER}\n${fence}\nexport#writes-csv passed`);
     expect(quoting).toContain(`\n${UNFINISHED_MARKER}\n`);
     expect(verifUnfinished(doneOf({ verification: quoting, claim: NEW }))).toEqual([]);
     expect(anchor({ verification: quoting })).toEqual([]);
+    // a heading before the marker hides nothing
+    const lowered = verificationWith('## @ac-1 export writes a csv\n' + UNFINISHED_MARKER);
+    expect(verifUnfinished(doneOf({ verification: lowered, claim: NEW }))).toHaveLength(1);
   });
 });
 
@@ -299,8 +319,14 @@ describe('unfinished marker: debug.md episodes', () => {
     expect(read(...FINISHED, '## Episode 2', '```', UNFINISHED_MARKER, '```', '## Symptom', 'x')).toBeUndefined();
     // the marker on the first line of the file, above any heading, is not an episode's
     expect(read(UNFINISHED_MARKER, ...FINISHED)).toBeUndefined();
-    // a resolved episode is closed: the debug stage's own definition of open is that the last heading is not `## Resolved`
+    // ST-LN-72 review round 2: ONE definition of open, the skill's and the code's: an episode is closed once a `## Resolved` heading follows its own heading
     expect(read(...episode(1, UNFINISHED_MARKER), '## Resolved', 'fixed in abc1234')).toBeUndefined();
+    // a section after `## Resolved` (a later `## Fixes`) does not reopen it
+    expect(read(...episode(1, UNFINISHED_MARKER), '## Resolved', 'fixed in abc1234', '## Fixes', 'x')).toBeUndefined();
+    // a new `## Episode` after `## Resolved` opens a new episode, and its marker is read
+    expect(read(...episode(1), '## Resolved', 'fixed in abc1234', ...episode(2, UNFINISHED_MARKER))).toBe(episode(1).length + 2 + 2);
+    // `## Resolved` written before the episode heading closes nothing
+    expect(read('## Resolved', 'x', ...episode(1, UNFINISHED_MARKER))).toBe(4);
     // no episode heading, no episode
     expect(read('# Debug', UNFINISHED_MARKER)).toBeUndefined();
     expect(read()).toBeUndefined();

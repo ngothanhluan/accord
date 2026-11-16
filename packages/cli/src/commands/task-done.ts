@@ -11,6 +11,7 @@ import { readReport, reportPath, reportRel } from '../load/report.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
 import { workRootOf } from './task-tree.js';
+import { ID } from './worktree.js';
 
 /** `git show -s --format=%ct` output as seconds; anything but digits would make every report look fresh. */
 export function commitSeconds(out: string): number {
@@ -87,6 +88,8 @@ function parsePairs(pairs: string[]): { ac: string; test: string }[] {
 
 export function taskDone(ctx: CommandContext, id: string, task: string, pairs: string[] = []): number {
   const n = taskNumber(task);
+  // T-04-12: the id names the ledger and report paths; a ticket file `accord/tickets/...md` loads under the key `..`.
+  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const laneTicket = requireLaneTicket(ctx, id);
   refuseLaneR(laneTicket, id, 'plan tasks');
   // ST-LN-50 D-08 Ruling: with the plan stage off the whole ticket is task 1 and its tests are named by --test; with it on, --test has no meaning.
@@ -101,7 +104,8 @@ export function taskDone(ctx: CommandContext, id: string, task: string, pairs: s
   const testMaps = planOff ? parsePairs(pairs) : [];
   const commit = ctx.snapshot.git?.commit;
   if (commit === undefined) throw new UsageError('the repository has no commit; commit the task before recording it');
-  // T-05-07: `id` is a key the loader found on disk, so it is a file stem and never a traversal.
+  // T-05-07, T-04-12: `id` is a key the loader found on disk and matched ID above, so it is a plain file stem and never a traversal
+  // (a stem alone can be `..`, from a ticket file `accord/tickets/...md`).
   const rel = 'accord/tickets/' + id + '/ledger.md';
   const file = join(ctx.root, 'accord', 'tickets', id, 'ledger.md');
   const sha = commit.slice(0, 12);

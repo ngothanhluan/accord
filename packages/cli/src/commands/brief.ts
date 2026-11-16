@@ -11,6 +11,7 @@ import { prepareReport, reportPath } from '../load/report.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
 import { briefWorkRoot } from './task-tree.js';
+import { ID } from './worktree.js';
 
 const ONLY = 'This is the only test command the executor runs for this task.';
 const FULL_WHY = 'tests.full is printed because accord/config.yml has no tests.affected.';
@@ -94,6 +95,8 @@ function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: 
 
 export function brief(ctx: CommandContext, id: string, task: string): number {
   const n = taskNumber(task);
+  // T-04-12: the id names the report path; a ticket file `accord/tickets/...md` loads under the key `..`.
+  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const ticket = requireLaneTicket(ctx, id);
   refuseLaneR(ticket, id, 'plan tasks');
   const claimed = withClaimPins(ctx.root, ctx.snapshot, id);

@@ -1517,3 +1517,21 @@ it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 line
   }
   expect(bad).toEqual([]);
 });
+
+it('risk:regression the verify stage reads the Unfinished line from an anchor run after the sync, and never commits the verification it may resume (ST-LN-72 review round 1)', () => {
+  for (const f of files.filter((x) => x.path.endsWith('/' + installedName('verify') + '/SKILL.md'))) {
+    const text = f.text.replace(/\s+/g, ' ');
+    const sync = text.indexOf('accord worktree sync');
+    const again = text.indexOf('`accord anchor` again');
+    const follow = text.indexOf('`Unfinished:`', again);
+    expect(sync, f.path).toBeGreaterThan(-1);
+    // step 3 runs the anchor again, after the sync of step 2, and only then follows resume.md
+    expect(again, f.path).toBeGreaterThan(sync);
+    expect(follow, f.path).toBeGreaterThan(again);
+    expect(text.indexOf('./resume.md', follow), f.path).toBeGreaterThan(follow);
+    // the partial verification.md stays out of step 2's commit, so HEAD is still the commit it was written at
+    expect(text, f.path).toContain('commit everything except `verification.md`');
+    // no decision from the step 1 anchor: the Unfinished line is named once, after the sync
+    expect(text.indexOf('`Unfinished:`'), f.path).toBeGreaterThan(sync);
+  }
+});

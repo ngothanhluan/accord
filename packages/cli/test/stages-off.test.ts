@@ -259,3 +259,21 @@ it('risk:complex-branching every view names the stages that are off (ST-LN-50 t2
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:complex-branching the anchor header keeps the stages-off line right after the Stage line and puts the Unfinished line after it (ST-LN-50 D-08, ST-LN-72 review round 1)', async () => {
+  const marked = ['---', 'baseline: abc1234', '---', '<!-- accord: unfinished -->', '', '# Plan', ''].join('\n');
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + OFF('discuss', 'review'), 'accord/tickets/T-1/plan.md': marked });
+  try {
+    for (const args of [['anchor', 'T-1'], ['anchor']]) {
+      const lines = (await run(args, repo)).out.split('\n');
+      const stage = lines.findIndex((l) => l.startsWith('Stage:'));
+      expect(stage, args.join(' ')).toBeGreaterThan(-1);
+      expect(lines[stage + 1], args.join(' ')).toBe('stages off for lane M: discuss, review');
+      expect(lines[stage + 2], args.join(' ')).toBe('Unfinished: accord/tickets/T-1/plan.md: resume the planner');
+      expect(lines[stage + 3], args.join(' ')).toBe('');
+      expect(lines[stage + 4], args.join(' ')).toBe('## Intent');
+    }
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

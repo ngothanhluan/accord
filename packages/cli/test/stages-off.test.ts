@@ -264,6 +264,11 @@ it('risk:complex-branching the anchor header keeps the stages-off line right aft
   const marked = ['---', 'baseline: abc1234', '---', '<!-- accord: unfinished -->', '', '# Plan', ''].join('\n');
   const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + OFF('discuss', 'review'), 'accord/tickets/T-1/plan.md': marked });
   try {
+    gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
+    gitRun(repo, 'config', 'user.name', 'fixture');
+    gitRun(repo, 'config', 'commit.gpgsign', 'false');
+    commitMsg(repo, 'claim: T-1');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
     for (const args of [['anchor', 'T-1'], ['anchor']]) {
       const lines = (await run(args, repo)).out.split('\n');
       const stage = lines.findIndex((l) => l.startsWith('Stage:'));

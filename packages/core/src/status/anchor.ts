@@ -36,8 +36,11 @@ function unfinishedLines(snapshot: RepoSnapshot, id: string): string[] {
   return lines;
 }
 
-/** undefined when `id` is not a lane ticket in the snapshot. */
-export function anchorText(snapshot: RepoSnapshot, id: string): string | undefined {
+/**
+ * undefined when `id` is not a lane ticket in the snapshot. `header` is extra header lines the host supplies (ST-LN-50 D-08: `stages off for lane <L>: ...`); they close the base lines (Stage, Review base)
+ * and come before the Unfinished lines, so the header reads in one order whoever prints it.
+ */
+export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly string[] = []): string | undefined {
   if (!Object.hasOwn(snapshot.tickets, id)) return undefined;
   const ticket = snapshot.tickets[id];
   const progress = progressOf(snapshot, ticket);
@@ -58,7 +61,7 @@ export function anchorText(snapshot: RepoSnapshot, id: string): string | undefin
   else if (lane === 'R') out.push('Lane: R', `Stage: ${progress.stage}, next: ${laneRNext(progress.stage as LaneRStage)}`);
   else out.push(`Stage: ${where}`);
   if (progress.base !== undefined) out.push(`Review base: ${progress.base}`);
-  out.push(...unfinishedLines(snapshot, id));
+  out.push(...header, ...unfinishedLines(snapshot, id));
   const optional = (names: string[]) => names.filter((n) => has(ticket, n));
   const names =
     lane === 'S' ? ['Understood', 'Done when', ...optional(['Scope', 'Vetoes', 'Decisions', 'Corrections'])]

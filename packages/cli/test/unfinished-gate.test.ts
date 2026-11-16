@@ -195,3 +195,34 @@ it('risk:regression the marker rules hold in a repository whose runtimes install
     cleanup(repo);
   }
 }, 120_000);
+
+// ST-LN-72 review round 2: the verify stage commits everything (the partial verification.md too) before `accord worktree sync`, which refuses uncommitted changes to tracked files, so HEAD is no longer
+// the commit the verifier began on. The anchor resumes when nothing outside accord/tickets/<id>/ changed since that commit, and tells the stage to start over when product code did.
+it('risk:complex-branching a partial verification committed before the sync is resumed; one over changed product code is started over (ST-LN-72 review round 2)', async () => {
+  const { repo, sha } = doneRepo(UNFINISHED_MARKER);
+  try {
+    const unfinished = async (): Promise<string[]> => (await run(['anchor', 'T-1'], repo)).out.split('\n').filter((l) => l.startsWith('Unfinished:'));
+    expect(await unfinished()).toEqual([`Unfinished: ${VERIFICATION}: resume the verifier`]);
+
+    // step 2: everything is committed, verification.md included, so the sync finds a clean tree. The owner's tick is written later in a real run, so it is dropped here.
+    gitRun(repo, 'checkout', '--', 'accord/tickets/T-1.md');
+    gitRun(repo, 'add', VERIFICATION);
+    gitRun(repo, 'commit', '-q', '--no-verify', '-m', 'verify: T-1 partial');
+    const committed = gitRun(repo, 'rev-parse', 'HEAD').trim();
+    expect(committed).not.toBe(sha);
+    const synced = await run(['worktree', 'sync', 'T-1'], repo);
+    expect(synced.code).toBe(0);
+    expect(gitRun(repo, 'rev-parse', 'HEAD').trim()).toBe(committed);
+    // HEAD moved, only inside the ticket's folder: the verifier still resumes
+    expect(await unfinished()).toEqual([`Unfinished: ${VERIFICATION}: resume the verifier`]);
+
+    // product code changed after the verifier began: the blocks describe other work
+    writeFiles(repo, { 'src/export.ts': readFileSync(join(repo, 'src', 'export.ts'), 'utf8') + '// changed after the blocks were written\n' });
+    gitRun(repo, 'add', 'src/export.ts');
+    gitRun(repo, 'commit', '-q', '--no-verify', '-m', 'fix: after verify began');
+    const now = gitRun(repo, 'rev-parse', 'HEAD').trim();
+    expect(await unfinished()).toEqual([`Unfinished: ${VERIFICATION}: written at ${sha}, HEAD is ${now}: start the verifier over`]);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

@@ -158,8 +158,9 @@ interface DoneOpts {
   claim?: Claim;
   head?: string | null;
   config?: string;
+  since?: Record<string, string[]>; // the paths the host found changed from a commit to HEAD (recordsSince)
 }
-const buildDone = ({ verification = verificationWith(UNFINISHED_MARKER), plan, claim, head = 'abc1234def56abc1234def56abc1234def56abcd', config = CONFIG }: DoneOpts = {}) => {
+const buildDone = ({ verification = verificationWith(UNFINISHED_MARKER), plan, claim, head = 'abc1234def56abc1234def56abc1234def56abcd', config = CONFIG, since }: DoneOpts = {}) => {
   const files: Record<string, string> = approved(
     {
       'accord/config.yml': config,
@@ -171,7 +172,7 @@ const buildDone = ({ verification = verificationWith(UNFINISHED_MARKER), plan, c
     'T-1',
   );
   const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
-  return { ...snapshot, ...(claim === undefined ? {} : { claimPins: { 'T-1': claim } }), ...(head === null ? {} : { git: { commit: head, authors: {} } }) };
+  return { ...snapshot, ...(claim === undefined ? {} : { claimPins: { 'T-1': claim } }), ...(head === null ? {} : { git: { commit: head, authors: {} } }), ...(since === undefined ? {} : { recordsSince: since }) };
 };
 const doneOf = (o: DoneOpts = {}): GateResult => gateDone(buildDone(o), 'T-1');
 const verifUnfinished = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.verification-unfinished');
@@ -251,6 +252,31 @@ describe('unfinished marker: accord anchor', () => {
     // the lines sit right after Stage:, before the owner's sections
     const text = anchorText(buildDone({ verification: verificationWith(UNFINISHED_MARKER) }), 'T-1') as string;
     expect(text.indexOf('Unfinished:')).toBeLessThan(text.indexOf('## Intent'));
+  });
+});
+
+describe('unfinished marker: a verification resumes when only the ticket own records moved (ST-LN-72 review round 2)', () => {
+  const OTHER = '1111111aaaa2222222bbbb3333333cccc444444';
+  const WRITTEN = 'abc1234def56';
+  const T = 'accord/tickets/T-1/';
+  const line = (o: DoneOpts): string[] => anchor({ verification: verificationWith(UNFINISHED_MARKER, WRITTEN), head: OTHER, ...o });
+  const RESUME = [`Unfinished: ${VERIFICATION}: resume the verifier`];
+  const OVER = [`Unfinished: ${VERIFICATION}: written at ${WRITTEN}, HEAD is ${OTHER}: start the verifier over`];
+
+  it('risk:complex-branching HEAD moved only inside accord/tickets/<id>/ since the verification commit: resume; product code changed: start over', () => {
+    // step 2 committed the partial verification.md (and the review record): the paths since are the ticket's own folder
+    expect(line({ since: { [WRITTEN]: [T + 'verification.md'] } })).toEqual(RESUME);
+    expect(line({ since: { [WRITTEN]: [T + 'verification.md', T + 'review.md', T + 'ledger.md'] } })).toEqual(RESUME);
+    // nothing changed at all since the commit (an empty diff) resumes too
+    expect(line({ since: { [WRITTEN]: [] } })).toEqual(RESUME);
+    // a product file, another ticket's folder, the ticket file itself or the config changed: the verified work is not what the blocks describe
+    for (const path of ['src/export.ts', 'accord/tickets/T-2/verification.md', 'accord/tickets/T-1.md', 'accord/config.yml', 'accord/tickets/T-10/x.md']) {
+      expect(line({ since: { [WRITTEN]: [T + 'verification.md', path] } }), path).toEqual(OVER);
+    }
+    // no fact for the commit (not an ancestor of HEAD, a rebase rewrote it, no git answer): start over, as before
+    expect(line({})).toEqual(OVER);
+    expect(line({ since: { [OTHER]: [] } })).toEqual(OVER);
+    expect(line({ since: { deadbeef0: [] } })).toEqual(OVER);
   });
 });
 

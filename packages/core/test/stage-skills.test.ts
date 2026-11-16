@@ -1810,6 +1810,29 @@ it('ac-4 a generated-only conflict runs build.regenerate, any other a fresh exec
   expect(bad).toEqual([]);
 });
 
+// Review round 1 (PR #198) findings 3 and 5: a live task worktree always goes through merge and clean, whatever the wave size; a recorded one left there is cleaned.
+it('risk:data-loss a live task worktree is merged and cleaned whatever the wave size, and a recorded one left there is cleaned (ST-LN-92 92-ac-2)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const first = steps.find((s) => s.startsWith('1. **Waves.**')) ?? '';
+    bad.push(...lacking(dir + ' waves.md step 1', first, ['`Task <n> worktree:`', 'whatever the wave size', 'steps 2 to 7', 'merged and cleaned']));
+    const next = steps.find((s) => s.startsWith('8. **Next wave.**')) ?? '';
+    bad.push(...lacking(dir + ' waves.md step 8', next, ['`(recorded: clean it)`', '`accord worktree task clean <id> <n>`']));
+  }
+  expect(bad).toEqual([]);
+});
+
+// Review round 1 finding 7: the build stage runs only the regenerate command the merge printed (the CLI prints it once accord trust allowed it), never the config text.
+it('risk:security the conflict step runs only the regenerate command accord worktree task merge printed (ST-LN-92 92-ac-4)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const step = steps.find((s) => s.includes('`conflict:`')) ?? '';
+    bad.push(...lacking(dir + ' waves.md conflict step', step, ['`regenerate:`', 'exactly that command', '`regenerate refused:`', '`accord trust`', 'never run `build.regenerate` from `accord/config.yml`']));
+    if (step.includes('is set in `accord/config.yml`, run that command')) bad.push(dir + ' waves.md: the conflict step still runs the config text');
+  }
+  expect(bad).toEqual([]);
+});
+
 it('risk:data-loss a task stopped by a permission refusal is merged before its task worktree is cleaned and is built in this worktree, and one already in this worktree is asked as step 4 (ST-LN-92 92-ac-3)', () => {
   const bad: string[] = [];
   for (const { dir, steps } of wavesRosters()) {

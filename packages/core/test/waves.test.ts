@@ -83,6 +83,18 @@ describe('the wave builder', () => {
     expect(buildWaves(tasks, new Set())).toEqual([[2, 3], [1]]);
   });
 
+  it('risk:complex-branching a task sharing a path with a lower-numbered task lands in a later wave than it, in any wave (ST-LN-92 92-ac-1)', () => {
+    // review round 1 finding 6: task 3 shares src/b.ts with task 2, which waits on task 1; task 3 has no after: line, yet it never lands before task 2
+    const tasks = tasksOf(task(1, 'src/a.ts', 'none'), task(2, 'src/b.ts', '1'), task(3, 'src/b.ts', 'none'));
+    expect(buildWaves(tasks, new Set())).toEqual([[1], [2], [3]]);
+    // the lower-numbered task is not placed yet when the higher one is ready (task 1 waits on task 3): task 2 still lands after task 1
+    const waiting = tasksOf(task(1, 'src/x.ts', '3'), task(2, 'src/x.ts', 'none'), task(3, 'src/z.ts', 'none'));
+    expect(buildWaves(waiting, new Set())).toEqual([[3], [1], [2]]);
+    // an after: line that puts the lower-numbered task after the higher one wins: no deadlock, the two still never share a wave
+    const forced = tasksOf(task(1, 'src/x.ts', '2'), task(2, 'src/x.ts', 'none'));
+    expect(buildWaves(forced, new Set())).toEqual([[2], [1]]);
+  });
+
   it('risk:complex-branching the wave builder falls back to one task at a time and splits case-folded paths (ST-LN-92 92-ac-1)', () => {
     const SEQ = [[1], [2], [3]];
     // a task with no after: line (a plan written before the format): one task per wave, in number order

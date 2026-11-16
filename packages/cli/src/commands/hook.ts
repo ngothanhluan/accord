@@ -2,7 +2,7 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
+import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
@@ -10,7 +10,7 @@ import { pinMessage, versionOnDisk } from '../pin.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { cleanBudgetMs } from './fetch-limit.js';
-import { activeTicket } from './anchor.js';
+import { activeTicket, anchorOf } from './anchor.js';
 import { branchOf, cleanQuietly, fetchOrigin, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
@@ -41,7 +41,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
         body = `this session works ${held.id}: call EnterWorktree with the path on the next line, then run accord anchor there and go on at the stage it prints\nenter: ${held.path}\n`;
       } else {
         const id = activeTicket(root, ctx.snapshot, branchFor(root, ctx));
-        body = (id === undefined ? undefined : anchorText(ctx.snapshot, id)) ?? body;
+        body = (id === undefined ? undefined : anchorOf(ctx, id)) ?? body;
       }
     } catch (e) {
       ctx.stderr.write((e as Error).message + '\n');

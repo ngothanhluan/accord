@@ -14,8 +14,10 @@ const has = (ticket: { sections: { heading: string }[] }, name: string): boolean
 
 /**
  * ST-LN-72 D-11 and its Ruling: the resume-or-restart fact for a plan.md, a verification.md or a debug.md that still carries the unfinished marker, in that order, for exactly the tickets the gates refuse them on
- * (unfinishedPlan, unfinishedVerification) and, for debug.md, the lanes of the debug stage (unfinishedDebug). The skills have no byte room for the rule, so the tool prints it and the skill follows the line. A verifier resumes only on the commit it began on: the frontmatter `commit:` against HEAD by prefix (shaEqual: both at least 7 hex characters); a
- * difference, no `commit:` or no HEAD says start over.
+ * (unfinishedPlan, unfinishedVerification) and, for debug.md, the lanes of the debug stage (unfinishedDebug). The skills have no byte room for the rule, so the tool prints it and the skill follows the line. A verifier
+ * resumes only on the work it began on: the frontmatter `commit:` is HEAD (shaEqual: both at least 7 hex characters), or the host found (`recordsSince`, the paths changed from that commit to HEAD) that nothing outside
+ * the ticket's own folder accord/tickets/<id>/ changed since, which is what committing the partial verification.md before `accord worktree sync` does to HEAD (ST-LN-72 review round 2). Any other difference, no
+ * `commit:`, no HEAD or no fact says start over.
  */
 function unfinishedLines(snapshot: RepoSnapshot, id: string): string[] {
   const lines: string[] = [];
@@ -25,8 +27,10 @@ function unfinishedLines(snapshot: RepoSnapshot, id: string): string[] {
   if (v !== undefined) {
     const written = v.frontmatter?.commit;
     const head = snapshot.git?.commit;
+    const since = written !== undefined && snapshot.recordsSince !== undefined && Object.hasOwn(snapshot.recordsSince, written) ? snapshot.recordsSince[written] : undefined;
+    const same = written !== undefined && ((head !== undefined && shaEqual(written, head)) || (since !== undefined && since.every((p) => p.startsWith('accord/tickets/' + id + '/'))));
     lines.push(
-      written !== undefined && head !== undefined && shaEqual(written, head)
+      same
         ? `Unfinished: ${v.file}: resume the verifier`
         : `Unfinished: ${v.file}: written at ${written ?? 'unknown'}, HEAD is ${head ?? 'unknown'}: start the verifier over`,
     );

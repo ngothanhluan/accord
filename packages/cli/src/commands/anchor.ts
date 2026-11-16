@@ -3,7 +3,7 @@
 // the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
 import { anchorText, DEFAULT_BRANCH_TEMPLATE } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, ticketOfBranch } from '../load/fs.js';
+import { currentBranch, gitVerifySince, ticketOfBranch } from '../load/fs.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
@@ -17,11 +17,12 @@ export function activeTicket(root: string, snapshot: RepoSnapshot, known?: { nam
 }
 
 /**
- * ST-LN-50 D-08: `stages off for lane <L>: ...` closes the base lines of the anchor header (Stage, Review base), before any Unfinished line and the first section; core places them (anchorText's `header`).
- * Nothing is added when nothing is off for the ticket's lane.
+ * The one anchor text of a ticket, for `accord anchor` and the session-resume hook alike (ST-LN-72 review round 2): ST-LN-50 D-08's `stages off for lane <L>: ...` lines close the base lines of the
+ * header (Stage, Review base), before any Unfinished line and the first section (core places them: anchorText's `header`); nothing is added when nothing is off for the ticket's lane. The git fact the
+ * verify resume line reads (gitVerifySince) is added here too, so both paths print the same lines.
  */
-const anchorOf = (ctx: CommandContext, id: string): string | undefined =>
-  anchorText(ctx.snapshot, id, stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane));
+export const anchorOf = (ctx: CommandContext, id: string): string | undefined =>
+  anchorText({ ...ctx.snapshot, ...gitVerifySince(ctx.root, ctx.snapshot, id) }, id, stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane));
 
 export function anchor(ctx: CommandContext, id: string | undefined): number {
   if (id !== undefined) {

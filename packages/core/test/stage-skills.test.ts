@@ -20,7 +20,7 @@ const config: AccordConfig = {
 };
 
 const REQUIRED: Record<string, readonly string[]> = {
-  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
+  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'no `## Resolved` follows its last `## Episode`', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
@@ -28,7 +28,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
-  debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'last `## ` heading', 'its step 3 for the task that entered debug', './resume.md'],
+  debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
 };
 
 const files = skillTargets(config);
@@ -1533,5 +1533,36 @@ it('risk:regression the verify stage reads the Unfinished line from an anchor ru
     expect(text, f.path).toContain('commit everything except `verification.md`');
     // no decision from the step 1 anchor: the Unfinished line is named once, after the sync
     expect(text.indexOf('`Unfinished:`'), f.path).toBeGreaterThan(sync);
+  }
+});
+
+const flat = (suffix: string): [string, string][] => files.filter((f) => f.path.endsWith(suffix)).map((f) => [f.path, f.text.replace(/\s+/g, ' ')]);
+
+it('risk:regression every skill text defines an open debug episode the way the code reads it: no `## Resolved` follows the last `## Episode` heading (ST-LN-72 review round 2)', () => {
+  // the old wording ("its last `## ` heading is not `## Resolved`") is gone from every shipped skill file, so a `## Fixes` after `## Resolved` cannot read as open in one place and closed in another
+  expect(files.filter((f) => f.path.endsWith('.md') && f.text.replace(/\s+/g, ' ').includes('last `## ` heading')).map((f) => f.path)).toEqual([]);
+  for (const [path, text] of flat('/' + installedName('debug') + '/SKILL.md')) expect(text, path).toContain('no `## Resolved` heading follows its `## Episode <n>` heading');
+  for (const [path, text] of flat('/resume.md')) expect(text, path).toContain('no `## Resolved` heading follows its `## Episode <n>` heading');
+  for (const [path, text] of flat('/' + installedName('accord') + '/SKILL.md')) expect(text, path).toContain('no `## Resolved` follows its last `## Episode`');
+  for (const [path, text] of flat('/failure.md')) expect(text, path).toContain('no `## Resolved` follows the last `## Episode`');
+  for (const [path, text] of flat('/ci.md')) expect(text, path).toContain('no `## Resolved` follows its last `## Episode`');
+});
+
+it('risk:regression the debug stage resumes on an Unfinished line or else dispatches a fresh debugger, never both (ST-LN-72 review round 2)', () => {
+  for (const [path, text] of flat('/' + installedName('debug') + '/SKILL.md')) {
+    const at = text.indexOf('`Unfinished:`');
+    expect(at, path).toBeGreaterThan(-1);
+    expect(text.indexOf('./resume.md', at), path).toBeGreaterThan(at);
+    // "else": the fresh dispatch is the branch for no Unfinished line, as the verify stage words it
+    expect(text, path).toMatch(/`\.\/resume\.md`; else dispatch a fresh `accord-debugger`|\.\/resume\.md; else dispatch a fresh `accord-debugger`/);
+  }
+});
+
+it('risk:regression resume.md says where each writer puts the marker: after the frontmatter for plan and verification, under the last episode heading for debug (ST-LN-72 review round 2)', () => {
+  for (const [path, text] of flat('/resume.md')) {
+    expect(text, path).not.toContain('first thing each writes');
+    expect(text, path).toContain('right after the frontmatter');
+    expect(text, path).toContain('outside a code fence');
+    expect(text, path).toContain('first line under the last `## Episode <n>` heading');
   }
 });

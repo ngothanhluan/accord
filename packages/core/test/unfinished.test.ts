@@ -2,7 +2,7 @@
 // on every ticket whatever its claim pin (owner decision 2026-11-16, an exception to D-16). The marker is read on the raw text, so the HTML-comment stripping of the section readers cannot
 // hide it, and it counts on any body line outside a fence (round 2: fail closed).
 import { describe, expect, it } from 'vitest';
-import { anchorText, gateDone, gatePlan, LOCKED, loadSnapshot, UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from '../src/index.js';
+import { anchorText, debugOpen, gateDone, gatePlan, LOCKED, loadSnapshot, UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
 import { parseVerification } from '../src/load/verification.js';
 import { parsePlan } from '../src/load/work.js';
@@ -330,6 +330,27 @@ describe('unfinished marker: debug.md episodes', () => {
     // no episode heading, no episode
     expect(read('# Debug', UNFINISHED_MARKER)).toBeUndefined();
     expect(read()).toBeUndefined();
+  });
+
+  it('risk:complex-branching debugOpen is the one definition of an open episode, shared by the marker reader and the hook (ST-LN-72 review round 2)', () => {
+    const open = (...lines: string[]) => debugOpen(lines.join('\n'));
+    // no `## Resolved` follows the last `## Episode`: open
+    expect(open(...episode(1))).toBe(true);
+    expect(open(...episode(1), '## Resolved', 'x', ...episode(2))).toBe(true);
+    // a `## Resolved` after the last episode closes it, and a later `## Fixes` does not reopen it
+    expect(open(...episode(1), '## Resolved', 'x')).toBe(false);
+    expect(open(...episode(1), '## Resolved', 'x', '## Fixes', 'y')).toBe(false);
+    // a heading in a fence is no heading; the case of `Resolved` does not matter
+    expect(open(...episode(1), '```', '## Resolved', '```')).toBe(true);
+    expect(open(...episode(1), '## resolved', 'x')).toBe(false);
+    // a record with no episode heading at all is open until some `## Resolved`
+    expect(open('# Debug', '', '## Hypothesis', 'x')).toBe(true);
+    expect(open('# Debug', '## Hypothesis', 'x', '## Resolved', 'y')).toBe(false);
+    // a record with no `## ` heading at all has nothing open
+    expect(open('# Debug', 'x')).toBe(false);
+    expect(open()).toBe(false);
+    // the marker reader agrees on every one of these
+    expect(unfinishedEpisode([...episode(1, UNFINISHED_MARKER), '## Resolved', 'x', '## Fixes', 'y'].join('\n'))).toBeUndefined();
   });
 
   it('ac-1 the anchor tells the debug stage to resume the debugger, and says nothing about a finished debug.md (ST-LN-72 review round 1)', () => {

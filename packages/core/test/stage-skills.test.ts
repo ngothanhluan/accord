@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, recordHeaderFaults, skillDirs, skillTargets, STAGES } from '../src/index.js';
+import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, recordHeaderFaults, skillDirs, skillTargets, STAGES, UNFINISHED_MARKER } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
 import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
@@ -24,11 +24,11 @@ const REQUIRED: Record<string, readonly string[]> = {
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
-  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit'],
+  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify'],
-  verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done'],
-  debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'last `## ` heading', 'its step 3 for the task that entered debug'],
+  verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
+  debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'last `## ` heading', 'its step 3 for the task that entered debug', './resume.md'],
 };
 
 const files = skillTargets(config);
@@ -1481,4 +1481,40 @@ it('risk:regression each stage skill skips its stage when the team turned it off
   const review = read(stages.review);
   for (const p of ['plan stage is off', 'default branch']) if (!review.includes(p)) missing.push('review: ' + p);
   expect(missing).toEqual([]);
+});
+
+it('ac-2 the plan, verify and debug skills dispatch resume mode when they find the marker, in every roster (ST-LN-72 72-ac-2)', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const rosters = [all, { ...all, roles: ['ba', 'dev'] } as AccordConfig, ...(['claude', 'codex', 'cursor', 'copilot'] as const).map((r) => ({ ...config, runtimes: [r] }) as AccordConfig)];
+  const bad: string[] = [];
+  for (const cfg of rosters) {
+    const everyFile = new Map(skillTargets(cfg).map((f) => [f.path, f.text]));
+    for (const dir of skillDirs(cfg)) {
+      for (const stage of ['plan', 'verify', 'debug']) {
+        const base = dir + '/' + installedName(stage);
+        const skill = everyFile.get(base + '/SKILL.md') ?? '';
+        const resume = everyFile.get(base + '/resume.md') ?? '';
+        if (!skill.includes('./resume.md')) bad.push(base + '/SKILL.md names no ./resume.md');
+        if (!/^loads:.*shared\/resume\.md/m.test(skill)) bad.push(base + '/SKILL.md does not load shared/resume.md');
+        if (resume === '') bad.push(base + '/resume.md is not shipped');
+        for (const p of ['Unfinished:', 'resume mode', 'start the verifier over', UNFINISHED_MARKER, 'accord-planner', 'accord-verifier', 'accord-debugger'])
+          if (resume !== '' && !resume.includes(p)) bad.push(base + '/resume.md lacks: ' + p);
+        if (resume.includes('./critique.md')) bad.push(base + '/resume.md names ./critique.md');
+        if (resume.includes('\\') || resume.includes('packages/')) bad.push(base + '/resume.md holds a backslash or packages/');
+      }
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 lines after the resume pointers (ST-LN-72 72-ac-2)', () => {
+  const budget: Record<string, number> = { plan: 5980, verify: 5940, debug: 5450 };
+  const bad: string[] = [];
+  for (const [stage, max] of Object.entries(budget)) {
+    const text = files.find((f) => f.path === '.claude/skills/' + installedName(stage) + '/SKILL.md')?.text ?? '';
+    const bytes = new TextEncoder().encode(text).length;
+    if (text === '' || bytes > max) bad.push(stage + ': ' + bytes + ' bytes, budget ' + max);
+    if (text.split('\n').length > 120) bad.push(stage + ' is over 120 lines');
+  }
+  expect(bad).toEqual([]);
 });

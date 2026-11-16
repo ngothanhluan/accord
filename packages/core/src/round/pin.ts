@@ -99,6 +99,13 @@ export const TASK_REPORT_FROM = '0.6.0';
  */
 export const FIX_RECORD_FROM = '0.6.0';
 
+/**
+ * ST-LN-92 cycle Ruling and D-16: the release from which `accord gate plan` refuses a self reference or a cycle in the plan's `after:` lines
+ * (gate.task-after-cycle), naming the tasks. A ticket claimed under a pin below it answers as before (its waves still fall back to one task at a time).
+ * Read through claimPinBefore.
+ */
+export const PLAN_WAVES_FROM = '0.6.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

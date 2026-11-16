@@ -5,6 +5,8 @@
 // a reason (D-51).
 import { headingKey } from '../load/sections.js';
 import { normaliseKey } from '../load/snapshot.js';
+import { UNFINISHED_MARKER } from '../load/unfinished.js';
+import { claimPinBefore, claimPinNote, UNFINISHED_FROM } from '../round/pin.js';
 import type { AfterVerifyCommit, RepoSnapshot, ScenarioRef, Ticket, TicketFrontmatter, Verification } from '../model/snapshot.js';
 import { acHash } from './hash.js';
 import type { GateRule } from './rules.js';
@@ -93,6 +95,19 @@ export const tagsDiffer: GateRule['check'] = (snapshot, id) => {
 export const verificationMissing: GateRule['check'] = (snapshot, id) => {
   if (ticketOf(snapshot, id) === undefined || verificationOf(snapshot, id) !== undefined) return [];
   return [{ file: verificationFile(id), reason: 'no review record; Done needs ' + verificationFile(id) }];
+};
+
+/**
+ * ST-LN-72 D-11, D-16 and D-18: a verification.md that still carries UNFINISHED_MARKER is a record the verifier has not finished, so it never passes Done, at any strictness setting (the rule is on the
+ * floor, gate/floor.ts). A lane ticket, unless the claim pin is below UNFINISHED_FROM (claimPinBefore: a failed claim read applies the rule, and the finding then says why, as gate/plan.ts's withNote does).
+ * It reads no `config.runtimes`: the rule is a CLI check, so it holds in all four tools whether or not an accord agent is installed. The lane test is inline, not work.ts's laneTicket: work.ts imports this file.
+ */
+export const verificationUnfinished: GateRule['check'] = (snapshot, id) => {
+  const v = verificationOf(snapshot, id);
+  if (v?.unfinished === undefined || ticketOf(snapshot, id)?.frontmatter?.lane === undefined || claimPinBefore(snapshot, id, UNFINISHED_FROM)) return [];
+  const note = claimPinNote(snapshot, id);
+  const reason = `${v.file} still carries the line ${UNFINISHED_MARKER}: the verifier has not finished; the verify stage resumes it, or starts it over when HEAD moved`;
+  return [{ file: v.file, line: v.unfinished, reason: note === undefined ? reason : `${reason}; ${note}` }];
 };
 
 /** docs/design.md §5: `blocked` fails Done exactly as `fail` does. A missing or invalid `Result:` is

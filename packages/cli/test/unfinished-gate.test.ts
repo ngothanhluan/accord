@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { recordTaskDone, setFrontmatterKey, UNFINISHED_FROM, UNFINISHED_MARKER } from '@accord-dev/accord-core';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { approve, CONFIG, discussFiles, discussPath, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
+import { approve, CONFIG, discussFiles, discussPath, gateReadyIn, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
 /** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
@@ -112,7 +112,8 @@ const evidence = (sha: string, first?: string): string =>
 function doneRepo(first: string | undefined, runtimes?: string): { repo: string; sha: string } {
   const repo = makeLaneRepo(discussFiles('T-1'));
   try {
-    if (runtimes !== undefined) writeFiles(repo, { 'accord/config.yml': CONFIG.replace('runtimes: [claude]', `runtimes: ${runtimes}`) });
+    // the working-tree pin is the cut-off release itself (no claim commit here), and every file the gate reads is committed or written below
+    writeFiles(repo, { 'accord/config.yml': pinned(UNFINISHED_FROM).replace('runtimes: [claude]', `runtimes: ${runtimes ?? '[claude]'}`) });
     gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
     gitRun(repo, 'config', 'user.name', 'fixture');
     gitRun(repo, 'config', 'commit.gpgsign', 'false');
@@ -123,6 +124,7 @@ function doneRepo(first: string | undefined, runtimes?: string): { repo: string;
       files[rel] = readFileSync(join(repo, ...rel.split('/')), 'utf8');
     }
     approve(files, 'T-1');
+    expect(gateReadyIn(files, 'T-1')).toBe('pass');
     writeFiles(repo, { [P('T-1')]: files[P('T-1')] });
     const baseline = commitMsg(repo, 'fixture');
     writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });

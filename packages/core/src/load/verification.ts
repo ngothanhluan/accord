@@ -3,6 +3,7 @@ import type { LoadFinding } from '../model/finding.js';
 import type { EvidenceBlock, Section, Verification, VerificationFrontmatter } from '../model/snapshot.js';
 import { loadFrontmatter } from './frontmatter.js';
 import { duplicateHeadings, scan, stripHtmlComments } from './sections.js';
+import { unfinishedLine } from './unfinished.js';
 
 const BLOCK = /^@(ac-[1-9][0-9]*)\b\s*(.*)$/;
 const tagOf = (s: Section): string | undefined => BLOCK.exec(s.heading)?.[1];
@@ -57,11 +58,13 @@ export function parseVerification(
     });
   }
 
+  const unfinished = unfinishedLine(text); // ST-LN-72 D-11: the raw text, so no section reader's comment stripping hides it
   const verification: Verification = {
     ticket: id,
     file,
     ...(fm.value === undefined ? {} : { frontmatter: fm.value }),
     blocks,
+    ...(unfinished === undefined ? {} : { unfinished }),
   };
   return { verification, findings };
 }

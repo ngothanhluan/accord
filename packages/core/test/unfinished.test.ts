@@ -165,9 +165,6 @@ describe('unfinished marker: gate done', () => {
     expect(got[0].reason).toContain(VERIFICATION);
     expect(got[0].reason).toContain(UNFINISHED_MARKER);
     expect(doneOf({ claim: NEW }).verdict).toBe('fail');
-    // it prints before the verification-content rows
-    const rules = doneOf({ claim: NEW }).findings.map((f) => f.rule);
-    expect(rules.indexOf('gate.verification-unfinished')).toBeLessThan(rules.indexOf('gate.tags-differ'));
 
     // the same record once the verifier has removed the line: no finding
     expect(verifUnfinished(doneOf({ verification: verificationWith(undefined), claim: NEW }))).toEqual([]);

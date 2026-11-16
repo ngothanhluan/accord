@@ -27,6 +27,7 @@ import {
   tickStaleHash,
   tickUnbound,
   verificationMissing,
+  verificationUnfinished,
 } from './done.js';
 import {
   acUncovered,
@@ -244,6 +245,7 @@ export const DONE_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   RULESET_CHANGED,
   RULESET_MISSING,
+  { id: 'gate.verification-unfinished', level: 'error', profiles: ['build', 'maintain'], check: verificationUnfinished },
   { id: 'gate.no-scenarios', level: 'error', profiles: ['build', 'maintain'], check: noScenarios },
   { id: 'gate.tags-differ', level: 'error', profiles: ['build', 'maintain'], check: tagsDiffer },
   { id: 'gate.verification-missing', level: 'error', profiles: ['build', 'maintain'], check: verificationMissing },

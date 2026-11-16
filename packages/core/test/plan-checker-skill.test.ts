@@ -255,3 +255,38 @@ it('risk:regression the plan skill names the after: line (ST-LN-91 91p-ac-2)', (
   }
   expect(bad).toEqual([]);
 });
+
+// ST-LN-10 10-ac-2, D-13, D-18: the plan checker asks for the same three things inside its existing seven checks (a model file per new path, the
+// valid spellings of a `risk:parsing` task's input, the likely untested failure modes), and the planner's copy of the seven checks reads the same.
+it('ac-2 the plan checker checks the three asks inside its seven plan-mode checks (ST-LN-10 10-ac-2)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const files = agents(runtime);
+    const critics = files.filter((f) => f.path === '.claude/agents/accord-critic.md');
+    const planners = files.filter((f) => f.path === '.claude/agents/accord-planner.md');
+    // D-18: only the claude runtime installs agents today; a runtime that starts to must carry the asks, so these counts are updated with it.
+    const expected = runtime === 'claude' ? 1 : 0;
+    if (critics.length !== expected) bad.push(runtime + ': critic renders ' + critics.length);
+    if (planners.length !== expected) bad.push(runtime + ': planner renders ' + planners.length);
+    for (const f of critics) {
+      const lines = f.text.split('\n');
+      const at = lines.indexOf('Mode `plan`:');
+      const block = lines.slice(at + 1);
+      const run = block.slice(0, block.indexOf(''));
+      const checks = run.filter((l) => l.startsWith('- Check'));
+      if (at < 0 || checks.length !== 7 || run.length !== 7) {
+        bad.push(runtime + ' ' + f.path + ': mode plan holds ' + checks.length + ' checks');
+        continue;
+      }
+      if (!checks[4].includes('`## Failure modes`')) bad.push(runtime + ' check 5 does not name `## Failure modes`');
+      if (!checks[4].includes('Should')) bad.push(runtime + ' check 5 does not rate a missing failure mode a Should');
+      for (const p of ['(new, like', '(new, no model', '`risk:parsing`', 'spellings']) if (!checks[5].includes(p)) bad.push(runtime + ' check 6 lacks ' + p);
+      for (const p of planners) {
+        const planner = p.text.split('\n');
+        const intro = planner.indexOf("Before you reply, run these checks of the critic's plan mode on your plan and fix what fails:");
+        for (const c of checks) if (planner.indexOf(c) <= intro || intro < 0) bad.push(runtime + ' planner lacks the critic check: ' + c.slice(0, 60));
+      }
+    }
+  }
+  expect(bad).toEqual([]);
+});

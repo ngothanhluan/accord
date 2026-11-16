@@ -16,8 +16,8 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 // What each agent must name, asserted over the RENDERED agent file, as REQUIRED is over a rendered skill.
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
   executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings'],
-  critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should'],
-  planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further'],
+  critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should', '## Failure modes', '(new, like', 'spellings'],
+  planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S'],
   verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md'],
   debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>'],
@@ -31,6 +31,54 @@ describe('agents name what the spec requires', () => {
       expect(phrases.filter((p) => !text.includes(p))).toEqual([]);
     });
   }
+});
+
+const RUNTIME_LIST: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
+const roleOf = (path: string): string => path.replace('.claude/agents/accord-', '').replace('.md', '');
+
+// D-18: the agent criteria hold in every tool that installs accord agents. Today only the claude runtime installs any
+// (agents.ts agentTargets), so the loop checks what each runtime renders and the claude runtime renders every role.
+it("risk:regression every agent file any runtime installs carries its role's required phrases (ST-LN-10 D-18)", () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIME_LIST) {
+    const files = agentTargets(config({ runtimes: [runtime] }));
+    for (const f of files) {
+      const role = roleOf(f.path);
+      const phrases = AGENT_REQUIRED[role === 'final-reviewer' ? 'reviewer' : role];
+      if (phrases === undefined) continue;
+      for (const p of phrases) if (!f.text.includes(p)) bad.push(runtime + ' ' + f.path + ' lacks ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
+  const claude = agentTargets(config({ runtimes: ['claude'] })).map((f) => roleOf(f.path));
+  expect(Object.keys(AGENT_REQUIRED).filter((r) => !claude.includes(r))).toEqual([]);
+});
+
+it('ac-2 the planner asks for a model file per new path, the parsing spellings and the untested failure modes in every tool that installs accord agents (ST-LN-10 10-ac-2)', () => {
+  const flat = (s: string): string => s.replace(/s+/g, ' ');
+  const bad: string[] = [];
+  for (const runtime of RUNTIME_LIST) {
+    const files = agentTargets(config({ runtimes: [runtime] })).filter((f) => f.path === '.claude/agents/accord-planner.md');
+    // D-18: only the claude runtime installs agents today; a runtime that starts to must carry the asks, so this count is updated with it.
+    if (files.length !== (runtime === 'claude' ? 1 : 0)) bad.push(runtime + ': planner renders ' + files.length);
+    for (const f of files) {
+      const text = flat(f.text);
+      for (const p of [
+        'files: src/export.ts, src/csv.ts (new, like src/json.ts)',
+        '`(new, like <an existing file of the same kind>)`',
+        '`(new, no model: <why>)`',
+        'a bare `(new)` is refused from 0.6.0',
+        'Every model and every other path must exist at the baseline',
+        'A `risk:parsing` task lists the valid spellings of its input',
+        "YAML's several ways to write a map",
+        'a `## Failure modes` section after the last task',
+        "no task's tests exercise",
+        'the task that owns the code',
+      ])
+        if (!text.includes(p)) bad.push(runtime + ' ' + f.path + ' lacks: ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
 });
 
 it('ac-5 the planner and the executor say a test name holds no at sign and no comma', () => {

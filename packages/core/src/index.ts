@@ -54,6 +54,7 @@ export { REPORT_CONTRACT, reportReasons } from './gate/task-report.js';
 export { groundsDeferred, groundsFrom, groundsOn, groundsProblems, groundsV2 } from './round/grounds.js';
 export { fixScopeProblems } from './round/fixscope.js';
 export { fixOn, fixProblems } from './round/fix.js';
+export type { FixProblem } from './round/fix.js';
 export { pendingAddedCode, scopeProblems } from './round/scope.js';
 export {
   APPROACH_CAP,

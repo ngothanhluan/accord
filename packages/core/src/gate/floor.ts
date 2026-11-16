@@ -94,6 +94,7 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.finding-grounds': 'review',
   'gate.fix-file-unexplained': 'review',
   'gate.fix-places-missing': 'review',
+  'gate.fix-not-addressed': 'review',
   'gate.review-trailing': 'review',
   'gate.review-uncommitted': 'review',
   'gate.review-commit-code': 'review',

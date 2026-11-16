@@ -6,7 +6,8 @@ import { parseYamlMap, schemaFindings } from './yaml.js';
 export { stringNumerics } from './yaml.js';
 
 const BOM = String.fromCharCode(0xfeff);
-const FRONTMATTER = /^---\n([\s\S]*?)\n---(?:\n|$)/;
+// An empty block (`---` then `---`) is a block too: the first alternative takes it before the lazy one can run on into the body.
+const FRONTMATTER = /^---\n(?:---(?:\n|$)|([\s\S]*?)\n---(?:\n|$))/;
 
 /** Strip one leading BOM and turn CRLF into LF; neither is ever reported (D-38). */
 export function normaliseText(text: string): string {
@@ -23,7 +24,7 @@ export function splitFrontmatter(text: string): SplitResult {
   const norm = normaliseText(text);
   const m = FRONTMATTER.exec(norm);
   if (!m) return { yaml: null, body: norm, bodyOffset: 0 };
-  return { yaml: m[1], body: norm.slice(m[0].length), bodyOffset: (m[0].match(/\n/g) ?? []).length };
+  return { yaml: m[1] ?? '', body: norm.slice(m[0].length), bodyOffset: (m[0].match(/\n/g) ?? []).length };
 }
 
 export interface LoadedFrontmatter<T> {

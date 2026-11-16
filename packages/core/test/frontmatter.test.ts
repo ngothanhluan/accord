@@ -114,6 +114,10 @@ describe('splitFrontmatter / normaliseText', () => {
     const login = readFixture('valid-build').files['accord/tickets/LOGIN-1.md'];
     expect(splitFrontmatter(login).bodyOffset).toBe(17);
     expect(splitFrontmatter('## Intent\n')).toEqual({ yaml: null, body: '## Intent\n', bodyOffset: 0 });
+    // ST-LN-72 review round 2: an empty block (`---` then `---`) is a block with no yaml; it does not run on to a later `---` and swallow the body
+    expect(splitFrontmatter('---\n---\n# Plan\nx\n')).toEqual({ yaml: '', body: '# Plan\nx\n', bodyOffset: 2 });
+    expect(splitFrontmatter('---\n---\n# Plan\n---\ny\n')).toEqual({ yaml: '', body: '# Plan\n---\ny\n', bodyOffset: 2 });
+    expect(splitFrontmatter('---\n---')).toEqual({ yaml: '', body: '', bodyOffset: 1 });
   });
 
   it('strips only a leading BOM; a BOM later in the text is kept', () => {

@@ -3,7 +3,7 @@
 // the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
 import { anchorText, DEFAULT_BRANCH_TEMPLATE } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, ticketOfBranch } from '../load/fs.js';
+import { currentBranch, gitVerifySince, ticketOfBranch } from '../load/fs.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
@@ -17,23 +17,17 @@ export function activeTicket(root: string, snapshot: RepoSnapshot, known?: { nam
 }
 
 /**
- * ST-LN-50 D-08: the anchor text with `stages off for lane <L>: ...` closing its header block, right after the Stage line (and the review base), before the first section.
- * The text is returned as it is when nothing is off for the ticket's lane.
+ * The one anchor text of a ticket, for `accord anchor` and the session-resume hook alike (ST-LN-72 review round 2): ST-LN-50 D-08's `stages off for lane <L>: ...` lines close the base lines of the
+ * header (Stage, Review base), before any Unfinished line and the first section (core places them: anchorText's `header`); nothing is added when nothing is off for the ticket's lane. The git fact the
+ * verify resume line reads (gitVerifySince) is added here too, so both paths print the same lines.
  */
-function withStagesOff(ctx: CommandContext, id: string, text: string): string {
-  const off = stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane);
-  if (off.length === 0) return text;
-  const lines = text.split('\n');
-  const first = lines.findIndex((l) => l.startsWith('## '));
-  if (first < 1) return text;
-  lines.splice(first - 1, 0, ...off);
-  return lines.join('\n');
-}
+export const anchorOf = (ctx: CommandContext, id: string): string | undefined =>
+  anchorText({ ...ctx.snapshot, ...gitVerifySince(ctx.root, ctx.snapshot, id) }, id, stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane));
 
 export function anchor(ctx: CommandContext, id: string | undefined): number {
   if (id !== undefined) {
     requireLaneTicket(ctx, id);
-    ctx.stdout.write(withStagesOff(ctx, id, anchorText(ctx.snapshot, id) ?? ''));
+    ctx.stdout.write(anchorOf(ctx, id) ?? '');
     return 0;
   }
   // A hook must not fail a session start, but an empty anchor must not be silent: so every failure here
@@ -46,8 +40,8 @@ export function anchor(ctx: CommandContext, id: string | undefined): number {
     return 0;
   }
   if (active === undefined) return 0;
-  const text = anchorText(ctx.snapshot, active);
+  const text = anchorOf(ctx, active);
   if (text === undefined) ctx.stderr.write(active + ' is not a lane ticket in accord/tickets/; nothing to anchor\n');
-  else ctx.stdout.write(withStagesOff(ctx, active, text));
+  else ctx.stdout.write(text);
   return 0;
 }

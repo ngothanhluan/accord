@@ -179,6 +179,7 @@ export interface Verification {
   file: string; // 'accord/tickets/LOGIN-1/verification.md'
   frontmatter?: VerificationFrontmatter; // undefined when the document fails the schema (D-32)
   blocks: EvidenceBlock[];
+  unfinished?: number; // ST-LN-72 D-11: 1-based line of the `<!-- accord: unfinished -->` marker in the raw text; absent when the file does not carry it
 }
 
 export interface PlanTask {
@@ -205,6 +206,13 @@ export interface Plan {
   baseline?: string; // frontmatter `baseline:`, a string as written; absent when there is none
   planHash?: string; // frontmatter `plan_hash:` as written, recorded by `gate plan`; absent when there is none
   bodyHash: string; // fnv1a64 of the normalised text below the frontmatter
+  unfinished?: number; // ST-LN-72 D-11: 1-based line of the `<!-- accord: unfinished -->` marker in the raw text; absent when the file does not carry it
+}
+
+/** ST-LN-72 review round 1: debug.md, read only for the marker of its last open episode. */
+export interface Debug {
+  file: string; // 'accord/tickets/LOGIN-1/debug.md'
+  unfinished?: number; // 1-based line of the `<!-- accord: unfinished -->` marker that is the first line under the last open `## Episode <n>` heading; absent otherwise
 }
 
 export interface Ledger {
@@ -280,6 +288,7 @@ export interface Discuss {
 export interface TicketWork {
   discuss?: Discuss; // discuss.md (ST-LN-91)
   plan?: Plan;
+  debug?: Debug; // debug.md (ST-LN-72)
   ledger?: Ledger;
   review?: Review;
   rounds?: RoundRecord; // review.md as round records (ST-LN-17)

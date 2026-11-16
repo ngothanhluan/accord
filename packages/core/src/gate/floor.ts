@@ -33,7 +33,7 @@ const FLOOR: Record<string, readonly string[]> = {
     'gate.no-scenarios', 'gate.tags-differ', 'gate.verification-missing', 'gate.result-not-pass', 'gate.commit-missing', 'gate.sha-too-short',
     'gate.ac-hash-missing', 'gate.ac-changed', 'gate.tick-unbound', 'gate.tick-stale-hash', 'gate.tick-stale-commit', 'gate.stale-review',
     'gate.test-tag-missing', 'gate.tests-unconfigured', 'gate.report-missing', 'gate.test-unknown', 'gate.test-not-passed', 'gate.test-untraced',
-    'gate.suite-not-passed', 'gate.evidence-unresolved', 'gate.note-missing', 'gate.note-unresolved', 'gate.note-pasted',
+    'gate.suite-not-passed', 'gate.verification-unfinished', 'gate.evidence-unresolved', 'gate.note-missing', 'gate.note-unresolved', 'gate.note-pasted',
     'gate.research-record-missing', 'gate.research-spent-missing', 'gate.research-over-budget', 'gate.research-shipped',
   ],
   'the security and data-loss rules': ['gate.sensitive-touched', 'gate.out-of-scope', 'gate.interface-sign', 'gate.branch-unknown', 'lint.lane-s-lane-m-records'],
@@ -53,6 +53,7 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.discuss-unmapped': 'discuss',
   'gate.approach-empty': 'approach',
   // the plan gate and the plan record: every row of PLAN_RULES that is not on the floor, the plan-size rules among them, and the lint rules about the plan
+  'gate.plan-unfinished': 'plan',
   'gate.plan-missing': 'plan',
   'gate.plan-empty': 'plan',
   'gate.plan-size': 'plan',

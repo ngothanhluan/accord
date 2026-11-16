@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, recordHeaderFaults, skillDirs, skillTargets, STAGES } from '../src/index.js';
+import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, recordHeaderFaults, skillDirs, skillTargets, STAGES, UNFINISHED_MARKER } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
 import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
@@ -20,15 +20,15 @@ const config: AccordConfig = {
 };
 
 const REQUIRED: Record<string, readonly string[]> = {
-  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
+  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'no `## Resolved` follows its last `## Episode`', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
-  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit'],
+  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify'],
-  verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done'],
-  debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'last `## ` heading', 'its step 3 for the task that entered debug'],
+  verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
+  debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
 };
 
 const files = skillTargets(config);
@@ -1481,4 +1481,102 @@ it('risk:regression each stage skill skips its stage when the team turned it off
   const review = read(stages.review);
   for (const p of ['plan stage is off', 'default branch']) if (!review.includes(p)) missing.push('review: ' + p);
   expect(missing).toEqual([]);
+});
+
+it('ac-2 the plan, verify and debug skills dispatch resume mode when they find the marker, in every roster (ST-LN-72 72-ac-2)', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const rosters = [all, { ...all, roles: ['ba', 'dev'] } as AccordConfig, ...(['claude', 'codex', 'cursor', 'copilot'] as const).map((r) => ({ ...config, runtimes: [r] }) as AccordConfig)];
+  const bad: string[] = [];
+  for (const cfg of rosters) {
+    const everyFile = new Map(skillTargets(cfg).map((f) => [f.path, f.text]));
+    for (const dir of skillDirs(cfg)) {
+      for (const stage of ['plan', 'verify', 'debug']) {
+        const base = dir + '/' + installedName(stage);
+        const skill = everyFile.get(base + '/SKILL.md') ?? '';
+        const resume = everyFile.get(base + '/resume.md') ?? '';
+        if (!skill.includes('./resume.md')) bad.push(base + '/SKILL.md names no ./resume.md');
+        if (resume === '') bad.push(base + '/resume.md is not shipped');
+        for (const p of ['Unfinished:', 'resume mode', 'start the verifier over', 'resume the debugger', UNFINISHED_MARKER, 'accord-planner', 'accord-verifier', 'accord-debugger'])
+          if (resume !== '' && !resume.includes(p)) bad.push(base + '/resume.md lacks: ' + p);
+        if (resume.includes('./critique.md')) bad.push(base + '/resume.md names ./critique.md');
+        if (resume.includes('\\') || resume.includes('packages/')) bad.push(base + '/resume.md holds a backslash or packages/');
+      }
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 lines after the resume pointers (ST-LN-72 72-ac-2)', () => {
+  const budget: Record<string, number> = { plan: 5980, verify: 5940, debug: 5450 };
+  const bad: string[] = [];
+  for (const [stage, max] of Object.entries(budget)) {
+    const text = files.find((f) => f.path === '.claude/skills/' + installedName(stage) + '/SKILL.md')?.text ?? '';
+    const bytes = new TextEncoder().encode(text).length;
+    if (text === '' || bytes > max) bad.push(stage + ': ' + bytes + ' bytes, budget ' + max);
+    if (text.split('\n').length > 120) bad.push(stage + ' is over 120 lines');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the verify stage reads the Unfinished line from an anchor run after the sync, and commits the verification it may resume before the sync (ST-LN-72 review rounds 1 and 2)', () => {
+  for (const f of files.filter((x) => x.path.endsWith('/' + installedName('verify') + '/SKILL.md'))) {
+    const text = f.text.replace(/\s+/g, ' ');
+    const sync = text.indexOf('accord worktree sync');
+    const again = text.indexOf('`accord anchor` again');
+    const follow = text.indexOf('`Unfinished:`', again);
+    expect(sync, f.path).toBeGreaterThan(-1);
+    // step 3 runs the anchor again, after the sync of step 2, and only then follows resume.md
+    expect(again, f.path).toBeGreaterThan(sync);
+    expect(follow, f.path).toBeGreaterThan(again);
+    expect(text.indexOf('./resume.md', follow), f.path).toBeGreaterThan(follow);
+    // ST-LN-72 review round 2: step 2 commits everything, the partial verification.md included, because `accord worktree sync` refuses uncommitted changes to tracked files; the anchor
+    // (not a raw HEAD comparison) decides resume or start over, so the moved HEAD does not break it.
+    expect(text, f.path).toContain('commit everything, `verification.md` included');
+    expect(text, f.path).not.toContain('commit everything except');
+    // no decision from the step 1 anchor: the Unfinished line is named once, after the sync
+    expect(text.indexOf('`Unfinished:`'), f.path).toBeGreaterThan(sync);
+  }
+});
+
+const flat = (suffix: string): [string, string][] => files.filter((f) => f.path.endsWith(suffix)).map((f) => [f.path, f.text.replace(/\s+/g, ' ')]);
+
+it('risk:regression every skill text defines an open debug episode the way the code reads it: no `## Resolved` follows the last `## Episode` heading (ST-LN-72 review round 2)', () => {
+  // the old wording ("its last `## ` heading is not `## Resolved`") is gone from every shipped skill file, so a `## Fixes` after `## Resolved` cannot read as open in one place and closed in another
+  expect(files.filter((f) => f.path.endsWith('.md') && f.text.replace(/\s+/g, ' ').includes('last `## ` heading')).map((f) => f.path)).toEqual([]);
+  for (const [path, text] of flat('/' + installedName('debug') + '/SKILL.md')) expect(text, path).toContain('no `## Resolved` heading follows its `## Episode <n>` heading');
+  for (const [path, text] of flat('/resume.md')) expect(text, path).toContain('no `## Resolved` heading follows its `## Episode <n>` heading');
+  for (const [path, text] of flat('/' + installedName('accord') + '/SKILL.md')) expect(text, path).toContain('no `## Resolved` follows its last `## Episode`');
+  for (const [path, text] of flat('/failure.md')) expect(text, path).toContain('no `## Resolved` follows the last `## Episode`');
+  for (const [path, text] of flat('/ci.md')) expect(text, path).toContain('no `## Resolved` follows its last `## Episode`');
+});
+
+it('risk:regression the debug stage resumes on an Unfinished line or else dispatches a fresh debugger, never both (ST-LN-72 review round 2)', () => {
+  for (const [path, text] of flat('/' + installedName('debug') + '/SKILL.md')) {
+    const at = text.indexOf('`Unfinished:`');
+    expect(at, path).toBeGreaterThan(-1);
+    expect(text.indexOf('./resume.md', at), path).toBeGreaterThan(at);
+    // "else": the fresh dispatch is the branch for no Unfinished line, as the verify stage words it
+    expect(text, path).toMatch(/`\.\/resume\.md`; else dispatch a fresh `accord-debugger`|\.\/resume\.md; else dispatch a fresh `accord-debugger`/);
+  }
+});
+
+it('risk:regression only the debug.md resume line diverts the debug stage; a plan or verification Unfinished line leaves root-cause investigation to the debugger (ST-LN-72 review round 3)', () => {
+  for (const [path, text] of flat('/' + installedName('debug') + '/SKILL.md')) {
+    const step = text.replace(/\s+/g, ' ').slice(text.replace(/\s+/g, ' ').indexOf('**Root cause.**'));
+    const resume = step.indexOf('./resume.md');
+    expect(resume, path).toBeGreaterThan(-1);
+    // the condition names the debug.md line, not any Unfinished line
+    expect(step.slice(0, resume), path).toContain('debug.md: resume the debugger');
+    // any other Unfinished line is said to change nothing here
+    expect(step.slice(0, step.indexOf('accord-debugger')), path).toMatch(/other `Unfinished:`/);
+  }
+});
+
+it('risk:regression resume.md says where each writer puts the marker: after the frontmatter for plan and verification, under the last episode heading for debug (ST-LN-72 review round 2)', () => {
+  for (const [path, text] of flat('/resume.md')) {
+    expect(text, path).not.toContain('first thing each writes');
+    expect(text, path).toContain('right after the frontmatter');
+    expect(text, path).toContain('outside a code fence');
+    expect(text, path).toContain('first line under the last `## Episode <n>` heading');
+  }
 });

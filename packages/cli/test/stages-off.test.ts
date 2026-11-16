@@ -259,3 +259,31 @@ it('risk:complex-branching every view names the stages that are off (ST-LN-50 t2
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:complex-branching the anchor header keeps the stages-off line right after the Stage line and puts the Unfinished line after it (ST-LN-50 D-08, ST-LN-72 review round 1)', async () => {
+  const marked = ['---', 'baseline: abc1234', '---', '<!-- accord: unfinished -->', '', '# Plan', ''].join('\n');
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + OFF('discuss', 'review'), 'accord/tickets/T-1/plan.md': marked });
+  try {
+    gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
+    gitRun(repo, 'config', 'user.name', 'fixture');
+    gitRun(repo, 'config', 'commit.gpgsign', 'false');
+    commitMsg(repo, 'claim: T-1');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    // ST-LN-72 review round 2: the session-resume hook prints the same header lines as `accord anchor` (one shared helper)
+    const headers: string[][] = [];
+    for (const args of [['anchor', 'T-1'], ['anchor'], ['hook', 'session-resume']]) {
+      const lines = (await run(args, repo)).out.split('\n');
+      const stage = lines.findIndex((l) => l.startsWith('Stage:'));
+      expect(stage, args.join(' ')).toBeGreaterThan(-1);
+      expect(lines[stage + 1], args.join(' ')).toBe('stages off for lane M: discuss, review');
+      expect(lines[stage + 2], args.join(' ')).toBe('Unfinished: accord/tickets/T-1/plan.md: resume the planner');
+      expect(lines[stage + 3], args.join(' ')).toBe('');
+      expect(lines[stage + 4], args.join(' ')).toBe('## Intent');
+      headers.push(lines.slice(stage, stage + 5));
+    }
+    expect(headers[1]).toEqual(headers[0]);
+    expect(headers[2]).toEqual(headers[0]);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

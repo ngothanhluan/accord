@@ -2,9 +2,10 @@
 // review.md under accord/tickets/<id>/, and accord/tests-baseline.txt. Pure string work; every parser
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
-import type { Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
+import type { Debug, Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
+import { unfinishedEpisode, unfinishedLine } from './unfinished.js';
 import { headingKey, LIST_MARKER, scan, stripHtmlComments, taskBlocks } from './sections.js';
 import { parseYamlMap } from './yaml.js';
 
@@ -193,6 +194,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   // A broken or non-string baseline is simply absent; gate.plan-baseline-missing says what to write.
   const map = yaml === null ? undefined : parseYamlMap(file, yaml, 1).map;
   const { baseline, plan_hash: planHash } = map ?? {};
+  const unfinished = unfinishedLine(body, bodyOffset); // ST-LN-72 D-11: the body as split, comments kept, so no section reader's comment stripping hides it
   const plan: Plan = {
     file,
     tasks,
@@ -200,8 +202,15 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
     bodyHash: fnv1a64(body),
     ...(typeof baseline === 'string' ? { baseline } : {}),
     ...(typeof planHash === 'string' ? { planHash } : {}),
+    ...(unfinished === undefined ? {} : { unfinished }),
   };
   return { plan, findings };
+}
+
+/** ST-LN-72 review round 1: debug.md, kept only for the marker of its last open episode (the raw text, so no comment stripping hides it). */
+export function parseDebug(file: string, text: string): Debug {
+  const unfinished = unfinishedEpisode(text);
+  return { file, ...(unfinished === undefined ? {} : { unfinished }) };
 }
 
 /**

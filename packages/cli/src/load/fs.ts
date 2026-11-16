@@ -399,6 +399,24 @@ export function gitRecordsSinceFor(root: string, snapshot: RepoSnapshot, id: str
   return Object.keys(recordsSince).length === 0 ? {} : { recordsSince };
 }
 
+/**
+ * ST-LN-72 review round 2: for `accord anchor`, the paths changed from the commit an unfinished verification.md began on to HEAD, so the anchor can tell a HEAD that moved only inside the ticket's own
+ * folder (the partial file committed before `accord worktree sync`) from one that moved with product code. Read only when the ticket's verification.md carries the marker and `commit:` is not HEAD; a
+ * commit that is not an ancestor of HEAD, or any git failure, leaves the fact out, and the anchor then says start over.
+ */
+export function gitVerifySince(root: string, snapshot: RepoSnapshot, id: string): { recordsSince?: Record<string, string[]> } {
+  const v = Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id] : undefined;
+  const written = v?.frontmatter?.commit;
+  if (v?.unfinished === undefined || written === undefined || !isSha(written)) return {};
+  if (snapshot.git !== undefined && shaEqual(written, snapshot.git.commit)) return {};
+  try {
+    const recordsSince = gitRecordsSince(root, [written]);
+    return Object.keys(recordsSince).length === 0 ? {} : { recordsSince };
+  } catch {
+    return {};
+  }
+}
+
 /** The paths `git diff --name-only` reports between two commits (or a commit and HEAD), NUL-separated, never through a shell. */
 function diffNames(root: string, args: string[]): string[] {
   const raw = execFileSync('git', ['diff', '--name-only', '-z', '--no-renames', ...args], {

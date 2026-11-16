@@ -254,8 +254,8 @@ it('risk:regression the five Phase 3 cut-offs are one release, so one claim pin 
   expect(CUT).toBe(DISCUSS_FROM);
 });
 
-// Phase 4 (D-16): every rule it adds cuts off at one release, so one claim pin decides them all at once. Plans 04-04, 04-06, 04-07 and 04-13 append
-// UNFINISHED_FROM, TASK_REPORT_FROM, FIX_RECORD_FROM and PLAN_WAVES_FROM here.
+// Phase 4 (D-16): every rule it adds cuts off at one release, so one claim pin decides them all at once. Plans 04-06, 04-07 and 04-13 append
+// TASK_REPORT_FROM, FIX_RECORD_FROM and PLAN_WAVES_FROM here (the unfinished-marker rules of plan 04-04 read no claim pin: owner decision 2026-11-16).
 const PHASE4_CUT: string[] = [PLAN_MODEL_FROM];
 
 it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {

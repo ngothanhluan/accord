@@ -27,6 +27,7 @@ import {
   tickStaleHash,
   tickUnbound,
   verificationMissing,
+  verificationUnfinished,
 } from './done.js';
 import {
   acUncovered,
@@ -42,6 +43,7 @@ import {
   planMissing,
   planSize,
   planSizeMissing,
+  planUnfinished,
   refUnknown,
   taskCoversMissing,
   taskFileUnknown,
@@ -187,6 +189,7 @@ export const PLAN_RULES: readonly GateRule[] = [
   { id: 'gate.lane-missing', level: 'error', profiles: ['build', 'maintain'], check: laneMissing },
   APPROVAL_MISSING,
   APPROVAL_STALE,
+  { id: 'gate.plan-unfinished', level: 'error', profiles: ['build', 'maintain'], check: planUnfinished },
   { id: 'gate.plan-missing', level: 'error', profiles: ['build', 'maintain'], check: planMissing },
   { id: 'gate.plan-empty', level: 'error', profiles: ['build', 'maintain'], check: planEmpty },
   { id: 'gate.plan-size', level: 'error', profiles: ['build', 'maintain'], check: planSize },
@@ -242,6 +245,7 @@ export const DONE_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   RULESET_CHANGED,
   RULESET_MISSING,
+  { id: 'gate.verification-unfinished', level: 'error', profiles: ['build', 'maintain'], check: verificationUnfinished },
   { id: 'gate.no-scenarios', level: 'error', profiles: ['build', 'maintain'], check: noScenarios },
   { id: 'gate.tags-differ', level: 'error', profiles: ['build', 'maintain'], check: tagsDiffer },
   { id: 'gate.verification-missing', level: 'error', profiles: ['build', 'maintain'], check: verificationMissing },

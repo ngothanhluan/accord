@@ -5,6 +5,7 @@
 // a reason (D-51).
 import { headingKey } from '../load/sections.js';
 import { normaliseKey } from '../load/snapshot.js';
+import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import type { AfterVerifyCommit, RepoSnapshot, ScenarioRef, Ticket, TicketFrontmatter, Verification } from '../model/snapshot.js';
 import { acHash } from './hash.js';
 import type { GateRule } from './rules.js';
@@ -15,7 +16,7 @@ const verificationFile = (id: string) => 'accord/tickets/' + id + '/verification
 // `Object.hasOwn`, never `in`: an id is caller-supplied and `in` would answer true for `toString`.
 const ticketOf = (snapshot: RepoSnapshot, id: string): Ticket | undefined =>
   Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id] : undefined;
-const verificationOf = (snapshot: RepoSnapshot, id: string): Verification | undefined =>
+export const verificationOf = (snapshot: RepoSnapshot, id: string): Verification | undefined =>
   Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id] : undefined;
 /** The `## Acceptance criteria` heading line, or undefined when the ticket has no such section. */
 const acLine = (snapshot: RepoSnapshot, id: string): number | undefined =>
@@ -93,6 +94,37 @@ export const tagsDiffer: GateRule['check'] = (snapshot, id) => {
 export const verificationMissing: GateRule['check'] = (snapshot, id) => {
   if (ticketOf(snapshot, id) === undefined || verificationOf(snapshot, id) !== undefined) return [];
   return [{ file: verificationFile(id), reason: 'no review record; Done needs ' + verificationFile(id) }];
+};
+
+/**
+ * The ticket when it carries `lane:` other than S and R: the lanes whose gate tables hold the plan, Done and debug rules of lane M, so the ones the unfinished-marker rules apply to (unfinishedPlan, unfinishedVerification
+ * and unfinishedDebug; ST-LN-72 review round 2). The one lane test of the three. It lives here, and work.ts re-exports it next to laneTicket, because work.ts imports this file.
+ */
+export const stageLaneTicket = (snapshot: RepoSnapshot, id: string): Ticket | undefined => {
+  const t = ticketOf(snapshot, id);
+  const lane = t?.frontmatter?.lane;
+  return lane === undefined || lane === 'S' || lane === 'R' ? undefined : t;
+};
+
+/**
+ * The verification.md of a lane ticket that runs the Done table of lane M (stageLaneTicket) and still carries UNFINISHED_MARKER; undefined otherwise. The one predicate for gate done's refusal and for the
+ * Unfinished line of `accord anchor` (status/anchor.ts).
+ */
+export const unfinishedVerification = (snapshot: RepoSnapshot, id: string): Verification | undefined => {
+  const v = verificationOf(snapshot, id);
+  return v?.unfinished === undefined || stageLaneTicket(snapshot, id) === undefined ? undefined : v;
+};
+
+/**
+ * ST-LN-72 D-11 and D-18: a verification.md that still carries UNFINISHED_MARKER is a record the verifier has not finished, so it never passes Done, at any strictness setting (the rule is on the
+ * floor, gate/floor.ts). A lane M, L or P ticket, whatever its claim pin: the owner's decision of 2026-11-16, an exception to D-16 (only a 0.6.0 agent writes the marker, so a ticket claimed earlier cannot be
+ * refused wrongly, and exempting it would let a stalled agent's half-written record through after an upgrade).
+ * It reads no `config.runtimes`: the rule is a CLI check, so it holds in all four tools whether or not an accord agent is installed.
+ */
+export const verificationUnfinished: GateRule['check'] = (snapshot, id) => {
+  const v = unfinishedVerification(snapshot, id);
+  if (v?.unfinished === undefined) return [];
+  return [{ file: v.file, line: v.unfinished, reason: `${v.file} still carries the line ${UNFINISHED_MARKER}: the verifier has not finished; the verify stage resumes it, or starts it over when HEAD moved` }];
 };
 
 /** docs/design.md §5: `blocked` fails Done exactly as `fail` does. A missing or invalid `Result:` is

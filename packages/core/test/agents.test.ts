@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { agents, agentTargets, contentHash, markerHash, renderAgent, rulesetText, skillTargets, withoutMarker } from '../src/index.js';
+import { agents, agentTargets, contentHash, markerHash, renderAgent, rulesetText, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 
 const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
@@ -17,10 +17,10 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
   executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings'],
   critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should', '## Failure modes', '(new, like', 'spellings'],
-  planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes'],
+  planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes', UNFINISHED_MARKER, 'under it first', 'append each task when it is finished', 'remove the line as your last step', '`resume mode`', 'keep every finished task'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S'],
-  verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md'],
-  debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>'],
+  verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md', UNFINISHED_MARKER, 'under it first', 'only once its result and its evidence are final', 'remove the line as your last step', '`resume mode`', 'keep every finished block', 'told to start over, write the file anew'],
+  debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>', UNFINISHED_MARKER, 'first line under the last `## Episode <n>` heading', 'as soon as it is done', 'remove the line as your last step', '`resume mode`', 'keep every finished part'],
 };
 
 describe('agents name what the spec requires', () => {
@@ -76,6 +76,27 @@ it('ac-2 the planner asks for a model file per new path, the parsing spellings a
         'the task that owns the code',
       ])
         if (!text.includes(p)) bad.push(runtime + ' ' + f.path + ' lacks: ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-2 the planner, verifier and debugger write behind the unfinished marker, section by section, and remove it last, in every tool that installs accord agents (ST-LN-72 72-ac-2)', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const bad: string[] = [];
+  for (const runtime of RUNTIME_LIST) {
+    const files = agentTargets(config({ runtimes: [runtime] })).filter((f) => ['planner', 'verifier', 'debugger'].includes(roleOf(f.path)));
+    // D-18: only the claude runtime installs agents today; a runtime that starts to must carry the marker rules, so this count is updated with it.
+    if (files.length !== (runtime === 'claude' ? 3 : 0)) bad.push(runtime + ': renders ' + files.length);
+    for (const f of files) {
+      const role = roleOf(f.path);
+      const text = flat(f.text);
+      const need = [UNFINISHED_MARKER, '`resume mode`', 'remove the line as your last step', 'keep every finished'];
+      if (role === 'verifier') need.push('told to start over, write the file anew', 'never a half block');
+      if (role === 'planner') need.push('append each task when it is finished', 'never a half task');
+      if (role === 'debugger') need.push('first line under the last `## Episode <n>` heading', 'as soon as it is done', 'in a parallel round, you test only that hypothesis, write nothing');
+      for (const p of need) if (!text.includes(p)) bad.push(runtime + ' ' + f.path + ' lacks: ' + p);
+      if (role === 'debugger' && !/^tools: "[^"]*\bEdit\b/m.test(f.text)) bad.push(runtime + ' ' + f.path + ' has no Edit tool');
     }
   }
   expect(bad).toEqual([]);

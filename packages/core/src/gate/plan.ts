@@ -5,7 +5,8 @@ import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { Plan, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
-import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
+import { afterCycles } from '../plan/waves.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, stageLaneTicket, workOf } from './work.js';
@@ -235,7 +236,7 @@ export const taskAfterMissing: GateRule['check'] = withNote((snapshot, id) =>
     })),
 );
 
-/** ST-LN-91 91p-ac-2: an `after:` token that is not a task of the plan. A self reference or a cycle is left to the wave builder (Phase 4). */
+/** ST-LN-91 91p-ac-2: an `after:` token that is not a task of the plan. A self reference or a cycle is taskAfterCycle's (ST-LN-92). */
 export const taskAfterUnknown: GateRule['check'] = withNote((snapshot, id) => {
   const tasks = formatTasks(snapshot, id);
   const known = new Set(tasks.map((t) => t.n));
@@ -248,6 +249,34 @@ export const taskAfterUnknown: GateRule['check'] = withNote((snapshot, id) => {
           reason: `task ${t.n} after: names ${token}, which is not a task of this plan`,
         })),
   );
+});
+
+/**
+ * ST-LN-92 cycle Ruling and D-16: the tasks the after: cycle rule reads: those of a lane ticket that is not lane S, unless its claim pin is below PLAN_WAVES_FROM (claimPinBefore: a
+ * failed read and a non-plain pin apply the rule). Its own reader, as modelTasks is for the model-file rules, so a ticket claimed before the release answers as before.
+ */
+const wavesTasks = (snapshot: RepoSnapshot, id: string): PlanTask[] => {
+  const t = laneTicket(snapshot, id);
+  if (t === undefined || t.frontmatter?.lane === 'S' || claimPinBefore(snapshot, id, PLAN_WAVES_FROM)) return [];
+  return workOf(snapshot, id)?.plan?.tasks ?? [];
+};
+
+/**
+ * ST-LN-92 92-ac-1: a task whose `after:` line names itself, or tasks whose `after:` lines name each other, so no wave order can meet them. One finding per cycle, at the
+ * `after:` line of its lowest task. It reads afterCycles, the same reading the wave builder falls back on, so `accord waves` and gate plan answer a cycle alike. It reads
+ * no config.runtimes: a CLI check holds in all four tools (D-18).
+ */
+export const taskAfterCycle: GateRule['check'] = withNote((snapshot, id) => {
+  const tasks = wavesTasks(snapshot, id);
+  const lineOf = new Map(tasks.map((t) => [t.n, t.after?.line ?? t.line]));
+  return afterCycles(tasks).map((cycle) => ({
+    file: planFile(id),
+    line: lineOf.get(cycle[0])!,
+    reason:
+      cycle.length === 1
+        ? `task ${cycle[0]} after: names itself`
+        : `tasks ${cycle.join(', ')} name each other in their after: lines, a cycle no wave order can meet`,
+  }));
 });
 
 /** ST-LN-91 D-09: a plan task holds at most this many non-blank lines, fenced lines and interfaces blocks included. A constant, not a config.yml key. */

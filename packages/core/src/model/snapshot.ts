@@ -313,6 +313,7 @@ export interface AccordConfig {
   roles: ('ba' | 'dev' | 'designer')[];
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];
   tests?: { report: string; affected?: string; full?: string }; // D-72: repo-relative path of the test report; commands the skills run
+  build?: { parallel?: string; regenerate?: string }; // ST-LN-92 D-05: parallel, the executors that run at once, '1'..'99', absent means 3; YAML numerics stay strings. D-06: regenerate, the command the build skill runs on a conflict only in generated files; the CLI never runs it
   review?: { mode: 'human' | 'outcome' }; // spec §7: absent means 'human', the 0.1.0 behaviour
   models?: Partial<Record<RouteKey | 'architect', { model: string; effort?: Effort }>>; // absent entries use the default routing; architect is still accepted and has no effect (ST-LN-80)
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings

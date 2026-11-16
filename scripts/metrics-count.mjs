@@ -282,3 +282,88 @@ export function renderMarkdown(report) {
   for (const x of rows) out.push(`| ${x.class} | ${x.runs} | ${x.weightedMtok} | ${x.medianWeightedK} | ${x.medianPeakK} | ${x.medianMinutes} |`);
   return out.join('\n') + '\n';
 }
+
+// ST-LN-92 D-02: the wave-time report. The ledger line of packages/core/src/load/work.ts (`DONE`), the first per task winning.
+const LEDGER_DONE = /^\s*[-*+]\s+task\s+([1-9][0-9]*)\s+done\s+([0-9a-fA-F]{7,})\s*$/;
+
+/** The `- task <n> done <sha>` lines of a ledger.md text, the first per task winning, BOM and CRLF read as the loader reads them. */
+export function ledgerDone(text) {
+  const done = {};
+  for (const line of String(text).replace(/^\uFEFF/, '').split(/\r\n|\r|\n/)) {
+    const d = LEDGER_DONE.exec(line);
+    if (d && !Object.hasOwn(done, d[1])) done[d[1]] = d[2].toLowerCase();
+  }
+  return done;
+}
+
+/**
+ * ST-LN-92 D-02: a ticket's build wall time against its summed per-task time, both read from commit times only.
+ * `commits` is the first-parent history oldest first ({ sha, parents, authorTime, commitTime, files }, times in seconds) and
+ * `done` the ledger's task-to-sha map. A commit with two or more parents (a merge of the default branch) is skipped. A records
+ * commit is one whose files all lie under `accord/tickets/<id>/` or are `accord/tickets/<id>.md`. Task n's commits are the commits
+ * after the last records commit before its ledger sha, up to that sha. Its time is its last commit's author time minus the commit
+ * time of the newest records commit at or before its first commit's author time: a rebase at the merge rewrites a task commit's
+ * committer time and keeps its author time, while records commits are made on the ticket branch and never rebased. The wall time
+ * runs from the commit time of the last plan.md commit before the first task's commits to the commit time of the records commit
+ * that added the last task's ledger line. A report only: nothing reads its numbers.
+ */
+export function waveTime({ id, commits, done }) {
+  const dir = `accord/tickets/${id}/`;
+  const ticket = `accord/tickets/${id}.md`;
+  const list = commits.filter((c) => c.parents.length < 2);
+  const records = (c) => c.files.length > 0 && c.files.every((f) => f === ticket || f.startsWith(dir));
+  const tasks = [];
+  const spans = [];
+  for (const n of Object.keys(done).map(Number).sort((a, b) => a - b)) {
+    const sha = String(done[n]).toLowerCase();
+    const end = list.findIndex((c) => c.sha.toLowerCase().startsWith(sha));
+    if (end < 0) throw new Error(`task ${n} done ${sha} in ${dir}ledger.md is not a commit of the first-parent history`);
+    let first = end + 1;
+    while (first > 0 && !records(list[first - 1])) first--;
+    if (first > end) {
+      tasks.push({ n, seconds: 0 }); // the ledger names a records commit: the task made no commit of its own
+      spans.push({ n, first: undefined, end });
+      continue;
+    }
+    const begin = list[first].authorTime;
+    const starts = list.slice(0, first).filter((c) => records(c) && c.commitTime <= begin).map((c) => c.commitTime);
+    if (starts.length === 0) throw new Error(`task ${n}: no commit of ${dir} or ${ticket} at or before its first commit ${list[first].sha}`);
+    tasks.push({ n, seconds: list[end].authorTime - Math.max(...starts) });
+    spans.push({ n, first, end });
+  }
+  const summed = tasks.reduce((s, t) => s + t.seconds, 0);
+  const built = spans.filter((s) => s.first !== undefined);
+  if (built.length === 0) return { tasks, wall: 0, summed, ratio: null };
+  const firstTask = Math.min(...built.map((s) => s.first));
+  const plans = list.slice(0, firstTask).filter((c) => c.files.includes(`${dir}plan.md`));
+  if (plans.length === 0) throw new Error(`no ${dir}plan.md commit before the first task's commits`);
+  const last = spans.reduce((a, b) => (b.end > a.end ? b : a));
+  const ledger = list.slice(last.end + 1).find((c) => records(c) && c.files.includes(`${dir}ledger.md`));
+  if (ledger === undefined) throw new Error(`no ${dir}ledger.md commit after task ${last.n}'s last commit`);
+  const wall = ledger.commitTime - plans[plans.length - 1].commitTime;
+  return { tasks, wall, summed, ratio: wall > 0 ? Math.round((summed / wall) * 100) / 100 : null };
+}
+
+export function renderWaveJson(report) {
+  return JSON.stringify({ id: report.id, commit: report.commit, tasks: report.tasks, wall: report.wall, summed: report.summed, ratio: report.ratio }, null, 2) + '\n';
+}
+
+export function renderWaveMarkdown(report) {
+  const out = [
+    `# Wave time of ${report.id}`,
+    '',
+    `Commit: ${report.commit}`,
+    '',
+    '- Read from commit times only, on the first-parent history; a merge of the default branch is skipped. A task runs from the commit time of the newest commit of the ticket\'s records at or before its first commit\'s author time to its last commit\'s author time (a rebase at the merge keeps the author time). The wall time runs from the last plan.md commit before the first task to the ledger commit of the last task.',
+    '- A report, not a gate: no accord command reads it.',
+    '',
+    '| Task | Seconds |',
+    '|---:|---:|',
+    ...report.tasks.map((t) => `| ${t.n} | ${t.seconds} |`),
+    '',
+    `wall: ${report.wall}`,
+    `summed: ${report.summed}`,
+    `ratio: ${report.ratio === null ? 'none' : report.ratio.toFixed(2)}`,
+  ];
+  return out.join('\n') + '\n';
+}

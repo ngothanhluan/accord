@@ -239,7 +239,10 @@ it('risk:regression the report check and its contract hold in a repository whose
       const none = await run(['task-done', 'T-1', '1'], repo);
       expect(none.code, runtimes).toBe(1);
       expect(none.out, runtimes).toContain(REL);
-      seen.push(brief.out.replace(path!, '<path>'));
+      // ST-LN-92 D-18: the Work dir line and its rule reach the executor of every runtime too; the folder differs per sandbox like the report path
+      const dir = /^Work dir: (.+)$/m.exec(brief.out)?.[1];
+      expect(dir, runtimes).toBeDefined();
+      seen.push(brief.out.replace(path!, '<path>').replace('Work dir: ' + dir + '\n', 'Work dir: <dir>\n'));
     } finally {
       cleanup(repo);
     }

@@ -25,7 +25,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
-  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict'],
+  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './waves.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify', 're-review', 'places checked:', 'ADDRESSED'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
   debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
@@ -1738,4 +1738,156 @@ it('risk:regression resume.md says where each writer puts the marker: after the 
     expect(text, path).toContain('outside a code fence');
     expect(text, path).toContain('first line under the last `## Episode <n>` heading');
   }
+});
+
+// ST-LN-92 plan 04-15: the build skill builds a plan in waves as the loaded waves.md says, in every roster. The steps of waves.md are its numbered paragraphs.
+const ALL_RUNTIMES = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+const wavesRosters = (): { dir: string; skill: string; waves: string; steps: string[] }[] => {
+  const every = new Map(skillTargets(ALL_RUNTIMES).map((f) => [f.path, f.text]));
+  return skillDirs(ALL_RUNTIMES).map((dir) => {
+    const raw = every.get(dir + '/accord-build/waves.md') ?? '';
+    const steps = raw.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => c.replace(/\s+/g, ' '));
+    return { dir, skill: (every.get(dir + '/accord-build/SKILL.md') ?? '').replace(/\s+/g, ' '), waves: raw.replace(/\s+/g, ' '), steps };
+  });
+};
+const lacking = (where: string, text: string, phrases: readonly string[]): string[] => phrases.filter((p) => !text.includes(p)).map((p) => where + ' lacks ' + p);
+
+it('ac-2 the build skill dispatches a wave in batches up to the cap, each in its own worktree, merged and recorded in task order (ST-LN-92 92-ac-2)', () => {
+  const bad: string[] = [];
+  for (const { dir, skill, waves, steps } of wavesRosters()) {
+    if (waves === '') {
+      bad.push(dir + '/accord-build/waves.md is missing');
+      continue;
+    }
+    const step2 = skill.slice(skill.indexOf('2. **Dispatch.**'), skill.indexOf('3. **Record.**'));
+    bad.push(...lacking(dir + ' SKILL.md step 2', step2, ['./waves.md', '`Parallel: 1`', 'in order, one at a time']));
+    // the intro line and step 2 give one reading: the stage builds in waves, and one at a time only where waves.md builds in this worktree
+    if (skill.includes('This stage builds the plan one task at a time')) bad.push(dir + ' SKILL.md intro still builds one task at a time');
+    bad.push(
+      ...lacking(dir + ' waves.md', waves, [
+        '`accord waves <id>`',
+        '`Parallel:`',
+        '`Parallel: 1`',
+        '`accord worktree task open <id> <n>`',
+        '`accord worktree task merge <id> <n>`',
+        '`accord task-done <id> <n>`',
+        '`accord worktree task clean <id> <n>`',
+        'in task order',
+        'brief path only',
+        'lists no task of this wave',
+        '`Task <n> worktree:`',
+      ]),
+    );
+    // a ticket task open refuses as claimed before 0.6.0 is built in this worktree one task at a time, as SKILL.md step 2 says
+    const inFlight = steps.find((s) => s.includes('claimed before 0.6.0')) ?? '';
+    bad.push(...lacking(dir + ' waves.md claimed-before step', inFlight, ['claimed before 0.6.0', 'one at a time', 'step 2', 'no other task worktree']));
+    // merge, then the tests, task-done and the ledger commit, then clean, for each task in task order
+    const record = steps.find((s) => s.includes('`accord worktree task merge <id> <n>`') && s.includes('in task order')) ?? '';
+    const order = ['`accord worktree task merge <id> <n>`', 'test command', '`accord task-done <id> <n>`', '`accord worktree task clean <id> <n>`'].map((p) => record.indexOf(p));
+    if (order.some((i) => i < 0) || order.some((i, k) => k > 0 && i < order[k - 1])) bad.push(dir + ' waves.md record step order: ' + order.join(','));
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-3 a blocked or refused task does not stop its wave (ST-LN-92 92-ac-3)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const step = steps.find((s) => s.includes('does not stop the others')) ?? '';
+    bad.push(...lacking(dir + ' waves.md blocked step', step, ['`BLOCKED`', 'refuses', 'does not stop the others', 'merged and recorded', 'step 4', '`accord-debug`', 'same task worktree']));
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-4 a generated-only conflict runs build.regenerate, any other a fresh executor, neither stops for the owner (ST-LN-92 92-ac-4)', () => {
+  const bad: string[] = [];
+  for (const { dir, waves, steps } of wavesRosters()) {
+    const step = steps.find((s) => s.includes('`conflict:`')) ?? '';
+    bad.push(...lacking(dir + ' waves.md conflict step', step, ['`conflict:`', '`generated:`', '`build.regenerate`', '`hand-written:`', 'fresh `accord-executor`', "the task's tests", 'never stop for the owner']));
+    if (step.indexOf('`build.regenerate`') > step.indexOf('fresh `accord-executor`')) bad.push(dir + ' waves.md: the regenerate path does not come first');
+    // the parity Ruling: one message where the tool runs subagents in parallel, one after another where it does not, the same records
+    bad.push(...lacking(dir + ' waves.md', waves, ['in one message', 'one after another', 'the same records', '`BLOCKED: permission']));
+  }
+  expect(bad).toEqual([]);
+});
+
+// Review round 1 (PR #198) findings 3 and 5: a live task worktree always goes through merge and clean, whatever the wave size; a recorded one left there is cleaned.
+it('risk:data-loss a live task worktree is merged and cleaned whatever the wave size, and a recorded one left there is cleaned (ST-LN-92 92-ac-2)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const first = steps.find((s) => s.startsWith('1. **Waves.**')) ?? '';
+    bad.push(...lacking(dir + ' waves.md step 1', first, ['`Task <n> worktree:`', 'whatever the wave size', 'steps 2 to 7', 'merged and cleaned']));
+    const next = steps.find((s) => s.startsWith('8. **Next wave.**')) ?? '';
+    bad.push(...lacking(dir + ' waves.md step 8', next, ['`(recorded: clean it)`', '`accord worktree task clean <id> <n>`']));
+  }
+  expect(bad).toEqual([]);
+});
+
+// Review round 2 findings 1 and 2: a merge that prints `not merged:`, a clean that prints `kept task`, or a task folder off its task branch stops that task only, as a block:
+// nothing is removed or reset, the owner gets the folder, its branch and the CLI's words, the wave goes on, and such a task is never rebuilt in the ticket checkout.
+it('risk:data-loss a refused merge or clean, or a task folder off its branch, stops only that task and goes to the owner (ST-LN-92 92-ac-3)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const blocked = steps.find((s) => s.startsWith('6. **Blocked.**')) ?? '';
+    bad.push(...lacking(dir + ' waves.md step 6', blocked, ['`not merged:`', '`kept task`', '`— owner`', 'never remove its folder or reset anything', "the folder, its branch and the CLI's words", 'go on with']));
+    const first = steps.find((s) => s.startsWith('1. **Waves.**')) ?? '';
+    bad.push(...lacking(dir + ' waves.md step 1', first, ['`— owner`', 'never built in this worktree', 'step 6']));
+    for (const k of ['4. **Record.**', '8. **Next wave.**']) {
+      const step = steps.find((s) => s.startsWith(k)) ?? '';
+      bad.push(...lacking(dir + ' waves.md ' + k, step, ['step 6']));
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+// Review round 3 finding 4: after a compaction, a task folder named for the owner is never dispatched again.
+it('risk:data-loss after a compaction a line ending — owner is not dispatched again (ST-LN-92 92-ac-3)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const next = steps.find((s) => s.startsWith('8. **Next wave.**')) ?? '';
+    const again = next.slice(next.indexOf('dispatch'));
+    if (!next.includes('dispatch') || !again.includes('except a line ending `— owner`')) bad.push(dir + ' waves.md step 8 dispatches owner lines again');
+  }
+  expect(bad).toEqual([]);
+});
+
+// Review round 1 finding 7: the build stage runs only the regenerate command the merge printed (the CLI prints it once accord trust allowed it), never the config text.
+it('risk:security the conflict step runs only the regenerate command accord worktree task merge printed (ST-LN-92 92-ac-4)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const step = steps.find((s) => s.includes('`conflict:`')) ?? '';
+    bad.push(...lacking(dir + ' waves.md conflict step', step, ['`regenerate:`', 'exactly that command', '`regenerate refused:`', '`accord trust`', 'never run `build.regenerate` from `accord/config.yml`']));
+    if (step.includes('is set in `accord/config.yml`, run that command')) bad.push(dir + ' waves.md: the conflict step still runs the config text');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:data-loss a task stopped by a permission refusal is merged before its task worktree is cleaned and is built in this worktree, and one already in this worktree is asked as step 4 (ST-LN-92 92-ac-3)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const held = steps.filter((s) => s.includes('`BLOCKED: permission'));
+    if (held.length !== 1) {
+      bad.push(dir + ' waves.md: ' + held.length + ' steps hold BLOCKED: permission');
+      continue;
+    }
+    const step = held[0];
+    const merge = step.indexOf('`accord worktree task merge <id> <n>`');
+    const clean = step.indexOf('`accord worktree task clean <id> <n>`');
+    const brief = step.indexOf('`accord brief <id> <n>`');
+    if (!(merge >= 0 && clean > merge && brief > clean)) bad.push(dir + ' waves.md permission step order: merge ' + merge + ', clean ' + clean + ', brief ' + brief);
+    bad.push(
+      ...lacking(dir + ' waves.md permission step', step, [
+        'the clean never comes before the merge',
+        'still refuses',
+        'step 4',
+        'never to resolve the conflict',
+        'with nothing removed',
+        'no `Work dir:` line',
+        'one at a time',
+      ]),
+    );
+    // the stop already in this worktree goes to step 4: its sentence names no task worktree command after it
+    const stay = step.slice(step.indexOf('no `Work dir:` line'));
+    if (!stay.includes('step 4')) bad.push(dir + ' waves.md: a permission stop with no Work dir line does not go to step 4');
+  }
+  expect(bad).toEqual([]);
 });

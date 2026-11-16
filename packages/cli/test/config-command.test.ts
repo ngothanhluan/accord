@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { commitAll, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { commitAll, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, pinned } from '../../../test/helpers/lane.js';
 
 const repos: string[] = [];
@@ -99,6 +99,55 @@ it('risk:complex-branching accord config sets a value deterministically and refu
   expect(req.err).toContain('profile');
   expect(req.err).toContain('accord/config.yml was not changed');
   expect(text(clean)).toBe(CONFIG);
+});
+
+// ST-LN-92 D-05, D-06: the executor cap and the regenerate command are set, refused and read back through accord config like any dotted key.
+it('risk:parsing build.parallel and build.regenerate are set and validated through accord config (ST-LN-92 92-ac-2)', async () => {
+  const repo = makeLaneRepo();
+  repos.push(repo);
+  expect(text(repo)).toBe(CONFIG);
+  expect((await run(['waves', 'T-1'], repo)).out).toBe('Parallel: 3\nWave 1: 1\nWave 2: 2\n');
+
+  // the cap: stored as the string "2" (YAML numerics stay strings), and accord waves prints it
+  const two = await run(['config', 'set', 'build.parallel', '2'], repo);
+  expect(two.err).toBe('');
+  expect(two.code).toBe(0);
+  expect(two.out).toBe('changed: build.parallel unset -> "2"\n');
+  expect(JSON.parse((await run(['config', 'get', 'build.parallel', '--json'], repo)).out)).toEqual({ key: 'build.parallel', value: '2' });
+  expect(text(repo)).toBe(CONFIG + 'build:\n  parallel: "2"\n');
+  expect((await run(['waves', 'T-1'], repo)).out).toBe('Parallel: 2\nWave 1: 1\nWave 2: 2\n');
+  expect((await run(['lint'], repo)).code).toBe(0);
+  const top = await run(['config', 'set', 'build.parallel', '99'], repo);
+  expect(top.code).toBe(0);
+  // get prints the value as YAML writes it: a string of digits quoted, so it reads back as the same string
+  expect((await run(['config', 'get', 'build.parallel'], repo)).out).toBe('"99"\n');
+  expect(JSON.parse((await run(['config', 'get', 'build.parallel', '--json'], repo)).out).value).toBe('99');
+  expect((await run(['waves', 'T-1'], repo)).out).toMatch(/^Parallel: 99\n/);
+
+  // 0, 100 and x: refused by the schema with exit 2, the file untouched
+  const bytes = text(repo);
+  for (const bad of ['0', '100', 'x']) {
+    const r = await run(['config', 'set', 'build.parallel', bad], repo);
+    expect(r.code, bad).toBe(2);
+    expect(r.err, bad).toContain('build.parallel');
+    expect(r.err, bad).toContain('accord/config.yml was not changed');
+    expect(text(repo), bad).toBe(bytes);
+  }
+
+  // the regenerate command: a string with a space, stored and printed back as typed
+  const gen = await run(['config', 'set', 'build.regenerate', 'npm run gen'], repo);
+  expect(gen.err).toBe('');
+  expect(gen.code).toBe(0);
+  expect((await run(['config', 'get', 'build.regenerate'], repo)).out).toBe('npm run gen\n');
+  expect(text(repo)).toContain('  regenerate: npm run gen\n');
+  expect((await run(['config', 'get', 'build.parallel'], repo)).out).toBe('"99"\n');
+  expect((await run(['lint'], repo)).code).toBe(0);
+  // an empty command is refused
+  const after = text(repo);
+  const empty = await run(['config', 'set', 'build.regenerate', ''], repo);
+  expect(empty.out).toBe('');
+  expect(empty.code).toBe(2);
+  expect(text(repo)).toBe(after);
 });
 
 it('risk:data-loss accord config keeps CRLF and comments in a real file (ST-LN-50 t2-ac-9)', async () => {

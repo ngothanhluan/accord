@@ -4,17 +4,17 @@ description: Use when a lane M ticket has a plan that passed accord gate plan an
 license: MIT
 argument-hint: "[ticket id]"
 kind: skill
-loads: [build/no-plan.md, plan/baseline.md, shared/ask.md, shared/scout.md]
+loads: [build/no-plan.md, build/waves.md, plan/baseline.md, shared/ask.md, shared/scout.md]
 ---
 
-This stage builds the plan one task at a time. You run it in the main
+This stage builds the plan in waves of tasks. You run it in the main
 session and orchestrate: executors write the code.
 
 ## Steps
 
 1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming plan, the ticket has no `plan.md` and builds as one task: follow `./no-plan.md` instead of steps 2 and 3. Otherwise it names the next task. If it prints `Stage: plan` (the plan is not committed as ready), or `git status --porcelain` on `plan.md` prints anything, the plan stage has not finished: load `accord-plan` and resume there instead of building.
 
-2. **Dispatch.** For each task in `plan.md` without a line in `accord/tickets/<id>/ledger.md`, in order, one at a time: run `accord brief <id> <n>` into a file outside the working tree (for example the system temp directory), so it is never committed, and dispatch a fresh `accord-executor` with the path of that file only. Never pass chat history.
+2. **Dispatch.** Build the tasks in `plan.md` without a line in `accord/tickets/<id>/ledger.md` in waves, as `./waves.md` says; each task it builds here (`Parallel: 1`), in order, one at a time: run `accord brief <id> <n>` into a file outside the working tree (for example the system temp directory), so it is never committed, and dispatch a fresh `accord-executor` with the path of that file only. Never pass chat history.
 
 3. **Record.** When it reports, run the test command its brief printed yourself; when the brief printed none, run the test files the executor reports it wrote or changed. Then run `accord task-done <id> <n>`. The executor's claim alone records nothing.
    - It refuses because a `verify:` case failed or is missing: dispatch a fresh executor with the same brief plus the reasons it printed. If it refuses that way again after that dispatch, load `accord-debug` instead of dispatching again.

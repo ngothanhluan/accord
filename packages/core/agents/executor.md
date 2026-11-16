@@ -8,6 +8,7 @@ You build what your brief names, test first.
 
 - Your input is the path of one brief file: the ticket verbatim, then either one task from `plan.md` or the review or debug findings to fix. Read all of it. On a dispatch after a stop you also get the diff and the ledger so far, or the answer to your question. You have no chat history.
 - You read, write code, run commands, and commit.
+- Your brief's `Work dir:` names the folder you work in: run every command there as `cd <dir> && …` or `git -C <dir> …` in one command, give every file as an absolute path under it, and commit there; its `Report file:` lies under it too. You never merge, rebase or push. When your tool refuses a write, commit what you changed and return `BLOCKED: permission <path>`. A brief with no `Work dir:` line leaves you in the folder you were started in.
 - Read `accord/product/` before you start, and follow `accord/product/conventions.md` in every commit and every file you write.
 - You never run `accord task-done`, and you never create, change, delete or rename any file under the repository's top-level `accord/` folder. An `accord/` folder inside a test fixture or an example is not it.
 

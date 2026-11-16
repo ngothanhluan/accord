@@ -11,6 +11,8 @@ import { anchor } from './commands/anchor.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
+import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
 import { configCheck, configGet, configSet, configUnset } from './commands/config.js';
 import { gate } from './commands/gate.js';
@@ -171,6 +173,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("print the ticket and one plan task: the brief an executor receives; from 0.6.0 it names the task's report file and clears that task's old report")
     .action((id: string, task: string) => {
       setCode(brief(preflight(opts), id, task));
+    });
+
+  program
+    .command('waves <id>')
+    .description('print the plan tasks left to build in waves that may run in parallel, and the parallel cap')
+    .action((id: string) => {
+      setCode(waves(preflight(opts), id));
     });
 
   program
@@ -354,6 +363,26 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--force-with-lease', 'after a commit is reworded: replace the branch on origin only while it is still where this clone last saw it and this branch once held that commit')
     .action((id: string, o: { forceWithLease?: boolean }) => {
       setCode(worktreePush(preflight(opts), id, { lease: o.forceWithLease === true }));
+    });
+  // ST-LN-92 D-03: a task of a wave in its own worktree, run in the ticket's own checkout, for a ticket claimed from 0.6.0.
+  const taskTree = worktree.command('task').description("a build task's own worktree beside the ticket's, for a ticket claimed at 0.6.0 or later; run in the ticket's checkout");
+  taskTree
+    .command('open <id> <n>')
+    .description("create task n's worktree <main folder>-<id>+t<n> on branch accord-task/<id>/<n> from the ticket branch's HEAD, run the setup list there, and print path: and branch:; run again it prints the same lines")
+    .action((id: string, n: string) => {
+      setCode(taskOpen(preflight(opts), id, n));
+    });
+  taskTree
+    .command('merge <id> <n>')
+    .description("rebase task n's branch onto the ticket branch in its worktree, then fast-forward the ticket branch to it, so the ticket history stays linear; a conflict stops the rebase and names each path, generated or hand-written (exit 1); run again once the paths are resolved and added, it continues")
+    .action((id: string, n: string) => {
+      setCode(taskMerge(preflight(opts), id, n));
+    });
+  taskTree
+    .command('clean <id> <n>')
+    .description("remove task n's worktree and delete its branch, only when the ticket branch holds its commits; otherwise exit 1 and remove nothing")
+    .action((id: string, n: string) => {
+      setCode(taskClean(preflight(opts), id, n));
     });
 
   program

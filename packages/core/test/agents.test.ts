@@ -15,7 +15,7 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 
 // What each agent must name, asserted over the RENDERED agent file, as REQUIRED is over a rendered skill.
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
-  executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings', 'red reason:', 'red reason: no red test — <why>', 'self-review: missing:', 'concerns:', 'Report file:', 'only what your own change caused', 'git revert', 'own fix commits', 'never a reset', 'BLOCKED: conflict', 'places checked:'],
+  executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings', 'red reason:', 'red reason: no red test — <why>', 'self-review: missing:', 'concerns:', 'Report file:', 'only what your own change caused', 'git revert', 'own fix commits', 'never a reset', 'BLOCKED: conflict', 'places checked:', 'Work dir:', 'git -C', 'never merge, rebase or push', 'commit what you changed', 'BLOCKED: permission <path>', 'no `Work dir:` line'],
   critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should', '## Failure modes', '(new, like', 'spellings'],
   planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes', UNFINISHED_MARKER, 'under it first', 'append each task when it is finished', 'remove the line as your last step', '`resume mode`', 'keep every finished task'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S', 'ADDRESSED <path>:<line>', 'NOT ADDRESSED', 'Deferred:'],
@@ -187,6 +187,37 @@ it('ac-3 the executor fixes only what its change caused, reverts a red fix and r
   }
   expect(bad).toEqual([]);
   expect(executorText().length).toBeGreaterThan(0);
+});
+
+// ST-LN-92 plan 04-15, D-18: a wave's executor works in its own task worktree, which its brief names; the claude runtime's executor carries the rule, and the
+// brief carries it to every runtime (plan 04-14's WORK_DIR_RULE). A brief with no Work dir line (a ticket claimed before 0.6.0) leaves the executor where it was started.
+it('risk:regression the executor works only in its Work dir and never merges or rebases, in every tool that installs accord agents (ST-LN-92 92-ac-2)', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const bad: string[] = [];
+  let seen = 0;
+  for (const runtime of RUNTIME_LIST) {
+    for (const f of agentTargets(config({ runtimes: [runtime] }))) {
+      if (roleOf(f.path) !== 'executor') continue;
+      seen++;
+      const text = flat(f.text);
+      const at = text.indexOf("Your brief's `Work dir:`");
+      if (at < 0) {
+        bad.push(runtime + ' ' + f.path + ' has no Work dir rule');
+        continue;
+      }
+      // the rule is one bullet: it ends where the next bullet starts
+      const end = text.indexOf(' - ', at);
+      const rule = text.slice(at, end < 0 ? undefined : end);
+      for (const p of ['`cd <dir> && …`', '`git -C <dir> …`', 'absolute path', 'commit there', '`Report file:` lies under it', 'never merge, rebase or push', 'no `Work dir:` line', 'the folder you were started in']) {
+        if (!rule.includes(p)) bad.push(runtime + ' ' + f.path + ' Work dir rule lacks ' + p);
+      }
+      const commit = rule.indexOf('commit what you changed');
+      if (commit < 0 || commit > rule.indexOf('`BLOCKED: permission <path>`')) bad.push(runtime + ' ' + f.path + ' does not commit before BLOCKED: permission');
+    }
+  }
+  expect(bad).toEqual([]);
+  // today only the claude runtime installs agents, and it installs the executor
+  expect(seen).toBe(1);
 });
 
 it('ac-5 the verifier states how to cite a file', () => {

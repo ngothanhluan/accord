@@ -4,16 +4,22 @@
 // Repo-internal: not shipped and not an accord command. Spawns only git, never through a shell.
 // --plan-size (ST-LN-93 D-05) adds how many plans core's own size rule would refuse, at 2 x the ticket's @ac-n count.
 // --plan-format (ST-LN-91 D-09, 91p-ac-5) adds how many tasks and plans core's own plan format rules would refuse (the task length cap, the fence rule, the after: line).
+// --wave-time <id> (ST-LN-92 D-02) prints instead a ticket's build wall time against its summed per-task time, read from the commit
+// times of the first-parent history at --at (the ticket branch's tip) and the task lines of its ledger.md there. A report, not a gate.
 // Usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--plan-format] [--stdout [--json]]
+//        node scripts/metrics.mjs --wave-time <id> [--at <commit>] [--stdout] [--json]
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { STAGES, classifyRun, countRecord, stageTable, renderMarkdown, renderJson, weighted } from './metrics-count.mjs';
+import { STAGES, classifyRun, countRecord, stageTable, renderMarkdown, renderJson, weighted, ledgerDone, waveTime, renderWaveJson, renderWaveMarkdown } from './metrics-count.mjs';
 import { readSessions } from './benchmark.mjs';
 
-const USAGE = 'usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--plan-format] [--stdout [--json]]';
+const USAGE = [
+  'usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--plan-format] [--stdout [--json]]',
+  '       node scripts/metrics.mjs --wave-time <id> [--at <commit>] [--stdout] [--json]',
+].join('\n');
 // The label names the file metrics-<label>.md, so it can hold no path separator and cannot start with a dot.
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const TICKET_FILE = /^accord\/tickets\/([^/]+)\//;
@@ -23,10 +29,12 @@ const TICKET_MD = /^accord\/tickets\/([^/\0\r\n]+)\.md$/;
 const PLAN_MD = /^accord\/tickets\/([^/\0\r\n]+)\/plan\.md$/;
 const KIND = { 'approach-review': 'approach', 'plan-review': 'plan', review: 'review' };
 const MAX_BUFFER = 64 * 1024 * 1024;
+// A ticket id as the loader reads it from accord/tickets/<id>.md (packages/core/src/load/snapshot.ts TICKET): no slash, one line.
+const WAVE_ID = /^[^/\0\r\n]+$/;
 
 function parseArgs(argv) {
-  const opts = { at: 'HEAD', label: undefined, transcripts: undefined, out: undefined, stdout: false, json: false, planSize: false, planFormat: false };
-  const VALUE = { '--at': 'at', '--label': 'label', '--transcripts': 'transcripts', '--out': 'out' };
+  const opts = { at: 'HEAD', label: undefined, transcripts: undefined, out: undefined, stdout: false, json: false, planSize: false, planFormat: false, waveTime: undefined };
+  const VALUE = { '--at': 'at', '--label': 'label', '--transcripts': 'transcripts', '--out': 'out', '--wave-time': 'waveTime' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--stdout') opts.stdout = true;
@@ -38,6 +46,13 @@ function parseArgs(argv) {
       if (v === undefined || v === '') return { error: `${a} needs a value` };
       opts[VALUE[a]] = v;
     } else return { error: `unknown argument: ${a}` };
+  }
+  if (opts.waveTime !== undefined) {
+    if (!WAVE_ID.test(opts.waveTime) || opts.waveTime === '.' || opts.waveTime === '..') return { error: `--wave-time needs a ticket id, got "${opts.waveTime}"` };
+    if (opts.label !== undefined || opts.transcripts !== undefined || opts.out !== undefined || opts.planSize || opts.planFormat) {
+      return { error: '--wave-time goes only with --at, --stdout and --json' };
+    }
+    return { opts };
   }
   if (opts.json && !opts.stdout) return { error: '--json goes with --stdout' };
   if (opts.label !== undefined && !LABEL.test(opts.label)) return { error: `--label must match ${LABEL.source}, got "${opts.label}"` };
@@ -192,6 +207,62 @@ function readRuns(folder, main, ids, before) {
   return { folders: names.map(labelOf), runs: runs.sort((a, b) => byPath(a.file, b.file)) };
 }
 
+// git log's fields: a record separator, then sha, parents, author time and committer time split by unit separators; the paths follow NUL-separated.
+const RS = '\x1e';
+const US = '\x1f';
+const SHA = /^[0-9a-f]+$/;
+const PARENTS = /^[0-9a-f ]*$/;
+const SECONDS = /^-?\d+$/;
+
+/** A commit's format line, or undefined for a path. */
+function logHead(token) {
+  const t = token.startsWith('\n' + RS) ? token.slice(1) : token;
+  if (!t.startsWith(RS)) return undefined;
+  const f = t.slice(1).split(US);
+  if (f.length !== 4 || !SHA.test(f[0]) || !PARENTS.test(f[1]) || !SECONDS.test(f[2]) || !SECONDS.test(f[3])) return undefined;
+  return { sha: f[0], parents: f[1].split(' ').filter(Boolean), authorTime: Number(f[2]), commitTime: Number(f[3]), files: [] };
+}
+const QUIET_LOG = ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-color'];
+
+/**
+ * ST-LN-92 D-02: the ledger's task lines and the first-parent commits at `sha` from the oldest commit of the ticket's plan.md on,
+ * each with its parents, author and committer times and paths, read with NUL-separated output, handed to the pure waveTime.
+ */
+function readWaveTime(git, sha, id) {
+  const ledger = `accord/tickets/${id}/ledger.md`;
+  let text;
+  try {
+    text = git(['cat-file', 'blob', `${sha}:${ledger}`]);
+  } catch {
+    throw new Error(`no ${ledger} at ${sha}`);
+  }
+  const done = ledgerDone(text);
+  if (Object.keys(done).length === 0) throw new Error(`${ledger} at ${sha} records no task done line`);
+  const plans = git([...QUIET_LOG, '--first-parent', '--format=%H', '-z', sha, '--', `:(literal)accord/tickets/${id}/plan.md`]).split('\0').map((s) => s.trim()).filter(Boolean);
+  if (plans.length === 0) throw new Error(`no accord/tickets/${id}/plan.md commit in the first-parent history of ${sha}`);
+  const oldest = plans[plans.length - 1];
+  let base;
+  try {
+    base = [`^${git(['rev-parse', '--verify', '--end-of-options', `${oldest}^1^{commit}`]).trim()}`];
+  } catch {
+    base = []; // the plan was added in the root commit
+  }
+  const raw = git([...QUIET_LOG, '--first-parent', '--reverse', '--no-renames', '--format=%x1e%H%x1f%P%x1f%at%x1f%ct', '-z', '--name-only', sha, ...base]);
+  const commits = [];
+  for (const token of raw.split('\0')) {
+    const head = logHead(token);
+    if (head) {
+      commits.push(head);
+      continue;
+    }
+    const files = commits[commits.length - 1]?.files;
+    // The first path of a commit follows the newline git writes after the format line.
+    const file = files?.length === 0 && token.startsWith('\n') ? token.slice(1) : token;
+    if (files !== undefined && file !== '') files.push(file);
+  }
+  return waveTime({ id, commits, done });
+}
+
 export async function main(argv, { cwd = process.cwd(), stdout = process.stdout, stderr = process.stderr } = {}) {
   const parsed = parseArgs(argv);
   if (parsed.error) {
@@ -221,6 +292,18 @@ export async function main(argv, { cwd = process.cwd(), stdout = process.stdout,
   } catch {
     stderr.write(`metrics: "${opts.at}" is not a commit in this repository\n`);
     return 2;
+  }
+  if (opts.waveTime !== undefined) {
+    let report;
+    try {
+      report = { id: opts.waveTime, commit: sha, ...readWaveTime(git, sha, opts.waveTime) };
+    } catch (e) {
+      stderr.write(`metrics: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 2;
+    }
+    // D-02: a report, not a gate; it exits 0 whatever its numbers say.
+    stdout.write(opts.json ? renderWaveJson(report) : renderWaveMarkdown(report));
+    return 0;
   }
   const [date, seconds] = git(['-c', 'log.showSignature=false', 'log', '-1', '--no-show-signature', '--format=%cs%x00%ct', sha]).trim().split('\0');
   const label = opts.label ?? date;

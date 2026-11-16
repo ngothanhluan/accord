@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { schemaIds, validate } from '../src/index.js';
+import { loadConfig, schemaIds, validate } from '../src/index.js';
 import type { SchemaFinding } from '../src/index.js';
 import configSchema from '../schemas/config.schema.json' with { type: 'json' };
 import verificationSchema from '../schemas/verification.schema.json' with { type: 'json' };
@@ -174,7 +174,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'git', 'ids', 'strictness', 'template']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'git', 'ids', 'strictness', 'template']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -356,6 +356,38 @@ describe('phase 2 config keys', () => {
   it('refuses a non-numeric stale_days and a tier-up outside 1..5', () => {
     expect(validate('config', { ...base, stale_days: 'soon' }).length).toBeGreaterThan(0);
     expect(validate('config', { ...base, escalation: { fix_round_tier_up: '9' } }).length).toBeGreaterThan(0);
+  });
+  it('risk:parsing build.parallel is a string 1 to 99 and build.regenerate a non-empty string (ST-LN-92 92-ac-2)', () => {
+    expect(validate('config', { ...base, build: { parallel: '3', regenerate: 'npm run gen' } })).toEqual([]);
+    expect(validate('config', { ...base, build: { parallel: '1' } })).toEqual([]);
+    expect(validate('config', { ...base, build: { parallel: '99' } })).toEqual([]);
+    for (const parallel of ['0', '100', '03', 'x', '', 3]) expect(validate('config', { ...base, build: { parallel } }).length, String(parallel)).toBeGreaterThan(0);
+    expect(validate('config', { ...base, build: { regenerate: '' } }).length).toBeGreaterThan(0);
+    expect(validate('config', { ...base, build: { cap: '3' } }).length).toBeGreaterThan(0);
+  });
+
+  // review round 2 finding 8: the build skill runs the printed command exactly, so it is one line with no control character, printed raw
+  it('risk:security build.regenerate is one line with no control character (ST-LN-92 92-ac-4)', () => {
+    for (const ok of ['npm run gen', 'node "my scripts/regen.mjs" --all', 'pnpm -r gen && git status', 'génère ünïcode']) {
+      expect(validate('config', { ...base, build: { regenerate: ok } }), ok).toEqual([]);
+    }
+    for (const bad of ['npm run gen\nrm -rf x', 'a\rb', 'a\tb', 'a\u001bb', 'a\u007fb', 'a\u0085b', 'a\u2028b', 'a\u2029b']) {
+      expect(validate('config', { ...base, build: { regenerate: bad } }).map((f) => f.rule), JSON.stringify(bad)).toContain('schema.pattern');
+    }
+    // the loader reads such a config as no config, as for any schema refusal
+    const text = (regenerate: string): string => JSON.stringify({ ...base, build: { regenerate } });
+    expect(loadConfig('accord/config.yml', text('npm run gen')).config?.build?.regenerate).toBe('npm run gen');
+    expect(loadConfig('accord/config.yml', text('npm run gen\nrm -rf x')).config).toBeUndefined();
+  });
+
+  // review round 3 finding 3: an invisible format character (\p{Cf}: zero-width space, a bidi override or isolate, the byte order mark) would hide part of the command
+  it('risk:security build.regenerate holds no format character (ST-LN-92 92-ac-4)', () => {
+    const text = (regenerate: string): string => JSON.stringify({ ...base, build: { regenerate } });
+    for (const cp of [0x200b, 0x202e, 0x2066, 0x2069, 0xfeff, 0x00ad]) {
+      const bad = 'npm run' + String.fromCodePoint(cp) + ' gen';
+      expect(validate('config', { ...base, build: { regenerate: bad } }).map((f) => f.rule), cp.toString(16)).toContain('schema.pattern');
+      expect(loadConfig('accord/config.yml', text(bad)).config, cp.toString(16)).toBeUndefined();
+    }
   });
 });
 

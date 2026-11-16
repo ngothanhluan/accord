@@ -1,6 +1,6 @@
 // Owner decision (2026-11-15), repository scripts trust: a script the repository declares (`tracker.command`, `git.sync`) is branch content, so it does not run
 // until the person allowed it once with `accord trust`, the way `direnv allow` or a workspace-trust prompt works. The allow is a local record that is never
-// committed: `<git common dir>/accord-trust.json`, so every worktree of the repository shares it and nothing under accord/ changes. It is bound to the content, not
+// committed: `<git common dir>/accord-trust.json` (`accord-trust-build.json` for build.regenerate, see RECORD_OF), so every worktree of the repository shares it and nothing under accord/ changes. It is bound to the content, not
 // only to the command text: the command text plus a digest of the files the command can reach. A branch that changes the script file, with the command text
 // identical, no longer matches and asks again. Built-in adapters (none, github-issues, jira, linear) run no repository script and never come here.
 //
@@ -14,11 +14,14 @@ import { closeSync, existsSync, lstatSync, openSync, readFileSync, readlinkSync,
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { gitTracked, UsageError } from './fs.js';
 
-/** The two repository-declared scripts, named as in accord/config.yml. */
-export type ScriptKind = 'tracker.command' | 'git.sync';
+/**
+ * The repository-declared scripts, named as in accord/config.yml. ST-LN-92 review round 1 finding 7: `build.regenerate` too; the CLI never runs it (D-06 Ruling), but
+ * `accord worktree task merge` prints it for the build stage to run only when it is allowed here.
+ */
+export type ScriptKind = 'tracker.command' | 'git.sync' | 'build.regenerate';
 
 /** Every kind, in the order accord trust shows them. */
-export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync'];
+export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync', 'build.regenerate'];
 
 /** One allow: a binding of a script kind, its command text and the digest of what it covers. */
 interface Allow {
@@ -81,18 +84,31 @@ export function shown(text: string): string {
   return text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (ch) => '<U+' + (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0') + '>');
 }
 
-/** `accord-trust.json` inside the repository's common git directory, which all worktrees share and git never tracks. */
-export function trustFile(root: string): string {
-  const known = trustFiles.get(root);
-  if (known !== undefined) return known;
-  const common = execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  const file = join(resolve(root, common), 'accord-trust.json');
-  trustFiles.set(root, file);
-  return file;
+/**
+ * ST-LN-92 review round 2 finding 6: the record file each kind's allows live in. 0.5.1 reads `accord-trust.json` keeping only the entries of the kinds it knows, and
+ * rewrites it with those alone on its next allow or revoke (and reads a record of another version as none, then writes version 2 over it), so an allow of a newer kind
+ * kept there would be erased by an older accord sharing the clone. `build.regenerate` therefore has a file of its own, which 0.5.1 never opens.
+ */
+const RECORD_OF: Readonly<Record<ScriptKind, string>> = { 'tracker.command': 'accord-trust.json', 'git.sync': 'accord-trust.json', 'build.regenerate': 'accord-trust-build.json' };
+
+/** Every record file name, in the order of the kinds. */
+const RECORDS: readonly string[] = [...new Set(SCRIPT_KINDS.map((k) => RECORD_OF[k]))];
+
+/** The kinds whose allows live in record `name`. */
+const kindsIn = (name: string): ScriptKind[] => SCRIPT_KINDS.filter((k) => RECORD_OF[k] === name);
+
+/** A record file (`accord-trust.json` unless named) inside the repository's common git directory, which all worktrees share and git never tracks. */
+export function trustFile(root: string, name = 'accord-trust.json'): string {
+  let common = commonDirs.get(root);
+  if (common === undefined) {
+    common = resolve(root, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim());
+    commonDirs.set(root, common);
+  }
+  return join(common, name);
 }
 
-/** The record path of each root asked about in this process, so one command asks git once. */
-const trustFiles = new Map<string, string>();
+/** The common git directory of each root asked about in this process, so one command asks git once. */
+const commonDirs = new Map<string, string>();
 
 /**
  * The words of a command, shell quotes removed and a quoted run kept whole, so `"./my scripts/sync.sh"` is one word; `starts` holds the index of each word that
@@ -456,10 +472,10 @@ function isAllow(a: unknown): a is Allow {
  * The record as it is on disk, and what of it was not read: `ignored` counts the entries that are not a valid allow (round 4 IN-01: a hand edit or a bad write is
  * read as no allow, never a crash), `unreadable` is true when the file is there but is not a version-2 record at all.
  */
-function readRecord(root: string): { record: TrustFile; ignored: number; unreadable: boolean } {
+function readRecord(root: string, name: string): { record: TrustFile; ignored: number; unreadable: boolean } {
   let text: string;
   try {
-    text = readFileSync(trustFile(root), 'utf8');
+    text = readFileSync(trustFile(root, name), 'utf8');
   } catch {
     return { record: { version: 2, allows: [] }, ignored: 0, unreadable: false };
   }
@@ -467,7 +483,7 @@ function readRecord(root: string): { record: TrustFile; ignored: number; unreada
     const parsed = JSON.parse(text) as unknown;
     if (typeof parsed === 'object' && parsed !== null && (parsed as TrustFile).version === 2 && Array.isArray((parsed as TrustFile).allows)) {
       const all = (parsed as { allows: unknown[] }).allows;
-      const allows = all.filter(isAllow);
+      const allows = all.filter((a): a is Allow => isAllow(a) && kindsIn(name).includes(a.kind));
       return { record: { version: 2, allows }, ignored: all.length - allows.length, unreadable: false };
     }
   } catch {
@@ -476,17 +492,20 @@ function readRecord(root: string): { record: TrustFile; ignored: number; unreada
   return { record: { version: 2, allows: [] }, ignored: 0, unreadable: true };
 }
 
-function read(root: string): TrustFile {
-  return readRecord(root).record;
+function read(root: string, name: string): TrustFile {
+  return readRecord(root, name).record;
 }
 
-/** The warning to print when the record holds entries accord could not read, or is not a record at all; undefined when it reads whole. */
+/** The warning to print when a record holds entries accord could not read, or is not a record at all, one line per record file; undefined when they read whole. */
 export function recordWarning(root: string): string | undefined {
-  const { ignored, unreadable } = readRecord(root);
-  const file = shown(trustFile(root).replaceAll('\\', '/'));
-  if (unreadable) return `warning: ${file} is not a trust record accord can read, so it is read as no allow; the next accord trust allow writes it again`;
-  if (ignored > 0) return `warning: ${file}: ${ignored} ${ignored === 1 ? 'entry is' : 'entries are'} not a valid allow and ${ignored === 1 ? 'was' : 'were'} ignored`;
-  return undefined;
+  const lines = RECORDS.flatMap((name) => {
+    const { ignored, unreadable } = readRecord(root, name);
+    const file = shown(trustFile(root, name).replaceAll('\\', '/'));
+    if (unreadable) return [`warning: ${file} is not a trust record accord can read, so it is read as no allow; the next accord trust allow writes it again`];
+    if (ignored > 0) return [`warning: ${file}: ${ignored} ${ignored === 1 ? 'entry is' : 'entries are'} not a valid allow and ${ignored === 1 ? 'was' : 'were'} ignored`];
+    return [];
+  });
+  return lines.length === 0 ? undefined : lines.join('\n');
 }
 
 /** How long a writer waits for the record lock, and the age past which a lock a killed process left behind is taken over. */
@@ -498,8 +517,8 @@ const LOCK_STALE_MS = 60_000;
  * `'remove'`). Every writer reads the record again inside the lock, so two allows in parallel worktrees both land and an allow made while a revoke ran never
  * brings back what the revoke withdrew.
  */
-function update(root: string, change: (record: TrustFile) => TrustFile | 'remove'): void {
-  const file = trustFile(root);
+function update(root: string, name: string, change: (record: TrustFile) => TrustFile | 'remove'): void {
+  const file = trustFile(root, name);
   const lock = file + '.lock';
   const until = Date.now() + LOCK_WAIT_MS;
   for (;;) {
@@ -527,7 +546,7 @@ function update(root: string, change: (record: TrustFile) => TrustFile | 'remove
     }
   }
   try {
-    const next = change(read(root));
+    const next = change(read(root, name));
     if (next === 'remove') rmSync(file, { force: true });
     else write(file, next);
   } finally {
@@ -569,7 +588,7 @@ function changedFiles(was: Record<string, string> | undefined, now: Record<strin
 /** How `command` stands, for `kind`, in the working tree at `root`. */
 export function inspect(root: string, kind: ScriptKind, command: string, hash: 'always' | 'if-allowed' = 'always'): Inspection & { hashes: Record<string, string> } {
   // round 4 WR-06: the allows are read first; a check (`if-allowed`) with no allow of this command to compare with computes the cover and hashes nothing
-  const mine = read(root).allows.filter((a) => a.kind === kind);
+  const mine = read(root, RECORD_OF[kind]).allows.filter((a) => a.kind === kind);
   const same = mine.filter((a) => a.command === command);
   if (hash === 'if-allowed' && same.length === 0) {
     return { kind, command, ...cover(root, command), digest: undefined, hashes: {}, state: mine.length === 0 ? 'never' : 'other-command', changed: [] };
@@ -624,28 +643,38 @@ export function allowScripts(root: string, scripts: ReadonlyArray<{ kind: Script
     }
   }
   const allowedAt = new Date().toISOString();
-  update(root, (record) => {
-    let allows = record.allows;
-    for (const i of seen) {
-      const digest = i.digest ?? '';
-      allows = [...allows.filter((a) => !(a.kind === i.kind && a.command === i.command && a.digest === digest)), { kind: i.kind, command: i.command, digest, files: i.hashes, allowedAt }];
-    }
-    const kept = SCRIPT_KINDS.flatMap((k) => {
-      const mine = allows.filter((a) => a.kind === k).slice(-KEEP_PER_KIND);
-      return mine.map((a, n) => (n < mine.length - KEEP_FILES_PER_KIND ? { kind: a.kind, command: a.command, digest: a.digest, allowedAt: a.allowedAt } : a));
+  // round 2 finding 6: each kind's allows go to its own record file
+  for (const name of RECORDS) {
+    const here = seen.filter((i) => RECORD_OF[i.kind] === name);
+    if (here.length === 0) continue;
+    update(root, name, (record) => {
+      let allows = record.allows;
+      for (const i of here) {
+        const digest = i.digest ?? '';
+        allows = [...allows.filter((a) => !(a.kind === i.kind && a.command === i.command && a.digest === digest)), { kind: i.kind, command: i.command, digest, files: i.hashes, allowedAt }];
+      }
+      const kept = kindsIn(name).flatMap((k) => {
+        const mine = allows.filter((a) => a.kind === k).slice(-KEEP_PER_KIND);
+        return mine.map((a, n) => (n < mine.length - KEEP_FILES_PER_KIND ? { kind: a.kind, command: a.command, digest: a.digest, allowedAt: a.allowedAt } : a));
+      });
+      return { version: 2, allows: kept };
     });
-    return { version: 2, allows: kept };
-  });
+  }
   return seen.map((i) => ({ kind: i.kind, command: i.command, digest: i.digest, state: i.state, changed: i.changed, units: i.units, files: i.files, unfollowed: i.unfollowed }));
 }
 
 /** Withdraw the allows of the kinds named, or of every kind when none is named; returns the kinds that were allowed and are not any more. */
 export function revokeScripts(root: string, kinds: readonly ScriptKind[] = []): ScriptKind[] {
-  let gone: ScriptKind[] = [];
-  update(root, (record) => {
-    const had = SCRIPT_KINDS.filter((k) => record.allows.some((a) => a.kind === k));
-    gone = kinds.length === 0 ? had : had.filter((k) => kinds.includes(k));
-    return kinds.length === 0 ? 'remove' : { version: 2, allows: record.allows.filter((a) => !gone.includes(a.kind)) };
-  });
-  return gone;
+  const gone: ScriptKind[] = [];
+  for (const name of RECORDS) {
+    const mine = kindsIn(name);
+    if (kinds.length > 0 && !mine.some((k) => kinds.includes(k))) continue;
+    update(root, name, (record) => {
+      const had = mine.filter((k) => record.allows.some((a) => a.kind === k));
+      const out = kinds.length === 0 ? had : had.filter((k) => kinds.includes(k));
+      gone.push(...out);
+      return kinds.length === 0 ? 'remove' : { version: 2, allows: record.allows.filter((a) => !out.includes(a.kind)) };
+    });
+  }
+  return SCRIPT_KINDS.filter((k) => gone.includes(k));
 }

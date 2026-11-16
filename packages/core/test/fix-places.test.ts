@@ -2,7 +2,8 @@
 // checked is refused at gate done from the 0.6.0 cut-off, in lane M and in lane S, naming the round and the finding.
 import { expect, it } from 'vitest';
 import { FIX_RECORD_FROM, blockingFindings, fixProblems, gateDone, nextRound, parseRounds, roundText } from '../src/index.js';
-import type { ClaimPin, RepoSnapshot } from '../src/index.js';
+import type { ClaimPin, RangeCommit, RepoSnapshot } from '../src/index.js';
+import { CONFIG } from '../../../test/helpers/lane.js';
 import { commit, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 
 const REVIEW = 'accord/tickets/T-1/review.md';
@@ -306,4 +307,39 @@ it('risk:security an open risk finding still blocks whatever marks it carries (S
     // the stop and gate done: the round of an open risk finding still stops the loop for the owner, and a new mark closes nothing
     expect(gateDone(snap, 'T-1').findings.some((f) => f.rule === 'gate.review-rounds' && f.reason.includes('still reports')), marks).toBe(true);
   }
+});
+
+it('risk:complex-branching at the cap a fix still waiting for its re-review is named, and the verdict is not offered (ST-LN-56 56-ac-2, D-17)', () => {
+  const capped = (rounds: { lines: string[]; mark?: 'added' }[], ranges: RangeCommit[][], lane?: 'M' | 'S'): RepoSnapshot =>
+    withPin(
+      scopeSnapshot({
+        ...(lane === undefined ? {} : { lane }),
+        config: CONFIG + 'strictness:\n  rounds:\n    review: "3"\n',
+        review: v2Review([rounds]),
+        facts: facts(ranges),
+      }),
+      { pin: FIX_RECORD_FROM },
+    );
+  // round 2 fixed a Must, a merge added code, round 3 (the cap) reviewed it headed (added code round 1) with no findings
+  const added = capped(
+    [{ lines: [] }, { lines: [FIXC + ' — test: export#writes-csv'] }, { lines: [], mark: 'added' }],
+    [[], [commit(['src/a.ts']), commit(['src/m.ts'], 'merge')], []],
+  );
+  const a = next(added);
+  expect(a.kind).toBe('stop');
+  const aText = roundText(a);
+  expect(aText).toContain('Re-review: 2.2');
+  expect(aText).not.toContain('write the verdict');
+  expect(aText).toContain('Ruling: the owner allows <n> more review rounds after round 3 of cycle 1');
+  // the cap round itself fixed a Nice: the stop has a second reason, so it is not the cap-only stop that lets the verdict be written
+  const nice = 'Nice 1 [patch]: a name reads oddly — src/a.ts:3 — fixed in abc1234 — checked: src/a.ts:3';
+  for (const lane of [undefined, 'S'] as const) {
+    const b = next(capped([{ lines: [] }, { lines: [] }, { lines: [nice] }], [[], [], [commit(['src/a.ts'])]], lane));
+    expect(b.kind, String(lane)).toBe('stop');
+    expect(b.reasons.length, String(lane)).toBeGreaterThan(1);
+    expect(roundText(b), String(lane)).toContain('Re-review: 3.1');
+  }
+  // nothing waits: the cap stop is the cap alone, as before
+  const done = next(capped([{ lines: [] }, { lines: [] }, { lines: [] }], [[], [], []]));
+  expect(roundText(done)).not.toContain('Re-review:');
 });

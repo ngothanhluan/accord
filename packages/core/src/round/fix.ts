@@ -5,7 +5,7 @@
 import { laneTicket, workOf } from '../gate/work.js';
 import type { GateRule } from '../gate/rules.js';
 import type { RepoSnapshot, RoundFinding } from '../model/snapshot.js';
-import { hasLine, lastFixFiles } from './evidence.js';
+import { hasLine, reReviewedFixFiles } from './evidence.js';
 import { FIX_RECORD_FROM, claimPinBefore, claimPinError } from './pin.js';
 import { factsOf, placedRounds, skipped } from './scope.js';
 import type { Placed } from './scope.js';
@@ -35,7 +35,10 @@ function outsideOf(snapshot: RepoSnapshot, id: string, at: Placed, f: RoundFindi
   if (facts === undefined || 'error' in facts) return false;
   if (at.p < 2 || at.round.added === true || at.round.final === true) return false;
   if (f.severity === 'Nice' || f.carried !== undefined || f.risk !== undefined) return false;
-  return f.file === undefined || !lastFixFiles(id, facts.ranges, at.j).has(f.file);
+  const rec = workOf(snapshot, id)?.rounds;
+  if (rec === undefined) return false;
+  // the fix diff the round re-reviews: an (added code round 1) round in between reviews merged code and does not replace it
+  return f.file === undefined || !reReviewedFixFiles(id, placedRounds(rec), facts.ranges, at.j).has(f.file);
 }
 
 /** True when the outside-diff finding `f` of round `at` is written deferred with its `- review <r>.<n>[ cycle <k>]` line under ## Deferred in the ledger. */

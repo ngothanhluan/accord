@@ -7,7 +7,7 @@ import type { GateDraft, GateRule } from '../gate/rules.js';
 import type { RangeCommit, RepoSnapshot, RoundFinding, RoundRecord } from '../model/snapshot.js';
 import { addedCode, factsOf, fixCommits, placedRounds, skipped, spanOf } from './scope.js';
 import type { Placed } from './scope.js';
-import { fixOutside } from './fix.js';
+import { fixOn, fixOutside } from './fix.js';
 
 /** The count from which a new finding outside the last fix needs evidence. */
 const FROM_ROUND = 3;
@@ -46,10 +46,25 @@ export function lastFixFiles(id: string, ranges: RangeCommit[][], j: number): Se
   );
 }
 
+/**
+ * ST-LN-56 D-10: the files of the fix diff the round at record index `j` re-reviews: the fix commits of the latest round of its cycle before it not headed `(added code round 1)`
+ * and of every added-code round after that one, the ticket's own records left out. An added-code round reviews merged code, so the fix it sits after is still the one `j` answers.
+ * With no added-code round in between it is lastFixFiles.
+ */
+export function reReviewedFixFiles(id: string, placed: Placed[], ranges: RangeCommit[][], j: number): Set<string> {
+  let k = j - 1;
+  while (k > 1 && placed[k - 1].round.added === true && placed[k - 2].cycle === placed[j - 1].cycle) k--;
+  const out = new Set<string>();
+  for (let r = k; r <= j - 1; r++) for (const p of lastFixFiles(id, ranges, r + 1)) out.add(p);
+  return out;
+}
+
 function needs(snapshot: RepoSnapshot, ctx: Ctx, id: string, at: Placed, f: RoundFinding): boolean {
   if (at.round.final || f.severity === 'Nice' || f.carried !== undefined || f.risk !== undefined) return false;
   if (evidenceCount(ctx.placed, ctx.ranges, at, f.file, id) < FROM_ROUND) return false;
-  if (f.file !== undefined && lastFixFiles(id, ctx.ranges, at.j).has(f.file)) return false;
+  // from FIX_RECORD_FROM the fix diff is the one the round re-reviews (an added-code round in between does not replace it), as the outside-diff rule reads it
+  const fixed = fixOn(snapshot, id) ? reReviewedFixFiles(id, ctx.placed, ctx.ranges, at.j) : lastFixFiles(id, ctx.ranges, at.j);
+  if (f.file !== undefined && fixed.has(f.file)) return false;
   // ST-LN-56 D-10: from FIX_RECORD_FROM a finding outside the fix diff goes to Deferred under gate.fix-outside-open; this rule does not also report it (one reason per finding).
   return !fixOutside(snapshot, id, at, f);
 }

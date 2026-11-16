@@ -2,6 +2,11 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- `accord round` reads debug episodes the way the pre-tool-use hook does: one heading reader in core decides both, so `## resolved` closes an episode, `## Resolved: fixed` does not, and extra spaces after `##` still open one (phase 4 review WR-02).
+- The executor resolves a stopped rebase conflict by fixing the markers and staging the paths only: the build skill's conflict dispatch and the executor agent now both say it makes no commit and runs no `git rebase` command, since `accord worktree task merge` continues the rebase (phase 4 review WR-03).
+
 ## 0.6.0 — 2026-11-17
 
 Release 0.6.0 changes how a ticket is planned, built and fixed: a model file for each new path, files written section by section, an executor report and fix discipline, and parallel waves (six changes below). Tickets in flight: a ticket claimed under 0.5.x keeps the older answer of every 0.6.0 rule that reads the claim, because its claim fact names 0.5.x. Its `accord brief` prints what 0.5.x printed, with no `Report file:` or `Work dir:` line and no file written; `accord task-done` records it with no report; `accord gate plan` accepts a bare `(new)` and refuses no `after:` cycle; its review record keeps the 0.5.x fix rules; `accord worktree task open` refuses it, and it is built one task at a time. A ticket claimed from 0.6.0, or whose claim cannot be read, gets the model-file, report, fix-record and cycle rules, the brief's `Report file:` and `Work dir:` lines, and waves. The not-finished marker rules are the one exception: `accord gate plan` and `accord gate done` refuse a file that carries the marker for every ticket, whatever its claim, because only 0.6.0 agents write it. Each rule that reads the claim has its cut-off constant in `packages/core/src/round/pin.ts` (`PLAN_MODEL_FROM`, `TASK_REPORT_FROM`, `FIX_RECORD_FROM`, `PLAN_WAVES_FROM`), which reads `0.6.0` and is compared with the ticket's claim pin. Pinned repositories: a repository pinned to 0.5.x keeps the 0.5.x answers, skills and agents until `accord upgrade`, which moves the pin and regenerates the skills.

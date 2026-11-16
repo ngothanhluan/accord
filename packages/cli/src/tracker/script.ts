@@ -1,5 +1,6 @@
 // ST-LN-97 D-12 the team script adapter, so accord can reach a tracker it has no adapter for. Contract
-// version 1: `tracker.command` (committed repository content, trusted as `setup` and `git.sync` are) runs
+// version 1: `tracker.command` (committed repository content, so `status` runs it only after the person allowed this command and the files it reaches with
+// `accord trust`, load/script-trust.ts) runs
 // through the one team runner with the repository root as cwd and the keys on STDIN only, as one line
 // `{"version":1,"keys":["ENG-1"]}`; they are never in the command text or argv. It prints one JSON object
 // `{"version":1,"issues":{"ENG-1":{"title":"…","state":"…","labels":["…"]}}}`. The environment is the

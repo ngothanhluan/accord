@@ -8,6 +8,7 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { initFiles } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
@@ -119,6 +120,24 @@ describe('accord init proposes values and writes none of them', () => {
     expect(set.err).toBe('');
     expect(set.code).toBe(0);
     expect(readFileSync(join(repo, CONFIG), 'utf8')).toContain('squash');
+  });
+
+  // CR-02 (round 2): the command the onboard skill's step 4 instructs for the proposal init printed is run exactly as the skill writes it (shell single quotes
+  // removed, nothing else), and it stores the value the proposal proposed. The skill, not `config set`, turns a printed JSON string into the bare value.
+  it('risk:regression the command the onboard skill instructs for a printed string proposal stores that proposal (CR-02)', async () => {
+    const repo = squashHistory();
+    const { out } = await run(['init'], repo);
+    const printed = /^proposal: (git\.merge) = (.*?) {2}\(evidence: /m.exec(out);
+    expect(printed?.[2]).toBe('"squash"');
+    const skill = readFileSync(fileURLToPath(new URL('../../core/skills/accord/onboard.md', import.meta.url)), 'utf8').replace(/\s+/g, ' ');
+    const example = /the printed `proposal: git\.merge = "squash"` is run as `(accord config set git\.merge '[^']*')`/.exec(skill)?.[1];
+    expect(example, 'the skill names the exact command for the printed git.merge proposal').toBeDefined();
+    const args = (example as string).replace(/'/g, '').split(' ').slice(1);
+    const set = await run(args, repo);
+    expect(set.err).toBe('');
+    expect(set.code).toBe(0);
+    expect(set.out).toBe('changed: git.merge unset -> squash\n');
+    expect(readFileSync(join(repo, CONFIG), 'utf8')).toContain('merge: squash');
   });
 });
 

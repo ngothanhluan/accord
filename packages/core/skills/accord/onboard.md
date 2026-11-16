@@ -26,17 +26,32 @@ team's settings are changed from the main checkout, not from a ticket branch. Re
 
    | Key | What it controls | What a change keeps working |
    |---|---|---|
-   | `git.merge` | how the team merges pull requests, which sets how a ticket branch takes the default branch in | everything, nothing is rewritten |
+   | `git.merge` | how the team merges pull requests, which sets how a ticket branch takes the default branch in | nothing for `merge` and `squash`; under `rebase` a ticket's branch is rebased and force-pushed with a lease at verify |
    | `commits.subjects` | the wording of every commit accord writes | tickets in flight: the old wording is kept as `commits.legacy_subjects` |
-   | `branch` | the name shape of a new ticket branch | branches that already exist |
+   | `branch` | the name shape of a new ticket branch | new branches; an in-flight branch with the old name stops being found once the new value reaches the default branch, so change it between tickets |
    | `ids` | how new ticket ids are made, or taken from the tracker | ids in use: they are kept as `legacy_ids` |
    | `tracker` | the tracker `accord status` reads, for display only | nothing else reads it |
+   | `git.sync`, `tracker.command` | a script the repository declares: how a ticket branch takes the default branch in, or where `accord status` reads issues | nothing runs until the person runs `accord trust` |
 
-4. Run `accord config set <key> '<value>'` only after the user's yes, or with a value the user gives. Pass the value
-   as the proposal printed it, quoted so the shell keeps it as one argument. Show its `changed:` line and every line
+4. Run `accord config set <key> '<value>'` only after the user's yes, or with a value the user gives. `config set` stores
+   the text it is given, quotes included, so pass the bare value in single quotes (so the shell keeps it as one
+   argument). A printed value that is a JSON string is passed without its outer double quotes (the printed
+   `proposal: git.merge = "squash"` is run as `accord config set git.merge 'squash'`); a printed `[` or `{` collection is
+   passed as printed. A value the user types is passed as typed, never wrapped in quotes of its own. Show its `changed:` line and every line
    after it verbatim, and say in one sentence what each added line keeps working. When it exits 2, show its reason and
    ask again or skip. On a no, write nothing; never edit `accord/config.yml` by hand, never set a value the user did
    not confirm, and never take silence or "whatever" for a yes.
+   `git.sync` and `tracker.command` (under `tracker.adapter: script`) are scripts from the repository, so accord does
+   not run them until the person allows them once with `accord trust`: a local record inside `.git`, never committed,
+   bound to the command and the files it reaches, so a change to either asks again; `accord trust --revoke` withdraws
+   it. `accord trust` shows each script with a digest, the files an allow covers and the ones that changed, and allows
+   nothing; `accord trust git.sync@<digest>` or `accord trust tracker.command@<digest>`, with the digest exactly as
+   shown, allows that one, and refuses if the files changed since. accord checks only the files `accord trust` lists;
+   anything else the command loads is not checked, so whoever allows a script must review the pull request that
+   changed it. After setting one, say so and name the command. Run `accord trust` only when the user asks you to, never on your
+   own. The built-in trackers (`none`, `github-issues`, `jira`, `linear`) run no repository script; a Jira
+   `tracker.url` is sent the credential only when the default branch's `accord/config.yml` holds the same url, so
+   after setting it say it must be committed to the default branch first.
 5. When the last proposal is answered, run `git diff -- accord/config.yml` and show it. Say that this skill does not
    commit: the user commits the file in the team's usual way. Then say that the first ticket starts with
    `/accord <request>`.

@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { claimPinBefore, loadSnapshot, RULESET_FROM } from '@accord-dev/accord-core';
-import { cleanup, commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { gitClaimFacts } from '../src/load/claim-facts.js';
+import { cleanup, commitMsg, gitRun, run, trustAllow, writeFiles } from './helpers/repo.js';
+import { gitClaimFacts, withClaimPins } from '../src/load/claim-facts.js';
 import { loadFromFs } from '../src/load/fs.js';
 import { copy, type Clone, doneBranch, EXPORT, exportText, lines, pushMain, useSandboxes, verifyStage, VERIFICATION } from './helpers/worktree.js';
 import { P, pinned } from '../../../test/helpers/lane.js';
@@ -137,6 +137,7 @@ it('risk:complex-branching a hand rebase and a git.sync rebase are not re-bound 
     writeFileSync(file, "import { execFileSync } from 'node:child_process';\nexecFileSync('git', ['rebase', process.env.ACCORD_BASE_REF], { stdio: 'pipe' });\n");
     const script = doneBranch(s, { gitKeys: [`  sync: 'node ${file}'`], after: true });
     pushMain(s, 'notes.txt', 'main moves\n');
+    expect((await trustAllow(script.sib, ['git.sync'])).code).toBe(0); // a repository script runs only once the person allowed it
     const r = await run(['worktree', 'sync', ID], script.sib);
     expect([r.code, r.err]).toEqual([0, '']);
     expect(lines(r.out)).toContain(`synced: t/${ID} by git.sync`);
@@ -310,6 +311,7 @@ async function syncedAfterUpgrade(way: Way, via: Via, dir: string): Promise<{ c:
   writeFiles(c.root, { [CONFIG_REL]: pinned(RULESET_FROM) + keys });
   commitMsg(c.root, 'upgrade');
   c.git('push', '-q', 'origin', 'main');
+  if (way === 'git.sync') expect((await trustAllow(via === 'sync' ? wt : c.root, ['git.sync'])).code).toBe(0); // a repository script runs only once the person allowed it
   const r = via === 'sync' ? await run(['worktree', 'sync', ID], wt) : await run(['worktree', 'open', ID, '--continue'], c.root);
   expect([r.code, r.err]).toEqual([0, '']);
   return { c, wt, out: r.out };
@@ -320,7 +322,7 @@ async function expectKeptRules(wt: string): Promise<void> {
   expect(gitRun(wt, 'show', 'HEAD:' + TICKET)).toMatch(/\r?\nruleset: "0\.4\.1"\r?\n/);
   expect(gitRun(wt, 'show', 'HEAD:' + CONFIG_REL)).toContain(`accord: "${RULESET_FROM}"`);
   expect(gitClaimFacts(wt, ID)).toMatchObject({ pin: RULESET_FROM, ruleset: '0.4.1' }); // the rewritten claim commit says the new pin; the first-written ruleset says the old one
-  expect(claimPinBefore(loadSnapshot(loadFromFs(wt)), ID, RULESET_FROM)).toBe(true); // the Phase 3 rules answer as at 0.4.1
+  expect(claimPinBefore(withClaimPins(wt, loadSnapshot(loadFromFs(wt)), ID), ID, RULESET_FROM)).toBe(true); // the Phase 3 rules answer as at 0.4.1, read from the claim fact the gates read
   expect(await rulesetOf(wt)).toEqual({ ready: [], plan: [], done: [] });
 }
 

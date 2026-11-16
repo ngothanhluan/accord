@@ -84,7 +84,11 @@ function mentions(files: SkillFile[]): Mention[] {
           // the word run above already stops at the first character that is not lowercase or a hyphen.
           const command = m[1].trim().replace(/\s+/g, ' ');
           // ST-LN-50: `accord subject` takes a subject name (`plan_ready`, `intent`) as its first argument, so the lowercase word after it is an argument, not a path.
-          found.push({ where: `${path}:${i + 1}`, command: command.startsWith('subject ') ? 'subject' : command });
+          // CR-02: `accord config set git.merge 'squash'` names a key, and the word run stops at its first dot: the key is an argument of config get, set and unset too.
+          const keyed = /^config (?:get|set|unset)\b/.exec(command)?.[0];
+          // Round 3 WR-02: `accord trust git.sync` names a script, and a quoted refusal says `accord trust in "<path>"`: what follows trust is never a path.
+          const argued = ['subject', 'trust'].find((c) => command.startsWith(c + ' '));
+          found.push({ where: `${path}:${i + 1}`, command: argued ?? keyed ?? command });
         }
       }
     });
@@ -94,7 +98,7 @@ function mentions(files: SkillFile[]): Mention[] {
 
 describe('the commands a skill may name (SKILL-08, D-110)', () => {
   it('reads the real paths off the commander tree the CLI runs', () => {
-    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'budget', 'config check', 'config get', 'config set', 'config unset', 'dashboard', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'subject', 'task-done', 'tests baseline', 'tests skipped', 'upgrade', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync']);
+    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'budget', 'config check', 'config get', 'config set', 'config unset', 'dashboard', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'subject', 'task-done', 'tests baseline', 'tests skipped', 'trust', 'upgrade', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync']);
   });
 
   it('treats a namespace with no action of its own as not a command', () => {

@@ -3,6 +3,7 @@
 // and has no per-tracker branch of its own. An adapter issues reads only, writes to no repository and
 // to no file, and never rejects: a failure is the warning, so a tracker cannot change a verdict or an
 // exit code (D-99, D-100).
+import { trackerKeyOk } from '@accord-dev/accord-core';
 import type { AccordConfig } from '@accord-dev/accord-core';
 import { githubAdapter } from './github-issues.js';
 import { jiraAdapter } from './jira.js';
@@ -63,13 +64,16 @@ export function adapterFor(tracker: AccordConfig['tracker'] | undefined): Tracke
 }
 
 /**
- * D-05 with D-12: the issue key of a status row is the ticket id itself under `ids.mode: tracker`,
- * otherwise the ticket's `tracker.<adapter>` value; undefined when the ticket links nothing.
+ * D-05 with D-12: the issue key of a status row. Under `ids.mode: tracker` the ticket id is the key, but only when it is a tracker key of
+ * the configured projects and not one of `legacy_ids` (a ticket that predates the mode keeps its id and is never renamed, so it must not
+ * be asked for as an issue, and a key-shaped legacy id would show an unrelated one), and never for github-issues, whose issues are numbers.
+ * Every other row uses the ticket's own `tracker.<adapter>` value; undefined when the ticket links nothing.
  */
 export function issueKeyOf(
   row: { id: string; tracker?: Record<string, string> },
   adapterName: TrackerAdapter['name'],
-  idsMode: 'pattern' | 'tracker' | undefined,
+  config: Pick<AccordConfig, 'ids' | 'legacy_ids'> | undefined,
 ): string | undefined {
-  return idsMode === 'tracker' ? row.id : row.tracker?.[adapterName];
+  const own = config?.ids?.mode === 'tracker' && adapterName !== 'github-issues' && !(config.legacy_ids ?? []).includes(row.id) && trackerKeyOk(row.id, config.ids);
+  return own ? row.id : row.tracker?.[adapterName];
 }

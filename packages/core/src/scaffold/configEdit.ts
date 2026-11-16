@@ -65,7 +65,10 @@ export function resolveKeyPath(dotted: string): string[] | undefined {
   return path === undefined || path.length === 0 ? undefined : path;
 }
 
-/** A value that starts with `[` or `{` is a YAML flow collection (JSON included); any other value is a plain string, so numerics stay strings. Throws on a flow collection that does not parse. */
+/**
+ * A value that starts with `[` or `{` is a YAML flow collection (JSON included); any other value is a plain string, quotes and backslashes included, so numerics stay
+ * strings and a command such as `"./my scripts/sync.sh"` is stored as typed (CR-02: the value written is the value given). Throws on a flow collection that does not parse.
+ */
 export function parseValue(raw: string): unknown {
   if (!raw.startsWith('[') && !raw.startsWith('{')) return raw;
   try {

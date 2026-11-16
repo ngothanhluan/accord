@@ -855,7 +855,10 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
 
 it('risk:regression the accord skill routes upgrade to its reference and the worktree reference names the continue merge and the automatic clean', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  for (const s of ['## Upgrade: `/accord upgrade`', '`./upgrade.md`', 'Any other text, but `upgrade`, starts']) expect(acc).toContain(s);
+  for (const s of ['## Upgrade: `/accord upgrade`', '`./upgrade.md`', 'Any other text, but `upgrade` or `onboard`, starts']) expect(acc).toContain(s);
+  // WR-09: onboard is excluded from the New-request rule, and the session check still runs before it
+  expect(acc).not.toContain('Any other text, but `upgrade`, starts');
+  expect(acc).toContain('It is not a New request, and the session check above runs first.');
   const up = flatS('.claude/skills/accord/upgrade.md');
   expect(up.length).toBeGreaterThan(0);
   for (const s of [
@@ -1376,6 +1379,76 @@ it('risk:regression the plan skill and the planner run a measurement one arm on 
   for (const p of ['one arm on one sample', 'before widening', 'gate.plan-size']) expect(plan, p).toContain(p);
   for (const p of ['one arm on one sample', 'Expected size']) expect(planner, p).toContain(p);
   expect(intent).toContain('Expected size: <N> tasks');
+});
+
+// WR-10: with the plan stage off nothing else asks for accord/tests-baseline.txt, and the locked gate.test-untraced fails every existing test at Done without it.
+it('risk:regression the build skill takes the tests baseline before its single task when the plan stage is off (WR-10)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const noPlan = read('.claude/skills/accord-build/no-plan.md');
+  const missing = [
+    'Before step 1',
+    '`accord/tests-baseline.txt` is absent',
+    '`tests.report` is set',
+    './baseline.md',
+    'before any executor is dispatched',
+    'lists no path outside `accord/`',
+  ].filter((p) => !noPlan.includes(p));
+  expect(missing).toEqual([]);
+  expect(noPlan.indexOf('Before step 1')).toBeLessThan(noPlan.indexOf('1. Run `accord brief'));
+  // the build rule and the baseline rule name the one exception, so neither forbids what no-plan.md asks
+  expect(read('.claude/skills/accord-build/SKILL.md')).toContain('except as `./no-plan.md` says');
+  expect(read('.claude/skills/accord-plan/baseline.md')).toContain('except `accord-build` with the plan stage off, as its `no-plan.md` says');
+});
+
+// WR-10 (round 2): an executor leaves its work uncommitted until the step 4 ledger commit, so a resumed run (anchor still at build, no ledger line, no baseline) must not take the
+// baseline on a dirty tree: the guard counts the working tree and untracked files as well as the commits. The loaded baseline.md names accord-plan's steps, not accord-build's.
+it('risk:regression the no-plan baseline guard counts uncommitted and untracked work, and baseline.md names accord-plan for its steps (WR-10)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const noPlan = read('.claude/skills/accord-build/no-plan.md');
+  for (const p of ['`git status --porcelain`', 'untracked', 'lists no path outside `accord/`']) expect(noPlan, p).toContain(p);
+  const baseline = read('.claude/skills/accord-plan/baseline.md');
+  expect(baseline).not.toMatch(/step [78](?! of `accord-plan`)/);
+  for (const p of ['step 7 of `accord-plan`', 'step 8 of `accord-plan`']) expect(baseline, p).toContain(p);
+  // the plan skill's own step 7 and 8 are the ones named
+  const plan = read('.claude/skills/accord-plan/SKILL.md');
+  expect(plan).toMatch(/\b7\. /);
+  expect(plan).toMatch(/\b8\. /);
+});
+
+// WR-11: with the approach stage off there is no option, no approach-review.md and no `## Approach`; the owner's no must not send the agent to the skipped step 2,
+// and the planner and the critic must know what to plan from and what not to check.
+it('risk:regression the approach-off path re-runs only the approval on a no, and the planner and critic cope with an empty Approach (WR-11)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const approval = read('.claude/skills/accord-approach/approval.md');
+  const missing = [
+    'When `accord anchor` names approach off',
+    'there is no option and no `approach-review.md`',
+    'run only this approval again',
+    'not step 2',
+  ].filter((p) => !approval.includes(p));
+  const agent = (name: string) => (agentTargets(config).find((f) => f.path === `.claude/agents/accord-${name}.md`)?.text ?? '').replace(/\s+/g, ' ');
+  const planner = agent('planner');
+  const critic = agent('critic');
+  for (const [name, text] of [['planner', planner], ['critic', critic]] as const) {
+    if (!text.includes('skip this check when `## Approach` is empty because the approach stage is off')) missing.push(name + ': skip the approach check');
+  }
+  if (!planner.includes('plan from the Intent, the acceptance criteria, the Vetoes, the Decisions and the Corrections')) missing.push('planner: plan from the ticket without an Approach');
+  expect(missing).toEqual([]);
+});
+
+// WR-12: after a rebase sync the verify skill retypes the review heads the pairs name, shows every sync line, and is routed to when the review stage is off.
+it('risk:regression the verify skill retypes review heads after a rebase, shows every sync line and covers review off (WR-12)', () => {
+  const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const verify = read('.claude/skills/accord-verify/SKILL.md');
+  const missing = [
+    'its `synced:`, `pushed:`, `rebased:`, `rebound:` and `verify again:` lines verbatim',
+    'retype in `review.md` every round head that is the left side of a pair to its right side',
+    'a `plan.md` `baseline:` that is one',
+    'A line starting `push of`',
+    '`review.md` included when there is one',
+    'or its review stage is off',
+  ].filter((p) => !verify.includes(p));
+  expect(missing).toEqual([]);
 });
 
 // ST-LN-50 t2-ac-5, D-08: a team may turn the discuss, approach, plan and review stages off for lane M, L or P; `accord anchor` then prints `stages off for lane <L>:`.

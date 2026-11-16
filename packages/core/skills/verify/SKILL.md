@@ -1,6 +1,6 @@
 ---
 name: accord-verify
-description: Use when a lane M ticket's review.md ends with a verdict and the work needs verifying. Runs the full suite, has a fresh verifier write verification.md, builds the owner's report, and runs accord gate done once the owner has approved verified.
+description: Use when a lane M ticket's review.md ends with a verdict, or its review stage is off, and the work needs verifying. Runs the full suite, has a fresh verifier write verification.md, builds the owner's report, and runs accord gate done once the owner has approved verified.
 license: MIT
 argument-hint: "[ticket id]"
 kind: skill
@@ -15,11 +15,14 @@ judges, the owner decides.
 
 1. Run `accord anchor`.
 
-2. **Sync and suite.** First commit everything, `review.md` included, so the working tree is clean. Then run `accord
+2. **Sync and suite.** First commit everything, `review.md` included when there is one, so the working tree is clean. Then run `accord
    worktree sync <id>`. It fetches, and when the ticket branch lacks commits of the remote's default branch it takes
    them in the way `git.merge` in `accord/config.yml` sets: a merge commit when the key is absent, a rebase under
-   `rebase`, or the team's `git.sync` command, which runs instead. Show its `rebased:`, `rebound:` and `verify again:`
-   lines verbatim; on `verify again:` the earlier verification does not hold, so verify it again below. Show a line
+   `rebase`, or the team's `git.sync` command, which runs instead. Show its `synced:`, `pushed:`, `rebased:`, `rebound:` and `verify again:`
+   lines verbatim; on `verify again:` the earlier verification does not hold, so verify it again below. After `rebased:`
+   pairs, retype in `review.md` every round head that is the left side of a pair to its right side, show the owner a
+   `plan.md` `baseline:` that is one, commit the retyped heads, and run `accord worktree push <id>`. A line starting
+   `push of` is shown verbatim and stops here: the owner decides whether to run the command it prints. Show a line
    starting `fetch from origin failed` verbatim and go on. When it exits 2 (a conflict it aborted, a failed sync, or a
    refusal), show the message and stop. The owner resolves a conflict, or you do when the owner says so, and then this
    stage starts again. Start CI as `./ci.md` says, then run

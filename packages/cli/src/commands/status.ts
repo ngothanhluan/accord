@@ -8,6 +8,8 @@ import type { StatusRow } from '@accord-dev/accord-core';
 import { stagesOffLines } from '../render/stages-off.js';
 import { EMPTY_CELL, renderRows } from '../render/table.js';
 import { adapterFor, issueKeyOf } from '../tracker/index.js';
+import { recordWarning, scriptRefusal } from '../load/script-trust.js';
+import { jiraUrlRefusal } from '../tracker/trust.js';
 import type { CommandContext } from '../run.js';
 
 const plural = (n: number, word: string): string => n + ' ' + word + (n === 1 ? '' : 's');
@@ -24,8 +26,29 @@ async function trackerCells(ctx: CommandContext, rows: StatusRow[]): Promise<Rec
   const adapter = adapterFor(config?.tracker);
   if (adapter === undefined) return undefined;
 
+  // WR-02: the branch's own tracker.url never decides where the Jira credential goes; the default branch's does.
+  if (adapter.name === 'jira' && config?.tracker?.url !== undefined) {
+    const refusal = jiraUrlRefusal(ctx.root, config.tracker.url);
+    if (refusal !== undefined) {
+      ctx.stderr.write(refusal + '\n');
+      return undefined;
+    }
+  }
+
+  // Repository scripts trust: the script runs with the whole environment, so it runs only after the person allowed this command and these files with `accord trust`.
+  if (adapter.name === 'script' && config?.tracker?.command !== undefined) {
+    // round 4 IN-01: an entry of the record accord cannot read is ignored (read as no allow), and said so
+    const unread = recordWarning(ctx.root);
+    if (unread !== undefined) ctx.stderr.write(unread + '\n');
+    const refusal = scriptRefusal(ctx.root, 'tracker.command', config.tracker.command);
+    if (refusal !== undefined) {
+      ctx.stderr.write('tracker script: ' + refusal + '\n');
+      return undefined;
+    }
+  }
+
   const linked = rows.flatMap((r) => {
-    const key = issueKeyOf(r, adapter.name, config?.ids?.mode);
+    const key = issueKeyOf(r, adapter.name, config);
     return key === undefined ? [] : [[r.id, key] as const];
   });
   if (linked.length === 0) return undefined;

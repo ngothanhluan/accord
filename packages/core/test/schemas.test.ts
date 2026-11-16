@@ -132,12 +132,12 @@ describe('config.schema.json', () => {
     expect(has(tracker({ adapter: 'script', command: 'a\nb' }), '/tracker/command', 'schema.pattern')).toBe(true);
   });
 
-  it('risk:security tracker.url is https only: http, a bare host, a query and a space fail; a context path passes (ST-LN-97 t3-ac-2)', () => {
+  it('risk:security tracker.url is https only: http, a bare host, userinfo, a query and a space fail; a context path passes (ST-LN-97 t3-ac-2)', () => {
     const jira = (url: string) => validate('config', { ...minimal.config, tracker: { adapter: 'jira', url } });
     expect(jira('https://jira.example.com/jira')).toEqual([]);
     expect(jira('https://jira.example.com/jira/')).toEqual([]);
     expect(jira('https://example.atlassian.net')).toEqual([]);
-    for (const bad of ['http://example.com', 'http://localhost:8080', 'HTTP://example.com', 'example.com', 'ftp://example.com', 'https://example.com?x=1', 'https://example.com#f', 'https://exa mple.com', 'https://']) {
+    for (const bad of ['http://example.com', 'http://localhost:8080', 'HTTP://example.com', 'example.com', 'ftp://example.com', 'https://example.com?x=1', 'https://example.com#f', 'https://good.atlassian.net@attacker.example', 'https://user:pw@jira.example.com', 'https://exa mple.com', 'https://']) {
       expect(has(jira(bad), '/tracker/url', 'schema.pattern'), bad).toBe(true);
     }
   });
@@ -424,6 +424,16 @@ it('risk:parsing ids.pattern accepts the three tokens and refuses everything els
   for (const bad of ['FEAT', '{n}-{n}', '{id}-{n}', '-{n}', 'FE AT-{n}', '{n}', '{type}-{type}-{n}', '{initials}{initials}{n}', 'A/{n}', 'A-{n', 'a{n}}', 'A-{N}', ''])
     expect(cfg({ pattern: bad }), bad).toContain('schema.pattern@/ids/pattern');
   expect(cfg({ pattern: 'F-' + 'x'.repeat(80) + '-{n}' })).toContain('schema.maxLength@/ids/pattern');
+});
+
+it('risk:data-loss ids.pattern refuses shapes that render an id git refuses as a branch name (WR-01)', () => {
+  const cfg = (ids: unknown) => at({ ...idsBase, ids });
+  // `t/FEAT..1`, `t/FEAT-1.` and `t/FEAT-1.lock` fail git check-ref-format, so the claim branch of every such ticket would be refused
+  for (const bad of ['FEAT..{n}', 'FEAT-{n}.', 'FEAT-{n}.lock', '{type}..{n}', '{initials}.{n}.lock', 'FEAT.{n}..'])
+    expect(cfg({ pattern: bad }), bad).toContain('schema.pattern@/ids/pattern');
+  // single dots and a `.lock` that does not end the id are valid ref names
+  for (const ok of ['FEAT.{n}', 'a.lock-{n}', 'FEAT-{n}.x', '{initials}.{n}', 'a.b.{n}'])
+    expect(validate('config', { ...idsBase, ids: { pattern: ok } }), ok).toEqual([]);
 });
 
 it('risk:parsing ids holds a mode, prefixes per type and a non-empty list of tracker projects (ST-LN-50 t2-ac-1)', () => {

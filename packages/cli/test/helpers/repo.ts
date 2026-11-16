@@ -116,6 +116,19 @@ export async function run(
 }
 
 /** Run git in a sandbox; the same guard as every other spawn in this file. */
+/**
+ * The person's `accord trust` in `cwd` (round 4 WR-04): `accord trust` shows each script with a digest, then `accord trust <kind>@<digest>` allows the kinds
+ * named with the digest the preview printed. A kind the preview does not show is passed bare, so the refusal is what the test sees.
+ */
+export async function trustAllow(cwd: string, kinds: readonly string[], env: NodeJS.ProcessEnv = {}): Promise<{ code: number; out: string; err: string }> {
+  const preview = await run(['trust'], cwd, env);
+  const named = kinds.map((k) => {
+    const m = new RegExp(`^${k.replace('.', '\\.')} ".*\\(digest ([0-9a-f]{16})\\)$`, 'm').exec(preview.out);
+    return m === null ? k : `${k}@${m[1]}`;
+  });
+  return run(['trust', ...named], cwd, env);
+}
+
 export function gitRun(repo: string, ...args: string[]): string {
   return gitIn(repo)(...args);
 }

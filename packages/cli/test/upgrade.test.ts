@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
-import { contentHash, hookEntries, initFiles, mergeHooks, RULESET_FROM, rulesetOfTicket } from '@accord-dev/accord-core';
+import { contentHash, hookEntries, initFiles, mergeHooks, RULESET_FROM, setFrontmatterKey } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { done as doneFiles, laneTicket, P, pinned as pinnedConfig } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
@@ -355,33 +355,33 @@ it('risk:data-loss upgrade deletes the retired architect agent only when its mar
   }
 }, 120_000);
 
-// ST-LN-96 rel-ac-1: `accord upgrade` writes `ruleset` into every in-flight ticket from its claim commit. The running version is mocked to RULESET_FROM
+// ST-LN-96 rel-ac-1, CR-03, WR-08: `accord upgrade` writes `ruleset` into no ticket; the claim fact and the first sync give the rules and the field. The running version is mocked to RULESET_FROM
 // and every history pins its own versions, so the cases do not move when a release moves CONFIG's pin.
 const OLD = '0.4.1';
 const OLDER = '0.4.0';
+const APPROVED = 'approved_hash: "fnv1a64:0123456789abcdef"';
 
 /**
  * A clone whose origin/main (pin OLD) holds T-1 (claimed on origin/t/T-1), T-2 (done, with a claim branch), T-3 (no claim branch), T-4 (claimed, already has
- * ruleset), ST-9 (no claim branch) and T-5, claimed only on a LOCAL branch made when main still pinned OLDER. `unreadable` gives T-1's claim commit a config of its own whose blob is then lost.
+ * ruleset), ST-9 (no claim branch), T-6 (a draft on main with a claim branch) and T-5, claimed only on a LOCAL branch made when main still pinned OLDER.
  */
-function inFlight(unreadable = false): Clone & { others: string[] } {
+function inFlight(): Clone & { others: string[] } {
   const c = copy(plain, plainOther);
   running.v = RULESET_FROM;
   const o = c.others[0];
   const files: Record<string, string> = { 'accord/config.yml': pinnedConfig(OLDER) };
-  for (const id of ['T-1', 'T-3', 'T-5']) files[P(id)] = laneTicket(id);
+  // T-1 and T-5 are approved on main (the hash is the approval); T-3 and T-6 are drafts there
+  for (const id of ['T-1', 'T-5']) files[P(id)] = laneTicket(id, { frontmatter: [APPROVED] });
+  for (const id of ['T-3', 'T-6']) files[P(id)] = laneTicket(id);
   files[P('T-4')] = laneTicket('T-4', { frontmatter: [`ruleset: "${OLD}"`] });
   doneFiles(files, 'T-2');
   writeFiles(o, files);
   const first = commitMsg(o, 'tickets at ' + OLDER);
   writeFiles(o, { 'accord/config.yml': pinnedConfig(OLD) });
   commitMsg(o, 'pin ' + OLD);
-  for (const id of ['T-1', 'T-2', 'T-4']) {
+  for (const id of ['T-1', 'T-2', 'T-4', 'T-6']) {
     gitRun(o, 'switch', '-q', '-c', 't/' + id, 'main');
-    if (unreadable && id === 'T-1') {
-      writeFiles(o, { 'accord/config.yml': pinnedConfig(OLD) + '# claimed\n' });
-      commitMsg(o, 'claim: ' + id);
-    } else commitMsg(o, 'claim: ' + id, undefined, true);
+    commitMsg(o, 'claim: ' + id, undefined, true);
     gitRun(o, 'push', '-q', 'origin', 't/' + id);
     gitRun(o, 'switch', '-q', 'main');
   }
@@ -390,49 +390,53 @@ function inFlight(unreadable = false): Clone & { others: string[] } {
   c.git('switch', '-q', '-c', 't/T-5', first);
   commitMsg(c.root, 'claim: T-5', undefined, true);
   c.git('switch', '-q', 'main');
-  if (unreadable) {
-    c.git('fetch', '-q', 'origin');
-    const blob = c.git('rev-parse', 'origin/t/T-1:accord/config.yml').trim();
-    const file = join(c.root, '.git', 'objects', blob.slice(0, 2), blob.slice(2));
-    chmodSync(file, 0o666);
-    rmSync(file);
-  }
   return c;
 }
 
 const onUpgrade = (c: Clone, path: string): string => gitRun(c.remote, 'show', `upgrade/${RULESET_FROM}:${path}`);
 const onMain = (c: Clone, path: string): string => gitRun(c.remote, 'show', 'main:' + path);
 
-it('risk:complex-branching accord upgrade writes ruleset into every in-flight ticket from its claim commit (ST-LN-96 rel-ac-1)', async () => {
+it('risk:complex-branching accord upgrade writes no ruleset into any ticket, in flight or not (ST-LN-96 rel-ac-1, CR-03, WR-08)', async () => {
   const c = inFlight();
   const r = await run(['upgrade'], c.root);
   expect(r.code, r.err).toBe(0);
-  expect(r.out).toBe(`branch: upgrade/${RULESET_FROM}\nbase: main\ntitle: upgrade: accord ${RULESET_FROM}\n`);
+  expect(r.out).toBe(`branch: upgrade/${RULESET_FROM}
+base: main
+title: upgrade: accord ${RULESET_FROM}
+`);
   expect(r.err).toBe('');
-  // a remote claim branch gives the pin its commit holds; a local-only claim branch counts too, and its value is the pin of ITS claim commit, not main's
-  expect(rulesetOfTicket(onUpgrade(c, P('T-1')))).toBe(OLD);
-  expect(rulesetOfTicket(onUpgrade(c, P('T-5')))).toBe(OLDER);
-  for (const id of ['T-1', 'T-5']) {
-    const added = gitRun(c.remote, 'diff', '-U0', 'main', `upgrade/${RULESET_FROM}`, '--', P(id)).split('\n').filter((l) => /^[+-][^+-]/.test(l));
-    expect(added, id).toEqual([`+ruleset: "${id === 'T-1' ? OLD : OLDER}"`]);
-  }
-  // done, unclaimed and already-written tickets are byte-identical to main's
-  for (const id of ['T-2', 'T-3', 'T-4', 'ST-9']) expect(onUpgrade(c, P(id)), id).toBe(onMain(c, P(id)));
+  // every ticket is byte-identical to main's: approved in-flight (T-1, T-5), done, unclaimed, already written, an unapproved draft; the claim fact and the first sync give the rules and the field instead
+  for (const id of ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'ST-9']) expect(onUpgrade(c, P(id)), id).toBe(onMain(c, P(id)));
   expect(onUpgrade(c, P('T-4'))).toContain(`ruleset: "${OLD}"`);
   // the same commit moved the pin, and nothing else about the tickets
   expect(onUpgrade(c, 'accord/config.yml')).toContain(`accord: "${RULESET_FROM}"`);
   expect(gitRun(c.remote, 'rev-list', '--count', `main..upgrade/${RULESET_FROM}`).trim()).toBe('1');
-  const changed = gitRun(c.remote, 'diff', '--name-only', 'main', `upgrade/${RULESET_FROM}`, '--', 'accord/tickets').trim().split('\n').sort();
-  expect(changed).toEqual([P('T-1'), P('T-5')]);
+  expect(gitRun(c.remote, 'diff', '--name-only', 'main', `upgrade/${RULESET_FROM}`, '--', 'accord/tickets').trim()).toBe('');
 });
 
-it('risk:complex-branching a ticket whose claim pin cannot be read gets no field (ST-LN-96 rel-ac-1)', async () => {
-  const c = inFlight(true);
+// CR-03, WR-08 (round 2): a ticket approved on the default branch that is still in flight is on its claim branch too, and that branch keeps appending to the same end of the
+// frontmatter (`ac_hash`, `plan_hash`). An upgrade that wrote `ruleset` there conflicted with the branch's next write when the branch took the upgrade in, and put a ticket that is not
+// done into the upgrade pull request, where the workflow's gate fails it. The upgrade leaves such a ticket alone; its first sync writes the field into the branch.
+it('risk:complex-branching accord upgrade does not touch an approved in-flight ticket, so the branch that took the upgrade in merges without a conflict (CR-03, WR-08)', async () => {
+  const c = inFlight();
+  c.git('fetch', '-q', 'origin');
+  c.git('switch', '-q', '-c', 't/T-1', 'origin/t/T-1');
+  const file = join(c.root, P('T-1'));
+  writeFileSync(file, setFrontmatterKey(readFileSync(file, 'utf8'), 'ac_hash', 'fnv1a64:fedcba9876543210'));
+  commitMsg(c.root, 'gate ready: T-1');
   const r = await run(['upgrade'], c.root);
   expect(r.code, r.err).toBe(0);
-  expect(onUpgrade(c, P('T-1'))).toBe(onMain(c, P('T-1')));
-  expect(rulesetOfTicket(onUpgrade(c, P('T-5')))).toBe(OLDER);
-  const lines = r.err.split('\n').filter((l) => l !== '');
-  expect(lines).toHaveLength(1);
-  expect(lines[0]).toContain('warning: T-1: ruleset not written, the claim pin could not be read (');
+  // the branch takes the upgrade in without a conflict on the ticket (git merge-file reported one: base approved_hash, main +ruleset, branch +ac_hash)
+  c.git('fetch', '-q', 'origin');
+  let merged = true;
+  try {
+    c.git('merge', '--no-edit', `origin/upgrade/${RULESET_FROM}`);
+  } catch {
+    merged = false;
+    c.git('merge', '--abort');
+  }
+  expect(merged).toBe(true);
+  // and the upgrade pull request carries no ticket that is not done
+  const changed = gitRun(c.remote, 'diff', '--name-only', 'main', `upgrade/${RULESET_FROM}`, '--', 'accord/tickets').trim();
+  expect(changed).toBe('');
 });

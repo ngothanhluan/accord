@@ -148,6 +148,12 @@ it('risk:parsing a value that starts with [ or { is a YAML flow collection, any 
   expect(parseValue('true')).toBe('true');
   expect(parseValue('{ n: 0123 }')).toEqual({ n: '0123' });
   expect(parseValue('make sync [fast]')).toBe('make sync [fast]');
+  // CR-02 (round 2): a value is never unwrapped. A quote that keeps a path with a space together, or a backslash path, is the command the user typed
+  expect(parseValue('"squash"')).toBe('"squash"');
+  expect(parseValue('"./my scripts/sync.sh"')).toBe('"./my scripts/sync.sh"');
+  expect(parseValue(String.raw`"C:\tools\build.cmd"`)).toBe(String.raw`"C:\tools\build.cmd"`);
+  expect(parseValue('"')).toBe('"');
+  expect(parseValue('"half')).toBe('"half');
   expect(parseValue('')).toBe('');
   // a flow collection that does not parse throws rather than becoming a string
   expect(() => parseValue('[a, b')).toThrow(/flow|bracket|\]|parse/i);

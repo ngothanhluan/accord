@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, it, vi } from 'vitest';
-import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
+import { commitMsg, gitRun, run, trustAllow, writeFiles } from './helpers/repo.js';
 import { BEHIND, copy, type Clone, doneBranch, lines, pushMain, ticketWorktree, twoOnMain, useSandboxes, verifyStage } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
@@ -32,7 +32,7 @@ function atVerify(c: Clone, strategy: Strategy, file?: string, sync?: string): s
   const sib = c.sibling('ST-9');
   if (strategy !== undefined || sync !== undefined) {
     const path = sib + '/accord/config.yml';
-    const keys = [...(strategy === undefined ? [] : [`  merge: ${strategy}`]), ...(sync === undefined ? [] : [`  sync: '${sync}'`])];
+    const keys = [...(strategy === undefined ? [] : [`  merge: ${strategy}`]), ...(sync === undefined ? [] : [`  sync: ${JSON.stringify(sync)}`])];
     writeFiles(sib, { 'accord/config.yml': readFileSync(path, 'utf8').replace(/\r\n/g, '\n') + 'git:\n' + keys.join('\n') + '\n' });
     gitRun(sib, 'add', '-A');
     gitRun(sib, 'commit', '-q', '-m', 'config: git ' + keys.join(' ').trim());
@@ -193,6 +193,8 @@ ${body}
     calls: () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter((l) => l !== '').map((l) => JSON.parse(l) as Record<string, string>) : []),
   };
 }
+/** The person's one `accord trust` in `dir`: a repository script (git.sync) runs only once it is allowed. */
+const allow = async (dir: string): Promise<void> => expect((await trustAllow(dir, ['git.sync'])).code).toBe(0);
 const MERGE = "git('merge', '--no-ff', '--no-edit', process.env.ACCORD_BASE_REF);";
 const REBASE = "git('rebase', process.env.ACCORD_BASE_REF);";
 const same = (a: string | undefined, b: string) => expect(fwd(a ?? '').toLowerCase()).toBe(fwd(b).toLowerCase());
@@ -202,6 +204,7 @@ it('risk:complex-branching git.sync replaces the built-in merge and rebase (ST-L
   const s = script(MERGE);
   // git.merge: rebase is set too: the team command wins
   const sib = atVerify(c, 'rebase', undefined, s.command);
+  await allow(sib);
   const tip = pushMain(c, 'next.txt', 'next\n');
   const r = await run(['worktree', 'sync', 'ST-9'], sib);
   expect(r.err).toBe('');
@@ -232,6 +235,7 @@ it('risk:complex-branching a git.sync that rebases is pushed with the lease (ST-
   const c = copy();
   const s = script(REBASE);
   const sib = atVerify(c, undefined, undefined, s.command);
+  await allow(sib);
   pushMain(c, 'next.txt', 'next\n');
   const r = await run(['worktree', 'sync', 'ST-9'], sib);
   expect([r.code, r.err]).toEqual([0, '']);
@@ -257,6 +261,7 @@ it('risk:data-loss a git.sync that fails, hangs or leaves work half done is refu
     }
     const s = script(k.body);
     const sib = atVerify(c, undefined, k.conflict === true ? 'shared.txt' : undefined, s.command);
+    await allow(sib);
     if (k.conflict === true) pushMain(c, 'shared.txt', 'main\n');
     else pushMain(c, 'next.txt', 'next\n');
     const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
@@ -311,6 +316,7 @@ it('risk:complex-branching Continue runs git.sync instead of merging and pushes 
   const c = copy();
   const s = script(MERGE);
   withGit(c, `  merge: rebase\n  sync: '${s.command}'\n`);
+  await allow(c.root);
   ticketWorktree(c, 'ST-9');
   const sib = c.sibling('ST-9');
   twoOnMain(c);
@@ -329,6 +335,7 @@ it('risk:complex-branching Continue runs git.sync instead of merging and pushes 
   const f = copy();
   const bad = script('process.exit(4);');
   withGit(f, `  sync: '${bad.command}'\n`);
+  await allow(f.root);
   ticketWorktree(f, 'ST-9');
   const before = gitRun(f.remote, 'rev-parse', 'refs/heads/t/ST-9').trim();
   twoOnMain(f);
@@ -340,26 +347,154 @@ it('risk:complex-branching Continue runs git.sync instead of merging and pushes 
 
 it('risk:complex-branching the behind line of Continue names the configured way (ST-LN-96 t1-ac-3)', async () => {
   const s = script(MERGE);
-  const ways: Array<{ yaml: string; line: string | RegExp }> = [
+  // before verify `accord worktree sync` refuses, so the line says when it runs; at verify it is the command to run (WR-13)
+  const ways: Array<{ yaml: string; line: string | RegExp; early?: string }> = [
     { yaml: '', line: BEHIND },
     { yaml: '  merge: merge\n', line: BEHIND },
     { yaml: '  merge: squash\n', line: BEHIND },
-    { yaml: '  merge: rebase\n', line: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it with accord worktree sync ST-9' },
-    { yaml: `  sync: '${s.command}'\n`, line: /^behind: t\/ST-9 is 2 commits behind origin\/main; .*git\.sync/ },
+    {
+      yaml: '  merge: rebase\n',
+      line: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it with accord worktree sync ST-9',
+      early: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it, which accord worktree sync ST-9 does at verify',
+    },
+    {
+      yaml: `  sync: '${s.command}'\n`,
+      line: /^behind: t\/ST-9 is 2 commits behind origin\/main; .*git\.sync.*\(accord worktree sync ST-9 runs it\)$/,
+      early: 'behind: t/ST-9 is 2 commits behind origin/main; sync them with git.sync, the team command, which accord worktree sync ST-9 runs at verify',
+    },
   ];
-  for (const w of ways) {
-    const c = copy();
-    if (w.yaml !== '') withGit(c, w.yaml);
-    ticketWorktree(c, 'ST-9');
-    // an uncommitted tracked change: Continue does not sync and says it is behind
-    writeFiles(c.sibling('ST-9'), { 'ST-9.txt': 'changed\n' });
-    twoOnMain(c);
-    const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
-    expect(r.code, w.yaml).toBe(0);
-    const behind = lines(r.out).filter((l) => l.startsWith('behind:'));
-    expect(behind, w.yaml).toHaveLength(1);
-    if (typeof w.line === 'string') expect(behind[0], w.yaml).toBe(w.line);
-    else expect(behind[0], w.yaml).toMatch(w.line);
-    expect(s.calls(), w.yaml).toEqual([]);
+  for (const atVerifyStage of [false, true]) {
+    for (const w of ways) {
+      const c = copy();
+      if (w.yaml !== '') withGit(c, w.yaml);
+      if (w.yaml.includes('sync')) await allow(c.root);
+      ticketWorktree(c, 'ST-9');
+      if (atVerifyStage) verifyStage(c.sibling('ST-9'), 'ST-9');
+      // an uncommitted tracked change: Continue does not sync and says it is behind
+      writeFiles(c.sibling('ST-9'), { 'ST-9.txt': 'changed\n' });
+      twoOnMain(c);
+      const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+      const where = w.yaml + (atVerifyStage ? ' at verify' : ' before verify');
+      expect(r.code, where).toBe(0);
+      const behind = lines(r.out).filter((l) => l.startsWith('behind:'));
+      expect(behind, where).toHaveLength(1);
+      const want = atVerifyStage ? w.line : (w.early ?? w.line);
+      if (typeof want === 'string') expect(behind[0], where).toBe(want);
+      else expect(behind[0], where).toMatch(want);
+      expect(s.calls(), where).toEqual([]);
+    }
   }
-}, 360_000);
+}, 600_000);
+
+// ---- owner decision (2026-11-15): git.sync is a repository script, so it is not run until `accord trust` allowed it, and not again when its files changed ----
+
+/** A sync script that is a committed file of the repository: it records its tag in the file named by SYNC_MARKER, then merges the fetched main. */
+const inRepo = (tag: string): string => `import { appendFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+appendFileSync(process.env.SYNC_MARKER, '${tag}\\n');
+execFileSync('git', ['merge', '--no-ff', '--no-edit', process.env.ACCORD_BASE_REF], { stdio: 'pipe' });
+`;
+const tags = (marker: string): string[] => (existsSync(marker) ? readFileSync(marker, 'utf8').split('\n').filter((l) => l !== '') : []);
+
+it('risk:security git.sync is not run until accord trust allowed it, and not again when only its script file changed (owner decision, repository scripts trust)', async () => {
+  const c = copy();
+  const marker = fwd(join(fx, `trust-${++count}.log`));
+  vi.stubEnv('SYNC_MARKER', marker);
+  const sib = atVerify(c, undefined, 'scripts/sync.mjs', 'node scripts/sync.mjs');
+  // each change of the script is committed with a new review verdict line, so the ticket stays at verify and `worktree sync` is what refuses
+  const commitScript = (tag: string): void => {
+    writeFiles(sib, { 'scripts/sync.mjs': inRepo(tag), 'accord/tickets/ST-9/review.md': `verdict: converged\n<!-- ${tag} -->\n` });
+    gitRun(sib, 'add', '-A');
+    gitRun(sib, 'commit', '-q', '-m', 'script ' + tag);
+    gitRun(sib, 'push', '-q', 'origin', 't/ST-9');
+  };
+  commitScript('A');
+  pushMain(c, 'next.txt', 'next\n');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+
+  // never allowed: refused with one reason that names the command and the way to allow it; nothing ran, nothing moved
+  const never = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(never.code).toBe(2);
+  expect(never.err).toContain('git.sync "node scripts/sync.mjs"');
+  expect(never.err).toContain('accord trust');
+  expect(tags(marker)).toEqual([]);
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(head);
+
+  // allowed, then a commit that changes only the script file (the command text is identical): refused again
+  expect((await trustAllow(sib, ['git.sync'])).code).toBe(0);
+  commitScript('B');
+  const changed = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(changed.code).toBe(2);
+  expect(changed.err).toContain('accord trust');
+  expect(changed.err).toContain('changed');
+  expect(tags(marker)).toEqual([]);
+
+  // allowed again: it runs, and it is the changed script that ran
+  expect((await trustAllow(sib, ['git.sync'])).code).toBe(0);
+  const ok = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect([ok.code, ok.err]).toEqual([0, '']);
+  expect(lines(ok.out)).toContain('synced: t/ST-9 by git.sync');
+  expect(tags(marker)).toEqual(['B']);
+}, 240_000);
+
+it('risk:security a git.sync with terminal escapes in its text is printed with them escaped, in the refusal and in the failure line (round 3 WR-01, trust)', async () => {
+  const c = copy();
+  const s = script('process.exit(5);');
+  const E = String.fromCharCode(27);
+  const sib = atVerify(c, undefined, undefined, `${s.command} # ${E}[2K${E}[1Gnode scripts/sync.mjs`);
+  pushMain(c, 'next.txt', 'next\n');
+  const refused = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(refused.code).toBe(2);
+  expect(refused.err).not.toContain(E);
+  expect(refused.err).toContain('<U+001B>[2K<U+001B>[1Gnode scripts/sync.mjs');
+  await allow(sib);
+  const failed = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(failed.code).toBe(2);
+  expect(failed.err).toContain('exited 5');
+  expect(failed.err).not.toContain(E);
+  expect(failed.err).toContain('<U+001B>[2K');
+}, 240_000);
+
+it('risk:security Continue does not run an unallowed git.sync, leaves the branch alone and says how to allow it (owner decision, repository scripts trust)', async () => {
+  const c = copy();
+  const s = script(MERGE);
+  withGit(c, `  sync: '${s.command}'\n`);
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  twoOnMain(c);
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect([r.code, r.err]).toEqual([0, '']);
+  expect(s.calls()).toEqual([]);
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  const behind = lines(r.out).filter((l) => l.startsWith('behind:'));
+  expect(behind).toHaveLength(1);
+  expect(behind[0]).toContain('accord trust');
+  // round 3 WR-03: Continue checks the ticket's worktree, so the line names it, not the checkout Continue runs from
+  const sibName = (sib.replaceAll('\\', '/').split('/').pop() ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  expect(behind[0]).toMatch(new RegExp(`git\\.sync is not allowed to run here yet - run accord trust in "[^"]*${sibName}" to see what it covers, then accord trust git\\.sync@<the digest it shows> there`));
+}, 240_000);
+
+it('risk:security Continue checks and runs the git.sync of the ticket worktree, so following its behind: hint lets the next Continue sync when the two texts differ (round 4 WR-05)', async () => {
+  const c = copy();
+  const s = script(MERGE);
+  withGit(c, `  sync: '${s.command}'\n`);
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  // the ticket edits git.sync, so its text is not the one in the checkout Continue runs from
+  const file = sib + '/accord/config.yml';
+  writeFiles(sib, { 'accord/config.yml': readFileSync(file, 'utf8').replace(/\r\n/g, '\n').replace(`sync: '${s.command}'`, `sync: '${s.command} --ticket'`) });
+  commitMsg(sib, 'config: the ticket edits git.sync');
+  twoOnMain(c);
+  const first = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect([first.code, first.err]).toEqual([0, '']);
+  expect(s.calls()).toEqual([]);
+  expect(lines(first.out).find((l) => l.startsWith('behind:'))).toContain('accord trust');
+  // follow the hint: show and allow in the worktree it names, then Continue again
+  expect((await trustAllow(sib, ['git.sync'])).code).toBe(0);
+  const second = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect([second.code, second.err]).toEqual([0, '']);
+  expect(lines(second.out)).toContain('synced: t/ST-9 by git.sync');
+  expect(s.calls()).toHaveLength(1);
+}, 240_000);

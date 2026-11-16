@@ -28,6 +28,7 @@ import { skills } from './commands/skills.js';
 import { subject } from './commands/subject.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
+import { trust } from './commands/trust.js';
 import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
@@ -300,6 +301,15 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--json', 'print { findings } instead of text')
     .action((o: { json?: boolean }) => {
       setCode(configCheck(preflight(opts), o));
+    });
+
+  // Owner decision (2026-11-15): a script the repository declares (`tracker.command`, `git.sync`) runs only after the person allowed it here, once, in a record inside .git.
+  program
+    .command('trust [script...]')
+    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, and git.sync): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest> or git.sync@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
+    .option('--revoke', 'withdraw the allows of the scripts named, or every allow of this repository')
+    .action((scripts: string[], o: { revoke?: boolean }) => {
+      setCode(trust(preflight(opts), scripts, o));
     });
 
   // A stated exception to the pin check, like `--version` and `--help`: it runs as the newer accord against a

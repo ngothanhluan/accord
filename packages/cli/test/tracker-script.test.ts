@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { TeamRun, TeamRunOptions } from '../src/load/team-run.js';
+import { allowScripts } from '../src/load/script-trust.js';
 import { runTeamCommand } from '../src/load/team-run.js';
 import { adapterFor } from '../src/tracker/index.js';
 import type { TrackerIo } from '../src/tracker/index.js';
@@ -84,6 +85,8 @@ function configureScript(repo: string, command: string): void {
   const text = readFileSync(file, 'utf8').replace('tracker:\n  adapter: none', `tracker:\n  adapter: script\n  command: ${JSON.stringify(command)}`);
   expect(text).toContain('adapter: script');
   writeFileSync(file, text);
+  // the person's one `accord trust`: a repository script runs only once it is allowed (the cases about that are tracker-script-trust.test.ts)
+  allowScripts(repo, [{ kind: 'tracker.command', command }]);
 }
 
 /** A sandbox with two tickets linking ENG-1 and ENG-2 through the script adapter. */

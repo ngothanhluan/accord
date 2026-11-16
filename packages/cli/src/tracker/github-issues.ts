@@ -90,7 +90,7 @@ export async function fetchIssues(
   const issues: Record<string, IssueFacts> = {};
   const failures: string[] = [];
   for (const [n, result] of settled) {
-    if (typeof result === 'string') failures.push('#' + n + ' ' + result);
+    if (typeof result === 'string') failures.push('#' + ascii(n) + ' ' + result);
     else issues[n] = result;
   }
 

@@ -7,6 +7,16 @@ kind: reference
 `accord anchor` printed `stages off for lane <L>:` naming plan. There is no `plan.md`: the whole ticket is one task,
 task 1.
 
+Before step 1, when `tests.report` is set and `accord/tests-baseline.txt` is absent, take the tests baseline, before any
+executor is dispatched, as `./baseline.md` says: nothing else asks for it with the plan stage off, and
+without it every test case already in the suite counts as untraced. Run `tests.full` only while `git status --porcelain`
+(staged, unstaged and untracked paths) lists no path outside `accord/` and `git diff --stat <fork point>` (the fork
+point is `git merge-base HEAD <default branch>`; it covers commits and the working tree) shows none either; otherwise ask
+the owner. An
+executor leaves its work uncommitted until step 4, so a resumed run on a dirty tree has an executor's code in it. Never
+take the baseline after an executor has written code. There is no plan-ready commit: the baseline commit stays alone, and
+its Ruling goes into the ledger commit of step 4.
+
 1. Run `accord brief <id> 1` into a file outside the working tree (for example the system temp directory), so it is
    never committed, and dispatch one fresh `accord-executor` with the path of that file only. Never pass chat history.
    The brief holds the whole ticket.

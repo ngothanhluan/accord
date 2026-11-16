@@ -19,7 +19,7 @@ import { CONCURRENCY, REQUEST_TIMEOUT_MS, ascii, mapLimit, warningLine } from '.
 import type { IssueFacts, TrackerAdapter, TrackerResult } from './index.js';
 
 /** The same shape as the schema's `tracker.url`: https, a host, an optional path, no query or fragment. */
-const HTTPS_URL = /^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/;
+const HTTPS_URL = /^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/;
 
 interface Auth {
   header: string;
@@ -118,7 +118,7 @@ export async function fetchJira(
   const issues: Record<string, IssueFacts> = {};
   const failures: string[] = [];
   for (const [key, result] of settled) {
-    if (typeof result === 'string') failures.push(key + ' ' + result);
+    if (typeof result === 'string') failures.push(ascii(key) + ' ' + result);
     else issues[key] = result;
   }
   const warning = warningLine('jira', failures, auth.note === undefined ? [] : [auth.note]);

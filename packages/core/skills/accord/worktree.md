@@ -29,6 +29,11 @@ What `accord worktree open <id>` and `accord new ticket --worktree` print:
   ticket is at verify or done, its worktree has uncommitted changes, another session holds it,
   this session is missing the variables that identify it, or its remote branch has commits this clone's branch lacks. Show the line verbatim and go on.
   Never sync here: at verify `accord-verify` runs `accord worktree sync <id>` once, after review.
+- A `behind:` line with `git.sync is not allowed to run here yet - run accord trust in "<path>" to see what it covers,
+  then accord trust git.sync@<the digest it shows> there`, or an exit-2
+  message of `accord worktree sync <id>` that says `run accord trust in "<path>"`: the team's sync script is repository
+  content that the person has not allowed in the checkout it names, or that changed since. Show it verbatim and stop
+  there; `accord trust` is the owner's to run, never yours.
 - A line starting `merged:`, `rebased:` or `synced:` (Continue only): Continue brought the remote's default branch into
   the ticket branch in the way `git.merge` says (a merge commit, a rebase, or the team's `git.sync` command), ran the
   setup commands on it and pushed it. Show it verbatim and go on.

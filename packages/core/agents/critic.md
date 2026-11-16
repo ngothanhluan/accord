@@ -22,7 +22,7 @@ Mode `approach`:
 Mode `plan`:
 - Check that no Veto is violated.
 - Check that nothing goes beyond the acceptance criteria.
-- Check that the approved `## Approach` is followed.
+- Check that the approved `## Approach` is followed; skip this check when `## Approach` is empty because the approach stage is off.
 - Check that each task fits in half an executor's context.
 - Check that, assuming every task passes its `verify:` line, the `## Intent` holds for the person it names. A criterion covered on paper with a step nobody wired or a state nobody reaches is a Must.
 - Check that an executor holding only the ticket and one task could finish that task without asking; a task that fails this is a Should.

@@ -229,7 +229,7 @@ const MAX_SKILL_LINES = 120;
 
 /** The commands the CLI actually registers, longest path first so `gate ready` wins over a bare `gate`. */
 const COMMAND =
-  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|review-package|task-done|approve|anchor|brief|dashboard|status|next|lint|hook)\b/g;
+  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook)\b/g;
 
 /** Spec §2: each skill targets at most 6000 bytes. */
 const MAX_SKILL_BYTES = 6000;
@@ -701,4 +701,12 @@ describe('no resume artifact anywhere in the render output (ROADMAP criterion 6)
     }
     expect(offenders.sort()).toEqual([]);
   });
+});
+
+// ST-LN-92 plan 04-15: the build skill's waves.md names `accord waves` and `accord worktree task`, so the command pattern counts them as commands, not as prose.
+it('risk:regression the command pattern reads accord waves and accord worktree task as commands (ST-LN-92 92-ac-2)', () => {
+  const waves = output.find((f) => f.path === '.claude/skills/accord-build/waves.md')?.text ?? '';
+  expect(waves.length, 'accord-build/waves.md is missing from the render output').toBeGreaterThan(0);
+  const named = new Set([...waves.matchAll(COMMAND)].map((m) => m[1]));
+  for (const c of ['waves', 'worktree task', 'task-done', 'brief']) expect(named.has(c), c).toBe(true);
 });

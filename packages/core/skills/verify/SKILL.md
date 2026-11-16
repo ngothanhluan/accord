@@ -15,8 +15,8 @@ judges, the owner decides.
 
 1. Run `accord anchor`.
 
-2. **Sync and suite.** First commit everything except `verification.md`, `review.md` included when there is one, so the working tree is clean. Then run `accord
-   worktree sync <id>`. It fetches, and when the ticket branch lacks commits of the remote's default branch it takes
+2. **Sync and suite.** First commit everything, `verification.md` included, `review.md` included when there is one, so the tree is clean.
+   Then run `accord worktree sync <id>`. It fetches, and when the ticket branch lacks commits of the remote's default branch it takes
    them in the way `git.merge` in `accord/config.yml` sets: a merge commit when the key is absent, a rebase under
    `rebase`, or the team's `git.sync` command, which runs instead. Show its `synced:`, `pushed:`, `rebased:`, `rebound:` and `verify again:`
    lines verbatim; on `verify again:` the earlier verification no longer holds, so verify again below. After `rebased:`

@@ -1530,10 +1530,9 @@ it('risk:regression the verify stage reads the Unfinished line from an anchor ru
     expect(follow, f.path).toBeGreaterThan(again);
     expect(text.indexOf('./resume.md', follow), f.path).toBeGreaterThan(follow);
     // ST-LN-72 review round 2: step 2 commits everything, the partial verification.md included, because `accord worktree sync` refuses uncommitted changes to tracked files; the anchor
-    // (not a raw HEAD comparison) decides resume or start over, so the moved HEAD does not break it. No sentence may say the tree is clean when a file stays out of the commit.
-    expect(text, f.path).toContain('commit everything uncommitted, `verification.md` included');
+    // (not a raw HEAD comparison) decides resume or start over, so the moved HEAD does not break it.
+    expect(text, f.path).toContain('commit everything, `verification.md` included');
     expect(text, f.path).not.toContain('commit everything except');
-    expect(text, f.path).not.toContain('the working tree is clean');
     // no decision from the step 1 anchor: the Unfinished line is named once, after the sync
     expect(text.indexOf('`Unfinished:`'), f.path).toBeGreaterThan(sync);
   }

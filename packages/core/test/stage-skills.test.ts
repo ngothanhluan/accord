@@ -409,6 +409,8 @@ it('ac-2 every fix round, a Should-only one included, gets a re-review (ST-LN-56
     if (!skill.includes('**Converged** means no Must or Should is open, every fixed finding is answered `addressed:`')) bad.push(skillPath + ' step 5 lacks the addressed: convergence');
     if (!step7.includes('If it finds a Must or a Should: one fix and one scoped re-review, as in step 4.')) bad.push(skillPath + ' step 7 lacks the re-review of a Should');
     if (step7.includes('with no re-review')) bad.push(skillPath + ' step 7 still holds: with no re-review');
+    // a Should the scoped re-review answers NOT ADDRESSED is open, so converged cannot be written: step 7 routes it to the owner as it does a Must (D-17)
+    if (!step7.includes('If a Must or a Should is still open after that')) bad.push(skillPath + ' step 7 has no route for a Should still open after the scoped re-review');
     if (skill.includes('zero Must and zero Should') || record.includes('zero Must and zero Should')) bad.push(dir + ': zero Must and zero Should');
     for (const p of [
       'a finding closes on its `addressed:` answer, never on `fixed in` alone',

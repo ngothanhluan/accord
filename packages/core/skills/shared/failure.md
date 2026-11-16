@@ -28,8 +28,7 @@ accord skill's lane S steps say, and the fix gets another review round.
    When it printed `enter:`, or this session is already in that worktree,
    in place of Continue's steps 3 and 4, load
    `accord-debug` for that ticket: a new episode, or the open one when
-   the last `## ` heading of
-   `debug.md` is not `## Resolved`. Pass the debugger the report as given;
+   no `## Resolved` follows the last `## Episode` heading of `debug.md`. Pass the debugger the report as given;
    when it names no failing command or output, say so, and the debugger
    finds them itself, for a failed check with
    `gh run view <run-id> --log-failed`.

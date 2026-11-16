@@ -2,7 +2,7 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
+import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
@@ -219,16 +219,15 @@ function promptExpansion(ctx: CommandContext): number {
   }
 }
 
-/** True when `accord/tickets/<id>/debug.md` has an open episode: its last `## ` heading is not `## Resolved`. */
-function debugOpen(root: string, id: string): boolean {
+/** True when `accord/tickets/<id>/debug.md` has an open episode: no `## Resolved` heading follows its last `## Episode` heading (core's debugOpen, the one definition). */
+function debugOpenIn(root: string, id: string): boolean {
   let text: string;
   try {
     text = readFileSync(join(root, 'accord', 'tickets', id, 'debug.md'), 'utf8');
   } catch {
     return false;
   }
-  const last = text.split(/\r?\n/).filter((l) => /^##\s/.test(l)).pop();
-  return last !== undefined && last.slice(2).trim().replace(/\s+/g, ' ').toLowerCase() !== 'resolved';
+  return debugOpen(text);
 }
 
 /** ST-LN-17 D-03: refuse an accord-executor dispatched on a model other than the one accord computes while the ticket is at review. Fails open on any error. */
@@ -254,7 +253,7 @@ function preToolUse(ctx: CommandContext): number {
     if (agent !== 'accord-executor') return allow();
     const id = activeTicket(ctx.root, ctx.snapshot);
     if (id === undefined) return allow();
-    const reason = checkFixDispatch(ctx.snapshot, id, typeof model === 'string' ? model : undefined, debugOpen(ctx.root, id));
+    const reason = checkFixDispatch(ctx.snapshot, id, typeof model === 'string' ? model : undefined, debugOpenIn(ctx.root, id));
     if (reason === undefined) return allow();
     ctx.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }) + '\n');
     return 0;

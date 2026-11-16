@@ -1,7 +1,7 @@
 // ST-LN-72 D-11: the fixed line a planner, verifier or debugger leaves in a file it is still writing. Read on the raw text, never through the section readers,
 // which strip HTML comments and would hide it. Pure: no node import.
 import { normaliseText } from './frontmatter.js';
-import { scan } from './sections.js';
+import { headingKey, scan } from './sections.js';
 
 /** The not-finished marker: alone on its line in the body, which a writer puts right after the frontmatter's closing `---`. The writer removes it as its last step. */
 export const UNFINISHED_MARKER = '<!-- accord: unfinished -->';
@@ -20,17 +20,31 @@ export function unfinishedLine(body: string, bodyOffset = 0): number | undefined
 }
 
 /**
+ * The one definition of an open debug episode, read by the marker reader below, by the pre-tool-use hook and worded the same in the debug skill and resume.md: an episode is open while no `## Resolved`
+ * heading follows the last `## Episode <n>` heading (a heading inside a fence is no heading). A later heading after `## Resolved` (a `## Fixes`) does not reopen it; a new `## Episode` opens a new one. A
+ * record with no `## ` heading at all is not open, and one with headings but no episode heading is open until some `## Resolved`. Returns the index of that last episode's section in `sections` (-1 when none), or undefined when it is closed.
+ */
+const openEpisode = (sections: readonly { heading: string }[]): number | undefined => {
+  let last = -1;
+  sections.forEach((s, i) => {
+    if (/^episode\b/i.test(headingKey(s.heading))) last = i;
+  });
+  if (sections.length === 0) return undefined;
+  return sections.slice(last + 1).some((s) => headingKey(s.heading) === 'resolved') ? undefined : last;
+};
+
+/** True when a debug.md text has an open episode (openEpisode's definition). */
+export const debugOpen = (text: string): boolean => openEpisode(scan(normaliseText(text), 0).sections) !== undefined;
+
+/**
  * The 1-based line of UNFINISHED_MARKER in a debug.md when the episode still open is one the debugger has not finished: the first non-blank line under the last `## Episode <n>` heading
- * (outside a fence), with no `## Resolved` heading after it (the debug stage's own definition of an open episode). Earlier episodes are never read, so a finished episode's text stays
- * above the one being written. debug.md has no frontmatter. undefined otherwise.
+ * (outside a fence) of an open episode (debugOpen's definition). Earlier episodes are never read, so a finished episode's text stays above the one being written. debug.md has no frontmatter.
+ * undefined otherwise.
  */
 export function unfinishedEpisode(text: string): number | undefined {
   const { sections } = scan(normaliseText(text), 0);
-  let last = -1;
-  sections.forEach((s, i) => {
-    if (/^Episode\s+\d+\b/.test(s.heading)) last = i;
-  });
-  if (last < 0 || sections.slice(last + 1).some((s) => s.heading === 'Resolved')) return undefined;
+  const last = openEpisode(sections);
+  if (last === undefined || last < 0) return undefined;
   const first = sections[last].lines.find((l) => l.text.trim() !== '');
   return first !== undefined && first.text.trim() === UNFINISHED_MARKER ? first.line : undefined;
 }

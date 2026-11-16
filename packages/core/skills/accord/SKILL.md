@@ -38,8 +38,8 @@ New request whose text is the whole text after `/accord`: for
    `./worktree.md`. The active ticket is its `branch` from
    `accord status --json`, read from git, never from memory.
 2. Run `accord anchor`.
-3. If `accord/tickets/<id>/debug.md` exists and its last `## ` heading is
-   not `## Resolved`, load `accord-debug` and resume there.
+3. If `accord/tickets/<id>/debug.md` exists and no `## Resolved` follows its last `## Episode` heading,
+   load `accord-debug` and resume there.
 4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md`; when it prints `Lane: R`, follow `./lane-r.md`. Else, at any stage
    but `intent`, first run `accord gate ready <id>`; when it fails, show the
    owner what it prints and stop; when it changes the ticket, commit the ticket.

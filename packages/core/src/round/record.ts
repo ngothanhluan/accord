@@ -97,11 +97,37 @@ function splitDashes(line: string): string[] {
   return parts;
 }
 
-type Mark = Pick<RoundFinding, 'carried' | 'risk' | 'test' | 'command' | 'restsOn'>;
+type Mark = Pick<RoundFinding, 'carried' | 'risk' | 'test' | 'command' | 'restsOn' | 'checked' | 'addressed' | 'notAddressed'>;
 
-/** One trailing segment as a mark, or undefined when it is none. */
-function readMark(seg: string): Mark | undefined {
+// ST-LN-56 D-08: one place a fix checked, `<path>` or `<path>:<line>`, the path in backticks when it holds a space; no colon in a path, so `src/a.ts:abc` is no place.
+const PLACE = /^(?:`([^`]+)`|([^\s,`:]+))(?::([1-9][0-9]*))?$/;
+const ADDRESS = /^(?:`([^`]+)`|([^\s,`:]+)):([1-9][0-9]*)$/;
+
+/** The `checked:` list of a version 2 finding: comma-separated places, at least one, each well formed; undefined when any part is not (the whole mark is then unread). */
+function readPlaces(list: string): string[] | undefined {
+  const places = list.split(',').map((p) => PLACE.exec(p.trim()));
+  if (places.some((p) => p === null)) return undefined;
+  return places.map((p) => `${p![1] ?? p![2]}${p![3] === undefined ? '' : ':' + p![3]}`);
+}
+
+/**
+ * One trailing segment as a mark, or undefined when it is none. `review` (the version 2 review finding line only) adds the three marks of ST-LN-56 D-08 and D-10, so a version 1 plan or
+ * approach line reads exactly as before.
+ */
+function readMark(seg: string, review = false): Mark | undefined {
   let m: RegExpExecArray | null;
+  if (review) {
+    if ((m = /^checked: (\S.*)$/.exec(seg))) {
+      const checked = readPlaces(m[1]);
+      return checked === undefined ? undefined : { checked };
+    }
+    if ((m = /^(not )?addressed: (\S.*)$/.exec(seg))) {
+      const at = ADDRESS.exec(m[2]);
+      if (at === null) return undefined;
+      const where = { file: at[1] ?? at[2], line: Number(at[3]) };
+      return m[1] === undefined ? { addressed: where } : { notAddressed: where };
+    }
+  }
   if ((m = /^carried from ([1-9][0-9]*)\.([1-9][0-9]*)$/.exec(seg))) return { carried: { round: Number(m[1]), n: Number(m[2]) } };
   // ST-LN-91 CR-01: the critic's template has the session copy `rests on: risk: security`; the letter case is the writer's.
   if ((m = /^(?:rests on:\s*)?risk:\s*(data-loss|security)$/i.exec(seg))) return { risk: m[1].toLowerCase() as 'data-loss' | 'security' };
@@ -187,13 +213,14 @@ function parseFindingV2(line: string): Omit<RoundFinding, 'line' | 'text'> | und
   const segs = splitDashes(head[3]);
   const marks: Mark = {};
   while (segs.length > 2) {
-    const mark = readMark(segs[segs.length - 1].trim());
+    const mark = readMark(segs[segs.length - 1].trim(), true);
     if (mark === undefined) break;
     const [kind] = Object.keys(mark) as (keyof Mark)[];
     if (marks[kind] !== undefined) return undefined; // each kind at most once
     Object.assign(marks, mark);
     segs.pop();
   }
+  if (marks.addressed !== undefined && marks.notAddressed !== undefined) return undefined; // a fix is addressed or it is not (ST-LN-56 D-10): the line is a record problem
   if (segs.length < 3) return undefined;
   const state = STATE.exec(segs[segs.length - 1].trim());
   const where = segs[segs.length - 2].trim();

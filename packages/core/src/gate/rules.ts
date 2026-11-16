@@ -94,6 +94,7 @@ import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './sc
 import { planRounds, reviewRounds } from './rounds.js';
 import { rulesetChanged, rulesetMissing } from './ruleset.js';
 import { findingEvidence } from '../round/evidence.js';
+import { fixPlacesMissing } from '../round/fix.js';
 import { findingGrounds, fixFileUnexplained } from '../round/grounds.js';
 import { reviewScope, reviewScopeSkipped } from '../round/scope.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
@@ -231,6 +232,8 @@ const FINDING_EVIDENCE: GateRule = { id: 'gate.finding-evidence', level: 'error'
 const FINDING_GROUNDS: GateRule = { id: 'gate.finding-grounds', level: 'error', profiles: ['build', 'maintain'], check: findingGrounds };
 /** ST-LN-57 ac-5: a file a fix changed is the location of a finding or named by a Ruling. */
 const FIX_FILE_UNEXPLAINED: GateRule = { id: 'gate.fix-file-unexplained', level: 'error', profiles: ['build', 'maintain'], check: fixFileUnexplained };
+/** ST-LN-56 56-ac-1: from FIX_RECORD_FROM a finding recorded `fixed in <sha>` lists the places the same claim or pattern was checked; one row for both Done tables. */
+const FIX_PLACES_MISSING: GateRule = { id: 'gate.fix-places-missing', level: 'error', profiles: ['build', 'maintain'], check: fixPlacesMissing };
 const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
 const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer };
 /** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, an empty diff, or in lane S a diff without the ticket file, fails closed. */
@@ -282,6 +285,7 @@ export const DONE_RULES: readonly GateRule[] = [
   FINDING_EVIDENCE,
   FINDING_GROUNDS,
   FIX_FILE_UNEXPLAINED,
+  FIX_PLACES_MISSING,
   SUITE_NOT_PASSED,
   { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the
@@ -334,6 +338,7 @@ export const DONE_S_RULES: readonly GateRule[] = [
   FINDING_EVIDENCE,
   FINDING_GROUNDS,
   FIX_FILE_UNEXPLAINED,
+  FIX_PLACES_MISSING,
   { id: 'gate.review-trailing', level: 'error', profiles: ['build', 'maintain'], check: reviewTrailing },
   { id: 'gate.review-uncommitted', level: 'error', profiles: ['build', 'maintain'], check: reviewUncommitted },
   { id: 'gate.review-commit-code', level: 'error', profiles: ['build', 'maintain'], check: reviewCommitCode },

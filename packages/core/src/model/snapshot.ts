@@ -250,6 +250,10 @@ export interface RoundFinding {
   command?: string;
   restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Correction' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
   restsOnAlso?: NonNullable<RoundFinding['restsOn']>[]; // ST-LN-91 round 7 CR-02: the further, different grounds the critic's block names after the first (never a record problem)
+  // Version 2 review records only (ST-LN-56 D-08, D-10): the marks of a fixed finding.
+  checked?: string[]; // `checked: <place>, <place>…`: each place `<path>` or `<path>:<line>`, at least one
+  addressed?: { file: string; line: number }; // the re-reviewer's `addressed: <path>:<line>`
+  notAddressed?: { file: string; line: number }; // the re-reviewer's `not addressed: <path>:<line>`
 }
 export interface RecordedRound {
   line: number; // of its ## Round heading

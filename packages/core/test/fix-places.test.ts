@@ -59,7 +59,7 @@ const build = (o: { lane?: 'M' | 'S'; lines: string[]; claim?: ClaimPin; doneOnD
   withPin(
     scopeSnapshot({
       ...(o.lane === undefined ? {} : { lane: o.lane }),
-      review: v2Review([[{ lines: o.lines }]]),
+      review: v2Review([[{ lines: o.lines }]], o.doneOnDefault === undefined ? '' : '\nverdict: converged\n'),
       facts: facts([[]]),
       ...(o.doneOnDefault === undefined ? {} : { doneOnDefault: true as const }),
     }),

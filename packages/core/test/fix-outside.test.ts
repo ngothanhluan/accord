@@ -98,6 +98,22 @@ it('risk:complex-branching the outside-diff rule exempts what reads more than a 
   expect(gate(deferred, 'gate.finding-grounds').some((r) => r.includes('never deferred'))).toBe(true);
 });
 
+it('risk:complex-branching an added-code round between a fix and its re-review leaves the fix diff the re-review reads (ST-LN-56 56-ac-2)', () => {
+  // round 1 fixes src/a.ts, a merge adds code, round 2 reviews it headed (added code round 1) and fixes src/b.ts, round 3 re-reviews both fixes
+  const ranges = [[commit(['src/a.ts']), commit(['src/m.ts'], 'merge')], [commit(['src/b.ts'])], []];
+  const added = 'Should 1 [patch]: the merge left a stale call — src/b.ts:2 — fixed in abc1234 — checked: src/b.ts:2 — addressed: src/b.ts:4';
+  const third = (line: string): RepoSnapshot => build({ rounds: [{ lines: [FIXED] }, { lines: [added], mark: 'added' }, { lines: [line] }], ranges });
+  const finding = (file: string): string => `Should 1 [patch]: the fix broke a row — ${file}:1 — open`;
+  // a regression in round 1's fixed file, or in the added round's fixed file, is inside the fix diff round 3 reads, so it is not forced to Deferred
+  expect(gate(third(finding('src/a.ts')), RULE)).toEqual([]);
+  expect(gate(third(finding('src/b.ts')), RULE)).toEqual([]);
+  // and the evidence rule reads the same fix diff: no test: or command: is asked of it
+  expect(gate(third(finding('src/a.ts')), EVIDENCE)).toEqual([]);
+  // a file no fix changed, and the merged file itself, are still outside
+  expect(gate(third(finding('src/z.ts')), RULE)).toHaveLength(1);
+  expect(gate(third(finding('src/m.ts')), RULE)).toHaveLength(1);
+});
+
 it('risk:regression before 0.6.0 the evidence rule answers as in Phase 2 (ST-LN-56 56-ac-2)', () => {
   // round 3's Should is outside round 2's fix (a.ts); round 1 and 2 hold nothing else
   const rounds = (line: string): RoundSpec[] => [{ lines: [] }, { lines: [] }, { lines: [line] }];

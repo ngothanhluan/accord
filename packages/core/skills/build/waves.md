@@ -36,7 +36,8 @@ this worktree, the ticket's own, unless a step names another folder.
    `git -C <that folder> add -- <each path>`, and run the merge again; never run `build.regenerate` from
    `accord/config.yml` yourself. Otherwise (no
    `regenerate:` line, or a `hand-written:` line), dispatch a fresh `accord-executor` with the brief plus the conflict
-   lines, to resolve them in that folder and stage them with `git add`, with no commit; then run the merge again; show
+   lines, to resolve the conflict markers of those paths in that folder and stage them with `git add` only: that one
+   dispatch makes no commit and runs no `git rebase` command, since the merge continues the stopped rebase; then run the merge again; show
    the owner a `regenerate refused:` line in your next message, without waiting. Either way the test command after
    `merged:` re-runs the task's tests, and you never stop for the owner over a conflict.
 

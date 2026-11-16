@@ -7,7 +7,8 @@ export const REPORT_CONTRACT = [
   'Write this file as your last step, after your last commit. It holds these two lines:',
   'red reason: <the behaviour the failing test showed missing, not an error in the test>',
   'self-review: missing: <...>; extra: <...>; misread: <...>',
-  'A part with nothing to say is none. accord task-done refuses the task without both lines.',
+  'A self-review part with nothing to say is none. A task with no red test of its own (its test came with an earlier task, or every scenario is @ui)',
+  'writes red reason: no red test — <why>; a bare none is refused. accord task-done refuses the task without both lines.',
   '',
 ].join('\n');
 

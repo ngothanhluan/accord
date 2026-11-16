@@ -7,6 +7,7 @@ import type { GateDraft, GateRule } from '../gate/rules.js';
 import type { RangeCommit, RepoSnapshot, RoundFinding, RoundRecord } from '../model/snapshot.js';
 import { addedCode, factsOf, fixCommits, placedRounds, skipped, spanOf } from './scope.js';
 import type { Placed } from './scope.js';
+import { fixOutside } from './fix.js';
 
 /** The count from which a new finding outside the last fix needs evidence. */
 const FROM_ROUND = 3;
@@ -45,19 +46,21 @@ export function lastFixFiles(id: string, ranges: RangeCommit[][], j: number): Se
   );
 }
 
-function needs(ctx: Ctx, id: string, at: Placed, f: RoundFinding): boolean {
+function needs(snapshot: RepoSnapshot, ctx: Ctx, id: string, at: Placed, f: RoundFinding): boolean {
   if (at.round.final || f.severity === 'Nice' || f.carried !== undefined || f.risk !== undefined) return false;
   if (evidenceCount(ctx.placed, ctx.ranges, at, f.file, id) < FROM_ROUND) return false;
-  return f.file === undefined || !lastFixFiles(id, ctx.ranges, at.j).has(f.file);
+  if (f.file !== undefined && lastFixFiles(id, ctx.ranges, at.j).has(f.file)) return false;
+  // ST-LN-56 D-10: from FIX_RECORD_FROM a finding outside the fix diff goes to Deferred under gate.fix-outside-open; this rule does not also report it (one reason per finding).
+  return !fixOutside(snapshot, id, at, f);
 }
 
 /** True when `f`, a finding of the round `at`, is new, outside the last fix's files and so asks evidence (version 2 record with facts, not skipped). */
 export function needsEvidence(snapshot: RepoSnapshot, id: string, at: Placed, f: RoundFinding): boolean {
   const ctx = ctxOf(snapshot, id);
-  return ctx !== undefined && needs(ctx, id, at, f);
+  return ctx !== undefined && needs(snapshot, ctx, id, at, f);
 }
 
-const hasLine = (snapshot: RepoSnapshot, id: string, p: number, n: number | undefined, cycle: number): boolean =>
+export const hasLine = (snapshot: RepoSnapshot, id: string, p: number, n: number | undefined, cycle: number): boolean =>
   (workOf(snapshot, id)?.ledger?.deferred ?? []).some((d) => d.kind === 'review' && d.round === p && d.n === n && d.cycle === cycle);
 
 /**
@@ -76,7 +79,7 @@ export function deferredOf(snapshot: RepoSnapshot, id: string, cycle: number): R
     const at = placed.find((q) => q.cycle === cycle + 1 && q.p === i + 1);
     for (const f of round.findings) {
       if (f.state !== 'deferred' || !hasLine(snapshot, id, i + 1, f.n, cycle + 1)) continue;
-      if (ctx === undefined ? free : at !== undefined && needs(ctx, id, at, f)) out.add(f);
+      if (ctx === undefined ? free : at !== undefined && needs(snapshot, ctx, id, at, f)) out.add(f);
     }
   });
   return out;
@@ -89,7 +92,7 @@ export const findingEvidence: GateRule['check'] = (snapshot, id) => {
   const out: GateDraft[] = [];
   for (const at of ctx.placed) {
     for (const f of at.round.findings) {
-      if (f.test !== undefined || f.command !== undefined || !needs(ctx, id, at, f)) continue;
+      if (f.test !== undefined || f.command !== undefined || !needs(snapshot, ctx, id, at, f)) continue;
       if (f.state === 'deferred' && hasLine(snapshot, id, at.p, f.n, at.cycle)) continue;
       const where = f.file === undefined ? 'nowhere (none)' : `in ${f.file}, which the previous round's fix did not change`;
       const cycle = at.cycle >= 2 ? ` cycle ${at.cycle}` : '';

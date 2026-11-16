@@ -1,14 +1,13 @@
 // ST-LN-56 56-ac-2 (D-10, D-17), the outside-diff half: from FIX_RECORD_FROM a re-review finding outside the fix diff goes to Deferred and starts no round; `accord round` and
 // `accord gate done` refuse it left open (gate.fix-outside-open), in lane M and lane S, and a deferral with its ledger line leaves the stop.
 import { expect, it } from 'vitest';
-import { FIX_RECORD_FROM, blockingFindings, gateDone, nextRound } from '../src/index.js';
+import { FIX_RECORD_FROM, gateDone, nextRound } from '../src/index.js';
 import type { ClaimPin, RangeCommit, RepoSnapshot } from '../src/index.js';
 import { deferredFor } from '../src/round/next.js';
 import { commit, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
 
 const RULE = 'gate.fix-outside-open';
-const EVIDENCE = 'gate.finding-evidence';
 // round 1's fix finding, fully recorded (places and the re-review's answer), so only the outside-diff rule has anything to say about round 2
 const FIXED = 'Must 1 [patch]: the writer drops the header — src/a.ts:3 — fixed in abc1234 — checked: src/a.ts:3 — addressed: src/a.ts:5';
 const outside = (state = 'open', ...marks: string[]): string => `Should 1 [patch]: a cell is wrong — src/z.ts:1 — ${state}${marks.map((m) => ' — ' + m).join('')}`;

@@ -94,7 +94,7 @@ import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './sc
 import { planRounds, reviewRounds } from './rounds.js';
 import { rulesetChanged, rulesetMissing } from './ruleset.js';
 import { findingEvidence } from '../round/evidence.js';
-import { fixNotAddressed, fixPlacesMissing } from '../round/fix.js';
+import { fixNotAddressed, fixOutsideOpen, fixPlacesMissing } from '../round/fix.js';
 import { findingGrounds, fixFileUnexplained } from '../round/grounds.js';
 import { reviewScope, reviewScopeSkipped } from '../round/scope.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
@@ -236,6 +236,8 @@ const FIX_FILE_UNEXPLAINED: GateRule = { id: 'gate.fix-file-unexplained', level:
 const FIX_PLACES_MISSING: GateRule = { id: 'gate.fix-places-missing', level: 'error', profiles: ['build', 'maintain'], check: fixPlacesMissing };
 /** ST-LN-56 56-ac-2: from FIX_RECORD_FROM a fix closes only on the re-review's `addressed:` mark, and the last round's fix has had no re-review; one row for both Done tables. */
 const FIX_NOT_ADDRESSED: GateRule = { id: 'gate.fix-not-addressed', level: 'error', profiles: ['build', 'maintain'], check: fixNotAddressed };
+/** ST-LN-56 56-ac-2 (D-10): from FIX_RECORD_FROM a re-review finding outside the fix diff goes to Deferred and starts no round; one row for both Done tables. */
+const FIX_OUTSIDE_OPEN: GateRule = { id: 'gate.fix-outside-open', level: 'error', profiles: ['build', 'maintain'], check: fixOutsideOpen };
 const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
 const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer };
 /** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, an empty diff, or in lane S a diff without the ticket file, fails closed. */
@@ -289,6 +291,7 @@ export const DONE_RULES: readonly GateRule[] = [
   FIX_FILE_UNEXPLAINED,
   FIX_PLACES_MISSING,
   FIX_NOT_ADDRESSED,
+  FIX_OUTSIDE_OPEN,
   SUITE_NOT_PASSED,
   { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the
@@ -343,6 +346,7 @@ export const DONE_S_RULES: readonly GateRule[] = [
   FIX_FILE_UNEXPLAINED,
   FIX_PLACES_MISSING,
   FIX_NOT_ADDRESSED,
+  FIX_OUTSIDE_OPEN,
   { id: 'gate.review-trailing', level: 'error', profiles: ['build', 'maintain'], check: reviewTrailing },
   { id: 'gate.review-uncommitted', level: 'error', profiles: ['build', 'maintain'], check: reviewUncommitted },
   { id: 'gate.review-commit-code', level: 'error', profiles: ['build', 'maintain'], check: reviewCommitCode },

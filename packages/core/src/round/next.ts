@@ -4,7 +4,7 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { resolveStrictness } from '../config/strictness.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
-import { fixProblems } from './fix.js';
+import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
@@ -262,11 +262,11 @@ export function approvalProblems(snapshot: RepoSnapshot, id: string): string[] {
 const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);
 
 /**
- * The findings of one cycle (0-based) that leave the stop: a review record's evidence deferrals (ST-LN-57 D-08) and, for every record
- * kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12).
+ * The findings of one cycle (0-based) that leave the stop: a review record's evidence deferrals (ST-LN-57 D-08) and re-review findings outside the fix diff written
+ * deferred with their ledger line (ST-LN-56 D-10) and, for every record kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12).
  */
 export const deferredFor = (snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> =>
-  new Set([...(kind === 'review' ? deferredOf(snapshot, id, cycle) : []), ...groundsDeferred(snapshot, id, kind, cycle)]);
+  new Set([...(kind === 'review' ? deferredOf(snapshot, id, cycle) : []), ...(kind === 'review' ? fixDeferred(snapshot, id, cycle) : []), ...groundsDeferred(snapshot, id, kind, cycle)]);
 
 /** Every reason the record cannot be read as it stands, in line order. */
 export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line: number; reason: string }[] {

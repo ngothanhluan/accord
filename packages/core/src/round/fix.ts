@@ -4,9 +4,11 @@
 // gate.fix-not-addressed read by kind. Pure: the host supplies the claim pin it read from git. No code runs at load but constants.
 import { laneTicket, workOf } from '../gate/work.js';
 import type { GateRule } from '../gate/rules.js';
-import type { RepoSnapshot } from '../model/snapshot.js';
+import type { RepoSnapshot, RoundFinding } from '../model/snapshot.js';
+import { hasLine, lastFixFiles } from './evidence.js';
 import { FIX_RECORD_FROM, claimPinBefore, claimPinError } from './pin.js';
-import { placedRounds, skipped } from './scope.js';
+import { factsOf, placedRounds, skipped } from './scope.js';
+import type { Placed } from './scope.js';
 
 /**
  * True when the fix record rules apply to the ticket: a lane ticket with a version 2 review record, not skipped (D-10: HEAD on the default branch, or the ticket done in the default ref's
@@ -18,20 +20,42 @@ export function fixOn(snapshot: RepoSnapshot, id: string): boolean {
   return !claimPinBefore(snapshot, id, FIX_RECORD_FROM);
 }
 
+/**
+ * D-10: true when `f`, a finding of the round `at`, is a re-review finding outside the fix diff, and so goes to Deferred: the fix record rules apply (fixOn), the round is not the first of its
+ * cycle, not headed `(added code round 1)` and not `(final review)` (those read more than a fix diff), `f` is a Must or Should that is not carried and has no `risk:` mark (a risk finding
+ * blocks in every round and is never deferred, Phase 2 D-12), and it is located nowhere (`none`) or in a file the previous round's fix did not change.
+ */
+export function fixOutside(snapshot: RepoSnapshot, id: string, at: Placed, f: RoundFinding): boolean {
+  return fixOn(snapshot, id) && outsideOf(snapshot, id, at, f);
+}
+
+/** fixOutside without the fixOn check, for a caller that has made it once. */
+function outsideOf(snapshot: RepoSnapshot, id: string, at: Placed, f: RoundFinding): boolean {
+  const facts = factsOf(snapshot, id);
+  if (facts === undefined || 'error' in facts) return false;
+  if (at.p < 2 || at.round.added === true || at.round.final === true) return false;
+  if (f.severity === 'Nice' || f.carried !== undefined || f.risk !== undefined) return false;
+  return f.file === undefined || !lastFixFiles(id, facts.ranges, at.j).has(f.file);
+}
+
+/** True when the outside-diff finding `f` of round `at` is written deferred with its `- review <r>.<n>[ cycle <k>]` line under ## Deferred in the ledger. */
+const deferredWithLine = (snapshot: RepoSnapshot, id: string, at: Placed, f: RoundFinding): boolean => f.state === 'deferred' && hasLine(snapshot, id, at.p, f.n, at.cycle);
+
 /** The sentence added to every problem when git failed reading the claim pin of `id`: the git error, and that the fix record rules apply because of it. */
 const withNote = (snapshot: RepoSnapshot, id: string, reason: string): string => {
   const error = claimPinError(snapshot, id);
   return error === undefined ? reason : `${reason}; ${error}; the claim pin could not be read, so the fix record rules apply`;
 };
 
-/** One way the fix record is wrong: `rule` says which gate row names it (`places`: gate.fix-places-missing, `answer`: gate.fix-not-addressed). */
-export interface FixProblem { line: number; reason: string; rule: 'places' | 'answer' }
+/** One way the fix record is wrong: `rule` says which gate row names it (`places`: gate.fix-places-missing, `answer`: gate.fix-not-addressed, `outside`: gate.fix-outside-open). */
+export interface FixProblem { line: number; reason: string; rule: 'places' | 'answer' | 'outside' }
 
 /**
  * The fix record rules, as problems in record line order, for each finding written `fixed in <sha>` (every severity and class: lane S lines have no class, and the grammar does not store it):
  * - places: no `checked:` mark (D-08);
  * - answer: a round another round of its cycle followed must carry exactly one of `addressed:` and `not addressed:` on the fixed finding (D-10), a `not addressed:` finding is carried by the
  *   next round (`carried from <r>.<n>`), and an answer sits only on a fixed finding;
+ * - outside (D-10): a re-review finding outside the fix diff (fixOutside) that is not written deferred with its ledger line;
  * - answer, with `o.verdict`: no fixed finding in the record's last round, which no re-review has answered yet (D-17), whatever marks it carries.
  * `accord round` asks without `verdict` (the last round's fixes are the ones the round it is about to start re-reviews); gate done asks with it. None when the rules do not apply to this ticket.
  */
@@ -48,6 +72,16 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
     for (const f of at.round.findings) {
       const which = `finding ${f.n ?? 'at line ' + f.line}`;
       const answered = f.addressed !== undefined || f.notAddressed !== undefined;
+      if ((f.state === undefined || f.state === 'open' || f.state === 'deferred') && !deferredWithLine(snapshot, id, at, f) && outsideOf(snapshot, id, at, f)) {
+        const cycle = at.cycle >= 2 ? ` cycle ${at.cycle}` : '';
+        const located = f.file ?? 'nowhere (none)';
+        add(
+          f.line,
+          'outside',
+          `${where}, ${which} is outside the fix diff (${located}): a re-review finding outside the fix diff goes to Deferred and starts no round (D-10); ` +
+            `write it deferred and add - review ${at.p}.${f.n ?? '<n>'}${cycle}: <finding> — failing case: <case> under ## Deferred in the ledger`,
+        );
+      }
       if (f.state !== 'fixed') {
         if (answered) add(f.line, 'answer', `${where}, ${which} carries an addressed: or not addressed: mark and is not fixed in a commit: the re-review answers a fix only`);
         continue;
@@ -104,3 +138,25 @@ export const fixNotAddressed: GateRule['check'] = (snapshot, id) => {
     .filter((p) => p.rule === 'answer')
     .map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
 };
+
+/** gate.fix-outside-open: a re-review finding outside the fix diff left open or deferred with no ledger line, from FIX_RECORD_FROM, in lane M and lane S (D-10). */
+export const fixOutsideOpen: GateRule['check'] = (snapshot, id) => {
+  const rec = workOf(snapshot, id)?.rounds;
+  if (rec === undefined) return [];
+  return fixProblems(snapshot, id)
+    .filter((p) => p.rule === 'outside')
+    .map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
+};
+
+/** D-10: the findings of one cycle (0-based) that are outside the fix diff and written deferred with their ledger line; they leave the stop and start no round. */
+export function fixDeferred(snapshot: RepoSnapshot, id: string, cycle: number): ReadonlySet<RoundFinding> {
+  const out = new Set<RoundFinding>();
+  if (!fixOn(snapshot, id)) return out;
+  const rec = workOf(snapshot, id)?.rounds;
+  if (rec === undefined) return out;
+  for (const at of placedRounds(rec)) {
+    if (at.cycle !== cycle + 1) continue;
+    for (const f of at.round.findings) if (deferredWithLine(snapshot, id, at, f) && outsideOf(snapshot, id, at, f)) out.add(f);
+  }
+  return out;
+}

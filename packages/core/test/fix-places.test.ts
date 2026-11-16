@@ -243,6 +243,12 @@ it('risk:complex-branching the last round of an earlier cycle needs its answer f
   }
   // the not addressed: path counts as its file too
   expect(answers(cycles([FIXC + ' — not addressed: src/q.ts:5'], [['Must 1 [patch]: still broken — src/q.ts:5 — open']]))).toEqual([]);
+  // the same or a higher severity, as within a cycle: a NOT ADDRESSED Nice may come back as a Nice; a Should may not come back as a Nice
+  const nice = 'Nice 2 [patch]: a name reads oddly — src/a.ts:3 — fixed in abc1234 — checked: src/a.ts:3' + NOT_ADDRESSED;
+  expect(answers(cycles([nice], [['Nice 1 [patch]: the name still reads oddly — src/a.ts:3 — open']]))).toEqual([]);
+  const should = 'Should 2 [patch]: a cell is wrong — src/a.ts:3 — fixed in abc1234 — checked: src/a.ts:3' + NOT_ADDRESSED;
+  expect(answers(cycles([should], [['Nice 1 [patch]: the cell is still wrong — src/a.ts:3 — open']]))).toHaveLength(1);
+  expect(answers(cycles([should], [['Should 1 [patch]: the cell is still wrong — src/a.ts:3 — open']]))).toEqual([]);
   // cycle 2 not started yet: accord round is not refused (its round 1 is the re-review), gate done is (the record's last round is the fix)
   const between = cycles([FIXC]);
   expect(answers(between)).toHaveLength(1);

@@ -14,11 +14,14 @@ import { closeSync, existsSync, lstatSync, openSync, readFileSync, readlinkSync,
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { gitTracked, UsageError } from './fs.js';
 
-/** The two repository-declared scripts, named as in accord/config.yml. */
-export type ScriptKind = 'tracker.command' | 'git.sync';
+/**
+ * The repository-declared scripts, named as in accord/config.yml. ST-LN-92 review round 1 finding 7: `build.regenerate` too; the CLI never runs it (D-06 Ruling), but
+ * `accord worktree task merge` prints it for the build stage to run only when it is allowed here.
+ */
+export type ScriptKind = 'tracker.command' | 'git.sync' | 'build.regenerate';
 
 /** Every kind, in the order accord trust shows them. */
-export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync'];
+export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync', 'build.regenerate'];
 
 /** One allow: a binding of a script kind, its command text and the digest of what it covers. */
 interface Allow {

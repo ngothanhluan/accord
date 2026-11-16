@@ -29,11 +29,13 @@ export function waves(ctx: CommandContext, id: string): number {
   const grouped = buildWaves(tasks, done);
   if (grouped.length === 0) out.push('No task left to build');
   grouped.forEach((w, k) => out.push(`Wave ${k + 1}: ${w.join(', ')}`));
-  // ST-LN-92 D-03, Pitfall 13: a task left to build whose worktree is still there (a wave stopped half-way), so the build skill finds its folder again
-  const live = grouped.length === 0 ? new Map<number, string>() : taskWorktrees(ctx.root, id);
-  for (const n of grouped.flat().sort((a, b) => a - b)) {
-    const path = live.get(n);
-    if (path !== undefined) out.push(`Task ${n} worktree: ${path}`);
+  // ST-LN-92 D-03, Pitfall 13: a task left to build whose worktree is still there (a wave stopped half-way), so the build skill finds its folder again;
+  // review round 1 finding 5: a recorded task whose worktree is still there (a compaction between task-done and clean) too, marked for the clean
+  const live = taskWorktrees(ctx.root, id);
+  const left = new Set(grouped.flat());
+  for (const [n, path] of [...live].sort((a, b) => a[0] - b[0])) {
+    if (left.has(n)) out.push(`Task ${n} worktree: ${path}`);
+    else if (done.has(n)) out.push(`Task ${n} worktree: ${path} (recorded: clean it)`);
   }
   ctx.stdout.write(out.join('\n') + '\n');
   return 0;

@@ -10,7 +10,7 @@ import { UsageError } from '../load/fs.js';
 import { prepareReport, reportPath } from '../load/report.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
-import { workRootOf } from './task-tree.js';
+import { briefWorkRoot } from './task-tree.js';
 
 const ONLY = 'This is the only test command the executor runs for this task.';
 const FULL_WHY = 'tests.full is printed because accord/config.yml has no tests.affected.';
@@ -61,8 +61,9 @@ export const WORK_DIR_RULE = 'Work only in this folder: run every command and ma
  * ST-LN-59 D-07, D-16: the `Report file:` line and the report contract under it, and the one write that goes with them (the folder, its `.gitignore`, this task's old report removed).
  * Empty, with nothing written, for a ticket claimed before TASK_REPORT_FROM, so its brief is today's byte for byte; a failed claim read is false in claimPinBefore, so it gets the lines
  * (fail closed). `claimed` is the snapshot with the claim read, the same read task-done's check makes.
- * ST-LN-92 D-03, D-16: above them, `Work dir:` and WORK_DIR_RULE when `workRoot` is defined (a ticket not claimed before 0.6.0, `workRootOf`); the report then lies under
- * that folder, the task worktree while one exists, so the executor writes only where it works (the report-place Ruling).
+ * ST-LN-92 D-03, D-16: above them, `Work dir:` and WORK_DIR_RULE when `workRoot` is defined (a ticket not claimed before 0.6.0, `briefWorkRoot`, which refuses a
+ * checkout on neither the ticket branch nor the task's own); the report then lies under that folder, the task worktree while one exists, so the executor writes only where
+ * it works (the report-place Ruling).
  */
 function reportBlock(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: number, workRoot: string | undefined): string {
   const dir = workRoot === undefined ? '' : 'Work dir: ' + workRoot + '\n' + WORK_DIR_RULE + '\n';
@@ -87,7 +88,7 @@ function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: 
   }
   const text = normaliseText(readFileSync(join(ctx.root, file), 'utf8'));
   const line = `The plan stage is off for lane ${lane}: build the whole ticket as task 1; every scenario that is not @ui needs one test that proves it.`;
-  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + reportBlock(ctx, claimed, id, n, workRootOf(ctx.root, claimed, id, n)) + ticketTestBlock(ctx) + conventionsTail(ctx));
+  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + ticketTestBlock(ctx) + conventionsTail(ctx));
   return 0;
 }
 
@@ -108,6 +109,6 @@ export function brief(ctx: CommandContext, id: string, task: string): number {
   while (pre.length > 0 && pre[0].trim() === '') pre.shift();
   while (pre.length > 0 && pre[pre.length - 1].trim() === '') pre.pop();
   const rules = pre.length > 0 ? pre.join('\n') + '\n\n' : '';
-  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + reportBlock(ctx, claimed, id, n, workRootOf(ctx.root, claimed, id, n)) + testBlock(ctx, t) + conventionsTail(ctx));
+  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + testBlock(ctx, t) + conventionsTail(ctx));
   return 0;
 }

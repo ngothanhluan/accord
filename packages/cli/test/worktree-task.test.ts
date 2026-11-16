@@ -418,7 +418,7 @@ it('risk:data-loss a task worktree on a detached HEAD with no rebase of its bran
   expect(m.code).toBe(1);
   expect(m.out).toContain('detached HEAD');
   expect(m.out).toContain('accord-task/T-1/2');
-  expect(m.out).not.toContain('merged:');
+  expect(m.out).not.toMatch(/^merged:/m);
   expect(head(b.ticket)).toBe(start);
   const c = await clean(b, 2);
   expect(c.code).toBe(1);

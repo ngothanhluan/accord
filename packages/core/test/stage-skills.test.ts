@@ -865,8 +865,13 @@ it('risk:regression the re-review rule is stated once: added-code rounds, the ne
   if (!lane.includes('not a carried finding, nor one in an `(added code round 1)` round')) bad.push('lane-s.md outside-diff sentence lacks the exemptions');
   const step5 = skill.slice(skill.indexOf('5. **Converged**'), skill.indexOf('6. **Cap.**'));
   const step6 = skill.slice(skill.indexOf('6. **Cap.**'), skill.indexOf('7. **Final review.**'));
-  if (!step5.includes('a NOT ADDRESSED one is written open again')) bad.push('SKILL.md step 5 does not reopen a NOT ADDRESSED finding');
+  if (!step5.includes('a NOT ADDRESSED one is reopened')) bad.push('SKILL.md step 5 does not reopen a NOT ADDRESSED finding');
   if (!step6.includes('`Re-review:`')) bad.push('SKILL.md step 6 has no route for the Re-review: line');
+  // at the cap the re-review round past it needs the owner's Ruling, in all three texts (round 3)
+  if (!step6.includes("past the cap, on the owner's Ruling")) bad.push('SKILL.md step 6 does not say a re-review past the cap needs the owner');
+  for (const [name, text] of [['record.md', record], ['lane-s.md', lane]] as const) {
+    if (!text.includes("at the cap `accord round` stops instead, naming them, and that round needs the owner's Ruling allowing one more round")) bad.push(name + ' does not say a re-review past the cap needs the owner');
+  }
   expect(bad).toEqual([]);
 });
 

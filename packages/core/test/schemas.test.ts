@@ -379,6 +379,16 @@ describe('phase 2 config keys', () => {
     expect(loadConfig('accord/config.yml', text('npm run gen')).config?.build?.regenerate).toBe('npm run gen');
     expect(loadConfig('accord/config.yml', text('npm run gen\nrm -rf x')).config).toBeUndefined();
   });
+
+  // review round 3 finding 3: an invisible format character (\p{Cf}: zero-width space, a bidi override or isolate, the byte order mark) would hide part of the command
+  it('risk:security build.regenerate holds no format character (ST-LN-92 92-ac-4)', () => {
+    const text = (regenerate: string): string => JSON.stringify({ ...base, build: { regenerate } });
+    for (const cp of [0x200b, 0x202e, 0x2066, 0x2069, 0xfeff, 0x00ad]) {
+      const bad = 'npm run' + String.fromCodePoint(cp) + ' gen';
+      expect(validate('config', { ...base, build: { regenerate: bad } }).map((f) => f.rule), cp.toString(16)).toContain('schema.pattern');
+      expect(loadConfig('accord/config.yml', text(bad)).config, cp.toString(16)).toBeUndefined();
+    }
+  });
 });
 
 const idsBase = { ...minimal.config };

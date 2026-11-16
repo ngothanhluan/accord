@@ -645,7 +645,76 @@ it('risk:data-loss accord waves names a task folder off its task branch or unrea
   expect(lines).toContain(`Task 2 worktree: ${b.task(2)} (side): not on its task branch — owner`);
   expect(lines).toContain(`Task 3 worktree: ${b.task(3)} (detached ${sha}): not on its task branch — owner`);
   expect(lines.find((l) => l.startsWith(`Task 4 worktree: ${b.task(4)} (unreadable: `))).toMatch(/\): not on its task branch — owner$/);
+  // round 3 finding 4: brief and task-done refuse such a task (exit 2, the folder and its state named) instead of falling back to the ticket checkout
   const brief = await run(['brief', 'T-1', '4'], b.ticket);
-  expect(brief.err).toBe('');
-  expect(brief.code).toBe(0);
+  expect(brief.code).toBe(2);
+  expect(brief.out).toBe('');
+  expect(brief.err).toContain(`${b.task(4)} cannot be read by git`);
+  for (const argv of [['brief', 'T-1', '2'], ['task-done', 'T-1', '2']]) {
+    const r2 = await run(argv, b.ticket);
+    expect(r2.code, argv.join(' ')).toBe(2);
+    expect(r2.err, argv.join(' ')).toContain(`${b.task(2)} is a worktree of side, not of accord-task/T-1/2`);
+    expect(r2.err, argv.join(' ')).toContain(`accord ${argv[0]} T-1 2`);
+  }
+  expect(existsSync(join(b.ticket, 'accord', 'tickets', 'T-1', 'ledger.md'))).toBe(false);
+  expect(existsSync(join(b.ticket, '.accord-reports'))).toBe(false);
+  // round 3 finding 9: a task folder whose number is not in the plan is named too
+  const five = `${b.main}-t-1+t5`;
+  gitRun(b.ticket, 'worktree', 'add', '-q', '-b', 'side5', five, 'HEAD');
+  const six = `${b.main}-t-1+t6`;
+  gitRun(b.ticket, 'worktree', 'add', '-q', '-b', 'accord-task/T-1/6', six, 'HEAD');
+  const all = (await run(['waves', 'T-1'], b.ticket)).out.split('\n');
+  expect(all).toContain(`Task 5 worktree: ${five} (side5) (not in the plan) — owner`);
+  expect(all).toContain(`Task 6 worktree: ${six} (not in the plan) — owner`);
 }, 120_000);
+
+// Review round 3 finding 6: the help names the task folder as it is made.
+it('risk:regression accord worktree task open --help names the <ticket folder>+t<n> folder (ST-LN-92 92-ac-2)', async () => {
+  const b = sandbox();
+  const h = await run(['worktree', 'task', 'open', '--help'], b.ticket);
+  expect(h.out + h.err).toContain('<id>+t<n>');
+  expect(h.out + h.err).not.toContain('-t<n>');
+}, 60_000);
+
+// Review round 3 finding 2: a task folder deleted by hand (git lists it as prunable) never blocks clean: the stale record is pruned, the branch deleted only when the
+// ticket branch holds its tip, and each step printed.
+it('risk:data-loss clean prunes a task folder deleted by hand and deletes its branch only when the ticket branch holds it (ST-LN-92 92-ac-2)', async () => {
+  const b = sandbox();
+  for (const n of [2, 3]) expect((await open(b, n)).code).toBe(0);
+  const work = change(b.task(3), 'src/c.ts', 'task 3\n', 'task 3');
+  for (const n of [2, 3]) cleanup(b.task(n));
+  expect(gitRun(b.ticket, 'worktree', 'list', '--porcelain')).toContain('prunable');
+  const c2 = await clean(b, 2);
+  expect(c2.code).toBe(0);
+  expect(c2.out).toContain(`pruned ${b.task(2)}`);
+  expect(c2.out).toContain('deleted: branch accord-task/T-1/2');
+  expect(c2.out).not.toContain('is checked out in');
+  expect(has(b.ticket, 'refs/heads/accord-task/T-1/2')).toBe(false);
+  const c3 = await clean(b, 3);
+  expect(c3.code).toBe(1);
+  expect(c3.out).toContain("task 3's branch holds commits the ticket branch lacks");
+  expect(gitRun(b.ticket, 'rev-parse', 'refs/heads/accord-task/T-1/3').trim()).toBe(work);
+  expect(gitRun(b.ticket, 'worktree', 'list', '--porcelain')).not.toContain('prunable');
+}, 120_000);
+
+// Review round 3 finding 1: the regenerate command runs in the task folder, so a task commit that changed a file its trust cover holds makes it refused, naming
+// that file; only the conflicted paths are left out of the comparison.
+it('risk:security a task that changed the allowed regenerate script gets regenerate refused, naming the file (ST-LN-92 92-ac-4)', async () => {
+  const b = sandbox({
+    config: CONFIG + 'generated:\n  - gen/\nbuild:\n  regenerate: node tools/regen.mjs\n',
+    files: { 'gen/out.txt': 'gen\n', 'tools/regen.mjs': '// regen\n' },
+  });
+  for (const n of [2, 3]) expect((await open(b, n)).code).toBe(0);
+  change(b.task(2), 'gen/out.txt', 'two\n', 'task 2');
+  change(b.task(3), 'tools/regen.mjs', '// changed by task 3\n', 'task 3 script');
+  change(b.task(3), 'gen/out.txt', 'three\n', 'task 3');
+  expect((await merge(b, 2)).code).toBe(0);
+  const shown = await run(['trust'], b.ticket);
+  const digest = /build\.regenerate@([0-9a-f]{16})/.exec(shown.out)?.[1];
+  expect((await run(['trust', `build.regenerate@${digest}`], b.ticket)).code).toBe(0);
+  const m = await merge(b, 3);
+  expect(m.code).toBe(1);
+  expect(m.out.startsWith(`conflict: task 3 in ${b.task(3)}\ngenerated: gen/out.txt\nregenerate refused: `)).toBe(true);
+  expect(m.out).toContain('tools/regen.mjs');
+  expect(m.out).not.toMatch(/^regenerate: /m);
+}, 180_000);

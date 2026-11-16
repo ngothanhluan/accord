@@ -1839,6 +1839,17 @@ it('risk:data-loss a refused merge or clean, or a task folder off its branch, st
   expect(bad).toEqual([]);
 });
 
+// Review round 3 finding 4: after a compaction, a task folder named for the owner is never dispatched again.
+it('risk:data-loss after a compaction a line ending — owner is not dispatched again (ST-LN-92 92-ac-3)', () => {
+  const bad: string[] = [];
+  for (const { dir, steps } of wavesRosters()) {
+    const next = steps.find((s) => s.startsWith('8. **Next wave.**')) ?? '';
+    const again = next.slice(next.indexOf('dispatch'));
+    if (!next.includes('dispatch') || !again.includes('except a line ending `— owner`')) bad.push(dir + ' waves.md step 8 dispatches owner lines again');
+  }
+  expect(bad).toEqual([]);
+});
+
 // Review round 1 finding 7: the build stage runs only the regenerate command the merge printed (the CLI prints it once accord trust allowed it), never the config text.
 it('risk:security the conflict step runs only the regenerate command accord worktree task merge printed (ST-LN-92 92-ac-4)', () => {
   const bad: string[] = [];

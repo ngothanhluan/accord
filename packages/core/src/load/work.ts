@@ -207,16 +207,16 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   return { plan, findings };
 }
 
-/**
- * `- task <n> done <sha>` lines, the first per task winning, every `Ruling:` line anywhere in the file, and
- * the first `## Rulings` section as written, comments and blank lines dropped, when the file has one.
- */
 /** ST-LN-72 review round 1: debug.md, kept only for the marker of its last open episode (the raw text, so no comment stripping hides it). */
 export function parseDebug(file: string, text: string): Debug {
   const unfinished = unfinishedEpisode(text);
   return { file, ...(unfinished === undefined ? {} : { unfinished }) };
 }
 
+/**
+ * `- task <n> done <sha>` lines, the first per task winning, every `Ruling:` line anywhere in the file, and
+ * the first `## Rulings` section as written, comments and blank lines dropped, when the file has one.
+ */
 export function parseLedger(file: string, text: string): Ledger {
   const done: Record<string, string> = {};
   const rulings: string[] = [];

@@ -97,13 +97,22 @@ export const verificationMissing: GateRule['check'] = (snapshot, id) => {
 };
 
 /**
- * The verification.md of a lane ticket that runs the Done table of lane M (so not lane S, whose Done table has no such rule, and not lane R, which has its own) and still carries UNFINISHED_MARKER; undefined otherwise. The one predicate for gate done's refusal and for the Unfinished line of `accord anchor`
- * (status/anchor.ts). The lane test is inline, not work.ts's laneTicket: work.ts imports this file.
+ * The ticket when it carries `lane:` other than S and R: the lanes whose gate tables hold the plan, Done and debug rules of lane M, so the ones the unfinished-marker rules apply to (unfinishedPlan, unfinishedVerification
+ * and unfinishedDebug; ST-LN-72 review round 2). The one lane test of the three. It lives here, and work.ts re-exports it next to laneTicket, because work.ts imports this file.
+ */
+export const stageLaneTicket = (snapshot: RepoSnapshot, id: string): Ticket | undefined => {
+  const t = ticketOf(snapshot, id);
+  const lane = t?.frontmatter?.lane;
+  return lane === undefined || lane === 'S' || lane === 'R' ? undefined : t;
+};
+
+/**
+ * The verification.md of a lane ticket that runs the Done table of lane M (stageLaneTicket) and still carries UNFINISHED_MARKER; undefined otherwise. The one predicate for gate done's refusal and for the
+ * Unfinished line of `accord anchor` (status/anchor.ts).
  */
 export const unfinishedVerification = (snapshot: RepoSnapshot, id: string): Verification | undefined => {
   const v = verificationOf(snapshot, id);
-  const lane = ticketOf(snapshot, id)?.frontmatter?.lane;
-  return v?.unfinished === undefined || lane === undefined || lane === 'S' || lane === 'R' ? undefined : v;
+  return v?.unfinished === undefined || stageLaneTicket(snapshot, id) === undefined ? undefined : v;
 };
 
 /**

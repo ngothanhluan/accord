@@ -2,7 +2,7 @@
 // is built from the snapshot's own ticket id, so no absolute path and no backslash reaches a reason (D-51).
 import { normaliseKey } from '../load/snapshot.js';
 import { UNTRACED, untracedTests } from '../lint/tests.js';
-import { reportLoaded, reportPath } from './done.js';
+import { reportLoaded, reportPath, stageLaneTicket } from './done.js';
 import type { Debug, RepoSnapshot, Ticket, TicketWork } from '../model/snapshot.js';
 import type { GateRule } from './rules.js';
 import { addedResearch } from './research.js';
@@ -24,13 +24,14 @@ export const laneTicket = (snapshot: RepoSnapshot, id: string): Ticket | undefin
   return t?.frontmatter?.lane === undefined ? undefined : t;
 };
 
+export { stageLaneTicket };
+
 /**
  * The debug.md of a lane ticket other than lane S and lane R (the lanes that run the debug stage) whose last open episode still starts with UNFINISHED_MARKER; undefined otherwise. No gate
  * refuses it: it is the source of the `Unfinished:` line of `accord anchor` (status/anchor.ts) for the debug stage.
  */
 export const unfinishedDebug = (snapshot: RepoSnapshot, id: string): Debug | undefined => {
-  const lane = laneTicket(snapshot, id)?.frontmatter?.lane;
-  const debug = lane === undefined || lane === 'S' || lane === 'R' ? undefined : workOf(snapshot, id)?.debug;
+  const debug = stageLaneTicket(snapshot, id) === undefined ? undefined : workOf(snapshot, id)?.debug;
   return debug?.unfinished === undefined ? undefined : debug;
 };
 

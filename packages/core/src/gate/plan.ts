@@ -8,7 +8,7 @@ import type { Plan, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js'
 import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
-import { laneTicket, planFile, workOf } from './work.js';
+import { laneTicket, planFile, stageLaneTicket, workOf } from './work.js';
 
 const DECISION = /^(D-[0-9]+)\b/;
 // Letter-or-digit boundaries on both sides: `v10` and `laterally` are not deferrals, `v1.` and `later.` are.
@@ -187,8 +187,7 @@ const withNote =
  * (status/anchor.ts), so the two cannot disagree on which tickets it applies to.
  */
 export const unfinishedPlan = (snapshot: RepoSnapshot, id: string): Plan | undefined => {
-  const t = laneTicket(snapshot, id);
-  const plan = t === undefined || t.frontmatter?.lane === 'S' || t.frontmatter?.lane === 'R' ? undefined : workOf(snapshot, id)?.plan;
+  const plan = stageLaneTicket(snapshot, id) === undefined ? undefined : workOf(snapshot, id)?.plan;
   return plan?.unfinished === undefined ? undefined : plan;
 };
 

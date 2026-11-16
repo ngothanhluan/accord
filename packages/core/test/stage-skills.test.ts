@@ -1798,12 +1798,22 @@ it('ac-3 a blocked or refused task does not stop its wave (ST-LN-92 92-ac-3)', (
   expect(bad).toEqual([]);
 });
 
+it('risk:regression the executor resolves and stages a stopped rebase conflict with no commit and no rebase command (phase 4 review WR-03)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const exec = flat(agentTargets(config).find((f) => f.path === '.claude/agents/accord-executor.md')?.text ?? '');
+  expect(exec.length, 'accord-executor.md is missing').toBeGreaterThan(0);
+  for (const p of ['conflict lines for a stopped rebase', '`git add` only them', 'make no commit', 'never run a `git rebase` command', '`accord worktree task merge` continues the rebase'])
+    expect(exec).toContain(p);
+});
+
 it('ac-4 a generated-only conflict runs build.regenerate, any other a fresh executor, neither stops for the owner (ST-LN-92 92-ac-4)', () => {
   const bad: string[] = [];
   for (const { dir, waves, steps } of wavesRosters()) {
     const step = steps.find((s) => s.includes('`conflict:`')) ?? '';
     bad.push(...lacking(dir + ' waves.md conflict step', step, ['`conflict:`', '`generated:`', '`build.regenerate`', '`hand-written:`', 'fresh `accord-executor`', "the task's tests", 'never stop for the owner']));
     if (step.indexOf('`build.regenerate`') > step.indexOf('fresh `accord-executor`')) bad.push(dir + ' waves.md: the regenerate path does not come first');
+    // phase 4 review WR-03: the conflict dispatch stages only, and the executor's own definition carves it out of "commit what you finish"
+    bad.push(...lacking(dir + ' waves.md conflict step', step, ['`git add` only', 'makes no commit', 'runs no `git rebase` command', 'the merge continues the stopped rebase']));
     // the parity Ruling: one message where the tool runs subagents in parallel, one after another where it does not, the same records
     bad.push(...lacking(dir + ' waves.md', waves, ['in one message', 'one after another', 'the same records', '`BLOCKED: permission']));
   }

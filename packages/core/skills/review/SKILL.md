@@ -51,13 +51,13 @@ fix.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
 
-5. **Converged** means no Must or Should is open, every fixed finding is answered `addressed:` (a NOT ADDRESSED one is written open again, as `./record.md` says), and that command passes; a finding deferred
+5. **Converged** means no Must or Should is open, every fixed finding is answered `addressed:` (a NOT ADDRESSED one is reopened, as `./record.md` says), and that command passes; a finding deferred
    under `./record.md`'s evidence rule, with its `## Deferred` line, does not block it.
 
 6. **Cap.** Run `accord round <id>` before each round and before the verdict. Exit 0 prints `Round: <n> of <cap>` and
    `Fix executor model: <model>`. It counts at most five rounds, after verify counted from the first round after it, and
    tiers up from `escalation.fix_round_tier_up`. On `stop: report to owner` (a Should or a Must from round 3, or the cap)
-   or `refused:`, act as `./record.md` says; never report the work finished. On `Re-review:`, re-review first.
+   or `refused:`, act as `./record.md` says; never report the work finished. On `Re-review:`, re-review first; past the cap, on the owner's Ruling.
 
 7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from
    `accord review-package <id> --base <the plan's baseline:>` (when the plan stage is off, `--base <the default branch>`), its round headed `(final review)` (over about 1500

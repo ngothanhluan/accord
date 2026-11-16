@@ -4,6 +4,7 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { resolveStrictness } from '../config/strictness.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
+import { fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
@@ -417,6 +418,10 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const grounds = groundsOn(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
   // Round 2 review IN-01: the grounds rule reads the record's pin; only a plan's grounds rule from round 1 is decided by the claim pin.
   if (grounds.length > 0) return (kind === 'plan' ? refuseCap : refuse)(...grounds.map(scopeReason));
+  // ST-LN-56 D-08, D-10: from the fix record cut-off a fix recorded `fixed in <sha>` lists the places it checked, and a fix a later round followed carries the re-review's answer,
+  // before the next review round. The last round's own fixes are asked for their answer at gate done (the verdict form), not here.
+  const fixes = kind === 'review' ? fixProblems(snapshot, id) : [];
+  if (fixes.length > 0) return refuse(...fixes.map(scopeReason));
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];

@@ -1,5 +1,7 @@
 // ST-LN-10 10-ac-1: `accord gate plan` on real git asks each new path of a plan task for a model file, from PLAN_MODEL_FROM, and checks the model at the plan baseline.
 // The CLI here runs as the cut-off release (0.6.0) while the package is still 0.5.1, so the new rule is read at the version that ships it.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { PLAN_MODEL_FROM } from '@accord-dev/accord-core';
 import { cleanup, commitAll, commitMsg, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
@@ -43,12 +45,12 @@ const plan = (second: string): string =>
   ].join('\n');
 
 /** An approved ticket claimed at the cut-off whose baseline commit holds src/json.ts, then its plan committed. */
-async function planned(text: string): Promise<{ repo: string; baseline: string }> {
+async function planned(text: string, head = CONFIG, claimPin = PLAN_MODEL_FROM): Promise<{ repo: string; baseline: string }> {
   const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1'), 'src/json.ts': 'export const json = 1;\n' });
   await run(['approve', 'T-1'], repo);
-  writeFiles(repo, { 'accord/config.yml': pinned(PLAN_MODEL_FROM) });
+  writeFiles(repo, { 'accord/config.yml': pinned(claimPin) });
   commitMsg(repo, 'claim: T-1');
-  writeFiles(repo, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the claim\n' });
+  writeFiles(repo, { 'accord/config.yml': head, 'notes.txt': 'work after the claim\n' });
   const baseline = commitAll(repo);
   writeFiles(repo, { 'accord/tickets/T-1/plan.md': text.replace('abc1234', baseline) });
   commitAll(repo);
@@ -77,6 +79,51 @@ it('ac-1 gate plan on real git refuses a missing and an unknown model and passes
     writeFiles(repo, { 'accord/tickets/T-1/plan.md': fixed.replace('abc1234', baseline) });
     commitAll(repo);
     expect((await gate(repo)).found).toEqual([]);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:regression gate plan prints the same model findings on every run (ST-LN-10 10-ac-1)', async () => {
+  const { repo } = await planned(plan('src/csv.ts (new, like src/nope.ts)'));
+  try {
+    const first = await run(['gate', 'plan', 'T-1', '--json'], repo);
+    const second = await run(['gate', 'plan', 'T-1', '--json'], repo);
+    expect(first.code).toBe(1);
+    expect(JSON.parse(first.out).findings.filter((f: Found) => MODEL_RULES.includes(f.rule))).toHaveLength(2);
+    expect(second.out).toBe(first.out);
+    expect(second.code).toBe(first.code);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:regression the model rule holds in a repository whose runtimes install no accord agent (ST-LN-10 10-ac-1)', async () => {
+  // agentTargets installs agent files for the claude runtime only (D-18): the model rule is a CLI check, so it answers the same for the other three tools.
+  const text = plan('src/csv.ts (new, like src/json.ts)');
+  const answers: Found[][] = [];
+  for (const runtimes of ['runtimes: [claude]', 'runtimes: [codex, cursor, copilot]']) {
+    const { repo } = await planned(text, CONFIG.replace('runtimes: [claude]', runtimes));
+    try {
+      expect(readFileSync(join(repo, 'accord', 'config.yml'), 'utf8')).toContain(runtimes);
+      const got = await gate(repo);
+      expect(got.code).toBe(1);
+      answers.push(got.found);
+    } finally {
+      cleanup(repo);
+    }
+  }
+  expect(answers[0].map((f) => f.rule)).toEqual(['gate.task-model-missing']);
+  expect(answers[1]).toEqual(answers[0]);
+  expect(answers[1][0].reason).toContain('task 1');
+  expect(answers[1][0].reason).toContain('src/c.ts');
+});
+
+it('risk:complex-branching a ticket claimed before 0.6.0 keeps the bare (new) on real git (ST-LN-10 10-ac-1)', async () => {
+  const { repo } = await planned(plan('src/csv.ts (new, like src/nope.ts)'), CONFIG, '0.5.1');
+  try {
+    const got = await gate(repo);
+    expect(got.found).toEqual([]);
   } finally {
     cleanup(repo);
   }

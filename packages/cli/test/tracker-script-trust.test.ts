@@ -8,9 +8,22 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
-import { cover, inspect, reach, scriptDigest } from '../src/load/script-trust.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cover, inspect, reach, revokeScripts, scriptDigest } from '../src/load/script-trust.js';
 import { commitAll, gitRun, makeRepo, run, trustAllow } from './helpers/repo.js';
+
+/** Round 5 WR-04: when `code` is set, creating the trust record lock fails with it; past 20 000 tries it fails with ESPUN, so a loop that never gives up ends the test. */
+const lockFail = vi.hoisted(() => ({ code: undefined as string | undefined, calls: 0 }));
+vi.mock('node:fs', async (orig) => {
+  const fs = await orig<typeof import('node:fs')>();
+  const openSync = (...a: Parameters<typeof fs.openSync>): number => {
+    if (lockFail.code === undefined || !String(a[0]).endsWith('.lock')) return fs.openSync(...a);
+    lockFail.calls += 1;
+    const code = lockFail.calls > 20_000 ? 'ESPUN' : lockFail.code;
+    throw Object.assign(new Error(`${code}: operation not permitted, open '${String(a[0])}'`), { code });
+  };
+  return { ...fs, openSync, default: { ...fs, openSync } };
+});
 
 const posix = (p: string): string => p.replaceAll('\\', '/');
 
@@ -654,5 +667,32 @@ describe('accord trust and the refusal say plainly what is not checked (round 4 
       expect(cover(b.repo, cmd).unfollowed, cmd).toContain(label);
     }
     expect(cover(b.repo, 'node scripts/tracker.mjs').unfollowed).toEqual([]);
+  });
+});
+
+describe('round 5: a Node option value is not the script, and the record lock gives up (round 5 WR-01, WR-04)', () => {
+  it('risk:regression a root script named after a Node option that takes a value (--env-file .env, -r dotenv/config) still binds the whole tree outside accord/', () => {
+    const d = mkdtempSync(join(tmpdir(), 'accord-reach-'));
+    dirs.push(d);
+    const tracked = ['README.md', 'main.py', 'scripts/tracker.mjs', 'tracker.js'];
+    expect(reach(d, 'node --env-file .env tracker', tracked)).toEqual(tracked);
+    expect(reach(d, 'node -r dotenv/config tracker', tracked)).toEqual(tracked);
+    expect(reach(d, 'node --import tsx tracker --since main', tracked)).toEqual(tracked);
+    expect(reach(d, 'node scripts/tracker.mjs --since main', tracked)).toEqual(['scripts/tracker.mjs']);
+  });
+
+  it('risk:regression a lock that cannot be created (EPERM with no lock file) fails within the lock wait instead of retrying forever', () => {
+    const b = sandbox();
+    let now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => (now += 1000));
+    lockFail.code = 'EPERM';
+    try {
+      expect(() => revokeScripts(b.repo)).toThrow(/^EPERM: operation not permitted, open .*accord-trust\.json\.lock/);
+      expect(lockFail.calls).toBeLessThan(100);
+    } finally {
+      lockFail.code = undefined;
+      lockFail.calls = 0;
+      clock.mockRestore();
+    }
   });
 });

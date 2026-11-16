@@ -371,7 +371,7 @@ describe('phase 2 config keys', () => {
     for (const ok of ['npm run gen', 'node "my scripts/regen.mjs" --all', 'pnpm -r gen && git status', 'génère ünïcode']) {
       expect(validate('config', { ...base, build: { regenerate: ok } }), ok).toEqual([]);
     }
-    for (const bad of ['npm run gen\nrm -rf x', 'a\rb', 'a\tb', 'a\u001bb', 'a\u007fb', 'a\u0085b', 'a b', 'a b']) {
+    for (const bad of ['npm run gen\nrm -rf x', 'a\rb', 'a\tb', 'a\u001bb', 'a\u007fb', 'a\u0085b', 'a\u2028b', 'a\u2029b']) {
       expect(validate('config', { ...base, build: { regenerate: bad } }).map((f) => f.rule), JSON.stringify(bad)).toContain('schema.pattern');
     }
     // the loader reads such a config as no config, as for any schema refusal

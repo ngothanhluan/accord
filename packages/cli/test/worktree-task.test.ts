@@ -247,7 +247,7 @@ it('ac-4 a merge conflict only in generated files is told apart from one in a ha
   expect(continued.err).toBe('');
   expect(continued.code).toBe(0);
   expect(continued.out).toMatch(/^merged: task 3 at [0-9a-f]{12}\n$/);
-  expect(readFileSync(join(b.ticket, 'gen', 'out.txt'), 'utf8')).toBe('two and three\n');
+  expect(gitRun(b.ticket, 'show', 'HEAD:gen/out.txt')).toBe('two and three\n');
   expect(history(b.ticket, 3).map((c) => c.subject)).toEqual(['task 3', 'task 2', 'ticket change']);
 
   // a hand-written file
@@ -261,6 +261,24 @@ it('ac-4 a merge conflict only in generated files is told apart from one in a ha
   // a stopped rebase is never cleaned away
   expect((await clean(b, 4)).code).toBe(1);
   expect(existsSync(b.task(4))).toBe(true);
+  // task 4 is resolved and merged while task 1's rebase waits: task 1 continues, then is rebased onto the moved tip, where src/x.ts conflicts again
+  writeFiles(b.task(4), { 'src/x.ts': 'ticket and four\n' });
+  gitRun(b.task(4), 'add', 'src/x.ts');
+  expect((await merge(b, 4)).code).toBe(0);
+  writeFiles(b.task(1), { 'gen/out.txt': 'all\n', 'src/x.ts': 'ticket and one\n' });
+  gitRun(b.task(1), 'add', 'gen/out.txt', 'src/x.ts');
+  const moved = await merge(b, 1);
+  expect(moved.code).toBe(1);
+  expect(moved.out).toBe(`conflict: task 1 in ${b.task(1)}\nhand-written: src/x.ts\n`);
+  writeFiles(b.task(1), { 'src/x.ts': 'ticket, four and one\n' });
+  gitRun(b.task(1), 'add', 'src/x.ts');
+  const last = await merge(b, 1);
+  expect(last.err).toBe('');
+  expect(last.code).toBe(0);
+  expect(history(b.ticket, 5).map((c) => c.subject)).toEqual(['task 1', 'task 4', 'task 3', 'task 2', 'ticket change']);
+  expect(history(b.ticket, 5).every((c) => c.parents === 1)).toBe(true);
+  expect(gitRun(b.ticket, 'show', 'HEAD:src/x.ts')).toBe('ticket, four and one\n');
+  expect(gitRun(b.ticket, 'show', 'HEAD:gen/out.txt')).toBe('all\n');
 }, 180_000);
 
 it('risk:regression accord waves names the live task worktrees (ST-LN-92 92-ac-2)', async () => {

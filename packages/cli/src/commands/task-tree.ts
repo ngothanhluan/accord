@@ -4,7 +4,7 @@
 // forced remove (`sensitive.data-deletion`). Every command runs in the ticket's own checkout, where task-done and the ledger live. Names reach git only from the
 // loader's ticket key and the validated task number, as literal argument arrays.
 import { existsSync } from 'node:fs';
-import { claimPinBefore, PLAN_WAVES_FROM } from '@accord-dev/accord-core';
+import { claimPinBefore, matches, PLAN_WAVES_FROM } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { currentBranch, UsageError } from '../load/fs.js';
@@ -114,6 +114,20 @@ function rebasing(dir: string): boolean {
   return false;
 }
 
+/** The paths a stopped rebase left unmerged in `dir`, NUL-separated so any path reads back whole. */
+const unmerged = (dir: string): string[] => git(dir, ['diff', '--name-only', '--diff-filter=U', '-z']).split('\0').filter((p) => p !== '');
+
+/**
+ * D-06: `conflict: task <n> in <folder>`, then each path as `generated:` when an entry of the config's `generated:` list matches it, else `hand-written:`; exit 1.
+ * The CLI runs no regenerate command (CONTEXT Ruling 2026-11-16): the build skill runs build.regenerate, or a fresh executor resolves, then merge runs again.
+ */
+function conflict(ctx: CommandContext, n: number, path: string, paths: string[]): number {
+  const generated = ctx.snapshot.config?.generated ?? [];
+  const lines = paths.map((p) => (generated.some((e) => matches(e, p)) ? 'generated: ' : 'hand-written: ') + p);
+  ctx.stdout.write(`conflict: task ${n} in ${path}\n` + lines.map((l) => l + '\n').join(''));
+  return 1;
+}
+
 function printOpen(ctx: CommandContext, path: string, branch: string): number {
   ctx.stdout.write(`path: ${path.replace(/\\/g, '/')}\nbranch: ${branch}\n`);
   return 0;
@@ -161,10 +175,29 @@ export function taskMerge(ctx: CommandContext, id: string, task: string): number
   if (w === undefined) throw new UsageError(`task ${n} of ${id} has no worktree - open it with accord worktree task open ${id} ${n}; nothing was merged`);
   const path = w.path.replace(/\\/g, '/');
   if (dirty(ctx.root)) throw new UsageError(`${ctx.root.replace(/\\/g, '/')} has uncommitted changes to tracked files - commit them first; nothing was merged`);
-  if (rebasing(path)) git(path, ['-c', 'core.editor=true', 'rebase', '--continue']);
-  else {
-    if (dirty(path)) throw new UsageError(`task ${n}'s worktree ${path} has uncommitted changes to tracked files - commit them there first; nothing was merged`);
-    git(path, ['rebase', ticketBranch]);
+  const stopped = rebasing(path);
+  if (!stopped && dirty(path)) throw new UsageError(`task ${n}'s worktree ${path} has uncommitted changes to tracked files - commit them there first; nothing was merged`);
+  const open = stopped ? unmerged(path) : [];
+  if (open.length > 0) return conflict(ctx, n, path, open);
+  /** Runs one rebase step in the task worktree: undefined when it finished, the exit code of the conflict lines when it stopped. */
+  const step = (args: string[]): number | undefined => {
+    try {
+      git(path, args);
+      return undefined;
+    } catch (err) {
+      // D-06: a conflict leaves the rebase stopped where it stands, for the build skill to regenerate or resolve; any other failure is git's own message
+      const paths = rebasing(path) ? unmerged(path) : [];
+      if (paths.length === 0) throw err;
+      return conflict(ctx, n, path, paths);
+    }
+  };
+  // a stopped rebase whose paths are resolved and added continues; core.editor=true keeps each message as it is, with no editor (RESEARCH A4)
+  let code = step(stopped ? ['-c', 'core.editor=true', 'rebase', '--continue'] : ['rebase', ticketBranch]);
+  if (code !== undefined) return code;
+  // the ticket branch moved on while the rebase waited (another task merged): rebase onto its tip again, so the fast-forward below can be made
+  if (stopped && !gitOk(ctx.root, ['merge-base', '--is-ancestor', 'HEAD', taskBranch(id, n)])) {
+    code = step(['rebase', ticketBranch]);
+    if (code !== undefined) return code;
   }
   git(ctx.root, ['merge', '--ff-only', '-q', taskBranch(id, n)]);
   ctx.stdout.write(`merged: task ${n} at ${git(ctx.root, ['rev-parse', 'HEAD']).trim().slice(0, 12)}\n`);

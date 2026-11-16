@@ -864,6 +864,15 @@ function pushAfterSync(ctx: CommandContext, root: string, branch: string, how: '
   }
 }
 
+/** The accord/config.yml of the worktree at `path` as it is on disk, or undefined when it is missing or does not load (then the caller keeps its own). */
+function worktreeConfigOf(path: string): AccordConfig | undefined {
+  try {
+    return loadConfig('accord/config.yml', readFileSync(path + '/accord/config.yml', 'utf8')).config;
+  } catch {
+    return undefined;
+  }
+}
+
 /** ST-LN-25 D-01, D-09: Continue merges the fetched default branch into a ticket branch that is behind and still before verify, then runs setup and pushes; any doubt leaves the branch alone and prints the behind line. */
 function continueMerge(ctx: CommandContext, id: string, path: string, branch: string): void {
   const ref = gitDefaultRef(ctx.root);
@@ -873,7 +882,10 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   const def = ref.replace('refs/remotes/', '');
   // ST-LN-96 D-03, D-14: the way this team takes main is git.sync (a team command) before git.merge; absent both, a merge
   const strategy = ctx.snapshot.config?.git?.merge;
-  const sync = ctx.snapshot.config?.git?.sync;
+  // round 4 WR-05 (Ruling R12): the git.sync that runs, and that the allow is checked for, is the ticket worktree's own - the one `accord worktree sync <id>`
+  // runs there and `accord trust` there shows - so following the behind: hint is what lets the next Continue sync
+  const ticketConfig = worktreeConfigOf(path);
+  const sync = ticketConfig === undefined ? ctx.snapshot.config?.git?.sync : ticketConfig.git?.sync;
   // `accord worktree sync` refuses before verify (and after it unless the built-in rebase applies), so the line names it as the command to run only where it works (WR-13)
   const stageOf = (): string | undefined => statusRows(snapshotAt(ctx.root, 'refs/heads/' + branch, [id])).find((r) => r.id === id)?.stage;
   const syncRuns = (): boolean => {

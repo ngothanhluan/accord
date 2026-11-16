@@ -88,6 +88,14 @@
         "full": { "type": "string", "minLength": 1 }
       }
     },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "parallel": { "type": "string", "pattern": "^[1-9][0-9]?$" },
+        "regenerate": { "type": "string", "minLength": 1 }
+      }
+    },
     "review": {
       "type": "object",
       "additionalProperties": false,

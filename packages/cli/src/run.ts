@@ -11,6 +11,7 @@ import { anchor } from './commands/anchor.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
 import { configCheck, configGet, configSet, configUnset } from './commands/config.js';
 import { gate } from './commands/gate.js';
@@ -171,6 +172,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("print the ticket and one plan task: the brief an executor receives; from 0.6.0 it names the task's report file and clears that task's old report")
     .action((id: string, task: string) => {
       setCode(brief(preflight(opts), id, task));
+    });
+
+  program
+    .command('waves <id>')
+    .description('print the plan tasks left to build in waves that may run in parallel, and the parallel cap')
+    .action((id: string) => {
+      setCode(waves(preflight(opts), id));
     });
 
   program

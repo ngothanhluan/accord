@@ -112,6 +112,7 @@ export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';
 export { SIZE_MULTIPLE, sizeRefusal, TASK_LINE_CAP, taskLength } from './gate/plan.js';
+export { afterCycles, buildWaves, DEFAULT_PARALLEL, parallelOf, sequentialReason } from './plan/waves.js';
 export { CALL_SIGN, interfaceSigns, outsideScope, scopeLines } from './gate/scope.js';
 export { compilePattern, DEFAULT_PATTERN, ID_PREFIX, initialsHolder, initialsOf, nextTicketId, peopleOf, prefixOf, TRACKER_KEY, trackerKeyOk } from './lint/ids.js';
 export type { CompiledPattern, IdsConfig } from './lint/ids.js';

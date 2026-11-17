@@ -4,9 +4,11 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { lintSnapshot, loadSnapshot, renderText } from '../src/index.js';
+import { lintSnapshot, loadSnapshot, renderText, setFrontmatterKey } from '../src/index.js';
 import type { Finding, LintResult, RepoSnapshot } from '../src/index.js';
 import { RULES } from '../src/lint/rules.js';
+import { CONFIG, LANE_BODY, REPORT, building, done, junit, P } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 import { readFixture, stableJson, variants } from './helpers/fixture.js';
 import type { Variants } from './helpers/fixture.js';
 
@@ -410,5 +412,53 @@ describe('fixture lint-report: prototype-chain ids', () => {
     const result = lintSnapshot(loadSnapshot(input));
     expect(result.findings.map((f) => f.rule)).toEqual(['lint.test-id-unknown']);
     expect(result.findings[0].reason).toContain('@test:toString');
+  });
+});
+
+// BUG-LN-18 (Phase 5, TRUST-02, D-04): a done ticket is frozen, so lint no longer checks its @test: tags against the report; a ticket not done is checked as before.
+describe('lint.test-id-unknown and a done ticket', () => {
+  // the report keeps `export#escapes-commas` and renamed the other test, so `@test:export#writes-csv` is the one tag the report no longer holds
+  const moved = junit({ 'export#escapes-commas': 'passed', 'export#renamed': 'passed' });
+  const whole = junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' });
+  const snap = (report: string | undefined, tickets: (files: Files) => void, config = CONFIG): RepoSnapshot => {
+    const files: Files = { 'accord/config.yml': config };
+    if (report !== undefined) files[REPORT] = report;
+    tickets(files);
+    return loadSnapshot({ files, tree: Object.keys(files) });
+  };
+  const unknown = (s: RepoSnapshot): { file: string; line?: number; reason: string }[] =>
+    lintSnapshot(s).findings.filter((f) => f.rule === 'lint.test-id-unknown').map((f) => ({ file: f.file, line: f.line, reason: f.reason }));
+
+  it('ac-1 lint skips the test tags of a done ticket and keeps them for a ticket not done (BUG-LN-18 18-ac-1)', () => {
+    const both = (files: Files): void => {
+      done(files, 'T-1');
+      building(files, 'T-2');
+    };
+    const loaded = snap(moved, both);
+    const found = unknown(loaded);
+    expect(found).toHaveLength(1);
+    expect(found[0].file).toBe('accord/tickets/T-2.md');
+    // today's reason text, for the ticket that is not done, on its scenario line
+    expect(found[0].reason).toBe("@test:export#writes-csv not found in reports/junit.xml; ids are classname#name with spaces as '-'");
+    expect(found[0].line).toBe(loaded.tickets['T-2'].scenarios[0].line);
+    // with the report holding the id, neither gives one
+    expect(unknown(snap(whole, both))).toEqual([]);
+  });
+
+  it('risk:regression lint answers as before for a done ticket with no test tag, no report or an empty report (BUG-LN-18 18-ac-1)', () => {
+    const noTags = (files: Files): void => {
+      done(files, 'T-1', { body: LANE_BODY.replace(/@test:\S+/g, '') });
+    };
+    expect(unknown(snap(moved, noTags)), 'no @test: tag').toEqual([]);
+    expect(unknown(snap(moved, (files) => done(files, 'T-1'), CONFIG.replace(/tests:\n {2}report: \S+\n/, ''))), 'no tests.report').toEqual([]);
+    // a report with no testcase: the done ticket is not asked, the one not done is, as at origin/main
+    expect(unknown(snap(junit({}), (files) => done(files, 'T-1'))), 'empty report, done').toEqual([]);
+    expect(unknown(snap(junit({}), (files) => building(files, 'T-1'))), 'empty report, not done').toHaveLength(2);
+    // a dropped ticket is not done: its missing id is still reported
+    const dropped = (files: Files): void => {
+      done(files, 'T-1');
+      files[P('T-1')] = setFrontmatterKey(files[P('T-1')], 'status', 'dropped');
+    };
+    expect(unknown(snap(moved, dropped))).toHaveLength(1);
   });
 });

@@ -4,7 +4,7 @@ description: Use when a lane M ticket's review.md ends with a verdict, or its re
 license: MIT
 argument-hint: "[ticket id]"
 kind: skill
-loads: [verify/ci.md, accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/resume.md]
+loads: [verify/ci.md, verify/writer.md, accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/resume.md]
 ---
 
 This stage checks the built work against the ticket and hands it to the
@@ -32,7 +32,7 @@ judges, the owner decides.
 
 3. **Verifier.** Run `accord anchor` again, as step 2 may move HEAD; on `Unfinished:` follow `./resume.md`,
    else dispatch `accord-verifier` in a fresh context with the path of `accord/tickets/<id>.md`. It writes
-   `accord/tickets/<id>/verification.md` and nothing else.
+   `accord/tickets/<id>/verification.md` and nothing else; nothing else writes it (`./writer.md`).
 
 4. **Report.** Wait for CI as `./ci.md` says first; a failed check goes to `./failure.md` instead of this report. When
    `./failure.md` runs `accord worktree open`, follow `./worktree.md`. Build the owner's report in chat from

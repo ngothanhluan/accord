@@ -401,7 +401,11 @@ describe('render output invariants', () => {
     // Guard the guard: a matcher that cannot match fails here before it passes below.
     expect(named('open it in ' + PRODUCTS[3])).toEqual([PRODUCTS[3]]);
     const offenders: string[] = [];
+    // The one declared parity exception (ST-LN-39 D-08, 39-ac-2): verify/writer.md says where a hook enforces the
+    // verifier-only rule and that the other tools do not, so it names the tools. No other file may.
+    const PARITY_EXCEPTION = '/accord-verify/writer.md';
     for (const { path, text } of [...output, ...agents]) {
+      if (path.endsWith(PARITY_EXCEPTION)) continue;
       text.split('\n').forEach((line, i) => {
         for (const p of named(line)) offenders.push(`${path}:${i + 1}: ${p}`);
       });

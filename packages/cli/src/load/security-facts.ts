@@ -80,7 +80,7 @@ function factsFor(root: string, snapshot: RepoSnapshot, id: string): SecurityFac
       } catch (e) {
         throw new Error(`git failed reading the package of review round ${k + 1}: ${e instanceof UsageError ? e.message : why(e)}`, { cause: e });
       }
-      return { head: r.head, triggers: securityTriggers(spec, pkg.diff, pkg.changed, { generated }).map(triggerText) };
+      return { head: r.head, triggers: securityTriggers(spec, pkg.diff, pkg.changed, { generated, unreadable: pkg.unread }).map(triggerText) };
     });
     return { rounds };
   } catch (e) {

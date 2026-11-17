@@ -32,6 +32,8 @@ export interface PackageDiffOptions {
   allowPlainLog: boolean;
   /** also read the commit list and the stat. */
   parts?: boolean;
+  /** the buffer of the `--text` read of the files the diff reports as binary, in bytes (default 64 MiB, the cap of every git read here); a test passes a small one. */
+  textLimit?: number;
 }
 
 export interface PackageDiffResult {
@@ -43,6 +45,8 @@ export interface PackageDiffResult {
   excluded: boolean;
   /** the default ref without `refs/remotes/` or `refs/heads/`. */
   short: string | undefined;
+  /** the files git reports as binary whose `--text` read was over the buffer: they keep their `Binary files differ` line and are handed to the trigger reader as unreadable. Absent when none. */
+  unread?: string[];
   /** with `parts`: the commit lines and the stat, trailing whitespace removed. */
   commits?: string;
   stat?: string;
@@ -61,19 +65,19 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
   const { base, head, def } = o;
   if (!REF.test(base)) throw new UsageError('not a git ref: ' + base);
   if (!REF.test(head)) throw new UsageError('not a git ref: ' + head);
-  const git = (args: string[]) =>
+  const git = (args: string[], maxBuffer = 64 * 1024 * 1024) =>
     execFileSync('git', args, {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      maxBuffer: 64 * 1024 * 1024,
+      maxBuffer,
     });
   // Every git log passes the signature flags (conventions.md), so a signed head never changes the output. Every call whose text is read for paths
   // (log -p, diff -p, --stat) passes core.quotePath=false, so a non-ASCII name prints as it is and not as a quoted octal escape the reader cannot place.
   const NO_QUOTE = ['-c', 'core.quotePath=false'];
   // WR-01: the paths of a diff are read from its a/ and b/ prefixes, so every diff and log -p call pins them; diff.noprefix, diff.srcPrefix and diff.dstPrefix of the user's config change nothing.
   const PREFIXES = ['--src-prefix=a/', '--dst-prefix=b/'];
-  const gitLog = (args: string[]) => git([...NO_QUOTE, '-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
+  const gitLog = (args: string[], max?: number) => git([...NO_QUOTE, '-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args], max);
   const range = base + '...' + head;
   // ST-LN-26: a fix made after a merge from the default branch is reviewed without what that merge brought in.
   const short = def?.replace(/^refs\/(remotes|heads)\//, '');
@@ -91,11 +95,13 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
     }
   }
   // Each git log is tried with --remerge-diff first and once more without it (git < 2.36).
-  const log = (args: string[], paths: string[] = []): string => {
-    const full = (extra: string[]) => gitLog([...args, ...extra, base + '..' + head, '^' + def, '--', ...paths]);
+  const overBuffer = (e: unknown): boolean => (e as { code?: string }).code === 'ENOBUFS';
+  const log = (args: string[], paths: string[] = [], max?: number): string => {
+    const full = (extra: string[]) => gitLog([...args, ...extra, base + '..' + head, '^' + def, '--', ...paths], max);
     try {
       return full(['--remerge-diff']);
-    } catch {
+    } catch (e) {
+      if (overBuffer(e)) throw e;
       if (!o.allowPlainLog) throw new UsageError(`cannot diff ${range}: git cannot show a merge's own changes (git log --remerge-diff needs git 2.36 or newer)`);
       return full([]);
     }
@@ -115,12 +121,29 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
   // So for the files the diff reports as binary, one more diff with --text (the same range and mode, the paths as literal pathspecs) is read; a file whose changed lines hold
   // no NUL byte is text, and its section is added to the end of the diff so the scan and the reviewer read its lines. A file with a NUL in a changed line is binary, and stays
   // the one "Binary files differ" line. A git failure here throws as any other (fail closed).
-  const withBinaryText = (diff: string): string => {
+  const withBinaryText = (diff: string): { diff: string; unread: string[] } => {
     const paths = new Set<string>();
     for (const f of diffFiles(diff)) if (f.binary) for (const p of [f.path, f.oldPath]) if (p !== undefined) paths.add(p);
-    if (paths.size === 0) return diff;
-    const specs = [...paths].sort().map((p) => ':(literal)' + p);
+    const unread: string[] = [];
+    if (paths.size === 0) return { diff, unread };
+    const sorted = [...paths].sort();
+    const specs = sorted.map((p) => ':(literal)' + p);
     const text: string[] = [];
+    const limit = o.textLimit ?? 64 * 1024 * 1024;
+    // A batch whose text is over the buffer is read again one path at a time; a path that is over it alone keeps its "Binary files differ" line and is reported unread (the cap stays).
+    // Only the buffer error is caught here: every other git failure throws.
+    const read = (batch: string[]): string => {
+      try {
+        return excluded
+          ? log(['--no-color', '--no-ext-diff', ...PREFIXES, '--text', '--no-renames', '--full-history', '-p', '-U10', '--format='], batch, limit)
+          : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', ...PREFIXES, '--text', '--no-renames', '-U10', range, '--', ...batch], limit);
+      } catch (e) {
+        if (!overBuffer(e)) throw e;
+        if (batch.length > 1) return batch.map((p) => read([p])).join('\n');
+        unread.push(sorted[specs.indexOf(batch[0])]);
+        return '';
+      }
+    };
     // batches, so a change with many binary files never puts an unbounded list on one command line (conventions.md)
     for (let i = 0; i < specs.length; ) {
       let size = 0;
@@ -129,16 +152,14 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
         size += specs[i].length + 1;
         batch.push(specs[i++]);
       }
-      const out = excluded
-        ? log(['--no-color', '--no-ext-diff', ...PREFIXES, '--text', '--no-renames', '--full-history', '-p', '-U10', '--format='], batch)
-        : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', ...PREFIXES, '--text', '--no-renames', '-U10', range, '--', ...batch]);
+      const out = read(batch);
       for (const section of out.split(/^(?=diff --git )/m)) {
         if (!section.startsWith('diff --git ')) continue;
         const holdsNul = section.split('\n').some((l) => (l[0] === '+' || l[0] === '-') && l.includes('\0'));
         if (!holdsNul) text.push(section.trimEnd());
       }
     }
-    return text.length === 0 ? diff : diff + '\n' + text.join('\n');
+    return { diff: text.length === 0 ? diff : diff + '\n' + text.join('\n'), unread };
   };
   const result: PackageDiffResult = { diff: '', changed: [], excluded, short };
   if (o.parts === true) {
@@ -152,7 +173,9 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
     ).trimEnd();
   }
   result.diff = (excluded ? oldestFirst(['--no-color', '--no-ext-diff', ...PREFIXES, '-p', '-U10']) : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', ...PREFIXES, '-U10', range, '--'])).trimEnd();
-  result.diff = withBinaryText(result.diff);
+  const withText = withBinaryText(result.diff);
+  result.diff = withText.diff;
+  if (withText.unread.length > 0) result.unread = withText.unread.sort();
   result.changed = excluded
     ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]
     : git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');

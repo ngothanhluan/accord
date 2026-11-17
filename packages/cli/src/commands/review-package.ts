@@ -3,14 +3,11 @@
 import { execFileSync } from 'node:child_process';
 import { interfaceSigns, outsideScope, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
+import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
 import { branchFactFor } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
-
-// No leading '-', so a ref can never be read as a git option; no spaces or shell metacharacters.
-// `~` and `^` after the first character admit HEAD~3 and main^.
-const REF = /^[A-Za-z0-9][A-Za-z0-9._/~^-]*$/;
 
 export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string }): number {
   const ticket = requireLaneTicket(ctx, id);
@@ -77,7 +74,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   }
   // The default ref read for a lane S base is the one the exclusion below uses.
   const laneSDefault = laneS && (options.base === undefined || v2) ? defaultRefOf(ctx.root) : undefined;
-  const base = lastHead ?? options.base ?? (laneS ? laneSDefault : (baseline ?? planOffDefault));
+  const base = lastHead ?? options.base ?? roundOneBase(ctx.root, ctx.snapshot, id, { defaultRef: laneS ? laneSDefault : planOffDefault });
   if (base === undefined) {
     throw new UsageError(
       laneS
@@ -88,16 +85,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     );
   }
   if (!REF.test(base)) throw new UsageError('not a git ref: ' + base);
-  // Every git log passes the signature flags (conventions.md), so a signed HEAD never changes the output.
-  const gitLog = (args: string[]) => git(['-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
   const range = base + '...HEAD';
-  // A short reason for the one failure that explains itself, else git's own first stderr line.
-  const why = (e: unknown): string => {
-    const err = e as { code?: string; stderr?: string };
-    if (err.code === 'ENOBUFS') return 'the diff is larger than 64 MiB';
-    const line = (err.stderr ?? '').split('\n').find((l) => l.trim() !== '');
-    return line === undefined ? 'git failed' : line.replace(/^fatal: /, '').trim();
-  };
   try {
     git(['rev-parse', '--verify', '--quiet', base + '^{commit}']);
   } catch {
@@ -109,74 +97,27 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     }
     throw new UsageError(headless ? 'the repository has no commit to review' : 'unknown base ref: ' + base);
   }
-  // ST-LN-26: a fix made after a merge from the default branch is reviewed without what that merge brought in.
   const def = laneSDefault ?? defaultRefOf(ctx.root);
-  const short = def?.replace(/^refs\/(remotes|heads)\//, '');
-  let excluded = false;
-  if (def !== undefined) {
-    try {
-      git(['merge-base', '--is-ancestor', 'HEAD', def]);
-    } catch {
-      try {
-        const count = (extra: string[]) => git(['rev-list', '--count', base + '..HEAD', ...extra, '--']).trim();
-        excluded = count(['^' + def]) !== count([]);
-      } catch {
-        // a count that fails leaves today's package
-      }
-    }
-  }
-  // Each git log is tried with --remerge-diff first and once more without it (git < 2.36).
-  const log = (args: string[]): string => {
-    const r = ['^' + def];
-    const full = (extra: string[]) => gitLog([...args, ...extra, base + '..HEAD', ...r, '--']);
-    try {
-      return full(['--remerge-diff']);
-    } catch {
-      if (!old) throw new UsageError(`cannot diff ${range}: git cannot show a merge's own changes (git log --remerge-diff needs git 2.36 or newer)`);
-      return full([]);
-    }
-  };
-  // BUG-LN-19: oldest first without --reverse, since git 2.36 to 2.47 show a clean merge's changes wrong when --reverse meets
-  // --remerge-diff (fixed in git 2.48). Each commit's text starts at its \x01 header line; no diff or stat line starts with \x01.
-  const oldestFirst = (args: string[]): string => {
-    const text = log([...args, '--format=%x01%h %s']);
-    if (!text.startsWith('\x01')) return text;
-    const commits = text.slice(1).split('\n\x01');
-    return commits
-      .map((c, i) => (i < commits.length - 1 ? c + '\n' : c))
-      .reverse()
-      .join('');
-  };
   const f = branchFactFor(ctx, id, { defaultRef: def });
   const s = { ...ctx.snapshot, branchFacts: { [id]: f } };
   let parts: string[];
   let diffText: string;
   let changedFiles: string[];
   try {
-    parts = excluded
-      ? [
-          `# Review package: ${id} (${base}..HEAD, without ${short})`,
-          '## Commits',
-          gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '^' + def, '--']).trimEnd() || '(none)',
-          '## Stat',
-          oldestFirst(['--no-color', '--no-ext-diff', '--stat']).trimEnd() || '(no changes)',
-          '## Diff',
-          oldestFirst(['--no-color', '--no-ext-diff', '-p', '-U10']).trimEnd() || '(no changes)',
-        ]
-      : [
-          `# Review package: ${id} (${range})`,
-          '## Commits',
-          gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
-          '## Stat',
-          git(['diff', '--no-color', '--no-ext-diff', '--stat', range, '--']).trimEnd() || '(no changes)',
-          '## Diff',
-          git(['diff', '--no-color', '--no-ext-diff', '-U10', range, '--']).trimEnd() || '(no changes)',
-        ];
-    const changed = excluded
-      ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]
-      : git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');
+    // ST-LN-36: the package diff of a head is one function (the security record rule reads each round's head through it); ST-LN-26's exclusion of a merge from the default branch lives there.
+    const pkg = packageDiff(ctx.root, { base, head: 'HEAD', def, allowPlainLog: old, parts: true });
+    const changed = pkg.changed;
+    parts = [
+      pkg.excluded ? `# Review package: ${id} (${base}..HEAD, without ${pkg.short})` : `# Review package: ${id} (${range})`,
+      '## Commits',
+      pkg.commits || '(none)',
+      '## Stat',
+      pkg.stat || '(no changes)',
+      '## Diff',
+      pkg.diff || '(no changes)',
+    ];
     // ST-LN-36 D-05: the security triggers read the package's own diff text and changed list, so they run no git command of their own.
-    diffText = parts[parts.indexOf('## Diff') + 1];
+    diffText = pkg.diff;
     changedFiles = changed;
     const undeclared = undeclaredFiles(s, id, changed);
     parts.splice(

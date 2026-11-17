@@ -56,11 +56,11 @@ it('risk:data-loss a re-sync replaces an older prompt expansion hook and keeps a
 it('risk:regression the pre tool use hook entry matches the agent tool and a re-sync replaces an older one', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
   const fresh = { matcher: 'Agent|Task', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.2.0 hook pre-tool-use' }] };
-  expect(entries.PreToolUse).toEqual([fresh]);
+  expect(entries.PreToolUse[0]).toEqual(fresh);
   const foreignHook = { type: 'command', command: 'echo hi' };
   const old = { hooks: { PreToolUse: [{ matcher: 'Agent|Task', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook pre-tool-use' }, foreignHook] }] } };
   const once = mergeHooks(old, entries);
-  expect((once.hooks as Record<string, unknown>).PreToolUse).toEqual([{ matcher: 'Agent|Task', hooks: [foreignHook] }, fresh]);
+  expect((once.hooks as Record<string, unknown>).PreToolUse).toEqual([{ matcher: 'Agent|Task', hooks: [foreignHook] }, ...entries.PreToolUse]);
   expect(mergeHooks(once, entries)).toEqual(once);
 });
 
@@ -72,4 +72,21 @@ it('risk:regression both session start hooks carry a 600 second timeout and a re
   }
   const old = { hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook session-start' }] }] } };
   expect((mergeHooks(old, entries).hooks as Record<string, unknown>).SessionStart).toEqual(entries.SessionStart);
+});
+
+it('ac-1 the hook settings carry the write entry beside the dispatch entry and merge idempotently (ST-LN-39 39-ac-1)', () => {
+  const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
+  const command = 'npx --yes @accord-dev/accord@0.2.0 hook pre-tool-use';
+  expect(entries.PreToolUse.map((x) => x.matcher)).toEqual(['Agent|Task', 'Write|Edit|MultiEdit']);
+  const write = entries.PreToolUse[1];
+  // The probe saw the if field honoured, so each tool has its own hook that spawns only for the record path.
+  expect(write.hooks).toEqual(
+    ['Write', 'Edit', 'MultiEdit'].map((tool) => ({ type: 'command', command, if: tool + '(**/accord/tickets/*/verification.md)' })),
+  );
+  const foreignHook = { type: 'command', command: 'echo hi' };
+  const settings = { hooks: { PreToolUse: [{ matcher: 'Write|Edit|MultiEdit', hooks: [foreignHook] }] } };
+  const once = mergeHooks(settings, entries);
+  expect((once.hooks as Record<string, unknown>).PreToolUse).toEqual([{ matcher: 'Write|Edit|MultiEdit', hooks: [foreignHook] }, ...entries.PreToolUse]);
+  expect(mergeHooks(once, entries)).toEqual(once);
+  expect(mergeHooks(mergeHooks({}, entries), entries)).toEqual({ hooks: entries });
 });

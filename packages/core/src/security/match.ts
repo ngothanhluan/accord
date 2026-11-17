@@ -31,7 +31,7 @@ export interface Trigger {
   removed?: boolean;
   pattern: string;
   label: string;
-  /** the path is in the changed list but the diff text does not show it. */
+  /** the diff text does not show the path (no `line`), or a changed line is longer than the scan cap and was scanned only up to it (with `line`). */
   cannot?: boolean;
 }
 
@@ -166,6 +166,10 @@ export function diffFiles(diffText: string): DiffFile[] {
 }
 
 const MAX_LINE = 2000;
+/** The label of the trigger a cut line gets: the cap guards the patterns against backtracking, so a line over it is never scanned whole and says so (fail closed). */
+const LONG_LINE = `line longer than ${MAX_LINE} characters, not fully scanned`;
+const UNREADABLE = 'too large to read as text, so its lines were not scanned';
+const tooLong = (text: string): boolean => text.length > MAX_LINE;
 const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const TEST_FOLDER = new Set(['test', 'tests', '__tests__']);
 const OWN_COPIES = ['.claude/skills/', '.agents/skills/', '.claude/agents/', '.claude/accord-panel/'];
@@ -216,7 +220,7 @@ const contentSkipped = (path: string, generated: readonly string[]): boolean =>
  * files that are not binary, not Markdown, not test files and not generated copies; one `cannot` trigger for each changed path the diff text does not
  * show. Deduplicated and sorted by path, then line, then pattern id.
  */
-export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[] }): Trigger[] {
+export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[] }): Trigger[] {
   const files = diffFiles(diffText);
   const shown = new Set<string>();
   for (const f of files) {
@@ -238,7 +242,8 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
     if (f.binary || f.path === undefined || skipped(f.path)) continue;
     const scanLines = (lines: DiffFile['added'], removed: boolean) => {
       for (const l of lines) {
-        const head = l.text.length > MAX_LINE ? l.text.slice(0, MAX_LINE) : l.text;
+        const head = tooLong(l.text) ? l.text.slice(0, MAX_LINE) : l.text;
+        if (tooLong(l.text)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: '', label: LONG_LINE, cannot: true });
         for (const { p, re } of lineRes) if (re.test(head)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: p.id, label: p.label });
       }
     };
@@ -246,6 +251,8 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
     scanLines(f.removed, true);
   }
   for (const path of changed) if (!shown.has(path)) add({ path, pattern: '', label: '', cannot: true });
+  // a path the host could not read as text (its --text diff was over the buffer) keeps its "Binary files differ" line and is a trigger of its own
+  for (const path of options.unreadable ?? []) add({ path, pattern: '', label: UNREADABLE, cannot: true });
   return [...out.values()].sort(
     (a, b) => cmp(a.path, b.path) || (a.line ?? 0) - (b.line ?? 0) || cmp(a.pattern, b.pattern) || Number(a.removed === true) - Number(b.removed === true),
   );
@@ -253,6 +260,8 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
 
 /** The line form of a trigger, as `accord review-package` prints it. */
 export function triggerText(t: Trigger): string {
+  if (t.cannot === true && t.line !== undefined) return `${t.path}:${t.line}${t.removed === true ? ' (removed)' : ''}: (cannot tell: ${t.label})`;
+  if (t.cannot === true && t.label !== '') return `(cannot tell: ${t.path}: ${t.label})`;
   if (t.cannot === true) return `(cannot tell: ${t.path} is not in the diff text)`;
   if (t.line === undefined) return `${t.path}: ${t.pattern} (${t.label})`;
   return `${t.path}:${t.line}${t.removed === true ? ' (removed)' : ''}: ${t.pattern} (${t.label})`;
@@ -264,18 +273,21 @@ export function triggerText(t: Trigger): string {
  * `(truncated: <n> more lines in <path>)`; a hunk that holds a content match is printed whole even past the cap, so a cut never hides a match. A path the diff text does not
  * show is one block, `(cannot tell: …)`. Content matches are read from the hunks themselves, with the patterns and skips securityTriggers uses, so the two agree.
  */
-export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; cap?: number }): string[] {
+export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; cap?: number }): string[] {
   const cap = options.cap ?? 300;
-  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated });
+  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated, unreadable: options.unreadable });
   const pathHit = new Set(triggers.filter((t) => t.cannot !== true && t.line === undefined).map((t) => t.path));
   const lineRes = compileLines(spec);
   const holds = (h: DiffHunk): boolean =>
     [...h.added, ...h.removed].some((l) => {
-      const head = l.text.length > MAX_LINE ? l.text.slice(0, MAX_LINE) : l.text;
-      return lineRes.some(({ re }) => re.test(head));
+      if (tooLong(l.text)) return true;
+      return lineRes.some(({ re }) => re.test(l.text));
     });
   const blocks: { key: string; text: string }[] = [];
-  for (const f of diffFiles(diffText)) {
+  const files = diffFiles(diffText);
+  for (const f of files) {
+    // a file git reports as binary whose text section follows (package-diff.ts adds it) is printed once, from the text section
+    if (f.binary && f.path !== undefined && files.some((g) => !g.binary && g.path === f.path)) continue;
     const name = f.path ?? f.oldPath;
     const byPath = (f.path !== undefined && pathHit.has(f.path)) || (f.oldPath !== undefined && pathHit.has(f.oldPath));
     const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds));
@@ -297,6 +309,6 @@ export function matchedHunks(spec: SecuritySpec, diffText: string, changed: read
     if (left > 0) lines.push(`(truncated: ${left} more lines in ${name})`);
     blocks.push({ key: name ?? '', text: lines.join('\n') });
   }
-  for (const t of triggers) if (t.cannot === true) blocks.push({ key: t.path, text: triggerText(t) });
+  for (const t of triggers) if (t.cannot === true && t.line === undefined) blocks.push({ key: t.path, text: triggerText(t) });
   return blocks.sort((a, b) => cmp(a.key, b.key)).map((b) => b.text);
 }

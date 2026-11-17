@@ -3,7 +3,7 @@
 // order across cycles, so a round that fixed something is asked only when its fix matches a pattern. The triggers of a package come from packageDiff, the function review-package prints from.
 // Every git failure is an `error` fact, which the rule reports (fail closed); nothing here writes.
 import { execFileSync } from 'node:child_process';
-import { claimPinBefore, reviewSkipped, SECURITY_TRIGGER_FROM, securitySpec, securityTriggers, triggerText, workOf } from '@accord-dev/accord-core';
+import { claimPinBefore, reviewSkipped, SECURITY_TRIGGER_FROM, securityExemptRounds, securitySpec, securityTriggers, triggerText, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot, SecurityFacts } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from './fs.js';
 import { packageDiff, roundOneBase, why } from './package-diff.js';
@@ -71,15 +71,16 @@ function factsFor(root: string, snapshot: RepoSnapshot, id: string): SecurityFac
     const spec = securitySpec(snapshot);
     const generated = snapshot.config?.generated ?? [];
     const def = defaultRefOf(root);
+    const exempt = securityExemptRounds(snapshot, id);
     const rounds = ranges.rounds.map((r, k) => {
-      if (r.final) return { head: r.head, triggers: [] }; // D-10: a final review is exempt
+      if (exempt.has(k + 1)) return { head: r.head, triggers: [] }; // D-10: a final review that follows a round of its stretch is exempt; a lone one is read like any round
       let pkg;
       try {
         pkg = packageDiff(root, { base: r.base, head: r.head, def, allowPlainLog: false });
       } catch (e) {
         throw new Error(`git failed reading the package of review round ${k + 1}: ${e instanceof UsageError ? e.message : why(e)}`, { cause: e });
       }
-      return { head: r.head, triggers: securityTriggers(spec, pkg.diff, pkg.changed, { generated }).map(triggerText) };
+      return { head: r.head, triggers: securityTriggers(spec, pkg.diff, pkg.changed, { generated, unreadable: pkg.unread }).map(triggerText) };
     });
     return { rounds };
   } catch (e) {

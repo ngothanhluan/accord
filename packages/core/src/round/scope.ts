@@ -6,6 +6,7 @@ import { isDone } from '../status/stage.js';
 import type { GateDraft, GateRule } from '../gate/rules.js';
 import type { RangeCommit, RecordedRound, RepoSnapshot, RoundFacts, RoundRecord } from '../model/snapshot.js';
 import { allowancesOf } from './next.js';
+import type { Allowance } from './next.js';
 import { RECORD_V2_FROM, pinAllowsV1 } from './pin.js';
 
 /** One recorded round in record order (across cycles); `j` is its record index and `cycle` its cycle, both 1-based; `p` its position in the cycle. */
@@ -73,6 +74,15 @@ const toldAt = (p: Placed): string => `round ${p.p} of cycle ${p.cycle}`;
 /** The cycle's stretches: ends of each stretch, as positions (1-based) within the cycle. */
 function stretchEnds(cutAfter: number[], rounds: number): number[] {
   return [...new Set([...cutAfter.filter((r) => r >= 1 && r < rounds), rounds])].sort((a, b) => a - b);
+}
+
+/** The stretch of position `p` (1-based) in a cycle of `count` rounds: its first and last position, cut after each round an owner allowance of that cycle names. */
+export function stretchOf(allowances: Allowance[], cycle: number, count: number, p: number): { start: number; end: number } {
+  const ends = stretchEnds(
+    allowances.filter((a) => a.cycle === cycle).map((a) => a.after),
+    count,
+  );
+  return { start: (ends.filter((e) => e < p).pop() ?? 0) + 1, end: ends.find((e) => e >= p) ?? count };
 }
 
 function versionProblems(facts: Ready, placed: Placed[]): { line?: number; reason: string }[] {
@@ -143,11 +153,7 @@ export function scopeProblems(snapshot: RepoSnapshot, id: string): { line?: numb
   } else if (finals.length > 0) {
     const allowances = allowancesOf(snapshot, id, 'review');
     for (const p of finals) {
-      const count = rec.cycles[p.cycle - 1].rounds.length;
-      const cuts = allowances.filter((a) => a.cycle === p.cycle).map((a) => a.after);
-      const ends = stretchEnds(cuts, count);
-      const end = ends.find((e) => e >= p.p) ?? count;
-      const start = (ends.filter((e) => e < p.p).pop() ?? 0) + 1;
+      const { start, end } = stretchOf(allowances, p.cycle, rec.cycles[p.cycle - 1].rounds.length, p.p);
       const earlier = finals.some((q) => q.cycle === p.cycle && q.p >= start && q.p < p.p);
       if (earlier || p.p < end - 1) {
         add(

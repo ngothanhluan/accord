@@ -1,7 +1,7 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { interfaceSigns, matchedHunks, outsideScope, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { interfaceSigns, matchedHunks, outsideScope, securityExemptRounds, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
@@ -24,11 +24,11 @@ interface SecuritySections {
  * ST-LN-36 D-05 (4): the security sections of a package, from its own diff text and changed list so they run no git command of their own. `triggers` is the `## Security triggers`
  * text; with `full`, `checklist` (every item in force, default and team) and `hunks` (matchedHunks, or the none line) are read too.
  */
-function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean): SecuritySections {
+function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean, unreadable?: string[]): SecuritySections {
   try {
     const spec = securitySpec(s);
     const generated = s.config?.generated ?? [];
-    const found = securityTriggers(spec, diffText, changed, { generated });
+    const found = securityTriggers(spec, diffText, changed, { generated, unreadable });
     let triggers = found.map(triggerText).join('\n') || NONE;
     // ST-LN-36 D-06: a line of the repository's file that did not read is said here too, so a reviewer is never told the list is whole when it is not.
     const unread = spec.problems.length;
@@ -37,7 +37,7 @@ function securitySections(s: RepoSnapshot, diffText: string, changed: string[], 
     return {
       triggers,
       checklist: spec.checklist.map((c) => `- ${c.id}: ${c.text}`).join('\n') || '(none)',
-      hunks: matchedHunks(spec, diffText, changed, { generated }).join('\n') || NONE,
+      hunks: matchedHunks(spec, diffText, changed, { generated, unreadable }).join('\n') || NONE,
     };
   } catch (e) {
     const unread = cannot(e instanceof Error ? e.message : String(e));
@@ -53,7 +53,7 @@ const abbrev = (ref: string): string => (/^[0-9a-f]{40,64}$/.test(ref) ? ref.sli
 
 /**
  * `--security --round <k>`: the security package of the k-th `## Round` section of review.md, over the range the security record rule reads (securityRoundRanges), so a session refused for a
- * skipped security review can review exactly that round. A `(final review)` round has none (D-10): its fix is reviewed at the re-review round after it.
+ * skipped security review can review exactly that round. A `(final review)` round that follows a round of its stretch has none (D-10): its fix is reviewed at the re-review round after it.
  */
 function securityRoundPackage(ctx: CommandContext, id: string, asked: string): number {
   if (!/^[1-9][0-9]*$/.test(asked)) throw new UsageError(`--round takes a round number, 1 or more: ${asked}`);
@@ -65,8 +65,8 @@ function securityRoundPackage(ctx: CommandContext, id: string, asked: string): n
     const n = ranges.rounds.length;
     throw new UsageError(n === 0 ? `--round ${k}: review.md of ${id} records no round` : `--round ${k}: review.md of ${id} records ${n} ${n === 1 ? 'round' : 'rounds'}`);
   }
-  if (at.final) {
-    throw new UsageError(`--round ${k} is a (final review) round, which has no security package of its own (D-10); its fix is reviewed at the re-review round after it`);
+  if (securityExemptRounds(ctx.snapshot, id).has(k)) {
+    throw new UsageError(`--round ${k} is a (final review) round that follows a round of its stretch, which has no security package of its own (D-10); its fix is reviewed at the re-review round after it`);
   }
   const range = `${abbrev(at.base)}...${abbrev(at.head)}`;
   let pkg;
@@ -76,7 +76,7 @@ function securityRoundPackage(ctx: CommandContext, id: string, asked: string): n
     if (e instanceof UsageError) throw e;
     throw new UsageError(`cannot diff round ${k} (${range}): ${why(e)}`);
   }
-  ctx.stdout.write(securityText(`# Security package: ${id} (${range})\nHead: ${abbrev(at.head)}`, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true)));
+  ctx.stdout.write(securityText(`# Security package: ${id} (${range})\nHead: ${abbrev(at.head)}`, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, pkg.unread)));
   return 0;
 }
 
@@ -180,6 +180,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   let label: string;
   let diffText: string;
   let changedFiles: string[];
+  let unread: string[] | undefined;
   try {
     // ST-LN-36: the package diff of a head is one function (the security record rule reads each round's head through it); ST-LN-26's exclusion of a merge from the default branch lives there.
     const pkg = packageDiff(ctx.root, { base, head: 'HEAD', def, allowPlainLog: old, parts: true });
@@ -197,6 +198,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     // ST-LN-36 D-05: the security triggers read the package's own diff text and changed list, so they run no git command of their own.
     diffText = pkg.diff;
     changedFiles = changed;
+    unread = pkg.unread;
     const undeclared = undeclaredFiles(s, id, changed);
     parts.splice(
       parts.indexOf('## Diff'),
@@ -231,10 +233,10 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   if (options.security === true) {
     // The security package: the same range and diff, but only the checklist, the triggers and the hunks they match.
     const at = parts[0].indexOf('\nHead: ');
-    ctx.stdout.write(securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true)));
+    ctx.stdout.write(securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true, unread)));
     return 0;
   }
-  shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false).triggers);
+  shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false, unread).triggers);
   parts.splice(parts.indexOf('## Stat'), 0, ...shown);
   ctx.stdout.write(parts.join('\n\n') + '\n');
   return 0;

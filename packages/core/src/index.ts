@@ -57,7 +57,7 @@ export { fixScopeProblems } from './round/fixscope.js';
 export { fixOn, fixProblems } from './round/fix.js';
 export type { FixProblem } from './round/fix.js';
 export { pendingAddedCode, scopeProblems, skipped as reviewSkipped } from './round/scope.js';
-export { securityOn, securityProblems, securityUnreviewed } from './round/security.js';
+export { securityExemptRounds, securityOn, securityProblems, securityUnreviewed } from './round/security.js';
 export type { SecurityProblem } from './round/security.js';
 export {
   APPROACH_CAP,

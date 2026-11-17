@@ -15,9 +15,9 @@ const ran = 'Security: lens security ran';
 const none = 'Security: no pattern matched';
 
 /** A review snapshot claimed under `pin`; `triggers[j - 1]` are round j's triggers (record order, cycles flattened); `security` overrides the whole fact. */
-function build(o: { lane?: 'M' | 'S'; cycles: RoundSpec[][]; triggers?: string[][]; pin?: string; security?: SecurityFacts; claim?: Record<string, unknown> }): RepoSnapshot {
+function build(o: { lane?: 'M' | 'S'; cycles: RoundSpec[][]; triggers?: string[][]; pin?: string; security?: SecurityFacts; claim?: Record<string, unknown>; ledger?: string }): RepoSnapshot {
   const count = o.cycles.flat().length;
-  const snap = scopeSnapshot({ ...(o.lane === undefined ? {} : { lane: o.lane }), review: v2Review(o.cycles), facts: facts(Array.from({ length: count }, () => [])) });
+  const snap = scopeSnapshot({ ...(o.lane === undefined ? {} : { lane: o.lane }), review: v2Review(o.cycles), ...(o.ledger === undefined ? {} : { ledger: o.ledger }), facts: facts(Array.from({ length: count }, () => [])) });
   const withClaim = o.claim === undefined ? claimedUnder(snap, o.pin ?? SECURITY_TRIGGER_FROM) : { ...snap, claimPins: { 'T-1': o.claim } };
   const fact: SecurityFacts = o.security ?? { rounds: Array.from({ length: count }, (_, j) => ({ head: H(j + 1), triggers: o.triggers?.[j] ?? [] })) };
   return { ...withClaim, securityFacts: { 'T-1': fact } } as RepoSnapshot;
@@ -176,4 +176,36 @@ it('risk:security the security record rule keeps the older answer before 0.7.0 a
   const v1 = scopeSnapshot({ review: 'Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n', facts: facts([[]]) });
   const v1Snap = { ...claimedUnder(v1, SECURITY_TRIGGER_FROM), securityFacts: { 'T-1': { rounds: [{ head: H(1), triggers: [TRIGGER] }] } } } as RepoSnapshot;
   expect(gateDone(v1Snap, 'T-1').findings.filter((f) => f.rule === RULE)).toEqual([]);
+});
+
+// post-phase review WR-03: the (final review) exemption (D-10) holds only for a final review that follows a round which was not one, in its stretch.
+it('risk:security a (final review) round is exempt only when a non-final round comes before it in its stretch (WR-03)', () => {
+  // a ticket whose only round is marked final: asked for its triggers and for the Security: line like any round
+  const lone = reasons(build({ cycles: [[lineRound([], 'final')]], triggers: [[TRIGGER]] }));
+  expect(lone).toHaveLength(1);
+  expect(lone[0]).toContain('round 1 of cycle 1');
+  expect(lone[0]).toContain('src/run.ts:3: spawn');
+  const loneBare = reasons(build({ cycles: [[lineRound([], 'final')]], triggers: [[]] }));
+  expect(loneBare).toHaveLength(1);
+  expect(loneBare[0]).toContain('no Security: line');
+  expect(reasons(build({ cycles: [[lineRound([ran], 'final')]], triggers: [[TRIGGER]] }))).toEqual([]);
+
+  // a final review that comes first, with a round after it, is the same
+  const first = reasons(build({ cycles: [[lineRound([], 'final'), lineRound([none])]], triggers: [[TRIGGER], []] }));
+  expect(first).toHaveLength(1);
+  expect(first[0]).toContain('round 1 of cycle 1');
+
+  // a final review after a non-final round of its own stretch stays exempt
+  expect(reasons(build({ cycles: [[lineRound([ran]), lineRound([], 'final')]], triggers: [[TRIGGER], [TRIGGER]] }))).toEqual([]);
+
+  // an owner allowance after round 2 starts a new stretch at round 3: a final review at round 3 has no round before it in its stretch, one at round 4 has
+  const ledger = '- Ruling: the owner allows 2 more review rounds after round 2 of cycle 1 — "go on" — cost if wrong: 2 rounds\n';
+  const rounds = (marked: 3 | 4) => [lineRound([ran]), lineRound([ran]), ...(marked === 3 ? [lineRound([], 'final'), lineRound([ran])] : [lineRound([ran]), lineRound([], 'final')])];
+  const cut = reasons(build({ cycles: [rounds(3)], triggers: [[TRIGGER], [TRIGGER], [TRIGGER], []], ledger }));
+  expect(cut).toHaveLength(1);
+  expect(cut[0]).toContain('round 3 of cycle 1');
+  expect(reasons(build({ cycles: [rounds(4)], triggers: [[TRIGGER], [TRIGGER], [TRIGGER], [TRIGGER]], ledger }))).toEqual([]);
+
+  // a record claimed before 0.7.0 is unchanged
+  expect(reasons(build({ cycles: [[lineRound([], 'final')]], triggers: [[TRIGGER]], pin: '0.6.0' }))).toEqual([]);
 });

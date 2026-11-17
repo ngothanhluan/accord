@@ -162,7 +162,10 @@ export const SECURITY_FILE = 'accord/product/security.md';
 /** The one default no `Removed:` line takes out: D-06's control, that removing a default is a visible, reviewed change, depends on it. */
 const UNREMOVABLE = 'security-config';
 
-const sameValue =(a: SecurityPattern, b: SecurityPattern): boolean =>
+/** The path entries an earlier release's template gave a default that has since changed, so a security.md `accord init` wrote under that release still reads clean (the current default applies). */
+const EARLIER_ENTRIES: Record<string, string[][]> = { 'security-config': [['accord/product/security.md', 'accord/config.yml']] };
+
+const sameValue = (a: SecurityPattern, b: SecurityPattern): boolean =>
   a.kind === b.kind &&
   (a.kind === 'path'
     ? (a.entries ?? []).length === (b.entries ?? []).length && (a.entries ?? []).every((e, i) => e === (b.entries ?? [])[i])
@@ -184,7 +187,7 @@ function mergeSecurity(file: SecuritySpec): SecuritySpec {
     if (d === undefined) {
       teamIds.add(p.id);
       added.push(p);
-    } else if (!sameValue(p, d)) {
+    } else if (!sameValue(p, d) && !(EARLIER_ENTRIES[p.id] ?? []).some((e) => sameValue(p, { ...d, entries: e }))) {
       problems.push({ line: p.line, reason: `"${p.id}" is a default pattern with another kind or value, so the default applies; remove it with a "- Removed: ${p.id} — <reason>" line and add your own under a new id` });
     }
   }

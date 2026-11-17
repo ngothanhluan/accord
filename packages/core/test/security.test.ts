@@ -169,11 +169,11 @@ it('risk:parsing the trigger reader places every diff spelling (ST-LN-36 36-ac-1
   const context = SECTION('src/c.ts', ['@@ -5,3 +5,2 @@', ' exec(a)', '-exec(b)', ' tail']).join('\n');
   expect(texts(context, ['src/c.ts'])).toEqual(['src/c.ts:6 (removed): spawn (process spawn)']);
 
-  // a line longer than 2000 characters is matched on its first 2000 only
+  // a line longer than 2000 characters is matched on its first 2000, and says it was not scanned whole (WR-02)
   const farOut = SECTION('src/long.ts', ['@@ -1 +1,2 @@', ' a', '+' + 'a'.repeat(2500) + ' spawn(x)']).join('\n');
-  expect(texts(farOut, ['src/long.ts'])).toEqual([]);
+  expect(texts(farOut, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 2000 characters, not fully scanned)']);
   const nearIn = SECTION('src/long.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(x) ' + 'a'.repeat(2500)]).join('\n');
-  expect(texts(nearIn, ['src/long.ts'])).toEqual(['src/long.ts:2: spawn (process spawn)']);
+  expect(texts(nearIn, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 2000 characters, not fully scanned)', 'src/long.ts:2: spawn (process spawn)']);
 
   // the excluded-merge form: several sections of one path from `git log -p`, commit header lines between them
   const log = [
@@ -447,9 +447,18 @@ it('risk:security a change to the security file or the repository config is a tr
   const code = SECTION('src/run.ts', ['@@ -1,2 +1,3 @@', ' a', "+execFileSync('git', args);", ' b']);
   const diff = [...removed, ...config, ...code].join('\n');
   const changed = ['accord/config.yml', 'accord/product/security.md', 'src/run.ts'];
-  const label = 'security-config (the security trigger list and the generated paths it skips)';
+  const label = 'security-config (the security trigger list, the generated paths it skips and the diff attributes that can hide a file from the scan)';
   expect(texts(diff, changed, ['src/'])).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`]);
   expect(texts(diff, changed)).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`, 'src/run.ts:2: spawn (process spawn)']);
+});
+
+it('risk:security a change to .gitattributes, at the root or deeper, is a trigger, since a diff attribute can hide a file from the content scan', () => {
+  const root = SECTION('.gitattributes', ['@@ -0,0 +1 @@', '+*.js -diff']);
+  const deep = SECTION('vendor/.gitattributes', ['@@ -0,0 +1 @@', '+*.js binary']);
+  const found = texts([...root, ...deep].join('\n'), ['.gitattributes', 'vendor/.gitattributes']);
+  expect(found).toHaveLength(2);
+  expect(found[0]).toMatch(/^\.gitattributes: security-config \(/);
+  expect(found[1]).toMatch(/^vendor\/\.gitattributes: security-config \(/);
 });
 
 it('risk:security a Removed line for security-config takes no effect: the pattern stays in force and the line is a lint error (ST-LN-36 36-ac-1)', () => {
@@ -464,10 +473,64 @@ it('risk:security a Removed line for security-config takes no effect: the patter
   const sec = SECTION('accord/product/security.md', ['@@ -25,3 +25,5 @@', ' ## Removed', ' ', '+- Removed: security-config — x', '+- Removed: spawn — x', ' end']);
   const code = SECTION('src/run.ts', ['@@ -1,2 +1,3 @@', ' a', "+execFileSync('git', args);", ' b']);
   const triggers = securityTriggers(spec, [...sec, ...code].join('\n'), ['accord/product/security.md', 'src/run.ts'], { generated: [] });
-  expect(triggers.map(triggerText)).toEqual(['accord/product/security.md: security-config (the security trigger list and the generated paths it skips)']);
+  expect(triggers.map(triggerText)).toEqual(['accord/product/security.md: security-config (the security trigger list, the generated paths it skips and the diff attributes that can hide a file from the scan)']);
   // (b) lint names the line, with the reason
   const found = lintSnapshot(withFile(text)).findings.filter((f) => f.rule === 'lint.security-file');
   expect(found.map((f) => [f.level, f.line])).toEqual([['error', line]]);
   expect(found[0].reason).toContain('security-config cannot be removed: a change to the security file must always call the security reviewer');
   expect(spec.problems.map((p) => p.line)).toEqual([line]);
+});
+
+it('risk:parsing a file git reports as binary and the package diff then shows as text is one block of matched hunks, not two (CR-01)', () => {
+  // package-diff.ts adds the --text section of a binary-reported file after the "Binary files differ" one
+  const binary = ['diff --git a/package.json b/package.json', 'index 1111111..2222222 100644', 'Binary files a/package.json and b/package.json differ'];
+  const text = SECTION('package.json', ['@@ -1,2 +1,2 @@', '-  "version": "1.0.0",', '+  "version": "1.0.1",']);
+  const blocks = matchedHunks(DEFAULT_SECURITY, [...binary, ...text].join('\n'), ['package.json'], { generated: [] });
+  expect(blocks).toHaveLength(1);
+  expect(blocks[0]).toContain('+  "version": "1.0.1",');
+  // a file that stays binary keeps its one block
+  expect(matchedHunks(DEFAULT_SECURITY, binary.join('\n'), ['package.json'], { generated: [] })).toEqual([binary.join('\n')]);
+});
+
+// post-phase review WR-02: a line over the scan cap is never scanned past character 2000, so it is a trigger of its own.
+it('risk:security a changed line longer than the scan cap is a trigger that says it was not fully scanned, in an added and a removed line (WR-02)', () => {
+  const tail = 'require("child_process").execSync(x);';
+  const added = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + ' '.repeat(2100) + tail]).join('\n');
+  expect(texts(added, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 2000 characters, not fully scanned)']);
+  const removed = SECTION('x.js', ['@@ -1 +0,0 @@', '-' + ' '.repeat(2100) + tail]).join('\n');
+  expect(texts(removed, ['x.js'])).toEqual(['x.js:1 (removed): (cannot tell: line longer than 2000 characters, not fully scanned)']);
+  // a match inside the first 2000 characters is still its own trigger, beside the long line one
+  const both = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + tail + ' '.repeat(2100)]).join('\n');
+  expect(texts(both, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 2000 characters, not fully scanned)', 'x.js:1: spawn (process spawn)']);
+  // a line of exactly the cap is scanned whole: no extra trigger
+  const exact = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + 'a'.repeat(2000 - tail.length) + tail]).join('\n');
+  expect(texts(exact, ['x.js'])).toEqual(['x.js:1: spawn (process spawn)']);
+  // the skips hold for a long line too: Markdown, a test file and a generated path are not scanned
+  for (const path of ['notes.md', 'src/x.test.ts', 'dist/x.js']) {
+    const text = SECTION(path, ['@@ -0,0 +1 @@', '+' + ' '.repeat(2100) + tail]).join('\n');
+    expect(texts(text, [path], ['dist/']), path).toEqual([]);
+  }
+  // the matched hunk of a long line is printed whole and once
+  const blocks = matchedHunks(DEFAULT_SECURITY, added, ['x.js'], { generated: [] });
+  expect(blocks).toHaveLength(1);
+  expect(blocks[0]).toContain(tail);
+});
+
+it('risk:regression a security file written by 0.7.0, with its older security-config line, still reads clean and the current default applies', () => {
+  const current = templates['security.md'].split('\n').find((l) => l.startsWith('- security-config:')) as string;
+  const older = '- security-config: path accord/product/security.md, accord/config.yml — the security trigger list and the generated paths it skips';
+  const spec = securitySpec(withFile(templates['security.md'].replace(current, older)));
+  expect(spec.problems).toEqual([]);
+  expect(spec.patterns.find((p) => p.id === 'security-config')?.entries).toEqual(['accord/product/security.md', 'accord/config.yml', '.gitattributes']);
+  // any other value of a default is still a problem
+  const other = securitySpec(withFile(templates['security.md'].replace(current, '- security-config: path accord/config.yml — x')));
+  expect(other.problems).toHaveLength(1);
+});
+
+it('risk:resource a path the host could not read as text is a trigger of its own, listed and printed once (CR-01)', () => {
+  const binary = ['diff --git a/big.js b/big.js', 'new file mode 100644', 'index 0000000..1111111', 'Binary files /dev/null and b/big.js differ'].join('\n');
+  const label = '(cannot tell: big.js: too large to read as text, so its lines were not scanned)';
+  expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] }).map(triggerText)).toEqual([label]);
+  expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [] })).toEqual([]);
+  expect(matchedHunks(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] })).toEqual([label]);
 });

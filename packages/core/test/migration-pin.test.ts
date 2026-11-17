@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, TASK_REPORT_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, SECURITY_TRIGGER_FROM, TASK_REPORT_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { building, CONFIG } from '../../../test/helpers/lane.js';
 
@@ -261,6 +261,9 @@ it('risk:regression the five Phase 3 cut-offs are one release, so one claim pin 
 // (PLAN_WAVES_FROM) included (the unfinished-marker rules of plan 04-04 read no claim pin: owner decision 2026-11-16).
 const PHASE4: Record<string, string> = { PLAN_MODEL_FROM, TASK_REPORT_FROM, FIX_RECORD_FROM, PLAN_WAVES_FROM };
 const PHASE4_CUT: string[] = Object.values(PHASE4);
+// Phase 5 (ST-LN-36 rel-ac-1): the security record rule cuts off at 0.7.0, the release that ships it; every Phase 5 cut-off added later joins this list.
+const PHASE5: Record<string, string> = { SECURITY_TRIGGER_FROM };
+const PHASE5_CUT: string[] = Object.values(PHASE5);
 
 it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
   expect(PHASE4_CUT.length, 'the list names no constant').toBeGreaterThan(0);
@@ -273,7 +276,8 @@ const CLI_VERSION = (JSON.parse(readFileSync(new URL('../../cli/package.json', i
 const SRC_ROOTS = ['packages/core/src', 'packages/cli/src'];
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PIN_FILE = 'packages/core/src/round/pin.ts';
-const LITERAL = /(['"`])0\.6\.0\1/g;
+const LITERAL = /(['"`])0\.[67]\.0\1/g; // ST-LN-36 rel-ac-1: both releases a cut-off names
+const PHASE_NAMES = [...Object.keys(PHASE4), ...Object.keys(PHASE5)];
 const isComment = (line: string): boolean => /^(\/\/|\*|\/\*)/.test(line.trim());
 
 /** Every index of `name` (a whole word) on `line` that does not sit between the parentheses of a `claimPinBefore(` call on the same line. */
@@ -296,11 +300,11 @@ function outsideClaimPinBefore(line: string, name: string): number[] {
  */
 function cutOffOffences(text: string, path: string): string[] {
   const out: string[] = [];
-  const names = Object.keys(PHASE4);
+  const names = PHASE_NAMES;
   text.split(/\r?\n/).forEach((line, i) => {
     if (isComment(line)) return;
     const where = `${path}:${i + 1}: ${line.trim()}`;
-    const declaration = path === PIN_FILE && names.some((n) => new RegExp(`^export const ${n} = '0\\.6\\.0';$`).test(line.trim()));
+    const declaration = path === PIN_FILE && names.some((n) => new RegExp(`^export const ${n} = '0\\.[67]\\.0';$`).test(line.trim()));
     if (declaration) return;
     const importOrExport = /^(import|export)\s.*\bfrom\s+['"]/.test(line.trim());
     if (!importOrExport && names.some((n) => outsideClaimPinBefore(line, n).length > 0)) out.push(where);
@@ -339,6 +343,10 @@ it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac
 
   const files = SRC_ROOTS.flatMap(sources);
   expect(files).toContain(PIN_FILE);
+  // ST-LN-36 rel-ac-1: the scan reads the gate done path, the loader's pin gate and the `accord round` path, so a use there outside claimPinBefore( or a bare 0.7.0 fails it
+  for (const f of ['packages/core/src/round/security.ts', 'packages/cli/src/commands/gate.ts', 'packages/cli/src/load/security-facts.ts', 'packages/core/src/round/next.ts', 'packages/cli/src/commands/round.ts']) {
+    expect(files, f).toContain(f);
+  }
   expect(files.some((f) => f.startsWith('packages/core/src/generated/'))).toBe(false);
   const offences = files.flatMap((f) => cutOffOffences(readFileSync(join(REPO_ROOT, f), 'utf8'), f));
   expect(offences).toEqual([]);
@@ -348,8 +356,23 @@ it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac
     .split(/\r?\n/)
     .filter((line) => !isComment(line))
     .flatMap((line) => [...line.matchAll(LITERAL)]);
-  expect(pinLiterals).toHaveLength(PHASE4_CUT.length);
+  expect(pinLiterals).toHaveLength(PHASE4_CUT.length + PHASE5_CUT.length);
   // Every use of the cut-offs in source sits inside a claimPinBefore( call: at least one per constant, so the scan is not empty.
   const uses = files.flatMap((f) => readFileSync(join(REPO_ROOT, f), 'utf8').split(/\r?\n/).filter((line) => !isComment(line) && line.includes('claimPinBefore(')));
-  for (const name of Object.keys(PHASE4)) expect(uses.some((line) => new RegExp(`\\b${name}\\b`).test(line)), name).toBe(true);
+  for (const name of PHASE_NAMES) expect(uses.some((line) => new RegExp(`\\b${name}\\b`).test(line)), name).toBe(true);
+});
+
+it('risk:regression the 0.7.0 cut-off constants are one release and read only through claimPinBefore (ST-LN-36 rel-ac-1)', () => {
+  expect(Object.keys(PHASE5), 'the list names no constant').toEqual(['SECURITY_TRIGGER_FROM']);
+  expect(PHASE5_CUT.length).toBeGreaterThan(0);
+  for (const v of PHASE5_CUT) expect(v).toBe('0.7.0');
+  // a bare 0.7.0, a Phase 5 constant outside the claim read, and a Phase 4 constant too are caught; the claim read, an import and a comment are not
+  expect(cutOffOffences("  return pinBefore('0.7.0', pin);", 'packages/core/src/x.ts')).toEqual(["packages/core/src/x.ts:1: return pinBefore('0.7.0', pin);"]);
+  expect(cutOffOffences('  if (pinBefore(SECURITY_TRIGGER_FROM, pin)) return;', 'packages/core/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (claimPinBefore(snapshot, id, SECURITY_TRIGGER_FROM)) return snapshot;', 'packages/cli/src/x.ts')).toEqual([]);
+  expect(cutOffOffences("import { claimPinBefore, SECURITY_TRIGGER_FROM } from '@accord-dev/accord-core';", 'packages/cli/src/x.ts')).toEqual([]);
+  expect(cutOffOffences("  // pinBefore('0.7.0', pin) in a comment compares nothing", 'packages/core/src/x.ts')).toEqual([]);
+  // the loader decides on the same claim read as the rule, before any git read (Orchestrator Ruling, route a)
+  const loader = readFileSync(join(REPO_ROOT, 'packages/cli/src/load/security-facts.ts'), 'utf8').split(/\r?\n/);
+  expect(loader.some((line) => !isComment(line) && line.includes('claimPinBefore(snapshot, id, SECURITY_TRIGGER_FROM)'))).toBe(true);
 });

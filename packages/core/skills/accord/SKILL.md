@@ -4,7 +4,7 @@ description: Use when starting any work in an accord repository, when seeing whe
 license: MIT
 argument-hint: "[request | continue <id> | pick-up <id> | upgrade]"
 kind: skill
-loads: [accord/comments.md, accord/ids.md, accord/lane.md, accord/lane-s.md, accord/lane-r.md, accord/onboard.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/scout.md, shared/failure.md, shared/finish.md]
+loads: [accord/comments.md, accord/ids.md, accord/lane.md, accord/lane-s.md, accord/lane-r.md, accord/onboard.md, review/security.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/scout.md, shared/failure.md, shared/finish.md]
 ---
 
 First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`. A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check.
@@ -73,7 +73,7 @@ Propose a lane as `./lane.md` says, for every new request however small it looks
 
 - **S.** Run `accord new ticket <id> --lane S --worktree`; when config.yml has
   `people`, follow `./ids.md` and run it with `--type <story|bug>` and no id
-  instead. Then follow `./lane-s.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says.
+  instead. Then follow `./lane-s.md` and `./security.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says.
 - **M.** Run `accord new ticket <id> --lane M --worktree`; when config.yml has
   `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
   --lane M --worktree` with no id instead. It writes the ticket on its

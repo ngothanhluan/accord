@@ -186,7 +186,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('review-package <id>')
     .description('print the commits, stat, and diff a reviewer reads')
     .option('--base <ref>', "the commit or branch the work started from (default: the plan's baseline:; with the plan stage off, the default branch)")
-    .action((id: string, options: { base?: string }) => {
+    .option('--security', 'print the security package: the checklist, the security triggers and only the hunks they match')
+    .option('--round <n>', 'with --security: the package of the n-th ## Round section of review.md')
+    .action((id: string, options: { base?: string; security?: boolean; round?: string }) => {
       setCode(reviewPackage(preflight(opts), id, options));
     });
 

@@ -82,6 +82,12 @@ export interface HeadFact { high: string; low?: string; bound?: boolean | 'unkno
 export type RoundFacts =
   | { error: string }
   | { pin?: string; pinAt?: string; basePin?: string; baseAt?: string; skip?: 'on-default'; heads: HeadFact[]; ranges: RangeCommit[][] };
+/**
+ * ST-LN-36 D-05 (5): the security triggers of each recorded review round's own package, as the host read them from git: one entry per `## Round` of review.md in record order (cycles flattened),
+ * `head` the round's typed head and `triggers` the rendered triggers of the package from the previous round's head (round 1: the first round's base) to it; empty for a final review. `error` when git
+ * could not say.
+ */
+export type SecurityFacts = { error: string } | { rounds: { head: string; triggers: string[] }[] };
 
 /** Full shas, first parent first; `files` are the paths the commit changes (for a merge, the paths its remerge diff
  * shows), absent for a merge whose own changes git could not show. */
@@ -262,6 +268,8 @@ export interface RecordedRound {
   head?: string; // version 2 only (ST-LN-57): the commit the round reviewed up to, lower case
   added?: true; // version 2 only: the heading says (added code round 1)
   final?: true; // version 2 only: the heading says (final review)
+  security?: 'none' | 'ran'; // version 2 review records only (ST-LN-36 D-05 (3)): `Security: no pattern matched` or `Security: lens security ran`; 'ran' wins when a round holds both
+  securityUnread?: { line: number; text: string }[]; // version 2 review records only: a line starting `Security:` that is neither form
   markUnread?: { line: number; text: string }[]; // version 1 plan and approach records (ST-LN-91 round 5): the mark slots of the round (a segment or a block line that starts with a mark key) whose value does not parse
 }
 export interface RoundVerdict { value: string; quoted: boolean; line: number } // quoted: accepted-by-owner followed by a "sentence"
@@ -342,7 +350,7 @@ export interface RepoSnapshot {
   verifications: Record<string, Verification>; // keyed by folder name
   tree: string[]; // sorted, forward slashes (D-29, D-30)
   errors: LoadFinding[]; // every loader and schema finding, in file order; lint stamps the level (D-58)
-  files: Record<string, string>; // D-65: normalised text of every accord/assets/<id>/prototype.html, the config.design.tokens file, and the config.tests.report file, and every accord/research/ file some ticket lists under research:; nothing else
+  files: Record<string, string>; // D-65: normalised text of every accord/assets/<id>/prototype.html, the config.design.tokens file, and the config.tests.report file, and every accord/research/ file some ticket lists under research:, and accord/product/security.md (ST-LN-36); nothing else
   tests?: Record<string, 'passed' | 'failed' | 'skipped'>; // D-72: absent when no report is in files
   // D-78: carried through from SnapshotInput. Host-supplied, `authors` keyed by repo-relative posix path
   // plus one entry keyed by the value of `commit`; absent, not undefined, when the host cannot supply it.
@@ -365,6 +373,7 @@ export interface RepoSnapshot {
   branchFacts?: Record<string, BranchFact>; // carried through from SnapshotInput
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
+  securityFacts?: Record<string, SecurityFacts>; // ST-LN-36: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, a ticket claimed before the security record rule's cut-off)
   researchFacts?: Record<string, ResearchFact>; // carried through from SnapshotInput
   // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or
   // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every

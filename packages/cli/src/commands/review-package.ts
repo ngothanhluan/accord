@@ -1,20 +1,93 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { interfaceSigns, outsideScope, stageOff, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { interfaceSigns, matchedHunks, outsideScope, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
+import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
+import { securityRoundRanges } from '../load/security-facts.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
 import { branchFactFor } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 
-// No leading '-', so a ref can never be read as a git option; no spaces or shell metacharacters.
-// `~` and `^` after the first character admit HEAD~3 and main^.
-const REF = /^[A-Za-z0-9][A-Za-z0-9._/~^-]*$/;
+const cannot = (why: string) => `(cannot tell: ${why})`;
+const NONE = '(none: no pattern matched)';
 
-export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string }): number {
+interface SecuritySections {
+  triggers: string;
+  checklist: string;
+  hunks: string;
+}
+
+/**
+ * ST-LN-36 D-05 (4): the security sections of a package, from its own diff text and changed list so they run no git command of their own. `triggers` is the `## Security triggers`
+ * text; with `full`, `checklist` (every item in force, default and team) and `hunks` (matchedHunks, or the none line) are read too.
+ */
+function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean): SecuritySections {
+  try {
+    const spec = securitySpec(s);
+    const generated = s.config?.generated ?? [];
+    const found = securityTriggers(spec, diffText, changed, { generated });
+    let triggers = found.map(triggerText).join('\n') || NONE;
+    // ST-LN-36 D-06: a line of the repository's file that did not read is said here too, so a reviewer is never told the list is whole when it is not.
+    const unread = spec.problems.length;
+    if (unread > 0) triggers += `\n(accord/product/security.md: ${unread} ${unread === 1 ? 'line' : 'lines'} not read; run accord lint)`;
+    if (!full) return { triggers, checklist: '', hunks: '' };
+    return {
+      triggers,
+      checklist: spec.checklist.map((c) => `- ${c.id}: ${c.text}`).join('\n') || '(none)',
+      hunks: matchedHunks(spec, diffText, changed, { generated }).join('\n') || NONE,
+    };
+  } catch (e) {
+    const unread = cannot(e instanceof Error ? e.message : String(e));
+    return { triggers: unread, checklist: unread, hunks: unread };
+  }
+}
+
+const securityText = (title: string, sec: SecuritySections): string =>
+  [title, '## Checklist', sec.checklist, '## Security triggers', sec.triggers, '## Matched hunks', sec.hunks].join('\n\n') + '\n';
+
+/** A full 40 or 64 digit sha as its first twelve digits; any other ref as typed. */
+const abbrev = (ref: string): string => (/^[0-9a-f]{40,64}$/.test(ref) ? ref.slice(0, 12) : ref);
+
+/**
+ * `--security --round <k>`: the security package of the k-th `## Round` section of review.md, over the range the security record rule reads (securityRoundRanges), so a session refused for a
+ * skipped security review can review exactly that round. A `(final review)` round has none (D-10): its fix is reviewed at the re-review round after it.
+ */
+function securityRoundPackage(ctx: CommandContext, id: string, asked: string): number {
+  if (!/^[1-9][0-9]*$/.test(asked)) throw new UsageError(`--round takes a round number, 1 or more: ${asked}`);
+  const k = Number(asked);
+  const ranges = securityRoundRanges(ctx.root, ctx.snapshot, id);
+  if ('error' in ranges) throw new UsageError(`cannot read the rounds of ${id}: ${ranges.error}`);
+  const at = ranges.rounds[k - 1];
+  if (at === undefined) {
+    const n = ranges.rounds.length;
+    throw new UsageError(n === 0 ? `--round ${k}: review.md of ${id} records no round` : `--round ${k}: review.md of ${id} records ${n} ${n === 1 ? 'round' : 'rounds'}`);
+  }
+  if (at.final) {
+    throw new UsageError(`--round ${k} is a (final review) round, which has no security package of its own (D-10); its fix is reviewed at the re-review round after it`);
+  }
+  const range = `${abbrev(at.base)}...${abbrev(at.head)}`;
+  let pkg;
+  try {
+    pkg = packageDiff(ctx.root, { base: at.base, head: at.head, def: defaultRefOf(ctx.root), allowPlainLog: false });
+  } catch (e) {
+    if (e instanceof UsageError) throw e;
+    throw new UsageError(`cannot diff round ${k} (${range}): ${why(e)}`);
+  }
+  ctx.stdout.write(securityText(`# Security package: ${id} (${range})\nHead: ${abbrev(at.head)}`, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true)));
+  return 0;
+}
+
+export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string; security?: boolean; round?: string }): number {
   const ticket = requireLaneTicket(ctx, id);
   refuseLaneR(ticket, id, 'review package');
+  if (options.round !== undefined && options.security !== true) throw new UsageError('--round is for the security package: give --security too');
+  if (options.security === true && options.round !== undefined) {
+    if (options.base !== undefined) throw new UsageError('--round takes the range of the recorded round; give no --base');
+    return securityRoundPackage(ctx, id, options.round);
+  }
   const laneS = ticket.frontmatter?.lane === 'S';
   const git = (args: string[]) =>
     execFileSync('git', args, {
@@ -77,7 +150,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   }
   // The default ref read for a lane S base is the one the exclusion below uses.
   const laneSDefault = laneS && (options.base === undefined || v2) ? defaultRefOf(ctx.root) : undefined;
-  const base = lastHead ?? options.base ?? (laneS ? laneSDefault : (baseline ?? planOffDefault));
+  const base = lastHead ?? options.base ?? roundOneBase(ctx.root, ctx.snapshot, id, { defaultRef: laneS ? laneSDefault : planOffDefault });
   if (base === undefined) {
     throw new UsageError(
       laneS
@@ -88,16 +161,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     );
   }
   if (!REF.test(base)) throw new UsageError('not a git ref: ' + base);
-  // Every git log passes the signature flags (conventions.md), so a signed HEAD never changes the output.
-  const gitLog = (args: string[]) => git(['-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
   const range = base + '...HEAD';
-  // A short reason for the one failure that explains itself, else git's own first stderr line.
-  const why = (e: unknown): string => {
-    const err = e as { code?: string; stderr?: string };
-    if (err.code === 'ENOBUFS') return 'the diff is larger than 64 MiB';
-    const line = (err.stderr ?? '').split('\n').find((l) => l.trim() !== '');
-    return line === undefined ? 'git failed' : line.replace(/^fatal: /, '').trim();
-  };
   try {
     git(['rev-parse', '--verify', '--quiet', base + '^{commit}']);
   } catch {
@@ -109,70 +173,30 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     }
     throw new UsageError(headless ? 'the repository has no commit to review' : 'unknown base ref: ' + base);
   }
-  // ST-LN-26: a fix made after a merge from the default branch is reviewed without what that merge brought in.
   const def = laneSDefault ?? defaultRefOf(ctx.root);
-  const short = def?.replace(/^refs\/(remotes|heads)\//, '');
-  let excluded = false;
-  if (def !== undefined) {
-    try {
-      git(['merge-base', '--is-ancestor', 'HEAD', def]);
-    } catch {
-      try {
-        const count = (extra: string[]) => git(['rev-list', '--count', base + '..HEAD', ...extra, '--']).trim();
-        excluded = count(['^' + def]) !== count([]);
-      } catch {
-        // a count that fails leaves today's package
-      }
-    }
-  }
-  // Each git log is tried with --remerge-diff first and once more without it (git < 2.36).
-  const log = (args: string[]): string => {
-    const r = ['^' + def];
-    const full = (extra: string[]) => gitLog([...args, ...extra, base + '..HEAD', ...r, '--']);
-    try {
-      return full(['--remerge-diff']);
-    } catch {
-      if (!old) throw new UsageError(`cannot diff ${range}: git cannot show a merge's own changes (git log --remerge-diff needs git 2.36 or newer)`);
-      return full([]);
-    }
-  };
-  // BUG-LN-19: oldest first without --reverse, since git 2.36 to 2.47 show a clean merge's changes wrong when --reverse meets
-  // --remerge-diff (fixed in git 2.48). Each commit's text starts at its \x01 header line; no diff or stat line starts with \x01.
-  const oldestFirst = (args: string[]): string => {
-    const text = log([...args, '--format=%x01%h %s']);
-    if (!text.startsWith('\x01')) return text;
-    const commits = text.slice(1).split('\n\x01');
-    return commits
-      .map((c, i) => (i < commits.length - 1 ? c + '\n' : c))
-      .reverse()
-      .join('');
-  };
   const f = branchFactFor(ctx, id, { defaultRef: def });
   const s = { ...ctx.snapshot, branchFacts: { [id]: f } };
   let parts: string[];
+  let label: string;
+  let diffText: string;
+  let changedFiles: string[];
   try {
-    parts = excluded
-      ? [
-          `# Review package: ${id} (${base}..HEAD, without ${short})`,
-          '## Commits',
-          gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '^' + def, '--']).trimEnd() || '(none)',
-          '## Stat',
-          oldestFirst(['--no-color', '--no-ext-diff', '--stat']).trimEnd() || '(no changes)',
-          '## Diff',
-          oldestFirst(['--no-color', '--no-ext-diff', '-p', '-U10']).trimEnd() || '(no changes)',
-        ]
-      : [
-          `# Review package: ${id} (${range})`,
-          '## Commits',
-          gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
-          '## Stat',
-          git(['diff', '--no-color', '--no-ext-diff', '--stat', range, '--']).trimEnd() || '(no changes)',
-          '## Diff',
-          git(['diff', '--no-color', '--no-ext-diff', '-U10', range, '--']).trimEnd() || '(no changes)',
-        ];
-    const changed = excluded
-      ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]
-      : git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');
+    // ST-LN-36: the package diff of a head is one function (the security record rule reads each round's head through it); ST-LN-26's exclusion of a merge from the default branch lives there.
+    const pkg = packageDiff(ctx.root, { base, head: 'HEAD', def, allowPlainLog: old, parts: true });
+    const changed = pkg.changed;
+    label = pkg.excluded ? `${base}..HEAD, without ${pkg.short}` : range;
+    parts = [
+      `# Review package: ${id} (${label})`,
+      '## Commits',
+      pkg.commits || '(none)',
+      '## Stat',
+      pkg.stat || '(no changes)',
+      '## Diff',
+      pkg.diff || '(no changes)',
+    ];
+    // ST-LN-36 D-05: the security triggers read the package's own diff text and changed list, so they run no git command of their own.
+    diffText = pkg.diff;
+    changedFiles = changed;
     const undeclared = undeclaredFiles(s, id, changed);
     parts.splice(
       parts.indexOf('## Diff'),
@@ -191,7 +215,6 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     const head = 'error' in walk ? '(cannot tell: ' + walk.error + ')' : commit === undefined ? '(cannot tell: no commit)' : nearestCode(walk, commit, id);
     parts[0] += '\nHead: ' + head;
   }
-  const cannot = (why: string) => `(cannot tell: ${why})`;
   const shown: string[] = [];
   if (laneS) {
     const o = outsideScope(s, id);
@@ -205,6 +228,13 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     '## Interface signs',
     'error' in f ? cannot(f.error) : signs?.map((x) => `${x.path}: ${x.sign}`).join('\n') || '(none)',
   );
+  if (options.security === true) {
+    // The security package: the same range and diff, but only the checklist, the triggers and the hunks they match.
+    const at = parts[0].indexOf('\nHead: ');
+    ctx.stdout.write(securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true)));
+    return 0;
+  }
+  shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false).triggers);
   parts.splice(parts.indexOf('## Stat'), 0, ...shown);
   ctx.stdout.write(parts.join('\n\n') + '\n');
   return 0;

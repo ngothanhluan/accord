@@ -122,7 +122,7 @@ beforeAll(() => {
   commitMsg(reviewed, 'ready: S-1');
   writeFiles(reviewed, { 'src/a.ts': 'b\n' });
   commitMsg(reviewed, 'change');
-  ROUND1 = `Round record: 2\n\n## Round 1 head ${gitRun(reviewed, 'rev-parse', 'HEAD').trim()}\n\nNo findings\n`;
+  ROUND1 = `Round record: 2\n\n## Round 1 head ${gitRun(reviewed, 'rev-parse', 'HEAD').trim()}\n\nNo findings\n\nSecurity: no pattern matched\n`;
   REVIEW = ROUND1 + '\nverdict: converged\n';
 });
 afterAll(() => cleanup(reviewed));
@@ -323,7 +323,7 @@ it('risk:complex-branching the review package lists the out-of-scope files and i
     const first = await run(['review-package', 'S-1'], repo);
     expect(first.code).toBe(0);
     expect(first.out).toContain(
-      '## Out-of-scope files\n\nschemas/x.json\nsrc/b.ts\n\n## Interface signs\n\nschemas/x.json: a new schema file\n\n## Stat',
+      '## Out-of-scope files\n\nschemas/x.json\nsrc/b.ts\n\n## Interface signs\n\nschemas/x.json: a new schema file\n\n## Security triggers\n\n(none: no pattern matched)\n\n## Stat',
     );
     gitRun(repo, 'rm', '-q', 'src/b.ts', 'schemas/x.json');
     commitMsg(repo, 'remove');

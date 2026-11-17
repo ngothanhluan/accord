@@ -16,6 +16,7 @@ import { scanJUnit } from './junit.js';
 import { d07Key, duplicateHeadings, headingKey, laneKey, requirementLines, scan } from './sections.js';
 import { isResearchPath } from './research.js';
 import { parseRounds } from '../round/record.js';
+import { SECURITY_FILE } from '../security/spec.js';
 import { parseVerification } from './verification.js';
 import { parseBaseline, parseDebug, parseDiscuss, parseLedger, parsePlan, parseReview } from './work.js';
 
@@ -143,6 +144,8 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
   for (const p of [...listed].sort()) {
     if (isResearchPath(p) && Object.hasOwn(files, p)) snapshotFiles[p] = normaliseText(files[p]);
   }
+  // ST-LN-36 D-05: the repository's security trigger list, read by securitySpec and lint.security-file; last, so a repository without one keeps its goldens.
+  if (Object.hasOwn(files, SECURITY_FILE)) snapshotFiles[SECURITY_FILE] = normaliseText(files[SECURITY_FILE]);
 
   for (const id of Object.keys(verifications)) {
     if (id in tickets) continue;

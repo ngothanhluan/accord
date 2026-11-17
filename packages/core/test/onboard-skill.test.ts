@@ -119,8 +119,8 @@ describe('the onboarding skill confirms each proposal and writes only what the u
     for (const [runtime, path] of [['claude', '.claude/skills/accord/onboard.md'], ['codex', '.agents/skills/accord/onboard.md']] as const) {
       expect(skillTargets(config([runtime])).some((f) => f.path === path), `${runtime}: ${path}`).toBe(true);
     }
-    // The route stays inside the caps the accord skill keeps.
-    const accord = source('accord/SKILL.md');
+    // The route stays inside the caps the accord skill keeps: the caps bind the rendered file, which has no `loads:` line.
+    const accord = renderSkill('accord/SKILL.md' as SkillKey);
     expect(Buffer.byteLength(accord, 'utf8')).toBeLessThanOrEqual(6000);
     expect(accord.split('\n').length).toBeLessThanOrEqual(120);
   });

@@ -37,6 +37,7 @@ export type {
   RangeCommit,
   HeadFact,
   RoundFacts,
+  SecurityFacts,
   RecordPin,
   ClaimPin,
   Discuss,
@@ -48,14 +49,16 @@ export { loadSnapshot } from './load/snapshot.js';
 export { debugHeadings, debugOpen, UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from './load/unfinished.js';
 export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
-export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, RECORD_V2_FROM, RULESET_FROM, TASK_REPORT_FROM, pinAllowsV1, pinBefore, pinOf, rulesetOfTicket } from './round/pin.js';
+export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, RECORD_V2_FROM, RULESET_FROM, SECURITY_TRIGGER_FROM, TASK_REPORT_FROM, pinAllowsV1, pinBefore, pinOf, rulesetOfTicket } from './round/pin.js';
 export { parseDiscuss } from './load/work.js';
 export { REPORT_CONTRACT, reportReasons } from './gate/task-report.js';
 export { groundsDeferred, groundsFrom, groundsOn, groundsProblems, groundsV2 } from './round/grounds.js';
 export { fixScopeProblems } from './round/fixscope.js';
 export { fixOn, fixProblems } from './round/fix.js';
 export type { FixProblem } from './round/fix.js';
-export { pendingAddedCode, scopeProblems } from './round/scope.js';
+export { pendingAddedCode, scopeProblems, skipped as reviewSkipped } from './round/scope.js';
+export { securityOn, securityProblems, securityUnreviewed } from './round/security.js';
+export type { SecurityProblem } from './round/security.js';
 export {
   APPROACH_CAP,
   LEGACY_CAP,
@@ -114,6 +117,10 @@ export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';
 export { SIZE_MULTIPLE, sizeRefusal, TASK_LINE_CAP, taskLength } from './gate/plan.js';
 export { afterCycles, buildWaves, DEFAULT_PARALLEL, parallelOf, sequentialReason } from './plan/waves.js';
 export { CALL_SIGN, interfaceSigns, matches, outsideScope, scopeLines } from './gate/scope.js';
+export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from './security/spec.js';
+export type { SecurityCheck, SecurityPattern, SecuritySpec } from './security/spec.js';
+export { diffFiles, matchedHunks, securityTriggers, triggerText } from './security/match.js';
+export type { DiffFile, DiffHunk, Trigger } from './security/match.js';
 export { compilePattern, DEFAULT_PATTERN, ID_PREFIX, initialsHolder, initialsOf, nextTicketId, peopleOf, prefixOf, TRACKER_KEY, trackerKeyOk } from './lint/ids.js';
 export type { CompiledPattern, IdsConfig } from './lint/ids.js';
 export { untracedTests } from './lint/tests.js';

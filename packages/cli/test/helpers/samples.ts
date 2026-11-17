@@ -236,8 +236,8 @@ class Dag {
 
 // ST-LN-17: a review.md carries the record version line, or gate done refuses it (gate.review-rounds).
 // ST-LN-57: from accord 0.3.1 the record is version 2, its round headed by the commit the round reviewed.
-const REVIEWED = (head: string) => `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nverdict: converged\n`;
-const UNFINISHED = (head: string) => `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nNo verdict yet.\n`;
+const REVIEWED = (head: string) => `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nSecurity: no pattern matched\n\nverdict: converged\n`;
+const UNFINISHED = (head: string) => `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nSecurity: no pattern matched\n\nNo verdict yet.\n`;
 const recordsOf = (id: string) => ({
   ticket: P(id),
   plan: `accord/tickets/${id}/plan.md`,

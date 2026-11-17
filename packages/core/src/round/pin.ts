@@ -106,6 +106,13 @@ export const FIX_RECORD_FROM = '0.6.0';
  */
 export const PLAN_WAVES_FROM = '0.6.0';
 
+/**
+ * ST-LN-36 D-05, D-10, the cut-off Ruling and the orchestrator Ruling of 2026-11-17: the release from which a review round whose package had security triggers needs `Security: lens security ran`,
+ * and every round but a `(final review)` needs a `Security:` line (`Security: no pattern matched` when no pattern matched), both refused by `accord gate done` (gate.security-unreviewed, lane M and
+ * lane S) and by `accord round`. A ticket claimed under a pin below it, and every version 1 record, answer as before and start no security-fact git read. Read through claimPinBefore.
+ */
+export const SECURITY_TRIGGER_FROM = '0.7.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

@@ -21,7 +21,7 @@ with that reason, without the scout of step 1, and the accord skill follows its 
    question settles it. The owner may override.
 
 Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or
-auth, money or data deletion, is touched; more than one plausible reading, where a reading one question settles
+auth, money, migration or data deletion, is touched; more than one plausible reading, where a reading one question settles
 stays lane S; the expected files, not counting test files and the copies accord itself generates, number more
 than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.
 

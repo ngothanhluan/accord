@@ -1,0 +1,86 @@
+# Review package: T-1 (<sha>...HEAD)
+Head: <sha>
+
+## Commits
+
+<sha> spawn, notes and a workflow
+<sha> plan and first code
+
+## Interface signs
+
+(none)
+
+## Stat
+
+ .github/workflows/ci.yml   |  1 +
+ accord/tickets/T-1/plan.md | 20 ++++++++++++++++++++
+ docs/notes.md              |  1 +
+ src/a.ts                   |  1 +
+ src/run.ts                 |  1 +
+ 5 files changed, 24 insertions(+)
+
+## Undeclared files
+
+.github/workflows/ci.yml
+docs/notes.md
+src/a.ts
+src/run.ts
+
+## Diff
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index <sha>..<sha>
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1 @@
++name: ci
+diff --git a/accord/tickets/T-1/plan.md b/accord/tickets/T-1/plan.md
+new file mode 100644
+index <sha>..<sha>
+--- /dev/null
++++ b/accord/tickets/T-1/plan.md
+@@ -0,0 +1,20 @@
++---
++baseline: <sha>
++plan_hash: "fnv1a64:<sha>"
++---
++
++# Plan
++
++## Task 1: Writer csv mode
++covers: @ac-1, D-01
++files: src/export.ts
++verify: export#writes-csv (@ac-1)
++after: none
++Add a csv branch to the writer.
++
++## Task 2: Escaping
++covers: @ac-2
++files: src/export.ts
++verify: export#escapes-commas (@ac-2)
++after: 1
++Quote cells that contain a comma.
+diff --git a/docs/notes.md b/docs/notes.md
+index <sha>..<sha> 100644
+--- a/docs/notes.md
++++ b/docs/notes.md
+@@ -1 +1,2 @@
+ notes
++more notes
+diff --git a/src/a.ts b/src/a.ts
+new file mode 100644
+index <sha>..<sha>
+--- /dev/null
++++ b/src/a.ts
+@@ -0,0 +1 @@
++export const a = 1;
+diff --git a/src/run.ts b/src/run.ts
+index <sha>..<sha> 100644
+--- a/src/run.ts
++++ b/src/run.ts
+@@ -1,3 +1,4 @@
+ export const one = 1;
+ export const two = 2;
+ export const three = 3;
++spawnSync('git', ['status']);

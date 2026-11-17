@@ -97,6 +97,8 @@ export function initFiles(pkg: { name: string; version: string }): ScaffoldFile[
     { path: 'accord/product/business-rules.md', text: templates['business-rules.md'] },
     // ST-LN-8 D-04: conventions.md is free text like its siblings, unchecked by lint; `accord brief` appends it.
     { path: 'accord/product/conventions.md', text: templates['conventions.md'] },
+    // ST-LN-36 D-05: the security trigger list and checklist; an absent file means the same defaults, and init never overwrites an edit (D-130).
+    { path: 'accord/product/security.md', text: templates['security.md'] },
   ];
   return out.sort((a, b) => cmp(a.path, b.path));
 }

@@ -45,7 +45,9 @@ describe('initFiles — the plan it returns', () => {
     for (const { path, text } of output) {
       expect(path, path).not.toContain('\\');
       // Report the offending line, not a bare boolean: this fails on a host the author does not have.
-      const offender = text.split('\n').find((line) => line.includes('\\'));
+      // ST-LN-36: a line pattern of the security file is a regular expression, whose escapes (`\b`) are not path separators; every other line still may not hold one.
+      const regexLine = (line: string) => path === 'accord/product/security.md' && /^- [a-z0-9][a-z0-9-]*: line \/.+\/i? — /.test(line);
+      const offender = text.split('\n').find((line) => line.includes('\\') && !regexLine(line));
       expect(offender, `${path}: ${String(offender)}`).toBeUndefined();
     }
   });
@@ -80,14 +82,20 @@ describe('initFiles — the config it plans', () => {
 
   // `toEqual` on the whole list, never `toContain`: a fourth entry appearing without a decision behind it
   // is exactly the drift this case exists to catch, and `toContain` would pass over it.
-  it('plans exactly the workflow, the config and the two product documents', () => {
+  it('plans exactly the workflow, the config and the four product documents', () => {
     expect(output.map((f) => f.path)).toEqual([
       '.github/workflows/accord.yml',
       'accord/config.yml',
       'accord/product/business-rules.md',
       'accord/product/conventions.md',
       'accord/product/glossary.md',
+      'accord/product/security.md',
     ]);
+  });
+
+  it('ac-4 accord init plans the security file with the default patterns and checklist (ST-LN-36 36-ac-4)', () => {
+    const security = output.find((f) => f.path === 'accord/product/security.md');
+    expect(security?.text).toBe(templates['security.md']);
   });
 
   // Worth more than all the others: a config that does not validate makes every later command in the

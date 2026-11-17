@@ -73,6 +73,7 @@ const LOCKED_LIST = [
   'lint.id-mismatch',
   'lint.lane-s-lane-m-records',
   'lint.no-scenarios',
+  'lint.security-file',
   'lint.step-empty',
   'lint.subject-duplicate',
   'lint.template-section',

@@ -38,7 +38,7 @@ const FLOOR: Record<string, readonly string[]> = {
   ],
   'the security and data-loss rules': ['gate.sensitive-touched', 'gate.out-of-scope', 'gate.interface-sign', 'gate.branch-unknown', 'lint.lane-s-lane-m-records'],
   'which rules apply, which lane a ticket is in and what the config says': [
-    'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor', 'lint.template-section',
+    'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor', 'lint.security-file', 'lint.template-section',
   ],
 };
 
@@ -97,6 +97,7 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.fix-places-missing': 'review',
   'gate.fix-not-addressed': 'review',
   'gate.fix-outside-open': 'review',
+  'gate.security-unreviewed': 'review',
   'gate.review-trailing': 'review',
   'gate.review-uncommitted': 'review',
   'gate.review-commit-code': 'review',

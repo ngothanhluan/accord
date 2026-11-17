@@ -39,6 +39,7 @@ import {
   trackerEmpty,
   vagueWording,
 } from './ticket.js';
+import { securityFile } from '../security/spec.js';
 import { researchReference } from './research.js';
 import { testUntraced } from './tests.js';
 import { prototypeDerivation, tokenHardcoded, tokensMissing } from './tokens.js';
@@ -97,5 +98,6 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.model-retired', level: 'warning', profiles: ['build', 'maintain'], check: modelRetired },
   { id: 'lint.subject-duplicate', level: 'error', profiles: ['build', 'maintain'], check: subjectDuplicate },
   { id: 'lint.config-floor', level: 'error', profiles: ['build', 'maintain'], check: configFloor },
+  { id: 'lint.security-file', level: 'error', profiles: ['build', 'maintain'], check: securityFile },
   { id: 'lint.template-section', level: 'error', profiles: ['build', 'maintain'], check: templateSection },
 ];

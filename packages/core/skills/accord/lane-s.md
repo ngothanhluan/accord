@@ -40,7 +40,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    `tests.affected` is not configured or finds no test file. Fix what fails, then commit the change.
 4. **Review rounds.** Round <n> runs `accord review-package <id>` into a file outside the working tree and
    dispatches one fresh `accord-reviewer`, lens `both`, with the paths of the ticket file, that file, and
-   `accord/tickets/<id>/ledger.md` when it exists. Append what it reports to `accord/tickets/<id>/review.md` under
+   `accord/tickets/<id>/ledger.md` when it exists. Beside it, when the round's package lists a security trigger, add a security reviewer, and in every round write the round's `Security:` line (`Security: no pattern matched` when the package lists none), as `./security.md` says. Append what it reports to `accord/tickets/<id>/review.md` under
    `## Round <n> head <sha>`, `<sha>` being the `Head: <sha>` line the package printed and the heading ending
    ` (added code round 1)` when `accord round` printed `Added code:`; write each finding as
    `Must|Should|Nice <n>: <finding> — <path>[:<line>] | none — fixed in <sha> | deferred | open`, then its marks, or

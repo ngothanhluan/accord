@@ -379,3 +379,37 @@ it('risk:security a -diff file is scanned in a package that leaves out a merge f
     cleanup(repo);
   }
 }, 120_000);
+
+it.each([
+  ['diff.noprefix', [['diff.noprefix', 'true']]],
+  ['diff.srcPrefix and diff.dstPrefix', [['diff.srcPrefix', 'old/'], ['diff.dstPrefix', 'new/']]],
+])('risk:git-config the package diff and its triggers do not depend on %s (WR-01)', async (_name, config) => {
+  const repo = laneSWith({ 'src/run.ts': RUN_NEW, '.gitattributes': '*.js -diff\n', 'evil.js': EVIL }, {}, config);
+  try {
+    const out = await run(['review-package', 'S-1'], repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    const s = section(out.out);
+    expect(s).not.toContain('cannot tell');
+    expect(s).toContain('src/run.ts:3: spawn (process spawn)');
+    expect(s).toContain('evil.js:1: spawn (process spawn)');
+    expect(out.out).toContain('diff --git a/src/run.ts b/src/run.ts');
+    // the package that leaves out a merge from the default branch reads git log -p, which takes the same options
+    const base = gitRun(repo, 'rev-parse', 'main').trim();
+    gitRun(repo, 'switch', '-q', 'main');
+    writeFiles(repo, { 'docs/notes.md': 'notes\n' });
+    commitMsg(repo, 'main moves');
+    gitRun(repo, 'switch', '-q', 't/S-1');
+    mergeMsg(repo, 'main', 'merge main');
+    writeFiles(repo, { 'src/run.ts': RUN_NEW + 'fork();\n' });
+    commitMsg(repo, 'fix after the merge');
+    const pkg = packageDiff(repo, { base, head: 'HEAD', def: defaultRefOf(repo), allowPlainLog: false });
+    expect(pkg.excluded).toBe(true);
+    const found = securityTriggers(DEFAULT_SECURITY, pkg.diff, pkg.changed, { generated: [] }).map(triggerText);
+    expect(found.filter((t) => t.includes('cannot tell'))).toEqual([]);
+    expect(found).toContain('evil.js:1: spawn (process spawn)');
+    expect(found).toContain('src/run.ts:4: spawn (process spawn)');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

@@ -68,8 +68,10 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
     });
-  // Every git log passes the signature flags (conventions.md), so a signed head never changes the output.
-  const gitLog = (args: string[]) => git(['-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
+  // Every git log passes the signature flags (conventions.md), so a signed head never changes the output. Every call whose text is read for paths
+  // (log -p, diff -p, --stat) passes core.quotePath=false, so a non-ASCII name prints as it is and not as a quoted octal escape the reader cannot place.
+  const NO_QUOTE = ['-c', 'core.quotePath=false'];
+  const gitLog = (args: string[]) => git(['-c', 'log.showSignature=false', ...NO_QUOTE, 'log', '--no-show-signature', ...args]);
   const range = base + '...' + head;
   // ST-LN-26: a fix made after a merge from the default branch is reviewed without what that merge brought in.
   const short = def?.replace(/^refs\/(remotes|heads)\//, '');
@@ -115,10 +117,10 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
     ).trimEnd();
     result.stat = (excluded
       ? oldestFirst(['--no-color', '--no-ext-diff', '--stat'])
-      : git(['diff', '--no-color', '--no-ext-diff', '--stat', range, '--'])
+      : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', '--stat', range, '--'])
     ).trimEnd();
   }
-  result.diff = (excluded ? oldestFirst(['--no-color', '--no-ext-diff', '-p', '-U10']) : git(['diff', '--no-color', '--no-ext-diff', '-U10', range, '--'])).trimEnd();
+  result.diff = (excluded ? oldestFirst(['--no-color', '--no-ext-diff', '-p', '-U10']) : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', '-U10', range, '--'])).trimEnd();
   result.changed = excluded
     ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]
     : git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');

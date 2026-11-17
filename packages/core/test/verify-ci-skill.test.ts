@@ -60,6 +60,66 @@ it('ac-2 verify reads the default branch\'s rules and reports one line on the re
   expect(bad).toEqual([]);
 });
 
+/** The rendered finish.md of a runtime, under accord-verify and under the accord skill (lane S). */
+const finishReports = (runtime: AccordConfig['runtimes'][number]) =>
+  skillTargets(config(runtime)).filter((f) => f.path.endsWith('/accord-verify/finish.md') || f.path.endsWith('/accord/finish.md'));
+
+it('ac-1 verify waits for the accord check on the tick commit and reports its verdict at finish (ST-LN-37 37-ac-1)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const files = ciFiles(runtime);
+    if (files.length === 0) bad.push(runtime + ': accord-verify/ci.md is missing');
+    for (const f of files) {
+      const text = flat(f.text);
+      const finish = text.slice(text.indexOf('## Finish'));
+      const ready = finish.indexOf('`gh pr ready`');
+      const step4 = finish.indexOf(' 4. ');
+      if (!(ready > -1 && step4 > ready)) bad.push(`${f.path}: Finish has no step 4 after the step holding gh pr ready`);
+      const section = step4 > -1 ? finish.slice(step4) : '';
+      for (const p of lacks(section, [
+        '`<tick>` is `git rev-parse HEAD`',
+        'gh run list --commit <tick>',
+        'the workflow whose `name:` is in `.github/workflows/accord.yml`',
+        'ten minutes',
+        'thirty minutes',
+        'gh run view <run-id> --json jobs',
+        'gh run view <run-id> --log-failed',
+        ': error <rule id>',
+        './failure.md',
+        'gate.tick-stale-commit',
+        'accord check on <tick>: passed',
+        'accord check on <tick>: failed: <rule ids>',
+        'accord check on <tick>: not checked: <reason>',
+      ]))
+        bad.push(f.path + ' Finish step 4 lacks ' + p);
+      if (finish.includes('Do not wait for CI again')) bad.push(f.path + ': Finish still says not to wait for CI again');
+      if (!finish.includes('also finishes a session that stopped after the tick commit')) bad.push(f.path + ': Finish lost the sentence on a stopped session');
+    }
+    for (const f of finishReports(runtime)) if (!flat(f.text).includes("the accord check's verdict")) bad.push(f.path + " does not name the accord check's verdict among its status lines");
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the wait before the report still leaves the accord workflow out (ST-LN-37 37-ac-1)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const files = ciFiles(runtime);
+    if (files.length === 0) bad.push(runtime + ': accord-verify/ci.md is missing');
+    for (const f of files) {
+      const text = flat(f.text);
+      const wait = text.slice(text.indexOf('## Wait'), text.indexOf('## Required check'));
+      for (const p of lacks(wait, [
+        'Leave out the workflow whose `name:` is in `.github/workflows/accord.yml`',
+        'never send it to debug',
+        'red by construction',
+        'Finish step 4 waits for it on the tick commit',
+      ]))
+        bad.push(f.path + ' Wait lacks ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
 it('risk:regression verify changes no GitHub setting (ST-LN-37 37-ac-2)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {

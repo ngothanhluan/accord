@@ -150,6 +150,7 @@ export type { SkillFile } from './skills/targets.js';
 // skipped when its path exists (D-130), a skill file is re-rendered against its marker and hash (D-131).
 // Borrowing one name for both write contracts would make one of the two doc comments false.
 export { initFiles } from './scaffold/init.js';
+export { ACCORD_CHECK_NAME, requiredCheckSteps } from './scaffold/workflow.js';
 export type { ScaffoldFile } from './scaffold/init.js';
 // CLI-03: not a `ScaffoldFile`, deliberately. The pointer's text depends on what the file already holds
 // (D-142), which is the one thing the skip-if-exists write contract above never looks at.

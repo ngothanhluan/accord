@@ -33,9 +33,33 @@
 // replaces it with the step this function writes, so renaming the step stops upgrades from refreshing the
 // script in every repository that ran `accord init`.
 //
+// The job's `name:` is what GitHub lists as the check, and a required status check is named by it (ST-LN-37).
+// `ACCORD_CHECK_NAME` below is the one source: this document, `accord init`'s printed steps and the README all
+// read it. A team that renames the job also changes the check it makes required.
+//
 // The script is written out as a block scalar rather than assembled from an object: a YAML serialiser
 // round-trip would lose the comment and the block-scalar shape, which are what make this file readable in
 // someone else's repository.
+
+/**
+ * The name of the accord job, which GitHub lists as the check a branch rule requires (ST-LN-37, D-03). Equal to
+ * the `name:` line of this repository's own `.github/workflows/accord.yml`; `scaffold.test.ts` holds the two together.
+ */
+export const ACCORD_CHECK_NAME = 'lint and gate the tickets this pull request touches';
+
+/**
+ * The steps that make the accord check a merge gate, in the order a repository admin does them (ST-LN-37 37-ac-3).
+ * `accord init` prints them and the README carries the same sentences verbatim; no accord command changes a GitHub
+ * setting, so a person does this once on GitHub. The third step is what makes CI run on the merge result (ST-LN-11):
+ * with it the suite that ran on a pull request is the suite of what the merge will hold.
+ */
+export function requiredCheckSteps(): string[] {
+  return [
+    'Open Settings > Rules > Rulesets and add a branch ruleset that targets the default branch, or open Settings > Branches and add a branch protection rule for it.',
+    `Turn on "Require status checks to pass" and add the check "${ACCORD_CHECK_NAME}"; it is listed once the accord workflow has run on a pull request.`,
+    'Turn on "Require branches to be up to date before merging", so the suite CI runs on a pull request is the suite of what the merge will hold.',
+  ];
+}
 
 /**
  * The whole generated workflow document: LF, no BOM, one trailing newline, no backslash anywhere.
@@ -59,7 +83,7 @@ permissions:
   contents: read
 jobs:
   accord:
-    name: lint and gate the tickets this pull request touches
+    name: ${ACCORD_CHECK_NAME}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

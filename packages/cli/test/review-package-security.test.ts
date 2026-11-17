@@ -413,3 +413,18 @@ it.each([
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:security review-package --security --round reads a lone (final review) round, which the record rule asks like any round (WR-03)', async () => {
+  const m = laneM({ 'src/run.ts': RUN_NEW });
+  try {
+    const c1 = gitRun(m.repo, 'rev-parse', 'HEAD').trim();
+    writeFiles(m.repo, { 'accord/tickets/T-1/review.md': `Round record: 2\n\n## Round 1 head ${c1} (final review)\n\nNo findings\n` });
+    commitMsg(m.repo, 'rounds');
+    const out = await run(['review-package', 'T-1', '--security', '--round', '1'], m.repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    expect(section(out.out)).toBe('## Security triggers\n\nsrc/run.ts:3: spawn (process spawn)');
+  } finally {
+    cleanup(m.repo);
+  }
+}, 120_000);

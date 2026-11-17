@@ -1,7 +1,7 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { interfaceSigns, matchedHunks, outsideScope, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { interfaceSigns, matchedHunks, outsideScope, securityExemptRounds, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
@@ -53,7 +53,7 @@ const abbrev = (ref: string): string => (/^[0-9a-f]{40,64}$/.test(ref) ? ref.sli
 
 /**
  * `--security --round <k>`: the security package of the k-th `## Round` section of review.md, over the range the security record rule reads (securityRoundRanges), so a session refused for a
- * skipped security review can review exactly that round. A `(final review)` round has none (D-10): its fix is reviewed at the re-review round after it.
+ * skipped security review can review exactly that round. A `(final review)` round that follows a round of its stretch has none (D-10): its fix is reviewed at the re-review round after it.
  */
 function securityRoundPackage(ctx: CommandContext, id: string, asked: string): number {
   if (!/^[1-9][0-9]*$/.test(asked)) throw new UsageError(`--round takes a round number, 1 or more: ${asked}`);
@@ -65,8 +65,8 @@ function securityRoundPackage(ctx: CommandContext, id: string, asked: string): n
     const n = ranges.rounds.length;
     throw new UsageError(n === 0 ? `--round ${k}: review.md of ${id} records no round` : `--round ${k}: review.md of ${id} records ${n} ${n === 1 ? 'round' : 'rounds'}`);
   }
-  if (at.final) {
-    throw new UsageError(`--round ${k} is a (final review) round, which has no security package of its own (D-10); its fix is reviewed at the re-review round after it`);
+  if (securityExemptRounds(ctx.snapshot, id).has(k)) {
+    throw new UsageError(`--round ${k} is a (final review) round that follows a round of its stretch, which has no security package of its own (D-10); its fix is reviewed at the re-review round after it`);
   }
   const range = `${abbrev(at.base)}...${abbrev(at.head)}`;
   let pkg;

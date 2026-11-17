@@ -113,8 +113,9 @@ no GitHub setting, and every `gh api` call below is a plain read.
    without admin rights.
 6. Give the owner one line, always required first and up to date second:
    `accord check required: yes|no|not checked (<reason>); branches must be up to date: yes|no|not checked (<reason>)`.
-   When either answer is no, the line ends with
-   `- make it a merge gate as the README's "Make the accord check a merge gate" section or accord init says`.
+   When either answer is no, the line ends with the words "- make it a
+   merge gate as the README's 'Make the accord check a merge gate' section
+   or accord init says".
 
 ## Finish: step 6, after the tick is committed
 

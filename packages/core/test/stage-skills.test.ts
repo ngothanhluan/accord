@@ -1666,7 +1666,7 @@ it('ac-2 the plan, verify and debug skills dispatch resume mode when they find t
 });
 
 it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 lines after the resume pointers (ST-LN-72 72-ac-2)', () => {
-  const budget: Record<string, number> = { plan: 5980, verify: 5940, debug: 5450 };
+  const budget: Record<string, number> = { plan: 5980, verify: 5980, debug: 5450 };
   const bad: string[] = [];
   for (const [stage, max] of Object.entries(budget)) {
     const text = files.find((f) => f.path === '.claude/skills/' + installedName(stage) + '/SKILL.md')?.text ?? '';

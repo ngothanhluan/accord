@@ -535,11 +535,11 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
   const commands = (repo: string): string[] =>
     JSON.stringify(JSON.parse(bytes(at(repo, SETTINGS)))).match(/npx --yes [^"]+/g) ?? [];
 
-  it('creates the file with three accord commands; a second run is unchanged and writes nothing', async () => {
+  it('creates the file with the accord commands; a second run is unchanged and writes nothing', async () => {
     const repo = sandbox();
     const first = await run(['skills', 'sync'], repo);
     expect(first.out).toContain('created ' + SETTINGS + '\n');
-    expect(commands(repo)).toHaveLength(5);
+    expect(commands(repo)).toHaveLength(8); // five events' commands plus the write guard's three if-gated hooks (ST-LN-39)
     const before = statSync(at(repo, SETTINGS)).mtimeMs;
     const second = await run(['skills', 'sync'], repo);
     expect(second.out).toContain('unchanged ' + SETTINGS + '\n');
@@ -557,7 +557,7 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
     const json = JSON.parse(bytes(at(repo, SETTINGS)));
     expect(json.model).toBe('x');
     expect(json.hooks.SessionStart[0]).toEqual(foreign);
-    expect(commands(repo)).toHaveLength(5);
+    expect(commands(repo)).toHaveLength(8); // five events' commands plus the write guard's three if-gated hooks (ST-LN-39)
   });
 
   it('refuses a file that is not JSON, prints the hooks to add, and leaves it byte-identical', async () => {

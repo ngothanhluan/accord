@@ -62,7 +62,7 @@ npx --yes @accord-dev/accord@0.6.0 init
 - `accord/product/glossary.md`, `accord/product/business-rules.md` and `accord/product/conventions.md`, from templates.
 - `.github/workflows/accord.yml`, a GitHub Actions workflow that runs `lint` and `gate done` on the tickets a pull request changes, with the same pinned version.
 - The skills: `/accord` and the stage skills `accord-intent` (which holds the discuss stage), `accord-approach`, `accord-plan`, `accord-build`, `accord-review`, `accord-verify` and `accord-debug`, plus `accord-designer` for the `designer` role in `roles:`. Claude Code reads them from `.claude/skills/`, Codex from `.agents/skills/`.
-- For Claude Code only: the accord agents in `.claude/agents/`, the dashboard pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks and the keys that enable the pane. Existing settings are kept.
+- For Claude Code only: the accord agents in `.claude/agents/`, the dashboard pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks, one that lets only the `accord-verifier` subagent write `verification.md`, and the keys that enable the pane. Existing settings are kept.
 - A short accord block appended to `AGENTS.md` and `CLAUDE.md`, or those files created.
 
 Then edit `accord/config.yml`. Before the first ticket that carries a `@test:` scenario, remove the `# ` from the commented `tests:` and `report:` lines at its end, and set `report:` to the JUnit report your test runner writes.

@@ -1,5 +1,6 @@
 // ST-LN-17 D-03: `accord hook pre-tool-use` refuses an accord-executor dispatched on the wrong model while a ticket is at review.
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { building, P } from '../../../test/helpers/lane.js';
@@ -159,5 +160,134 @@ it('risk:complex-branching a fix executor in a second review cycle is judged at 
     expect(await hook(repo, input(repo, { model: 'opus' }))).toEqual({ code: 0, out: '{}\n', err: '' });
   } finally {
     cleanup(repo);
+  }
+}, 120_000);
+
+// ST-LN-39 D-08: in Claude Code only an accord-verifier subagent writes accord/tickets/<id>/verification.md.
+const RECORD = (root: string) => join(root, 'accord', 'tickets', 'T-1', 'verification.md');
+const write = (cwd: string, tool: string, file: string, who: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    session_id: 's-1',
+    cwd,
+    hook_event_name: 'PreToolUse',
+    tool_name: tool,
+    tool_input: { file_path: file, content: 'x' },
+    ...who,
+  });
+
+it('ac-1 in claude code only an accord-verifier subagent writes verification.md (ST-LN-39 39-ac-1)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'accord-ptu-'));
+  try {
+    const record = RECORD(dir);
+    const main = await hook(dir, write(dir, 'Write', record));
+    expect(main.code).toBe(0);
+    expect(main.err).toBe('');
+    const mainOut = JSON.parse(main.out);
+    const mainReason: string = mainOut.hookSpecificOutput.permissionDecisionReason;
+    expect(mainOut).toEqual(deny(mainReason));
+    expect(mainReason).toContain('accord: only the accord-verifier subagent writes accord/tickets/<id>/verification.md');
+    expect(mainReason).toContain('the main session');
+
+    const other = await hook(dir, write(dir, 'Edit', record, { agent_type: 'accord-reviewer', agent_id: 'a1' }));
+    expect(other.code).toBe(0);
+    const otherReason: string = JSON.parse(other.out).hookSpecificOutput.permissionDecisionReason;
+    expect(JSON.parse(other.out)).toEqual(deny(otherReason));
+    expect(otherReason).toContain('agent "accord-reviewer"');
+
+    const allowed = { code: 0, out: '{}\n', err: '' };
+    expect(await hook(dir, write(dir, 'Write', record, { agent_type: 'accord-verifier', agent_id: 'a1' }))).toEqual(allowed);
+    // Resume mode: a fresh dispatch of the same verifier carries another agent_id and the same type.
+    expect(await hook(dir, write(dir, 'Edit', record, { agent_type: 'accord-verifier', agent_id: 'a2' }))).toEqual(allowed);
+  } finally {
+    cleanup(dir);
+  }
+}, 120_000);
+
+it('risk:security every spelling of the verification record path is refused for a non-verifier writer (ST-LN-39 39-ac-1)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'accord-ptu-'));
+  try {
+    const spellings = [
+      'C:\\Work\\repo\\accord\\tickets\\T-1\\verification.md',
+      'C:/Work/repo/.claude/worktrees/w/accord/tickets/T-1/verification.md',
+      '/repo/accord/tickets/T-1/../T-1/verification.md',
+      '/repo//accord/tickets/T-1/./verification.md',
+      '/repo/Accord/Tickets/T-1/Verification.md',
+      'accord/tickets/T-1/verification.md',
+      RECORD(dir),
+    ];
+    for (const file of spellings) {
+      const r = await hook(dir, write(dir, 'Write', file));
+      expect(r.code, file).toBe(0);
+      expect(JSON.parse(r.out).hookSpecificOutput?.permissionDecision, file).toBe('deny');
+    }
+    for (const who of [{}, { agent_type: 'accord-reviewer', agent_id: 'a1' }, { agent_type: '' }, { agent_type: 7 }]) {
+      const r = await hook(dir, write(dir, 'MultiEdit', RECORD(dir), who));
+      expect(JSON.parse(r.out).hookSpecificOutput?.permissionDecision).toBe('deny');
+    }
+    // The verifier still writes every spelling.
+    for (const file of spellings) {
+      expect(await hook(dir, write(dir, 'Write', file, { agent_type: 'accord-verifier', agent_id: 'a1' }))).toEqual({ code: 0, out: '{}\n', err: '' });
+    }
+  } finally {
+    cleanup(dir);
+  }
+}, 120_000);
+
+it('risk:security the hook lets every other write and every unreadable input through (ST-LN-39 39-ac-1)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'accord-ptu-'));
+  try {
+    const allowed = { code: 0, out: '{}\n', err: '' };
+    for (const file of [
+      'accord/tickets/T-1/review.md',
+      'accord/tickets/T-1.md',
+      '/repo/verification.md',
+      'accord/tickets/T-1/x/verification.md',
+      'accord/tickets/verification.md',
+      'C:\\repo\\accord\\tickets\\T-1\\notes\\verification.md',
+    ]) {
+      expect(await hook(dir, write(dir, 'Write', file)), file).toEqual(allowed);
+    }
+    for (const tool of ['Read', 'Bash']) {
+      const r = await hook(dir, write(dir, tool, RECORD(dir)));
+      expect(r.code).toBe(0);
+      expect(r.out).toBe('{}\n');
+    }
+    const bad: string[] = [
+      '',
+      '[]',
+      'not json',
+      JSON.stringify({ tool_name: 'Write', tool_input: 'x' }),
+      JSON.stringify({ tool_name: 'Write', tool_input: [] }),
+      JSON.stringify({ tool_name: 'Write', tool_input: {} }),
+      JSON.stringify({ tool_name: 'Write', tool_input: { file_path: 7 } }),
+      JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: null } }),
+    ];
+    for (const stdin of bad) {
+      const r = await hook(dir, stdin);
+      expect(r.code, stdin).toBe(0);
+      expect(r.out, stdin).toBe('{}\n');
+      expect(r.err.trimEnd().split('\n'), stdin).toHaveLength(1);
+      expect(r.err.trimEnd(), stdin).toMatch(/; allowed$/);
+    }
+  } finally {
+    cleanup(dir);
+  }
+}, 120_000);
+
+it('risk:regression the write branch reads no repository (ST-LN-39 39-ac-1)', async () => {
+  // No accord folder and no git here: a repository load would fail and allow, so a deny proves none was attempted.
+  const dir = mkdtempSync(join(tmpdir(), 'accord-ptu-'));
+  try {
+    const r = await hook(dir, write(dir, 'Write', RECORD(dir)));
+    expect(r.code).toBe(0);
+    expect(r.err).toBe('');
+    expect(JSON.parse(r.out).hookSpecificOutput.permissionDecision).toBe('deny');
+    // The dispatch branch is unchanged: with no repository it fails open with one stderr line.
+    const agent = await hook(dir, input(dir, { model: 'sonnet' }));
+    expect(agent.code).toBe(0);
+    expect(agent.out).toBe('{}\n');
+    expect(agent.err).toMatch(/; allowed\n$/);
+  } finally {
+    cleanup(dir);
   }
 }, 120_000);

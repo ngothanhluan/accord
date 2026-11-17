@@ -16,7 +16,7 @@ import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
 import { configCheck, configGet, configSet, configUnset } from './commands/config.js';
 import { gate } from './commands/gate.js';
-import { hook, HOOK_EVENTS } from './commands/hook.js';
+import { hook, HOOK_EVENTS, preToolUseWrite } from './commands/hook.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
@@ -454,6 +454,12 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         return;
       }
       if (event === 'pre-tool-use') {
+        // ST-LN-39 D-08: a Write, Edit or MultiEdit is decided from stdin alone, so no repository is loaded for it.
+        const written = preToolUseWrite(opts);
+        if (written !== undefined) {
+          setCode(written);
+          return;
+        }
         // Ledger Ruling 32: a broken repository never blocks a dispatch; any failure is one stderr line and an allow.
         try {
           let cwd: string | undefined;

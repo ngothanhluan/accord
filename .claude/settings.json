@@ -53,6 +53,26 @@
             "command": "npx --yes @accord-dev/accord@0.6.0 hook pre-tool-use"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --yes @accord-dev/accord@0.6.0 hook pre-tool-use",
+            "if": "Write(**/accord/tickets/*/verification.md)"
+          },
+          {
+            "type": "command",
+            "command": "npx --yes @accord-dev/accord@0.6.0 hook pre-tool-use",
+            "if": "Edit(**/accord/tickets/*/verification.md)"
+          },
+          {
+            "type": "command",
+            "command": "npx --yes @accord-dev/accord@0.6.0 hook pre-tool-use",
+            "if": "MultiEdit(**/accord/tickets/*/verification.md)"
+          }
+        ]
       }
     ]
   },

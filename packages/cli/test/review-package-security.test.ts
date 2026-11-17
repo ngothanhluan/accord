@@ -288,3 +288,29 @@ it('ac-3 review-package --security --round prints the package of a recorded roun
     cleanup(m.repo);
   }
 }, 120_000);
+
+it('risk:parsing a changed file with a non-ASCII name is read as a spawn trigger with its line, not as a path git quoted (ST-LN-36 36-ac-1)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    identity(repo);
+    gitRun(repo, 'config', 'core.quotePath', 'true');
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
+      'src/café.ts': RUN_BASE,
+    });
+    commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/S-1');
+    writeFiles(repo, { 'src/café.ts': RUN_NEW });
+    commitMsg(repo, 'spawn in a file with an accent');
+    const s = await run(['review-package', 'S-1'], repo);
+    expect(s.err).toBe('');
+    expect(section(s.out)).toBe('## Security triggers\n\nsrc/café.ts:3: spawn (process spawn)');
+    const hunks = await run(['review-package', 'S-1', '--security'], repo);
+    expect(hunks.out).toContain("+spawnSync('git', ['status']);");
+    expect(hunks.out).not.toContain('cannot tell');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

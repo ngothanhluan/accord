@@ -4,13 +4,6 @@
     {
       "file": "accord/tickets/MACHINE.md",
       "level": "warning",
-      "line": 38,
-      "reason": "@test:nope#missing not found in reports/junit.xml; ids are classname#name with spaces as '-'",
-      "rule": "lint.test-id-unknown"
-    },
-    {
-      "file": "accord/tickets/MACHINE.md",
-      "level": "warning",
       "line": 43,
       "reason": "scenario \"Scenario with no test tag\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
@@ -23,5 +16,5 @@
       "rule": "lint.tick-orphan"
     }
   ],
-  "warnings": 3
+  "warnings": 2
 }

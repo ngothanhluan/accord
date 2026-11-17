@@ -1,7 +1,7 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { interfaceSigns, outsideScope, stageOff, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { interfaceSigns, outsideScope, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
@@ -150,6 +150,8 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   const f = branchFactFor(ctx, id, { defaultRef: def });
   const s = { ...ctx.snapshot, branchFacts: { [id]: f } };
   let parts: string[];
+  let diffText: string;
+  let changedFiles: string[];
   try {
     parts = excluded
       ? [
@@ -173,6 +175,9 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     const changed = excluded
       ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]
       : git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');
+    // ST-LN-36 D-05: the security triggers read the package's own diff text and changed list, so they run no git command of their own.
+    diffText = parts[parts.indexOf('## Diff') + 1];
+    changedFiles = changed;
     const undeclared = undeclaredFiles(s, id, changed);
     parts.splice(
       parts.indexOf('## Diff'),
@@ -205,6 +210,14 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     '## Interface signs',
     'error' in f ? cannot(f.error) : signs?.map((x) => `${x.path}: ${x.sign}`).join('\n') || '(none)',
   );
+  let security: string;
+  try {
+    const found = securityTriggers(securitySpec(s), diffText, changedFiles, { generated: s.config?.generated ?? [] });
+    security = found.map(triggerText).join('\n') || '(none: no pattern matched)';
+  } catch (e) {
+    security = cannot(e instanceof Error ? e.message : String(e));
+  }
+  shown.push('## Security triggers', security);
   parts.splice(parts.indexOf('## Stat'), 0, ...shown);
   ctx.stdout.write(parts.join('\n\n') + '\n');
   return 0;

@@ -71,7 +71,7 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
   // Every git log passes the signature flags (conventions.md), so a signed head never changes the output. Every call whose text is read for paths
   // (log -p, diff -p, --stat) passes core.quotePath=false, so a non-ASCII name prints as it is and not as a quoted octal escape the reader cannot place.
   const NO_QUOTE = ['-c', 'core.quotePath=false'];
-  const gitLog = (args: string[]) => git(['-c', 'log.showSignature=false', ...NO_QUOTE, 'log', '--no-show-signature', ...args]);
+  const gitLog = (args: string[]) => git([...NO_QUOTE, '-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
   const range = base + '...' + head;
   // ST-LN-26: a fix made after a merge from the default branch is reviewed without what that merge brought in.
   const short = def?.replace(/^refs\/(remotes|heads)\//, '');

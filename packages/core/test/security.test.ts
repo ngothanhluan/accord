@@ -169,11 +169,11 @@ it('risk:parsing the trigger reader places every diff spelling (ST-LN-36 36-ac-1
   const context = SECTION('src/c.ts', ['@@ -5,3 +5,2 @@', ' exec(a)', '-exec(b)', ' tail']).join('\n');
   expect(texts(context, ['src/c.ts'])).toEqual(['src/c.ts:6 (removed): spawn (process spawn)']);
 
-  // a line longer than 2000 characters is matched on its first 2000 only
+  // a line longer than 2000 characters is matched on its first 2000, and says it was not scanned whole (WR-02)
   const farOut = SECTION('src/long.ts', ['@@ -1 +1,2 @@', ' a', '+' + 'a'.repeat(2500) + ' spawn(x)']).join('\n');
-  expect(texts(farOut, ['src/long.ts'])).toEqual([]);
+  expect(texts(farOut, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 2000 characters, not fully scanned)']);
   const nearIn = SECTION('src/long.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(x) ' + 'a'.repeat(2500)]).join('\n');
-  expect(texts(nearIn, ['src/long.ts'])).toEqual(['src/long.ts:2: spawn (process spawn)']);
+  expect(texts(nearIn, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 2000 characters, not fully scanned)', 'src/long.ts:2: spawn (process spawn)']);
 
   // the excluded-merge form: several sections of one path from `git log -p`, commit header lines between them
   const log = [

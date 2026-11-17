@@ -99,7 +99,7 @@ it('ac-4 the config skill asks the owner before it writes a Removed line for a d
         'no longer get a security reviewer',
         'a `risk: security` finding still blocks',
         'writes nothing without the yes',
-        'never delete a default\'s line',
+        'never deletes a default\'s line',
       ]))
         bad.push(f.path + ' lacks ' + p);
     }

@@ -25,7 +25,7 @@ and removes a default only with a `- Removed: <id> — <reason>` line written on
    `Security: lens security ran` in the round's section.
 
 4. **Its findings** join the round's like any reviewer's, a security defect marked `risk: security`, and are fixed and
-   re-reviewed as `./record.md` says. When a fix touches a matched line or path, the re-review round's package lists the
+   re-reviewed like the round's other findings. When a fix touches a matched line or path, the re-review round's package lists the
    trigger again, and the security reviewer runs again.
 
 ## The final review

@@ -159,7 +159,10 @@ export const DEFAULT_SECURITY: SecuritySpec = parseSecurityFile(templates['secur
 /** Where the repository's own file lives; `accord init` writes it, and an absent file means the defaults. */
 export const SECURITY_FILE = 'accord/product/security.md';
 
-const sameValue = (a: SecurityPattern, b: SecurityPattern): boolean =>
+/** The one default no `Removed:` line takes out: D-06's control, that removing a default is a visible, reviewed change, depends on it. */
+const UNREMOVABLE = 'security-config';
+
+const sameValue =(a: SecurityPattern, b: SecurityPattern): boolean =>
   a.kind === b.kind &&
   (a.kind === 'path'
     ? (a.entries ?? []).length === (b.entries ?? []).length && (a.entries ?? []).every((e, i) => e === (b.entries ?? [])[i])
@@ -189,7 +192,8 @@ function mergeSecurity(file: SecuritySpec): SecuritySpec {
   const removed: SecuritySpec['removed'] = [];
   const gone = new Set<string>();
   for (const r of file.removed) {
-    if (gone.has(r.id)) problems.push({ line: r.line, reason: `"${r.id}" is removed twice` });
+    if (r.id === UNREMOVABLE) problems.push({ line: r.line, reason: `${UNREMOVABLE} cannot be removed: a change to the security file must always call the security reviewer` });
+    else if (gone.has(r.id)) problems.push({ line: r.line, reason: `"${r.id}" is removed twice` });
     else if (defaultPattern.has(r.id)) {
       gone.add(r.id);
       removed.push(r);

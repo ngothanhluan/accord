@@ -1,6 +1,6 @@
 # Security review
 
-<!-- One pattern or check per list line. Pattern: `- <id>: path <entry>[, <entry>…] — <what it guards>` or `- <id>: line /<regex>/[i] — <what it guards>`. An id matches `^[a-z0-9][a-z0-9-]*$`. A path entry ending in `/` is a folder prefix, an entry with no `/` is a file name at any depth, any other entry is one exact path; there is no glob. A line regex is a JavaScript regular expression whose only allowed flag is `i`. Checklist: `- <id>: <check>`. A change that matches a pattern needs the security reviewer, who reads the checklist. A default is removed only by a `- Removed: <id> — <reason>` line under `## Removed`, with the owner's yes. A team adds a pattern or a check by adding a line with a new id. -->
+<!-- One pattern or check per list line. Pattern: `- <id>: path <entry>[, <entry>…] — <what it guards>` or `- <id>: line /<regex>/[i] — <what it guards>`. An id matches `^[a-z0-9][a-z0-9-]*$`. A path entry ending in `/` is a folder prefix, an entry with no `/` is a file name at any depth, any other entry is one exact path; there is no glob. A line regex is a JavaScript regular expression whose only allowed flag is `i`. Checklist: `- <id>: <check>`. A change that matches a pattern needs the security reviewer, who reads the checklist. A default is removed only by a `- Removed: <id> — <reason>` line under `## Removed`, with the owner's yes; `security-config` cannot be removed, so a change to this file always calls the security reviewer. A team adds a pattern or a check by adding a line with a new id. -->
 
 ## Patterns
 

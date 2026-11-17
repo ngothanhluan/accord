@@ -12,6 +12,17 @@ export interface DiffFile {
   binary: boolean;
   added: { line: number; text: string }[];
   removed: { line: number; text: string }[];
+  /** the lines from `diff --git` up to the first hunk, as the text has them. */
+  header: string[];
+  /** each hunk of the file: its raw lines (the `@@` line first) and its own added and removed lines. */
+  hunks: DiffHunk[];
+}
+
+/** One hunk of a file's diff text. */
+export interface DiffHunk {
+  lines: string[];
+  added: { line: number; text: string }[];
+  removed: { line: number; text: string }[];
 }
 
 export interface Trigger {
@@ -53,6 +64,7 @@ export function diffFiles(diffText: string): DiffFile[] {
   let newNo = 0;
   let renameTo: string | undefined;
   let deleted = false;
+  let hunk: DiffHunk | undefined;
   const finish = () => {
     if (cur === undefined) return;
     if (renameTo !== undefined) cur.path = renameTo;
@@ -64,12 +76,18 @@ export function diffFiles(diffText: string): DiffFile[] {
       const c = text[0];
       if (c === '+') {
         newLeft--;
-        cur.added.push({ line: newNo++, text: text.slice(1) });
+        const l = { line: newNo++, text: text.slice(1) };
+        cur.added.push(l);
+        hunk?.added.push(l);
+        hunk?.lines.push(text);
         continue;
       }
       if (c === '-') {
         oldLeft--;
-        cur.removed.push({ line: oldNo++, text: text.slice(1) });
+        const l = { line: oldNo++, text: text.slice(1) };
+        cur.removed.push(l);
+        hunk?.removed.push(l);
+        hunk?.lines.push(text);
         continue;
       }
       if (c === ' ' || text === '') {
@@ -77,9 +95,13 @@ export function diffFiles(diffText: string): DiffFile[] {
         newLeft--;
         oldNo++;
         newNo++;
+        hunk?.lines.push(text);
         continue;
       }
-      if (c === '\\') continue;
+      if (c === '\\') {
+        hunk?.lines.push(text);
+        continue;
+      }
       oldLeft = 0;
       newLeft = 0;
     }
@@ -87,13 +109,21 @@ export function diffFiles(diffText: string): DiffFile[] {
       finish();
       renameTo = undefined;
       deleted = false;
-      cur = { path: pathOfGitHeader(text.slice(11)), binary: false, added: [], removed: [] };
+      cur = { path: pathOfGitHeader(text.slice(11)), binary: false, added: [], removed: [], header: [text], hunks: [] };
+      hunk = undefined;
       files.push(cur);
       continue;
     }
     if (cur === undefined) continue;
+    // a "no newline" marker after the last counted line still belongs to its hunk
+    if (hunk !== undefined && text.startsWith('\\')) {
+      hunk.lines.push(text);
+      continue;
+    }
     const h = HUNK.exec(text);
     if (h !== null) {
+      hunk = { lines: [text], added: [], removed: [] };
+      cur.hunks.push(hunk);
       oldNo = Number(h[1]);
       oldLeft = h[2] === undefined ? 1 : Number(h[2]);
       newNo = Number(h[3]);
@@ -103,6 +133,7 @@ export function diffFiles(diffText: string): DiffFile[] {
       if (newLeft === 0) newNo++;
       continue;
     }
+    if (hunk === undefined && text !== '') cur.header.push(text);
     if (text.startsWith('+++ ')) {
       if (text === '+++ /dev/null') deleted = true;
       else {
@@ -162,6 +193,24 @@ function cmp(a: string, b: string): number {
   return x.length === y.length ? 0 : x.length < y.length ? -1 : 1;
 }
 
+/** The line patterns of a spec as regular expressions; a pattern that does not compile (parseSecurityFile reported it as a problem) matches nothing. */
+function compileLines(spec: SecuritySpec): { p: SecurityPattern; re: RegExp }[] {
+  const out: { p: SecurityPattern; re: RegExp }[] = [];
+  for (const p of spec.patterns) {
+    if (p.kind !== 'line' || p.source === undefined) continue;
+    try {
+      out.push({ p, re: new RegExp(p.source, p.flags ?? '') });
+    } catch {
+      // not compiled: matches nothing
+    }
+  }
+  return out;
+}
+
+/** Content patterns are not run over Markdown, test files, accord's own generated copies or the repository's generated paths. */
+const contentSkipped = (path: string, generated: readonly string[]): boolean =>
+  MARKDOWN.test(path) || isTestFile(path) || OWN_COPIES.some((e) => path.startsWith(e)) || generated.some((e) => matches(e, path));
+
 /**
  * The triggers of a package: path patterns over every changed path (both sides of a rename); content patterns over the added and removed lines of
  * files that are not binary, not Markdown, not test files and not generated copies; one `cannot` trigger for each changed path the diff text does not
@@ -183,17 +232,8 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
   for (const path of new Set([...changed, ...shown])) {
     for (const p of pathPatterns) if (p.entries.some((e) => pathMatches(e, path))) add({ path, pattern: p.id, label: p.label });
   }
-  const lineRes: { p: SecurityPattern; re: RegExp }[] = [];
-  for (const p of spec.patterns) {
-    if (p.kind !== 'line' || p.source === undefined) continue;
-    try {
-      lineRes.push({ p, re: new RegExp(p.source, p.flags ?? '') });
-    } catch {
-      // parseSecurityFile reported it as a problem; a pattern that does not compile matches nothing
-    }
-  }
-  const skipped = (path: string): boolean =>
-    MARKDOWN.test(path) || isTestFile(path) || OWN_COPIES.some((e) => path.startsWith(e)) || options.generated.some((e) => matches(e, path));
+  const lineRes = compileLines(spec);
+  const skipped = (path: string): boolean => contentSkipped(path, options.generated);
   for (const f of files) {
     if (f.binary || f.path === undefined || skipped(f.path)) continue;
     const scanLines = (lines: DiffFile['added'], removed: boolean) => {
@@ -216,4 +256,47 @@ export function triggerText(t: Trigger): string {
   if (t.cannot === true) return `(cannot tell: ${t.path} is not in the diff text)`;
   if (t.line === undefined) return `${t.path}: ${t.pattern} (${t.label})`;
   return `${t.path}:${t.line}${t.removed === true ? ' (removed)' : ''}: ${t.pattern} (${t.label})`;
+}
+
+/**
+ * The security package's hunks (D-05 (4)): for each file with a trigger, in path order, one block of text. A file with a content match prints its header lines and every
+ * hunk that holds a match, whole (the package's `-U10` context), never another hunk. A file with a path match prints every hunk up to `cap` lines (300) and then
+ * `(truncated: <n> more lines in <path>)`; a hunk that holds a content match is printed whole even past the cap, so a cut never hides a match. A path the diff text does not
+ * show is one block, `(cannot tell: …)`. Content matches are read from the hunks themselves, with the patterns and skips securityTriggers uses, so the two agree.
+ */
+export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; cap?: number }): string[] {
+  const cap = options.cap ?? 300;
+  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated });
+  const pathHit = new Set(triggers.filter((t) => t.cannot !== true && t.line === undefined).map((t) => t.path));
+  const lineRes = compileLines(spec);
+  const holds = (h: DiffHunk): boolean =>
+    [...h.added, ...h.removed].some((l) => {
+      const head = l.text.length > MAX_LINE ? l.text.slice(0, MAX_LINE) : l.text;
+      return lineRes.some(({ re }) => re.test(head));
+    });
+  const blocks: { key: string; text: string }[] = [];
+  for (const f of diffFiles(diffText)) {
+    const name = f.path ?? f.oldPath;
+    const byPath = (f.path !== undefined && pathHit.has(f.path)) || (f.oldPath !== undefined && pathHit.has(f.oldPath));
+    const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds));
+    if (!byPath && content.size === 0) continue;
+    const lines = [...f.header];
+    let budget = cap;
+    let left = 0;
+    for (const h of f.hunks) {
+      if (content.has(h)) {
+        lines.push(...h.lines);
+        budget = Math.max(0, budget - h.lines.length);
+      } else if (byPath) {
+        const take = Math.min(budget, h.lines.length);
+        lines.push(...h.lines.slice(0, take));
+        budget -= take;
+        left += h.lines.length - take;
+      }
+    }
+    if (left > 0) lines.push(`(truncated: ${left} more lines in ${name})`);
+    blocks.push({ key: name ?? '', text: lines.join('\n') });
+  }
+  for (const t of triggers) if (t.cannot === true) blocks.push({ key: t.path, text: triggerText(t) });
+  return blocks.sort((a, b) => cmp(a.key, b.key)).map((b) => b.text);
 }

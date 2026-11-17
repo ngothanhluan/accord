@@ -119,8 +119,8 @@ export { afterCycles, buildWaves, DEFAULT_PARALLEL, parallelOf, sequentialReason
 export { CALL_SIGN, interfaceSigns, matches, outsideScope, scopeLines } from './gate/scope.js';
 export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from './security/spec.js';
 export type { SecurityCheck, SecurityPattern, SecuritySpec } from './security/spec.js';
-export { diffFiles, securityTriggers, triggerText } from './security/match.js';
-export type { DiffFile, Trigger } from './security/match.js';
+export { diffFiles, matchedHunks, securityTriggers, triggerText } from './security/match.js';
+export type { DiffFile, DiffHunk, Trigger } from './security/match.js';
 export { compilePattern, DEFAULT_PATTERN, ID_PREFIX, initialsHolder, initialsOf, nextTicketId, peopleOf, prefixOf, TRACKER_KEY, trackerKeyOk } from './lint/ids.js';
 export type { CompiledPattern, IdsConfig } from './lint/ids.js';
 export { untracedTests } from './lint/tests.js';

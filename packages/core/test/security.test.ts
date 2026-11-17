@@ -452,6 +452,15 @@ it('risk:security a change to the security file or the repository config is a tr
   expect(texts(diff, changed)).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`, 'src/run.ts:2: spawn (process spawn)']);
 });
 
+it('risk:security a change to .gitattributes, at the root or deeper, is a trigger, since a diff attribute can hide a file from the content scan', () => {
+  const root = SECTION('.gitattributes', ['@@ -0,0 +1 @@', '+*.js -diff']);
+  const deep = SECTION('vendor/.gitattributes', ['@@ -0,0 +1 @@', '+*.js binary']);
+  const found = texts([...root, ...deep].join('\n'), ['.gitattributes', 'vendor/.gitattributes']);
+  expect(found).toHaveLength(2);
+  expect(found[0]).toMatch(/^\.gitattributes: security-config \(/);
+  expect(found[1]).toMatch(/^vendor\/\.gitattributes: security-config \(/);
+});
+
 it('risk:security a Removed line for security-config takes no effect: the pattern stays in force and the line is a lint error (ST-LN-36 36-ac-1)', () => {
   // the same commit removes spawn and security-config and changes the security file and a spawn call
   const text = edit('Removed', '- Removed: security-config — x', '- Removed: spawn — x', '');

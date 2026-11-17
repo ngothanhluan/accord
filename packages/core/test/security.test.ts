@@ -5,7 +5,7 @@ import { DEFAULT_SECURITY, LOCKED, lintSnapshot, loadSnapshot, matchedHunks, par
 const FILE = 'accord/product/security.md';
 /** A snapshot holding only the security file (or none): securitySpec reads nothing else. */
 const withFile = (text?: string) => loadSnapshot({ files: text === undefined ? {} : { [FILE]: text }, tree: text === undefined ? [] : [FILE] });
-const DEFAULT_IDS = ['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name'];
+const DEFAULT_IDS = ['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'security-config'];
 const CHECK_IDS = DEFAULT_SECURITY.checklist.map((c) => c.id);
 
 const DIFF = [
@@ -52,12 +52,12 @@ it('ac-1 the default patterns match added and removed lines and changed paths of
   expect(securityTriggers(DEFAULT_SECURITY, '', [], { generated: [] })).toEqual([]);
 });
 
-it('risk:parsing the default security file reads into six patterns and eight checklist items (ST-LN-36 36-ac-1)', () => {
+it('risk:parsing the default security file reads into seven patterns and eight checklist items (ST-LN-36 36-ac-1)', () => {
   const text = templates['security.md'];
   const spec = parseSecurityFile(text);
   expect(spec.problems).toEqual([]);
   expect(spec.removed).toEqual([]);
-  expect(spec.patterns.map((p) => p.id)).toEqual(['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name']);
+  expect(spec.patterns.map((p) => p.id)).toEqual(DEFAULT_IDS);
   for (const p of spec.patterns.filter((x) => x.kind === 'line')) {
     expect(() => new RegExp(p.source ?? '', p.flags ?? '')).not.toThrow();
     expect(p.flags === undefined || p.flags === '' || p.flags === 'i').toBe(true);
@@ -255,8 +255,8 @@ it('ac-1 the patterns in force are the defaults plus additions minus Removed lin
   );
   const spec = securitySpec(withFile(text));
   expect(spec.problems).toEqual([]);
-  // the template names six defaults; one is removed and one is added, so six are in force, the team's after the defaults
-  expect(ids(spec)).toEqual(['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'infra']);
+  // the template names seven defaults; one is removed and one is added, so seven are in force, the team's after the defaults
+  expect(ids(spec)).toEqual(['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'security-config', 'infra']);
   expect(spec.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
   expect(spec.checklist).toHaveLength(8);
   expect(spec.removed.map((r) => [r.id, r.reason])).toEqual([['secret-name', 'our design tokens are not secrets']]);
@@ -298,7 +298,7 @@ it('risk:parsing a rewritten default is not read, a Removed line for a team or u
     '- infra: path infra/ — infrastructure\n- secret-name:',
   );
   const s = securitySpec(withFile(text));
-  expect(ids(s)).toEqual(['file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'infra']);
+  expect(ids(s)).toEqual(['file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'security-config', 'infra']);
   expect(s.removed.map((x) => x.id)).toEqual(['spawn']);
   expect(s.problems).toHaveLength(3);
 
@@ -438,4 +438,16 @@ it('risk:security a matched hunk is never left out: a content hunk past the cap 
   expect(out[0]).toContain("+token = 'abc'");
   const cannot = matchedHunks(DEFAULT_SECURITY, '', ['Cargo.lock'], { generated: [] });
   expect(cannot.join('\n')).toContain('(cannot tell: Cargo.lock is not in the diff text)');
+});
+
+it('risk:security a change to the security file or the repository config is a trigger, so a branch cannot weaken its own review unseen (ST-LN-36 36-ac-1)', () => {
+  // a Removed line in the security file and a generated: list in the config, each in the same package as a spawn change
+  const removed = SECTION('accord/product/security.md', ['@@ -25,3 +25,4 @@', ' ## Removed', ' ', '+- Removed: spawn — x', ' end']);
+  const config = SECTION('accord/config.yml', ['@@ -1,2 +1,3 @@', ' adapter: none', '+generated: [src/]', ' end']);
+  const code = SECTION('src/run.ts', ['@@ -1,2 +1,3 @@', ' a', "+execFileSync('git', args);", ' b']);
+  const diff = [...removed, ...config, ...code].join('\n');
+  const changed = ['accord/config.yml', 'accord/product/security.md', 'src/run.ts'];
+  const label = 'security-config (the security trigger list and the generated paths it skips)';
+  expect(texts(diff, changed, ['src/'])).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`]);
+  expect(texts(diff, changed)).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`, 'src/run.ts:2: spawn (process spawn)']);
 });

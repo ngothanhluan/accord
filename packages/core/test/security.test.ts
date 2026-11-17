@@ -1,6 +1,6 @@
 // ST-LN-36 (05-04): the default security patterns, the file that holds them and the reader that matches them against a package's diff text.
 import { expect, it } from 'vitest';
-import { DEFAULT_SECURITY, loadSnapshot, parseSecurityFile, securitySpec, securityTriggers, templates, triggerText } from '../src/index.js';
+import { DEFAULT_SECURITY, LOCKED, lintSnapshot, loadSnapshot, parseSecurityFile, securitySpec, securityTriggers, templates, triggerText } from '../src/index.js';
 
 const FILE = 'accord/product/security.md';
 /** A snapshot holding only the security file (or none): securitySpec reads nothing else. */
@@ -321,4 +321,54 @@ it('risk:parsing a rewritten default is not read, a Removed line for a team or u
   expect(upper.problems).toHaveLength(1);
   const crlf = String.fromCharCode(0xfeff) + text.replace(/\n/g, '\r\n');
   expect(securitySpec(withFile(crlf))).toEqual(s);
+});
+
+// ---- lint.security-file (05-05 task 2) ----
+
+/** A security file written line by line; `bad` lines are the ones lint must name, at their own line numbers. */
+const BAD_FILE: { text: string; bad?: true }[] = [
+  { text: '# Security review' },
+  { text: '' },
+  { text: '## Patterns' },
+  { text: '' },
+  { text: '- flagged: line /x/g — a flag that is not i', bad: true },
+  { text: '- broken: line /(/ — a regex that does not compile', bad: true },
+  { text: '- glob: path src/*.ts — a glob', bad: true },
+  { text: '- Spawn: line /x/ — an id in upper case', bad: true },
+  { text: '- infra: path infra/ — fine' },
+  { text: '- infra: path other/ — a second line with the id', bad: true },
+  { text: '- spawn: line /exec/ — a default rewritten', bad: true },
+  { text: '- this is no pattern', bad: true },
+  { text: '' },
+  { text: '## Checklist' },
+  { text: '' },
+  { text: '- a check with no id', bad: true },
+  { text: '' },
+  { text: '## Removed' },
+  { text: '' },
+  { text: '- Removed: secret-name', bad: true },
+  { text: '- Removed: infra — a team id, not a default', bad: true },
+  { text: '- Removed: nope — an unknown id', bad: true },
+  { text: '- Removed: manifest — a real removal with a reason' },
+];
+
+it('risk:parsing every unread line of the security file is a lint error at its line (ST-LN-36 36-ac-4)', () => {
+  const text = BAD_FILE.map((l) => l.text).join('\n') + '\n';
+  const expected = BAD_FILE.flatMap((l, i) => (l.bad === true ? [i + 1] : []));
+  const lint = (t: string) => lintSnapshot(withFile(t));
+  const found = lint(text).findings.filter((f) => f.file === FILE);
+  expect(found.map((f) => [f.rule, f.level, f.line])).toEqual(expected.map((n) => ['lint.security-file', 'error', n]));
+  for (const f of found) expect(f.reason.length, String(f.line)).toBeGreaterThan(10);
+  // the file also reads as problems of the spec, so the package and lint agree
+  expect(securitySpec(withFile(text)).problems.map((p) => p.line)).toEqual(expected);
+  // CRLF and a BOM give the same findings
+  const crlf = String.fromCharCode(0xfeff) + text.replace(/\n/g, '\r\n');
+  expect(lint(crlf).findings.filter((f) => f.file === FILE)).toEqual(found);
+});
+
+it('risk:regression lint.security-file is LOCKED and an absent or valid file gives no finding (ST-LN-36 36-ac-4)', () => {
+  expect(LOCKED).toContain('lint.security-file');
+  for (const t of [undefined, tpl, '', edit('Patterns', '- infra: path infra/ — infrastructure', '')]) {
+    expect(lintSnapshot(withFile(t)).findings.filter((f) => f.rule === 'lint.security-file'), String(t)).toEqual([]);
+  }
 });

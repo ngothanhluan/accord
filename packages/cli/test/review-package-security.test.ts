@@ -172,3 +172,29 @@ it('ac-1 review-package matches with the repository\'s security file (ST-LN-36 3
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:parsing review-package says when lines of the security file were not read (ST-LN-36 36-ac-1)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    identity(repo);
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
+      'accord/product/security.md': OWN_FILE.replace('## Checklist', '- this is no pattern\n- glob: path src/*.ts — a glob\n\n## Checklist'),
+      'src/run.ts': RUN_BASE,
+    });
+    commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/S-1');
+    writeFiles(repo, { 'src/run.ts': RUN_NEW });
+    commitMsg(repo, 'spawn');
+    const out = await run(['review-package', 'S-1'], repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    expect(section(out.out)).toBe(
+      '## Security triggers\n\nsrc/run.ts:3: spawn (process spawn)\n(accord/product/security.md: 2 lines not read; run accord lint)',
+    );
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

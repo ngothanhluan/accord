@@ -9,6 +9,7 @@ import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
+import { securityProblems } from './security.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
 import { deferredOf } from './evidence.js';
 
@@ -427,6 +428,10 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const allFixes = kind === 'review' ? fixProblems(snapshot, id, { verdict: true }) : [];
   const fixes = allFixes.filter((p) => p.awaiting === undefined);
   if (fixes.length > 0) return refuse(...fixes.map(scopeReason));
+  // ST-LN-36 D-05, D-10: a round whose package had security triggers needs its security review, and a round with none records `Security: no pattern matched`, before the next round
+  // is asked for: the one rule (securityProblems) gate done reads, with its own cut-off and its own pin read.
+  const security = kind === 'review' ? securityProblems(snapshot, id) : [];
+  if (security.length > 0) return refuse(...security.map(scopeReason));
   awaiting = [...new Set(allFixes.flatMap((p) => (p.awaiting === undefined ? [] : [p.awaiting])))];
 
   const k = rec.cycles.length;

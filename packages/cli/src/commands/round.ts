@@ -5,6 +5,7 @@ import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError, withReturnFacts } from '../load/fs.js';
 import { withPlanFix } from '../load/plan-diff.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
+import { withSecurityFacts } from '../load/security-facts.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 
@@ -37,7 +38,8 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
     : approach
       ? withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'approach')
       : // ST-LN-56 D-08, D-16: the fix record rules read the ticket's claim pin (RESEARCH Pitfall 7), never the working-tree pin.
-        withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id);
+        // ST-LN-36 D-05: the security record rule reads the same claim fact, so the loader reads nothing for a ticket claimed before its cut-off.
+        withSecurityFacts(ctx.root, withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id), id);
   const answer = nextRound(snapshot, id, plan ? 'plan' : approach ? 'approach' : 'review');
   ctx.stdout.write(roundText(answer));
   return answer.kind === 'next' ? 0 : 1;

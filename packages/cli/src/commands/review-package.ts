@@ -153,8 +153,12 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   );
   let security: string;
   try {
-    const found = securityTriggers(securitySpec(s), diffText, changedFiles, { generated: s.config?.generated ?? [] });
+    const spec = securitySpec(s);
+    const found = securityTriggers(spec, diffText, changedFiles, { generated: s.config?.generated ?? [] });
     security = found.map(triggerText).join('\n') || '(none: no pattern matched)';
+    // ST-LN-36 D-06: a line of the repository's file that did not read is said here too, so a reviewer is never told the list is whole when it is not.
+    const unread = spec.problems.length;
+    if (unread > 0) security += `\n(accord/product/security.md: ${unread} ${unread === 1 ? 'line' : 'lines'} not read; run accord lint)`;
   } catch (e) {
     security = cannot(e instanceof Error ? e.message : String(e));
   }

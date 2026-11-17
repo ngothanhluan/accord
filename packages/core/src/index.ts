@@ -114,7 +114,7 @@ export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';
 export { SIZE_MULTIPLE, sizeRefusal, TASK_LINE_CAP, taskLength } from './gate/plan.js';
 export { afterCycles, buildWaves, DEFAULT_PARALLEL, parallelOf, sequentialReason } from './plan/waves.js';
 export { CALL_SIGN, interfaceSigns, matches, outsideScope, scopeLines } from './gate/scope.js';
-export { DEFAULT_SECURITY, parseSecurityFile, securitySpec } from './security/spec.js';
+export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from './security/spec.js';
 export type { SecurityCheck, SecurityPattern, SecuritySpec } from './security/spec.js';
 export { diffFiles, securityTriggers, triggerText } from './security/match.js';
 export type { DiffFile, Trigger } from './security/match.js';

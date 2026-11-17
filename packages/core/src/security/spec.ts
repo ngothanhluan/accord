@@ -2,6 +2,7 @@
 // checklist. Pure text in, a spec out; the defaults are the text of templates/security.md, read from the generated record.
 import { templates } from '../generated/templates.js';
 import { scan, stripHtmlComments } from '../load/sections.js';
+import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 
 export interface SecurityPattern {
@@ -217,4 +218,10 @@ function mergeSecurity(file: SecuritySpec): SecuritySpec {
 export function securitySpec(snapshot: RepoSnapshot): SecuritySpec {
   const text = Object.hasOwn(snapshot.files, SECURITY_FILE) ? snapshot.files[SECURITY_FILE] : undefined;
   return text === undefined ? DEFAULT_SECURITY : mergeSecurity(parseSecurityFile(text));
+}
+
+/** The lint check of `lint.security-file`: one draft per line of the security file that does not read, at its line. An absent file has none. */
+export function securityFile(snapshot: RepoSnapshot): Omit<Finding, 'level' | 'rule'>[] {
+  if (!Object.hasOwn(snapshot.files, SECURITY_FILE)) return [];
+  return securitySpec(snapshot).problems.map((p) => ({ file: SECURITY_FILE, line: p.line, reason: p.reason }));
 }

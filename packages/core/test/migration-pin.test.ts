@@ -322,10 +322,16 @@ function sources(dir: string): string[] {
     .sort();
 }
 
-it('risk:regression every Phase 4 cut-off equals the release version (rel-ac-1)', () => {
+// Release 0.7.0 (plan 05-13): the CLI is no longer 0.6.0, so a Phase 4 cut-off is compared with '0.6.0' only; the release it names is history now.
+it('risk:regression every Phase 4 cut-off stays at 0.6.0 (rel-ac-1)', () => {
   expect(Object.keys(PHASE4).sort()).toEqual(['FIX_RECORD_FROM', 'PLAN_MODEL_FROM', 'PLAN_WAVES_FROM', 'TASK_REPORT_FROM']);
-  for (const [name, v] of Object.entries(PHASE4)) {
-    expect(v, name).toBe('0.6.0');
+  for (const [name, v] of Object.entries(PHASE4)) expect(v, name).toBe('0.6.0');
+});
+
+it('risk:regression every Phase 5 cut-off equals the release version (rel-ac-1)', () => {
+  expect(Object.keys(PHASE5), 'the list names no constant').toEqual(['SECURITY_TRIGGER_FROM']);
+  for (const [name, v] of Object.entries(PHASE5)) {
+    expect(v, name).toBe('0.7.0');
     expect(v, `${name} against packages/cli/package.json`).toBe(CLI_VERSION);
   }
 });

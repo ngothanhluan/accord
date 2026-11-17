@@ -162,7 +162,7 @@ export const SECURITY_FILE = 'accord/product/security.md';
 /** The one default no `Removed:` line takes out: D-06's control, that removing a default is a visible, reviewed change, depends on it. */
 const UNREMOVABLE = 'security-config';
 
-const sameValue =(a: SecurityPattern, b: SecurityPattern): boolean =>
+const sameValue = (a: SecurityPattern, b: SecurityPattern): boolean =>
   a.kind === b.kind &&
   (a.kind === 'path'
     ? (a.entries ?? []).length === (b.entries ?? []).length && (a.entries ?? []).every((e, i) => e === (b.entries ?? [])[i])

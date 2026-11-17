@@ -8,6 +8,7 @@ import { capRulesOf, gateDone, gatePlan, gateReady, renderText, workOf } from '@
 import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
+import { withSecurityFacts } from '../load/security-facts.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -61,7 +62,9 @@ export function gate(
   const forRounds = which === 'done' ? withRoundFacts(ctx.root, withReturnFacts(ctx.root, gated, id), id) : gated;
   const roundRecord = which === 'done' ? workOf(forRounds, id)?.rounds : which === 'plan' ? workOf(forRounds, id)?.planRounds : undefined;
   const hasRounds = roundRecord !== undefined && roundRecord.cycles.some((c) => c.rounds.length > 0);
-  const forGate = hasRounds && (which === 'done' || !roundRecord.versioned) ? withDefaultRef(ctx.root, forRounds) : forRounds;
+  const withRefs = hasRounds && (which === 'done' || !roundRecord.versioned) ? withDefaultRef(ctx.root, forRounds) : forRounds;
+  // ST-LN-36 D-05 (5): Done holds each recorded review round against the security triggers of its own package; read after the default ref, whose snapshot says a ticket done there is skipped.
+  const forGate = which === 'done' ? withSecurityFacts(ctx.root, withRefs, id) : withRefs;
   const result =
     which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id)), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
   ctx.stdout.write(

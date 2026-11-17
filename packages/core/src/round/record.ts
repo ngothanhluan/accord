@@ -12,6 +12,8 @@ const CLOSED = /^closed\b/;
 // ST-LN-57: a version 2 heading as headingKey writes it: the head, then at most one mark.
 const HEADING_2 = /^round [0-9]+ head ([0-9a-f]{7,40})(?: \((added code round 1|final review)\))?$/;
 const SHA = /^[0-9a-f]{7,40}$/i;
+// ST-LN-36 D-05 (3): a version 2 round's security line, after at most one list marker: `Security: no pattern matched` or `Security: lens security ran[ <text>]`.
+const SECURITY_LINE = /^(?:[-*]\s+)?security:(.*)$/i;
 // ST-LN-57: the version 2 finding line, read from the end (see parseFindingV2).
 const FINDING_2 = /^(Must|Should|Nice) ([1-9][0-9]*)(?: \[(?:patch|plan-gap|intent-gap)\])?: (\S.*)$/i;
 const LOCATION = /^(?:`([^`]+)`|([^\s`](?:.*?[^\s`])?))(?::[1-9][0-9]*(?:-[1-9][0-9]*)?)?$/;
@@ -347,6 +349,15 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
     for (const l of section.lines) {
       const t = textOf(l.line);
       if (t === undefined) continue;
+      // ST-LN-36 D-05 (3): a version 2 review round's `Security:` line is read before the prose return; version 1 and plan or approach records read it as prose.
+      const sec = version2 && kind === 'review' && target !== undefined ? SECURITY_LINE.exec(t.trim()) : null;
+      if (sec !== null) {
+        const value = sec[1].trim();
+        if (value === 'no pattern matched') target!.security ??= 'none';
+        else if (value === 'lens security ran' || value.startsWith('lens security ran ')) target!.security = 'ran';
+        else (target!.securityUnread ??= []).push({ line: l.line, text: t.trim().length > 160 ? t.trim().slice(0, 157) + '...' : t.trim() });
+        continue;
+      }
       const r = readLine(t);
       if (r.kind !== 'prose' || t.trim() === '') lazy = false;
       if (strict && r.kind === 'prose' && t.trim() !== '') {

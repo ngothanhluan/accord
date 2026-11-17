@@ -98,6 +98,7 @@ import { findingEvidence } from '../round/evidence.js';
 import { fixNotAddressed, fixOutsideOpen, fixPlacesMissing } from '../round/fix.js';
 import { findingGrounds, fixFileUnexplained } from '../round/grounds.js';
 import { reviewScope, reviewScopeSkipped } from '../round/scope.js';
+import { securityUnreviewed } from '../round/security.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
   evidenceUnresolved,
@@ -243,6 +244,8 @@ const FIX_PLACES_MISSING: GateRule = { id: 'gate.fix-places-missing', level: 'er
 const FIX_NOT_ADDRESSED: GateRule = { id: 'gate.fix-not-addressed', level: 'error', profiles: ['build', 'maintain'], check: fixNotAddressed };
 /** ST-LN-56 56-ac-2 (D-10): from FIX_RECORD_FROM a re-review finding outside the fix diff goes to Deferred and starts no round; one row for both Done tables. */
 const FIX_OUTSIDE_OPEN: GateRule = { id: 'gate.fix-outside-open', level: 'error', profiles: ['build', 'maintain'], check: fixOutsideOpen };
+/** ST-LN-36 36-ac-2 (D-05 (3), D-10): from SECURITY_TRIGGER_FROM a review round whose package had security triggers needs `Security: lens security ran`, and every round but a final review a `Security:` line; one row for both Done tables. */
+const SECURITY_UNREVIEWED: GateRule = { id: 'gate.security-unreviewed', level: 'error', profiles: ['build', 'maintain'], check: securityUnreviewed };
 const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
 const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer };
 /** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, an empty diff, or in lane S a diff without the ticket file, fails closed. */
@@ -297,6 +300,7 @@ export const DONE_RULES: readonly GateRule[] = [
   FIX_PLACES_MISSING,
   FIX_NOT_ADDRESSED,
   FIX_OUTSIDE_OPEN,
+  SECURITY_UNREVIEWED,
   SUITE_NOT_PASSED,
   { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the

@@ -3,10 +3,13 @@
 // a later plan adds inherits these gates the moment it lands — no plan has to restate a criterion to be
 // covered.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import type { Tags } from 'yaml';
 import { templates } from '../src/generated/templates.js';
 import {
+  ACCORD_CHECK_NAME,
   initFiles,
   POINTER_END,
   POINTER_FILES,
@@ -15,6 +18,7 @@ import {
   refreshLintStep,
   repinConfig,
   repinWorkflow,
+  requiredCheckSteps,
   skillTargets,
   validate,
 } from '../src/index.js';
@@ -452,4 +456,29 @@ it('risk:parsing the lint and gate refresh keeps every other line of a workflow 
     const text = 'text' in refresh ? refresh.text : k.input;
     expect(repinWorkflow(text, name, '0.0.9', v), k.label).toBe(k.expected);
   }
+});
+
+// ST-LN-37 37-ac-3 (D-03): the accord check's name and the steps that make it a merge gate come from one
+// source. The workflow's job line, this repository's own accord.yml, init's printed steps and the README all
+// read it, so a renamed job cannot leave a team requiring a check that never runs.
+it('ac-3 the accord check\'s name and the steps come from one source the workflow uses (ST-LN-37 37-ac-3)', () => {
+  expect(ACCORD_CHECK_NAME).toBe('lint and gate the tickets this pull request touches');
+  const emitted = output.find((f) => f.path === '.github/workflows/accord.yml')!.text;
+  expect(emitted.split('\n')).toContain(`    name: ${ACCORD_CHECK_NAME}`);
+  const own = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+  expect(own.replace(/\r\n/g, '\n').split('\n')).toContain(`    name: ${ACCORD_CHECK_NAME}`);
+
+  const steps = requiredCheckSteps();
+  expect(steps).toHaveLength(3);
+  expect(steps[0]).toBe(
+    'Open Settings > Rules > Rulesets and add a branch ruleset that targets the default branch, or open Settings > Branches and add a branch protection rule for it.',
+  );
+  expect(steps[1]).toBe(
+    `Turn on "Require status checks to pass" and add the check "${ACCORD_CHECK_NAME}"; it is listed once the accord workflow has run on a pull request.`,
+  );
+  expect(steps[2]).toBe(
+    'Turn on "Require branches to be up to date before merging", so the suite CI runs on a pull request is the suite of what the merge will hold.',
+  );
+  // One fixed order on every call.
+  expect(requiredCheckSteps()).toEqual(steps);
 });

@@ -31,6 +31,13 @@ const lines = (out: string): string[] => out.split('\n').filter((l) => l !== '')
 const report = (rows: string[]): string => rows.map((r) => r + '\n').join('');
 /** ST-LN-50 D-11: a repository with no history to read ends the report with this line (init-detect.test.ts covers the proposals). */
 const NO_PROPOSALS = 'proposals: 0';
+/** ST-LN-37 37-ac-3 (D-03): the block init prints after its file list and before its proposal lines. Literal on purpose: a wording change in core is a decision, so it fails here too. */
+const REQUIRED_CHECK = [
+  'required check: accord changes no GitHub setting; to make the accord check a merge gate, a repository admin does this once on GitHub:',
+  '  1. Open Settings > Rules > Rulesets and add a branch ruleset that targets the default branch, or open Settings > Branches and add a branch protection rule for it.',
+  '  2. Turn on "Require status checks to pass" and add the check "lint and gate the tickets this pull request touches"; it is listed once the accord workflow has run on a pull request.',
+  '  3. Turn on "Require branches to be up to date before merging", so the suite CI runs on a pull request is the suite of what the merge will hold.',
+];
 
 // STACK.md Decision 2: core schema, numerics stay strings. A local copy — the CLI test tree has no import
 // path to core's test helpers, and it is three lines.
@@ -121,7 +128,7 @@ describe('accord init — the first run', () => {
     // then the skill half in `skillTargets` order, read off the config this run wrote, then the two pointer
     // files. `toBe` on the whole stdout string, never `toContain`: D-133 is a claim about the whole list.
     expect(out).toBe(
-      report([...[...SCAFFOLD, ...skillPaths(repo), '.claude/settings.json', ...POINTER_FILES].map((p) => 'created ' + p), NO_PROPOSALS]),
+      report([...[...SCAFFOLD, ...skillPaths(repo), '.claude/settings.json', ...POINTER_FILES].map((p) => 'created ' + p), ...REQUIRED_CHECK, NO_PROPOSALS]),
     );
     expect(err).toBe('');
   });
@@ -198,6 +205,32 @@ describe('accord init — the first run', () => {
   });
 });
 
+describe('accord init — the required-check steps (ST-LN-37 37-ac-3)', () => {
+  it('ac-3 accord init prints the steps to make the accord check required and require up-to-date branches (ST-LN-37 37-ac-3)', async () => {
+    const repo = sandbox();
+    for (const [label, runNo] of [['first run', 1], ['second run', 2]] as const) {
+      const { code, out, err } = await run(['init'], repo);
+      expect(code, label).toBe(0);
+      expect(err, label).toBe('');
+      const all = lines(out);
+      const at1 = all.indexOf(REQUIRED_CHECK[0]);
+      expect(at1, `${label} (run ${runNo}): the required check line`).toBeGreaterThan(0);
+      // After the file lines, directly before the proposal closing line, in this order.
+      expect(all.slice(at1, at1 + REQUIRED_CHECK.length), label).toEqual(REQUIRED_CHECK);
+      expect(all.slice(at1 + REQUIRED_CHECK.length), label).toEqual([NO_PROPOSALS]);
+      expect(all.slice(0, at1).every((l) => /^(created|skipped|unchanged|appended) /.test(l)), label).toBe(true);
+    }
+  });
+
+  it('ac-3 a refused run prints no required-check line (ST-LN-37 37-ac-3)', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude/skills/accord/SKILL.md'), { recursive: true });
+    const { code, out } = await run(['init'], repo);
+    expect(code).toBe(2);
+    expect(out).not.toContain('required check:');
+  });
+});
+
 describe('accord init — running it again', () => {
   // `toBe` on the whole report, never `toContain`: D-133 is a claim about the whole list, and `toContain`
   // would pass on a report that also printed something else.
@@ -213,6 +246,7 @@ describe('accord init — running it again', () => {
         ...skillPaths(repo).map((p) => 'unchanged ' + p),
         'unchanged .claude/settings.json',
         ...POINTER_FILES.map((p) => 'skipped ' + p),
+        ...REQUIRED_CHECK,
         NO_PROPOSALS,
       ]),
     );

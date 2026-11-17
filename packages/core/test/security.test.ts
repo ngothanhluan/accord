@@ -526,3 +526,11 @@ it('risk:regression a security file written by 0.7.0, with its older security-co
   const other = securitySpec(withFile(templates['security.md'].replace(current, '- security-config: path accord/config.yml — x')));
   expect(other.problems).toHaveLength(1);
 });
+
+it('risk:resource a path the host could not read as text is a trigger of its own, listed and printed once (CR-01)', () => {
+  const binary = ['diff --git a/big.js b/big.js', 'new file mode 100644', 'index 0000000..1111111', 'Binary files /dev/null and b/big.js differ'].join('\n');
+  const label = '(cannot tell: big.js: too large to read as text, so its lines were not scanned)';
+  expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] }).map(triggerText)).toEqual([label]);
+  expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [] })).toEqual([]);
+  expect(matchedHunks(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] })).toEqual([label]);
+});

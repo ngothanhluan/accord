@@ -428,3 +428,34 @@ it('risk:security review-package --security --round reads a lone (final review) 
     cleanup(m.repo);
   }
 }, 120_000);
+
+it('risk:resource a -diff file whose text is over the buffer is left as its binary line with a trigger of its own, and the other files are still read (CR-01)', () => {
+  const big = 'const filler = 1;\n'.repeat(400);
+  const repo = laneSWith({ '.gitattributes': '*.js -diff\n', 'big.js': big, 'small.js': EVIL });
+  try {
+    for (const excluded of [false, true]) {
+      const base = gitRun(repo, 'rev-parse', 'main').trim();
+      if (excluded) {
+        gitRun(repo, 'switch', '-q', 'main');
+        writeFiles(repo, { 'docs/notes.md': 'notes\n' });
+        commitMsg(repo, 'main moves');
+        gitRun(repo, 'switch', '-q', 't/S-1');
+        mergeMsg(repo, 'main', 'merge main');
+      }
+      // a small text buffer stands for the 64 MiB one; the other git reads keep theirs
+      const pkg = packageDiff(repo, { base, head: 'HEAD', def: defaultRefOf(repo), allowPlainLog: false, textLimit: 2048 });
+      expect(pkg.excluded).toBe(excluded);
+      expect(pkg.unread).toEqual(['big.js']);
+      expect(pkg.diff).toMatch(/Binary files \/dev\/null and b\/big\.js differ/);
+      expect(pkg.diff).not.toContain('const filler');
+      const found = securityTriggers(DEFAULT_SECURITY, pkg.diff, pkg.changed, { generated: [], unreadable: pkg.unread }).map(triggerText);
+      expect(found).toContain('small.js:1: spawn (process spawn)');
+      expect(found.filter((t) => t.includes('big.js'))).toEqual(['(cannot tell: big.js: too large to read as text, so its lines were not scanned)']);
+    }
+    // with the real buffer nothing is unread
+    const whole = packageDiff(repo, { base: gitRun(repo, 'rev-parse', 'main~1').trim(), head: 'HEAD', def: defaultRefOf(repo), allowPlainLog: false });
+    expect(whole.unread).toBeUndefined();
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

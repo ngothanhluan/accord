@@ -927,7 +927,7 @@ it('risk:data-loss the drop steps carry the research records the default branch 
 
 const flatS = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
 const LIFT =
-  "Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or auth, money or data deletion, is touched; more than one plausible reading, where a reading one question settles stays lane S; the expected files, not counting test files and the copies accord itself generates, number more than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.";
+  "Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or auth, money, migration or data deletion, is touched; more than one plausible reading, where a reading one question settles stays lane S; the expected files, not counting test files and the copies accord itself generates, number more than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.";
 
 it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its scope', () => {
   const ln = flatS('.claude/skills/accord/lane.md');

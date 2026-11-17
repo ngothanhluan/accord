@@ -122,7 +122,7 @@ beforeAll(() => {
   commitMsg(reviewed, 'ready: S-1');
   writeFiles(reviewed, { 'src/a.ts': 'b\n' });
   commitMsg(reviewed, 'change');
-  ROUND1 = `Round record: 2\n\n## Round 1 head ${gitRun(reviewed, 'rev-parse', 'HEAD').trim()}\n\nNo findings\n`;
+  ROUND1 = `Round record: 2\n\n## Round 1 head ${gitRun(reviewed, 'rev-parse', 'HEAD').trim()}\n\nNo findings\n\nSecurity: no pattern matched\n`;
   REVIEW = ROUND1 + '\nverdict: converged\n';
 });
 afterAll(() => cleanup(reviewed));

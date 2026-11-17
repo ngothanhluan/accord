@@ -129,7 +129,7 @@ describe('lane ticket flow', () => {
       writeFiles(repo, { 'src/export.ts': readFileSync(join(repo, 'src', 'export.ts'), 'utf8') + '// task 2\n' });
       const head = commitMsg(repo, 'task 2: T-1');
       freshReport(repo);
-      writeFiles(repo, { 'accord/tickets/T-1/review.md': `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nverdict: converged\n` });
+      writeFiles(repo, { 'accord/tickets/T-1/review.md': `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nSecurity: no pattern matched\n\nverdict: converged\n` });
 
       // The reviewer verifies the committed tree: evidence and ticks bound to HEAD, left uncommitted.
       const sha = commitAll(repo);

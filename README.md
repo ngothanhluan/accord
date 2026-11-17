@@ -44,7 +44,7 @@ Or install it globally and run `accord <command>`:
 npm i -g @accord-dev/accord@0.6.0
 ```
 
-The global install must be the same version the repository pins (see [Version pin](#7-version-pin-and-upgrading)).
+The global install must be the same version the repository pins (see [Version pin](#8-version-pin-and-upgrading)).
 
 ### 2. Initialise a repository
 
@@ -76,7 +76,17 @@ git push
 
 Teammates get the same skills, hooks and pane by pulling. The skills run a bare `accord` command. In Claude Code, the session hook tells the agent to run it through `npx` at the pinned version when `accord` is not on PATH. In Codex, Cursor and Copilot there is no such hook, so each person installs the pinned version globally (`npm i -g @accord-dev/accord@0.6.0`).
 
-### 4. Daily use in your coding agent
+### 4. Make the accord check a merge gate
+
+accord changes no GitHub setting, so nothing yet stops a pull request from merging when the accord check fails. `accord init` prints these steps; a repository admin does them once on GitHub:
+
+1. Open Settings > Rules > Rulesets and add a branch ruleset that targets the default branch, or open Settings > Branches and add a branch protection rule for it.
+2. Turn on "Require status checks to pass" and add the check "lint and gate the tickets this pull request touches"; it is listed once the accord workflow has run on a pull request.
+3. Turn on "Require branches to be up to date before merging", so the suite CI runs on a pull request is the suite of what the merge will hold.
+
+`accord-verify` reads these rules with `gh` and says in its report when the check is not required or branches need not be up to date.
+
+### 5. Daily use in your coding agent
 
 All work starts from the `/accord` skill inside the agent session:
 
@@ -86,7 +96,7 @@ All work starts from the `/accord` skill inside the agent session:
 | `/accord <request>` | New work. Accord proposes a lane with its reason; you may override it. |
 | `/accord continue <id>` | Resume a ticket at the stage and step it reached. |
 | `/accord pick-up <id>` | Claim an unclaimed ticket and start it. |
-| `/accord upgrade` | Move the repository to a newer accord release (see [Version pin](#7-version-pin-and-upgrading)). |
+| `/accord upgrade` | Move the repository to a newer accord release (see [Version pin](#8-version-pin-and-upgrading)). |
 
 Lanes:
 
@@ -109,7 +119,7 @@ Each ticket is worked in its own git worktree, the sibling folder `<repository f
 
 In Claude Code, the pane shows the dashboard beside the chat.
 
-### 5. Other runtimes
+### 6. Other runtimes
 
 `runtimes:` in `accord/config.yml` decides which skill folders accord writes. `claude` writes `.claude/skills/` and also the agents, the pane and the hooks; `codex` writes `.agents/skills/`. Cursor and Copilot read both folders, so the default `runtimes: [claude, codex]` already serves all four tools, and listing `cursor` or `copilot` adds nothing.
 
@@ -121,7 +131,7 @@ npx --yes @accord-dev/accord@0.6.0 skills sync
 
 `skills sync` deletes no copy you may still use. When you remove a runtime, it lists the copies it no longer writes, and you delete them yourself. The one file it deletes is `.claude/agents/accord-architect.md`, an agent accord no longer has, and only while its marker shows nobody edited it: it prints `removed` for it, and lists an edited copy with the others.
 
-### 6. CLI commands for people and CI
+### 7. CLI commands for people and CI
 
 The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Bare `accord` needs the global install at the pinned version; without it, put `npx --yes @accord-dev/accord@0.6.0` in place of `accord`. Run `accord --help` for the full list, and `accord <command> --help` for each one.
 
@@ -142,7 +152,7 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 | `accord worktree open <id>` | Find or prepare the ticket's worktree. |
 | `accord worktree clean` | Remove worktrees and branches of tickets done on the default branch. |
 
-### 7. Version pin and upgrading
+### 8. Version pin and upgrading
 
 `accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` and `pre-tool-use` hooks only warn, so the prompt or the agent dispatch goes on), and names the command to run instead, with the pinned version in place of 0.6.0:
 
@@ -162,7 +172,7 @@ Exit codes:
 | 1 | Gate failed, or lint found errors. The reasons are printed. |
 | 2 | Usage or environment error: bad arguments, no accord folder, unreadable config, version mismatch. |
 
-### 8. Running main from a clone
+### 9. Running main from a clone
 
 To work on accord itself:
 

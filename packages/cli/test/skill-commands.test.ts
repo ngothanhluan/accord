@@ -88,6 +88,8 @@ function mentions(files: SkillFile[]): Mention[] {
           const keyed = /^config (?:get|set|unset)\b/.exec(command)?.[0];
           // Round 3 WR-02: `accord trust git.sync` names a script, and a quoted refusal says `accord trust in "<path>"`: what follows trust is never a path.
           const argued = ['subject', 'trust'].find((c) => command.startsWith(c + ' '));
+          // ST-LN-37: `accord check required: ...` and `accord check on <tick>: ...` are the status lines verify writes to the owner, not commands.
+          if (/^check (?:required|on)$/.test(command)) continue;
           found.push({ where: `${path}:${i + 1}`, command: argued ?? keyed ?? command });
         }
       }

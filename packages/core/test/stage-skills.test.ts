@@ -703,8 +703,8 @@ it('ac-2 verify starts ci before the suite and shows the owners report only afte
   expect(a).toBeLessThan(b);
   expect(b).toBeLessThan(c);
   for (const p of ['no GitHub remote', '`gh auth status`', '`gh pr create --draft --fill`', 'A pull request already open is left as it is', 'Never merge it',
-    'A push that changed nothing still counts', 'gh run list --commit <sha> --json', '`.github/workflows/accord.yml`', 'never wait for it and never send it to debug',
-    'ten minutes', 'thirty minutes', '`cancelled` and `skipped`', 'goes to no debug', 'CI failed on `<sha>`', 'Do not wait for CI again'])
+    'A push that changed nothing still counts', 'gh run list --commit <sha> --json', '`.github/workflows/accord.yml`', 'do not wait for it here and never send it to debug', 'red by construction', 'Finish step 4 waits for it on the tick commit',
+    'ten minutes', 'thirty minutes', '`cancelled` and `skipped`', 'goes to no debug', 'CI failed on `<sha>`', 'accord check on <tick>: passed'])
     expect(ci, p).toContain(p);
   const wait = ci.slice(b, c);
   const idx = ["When Start was skipped, skip Wait; the report gives Start's reason.", "no workflow other than accord's", 'gh run list'].map((p) => wait.indexOf(p));

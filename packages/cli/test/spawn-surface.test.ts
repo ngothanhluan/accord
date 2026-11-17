@@ -100,6 +100,39 @@ it('risk:git-config every git log and git show passes the flags that keep log.sh
   expect(offenders).toEqual([]);
 });
 
+// ST-LN-37 37-ac-3 (T-05-04): no accord command changes a GitHub setting. Every `gh` spawn passes an argument
+// array, and none of them may hold a word that reads or writes the API, a ruleset or branch protection, or sets
+// an HTTP method. The only `gh` call today is `gh auth token`.
+const GH_WRITE_WORDS = ['api', 'ruleset', 'rulesets', 'protection', '--method', '-X', 'PUT', 'POST', 'PATCH', 'DELETE'];
+
+/** The `gh` spawn argument lists of one file's text that hold a word from GH_WRITE_WORDS, as `line: args`. */
+function ghWrites(text: string): string[] {
+  const stripped = stripCommentLines(text);
+  const found: string[] = [];
+  for (const m of stripped.matchAll(SPAWN)) {
+    const args = callArgs(stripped, m.index + m[0].length - 1);
+    const first = FIRST_ARG.exec(args);
+    if (first === null || first[2] !== 'gh') continue;
+    const words = [...args.matchAll(/(['"])([^'"]*)\1/g)].map((w) => w[2]);
+    if (words.some((w) => GH_WRITE_WORDS.includes(w))) found.push(`${stripped.slice(0, m.index).split('\n').length}: ${args}`);
+  }
+  return found;
+}
+
+it('risk:security no accord command writes a GitHub setting (ST-LN-37 37-ac-3)', () => {
+  const files = readdirSync(srcDir, { recursive: true, withFileTypes: true })
+    .filter((d) => d.isFile() && d.name.endsWith('.ts'))
+    .map((d) => join(d.parentPath, d.name));
+  expect(files.length).toBeGreaterThan(0);
+  const offenders = files.flatMap((f) => ghWrites(readFileSync(f, 'utf8')).map((o) => `${relative(srcDir, f).split(sep).join('/')}:${o}`));
+  expect(offenders).toEqual([]);
+  // Guard the guard: the scan reports a write spawn, so an empty answer above means something.
+  const fixture = "execFileSync('gh', ['api', '-X', 'PUT', 'repos/o/r/branches/main/protection'])";
+  expect(ghWrites(fixture)).toHaveLength(1);
+  expect(ghWrites("execFileSync('gh', ['auth', 'token'], { encoding: 'utf8' })")).toEqual([]);
+  expect(ghWrites("execFileSync('git', ['api'])")).toEqual([]);
+});
+
 describe('printed paths', () => {
   // Every repository-reading command shipped so far. A single command would leave the next one free to
   // print a `path.join` result; this is the assertion that fails on Windows CI the moment one does.

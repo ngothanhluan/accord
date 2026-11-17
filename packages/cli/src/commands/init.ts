@@ -9,7 +9,7 @@
 // a document stays a manual act, and the version pin is what makes the mismatch visible.
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { agentTargets, initFiles, loadConfig, loadSnapshot, pluginTargets, POINTER_FILES, pointerText, skillTargets } from '@accord-dev/accord-core';
+import { agentTargets, initFiles, loadConfig, loadSnapshot, pluginTargets, POINTER_FILES, pointerText, requiredCheckSteps, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { detectProposals } from '../load/detect.js';
@@ -158,6 +158,12 @@ export function init(ctx: InitContext): number {
   // accord thinks belongs here, and the list is the answer — a terse "nothing to do" is not. Outside the
   // try on purpose: inside it, a throw after this line would print the report twice.
   ctx.stdout.write(rendered());
+  // ST-LN-37 37-ac-3 (D-03): accord changes no GitHub setting, so init says what a repository admin does to make the
+  // accord check a merge gate. After the file list and before the proposals (the onboarding skill reads only the
+  // `proposal:` lines), in one fixed order, from the same core source the README carries. A refused run threw above
+  // and prints none of this.
+  ctx.stdout.write('required check: accord changes no GitHub setting; to make the accord check a merge gate, a repository admin does this once on GitHub:\n');
+  for (const [i, step] of requiredCheckSteps().entries()) ctx.stdout.write(`  ${i + 1}. ${step}\n`);
   // ST-LN-50 D-11: detected values are proposals, printed after the file list and never written here. The line
   // format is a contract the onboarding skill reads: `proposal: <dotted key> = <JSON value>  (evidence: <text>)`.
   const proposals = detectProposals(ctx.root);

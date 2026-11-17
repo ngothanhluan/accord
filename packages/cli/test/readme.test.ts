@@ -3,6 +3,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requiredCheckSteps } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
 
 const generated = fileURLToPath(new URL('../README.md', import.meta.url));
@@ -67,5 +68,22 @@ describe('generated README', () => {
   it('names its generator on the first line', () => {
     const first = readFileSync(generated, 'utf8').split('\n')[0];
     expect(first, 'packages/cli/README.md lost its banner: run npm run gen').toContain('gen-readme.mjs');
+  });
+});
+
+// ST-LN-37 37-ac-3 (D-03): the README and `accord init` give a team the same steps, read from one core source.
+describe('README: make the accord check a merge gate', () => {
+  it('ac-3 the README carries the same steps as accord init (ST-LN-37 37-ac-3)', () => {
+    const readme = normalise(readFileSync(source, 'utf8'));
+    expect(readme).toContain('### 4. Make the accord check a merge gate');
+    const steps = requiredCheckSteps();
+    expect(steps.length).toBeGreaterThan(0);
+    for (const [i, sentence] of steps.entries()) {
+      expect(readme, `README.md lacks step ${i + 1} of requiredCheckSteps() verbatim`).toContain(sentence);
+    }
+    expect(readme).toContain('Require branches to be up to date before merging');
+    // The registry page is the generated copy: it holds the same section.
+    const registry = normalise(readFileSync(generated, 'utf8'));
+    for (const sentence of steps) expect(registry).toContain(sentence);
   });
 });

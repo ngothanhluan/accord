@@ -39,8 +39,9 @@ Then run the suite and the verifier while CI runs.
 - Only runs on `<sha>` count:
   `gh run list --commit <sha> --json databaseId,workflowName,status,conclusion`.
   Leave out the workflow whose `name:` is in `.github/workflows/accord.yml`:
-  never wait for it and never send it to debug; step 6's local checks
-  stand in for it.
+  do not wait for it here and never send it to debug, because its run on
+  `<sha>` is red by construction (`verification.md` and the tick are
+  committed only at step 6). Finish step 4 waits for it on the tick commit.
 - Read the list once a minute until a run appears. None within ten
   minutes of the push: CI not checked, "no check appeared on `<sha>`
   within ten minutes".
@@ -146,5 +147,34 @@ no GitHub setting, and every `gh api` call below is a plain read.
    `origin` and `origin` is a GitHub remote: when it shows the branch
    ahead, run `git push`; then, unless
    `gh pr view --json isDraft --jq .isDraft` prints `false`, run
-   `gh pr ready`. Do not wait for CI again. This step also finishes a
-   session that stopped after the tick commit.
+   `gh pr ready`. This step also finishes a session that stopped after
+   the tick commit.
+4. Wait for the accord check on the tick commit. `<tick>` is
+   `git rev-parse HEAD` after step 3. Wait for no other workflow here:
+   Wait already read them.
+   - When Start was skipped, or `.github/workflows/accord.yml` does not
+     exist: not checked, with Start's reason, or "no accord workflow".
+   - Read `gh run list --commit <tick> --json databaseId,workflowName,status,conclusion`
+     once a minute until the run of the workflow whose `name:` is in
+     `.github/workflows/accord.yml` appears. None within ten minutes of
+     the push: not checked, "no accord run on `<tick>` within ten minutes".
+   - Then read it once a minute until that run is `completed`. Not
+     completed within thirty minutes: not checked, "still running after
+     thirty minutes".
+   - `gh run view <run-id> --json jobs` gives its jobs. Every job
+     `success`: passed. Any `failure`, `timed_out` or `startup_failure`:
+     failed. Any other conclusion, `cancelled` and `skipped` among them:
+     not checked, naming it. A run with no jobs is judged by the run's
+     `conclusion` the same way. Passed needs a completed run whose jobs
+     all succeeded; nothing else is passed.
+   - On failed, read `gh run view <run-id> --log-failed`. The failing gate
+     rules are the rule ids of its `: error <rule id> ` lines, each once
+     in log order; a failing line that carries no rule id (the deletion
+     check's) is quoted instead. Then follow `./failure.md` with that
+     run's id: the pull request cannot merge while the check is required,
+     and the fix commit leaves the tick bound to an older commit, so
+     verify runs again.
+   - The verdict is one status line of the finish report:
+     `accord check on <tick>: passed`,
+     `accord check on <tick>: failed: <rule ids>`, or
+     `accord check on <tick>: not checked: <reason>`.

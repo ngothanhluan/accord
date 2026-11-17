@@ -86,7 +86,7 @@ it('ac-1 verify waits for the accord check on the tick commit and reports its ve
         'gh run view <run-id> --log-failed',
         ': error <rule id>',
         './failure.md',
-        'gate.tick-stale-commit',
+        'the fix commit leaves the tick bound to an older commit, so verify runs again',
         'accord check on <tick>: passed',
         'accord check on <tick>: failed: <rule ids>',
         'accord check on <tick>: not checked: <reason>',

@@ -1,6 +1,6 @@
 // ST-LN-57 Task 7: ac-2 (a new finding from round 3 outside the last fix's files needs evidence), ac-3 (code added by a
 // debug episode or a merge starts its own round 1 for that rule) and D-08 (a deferred finding leaves ST-LN-17's stop).
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { gateDone, nextRound, roundText } from '../src/index.js';
 import type { RangeCommit, RepoSnapshot } from '../src/index.js';
 import { claimedUnder, commit, facts, scopeSnapshot as scoped, v2Review } from '../../../test/helpers/review-v2.js';
@@ -133,4 +133,52 @@ it('risk:complex-branching the final review is left out of the evidence count', 
     facts: facts(none(4)),
   });
   expect(evidence(plain)).toHaveLength(1);
+});
+
+// BUG-LN-21 (Phase 5, TRUST-06): on the skip path (HEAD on the default branch, or the ticket done there) a Must or Should marked risk: security or risk: data-loss that is
+// written deferred with its ledger line must keep the stop, as it does on every other path. No cut-off: the rule is already stated in the reviewer prompt and record.md.
+describe('a deferred risk finding on the review skip path', () => {
+  const skipFacts = (n: number) => facts(none(n), { skip: 'on-default' });
+  const DEFERRED = '\n## Deferred\n- review 1.1: x — failing case: y\n';
+  const record = (lane: 'M' | 'S', finding: string, o: { verdict?: boolean; claim?: string } = {}): RepoSnapshot => {
+    const snap = scoped({
+      lane,
+      review: v2Review([[{ lines: [finding] }]], o.verdict === false ? '' : '\nverdict: converged\n'),
+      ledger: DEFERRED,
+      facts: skipFacts(1),
+    });
+    return o.claim === undefined ? snap : claimedUnder(snap, o.claim);
+  };
+  const stops = (snap: RepoSnapshot): string[] =>
+    gateDone(snap, 'T-1')
+      .findings.filter((f) => (f.rule === 'gate.review-unconverged' || f.rule === 'gate.review-rounds') && f.path === 'accord/tickets/T-1/review.md')
+      .map((f) => f.rule);
+
+  it('risk:security a deferred risk finding is refused when the checks are skipped, lane M and lane S (BUG-LN-21 21-ac-1)', () => {
+    for (const lane of ['M', 'S'] as const) {
+      for (const severity of ['Must', 'Should'] as const) {
+        for (const mark of ['risk: security', 'risk: data-loss']) {
+          const what = `${lane} ${severity} ${mark}`;
+          const risky = line(severity, 1, 'src/a.ts:1', 'deferred', mark);
+          expect(stops(record(lane, risky)).length, what).toBeGreaterThan(0);
+          // no cut-off: whatever the claim pin, old or new
+          for (const claim of ['0.5.1', '0.6.0', '0.7.0']) expect(stops(record(lane, risky, { claim })).length, `${what} claimed under ${claim}`).toBeGreaterThan(0);
+        }
+        // the same finding with no risk mark still passes
+        expect(stops(record(lane, line(severity, 1, 'src/a.ts:1', 'deferred'))), `${lane} ${severity} no mark`).toEqual([]);
+      }
+    }
+  });
+
+  it('risk:security accord round stops on a deferred risk finding on the skip path (BUG-LN-21 21-ac-1)', () => {
+    for (const lane of ['M', 'S'] as const) {
+      for (const mark of ['risk: security', 'risk: data-loss']) {
+        const open = (finding: string): RepoSnapshot => record(lane, finding, { verdict: false });
+        const risky = nextRound(open(line('Must', 1, 'src/a.ts:1', 'deferred', mark)), 'T-1', 'review');
+        expect(risky.kind, `${lane} ${mark}`).not.toBe('next');
+        const plain = nextRound(open(line('Must', 1, 'src/a.ts:1', 'deferred')), 'T-1', 'review');
+        expect(plain.kind, `${lane} no mark`).toBe('next');
+      }
+    }
+  });
 });

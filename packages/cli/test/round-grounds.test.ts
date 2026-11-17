@@ -194,3 +194,48 @@ it('risk:complex-branching gate plan lets a deferred ungrounded round 3 finding 
     cleanup(repo);
   }
 }, 120_000);
+
+// BUG-LN-21 (Phase 5, TRUST-06): a ticket done on the default branch has its review scope checks skipped, and a deferred risk finding must still hold the stop there.
+const RISK_FINDING = 'Must 1 [patch]: the export drops a row — src/a.ts:1 — deferred';
+
+/** A repository whose t/T-1 (claimed, a code commit, review.md round 1 with `finding` and a converged verdict, its ledger) is fast-forwarded into main, HEAD on main. */
+function doneOnMain(finding: string): string {
+  const repo = makeEmptyRepo();
+  writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') });
+  commitMsg(repo, 'claim: T-1');
+  gitRun(repo, 'branch', '-M', 'main');
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  writeFiles(repo, { 'src/a.ts': 'export const a = 1;\n' });
+  const code = commitMsg(repo, 'code');
+  writeFiles(repo, {
+    [REVIEW]: `Round record: 2\n\n## Round 1 head ${code}\n\n${finding}\n\nverdict: converged\n`,
+    'accord/tickets/T-1/ledger.md': '## Rulings\n\n## Deferred\n- review 1.1: the export drops a row — failing case: a row with a comma\n',
+  });
+  commitMsg(repo, 'T-1 round 1');
+  gitRun(repo, 'switch', '-q', 'main');
+  gitRun(repo, 'merge', '--ff-only', 't/T-1');
+  return repo;
+}
+
+it('risk:security gate done refuses a deferred risk finding of a ticket done on the default branch, on real git (BUG-LN-21 21-ac-1)', async () => {
+  const stops = async (repo: string): Promise<string[]> => {
+    const r = await run(['gate', 'done', 'T-1', '--json'], repo);
+    const found = JSON.parse(r.out).findings as { rule: string; level: string; path?: string }[];
+    return found.filter((f) => (f.rule === 'gate.review-unconverged' || f.rule === 'gate.review-rounds') && f.level === 'error').map((f) => f.rule);
+  };
+  for (const mark of ['risk: security', 'risk: data-loss']) {
+    const repo = doneOnMain(`${RISK_FINDING} — ${mark}`);
+    try {
+      expect((await stops(repo)).length, mark).toBeGreaterThan(0);
+    } finally {
+      cleanup(repo);
+    }
+  }
+  // the twin with no risk mark passes the review rules on the same path
+  const plain = doneOnMain(RISK_FINDING);
+  try {
+    expect(await stops(plain)).toEqual([]);
+  } finally {
+    cleanup(plain);
+  }
+}, 120_000);

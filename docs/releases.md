@@ -2,7 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.7.0 — 2026-11-17
+
+Release 0.7.0 makes the accord check a merge gate you can see and trust: the required-check guidance and the verify wait, done tickets frozen for lint, a security trigger with its own review lens, a verifier-only write of `verification.md`, and a risk fix for the skip path (the bullets below). Tickets in flight: a ticket claimed under 0.6.x keeps the older answer of the security record rule (`gate.security-unreviewed` in `accord gate done` and the refusal in `accord round`), because its claim fact and its `ruleset` name 0.6.x and the rule reads its cut-off, `SECURITY_TRIGGER_FROM` in `packages/core/src/round/pin.ts`, through `claimPinBefore`. The skip-path risk fix (TRUST-06) and the done-ticket lint skip (TRUST-02) apply to every ticket, whatever its claim. Pinned repositories: the verifier hook, the security trigger section, the verify wait and the required-check line reach a repository with `accord upgrade`, which moves the pin, regenerates the skills and merges the new hook entry. It writes no `accord/product/security.md`: an absent file means the seven default patterns and eight default checks, and `accord init` writes the file, skipping every file that exists. The verifier hook protects a repository only once it pins 0.7.0. A repository pinned to 0.6.x keeps its 0.6.x answers, skills and hooks until then.
 
 - `accord round` reads debug episodes the way the pre-tool-use hook does: one heading reader in core decides both, so `## resolved` closes an episode, `## Resolved: fixed` does not, and extra spaces after `##` still open one (phase 4 review WR-02).
 - The executor resolves a stopped rebase conflict by fixing the markers and staging the paths only: the build skill's conflict dispatch and the executor agent now both say it makes no commit and runs no `git rebase` command, since `accord worktree task merge` continues the rebase (phase 4 review WR-03).

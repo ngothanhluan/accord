@@ -515,3 +515,14 @@ it('risk:security a changed line longer than the scan cap is a trigger that says
   expect(blocks).toHaveLength(1);
   expect(blocks[0]).toContain(tail);
 });
+
+it('risk:regression a security file written by 0.7.0, with its older security-config line, still reads clean and the current default applies', () => {
+  const current = templates['security.md'].split('\n').find((l) => l.startsWith('- security-config:')) as string;
+  const older = '- security-config: path accord/product/security.md, accord/config.yml — the security trigger list and the generated paths it skips';
+  const spec = securitySpec(withFile(templates['security.md'].replace(current, older)));
+  expect(spec.problems).toEqual([]);
+  expect(spec.patterns.find((p) => p.id === 'security-config')?.entries).toEqual(['accord/product/security.md', 'accord/config.yml', '.gitattributes']);
+  // any other value of a default is still a problem
+  const other = securitySpec(withFile(templates['security.md'].replace(current, '- security-config: path accord/config.yml — x')));
+  expect(other.problems).toHaveLength(1);
+});

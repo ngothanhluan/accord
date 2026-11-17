@@ -2,7 +2,7 @@
 // no quoting, pipe, redirect, or variable, so the same string runs under bash and PowerShell.
 export type HookEntries = Record<
   'SessionStart' | 'SubagentStart' | 'UserPromptExpansion' | 'PreToolUse',
-  { matcher: string; hooks: { type: 'command'; command: string; timeout?: number }[] }[]
+  { matcher: string; hooks: { type: 'command'; command: string; timeout?: number; if?: string }[] }[]
 >;
 
 const cmd = (pkg: { name: string; version: string }, event: string): string =>
@@ -17,7 +17,19 @@ export const hookEntries = (pkg: { name: string; version: string }): HookEntries
   ],
   SubagentStart: [{ matcher: 'accord-.*', hooks: [{ type: 'command', command: cmd(pkg, 'subagent-start') }] }],
   UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: cmd(pkg, 'prompt-expansion') }] }],
-  PreToolUse: [{ matcher: 'Agent|Task', hooks: [{ type: 'command', command: cmd(pkg, 'pre-tool-use') }] }],
+  PreToolUse: [
+    { matcher: 'Agent|Task', hooks: [{ type: 'command', command: cmd(pkg, 'pre-tool-use') }] },
+    // ST-LN-39 D-08: the verification record's write guard. Plan 05-10's probe saw the `if` field honoured, so each tool's hook spawns
+    // only for a path under accord/tickets/<id>/; the handler matches the path again and decides from stdin alone.
+    {
+      matcher: 'Write|Edit|MultiEdit',
+      hooks: (['Write', 'Edit', 'MultiEdit'] as const).map((tool) => ({
+        type: 'command' as const,
+        command: cmd(pkg, 'pre-tool-use'),
+        if: tool + '(**/accord/tickets/*/verification.md)',
+      })),
+    },
+  ],
 });
 
 export const isAccordHookCommand = (c: string): boolean =>

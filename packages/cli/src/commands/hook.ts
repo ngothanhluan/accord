@@ -1,7 +1,7 @@
 // Spec §17 `accord hook <event>`: the text Claude Code's SessionStart and SubagentStart hooks inject.
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
@@ -228,6 +228,51 @@ function debugOpenIn(root: string, id: string): boolean {
     return false;
   }
   return debugOpen(text);
+}
+
+// ST-LN-39 D-08: `accord/tickets/<id>/verification.md` at any root, matched after `\` became `/` and path.posix collapsed
+// `.`, `..` and repeated slashes. Anchored, no nested quantifier, letter case ignored on every OS.
+const VERIFICATION_RECORD = /(?:^|\/)accord\/tickets\/[^/]+\/verification\.md$/i;
+
+/**
+ * ST-LN-39 D-08: in Claude Code only an `accord-verifier` subagent writes `accord/tickets/<id>/verification.md`. Decides from stdin alone,
+ * before any repository load. Returns undefined when the input is not a Write, Edit or MultiEdit (the caller goes on to the dispatch
+ * check); otherwise it has printed its answer and returns 0. Fails open: any unreadable shape or throw is one stderr line and `{}`.
+ */
+export function preToolUseWrite(io: { stdin?: string; stdout: NodeJS.WritableStream; stderr: NodeJS.WritableStream }): number | undefined {
+  const allow = (why?: string) => {
+    if (why !== undefined) io.stderr.write(`accord hook pre-tool-use: ${why.split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+    io.stdout.write('{}\n');
+    return 0;
+  };
+  try {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(io.stdin ?? '');
+    } catch {
+      return undefined;
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+    const input = parsed as Record<string, unknown>;
+    const tool = input.tool_name;
+    if (tool !== 'Write' && tool !== 'Edit' && tool !== 'MultiEdit') return undefined;
+    const toolInput = input.tool_input;
+    if (typeof toolInput !== 'object' || toolInput === null || Array.isArray(toolInput)) return allow('no tool_input on a ' + tool);
+    const file = (toolInput as Record<string, unknown>).file_path;
+    if (typeof file !== 'string') return allow('no file_path on a ' + tool);
+    if (!VERIFICATION_RECORD.test(posix.normalize(file.replace(/\\/g, '/')))) return allow();
+    const type = input.agent_type;
+    if (type === 'accord-verifier') return allow();
+    const from = typeof type === 'string' && type !== '' ? `agent "${type}"` : 'the main session';
+    const reason =
+      'accord: only the accord-verifier subagent writes accord/tickets/<id>/verification.md (accord-verify step 3): ' +
+      "dispatch accord-verifier in a fresh context with the ticket file's path. " +
+      `This ${tool} came from ${from}. If it did come from accord-verifier, this Claude Code does not name subagents to hooks: update Claude Code.`;
+    io.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }) + '\n');
+    return 0;
+  } catch (e) {
+    return allow(e instanceof Error ? e.message : String(e));
+  }
 }
 
 /** ST-LN-17 D-03: refuse an accord-executor dispatched on a model other than the one accord computes while the ticket is at review. Fails open on any error. */

@@ -198,3 +198,93 @@ it('risk:parsing review-package says when lines of the security file were not re
     cleanup(repo);
   }
 }, 120_000);
+
+// ---- the security package (05-07 task 2) ----
+
+const OTHER_BASE = 'export const o = 1;\n';
+
+/** A lane M ticket on its own branch whose plan baseline is the base commit, with `change` as its one code commit. */
+function laneM(change: Record<string, string>): { repo: string; base: string } {
+  const repo = makeEmptyRepo();
+  identity(repo);
+  writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1'), 'src/run.ts': RUN_BASE, 'src/other.ts': OTHER_BASE, 'docs/notes.md': 'notes\n' });
+  const base = commitMsg(repo, 'base');
+  gitRun(repo, 'branch', '-M', 'main');
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), ...change });
+  commitMsg(repo, 'code');
+  return { repo, base };
+}
+
+it('ac-3 review-package --security prints the checklist, the triggers and the matched hunks (ST-LN-36 36-ac-3)', async () => {
+  const hit = laneM({ 'src/run.ts': RUN_NEW, 'src/other.ts': 'export const o = 2;\n' });
+  try {
+    const before = gitRun(hit.repo, 'status', '--porcelain');
+    const first = await run(['review-package', 'T-1', '--security'], hit.repo);
+    expect(first.err).toBe('');
+    expect(first.code).toBe(0);
+    expect(first.out).toMatch(/^# Security package: T-1 \(/);
+    expect(first.out).toContain('\nHead: ');
+    const checklist = first.out.slice(first.out.indexOf('## Checklist'), first.out.indexOf('## Security triggers'));
+    for (const id of ['injection', 'path-traversal', 'secrets', 'untrusted-input', 'ci-permissions', 'new-dependencies', 'hook-commands', 'authorisation']) {
+      expect(checklist).toContain(`- ${id}: `);
+    }
+    expect(section(first.out)).toBe('## Security triggers\n\nsrc/run.ts:3: spawn (process spawn)');
+    const hunks = first.out.slice(first.out.indexOf('## Matched hunks'));
+    expect(hunks).toContain('diff --git a/src/run.ts b/src/run.ts');
+    expect(hunks).toContain("+spawnSync('git', ['status']);");
+    expect(hunks).not.toContain('src/other.ts');
+    for (const heading of ['## Commits', '## Stat', '## Diff', '## Interface signs']) expect(first.out).not.toContain(heading);
+    // two runs print the same bytes, and the command writes nothing
+    expect((await run(['review-package', 'T-1', '--security'], hit.repo)).out).toBe(first.out);
+    expect(gitRun(hit.repo, 'status', '--porcelain')).toBe(before);
+  } finally {
+    cleanup(hit.repo);
+  }
+
+  const none = laneM({ 'src/other.ts': 'export const o = 2;\n' });
+  try {
+    const out = await run(['review-package', 'T-1', '--security'], none.repo);
+    expect(out.code).toBe(0);
+    expect(section(out.out)).toBe('## Security triggers\n\n(none: no pattern matched)');
+    expect(out.out.slice(out.out.indexOf('## Matched hunks'))).toBe('## Matched hunks\n\n(none: no pattern matched)\n');
+  } finally {
+    cleanup(none.repo);
+  }
+
+  // a new `.option(` is a public CLI surface: the README names it
+  const readme = readFileSync(fileURLToPath(new URL('../../../README.md', import.meta.url)), 'utf8');
+  expect(readme).toContain('accord review-package');
+  expect(readme).toContain('--security');
+}, 120_000);
+
+it('ac-3 review-package --security --round prints the package of a recorded round (ST-LN-36 36-ac-3)', async () => {
+  const m = laneM({ 'src/run.ts': RUN_NEW });
+  try {
+    const c1 = gitRun(m.repo, 'rev-parse', 'HEAD').trim();
+    writeFiles(m.repo, { 'docs/notes.md': 'notes\nmore\n' });
+    const c2 = commitMsg(m.repo, 'fix');
+    const rounds = `Round record: 2\n\n## Round 1 head ${c1}\n\nNo findings\nSecurity: lens security ran\n\n## Round 2 head ${c2}\n\nNo findings\nSecurity: no pattern matched\n\n## Round 3 head ${c2} (final review)\n\nNo findings\n`;
+    writeFiles(m.repo, { 'accord/tickets/T-1/review.md': rounds });
+    commitMsg(m.repo, 'rounds');
+    const one = await run(['review-package', 'T-1', '--security', '--round', '1'], m.repo);
+    expect(one.err).toBe('');
+    expect(one.code).toBe(0);
+    expect(one.out).toMatch(/^# Security package: T-1 \(/);
+    expect(one.out).toContain("+spawnSync('git', ['status']);");
+    expect(section(one.out)).toBe('## Security triggers\n\nsrc/run.ts:3: spawn (process spawn)');
+    const two = await run(['review-package', 'T-1', '--security', '--round', '2'], m.repo);
+    expect(two.code).toBe(0);
+    expect(two.out).not.toContain('spawnSync');
+    expect(two.out.slice(two.out.indexOf('## Matched hunks'))).toBe('## Matched hunks\n\n(none: no pattern matched)\n');
+    // a usage error: --round alone, a round that is not recorded, not a number, and a final review round (D-10)
+    for (const args of [['--round', '1'], ['--security', '--round', '4'], ['--security', '--round', '0'], ['--security', '--round', 'x'], ['--security', '--round', '3']]) {
+      const bad = await run(['review-package', 'T-1', ...args], m.repo);
+      expect(bad.code, args.join(' ')).toBe(2);
+      expect(bad.out, args.join(' ')).toBe('');
+      expect(bad.err.length, args.join(' ')).toBeGreaterThan(10);
+    }
+  } finally {
+    cleanup(m.repo);
+  }
+}, 120_000);

@@ -1,6 +1,6 @@
 // ST-LN-36 (05-04): the default security patterns, the file that holds them and the reader that matches them against a package's diff text.
 import { expect, it } from 'vitest';
-import { DEFAULT_SECURITY, LOCKED, lintSnapshot, loadSnapshot, parseSecurityFile, securitySpec, securityTriggers, templates, triggerText } from '../src/index.js';
+import { DEFAULT_SECURITY, LOCKED, lintSnapshot, loadSnapshot, matchedHunks, parseSecurityFile, securitySpec, securityTriggers, templates, triggerText } from '../src/index.js';
 
 const FILE = 'accord/product/security.md';
 /** A snapshot holding only the security file (or none): securitySpec reads nothing else. */
@@ -371,4 +371,71 @@ it('risk:regression lint.security-file is LOCKED and an absent or valid file giv
   for (const t of [undefined, tpl, '', edit('Patterns', '- infra: path infra/ — infrastructure', '')]) {
     expect(lintSnapshot(withFile(t)).findings.filter((f) => f.rule === 'lint.security-file'), String(t)).toEqual([]);
   }
+});
+
+// ---- the security package: the matched hunks (05-07 task 2) ----
+
+const HUNKS_DIFF = [
+  ...SECTION('src/run.ts', [
+    '@@ -1,3 +1,4 @@',
+    ' const a = 1;',
+    ' const b = 2;',
+    "+spawnSync('git', ['status']);",
+    ' export {};',
+    '@@ -40,3 +41,3 @@',
+    ' const c = 3;',
+    '-const oldName = 4;',
+    '+const newName = 4;',
+    ' export {};',
+  ]),
+  ...SECTION('package-lock.json', [
+    '@@ -1,200 +1,200 @@',
+    ...Array.from({ length: 200 }, (_, i) => `-  "old${i}": 1,`),
+    ...Array.from({ length: 200 }, (_, i) => `+  "new${i}": 1,`),
+  ]),
+].join('\n');
+
+it('ac-3 the matched hunks are the hunks that hold a match, whole, and a path match is capped (ST-LN-36 36-ac-3)', () => {
+  const changed = ['src/run.ts', 'package-lock.json'];
+  const blocks = matchedHunks(DEFAULT_SECURITY, HUNKS_DIFF, changed, { generated: [] });
+  const run = blocks.find((b) => b.startsWith('diff --git a/src/run.ts'))!;
+  expect(run.split('\n')).toEqual([
+    'diff --git a/src/run.ts b/src/run.ts',
+    '--- a/src/run.ts',
+    '+++ b/src/run.ts',
+    '@@ -1,3 +1,4 @@',
+    ' const a = 1;',
+    ' const b = 2;',
+    "+spawnSync('git', ['status']);",
+    ' export {};',
+  ]);
+  expect(run).not.toContain('newName');
+  // a path match: every hunk of the file, cut at 300 lines, and the cut says how many lines it left out
+  const lock = blocks.find((b) => b.startsWith('diff --git a/package-lock.json'))!.split('\n');
+  expect(lock.slice(0, 3)).toEqual(['diff --git a/package-lock.json b/package-lock.json', '--- a/package-lock.json', '+++ b/package-lock.json']);
+  expect(lock.slice(3, -1)).toHaveLength(300);
+  expect(lock[lock.length - 1]).toBe('(truncated: 101 more lines in package-lock.json)');
+  // paths come in order
+  expect(blocks.map((b) => b.split('\n')[0])).toEqual(['diff --git a/package-lock.json b/package-lock.json', 'diff --git a/src/run.ts b/src/run.ts']);
+  // no trigger, no hunk
+  expect(matchedHunks(DEFAULT_SECURITY, SECTION('src/plain.ts', ['@@ -1 +1 @@', '-a', '+b']).join('\n'), ['src/plain.ts'], { generated: [] })).toEqual([]);
+  expect(matchedHunks(DEFAULT_SECURITY, '', [], { generated: [] })).toEqual([]);
+});
+
+it('risk:security a matched hunk is never left out: a content hunk past the cap is whole, a path the diff does not show is said (ST-LN-36 36-ac-3)', () => {
+  // a manifest whose first hunk fills the cap and whose second holds a content match: the second is printed whole
+  const big = SECTION('package.json', [
+    '@@ -1,300 +1,300 @@',
+    ...Array.from({ length: 299 }, (_, i) => ` line${i}`),
+    '+  "x": 1',
+    '@@ -900,2 +900,3 @@',
+    ' tail',
+    "+token = 'abc'",
+    ' end',
+  ]).join('\n');
+  const out = matchedHunks(DEFAULT_SECURITY, big, ['package.json'], { generated: [] });
+  expect(out).toHaveLength(1);
+  expect(out[0]).toContain("+token = 'abc'");
+  const cannot = matchedHunks(DEFAULT_SECURITY, '', ['Cargo.lock'], { generated: [] });
+  expect(cannot.join('\n')).toContain('(cannot tell: Cargo.lock is not in the diff text)');
 });

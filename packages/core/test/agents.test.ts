@@ -20,7 +20,7 @@ const AGENT_REQUIRED: Record<string, readonly string[]> = {
   planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes', UNFINISHED_MARKER, 'under it first', 'append each task when it is finished', 'remove the line as your last step', '`resume mode`', 'keep every finished task'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S', 'ADDRESSED <path>:<line>', 'NOT ADDRESSED', 'Deferred:'],
   verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md', UNFINISHED_MARKER, 'under it first', 'only once its result and its evidence are final', 'remove the line as your last step', '`resume mode`', 'keep every finished block', 'told to start over, write the file anew'],
-  debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>', UNFINISHED_MARKER, 'first line under the last `## Episode <n>` heading', 'as soon as it is done', 'remove the line as your last step', '`resume mode`', 'keep every finished part'],
+  debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>', UNFINISHED_MARKER, 'first line under the last `## Episode <n>` heading', 'as soon as it is done', 'remove the line as your last step', '`resume mode`', 'keep every finished part', 'You never edit product code, tests, the ticket, or the ledger'],
 };
 
 describe('agents name what the spec requires', () => {

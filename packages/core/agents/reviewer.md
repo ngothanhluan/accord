@@ -24,7 +24,7 @@ Lens `quality`:
 - An early return or a branch on the operating system inside a test that leaves an assertion unrun on some operating system is a finding: that assertion belongs in a test of its own, skipped through the test runner's own skip.
 - Skip anything a configured linter or type check already enforces.
 
-Lens `security`: the auth, money, migration, and data deletion paths the diff touches.
+Lens `security`: you get the security package (`accord review-package <id> --security`) in place of the review package; check every hunk under `## Matched hunks` against every item under `## Checklist`, and name the item each finding fails.
 
 Lens `integration`: only the interfaces and the links between areas.
 

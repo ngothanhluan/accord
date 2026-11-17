@@ -74,6 +74,7 @@ Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <path>[:<line>] 
 - Each round is written as it ends, the final review included, with every finding `open`, and committed before any fix executor is dispatched; each state then becomes `fixed in <sha>` or `deferred`.
 - A round with no findings says `No findings`.
 - Every `Confirmed wording-only: <path>` and `Not an interface: <path> — <reason>` line a reviewer reports is copied verbatim, one per line, into that round's section. Only the last `## Round` is read for them, so the last round, the final review, carries every one that still holds.
+- Each round section but the final review's carries one line outside any finding, `Security: no pattern matched` or `Security: lens security ran`, as `./security.md` says. From accord 0.7.0 `accord round` and `accord gate done` refuse a round section with no `Security:` line, and a round whose package had triggers needs the second.
 
 `accord round <id>` reads this record. A round at or after `escalation.fix_round_tier_up` in `accord/config.yml` (default 4) dispatches a fresh executor one model tier above the executor's configured model, passed as `model` on the dispatch itself: `haiku`, then `sonnet`, then `opus`; `opus` stays `opus`. `accord round` prints that model as `Fix executor model: <model>`; pass it on every fix executor dispatch of the round. On `refused:`, fix what it names and run `accord round <id>` again.
 

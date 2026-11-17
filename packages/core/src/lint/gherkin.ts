@@ -4,6 +4,7 @@
 import { AC_TAG } from '../load/gherkin.js';
 import { headingKey } from '../load/sections.js';
 import { normaliseKey } from '../load/snapshot.js';
+import { isDone } from '../status/stage.js';
 import type { RepoSnapshot, ScenarioRef, Ticket } from '../model/snapshot.js';
 import type { Draft, Rule } from './rules.js';
 
@@ -73,17 +74,29 @@ export const testTagOnUi: Rule['check'] = (snapshot) =>
     s.tags.includes('@ui') && s.tags.some(isTest) ? [`scenario "${s.name}" is @ui and carries a @test: tag`] : [],
   );
 
-/** D-72: with a report loaded, every `@test:` id must be a key of `snapshot.tests`; exact lookup, never a guess (T-03-09). */
+/**
+ * D-72: with a report loaded, every `@test:` id must be a key of `snapshot.tests`; exact lookup, never a guess (T-03-09).
+ * BUG-LN-18 D-04: a done ticket is frozen, so its tags are not checked: moving or renaming a test it names never forces an edit of it.
+ * "Done" is what status calls done (`isDone`), one definition. `gate.test-unknown` still checks a ticket's own tags at Done, and editing a done
+ * ticket still fails `gate.tick-stale-commit` and `gate.stale-review`.
+ */
 export const testIdUnknown: Rule['check'] = (snapshot) => {
   const tests = snapshot.tests;
   const report = snapshot.config?.tests?.report;
   if (tests === undefined || report === undefined) return [];
-  return perScenario(snapshot, (s) =>
-    s.tags
-      .filter(isTest)
-      .map((tag) => tag.slice(6))
-      .filter((id) => !Object.hasOwn(tests, id))
-      .map((id) => `@test:${id} not found in ${report}; ids are classname#name with spaces as '-'`),
+  const frozen = new Map<string, boolean>(); // one answer per ticket, not one per scenario
+  const isFrozen = (t: Ticket): boolean => {
+    if (!frozen.has(t.id)) frozen.set(t.id, isDone(snapshot, t.id));
+    return frozen.get(t.id) === true;
+  };
+  return perScenario(snapshot, (s, t) =>
+    isFrozen(t)
+      ? []
+      : s.tags
+          .filter(isTest)
+          .map((tag) => tag.slice(6))
+          .filter((id) => !Object.hasOwn(tests, id))
+          .map((id) => `@test:${id} not found in ${report}; ids are classname#name with spaces as '-'`),
   );
 };
 

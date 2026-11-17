@@ -836,6 +836,29 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
     expect(result.calls.length, result.calls.join(' | ')).toBe(1);
   });
 
+  // BUG-LN-18 18-ac-2 (Phase 5, D-04): the pull request moves the test the done ticket SIGNUP-1 names and leaves the ticket alone, with `lint.test-id-unknown` raised to error.
+  // Before the fix the real `accord lint` exits 1 on the done ticket's tags; now the job is green and gates nothing.
+  it('ac-2 a pull request that moves a test a done ticket names passes the accord check (BUG-LN-18 18-ac-2)', () => {
+    const repo = makeEmptyRepo();
+    repos.push(repo);
+    cpSync(example, repo, { recursive: true });
+    const config = join(repo, 'accord', 'config.yml');
+    writeFileSync(config, readFileSync(config, 'utf8') + '\nstrictness:\n  levels:\n    lint.test-id-unknown: error\n');
+    const base = commitAll(repo);
+    // the test moves: its file is renamed and the report names it under the new file, while SIGNUP-1 still names the old id
+    const moved = readFileSync(join(repo, 'test', 'signup.spec.ts'), 'utf8');
+    rmSync(join(repo, 'test', 'signup.spec.ts'));
+    write(repo, 'test/registration.spec.ts', moved);
+    const report = join(repo, 'reports', 'junit.xml');
+    writeFileSync(report, readFileSync(report, 'utf8').replaceAll('test/signup.spec.ts', 'test/registration.spec.ts'));
+    commitAll(repo);
+    const result = runScript(repo, { base, forward: true });
+    expect(result.code, result.out + result.err).toBe(0);
+    expect(result.out).not.toContain('lint.test-id-unknown');
+    expect(result.out).toContain(NOTHING_TO_GATE);
+    expect(result.calls.length, result.calls.join(' | ')).toBe(1);
+  });
+
   it('ticket-touching diff, real accord gate done: the id is one the binary knows, its failure is the job’s', () => {
     const ticket = 'accord/tickets/SIGNUP-1.md';
     const { repo, base } = exampleRepo((r) => write(r, 'docs/note.md', 'new\n'));

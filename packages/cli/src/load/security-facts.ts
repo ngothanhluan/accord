@@ -3,7 +3,7 @@
 // order across cycles, so a round that fixed something is asked only when its fix matches a pattern. The triggers of a package come from packageDiff, the function review-package prints from.
 // Every git failure is an `error` fact, which the rule reports (fail closed); nothing here writes.
 import { execFileSync } from 'node:child_process';
-import { reviewSkipped, securitySpec, securityTriggers, triggerText, workOf } from '@accord-dev/accord-core';
+import { claimPinBefore, reviewSkipped, SECURITY_TRIGGER_FROM, securitySpec, securityTriggers, triggerText, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot, SecurityFacts } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from './fs.js';
 import { packageDiff, roundOneBase, why } from './package-diff.js';
@@ -88,12 +88,15 @@ function factsFor(root: string, snapshot: RepoSnapshot, id: string): SecurityFac
 }
 
 /**
- * `snapshot` with securityFacts[id] set; `snapshot` itself when the ticket has no lane, no version 2 review record with a round, no git, or the review checks are skipped (HEAD on
- * the default branch, or the ticket done there). Each of those is decided on the snapshot, before the first git call.
+ * `snapshot` with securityFacts[id] set; `snapshot` itself when the ticket has no lane, no version 2 review record with a round, no git, the review checks are skipped (HEAD on the
+ * default branch, or the ticket done there), or the rule does not apply to it: ST-LN-36, Orchestrator Ruling (route a), a ticket whose claim pin is before SECURITY_TRIGGER_FROM answers as
+ * before and starts no git read for it. The claim fact is the one the caller already loaded (gate done, accord round); this never calls withClaimPins, so the pin gate adds no git read. A failed
+ * claim read is false in claimPinBefore (fail closed), so the facts are read and the rule applies. Each of those is decided on the snapshot, before the first git call.
  */
 export function withSecurityFacts(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot {
   const rec = workOf(snapshot, id)?.rounds;
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
   if (lane === undefined || rec === undefined || rec.version !== 2 || rec.cycles.every((c) => c.rounds.length === 0) || snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;
+  if (claimPinBefore(snapshot, id, SECURITY_TRIGGER_FROM)) return snapshot;
   return { ...snapshot, securityFacts: { ...snapshot.securityFacts, [id]: factsFor(root, snapshot, id) } };
 }

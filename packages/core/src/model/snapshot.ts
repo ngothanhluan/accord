@@ -373,7 +373,7 @@ export interface RepoSnapshot {
   branchFacts?: Record<string, BranchFact>; // carried through from SnapshotInput
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
-  securityFacts?: Record<string, SecurityFacts>; // ST-LN-36: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, a ticket claimed before SECURITY_TRIGGER_FROM)
+  securityFacts?: Record<string, SecurityFacts>; // ST-LN-36: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, a ticket claimed before the security record rule's cut-off)
   researchFacts?: Record<string, ResearchFact>; // carried through from SnapshotInput
   // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or
   // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every

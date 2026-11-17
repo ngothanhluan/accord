@@ -356,6 +356,7 @@ export const DONE_S_RULES: readonly GateRule[] = [
   FIX_PLACES_MISSING,
   FIX_NOT_ADDRESSED,
   FIX_OUTSIDE_OPEN,
+  SECURITY_UNREVIEWED,
   { id: 'gate.review-trailing', level: 'error', profiles: ['build', 'maintain'], check: reviewTrailing },
   { id: 'gate.review-uncommitted', level: 'error', profiles: ['build', 'maintain'], check: reviewUncommitted },
   { id: 'gate.review-commit-code', level: 'error', profiles: ['build', 'maintain'], check: reviewCommitCode },

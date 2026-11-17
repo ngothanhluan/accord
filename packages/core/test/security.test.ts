@@ -1,6 +1,12 @@
 // ST-LN-36 (05-04): the default security patterns, the file that holds them and the reader that matches them against a package's diff text.
 import { expect, it } from 'vitest';
-import { DEFAULT_SECURITY, parseSecurityFile, securityTriggers, templates, triggerText } from '../src/index.js';
+import { DEFAULT_SECURITY, loadSnapshot, parseSecurityFile, securitySpec, securityTriggers, templates, triggerText } from '../src/index.js';
+
+const FILE = 'accord/product/security.md';
+/** A snapshot holding only the security file (or none): securitySpec reads nothing else. */
+const withFile = (text?: string) => loadSnapshot({ files: text === undefined ? {} : { [FILE]: text }, tree: text === undefined ? [] : [FILE] });
+const DEFAULT_IDS = ['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name'];
+const CHECK_IDS = DEFAULT_SECURITY.checklist.map((c) => c.id);
 
 const DIFF = [
   'diff --git a/src/run.ts b/src/run.ts',
@@ -228,4 +234,91 @@ it('risk:regression the triggers are the same on every run and sorted (ST-LN-36 
     ['src/z.ts', 2],
     ['src/z.ts', 3],
   ]);
+});
+
+// ---- the repository's own file (05-05) ----
+
+const tpl = templates['security.md'];
+/** The template with a line added to the end of one section (`## Patterns`, `## Checklist` or `## Removed`). */
+const edit = (section: 'Patterns' | 'Checklist' | 'Removed', ...add: string[]): string => {
+  const at = tpl.indexOf(`## ${section}`);
+  const next = tpl.indexOf('\n## ', at + 1);
+  const end = next < 0 ? tpl.length : next;
+  return tpl.slice(0, end).trimEnd() + '\n' + add.join('\n') + '\n' + tpl.slice(end);
+};
+const ids = (s: ReturnType<typeof securitySpec>) => s.patterns.map((p) => p.id);
+
+it('ac-1 the patterns in force are the defaults plus additions minus Removed lines (ST-LN-36 36-ac-1)', () => {
+  const text = edit('Removed', '- Removed: secret-name — our design tokens are not secrets', '').replace(
+    '- secret-name:',
+    '- infra: path infra/ — infrastructure\n- secret-name:',
+  );
+  const spec = securitySpec(withFile(text));
+  expect(spec.problems).toEqual([]);
+  // the template names six defaults; one is removed and one is added, so six are in force, the team's after the defaults
+  expect(ids(spec)).toEqual(['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'infra']);
+  expect(spec.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
+  expect(spec.checklist).toHaveLength(8);
+  expect(spec.removed.map((r) => [r.id, r.reason])).toEqual([['secret-name', 'our design tokens are not secrets']]);
+  // the team's pattern matches like a default
+  const diff = ['diff --git a/infra/main.tf b/infra/main.tf', 'index 1..2 100644', '--- a/infra/main.tf', '+++ b/infra/main.tf', '@@ -1 +1,2 @@', ' a', '+token = 1'].join('\n');
+  expect(securityTriggers(spec, diff, ['infra/main.tf'], { generated: [] }).map(triggerText)).toEqual(['infra/main.tf: infra (infrastructure)']);
+
+  // a default line deleted from the file with no Removed line still applies
+  const deleted = tpl.split('\n').filter((l) => !l.startsWith('- spawn:')).join('\n');
+  const kept = securitySpec(withFile(deleted));
+  expect(ids(kept)).toEqual(DEFAULT_IDS);
+  expect(kept.problems).toEqual([]);
+
+  // absent, empty and headings-only files all give the defaults and no problem
+  for (const t of [undefined, '', '\n', '# Security review\n\n## Patterns\n\n## Checklist\n\n## Removed\n']) {
+    const s = securitySpec(withFile(t));
+    expect(ids(s), String(t)).toEqual(DEFAULT_IDS);
+    expect(s.checklist, String(t)).toHaveLength(8);
+    expect(s.problems, String(t)).toEqual([]);
+    expect(s.removed, String(t)).toEqual([]);
+  }
+});
+
+it('risk:parsing a rewritten default is not read, a Removed line for a team or unknown id removes nothing, and ids compare as written (ST-LN-36 36-ac-1)', () => {
+  // a default id with another value: the default applies and the line is a problem
+  const rewritten = tpl.replace(/^- spawn: .*$/m, '- spawn: line /nothing/ — process spawn');
+  const r = securitySpec(withFile(rewritten));
+  expect(ids(r)).toEqual(DEFAULT_IDS);
+  expect(r.patterns[0].source).toBe(DEFAULT_SECURITY.patterns[0].source);
+  expect(r.problems.map((p) => p.line)).toEqual([tpl.split('\n').findIndex((l) => l.startsWith('- spawn:')) + 1]);
+
+  // a team line whose id and value equal a default is that default: no problem, no second pattern
+  expect(securitySpec(withFile(tpl)).problems).toEqual([]);
+  expect(ids(securitySpec(withFile(tpl)))).toEqual(DEFAULT_IDS);
+
+  // a Removed line for a team id or an unknown id is a problem and removes nothing; a repeat is a problem too
+  const text = edit('Removed', '- Removed: infra — gone', '- Removed: nope — gone', '- Removed: spawn — we use another tool', '- Removed: spawn — again', '').replace(
+    '- secret-name:',
+    '- infra: path infra/ — infrastructure\n- secret-name:',
+  );
+  const s = securitySpec(withFile(text));
+  expect(ids(s)).toEqual(['file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'infra']);
+  expect(s.removed.map((x) => x.id)).toEqual(['spawn']);
+  expect(s.problems).toHaveLength(3);
+
+  // the checklist keeps its eight defaults whatever the file says; a Removed line for a checklist item removes nothing
+  const noList = tpl.replace(/## Checklist[\s\S]*?(?=## Removed)/, '## Checklist\n\n');
+  expect(securitySpec(withFile(noList)).checklist.map((c) => c.id)).toEqual(CHECK_IDS);
+  const noCheck = securitySpec(withFile(edit('Removed', '- Removed: secrets — no', '')));
+  expect(noCheck.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
+  expect(noCheck.problems).toHaveLength(1);
+  // a checklist addition with a new id joins; a default id with other text keeps the default and is a problem
+  const added = securitySpec(withFile(edit('Checklist', '- logging: no request body is logged', '')));
+  expect(added.checklist.map((c) => c.id)).toEqual([...CHECK_IDS, 'logging']);
+  const reworded = securitySpec(withFile(tpl.replace(/^- injection: .*$/m, '- injection: be careful')));
+  expect(reworded.checklist[0].text).toBe(DEFAULT_SECURITY.checklist[0].text);
+  expect(reworded.problems).toHaveLength(1);
+
+  // ids compare byte for byte as written: `Spawn` is not an id; CRLF and a BOM read as their LF form
+  const upper = securitySpec(withFile(edit('Patterns', '- Spawn: line /x/ — x', '')));
+  expect(ids(upper)).toEqual(DEFAULT_IDS);
+  expect(upper.problems).toHaveLength(1);
+  const crlf = String.fromCharCode(0xfeff) + text.replace(/\n/g, '\r\n');
+  expect(securitySpec(withFile(crlf))).toEqual(s);
 });

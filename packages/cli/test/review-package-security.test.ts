@@ -132,3 +132,43 @@ it('risk:regression packageDiff of an earlier head holds only the changes up to 
     cleanup(repo);
   }
 }, 120_000);
+
+// 05-05: the repository's own accord/product/security.md decides the triggers.
+const OWN_FILE = [
+  '# Security review',
+  '',
+  '## Patterns',
+  '',
+  '- infra: path infra/ — infrastructure',
+  '',
+  '## Checklist',
+  '',
+  '## Removed',
+  '',
+  '- Removed: secret-name — our design tokens are not secrets',
+  '',
+].join('\n');
+
+it('ac-1 review-package matches with the repository\'s security file (ST-LN-36 36-ac-1)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    identity(repo);
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
+      'accord/product/security.md': OWN_FILE,
+      'src/a.ts': 'export const a = 1;\n',
+    });
+    commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/S-1');
+    writeFiles(repo, { 'infra/main.tf': 'resource "x" "y" {}\n', 'src/a.ts': 'export const a = 1;\nexport const token = "x";\n' });
+    commitMsg(repo, 'infra and a token');
+    const out = await run(['review-package', 'S-1'], repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    expect(section(out.out)).toBe('## Security triggers\n\ninfra/main.tf: infra (infrastructure)');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

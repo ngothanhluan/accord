@@ -5,7 +5,7 @@
 // accord repository it runs in.
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import { agentTargets, pluginTargets, POINTER_FILES, POINTER_START, skillTargets, validate } from '@accord-dev/accord-core';
+import { agentTargets, pluginTargets, POINTER_FILES, POINTER_START, skillTargets, templates, validate } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { AccordConfig } from '@accord-dev/accord-core';
@@ -22,6 +22,7 @@ const SCAFFOLD = [
   'accord/product/business-rules.md',
   'accord/product/conventions.md',
   'accord/product/glossary.md',
+  'accord/product/security.md',
 ];
 const at = (repo: string, path: string): string => join(repo, ...path.split('/'));
 const bytes = (file: string): string => readFileSync(file, 'latin1'); // byte-exact, no encoding fixups
@@ -155,6 +156,20 @@ describe('accord init — the first run', () => {
     expect(readFileSync(at(repo, 'accord/product/business-rules.md'), 'utf8')).toContain('# Business rules');
   });
 
+  it('ac-4 accord init writes the security file and never overwrites it (ST-LN-36 36-ac-4)', async () => {
+    const repo = sandbox();
+    const { code, out } = await run(['init'], repo);
+    expect(code).toBe(0);
+    expect(lines(out)).toContain('created accord/product/security.md');
+    expect(readFileSync(at(repo, 'accord/product/security.md'), 'utf8')).toBe(templates['security.md']);
+    const edited = templates['security.md'] + '\n- infra: path infra/ — infrastructure\n';
+    writeFileSync(at(repo, 'accord/product/security.md'), edited);
+    const again = await run(['init'], repo);
+    expect(again.code).toBe(0);
+    expect(lines(again.out)).toContain('skipped accord/product/security.md');
+    expect(readFileSync(at(repo, 'accord/product/security.md'), 'utf8')).toBe(edited);
+  });
+
   // The papercut this repository carries as WINDOWS.md entry 3, asserted against the command that would
   // otherwise hand it to everyone: a repository is clean on its first minute, or A-01's empty
   // `design.tokens` default has been changed to a path that does not exist.
@@ -276,6 +291,7 @@ describe('accord init — running it again', () => {
       'skipped accord/product/business-rules.md',
       'skipped accord/product/conventions.md',
       'created accord/product/glossary.md',
+      'skipped accord/product/security.md',
     ]);
     expect(bytes(at(repo, 'accord/product/glossary.md'))).toBe(first);
   });

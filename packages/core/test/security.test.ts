@@ -491,3 +491,27 @@ it('risk:parsing a file git reports as binary and the package diff then shows as
   // a file that stays binary keeps its one block
   expect(matchedHunks(DEFAULT_SECURITY, binary.join('\n'), ['package.json'], { generated: [] })).toEqual([binary.join('\n')]);
 });
+
+// post-phase review WR-02: a line over the scan cap is never scanned past character 2000, so it is a trigger of its own.
+it('risk:security a changed line longer than the scan cap is a trigger that says it was not fully scanned, in an added and a removed line (WR-02)', () => {
+  const tail = 'require("child_process").execSync(x);';
+  const added = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + ' '.repeat(2100) + tail]).join('\n');
+  expect(texts(added, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 2000 characters, not fully scanned)']);
+  const removed = SECTION('x.js', ['@@ -1 +0,0 @@', '-' + ' '.repeat(2100) + tail]).join('\n');
+  expect(texts(removed, ['x.js'])).toEqual(['x.js:1 (removed): (cannot tell: line longer than 2000 characters, not fully scanned)']);
+  // a match inside the first 2000 characters is still its own trigger, beside the long line one
+  const both = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + tail + ' '.repeat(2100)]).join('\n');
+  expect(texts(both, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 2000 characters, not fully scanned)', 'x.js:1: spawn (process spawn)']);
+  // a line of exactly the cap is scanned whole: no extra trigger
+  const exact = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + 'a'.repeat(2000 - tail.length) + tail]).join('\n');
+  expect(texts(exact, ['x.js'])).toEqual(['x.js:1: spawn (process spawn)']);
+  // the skips hold for a long line too: Markdown, a test file and a generated path are not scanned
+  for (const path of ['notes.md', 'src/x.test.ts', 'dist/x.js']) {
+    const text = SECTION(path, ['@@ -0,0 +1 @@', '+' + ' '.repeat(2100) + tail]).join('\n');
+    expect(texts(text, [path], ['dist/']), path).toEqual([]);
+  }
+  // the matched hunk of a long line is printed whole and once
+  const blocks = matchedHunks(DEFAULT_SECURITY, added, ['x.js'], { generated: [] });
+  expect(blocks).toHaveLength(1);
+  expect(blocks[0]).toContain(tail);
+});

@@ -451,3 +451,23 @@ it('risk:security a change to the security file or the repository config is a tr
   expect(texts(diff, changed, ['src/'])).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`]);
   expect(texts(diff, changed)).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`, 'src/run.ts:2: spawn (process spawn)']);
 });
+
+it('risk:security a Removed line for security-config takes no effect: the pattern stays in force and the line is a lint error (ST-LN-36 36-ac-1)', () => {
+  // the same commit removes spawn and security-config and changes the security file and a spawn call
+  const text = edit('Removed', '- Removed: security-config — x', '- Removed: spawn — x', '');
+  const line = text.split('\n').findIndex((l) => l.startsWith('- Removed: security-config')) + 1;
+  const spec = securitySpec(withFile(text));
+  // (a) the pattern is in force, spawn is removed, and the diff of the security file is a trigger
+  expect(ids(spec)).toContain('security-config');
+  expect(ids(spec)).not.toContain('spawn');
+  expect(spec.removed.map((r) => r.id)).toEqual(['spawn']);
+  const sec = SECTION('accord/product/security.md', ['@@ -25,3 +25,5 @@', ' ## Removed', ' ', '+- Removed: security-config — x', '+- Removed: spawn — x', ' end']);
+  const code = SECTION('src/run.ts', ['@@ -1,2 +1,3 @@', ' a', "+execFileSync('git', args);", ' b']);
+  const triggers = securityTriggers(spec, [...sec, ...code].join('\n'), ['accord/product/security.md', 'src/run.ts'], { generated: [] });
+  expect(triggers.map(triggerText)).toEqual(['accord/product/security.md: security-config (the security trigger list and the generated paths it skips)']);
+  // (b) lint names the line, with the reason
+  const found = lintSnapshot(withFile(text)).findings.filter((f) => f.rule === 'lint.security-file');
+  expect(found.map((f) => [f.level, f.line])).toEqual([['error', line]]);
+  expect(found[0].reason).toContain('security-config cannot be removed: a change to the security file must always call the security reviewer');
+  expect(spec.problems.map((p) => p.line)).toEqual([line]);
+});

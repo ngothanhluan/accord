@@ -241,7 +241,7 @@ it('risk:regression the triggers are the same on every run and sorted (ST-LN-36 
 const tpl = templates['security.md'];
 /** The template with a line added to the end of one section (`## Patterns`, `## Checklist` or `## Removed`). */
 const edit = (section: 'Patterns' | 'Checklist' | 'Removed', ...add: string[]): string => {
-  const at = tpl.indexOf(`## ${section}`);
+  const at = tpl.indexOf(`\n## ${section}\n`); // the header comment also says "## Removed", so anchor on the line start
   const next = tpl.indexOf('\n## ', at + 1);
   const end = next < 0 ? tpl.length : next;
   return tpl.slice(0, end).trimEnd() + '\n' + add.join('\n') + '\n' + tpl.slice(end);

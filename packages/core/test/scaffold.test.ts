@@ -45,7 +45,9 @@ describe('initFiles — the plan it returns', () => {
     for (const { path, text } of output) {
       expect(path, path).not.toContain('\\');
       // Report the offending line, not a bare boolean: this fails on a host the author does not have.
-      const offender = text.split('\n').find((line) => line.includes('\\'));
+      // ST-LN-36: a line pattern of the security file is a regular expression, whose escapes (`\b`) are not path separators; every other line still may not hold one.
+      const regexLine = (line: string) => path === 'accord/product/security.md' && /^- [a-z0-9][a-z0-9-]*: line \/.+\/i? — /.test(line);
+      const offender = text.split('\n').find((line) => line.includes('\\') && !regexLine(line));
       expect(offender, `${path}: ${String(offender)}`).toBeUndefined();
     }
   });

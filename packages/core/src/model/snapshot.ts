@@ -342,7 +342,7 @@ export interface RepoSnapshot {
   verifications: Record<string, Verification>; // keyed by folder name
   tree: string[]; // sorted, forward slashes (D-29, D-30)
   errors: LoadFinding[]; // every loader and schema finding, in file order; lint stamps the level (D-58)
-  files: Record<string, string>; // D-65: normalised text of every accord/assets/<id>/prototype.html, the config.design.tokens file, and the config.tests.report file, and every accord/research/ file some ticket lists under research:; nothing else
+  files: Record<string, string>; // D-65: normalised text of every accord/assets/<id>/prototype.html, the config.design.tokens file, and the config.tests.report file, and every accord/research/ file some ticket lists under research:, and accord/product/security.md (ST-LN-36); nothing else
   tests?: Record<string, 'passed' | 'failed' | 'skipped'>; // D-72: absent when no report is in files
   // D-78: carried through from SnapshotInput. Host-supplied, `authors` keyed by repo-relative posix path
   // plus one entry keyed by the value of `commit`; absent, not undefined, when the host cannot supply it.

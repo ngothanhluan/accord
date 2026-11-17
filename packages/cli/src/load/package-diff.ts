@@ -2,7 +2,7 @@
 // each recorded round names, so the package a reviewer read and the one the gate checks are built by the same git commands. git only, literal argument
 // arrays, no shell, and nothing here writes.
 import { execFileSync } from 'node:child_process';
-import { stageOff, workOf } from '@accord-dev/accord-core';
+import { diffFiles, stageOff, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from './fs.js';
 
@@ -89,8 +89,8 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
     }
   }
   // Each git log is tried with --remerge-diff first and once more without it (git < 2.36).
-  const log = (args: string[]): string => {
-    const full = (extra: string[]) => gitLog([...args, ...extra, base + '..' + head, '^' + def, '--']);
+  const log = (args: string[], paths: string[] = []): string => {
+    const full = (extra: string[]) => gitLog([...args, ...extra, base + '..' + head, '^' + def, '--', ...paths]);
     try {
       return full(['--remerge-diff']);
     } catch {
@@ -109,6 +109,35 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
       .reverse()
       .join('');
   };
+  // CR-01: git prints "Binary files differ" for a path a .gitattributes rule marks `-diff` or `binary`, whatever the file holds, and the content scan skips a binary file.
+  // So for the files the diff reports as binary, one more diff with --text (the same range and mode, the paths as literal pathspecs) is read; a file whose changed lines hold
+  // no NUL byte is text, and its section is added to the end of the diff so the scan and the reviewer read its lines. A file with a NUL in a changed line is binary, and stays
+  // the one "Binary files differ" line. A git failure here throws as any other (fail closed).
+  const withBinaryText = (diff: string): string => {
+    const paths = new Set<string>();
+    for (const f of diffFiles(diff)) if (f.binary) for (const p of [f.path, f.oldPath]) if (p !== undefined) paths.add(p);
+    if (paths.size === 0) return diff;
+    const specs = [...paths].sort().map((p) => ':(literal)' + p);
+    const text: string[] = [];
+    // batches, so a change with many binary files never puts an unbounded list on one command line (conventions.md)
+    for (let i = 0; i < specs.length; ) {
+      let size = 0;
+      const batch: string[] = [];
+      while (i < specs.length && (batch.length === 0 || size + specs[i].length < 16_000)) {
+        size += specs[i].length + 1;
+        batch.push(specs[i++]);
+      }
+      const out = excluded
+        ? log(['--no-color', '--no-ext-diff', '--text', '--no-renames', '--full-history', '-p', '-U10', '--format='], batch)
+        : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', '--text', '--no-renames', '-U10', range, '--', ...batch]);
+      for (const section of out.split(/^(?=diff --git )/m)) {
+        if (!section.startsWith('diff --git ')) continue;
+        const holdsNul = section.split('\n').some((l) => (l[0] === '+' || l[0] === '-') && l.includes('\0'));
+        if (!holdsNul) text.push(section.trimEnd());
+      }
+    }
+    return text.length === 0 ? diff : diff + '\n' + text.join('\n');
+  };
   const result: PackageDiffResult = { diff: '', changed: [], excluded, short };
   if (o.parts === true) {
     result.commits = (excluded
@@ -121,6 +150,7 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
     ).trimEnd();
   }
   result.diff = (excluded ? oldestFirst(['--no-color', '--no-ext-diff', '-p', '-U10']) : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', '-U10', range, '--'])).trimEnd();
+  result.diff = withBinaryText(result.diff);
   result.changed = excluded
     ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]
     : git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');

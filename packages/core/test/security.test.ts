@@ -480,3 +480,14 @@ it('risk:security a Removed line for security-config takes no effect: the patter
   expect(found[0].reason).toContain('security-config cannot be removed: a change to the security file must always call the security reviewer');
   expect(spec.problems.map((p) => p.line)).toEqual([line]);
 });
+
+it('risk:parsing a file git reports as binary and the package diff then shows as text is one block of matched hunks, not two (CR-01)', () => {
+  // package-diff.ts adds the --text section of a binary-reported file after the "Binary files differ" one
+  const binary = ['diff --git a/package.json b/package.json', 'index 1111111..2222222 100644', 'Binary files a/package.json and b/package.json differ'];
+  const text = SECTION('package.json', ['@@ -1,2 +1,2 @@', '-  "version": "1.0.0",', '+  "version": "1.0.1",']);
+  const blocks = matchedHunks(DEFAULT_SECURITY, [...binary, ...text].join('\n'), ['package.json'], { generated: [] });
+  expect(blocks).toHaveLength(1);
+  expect(blocks[0]).toContain('+  "version": "1.0.1",');
+  // a file that stays binary keeps its one block
+  expect(matchedHunks(DEFAULT_SECURITY, binary.join('\n'), ['package.json'], { generated: [] })).toEqual([binary.join('\n')]);
+});

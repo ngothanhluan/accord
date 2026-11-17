@@ -275,7 +275,10 @@ export function matchedHunks(spec: SecuritySpec, diffText: string, changed: read
       return lineRes.some(({ re }) => re.test(head));
     });
   const blocks: { key: string; text: string }[] = [];
-  for (const f of diffFiles(diffText)) {
+  const files = diffFiles(diffText);
+  for (const f of files) {
+    // a file git reports as binary whose text section follows (package-diff.ts adds it) is printed once, from the text section
+    if (f.binary && f.path !== undefined && files.some((g) => !g.binary && g.path === f.path)) continue;
     const name = f.path ?? f.oldPath;
     const byPath = (f.path !== undefined && pathHit.has(f.path)) || (f.oldPath !== undefined && pathHit.has(f.oldPath));
     const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds));

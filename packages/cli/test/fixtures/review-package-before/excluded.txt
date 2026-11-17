@@ -1,0 +1,77 @@
+# Review package: T-1 (<sha>..HEAD, without main)
+Head: <sha>
+
+## Commits
+
+<sha> fix after the merge
+<sha> merge main
+<sha> plan and first code
+
+## Interface signs
+
+(none)
+
+## Stat
+
+<sha> plan and first code
+
+ accord/tickets/T-1/plan.md | 20 ++++++++++++++++++++
+ src/a.ts                   |  1 +
+ 2 files changed, 21 insertions(+)
+<sha> merge main
+<sha> fix after the merge
+
+ src/a.ts | 1 +
+ 1 file changed, 1 insertion(+)
+
+## Undeclared files
+
+src/a.ts
+
+## Diff
+
+<sha> plan and first code
+
+diff --git a/accord/tickets/T-1/plan.md b/accord/tickets/T-1/plan.md
+new file mode 100644
+index <sha>..<sha>
+--- /dev/null
++++ b/accord/tickets/T-1/plan.md
+@@ -0,0 +1,20 @@
++---
++baseline: <sha>
++plan_hash: "fnv1a64:<sha>"
++---
++
++# Plan
++
++## Task 1: Writer csv mode
++covers: @ac-1, D-01
++files: src/export.ts
++verify: export#writes-csv (@ac-1)
++after: none
++Add a csv branch to the writer.
++
++## Task 2: Escaping
++covers: @ac-2
++files: src/export.ts
++verify: export#escapes-commas (@ac-2)
++after: 1
++Quote cells that contain a comma.
+diff --git a/src/a.ts b/src/a.ts
+new file mode 100644
+index <sha>..<sha>
+--- /dev/null
++++ b/src/a.ts
+@@ -0,0 +1 @@
++export const a = 1;
+<sha> merge main
+<sha> fix after the merge
+
+diff --git a/src/a.ts b/src/a.ts
+index <sha>..<sha> 100644
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1 +1,2 @@
+ export const a = 1;
++execSync('ls');

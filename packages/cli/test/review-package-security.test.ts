@@ -1,6 +1,12 @@
 // ST-LN-36 (05-04): `accord review-package` prints `## Security triggers`, in lane M and lane S, from the default patterns.
 import { expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { fixtureTicket, PACKAGE_FIXTURES, packageFixture } from './helpers/review-package-fixtures.js';
+import { loadSnapshot } from '@accord-dev/accord-core';
+import { defaultRefOf, loadFromFs } from '../src/load/fs.js';
+import { packageDiff, roundOneBase } from '../src/load/package-diff.js';
 import { CONFIG, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 const RUN_BASE = 'export const one = 1;\nexport const two = 2;\nexport const three = 3;\n';
@@ -61,6 +67,67 @@ it('ac-1 review-package prints the security triggers of a change in lane M and l
     const d = await run(['review-package', 'S-2'], repo);
     expect(d.err).toBe('');
     expect(section(d.out)).toBe('## Security triggers\n\n(none: no pattern matched)');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// The text origin/main printed for each fixture before the section existed (recorded once from its build, plan 05-04), shas replaced by <sha>.
+const BEFORE = fileURLToPath(new URL('./fixtures/review-package-before/', import.meta.url));
+const shas = (text: string): string => text.replace(/\b[0-9a-f]{7,40}\b/g, '<sha>');
+const withoutSecurity = (text: string): string => text.replace(/## Security triggers\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '');
+
+it.each(PACKAGE_FIXTURES)(
+  'risk:regression review-package is byte-identical apart from the security section and runs no new git command, %s (ST-LN-36 36-ac-1)',
+  async (kind) => {
+    const repo = packageFixture(kind);
+    try {
+      const first = await run(['review-package', fixtureTicket(kind)], repo);
+      expect(first.err).toBe('');
+      expect(first.code).toBe(0);
+      expect(first.out).toContain('## Security triggers');
+      expect(shas(withoutSecurity(first.out))).toBe(readFileSync(BEFORE + kind + '.txt', 'utf8'));
+      // two runs on the same commit print the same bytes
+      expect((await run(['review-package', fixtureTicket(kind)], repo)).out).toBe(first.out);
+    } finally {
+      cleanup(repo);
+    }
+  },
+  120_000,
+);
+
+it.each(PACKAGE_FIXTURES)(
+  'risk:regression packageDiff reads the package of HEAD as review-package prints it, %s (ST-LN-36 36-ac-1)',
+  async (kind) => {
+    const repo = packageFixture(kind);
+    try {
+      const id = fixtureTicket(kind);
+      const printed = (await run(['review-package', id], repo)).out;
+      const base = roundOneBase(repo, loadSnapshot(loadFromFs(repo)), id);
+      expect(base).toBeDefined();
+      const pkg = packageDiff(repo, { base: base as string, head: 'HEAD', def: defaultRefOf(repo), allowPlainLog: false, parts: true });
+      expect(pkg.excluded).toBe(kind === 'excluded');
+      expect(printed).toContain('## Diff\n\n' + pkg.diff);
+      expect(printed).toContain('## Stat\n\n' + pkg.stat);
+      expect(printed).toContain('## Commits\n\n' + pkg.commits);
+      for (const path of pkg.changed) expect(pkg.diff).toContain(path);
+    } finally {
+      cleanup(repo);
+    }
+  },
+  120_000,
+);
+
+it('risk:regression packageDiff of an earlier head holds only the changes up to it and refuses a head that reads as an option (ST-LN-36 36-ac-1)', () => {
+  const repo = packageFixture('lane-m');
+  try {
+    const base = roundOneBase(repo, loadSnapshot(loadFromFs(repo)), 'T-1') as string;
+    const at = (head: string) => packageDiff(repo, { base, head, def: defaultRefOf(repo), allowPlainLog: false });
+    expect(at('HEAD').changed).toEqual(['.github/workflows/ci.yml', 'accord/tickets/T-1/plan.md', 'docs/notes.md', 'src/a.ts', 'src/run.ts']);
+    const earlier = at('HEAD~1');
+    expect(earlier.changed).toEqual(['accord/tickets/T-1/plan.md', 'src/a.ts']);
+    expect(earlier.diff).not.toContain('ci.yml');
+    expect(() => at('--output=x')).toThrow('not a git ref');
   } finally {
     cleanup(repo);
   }

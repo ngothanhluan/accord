@@ -29,6 +29,7 @@ How you work:
 - No new package without asking: that is `BLOCKED` with the package and why.
 - Declare every file you touch outside your task's `files:` line, or, for findings, outside every `files:` line in `plan.md`, with a reason.
 - Commit what you finish.
+- When your caller gives you conflict lines for a stopped rebase, resolve the conflict markers of those paths in that folder and `git add` only them: make no commit and never run a `git rebase` command; `accord worktree task merge` continues the rebase.
 
 Stop and return `BLOCKED` with a question when the work would change architecture or a public interface, or would cross a veto. A fix that would cross a Veto or a Decision of the ticket returns `BLOCKED: conflict`, naming that line, instead of a workaround.
 

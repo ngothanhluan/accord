@@ -2,6 +2,7 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
+import { debugOpen } from '@accord-dev/accord-core';
 import { readHistory } from '../src/load/record-history.js';
 import { readWalk } from '../src/load/walk.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
@@ -175,5 +176,35 @@ it('risk:security a record blob git cannot read fails closed, not as an absent r
     expect((h as { error: string }).error).toContain(REVIEW);
   } finally {
     cleanup(repo);
+  }
+});
+
+it('risk:regression the episode headings follow core debugOpen: `## resolved` closes an episode, `## Resolved: fixed` does not, `##  Episode` opens one (phase 4 review WR-02)', () => {
+  for (const [opening, closing] of [
+    ['##  Episode 1\n', '##  Episode 1\n\n## resolved\n'],
+    ['## Episode 1\n', '## Episode 1\n\n## Resolved: fixed\n'],
+  ]) {
+    const repo = start(pinned('0.3.0'));
+    try {
+      gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+      writeFiles(repo, { 'src/a.ts': 'export const a = 1;\n' });
+      commitMsg(repo, 'code');
+      writeFiles(repo, { [DEBUG]: opening });
+      const o = commitMsg(repo, 'debug opens');
+      writeFiles(repo, { 'src/e.ts': 'export const e = 1;\n' });
+      commitMsg(repo, 'episode fix');
+      writeFiles(repo, { [DEBUG]: closing });
+      const z = commitMsg(repo, 'debug closes or not');
+
+      const walk = readWalk(repo, { laneS: false, def: 'refs/heads/main', baseline: undefined });
+      if ('error' in walk) throw new Error(walk.error);
+      const h = readHistory(repo, 'T-1', walk, undefined, DEF);
+      if ('error' in h) throw new Error(h.error);
+      expect(h.episodes).toHaveLength(1);
+      expect(h.episodes[0].open).toBe(o);
+      expect(h.episodes[0].end).toBe(debugOpen(closing) ? undefined : z);
+    } finally {
+      cleanup(repo);
+    }
   }
 });

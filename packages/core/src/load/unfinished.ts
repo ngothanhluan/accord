@@ -47,11 +47,22 @@ export function unfinishedLine(body: string, bodyOffset = 0): number | undefined
 const openEpisode = (sections: readonly { heading: string }[]): number | undefined => {
   let last = -1;
   sections.forEach((s, i) => {
-    if (/^episode\b/i.test(headingKey(s.heading))) last = i;
+    if (episodeHeading(s.heading) === 'E') last = i;
   });
   if (sections.length === 0) return undefined;
-  return sections.slice(last + 1).some((s) => headingKey(s.heading) === 'resolved') ? undefined : last;
+  return sections.slice(last + 1).some((s) => episodeHeading(s.heading) === 'R') ? undefined : last;
 };
+
+/** A debug.md heading's kind, read through headingKey (case and spacing do not count): 'E' for `## Episode <n>`, 'R' for exactly `## Resolved`, undefined for any other. */
+const episodeHeading = (heading: string): 'E' | 'R' | undefined => {
+  const key = headingKey(heading);
+  if (/^episode\b/.test(key)) return 'E';
+  return key === 'resolved' ? 'R' : undefined;
+};
+
+/** The `## Episode` ('E') and `## Resolved` ('R') headings of a debug.md text outside fences, in order: openEpisode's reading, shared with the CLI's record history (phase 4 review WR-02). */
+export const debugHeadings = (text: string): ('E' | 'R')[] =>
+  scan(normaliseText(text), 0).sections.flatMap((s) => episodeHeading(s.heading) ?? []);
 
 /** True when a debug.md text has an open episode (openEpisode's definition). */
 export const debugOpen = (text: string): boolean => openEpisode(scan(normaliseText(text), 0).sections) !== undefined;

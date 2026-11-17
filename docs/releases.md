@@ -4,6 +4,8 @@ Each section lists what changes for tickets in flight and for repositories pinne
 
 ## Unreleased
 
+- `accord round` reads debug episodes the way the pre-tool-use hook does: one heading reader in core decides both, so `## resolved` closes an episode, `## Resolved: fixed` does not, and extra spaces after `##` still open one (phase 4 review WR-02).
+- The executor resolves a stopped rebase conflict by fixing the markers and staging the paths only: the build skill's conflict dispatch and the executor agent now both say it makes no commit and runs no `git rebase` command, since `accord worktree task merge` continues the rebase (phase 4 review WR-03).
 - `accord brief <id> <n>` and `accord task-done <id> <n>` refuse a ticket id that is not a valid ticket id (exit 2, `not a valid ticket id: <id>`) before they touch any file, as the `accord worktree task` commands already did. Before, a committed ticket file named `accord/tickets/...md` loaded as the ticket `..`, and `accord brief .. 1` deleted a `task-1.md` at the repository root, while `accord task-done .. 1` could write `accord/ledger.md`.
 
 ## 0.6.0 — 2026-11-17

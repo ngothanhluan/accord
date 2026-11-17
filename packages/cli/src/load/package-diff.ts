@@ -71,6 +71,8 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
   // Every git log passes the signature flags (conventions.md), so a signed head never changes the output. Every call whose text is read for paths
   // (log -p, diff -p, --stat) passes core.quotePath=false, so a non-ASCII name prints as it is and not as a quoted octal escape the reader cannot place.
   const NO_QUOTE = ['-c', 'core.quotePath=false'];
+  // WR-01: the paths of a diff are read from its a/ and b/ prefixes, so every diff and log -p call pins them; diff.noprefix, diff.srcPrefix and diff.dstPrefix of the user's config change nothing.
+  const PREFIXES = ['--src-prefix=a/', '--dst-prefix=b/'];
   const gitLog = (args: string[]) => git([...NO_QUOTE, '-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
   const range = base + '...' + head;
   // ST-LN-26: a fix made after a merge from the default branch is reviewed without what that merge brought in.
@@ -128,8 +130,8 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
         batch.push(specs[i++]);
       }
       const out = excluded
-        ? log(['--no-color', '--no-ext-diff', '--text', '--no-renames', '--full-history', '-p', '-U10', '--format='], batch)
-        : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', '--text', '--no-renames', '-U10', range, '--', ...batch]);
+        ? log(['--no-color', '--no-ext-diff', ...PREFIXES, '--text', '--no-renames', '--full-history', '-p', '-U10', '--format='], batch)
+        : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', ...PREFIXES, '--text', '--no-renames', '-U10', range, '--', ...batch]);
       for (const section of out.split(/^(?=diff --git )/m)) {
         if (!section.startsWith('diff --git ')) continue;
         const holdsNul = section.split('\n').some((l) => (l[0] === '+' || l[0] === '-') && l.includes('\0'));
@@ -149,7 +151,7 @@ export function packageDiff(root: string, o: PackageDiffOptions): PackageDiffRes
       : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', '--stat', range, '--'])
     ).trimEnd();
   }
-  result.diff = (excluded ? oldestFirst(['--no-color', '--no-ext-diff', '-p', '-U10']) : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', '-U10', range, '--'])).trimEnd();
+  result.diff = (excluded ? oldestFirst(['--no-color', '--no-ext-diff', ...PREFIXES, '-p', '-U10']) : git([...NO_QUOTE, 'diff', '--no-color', '--no-ext-diff', ...PREFIXES, '-U10', range, '--'])).trimEnd();
   result.diff = withBinaryText(result.diff);
   result.changed = excluded
     ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]

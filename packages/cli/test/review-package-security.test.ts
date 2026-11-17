@@ -408,7 +408,7 @@ it.each([
     const found = securityTriggers(DEFAULT_SECURITY, pkg.diff, pkg.changed, { generated: [] }).map(triggerText);
     expect(found.filter((t) => t.includes('cannot tell'))).toEqual([]);
     expect(found).toContain('evil.js:1: spawn (process spawn)');
-    expect(found).toContain('src/run.ts:4: spawn (process spawn)');
+    expect(found).toContain('src/run.ts:5: spawn (process spawn)');
   } finally {
     cleanup(repo);
   }

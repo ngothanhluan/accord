@@ -196,9 +196,10 @@ it('risk:complex-branching gate plan lets a deferred ungrounded round 3 finding 
 }, 120_000);
 
 // BUG-LN-21 (Phase 5, TRUST-06): a ticket done on the default branch has its review scope checks skipped, and a deferred risk finding must still hold the stop there.
+// The review stop falls from round 3 (LEGACY_CAP firstStop), so the finding sits in round 3 after two rounds with no findings.
 const RISK_FINDING = 'Must 1 [patch]: the export drops a row — src/a.ts:1 — deferred';
 
-/** A repository whose t/T-1 (claimed, a code commit, review.md round 1 with `finding` and a converged verdict, its ledger) is fast-forwarded into main, HEAD on main. */
+/** A repository whose t/T-1 (claimed, a code commit, review.md round 3 with `finding` and a converged verdict, its ledger) is fast-forwarded into main, HEAD on main. */
 function doneOnMain(finding: string): string {
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') });
@@ -208,8 +209,10 @@ function doneOnMain(finding: string): string {
   writeFiles(repo, { 'src/a.ts': 'export const a = 1;\n' });
   const code = commitMsg(repo, 'code');
   writeFiles(repo, {
-    [REVIEW]: `Round record: 2\n\n## Round 1 head ${code}\n\n${finding}\n\nverdict: converged\n`,
-    'accord/tickets/T-1/ledger.md': '## Rulings\n\n## Deferred\n- review 1.1: the export drops a row — failing case: a row with a comma\n',
+    [REVIEW]:
+      `Round record: 2\n\n## Round 1 head ${code}\n\nNo findings\n\n## Round 2 head ${code}\n\nNo findings\n\n` +
+      `## Round 3 head ${code}\n\n${finding}\n\nverdict: converged\n`,
+    'accord/tickets/T-1/ledger.md': '## Rulings\n\n## Deferred\n- review 3.1: the export drops a row — failing case: a row with a comma\n',
   });
   commitMsg(repo, 'T-1 round 1');
   gitRun(repo, 'switch', '-q', 'main');

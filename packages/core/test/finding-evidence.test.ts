@@ -139,19 +139,20 @@ it('risk:complex-branching the final review is left out of the evidence count', 
 // written deferred with its ledger line must keep the stop, as it does on every other path. No cut-off: the rule is already stated in the reviewer prompt and record.md.
 describe('a deferred risk finding on the review skip path', () => {
   const skipFacts = (n: number) => facts(none(n), { skip: 'on-default' });
-  const DEFERRED = '\n## Deferred\n- review 1.1: x — failing case: y\n';
+  // The review stop falls from round 3 (LEGACY_CAP firstStop), so the finding sits in round 3, after two rounds with no findings.
+  const DEFERRED = '\n## Deferred\n- review 3.1: x — failing case: y\n';
   const record = (lane: 'M' | 'S', finding: string, o: { verdict?: boolean; claim?: string } = {}): RepoSnapshot => {
     const snap = scoped({
       lane,
-      review: v2Review([[{ lines: [finding] }]], o.verdict === false ? '' : '\nverdict: converged\n'),
+      review: v2Review([[{ lines: [] }, { lines: [] }, { lines: [finding] }]], o.verdict === false ? '' : '\nverdict: converged\n'),
       ledger: DEFERRED,
-      facts: skipFacts(1),
+      facts: skipFacts(3),
     });
     return o.claim === undefined ? snap : claimedUnder(snap, o.claim);
   };
   const stops = (snap: RepoSnapshot): string[] =>
     gateDone(snap, 'T-1')
-      .findings.filter((f) => (f.rule === 'gate.review-unconverged' || f.rule === 'gate.review-rounds') && f.path === 'accord/tickets/T-1/review.md')
+      .findings.filter((f) => (f.rule === 'gate.review-unconverged' || f.rule === 'gate.review-rounds') && f.file === 'accord/tickets/T-1/review.md')
       .map((f) => f.rule);
 
   it('risk:security a deferred risk finding is refused when the checks are skipped, lane M and lane S (BUG-LN-21 21-ac-1)', () => {

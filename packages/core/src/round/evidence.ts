@@ -80,7 +80,8 @@ export const hasLine = (snapshot: RepoSnapshot, id: string, p: number, n: number
 
 /**
  * D-08: the findings of one cycle (0-based) that need evidence, are written deferred and have their line in the
- * ledger's Deferred; they leave ST-LN-17's stop. When the checks are skipped (D-10) every deferred finding with its line.
+ * ledger's Deferred; they leave ST-LN-17's stop. When the checks are skipped (D-10) every deferred finding with its line and no `risk:` mark. A finding marked
+ * `risk: security` or `risk: data-loss` never leaves the stop by being written deferred, skipped or not (BUG-LN-21).
  */
 export function deferredOf(snapshot: RepoSnapshot, id: string, cycle: number): ReadonlySet<RoundFinding> {
   const out = new Set<RoundFinding>();
@@ -94,7 +95,7 @@ export function deferredOf(snapshot: RepoSnapshot, id: string, cycle: number): R
     const at = placed.find((q) => q.cycle === cycle + 1 && q.p === i + 1);
     for (const f of round.findings) {
       if (f.state !== 'deferred' || !hasLine(snapshot, id, i + 1, f.n, cycle + 1)) continue;
-      if (ctx === undefined ? free : at !== undefined && needs(snapshot, ctx, id, at, f)) out.add(f);
+      if (ctx === undefined ? free && f.risk === undefined : at !== undefined && needs(snapshot, ctx, id, at, f)) out.add(f);
     }
   });
   return out;

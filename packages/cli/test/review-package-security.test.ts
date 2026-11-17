@@ -1,10 +1,11 @@
 // ST-LN-36 (05-04): `accord review-package` prints `## Security triggers`, in lane M and lane S, from the default patterns.
 import { expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { fixtureTicket, PACKAGE_FIXTURES, packageFixture } from './helpers/review-package-fixtures.js';
-import { loadSnapshot } from '@accord-dev/accord-core';
+import { DEFAULT_SECURITY, loadSnapshot, securityTriggers, triggerText } from '@accord-dev/accord-core';
 import { defaultRefOf, loadFromFs } from '../src/load/fs.js';
 import { packageDiff, roundOneBase } from '../src/load/package-diff.js';
 import { CONFIG, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
@@ -310,6 +311,70 @@ it('risk:parsing a changed file with a non-ASCII name is read as a spawn trigger
     const hunks = await run(['review-package', 'S-1', '--security'], repo);
     expect(hunks.out).toContain("+spawnSync('git', ['status']);");
     expect(hunks.out).not.toContain('cannot tell');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// ---- fail closed when git hides or cuts a file's lines (post-phase review CR-01, WR-01) ----
+
+const EVIL = 'const cp = require("child_process").execSync(x);\n';
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]), Buffer.from('IHDR spawn exec child_process')]);
+
+/** A lane S ticket's repository on branch t/S-1, one commit past main: `files` as text, `bytes` as raw files. */
+function laneSWith(files: Record<string, string>, bytes: Record<string, Buffer> = {}, config: string[][] = []): string {
+  const repo = makeEmptyRepo();
+  identity(repo);
+  for (const [k, v] of config) gitRun(repo, 'config', k, v);
+  writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }), 'src/run.ts': RUN_BASE });
+  commitMsg(repo, 'base');
+  gitRun(repo, 'branch', '-M', 'main');
+  gitRun(repo, 'switch', '-q', '-c', 't/S-1');
+  writeFiles(repo, files);
+  for (const [rel, data] of Object.entries(bytes)) writeFileSync(join(repo, ...rel.split('/')), data);
+  commitMsg(repo, 'change');
+  return repo;
+}
+
+it('risk:security a file a .gitattributes rule marks -diff is still scanned, and a real binary file is not (CR-01)', async () => {
+  const repo = laneSWith({ '.gitattributes': '*.js -diff\n', 'evil.js': EVIL }, { 'logo.png': PNG });
+  try {
+    const out = await run(['review-package', 'S-1'], repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    const s = section(out.out);
+    expect(s).toContain('evil.js:1: spawn (process spawn)');
+    expect(s).toContain('.gitattributes: security-config');
+    // the PNG holds the words spawn and child_process, but git sees a NUL: no content trigger for it
+    expect(s).not.toContain('logo.png');
+    // the reviewer reads the source of the hidden file, and the PNG stays a binary line
+    expect(out.out).toContain('+const cp = require("child_process").execSync(x);');
+    expect(out.out).toMatch(/Binary files \/dev\/null and b\/logo\.png differ/);
+    const hunks = await run(['review-package', 'S-1', '--security'], repo);
+    expect(hunks.out).toContain('+const cp = require("child_process").execSync(x);');
+    expect(hunks.out).not.toContain('logo.png');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:security a -diff file is scanned in a package that leaves out a merge from the default branch too (CR-01)', () => {
+  const repo = laneSWith({ '.gitattributes': '*.js -diff\n', 'evil.js': EVIL }, { 'logo.png': PNG });
+  try {
+    const base = gitRun(repo, 'rev-parse', 'main').trim();
+    gitRun(repo, 'switch', '-q', 'main');
+    writeFiles(repo, { 'docs/notes.md': 'notes\n' });
+    commitMsg(repo, 'main moves');
+    gitRun(repo, 'switch', '-q', 't/S-1');
+    mergeMsg(repo, 'main', 'merge main');
+    writeFiles(repo, { 'evil2.js': EVIL.replace('execSync', 'execFileSync') });
+    commitMsg(repo, 'fix after the merge');
+    const pkg = packageDiff(repo, { base, head: 'HEAD', def: defaultRefOf(repo), allowPlainLog: false });
+    expect(pkg.excluded).toBe(true);
+    const found = securityTriggers(DEFAULT_SECURITY, pkg.diff, pkg.changed, { generated: [] }).map(triggerText);
+    expect(found).toContain('evil.js:1: spawn (process spawn)');
+    expect(found).toContain('evil2.js:1: spawn (process spawn)');
+    expect(found.filter((t) => t.startsWith('logo.png'))).toEqual([]);
   } finally {
     cleanup(repo);
   }

@@ -447,7 +447,7 @@ it('risk:security a change to the security file or the repository config is a tr
   const code = SECTION('src/run.ts', ['@@ -1,2 +1,3 @@', ' a', "+execFileSync('git', args);", ' b']);
   const diff = [...removed, ...config, ...code].join('\n');
   const changed = ['accord/config.yml', 'accord/product/security.md', 'src/run.ts'];
-  const label = 'security-config (the security trigger list and the generated paths it skips)';
+  const label = 'security-config (the security trigger list, the generated paths it skips and the diff attributes that can hide a file from the scan)';
   expect(texts(diff, changed, ['src/'])).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`]);
   expect(texts(diff, changed)).toEqual([`accord/config.yml: ${label}`, `accord/product/security.md: ${label}`, 'src/run.ts:2: spawn (process spawn)']);
 });
@@ -473,7 +473,7 @@ it('risk:security a Removed line for security-config takes no effect: the patter
   const sec = SECTION('accord/product/security.md', ['@@ -25,3 +25,5 @@', ' ## Removed', ' ', '+- Removed: security-config — x', '+- Removed: spawn — x', ' end']);
   const code = SECTION('src/run.ts', ['@@ -1,2 +1,3 @@', ' a', "+execFileSync('git', args);", ' b']);
   const triggers = securityTriggers(spec, [...sec, ...code].join('\n'), ['accord/product/security.md', 'src/run.ts'], { generated: [] });
-  expect(triggers.map(triggerText)).toEqual(['accord/product/security.md: security-config (the security trigger list and the generated paths it skips)']);
+  expect(triggers.map(triggerText)).toEqual(['accord/product/security.md: security-config (the security trigger list, the generated paths it skips and the diff attributes that can hide a file from the scan)']);
   // (b) lint names the line, with the reason
   const found = lintSnapshot(withFile(text)).findings.filter((f) => f.rule === 'lint.security-file');
   expect(found.map((f) => [f.level, f.line])).toEqual([['error', line]]);

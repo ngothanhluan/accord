@@ -272,7 +272,6 @@ it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac
 
 // Release 0.6.0 (plan 04-17, D-16): the cut-offs name the release that ships them, and each rule reads its cut-off from the ticket's claim fact and
 // `ruleset` through claimPinBefore, never from a date or a bare version literal.
-const CLI_VERSION = (JSON.parse(readFileSync(new URL('../../cli/package.json', import.meta.url), 'utf8')) as { version: string }).version;
 const SRC_ROOTS = ['packages/core/src', 'packages/cli/src'];
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PIN_FILE = 'packages/core/src/round/pin.ts';
@@ -328,12 +327,10 @@ it('risk:regression every Phase 4 cut-off stays at 0.6.0 (rel-ac-1)', () => {
   for (const [name, v] of Object.entries(PHASE4)) expect(v, name).toBe('0.6.0');
 });
 
-it('risk:regression every Phase 5 cut-off equals the release version (rel-ac-1)', () => {
+// Release 0.7.1: the CLI is no longer 0.7.0, so a Phase 5 cut-off is compared with '0.7.0' only; the 0.7.1 fixes need no cut-off of their own.
+it('risk:regression every Phase 5 cut-off stays at 0.7.0 (rel-ac-1)', () => {
   expect(Object.keys(PHASE5), 'the list names no constant').toEqual(['SECURITY_TRIGGER_FROM']);
-  for (const [name, v] of Object.entries(PHASE5)) {
-    expect(v, name).toBe('0.7.0');
-    expect(v, `${name} against packages/cli/package.json`).toBe(CLI_VERSION);
-  }
+  for (const [name, v] of Object.entries(PHASE5)) expect(v, name).toBe('0.7.0');
 });
 
 it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac-1)', () => {

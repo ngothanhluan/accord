@@ -2,7 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.7.1 — 2026-11-17
+
+Release 0.7.1 ships the phase 5 review fixes to the security trigger and the `Security:` rule (the bullets below) with no cut-off of its own, so a ticket in flight that was claimed under 0.7.0 gets them once its repository pins 0.7.1 through `accord upgrade` (a ticket claimed under 0.6.x keeps its earlier rules), and a repository pinned to 0.7.0 keeps the 0.7.0 answers until then.
 
 - The security scan fails closed when git hides or cuts a file's lines (phase 5 review CR-01, WR-01, WR-02). A file that a `.gitattributes` rule marks `-diff` or `binary` is no longer skipped: `accord review-package` and the security record rule read one more `git diff --text` for the files the diff reports as binary, and scan the sections of those with no NUL byte in a changed line; a real binary file (an image) stays one `Binary files differ` line with no content trigger. A file whose text read is over the 64 MiB git buffer stays one `Binary files differ` line too and is a trigger of its own, `(cannot tell: <path>: too large to read as text, so its lines were not scanned)`, so a package with large binary assets still runs. The package diff pins `--src-prefix=a/ --dst-prefix=b/`, so `diff.noprefix` and `diff.srcPrefix` in a user's git config no longer turn every path into `(cannot tell: …)`. A changed line over 2000 characters is a trigger of its own, `<path>:<line>: (cannot tell: line longer than 2000 characters, not fully scanned)`, instead of being scanned only up to character 2000.
 - The default pattern `security-config` also matches `.gitattributes`, so a change to a diff attribute calls the security reviewer. Every repository gets it with the new release, since the defaults apply whatever the repository's file says; an `accord/product/security.md` that `accord init` wrote under 0.7.0, with the older `security-config` line, still reads clean.

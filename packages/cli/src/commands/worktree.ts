@@ -9,7 +9,7 @@ import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
-import { nextLine, withNext } from './next-action.js';
+import { nextLine, withNext, withNextOnFirst } from './next-action.js';
 import { disposableNames, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
 import { runTeamCommand } from '../load/team-run.js';
@@ -142,7 +142,7 @@ export function prepare(path: string): void {
   const failed = runSetup(setup, path).failed;
   if (failed !== undefined) {
     throw new UsageError(
-      `setup command failed in the new worktree: ${failed.command} (exit ${failed.code})\n${failed.tail}\nthe worktree is kept; fix the command, then continue the ticket again`,
+      withNextOnFirst('setup-failed', `setup command failed in the new worktree: ${failed.command} (exit ${failed.code})\n${failed.tail}\nthe worktree is kept; fix the command, then continue the ticket again`),
     );
   }
   writeFileSync(setupMarker(path), '');
@@ -262,7 +262,7 @@ function recordQuietly(ctx: CommandContext, id: string, path: string): void {
   try {
     recordWorktree(ctx.root, id, path);
   } catch (e) {
-    ctx.stdout.write(`note ${id}: the worktree ${path} was not recorded: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+    ctx.stdout.write(withNext('note', `note ${id}: the worktree ${path} was not recorded: ${firstLine(e instanceof UsageError ? e.message : e)}`) + '\n');
   }
 }
 
@@ -310,7 +310,7 @@ export function takeHold(ctx: CommandContext, id: string, path: string): void {
   withHolds(ctx.root, (holds) => {
     const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
     if (h !== undefined && !sameSession(h, session) && isLive(h, table)) {
-      throw new UsageError(`${id} is held by another session: ${describeSession(h)} - work it there, or close that session first`);
+      throw new UsageError(withNext('held-by-other', `${id} is held by another session: ${describeSession(h)} - work it there, or close that session first`));
     }
     const same = h !== undefined && sameSession(h, session);
     const here = (isLinked(ctx.root) ? ctx.root : path).replaceAll('\\', '/');
@@ -339,14 +339,12 @@ export function releaseHolds(root: string, session: { pid: number; start: string
 function hold(ctx: CommandContext, id: string, path: string): number {
   if (claudeEnv(ctx.env) === undefined) {
     if (!existsSync(setupMarker(path))) prepare(path);
-    ctx.stdout.write(`not held: ${id} - a second session in this worktree is not refused in this tool yet
-`);
+    ctx.stdout.write(withNext('not-held', `not held: ${id} - a second session in this worktree is not refused in this tool yet`) + '\n');
     return 0;
   }
   takeHold(ctx, id, path);
   if (!existsSync(setupMarker(path))) prepare(path);
-  ctx.stdout.write(`held: ${id} by this session
-`);
+  ctx.stdout.write(withNext('held', `held: ${id} by this session`) + '\n');
   return 0;
 }
 
@@ -416,7 +414,7 @@ function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
   const me = gitUserEmail(ctx.root);
   if (me === '') throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>');
   if (claimant.trim().toLowerCase() !== me.trim().toLowerCase()) {
-    throw new UsageError(`claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord-continue ${id}`);
+    throw new UsageError(withNext('claimed', `claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord-continue ${id}`));
   }
 }
 
@@ -466,13 +464,13 @@ export interface SessionNext {
 export function worksMessage(w: Works, mainPath: string, next?: SessionNext): string {
   const who = w.id === undefined ? `this session works the ticket worktree ${w.top}, whose branch cannot be read` : `this session works ${w.id}`;
   if (next !== undefined) {
-    return `${who}: ${next.command} needs a session of its own - open one with the line below and type ${next.command} there - nothing was changed\n${openLine(next.path)}`;
+    return `${withNext('session-works', `${who}: ${next.command} needs a session of its own - open one with the line below and type ${next.command} there - nothing was changed`)}\n${openLine(next.path)}`;
   }
   const text =
     w.id === undefined
       ? `${who}: open a new session in the main checkout ${mainPath} for other work, or type a request about that ticket without "/accord" - nothing was changed`
       : `${who}: open a new session in the main checkout ${mainPath} for other work, or type a request about ${w.id} without "/accord" - nothing was changed`;
-  return `${text}\n${openLine(mainPath)}`;
+  return `${withNext('session-works', text)}\n${openLine(mainPath)}`;
 }
 
 /** `;` sequences two commands in PowerShell 5.1 and 7, bash and zsh alike (`&&` fails in Windows PowerShell 5.1); the guard acts only in Claude Code, so it names `claude`. */
@@ -585,8 +583,8 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (opts.continue === true) {
     throw new UsageError(
       isTicket
-        ? `not claimed: ${id} has no branch ${branch} here or on origin - nothing was created; pick it up first`
-        : `not a ticket: ${id} is not in accord/tickets and has no branch ${branch} here or on origin - nothing was created`,
+        ? withNext('not-claimed', `not claimed: ${id} has no branch ${branch} here or on origin - nothing was created; pick it up first`)
+        : withNext('not-a-ticket', `not a ticket: ${id} is not in accord/tickets and has no branch ${branch} here or on origin - nothing was created`),
     );
   }
   if (!isTicket) throw new UsageError('no ticket ' + id + ' in accord/tickets - nothing was created');
@@ -821,7 +819,7 @@ export function syncDefault(
   const here = mine.filter((f) => existsSync(root + '/' + f)); // keeps the command line short: a big merged PR adds hundreds of paths, none normally on disk
   const clash = here.length === 0 ? undefined : git(root, ['ls-files', '--others', '-z', '--', ...here.map((f) => ':(literal)' + f)]).split('\0').find((l) => l !== '');
   if (clash !== undefined) {
-    throw new UsageError(`${verb} of ${def} into ${branch} failed: ${clash} is an ignored file here that the ${verb} would overwrite - ${again.clash} - ${branch} is as it was`);
+    throw new UsageError(withNext('merge-of', `${verb} of ${def} into ${branch} failed: ${clash} is an ignored file here that the ${verb} would overwrite - ${again.clash} - ${branch} is as it was`));
   }
   if (!rebase) {
     try {
@@ -831,9 +829,9 @@ export function syncDefault(
       const files = git(root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
       if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(root, ['merge', '--abort']);
       if (files.length > 0) {
-        throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`);
+        throw new UsageError(withNext('merge-of', `merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`));
       }
-      throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+      throw new UsageError(withNext('merge-of', `merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`));
     }
     return { rebased: [] };
   }
@@ -846,9 +844,9 @@ export function syncDefault(
     const dirs = ['rebase-merge', 'rebase-apply'].map((n) => resolve(root, git(root, ['rev-parse', '--git-path', n]).trim()));
     if (dirs.some((d) => existsSync(d))) git(root, ['rebase', '--abort']);
     if (files.length > 0) {
-      throw new UsageError(`rebase of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the rebase was aborted and ${branch} is as it was; ${again.conflict}`);
+      throw new UsageError(withNext('merge-of', `rebase of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the rebase was aborted and ${branch} is as it was; ${again.conflict}`));
     }
-    throw new UsageError(`rebase of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+    throw new UsageError(withNext('merge-of', `rebase of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`));
   }
   // full shas (core.abbrev=40), cut to 12 below; a pair is a `=` or `!` line, an unpaired commit (`<` or `>`) names no old-to-new pair
   const pairs: Array<[string, string]> = [];
@@ -872,7 +870,7 @@ const TEAM_SYNC_MAX_BUFFER = 64 * 1024 * 1024;
 function runTeamSync(root: string, ref: string, branch: string, team: { command: string; ticket: string }): void {
   // the callers check this before any network call; it is checked here too, so no path runs a repository script that `accord trust` did not allow
   const refusal = scriptRefusal(root, 'git.sync', team.command);
-  if (refusal !== undefined) throw new UsageError(`${refusal} - ${branch} was not pushed`);
+  if (refusal !== undefined) throw new UsageError(withNext('trust', `${refusal} - ${branch} was not pushed`));
   const r = runTeamCommand(team.command, {
     cwd: root,
     env: { ...process.env, ACCORD_TICKET: team.ticket, ACCORD_BRANCH: branch, ACCORD_BASE_REF: ref, ACCORD_ROOT: root },
@@ -950,7 +948,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   // round 3 WR-03: the allow is checked against the ticket's worktree, not the checkout Continue runs from, so the line names that worktree
   const where = `"${shown(path.replaceAll('\\', '/'))}"`;
   const unallowedHint = `; git.sync is not allowed to run here yet - run accord trust in ${where} to see what it covers, then accord trust git.sync@<the digest it shows> there`;
-  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}${unallowed ? unallowedHint : ''}\n`);
+  const behind = (): void => void ctx.stdout.write(withNext(unallowed ? 'trust' : 'behind', `behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}${unallowed ? unallowedHint : ''}`) + '\n');
   // a remote branch with commits this clone lacks (a teammate pushed): the stage here may be stale, and the push would be refused
   const own = 'refs/remotes/origin/' + branch;
   if (gitOk(path, ['rev-parse', '-q', '--verify', own]) && !gitOk(path, ['merge-base', '--is-ancestor', own, 'HEAD'])) return behind();
@@ -992,9 +990,9 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
     throw e;
   }
   const how = done.by !== undefined ? 'team' : strategy === 'rebase' ? 'rebase' : 'merge';
-  if (how === 'team') ctx.stdout.write(`synced: ${branch} by git.sync\n`);
-  else if (how === 'rebase') for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
-  else ctx.stdout.write(`merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}\n`);
+  if (how === 'team') ctx.stdout.write(withNext('synced', `synced: ${branch} by git.sync`) + '\n');
+  else if (how === 'rebase') for (const [was, now] of done.rebased) ctx.stdout.write(withNext('synced', `rebased: ${was} -> ${now}`) + '\n');
+  else ctx.stdout.write(withNext('synced', `merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}`) + '\n');
   backfilled(ctx, id, early ?? (rewrites ? undefined : backfillRuleset(ctx, id, path)));
   // the marker of the pre-merge setup never stands for the merge commit
   rmSync(setupMarker(path), { force: true });
@@ -1006,7 +1004,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   }
   const push = pushAfterSync(ctx, path, branch, how, 'push');
   if (!push.pushed) {
-    ctx.stdout.write(`push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}\n`);
+    ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}`) + '\n');
   }
   if (failure !== undefined) throw failure;
 }
@@ -1016,7 +1014,7 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
   const kept = (why: string): number => {
-    ctx.stdout.write(`push of ${branch} failed; its commits stay local until the next push\n${why}\n`);
+    ctx.stdout.write(withNext('push-failed', `push of ${branch} failed; its commits stay local until the next push`) + `\n${why}\n`);
     return 0;
   };
   if (ctx.snapshot.config?.commits?.trailers === 'forbid') {
@@ -1123,7 +1121,7 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   // a repository script runs only once the person allowed it: refused before any network call, like the checks above
   const declared = ctx.snapshot.config?.git?.sync;
   const refusal = declared === undefined ? undefined : scriptRefusal(ctx.root, 'git.sync', declared);
-  if (refusal !== undefined) throw new UsageError(`${refusal} - nothing was synced`);
+  if (refusal !== undefined) throw new UsageError(withNext('trust', `${refusal} - nothing was synced`));
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   fetchOrigin(ctx, true);
   const ref = gitDefaultRef(ctx.root);
@@ -1146,10 +1144,10 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   }
 
   if (rewrote) {
-    if (done.by !== undefined) ctx.stdout.write(`synced: ${branch} by ${done.by}\n`);
+    if (done.by !== undefined) ctx.stdout.write(withNext('synced', `synced: ${branch} by ${done.by}`) + '\n');
     // the records that name a commit by sha (review heads, plan baseline) stay owner-typed: the pairs are what to retype
     else {
-      for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+      for (const [was, now] of done.rebased) ctx.stdout.write(withNext('synced', `rebased: ${was} -> ${now}`) + '\n');
       // ST-LN-96 D-16 Option E: accord's own rebase keeps an unchanged verification valid; a hand rebase and a team script never reach this line
       rebindAfterRebase(ctx, id, ctx.root);
     }
@@ -1160,7 +1158,7 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
     // A team script is pushed too, even when origin has no such branch yet: the branch on origin must hold what the gate judges
     const push = pushAfterSync(ctx, ctx.root, branch, done.by !== undefined ? 'team' : 'rebase', done.by !== undefined ? 'push' : 'skip');
     if (push.pushed) ctx.stdout.write(`pushed: ${branch}\n`);
-    else if (push.why !== undefined) ctx.stdout.write(`push of ${branch} failed: ${push.why} - run accord worktree push ${id}${push.lease ? ' --force-with-lease' : ''} after checking origin\n`);
+    else if (push.why !== undefined) ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - run accord worktree push ${id}${push.lease ? ' --force-with-lease' : ''} after checking origin`) + '\n');
   }
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
@@ -2067,7 +2065,7 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   try {
     gitNoPrompt(path, ['push', '-u', 'origin', branch], undefined, ctx.ssh);
   } catch (e) {
-    throw new UsageError(`the ticket is committed in ${path} but the push failed: ${firstLine(e)} - push it with git -C "${path}" push -u origin ${branch}`);
+    throw new UsageError(withNext('ticket-push-failed', `the ticket is committed in ${path} but the push failed: ${firstLine(e)} - push it with git -C "${path}" push -u origin ${branch}`));
   }
   if (holdError !== undefined) throw holdError;
   if (enter) checkPin(ctx, id, path, branch, list[0].path);

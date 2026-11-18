@@ -112,7 +112,7 @@ it('risk:complex-branching outside claude code no hold is taken and one line say
   const sib = c.sibling('ST-9');
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, {});
   expect(r.code).toBe(0);
-  expect(r.out).toBe('not held: ST-9 - a second session in this worktree is not refused in this tool yet\n');
+  expect(r.out).toBe(`not held: ST-9 - a second session in this worktree is not refused in this tool yet - ${nextLine('not-held')}\n`);
   expect(existsSync(holdsFile(c))).toBe(false);
   expect(proc.processTable).not.toHaveBeenCalled();
   const r2 = await run(['worktree', 'open', 'ST-9', '--continue'], sib, { CLAUDECODE: '1' });
@@ -312,7 +312,7 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
   expect(state()).toEqual(before);
   setTable(tableOf(A));
   const same = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
-  const BEHIND = 'behind: t/ST-9 is 1 commit behind origin/main; merge them with git merge origin/main\n';
+  const BEHIND = `behind: t/ST-9 is 1 commit behind origin/main; merge them with git merge origin/main - ${nextLine('behind')}\n`;
   expect([same.code, same.out]).toEqual([0, BEHIND + HELD]);
   const back = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
   expect(back.code).toBe(0);

@@ -46,7 +46,7 @@ export const NEXT_ACTIONS: Readonly<Record<LineKind, string>> = {
   'clean-skipped': 'show this line as it is and go on with the other lines',
   'clean-stopped': 'show this line as it is and go on with the other lines: the rest waits for the next clean',
   note: 'show this line as it is and go on: a record or a hold was not updated',
-  stop: 'show the two lines below as they are and stop: the person opens a session in that folder and types the second line; do not change directory into that folder or start the next stage from this session',
+  stop: 'show the two lines below as they are and stop there: the person opens a session in that folder and types the second line; do not change directory into that folder or start the next stage from this session',
   enter:
     'call EnterWorktree with the path on the next line, then run accord anchor there and go on at the stage it prints, without asking; when EnterWorktree fails, show the path, tell the owner to type the continue command again or to open a session in that folder, and stop, editing nothing',
   held: 'go on with the next step',
@@ -55,10 +55,10 @@ export const NEXT_ACTIONS: Readonly<Record<LineKind, string>> = {
   'not-claimed': 'tell the owner nobody has claimed this ticket, offer Pick up, and never claim it yourself',
   claimed: 'another person holds the claim: push nothing, show this message and stop; offer to continue the ticket only when the owner means to work on it with them',
   'session-works': 'this session works another ticket: show this message and stop, editing nothing',
-  'setup-failed': 'show this message and stop: the worktree is kept, and once the owner fixes the command they continue the ticket again in this same session and follow the enter: or stop: line it prints',
+  'setup-failed': 'show this message and stop there: the worktree is kept, and once the owner fixes the command they continue the ticket again in this same session and follow the enter or stop line it prints',
   'held-by-other': 'another session holds this ticket: show this message and stop, editing nothing',
   'merge-of': 'the merge or rebase stopped and was aborted: show this message and stop, editing nothing',
-  'ticket-push-failed': 'no stop: line follows: carry any people entry, run the push this message names, and once it succeeds run accord worktree open for this ticket with --continue and follow the line it prints; when that push fails again, show git\'s message and stop',
+  'ticket-push-failed': 'no stop line follows: carry any people entry, run the push this message names, and once it succeeds run accord worktree open for this ticket with --continue and follow the line it prints; when that push fails again, show git\'s message and stop',
 };
 
 /** `next: <action>`: the line printed before an `enter:` or `stop:` block. */

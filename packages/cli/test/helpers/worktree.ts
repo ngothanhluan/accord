@@ -200,7 +200,7 @@ export const tableOf = (s: { pid: number; start: string }, ...others: { pid: num
 ];
 export const setTable = (rows: ReturnType<typeof tableOf>) => vi.mocked(proc.processTable).mockReturnValue(rows);
 export const holdsFile = (c: Clone) => `${c.root}/.git/accord/holds`;
-export const HELD = 'held: ST-9 by this session\n';
+export const HELD = `held: ST-9 by this session - ${nextLine('held')}\n`;
 
 // H3, H7: the worktree is added by git and the remote is dropped after its last use (no fetch in these scenarios).
 export const heldBy = async (c: Clone) => {
@@ -436,7 +436,7 @@ export function pushMain(c: Clone, file: string, text: string): string {
   return gitRun(o, 'rev-parse', 'HEAD').trim();
 }
 
-export const BEHIND = 'behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main';
+export const BEHIND = 'behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main - ' + nextLine('behind');
 export const twoOnMain = (k: Clone) => {
   const x = k.otherClone();
   for (const f of ['a.txt', 'b.txt']) {

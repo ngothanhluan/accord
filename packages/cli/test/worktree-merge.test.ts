@@ -39,7 +39,7 @@ it('ac-2 continue says the ticket branch is 2 commits behind the remote main and
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(r.code).toBe(0);
   const out = lines(r.out);
-  expect(out[0]).toBe('behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main');
+  expect(out[0]).toBe(BEHIND);
   expect(out.slice(1, 5)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
   expect(out.filter((l) => l.startsWith('behind:'))).toHaveLength(1);
   expect(sha(c, 't/ST-9')).toBe(before);
@@ -366,7 +366,7 @@ it('ac-4 continue merges the latest origin main into a ticket branch before veri
   expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(head);
   expect(readFileSync(sib + '/setup.log', 'utf8')).toBe('merged ci\n');
   const out = lines(r.out);
-  expect(out).toContain('merged: 2 commits of origin/main into t/ST-9');
+  expect(out).toContain(`merged: 2 commits of origin/main into t/ST-9 - ${nextLine('synced')}`);
   expect(out.some((l) => l.startsWith('behind:'))).toBe(false);
   expect(out.slice(-4)).toEqual(stopBlock(sib, 'ST-9'));
 

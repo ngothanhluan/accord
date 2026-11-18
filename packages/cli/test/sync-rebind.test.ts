@@ -9,6 +9,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { claimPinBefore, loadSnapshot, RULESET_FROM } from '@accord-dev/accord-core';
 import { cleanup, commitMsg, gitRun, run, trustAllow, writeFiles } from './helpers/repo.js';
 import { gitClaimFacts, withClaimPins } from '../src/load/claim-facts.js';
+import { nextLine } from '../src/commands/next-action.js';
 import { loadFromFs } from '../src/load/fs.js';
 import { copy, type Clone, doneBranch, EXPORT, exportText, lines, pushMain, useSandboxes, verifyStage, VERIFICATION } from './helpers/worktree.js';
 import { P, pinned } from '../../../test/helpers/lane.js';
@@ -140,7 +141,7 @@ it('risk:complex-branching a hand rebase and a git.sync rebase are not re-bound 
     expect((await trustAllow(script.sib, ['git.sync'])).code).toBe(0); // a repository script runs only once the person allowed it
     const r = await run(['worktree', 'sync', ID], script.sib);
     expect([r.code, r.err]).toEqual([0, '']);
-    expect(lines(r.out)).toContain(`synced: t/${ID} by git.sync`);
+    expect(lines(r.out)).toContain(`synced: t/${ID} by git.sync - ${nextLine('synced')}`);
     expect(reboundLines(r.out)).toEqual([]);
     expect(subject(script.sib)).toBe(`ST-9 edits the export after verify`);
     expect(head(s.remote, 'refs/heads/t/ST-9')).toBe(head(script.sib));
@@ -348,7 +349,7 @@ it('risk:complex-branching a ticket claimed before 0.5.0 keeps its rules through
     const dir = mkdtempSync(join(tmpdir(), 'accord-rebase-fx-'));
     try {
       const { c, wt, out } = await syncedAfterUpgrade('git.sync', via, dir);
-      expect(lines(out), via).toContain(`synced: t/${ID} by git.sync`);
+      expect(lines(out), via).toContain(`synced: t/${ID} by git.sync - ${nextLine('synced')}`);
       expect(backfilledLines(out), via).toEqual([`backfilled: ${ID} ruleset 0.4.1`]);
       expect(subjects(wt)[0], via).toBe(`ruleset: ${ID} from its claim commit`);
       await expectKeptRules(wt);

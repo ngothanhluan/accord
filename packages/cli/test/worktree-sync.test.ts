@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, it, vi } from 'vitest';
 import { commitMsg, gitRun, run, trustAllow, writeFiles } from './helpers/repo.js';
+import { nextLine } from '../src/commands/next-action.js';
 import { BEHIND, copy, type Clone, doneBranch, lines, pushMain, ticketWorktree, twoOnMain, useSandboxes, verifyStage } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
@@ -65,7 +66,7 @@ it('risk:complex-branching git.merge decides how worktree sync takes main (ST-LN
       expect(gitRun(sib, 'merge-base', '--is-ancestor', tip, 'HEAD').trim()).toBe('');
       const pairs = rebasedLines(r.out);
       expect(pairs).toHaveLength(Number(own));
-      for (const l of pairs) expect(l).toMatch(/^rebased: [0-9a-f]{12} -> [0-9a-f]{12}$/);
+      for (const l of pairs) expect(l).toMatch(/^rebased: [0-9a-f]{12} -> [0-9a-f]{12} - next: \S/);
       expect(gitRun(sib, 'rev-parse', 'refs/remotes/origin/t/ST-9').trim()).toBe(gitRun(sib, 'rev-parse', 'HEAD').trim());
       expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(gitRun(sib, 'rev-parse', 'HEAD').trim());
     }
@@ -209,7 +210,7 @@ it('risk:complex-branching git.sync replaces the built-in merge and rebase (ST-L
   const r = await run(['worktree', 'sync', 'ST-9'], sib);
   expect(r.err).toBe('');
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toContain('synced: t/ST-9 by git.sync');
+  expect(lines(r.out)).toContain('synced: t/ST-9 by git.sync - ' + nextLine('synced'));
   expect(rebasedLines(r.out)).toEqual([]);
   expect(parents(sib)).toBe(2);
   expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
@@ -239,7 +240,7 @@ it('risk:complex-branching a git.sync that rebases is pushed with the lease (ST-
   pushMain(c, 'next.txt', 'next\n');
   const r = await run(['worktree', 'sync', 'ST-9'], sib);
   expect([r.code, r.err]).toEqual([0, '']);
-  expect(lines(r.out)).toContain('synced: t/ST-9 by git.sync');
+  expect(lines(r.out)).toContain('synced: t/ST-9 by git.sync - ' + nextLine('synced'));
   expect(gitRun(sib, 'rev-list', '--merges', 'origin/main..HEAD').trim()).toBe('');
   expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(gitRun(sib, 'rev-parse', 'HEAD').trim());
 }, 240_000);
@@ -305,7 +306,7 @@ it('risk:complex-branching Continue rebases a behind branch under git.merge reba
   expect([r.code, r.err]).toEqual([0, '']);
   const out = lines(r.out);
   expect(rebasedLines(r.out)).toHaveLength(1);
-  for (const l of rebasedLines(r.out)) expect(l).toMatch(/^rebased: [0-9a-f]{12} -> [0-9a-f]{12}$/);
+  for (const l of rebasedLines(r.out)) expect(l).toMatch(/^rebased: [0-9a-f]{12} -> [0-9a-f]{12} - next: \S/);
   expect(out.some((l) => l.startsWith('merged:') || l.startsWith('behind:'))).toBe(false);
   expect(gitRun(sib, 'rev-list', '--merges', 'origin/main..HEAD').trim()).toBe('');
   expect(gitRun(sib, 'merge-base', '--is-ancestor', 'origin/main', 'HEAD').trim()).toBe('');
@@ -323,7 +324,7 @@ it('risk:complex-branching Continue runs git.sync instead of merging and pushes 
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect([r.code, r.err]).toEqual([0, '']);
   const out = lines(r.out);
-  expect(out).toContain('synced: t/ST-9 by git.sync');
+  expect(out).toContain('synced: t/ST-9 by git.sync - ' + nextLine('synced'));
   expect(out.some((l) => l.startsWith('merged:') || l.startsWith('rebased:'))).toBe(false);
   expect(parents(sib)).toBe(2);
   const [call, ...more] = s.calls();
@@ -354,13 +355,13 @@ it('risk:complex-branching the behind line of Continue names the configured way 
     { yaml: '  merge: squash\n', line: BEHIND },
     {
       yaml: '  merge: rebase\n',
-      line: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it with accord worktree sync ST-9',
-      early: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it, which accord worktree sync ST-9 does at verify',
+      line: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it with accord worktree sync ST-9 - ' + nextLine('behind'),
+      early: 'behind: t/ST-9 is 2 commits behind origin/main; rebase onto it, which accord worktree sync ST-9 does at verify - ' + nextLine('behind'),
     },
     {
       yaml: `  sync: '${s.command}'\n`,
-      line: /^behind: t\/ST-9 is 2 commits behind origin\/main; .*git\.sync.*\(accord worktree sync ST-9 runs it\)$/,
-      early: 'behind: t/ST-9 is 2 commits behind origin/main; sync them with git.sync, the team command, which accord worktree sync ST-9 runs at verify',
+      line: /^behind: t\/ST-9 is 2 commits behind origin\/main; .*git\.sync.*\(accord worktree sync ST-9 runs it\) - next: \S/,
+      early: 'behind: t/ST-9 is 2 commits behind origin/main; sync them with git.sync, the team command, which accord worktree sync ST-9 runs at verify - ' + nextLine('behind'),
     },
   ];
   for (const atVerifyStage of [false, true]) {
@@ -434,7 +435,7 @@ it('risk:security git.sync is not run until accord trust allowed it, and not aga
   expect((await trustAllow(sib, ['git.sync'])).code).toBe(0);
   const ok = await run(['worktree', 'sync', 'ST-9'], sib);
   expect([ok.code, ok.err]).toEqual([0, '']);
-  expect(lines(ok.out)).toContain('synced: t/ST-9 by git.sync');
+  expect(lines(ok.out)).toContain('synced: t/ST-9 by git.sync - ' + nextLine('synced'));
   expect(tags(marker)).toEqual(['B']);
 }, 240_000);
 
@@ -495,6 +496,6 @@ it('risk:security Continue checks and runs the git.sync of the ticket worktree, 
   expect((await trustAllow(sib, ['git.sync'])).code).toBe(0);
   const second = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect([second.code, second.err]).toEqual([0, '']);
-  expect(lines(second.out)).toContain('synced: t/ST-9 by git.sync');
+  expect(lines(second.out)).toContain('synced: t/ST-9 by git.sync - ' + nextLine('synced'));
   expect(s.calls()).toHaveLength(1);
 }, 240_000);

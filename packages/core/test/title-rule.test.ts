@@ -9,7 +9,7 @@ describe('the title rule', () => {
   it('D-08b the title rule refuses a placeholder a long title and a letter outside English (ST-LN-22 D-08b)', () => {
     expect(titleProblem('Short title in business language', undefined)).toContain('placeholder');
     expect(titleProblem('x'.repeat(81), undefined)).toContain('81 characters, more than 80');
-    expect(titleProblem('Xuất báo cáo', undefined)).toContain('a letter outside English');
+    expect(titleProblem('Exportation des données', undefined)).toContain('a letter outside English');
     expect(titleProblem('Export reports to CSV — fast', undefined)).toBeUndefined();
     // the limit itself is allowed, and digits and punctuation are not letters
     expect(titleProblem('x'.repeat(80), undefined)).toBeUndefined();
@@ -25,7 +25,7 @@ describe('the title rule from config.yml', () => {
     const config = { titles: { max_length: '100', language: 'any' as const } };
     // the 81-character title and a letter outside English are fine under this team's rule
     expect(titleProblem('x'.repeat(81), config)).toBeUndefined();
-    expect(titleProblem('Xuất báo cáo', config)).toBeUndefined();
+    expect(titleProblem('Exportation des données', config)).toBeUndefined();
     expect(titleProblem('x'.repeat(101), config)).toContain('101 characters, more than 100');
     // the placeholder is refused whatever the language
     expect(titleProblem('Short title in business language', config)).toContain('placeholder');

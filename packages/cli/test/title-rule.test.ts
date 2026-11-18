@@ -23,7 +23,7 @@ const tickets = (repo: string): string[] => (existsSync(join(repo, 'accord', 'ti
 it('D-08b accord new ticket refuses a title that breaks the rule (ST-LN-22 D-08b)', async () => {
   const repo = sandbox();
   const before = tickets(repo);
-  for (const title of ['Xuất báo cáo', 'Short title in business language', 'x'.repeat(81)]) {
+  for (const title of ['Exportation des données', 'Short title in business language', 'x'.repeat(81)]) {
     const r = await run(['new', 'ticket', 'N-1', '--lane', 'M', '--title', title, '--related', 'none'], repo);
     expect([title, r.code], r.out + r.err).toEqual([title, 2]);
     expect(r.err, title).toContain('title rule: English, in business language');

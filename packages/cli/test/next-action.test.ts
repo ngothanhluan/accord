@@ -1,10 +1,11 @@
 // ST-LN-69 D-19: every `accord worktree` output line that worktree.md maps names its next action itself, from one table (NEXT_ACTIONS).
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
+import * as limit from '../src/commands/fetch-limit.js';
 import { NEXT_ACTIONS, nextLine, withNext } from '../src/commands/next-action.js';
 import type { LineKind } from '../src/commands/next-action.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { A, B, clone, copy, envOf, lines, pushMain, setTable, tableOf, teammate, ticketWorktree, twoOnMain, useSandboxes, verifyStage, writeHolds } from './helpers/worktree.js';
+import { A, B, claimWorktree, clone, copy, doneOnRemote, dropOnRemote, envOf, lines, pushMain, setTable, tableOf, teammate, ticketWorktree, twoOnMain, useSandboxes, verifyStage, writeHolds } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -12,7 +13,7 @@ vi.mock('../src/load/proc.js', async (orig) => {
 });
 vi.mock('../src/commands/fetch-limit.js', async (orig) => {
   const real = await orig<typeof import('../src/commands/fetch-limit.js')>();
-  return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs) };
+  return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs), cleanBudgetMs: vi.fn(real.cleanBudgetMs) };
 });
 
 useSandboxes([{}, { setup: ['node setup-step.js ci'] }, { tickets: ['ST-9', 'ST-10'] }, { setup: ['node setup-step.js ci', 'node setup-step.js fail'] }]);
@@ -81,7 +82,18 @@ const SWEPT: Array<[string, RegExp]> = [
   ['merge of', /^(merge|rebase) of /],
   ['trust', /run accord trust in/],
   ['ticket push', /^the ticket is committed in /],
+  ['removed', /^removed \S/],
+  ['deleted', /^deleted \S/],
+  ['kept', /^kept \S/],
+  ['clean failed', /^clean failed/],
+  ['clean skipped', /^clean skipped/],
+  ['clean stopped', /^clean stopped/],
+  ['clean fetch failed', /^fetch from origin failed, judging against/],
+  ['kept dropped tickets', /^kept dropped tickets: /],
 ];
+
+/** The names of the kinds only the clean runs of the last test produce. */
+const CLEAN_NAMES = ['removed', 'deleted', 'kept', 'clean failed', 'clean skipped', 'clean stopped', 'clean fetch failed', 'kept dropped tickets'];
 
 const seen = new Set<string>();
 
@@ -216,7 +228,83 @@ it('ac-12 open push and session lines name their next action (ST-LN-69 7-ac-12)'
   expect((await go('ticket push', ['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], v.root)).code).toBe(2);
 
   // every kind of the sweep was produced by some run above
-  for (const [name] of SWEPT) expect(seen.has(name), `no run produced a ${name} line`).toBe(true);
+  for (const [name] of SWEPT.filter(([n]) => !CLEAN_NAMES.includes(n))) expect(seen.has(name), `no run produced a ${name} line`).toBe(true);
   expect(seen.has('enter')).toBe(true);
   expect(seen.has('stop')).toBe(true);
+}, 600_000);
+
+it('ac-12 every worktree command line names its next action (ST-LN-69 7-ac-12)', async () => {
+  // removed, deleted and kept lines of a clean: a done ticket, one with uncommitted work, a merged and an unmerged non-ticket branch
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  for (const id of ['ST-9', 'ST-10']) ticketWorktree(c, id);
+  doneOnRemote(c, ['ST-9', 'ST-10']);
+  writeFileSync(`${c.sibling('ST-10')}/new.txt`, 'new');
+  for (const n of ['backlog/a', 'backlog/d']) {
+    c.git('switch', '-q', '-c', n, 'main');
+    writeFiles(c.root, { [`${n.replace('/', '-')}.txt`]: n + '\n' });
+    c.git('add', '-A');
+    c.git('commit', '-q', '-m', n);
+    c.git('push', '-q', 'origin', n);
+    c.git('switch', '-q', 'main');
+  }
+  const o = c.otherClone();
+  gitRun(o, 'fetch', '-q', 'origin');
+  gitRun(o, 'merge', '-q', '--no-ff', '-m', 'merge backlog/a', 'origin/backlog/a');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  expect((await go('clean', ['worktree', 'clean'], c.root)).code).toBe(0);
+
+  // the clean's own fetch failure, then the refs already in the clone judge
+  const f = copy();
+  f.git('worktree', 'add', '-q', '-b', 't/ST-9', f.sibling('ST-9'), 'origin/main');
+  doneOnRemote(f, ['ST-9']);
+  f.git('fetch', '-q', 'origin');
+  f.git('remote', 'set-url', 'origin', f.remote + '-missing');
+  expect((await go('clean fetch failed', ['worktree', 'clean'], f.root)).code).toBe(0);
+
+  // dropped tickets are kept when the fetch failed
+  const d = copy({ tickets: ['ST-9', 'ST-10'] });
+  claimWorktree(d, 'ST-9');
+  dropOnRemote(d, ['ST-9']);
+  d.git('fetch', '-q', 'origin');
+  d.git('remote', 'set-url', 'origin', d.remote + '-missing');
+  expect((await go('kept dropped tickets', ['worktree', 'clean'], d.root)).code).toBe(0);
+
+  // another clean is running
+  const l = copy();
+  mkdirSync(`${l.root}/.git/accord`, { recursive: true });
+  writeFileSync(`${l.root}/.git/accord/clean.lock`, String(process.pid));
+  expect((await go('clean skipped', ['worktree', 'clean'], l.root)).code).toBe(0);
+
+  // the hook's session clean: a spent time budget stops it, a folder that is not a repository fails it; each keeps its last line
+  const h = copy();
+  claimWorktree(h, 'ST-9');
+  doneOnRemote(h, ['ST-9']);
+  vi.mocked(limit.cleanBudgetMs).mockReturnValue(0);
+  const stopped = await run(['hook', 'session-start'], h.root, {}, JSON.stringify({ session_id: 'sess-M', cwd: h.root, source: 'startup' }));
+  vi.mocked(limit.cleanBudgetMs).mockReset();
+  sweep('hook stopped', stopped.out, stopped.err);
+  const S = lines(stopped.out);
+  const stop = S.findIndex((x) => x.startsWith('clean stopped: '));
+  expect(stop).toBeGreaterThan(-1);
+  expect(S.indexOf('tell the owner the lines above')).toBeGreaterThan(stop);
+  const g = copy();
+  const failed = await run(['hook', 'session-start'], g.root, {}, JSON.stringify({ session_id: 'sess-M', cwd: g.root + '/no-such-folder', source: 'startup' }));
+  sweep('hook failed', failed.out, failed.err);
+  const F = lines(failed.out);
+  const fail = F.findIndex((x) => x.startsWith('clean failed, nothing more was removed: '));
+  expect(fail).toBeGreaterThan(-1);
+  expect(F.indexOf('tell the owner the lines above')).toBeGreaterThan(fail);
+
+  // a record that cannot be updated is a note, and a clean that throws on the side is named by the command that ran it
+  const n = copy({ tickets: ['ST-9', 'ST-10'] });
+  ticketWorktree(n, 'ST-9');
+  doneOnRemote(n, ['ST-9']);
+  mkdirSync(`${n.root}/.git/accord/worktrees`, { recursive: true });
+  await go('clean note', ['worktree', 'clean'], n.root);
+  const q = copy({ tickets: ['ST-9', 'ST-10'] });
+  writeFileSync(`${q.root}/.git/accord`, 'not a folder');
+  await go('clean failed on the side', ['worktree', 'open', 'ST-9'], q.root);
+
+  // every kind of the sweep was produced by some run above
+  for (const [name] of SWEPT) expect(seen.has(name), `no run produced a ${name} line`).toBe(true);
 }, 600_000);

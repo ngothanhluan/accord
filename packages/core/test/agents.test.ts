@@ -358,6 +358,27 @@ it('ac-3 the executor declares its six tools and stops on a need outside the rep
   expect(missing, 'the executor stop trigger line is missing from').toEqual([]);
 });
 
+it('ac-2 docs/design.md gives every default model choice with one reason line and the models override (ST-LN-85 6-ac-2)', () => {
+  const design = readFileSync(new URL('../../../docs/design.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n').split('\n');
+  const start = design.findIndex((l) => l.startsWith('**Routing.**'));
+  expect(start, 'docs/design.md has no Routing paragraph').toBeGreaterThanOrEqual(0);
+  const end = design.findIndex((l, i) => i > start && l.startsWith('**Tests.**'));
+  expect(end, 'docs/design.md has no Tests paragraph after Routing').toBeGreaterThan(start);
+  const routing = design.slice(start, end);
+  const rows = routing.filter((l) => l.startsWith('| `'));
+  const parsed = rows.map((l) => /^\| `([a-z.]+)` \| `accord-[a-z-]+` \| (haiku|sonnet|opus), (low|medium|high|xhigh|max) \| (.+) \|$/.exec(l));
+  expect(rows.filter((_, i) => parsed[i] === null), 'rows that do not match the table shape').toEqual([]);
+  const seen = parsed.map((m) => (m as RegExpExecArray)[1]);
+  expect([...seen].sort()).toEqual(Object.keys(AGENT_DEFAULTS).sort());
+  for (const m of parsed as RegExpExecArray[]) {
+    const key = m[1] as keyof typeof AGENT_DEFAULTS;
+    expect({ model: m[2], effort: m[3] }, key).toEqual(AGENT_DEFAULTS[key]);
+    expect(m[4].length, key + ' has no reason').toBeGreaterThan(20);
+  }
+  const text = routing.join('\n');
+  for (const s of ['A team overrides', 'under `models:`', 'field by field', 'without a new benchmark']) expect(text, 'Routing lacks: ' + s).toContain(s);
+});
+
 it('ac-3 the critic and both reviewers define must should and nice by consequence', () => {
   const sentences = [
     'Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken.',

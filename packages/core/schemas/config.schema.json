@@ -106,7 +106,7 @@
       "type": "object",
       "additionalProperties": false,
       "patternProperties": {
-        "^(scout|auditor|architect|critic|planner|executor|reviewer|reviewer\\.final|verifier|debugger)$": {
+        "^(scout|auditor|architect|critic|planner|executor|reviewer|reviewer\\.final|verifier|debugger|researcher)$": {
           "type": "object",
           "additionalProperties": false,
           "required": ["model"],

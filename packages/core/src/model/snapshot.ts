@@ -311,7 +311,7 @@ export interface TicketWork {
 
 export type RouteKey =
   | 'scout' | 'auditor' | 'critic' | 'planner'
-  | 'executor' | 'reviewer' | 'reviewer.final' | 'verifier' | 'debugger';
+  | 'executor' | 'reviewer' | 'reviewer.final' | 'verifier' | 'debugger' | 'researcher';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface AccordConfig {

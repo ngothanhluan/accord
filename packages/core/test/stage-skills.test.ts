@@ -757,7 +757,7 @@ it('ac-5 the verify skill offers to promote a ruling or correction into the conv
   const step = text.slice(from, to);
   // ST-LN-84 07-17: the judge-and-ask sentences moved to shared/ask.md; step 6 offers as ./ask.md says and writes the ledger's lines
   const phrases = [
-    'offer each Correction or Ruling that holds across tickets, as `./ask.md` says',
+    'offer each Correction or Ruling that holds across tickets or across its epic, as `./ask.md` says',
     "write every line under the ledger's `## Conventions` into `accord/product/conventions.md`.",
   ];
   expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
@@ -2358,4 +2358,66 @@ it('ac-11 a session without the researcher agent follows the same rules (ST-LN-8
   for (const dir of ['.agents/skills', '.claude/skills']) {
     expect(flat(all.find((f) => f.path === dir + '/accord-intent/discuss.md')?.text ?? ''), dir).toContain(RESEARCH_FALLBACK);
   }
+});
+
+// ST-LN-28 7-ac-10 (07-23, D-15): a lesson that holds for the whole epic is offered at verify and kept only in the story's own ledger; later stories read it from the default branch.
+it('ac-10 verify offers an epic lesson and writes it only to the story\'s own ledger (ST-LN-28 7-ac-10)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const read = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  for (const stage of STAGES) {
+    const ask = read('.claude/skills/' + installedName(stage) + '/ask.md');
+    const section = ask.slice(ask.indexOf('## Recording a rule or a refused option'));
+    expect(section.length, stage + ' ask.md holds the recording section').toBeGreaterThan(0);
+    for (const phrase of ['a story with `parent:`', 'holds for the whole epic', '`- Lesson: <lesson> — "<the owner\'s words, in English>"`', 'under `## Epic lessons`', "that story's own ledger", 'nowhere else', 'once this story is on the default branch'])
+      expect(section, stage + ' ask.md names ' + phrase).toContain(phrase);
+  }
+  const verify = read('.claude/skills/accord-verify/SKILL.md');
+  const step6 = verify.slice(verify.indexOf('6. Run `accord gate done <id>`'), verify.indexOf('7. Report the finish'));
+  for (const phrase of ['across its epic', './ask.md', 'a line or a lesson was written', 'and the ledger']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
+  // no shared epic file and no write into another ticket's folder is asked of any rendered skill
+  for (const f of files.filter((x) => x.path.endsWith('.md'))) {
+    const text = flat(f.text);
+    expect(text, f.path).not.toMatch(/accord\/tickets\/<(?:parent|epic|sibling)[^>]*>/);
+    expect(text, f.path).not.toMatch(/epic[- ]wide (?:state )?file|STATE\.md/i);
+  }
+  expect(Buffer.byteLength(files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '', 'utf8')).toBeLessThanOrEqual(6000);
+});
+
+// ST-LN-28 7-ac-9 (07-25, D-14 and D-16): lane L of accord-new runs one epic interview, shows the split, takes the owner's yes and runs the one split command; no critic is dispatched for the epic.
+it('ac-9 accord-new runs an epic interview and creates the approved split in one step (ST-LN-28 7-ac-9)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const get = (p: string) => flat(all.find((f) => f.path === dir + '/accord-new/' + p)?.text ?? '');
+    const skill = get('SKILL.md');
+    const epic = get('epic.md');
+    if (epic.length === 0) { bad.push(dir + '/accord-new/epic.md is not rendered'); continue; }
+    const route = skill.slice(skill.indexOf('- **L and P.**'), skill.indexOf('## Rules'));
+    for (const p of ['`./epic.md`', 'P is not built yet', 'propose an epic instead']) if (!route.includes(p)) bad.push(dir + ' accord-new lane L and P route lacks ' + p);
+    for (const p of [
+      'why',
+      'for whom',
+      'the Vetoes',
+      'one question at a time as `./ask.md` says',
+      '`depends_on`',
+      'explicit yes',
+      'outside the working tree',
+      '`accord new ticket --type epic --lane L --split <file> --queue`',
+      '`title`, `intent`, `vetoes` and `stories`',
+      '`/accord-pickup <id>`',
+      'its own worktree',
+      'in parallel',
+      'The epic itself gets no approach and no plan critique',
+      'each story its usual critique',
+      'gh pr create',
+    ]) if (!epic.includes(p)) bad.push(dir + ' epic.md lacks ' + p);
+    // the order: the interview, then the shown split, then the yes, then the command
+    const at = (p: string) => epic.indexOf(p);
+    if (!(at('for whom') < at('explicit yes') && at('explicit yes') < at('`accord new ticket --type epic --lane L --split <file> --queue`'))) bad.push(dir + ' epic.md runs the command before the yes');
+    // no critic is dispatched for the epic
+    if (epic.includes('accord-critic')) bad.push(dir + ' epic.md names accord-critic');
+    if (skill.includes('accord-critic')) bad.push(dir + ' accord-new SKILL.md names accord-critic');
+  }
+  expect(bad).toEqual([]);
 });

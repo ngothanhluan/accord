@@ -107,6 +107,12 @@ export function duplicateHeadings(
   return findings;
 }
 
+/** The lines of the section named `name`, as written, with HTML comments and blank lines dropped; empty when the section is absent or holds nothing. */
+export function sectionLines(sections: readonly Section[], name: string): string[] {
+  const s = sections.find((x) => headingKey(x.heading) === headingKey(name));
+  return s === undefined ? [] : stripHtmlComments(s.lines).map((l) => l.text).filter((t) => t.trim() !== '');
+}
+
 /** Remove single-line and multi-line HTML comments; line count and numbers are kept. */
 export function stripHtmlComments(lines: Line[]): Line[] {
   let inside = false;

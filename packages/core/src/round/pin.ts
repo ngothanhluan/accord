@@ -121,6 +121,13 @@ export const SECURITY_TRIGGER_FROM = '0.7.0';
  */
 export const TITLE_RULE_FROM = '0.8.0';
 
+/**
+ * ST-LN-28 D-17 and CONTEXT Ruling "Release": the release from which `accord gate plan` warns (gate.plan-large) about a lane M plan of PLAN_LARGE_TASKS tasks or more and names the epic split. Read only through
+ * claimPinBefore: a ticket claimed under a pin below it is not judged, so no plan that exists when the rule ships gets the warning. Written as a literal beside TITLE_RULE_FROM, because both ship in
+ * the one release that carries Phase 7: the release PR that moves TITLE_RULE_FROM moves this, and PHASE7 in migration-pin.test.ts follows.
+ */
+export const PLAN_LARGE_FROM = '0.8.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

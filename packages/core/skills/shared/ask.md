@@ -32,4 +32,12 @@ ticket ledger's `## Conventions` (create the section) and commit it with the
 stage's next record commit; `accord-verify` step 6 and lane S's finish write
 every line of that section into `accord/product/conventions.md`. Without an
 explicit yes write nothing anywhere. A dropped ticket's refused option travels
-with `accord drop --rejected` instead. Outside a ticket's stages offer nothing.
+with `accord drop --rejected` instead.
+
+For a story with `parent:`, a Ruling or lesson that holds for the whole epic is
+offered too. On an explicit yes write `- Lesson: <lesson> — "<the owner's
+words, in English>"` under `## Epic lessons` in that story's own ledger and
+nowhere else, never in a shared file or in another ticket's folder: a later
+story of the epic reads it once this story is on the default branch.
+
+Outside a ticket's stages offer nothing.

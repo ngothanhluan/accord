@@ -3,7 +3,7 @@
 // the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
 import { anchorText, DEFAULT_BRANCH_TEMPLATE } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, gitVerifySince, ticketOfBranch } from '../load/fs.js';
+import { currentBranch, gitVerifySince, ticketOfBranch, withDefaultRef } from '../load/fs.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
@@ -22,7 +22,16 @@ export function activeTicket(root: string, snapshot: RepoSnapshot, known?: { nam
  * verify resume line reads (gitVerifySince) is added here too, so both paths print the same lines.
  */
 export const anchorOf = (ctx: CommandContext, id: string): string | undefined =>
-  anchorText({ ...ctx.snapshot, ...gitVerifySince(ctx.root, ctx.snapshot, id) }, id, stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane));
+  anchorText({ ...epicSnapshot(ctx, id), ...gitVerifySince(ctx.root, ctx.snapshot, id) }, id, stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane));
+
+/**
+ * ST-LN-28 D-13: the snapshot the anchor is built from. A story with `parent:` reads its epic from the default branch (a Decision added to the epic after the story branched
+ * binds now), so its snapshot carries `defaultRef`; any other ticket, and a snapshot that already has one, is left as it is, and no git is spawned for it.
+ */
+export function epicSnapshot(ctx: CommandContext, id: string): RepoSnapshot {
+  const parent = Object.hasOwn(ctx.snapshot.tickets, id) ? ctx.snapshot.tickets[id].frontmatter?.parent : undefined;
+  return parent === undefined || ctx.snapshot.defaultRef !== undefined ? ctx.snapshot : withDefaultRef(ctx.root, ctx.snapshot);
+}
 
 export function anchor(ctx: CommandContext, id: string | undefined): number {
   if (id !== undefined) {

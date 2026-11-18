@@ -60,9 +60,9 @@ judges, the owner decides.
 
 6. Run `accord gate done <id>` and work from what it prints. Leave `verification.md` and the tick uncommitted until it
    passes; the notice that the review file has no author yet is expected. When it
-   passes, offer each Correction or Ruling that holds across tickets, as `./ask.md` says, and write every line under the
+   passes, offer each Correction or Ruling that holds across tickets or across its epic, as `./ask.md` says, and write every line under the
    ledger's `## Conventions` into `accord/product/conventions.md`. Then commit only `accord/tickets/<id>.md`,
-   `accord/tickets/<id>/verification.md` and, when a line was written, `accord/product/conventions.md` and the ledger;
+   `accord/tickets/<id>/verification.md` and, when a line or a lesson was written, `accord/product/conventions.md` and the ledger;
    under `review: outcome` the commit message quotes the owner's answer. When both files are already committed and
    no line was written, commit nothing. Then finish CI as `./ci.md` says.
 

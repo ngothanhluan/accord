@@ -230,6 +230,7 @@ export interface Ledger {
   wordingOnly?: { path: string; reason: string }[]; // every 'Wording-only: <path> — <reason>' line; absent when none
   // '- <review|plan|approach> <r>.<n>[ cycle <k>]: …' lines of the first '## Deferred' section; failingCase: the line holds ' — failing case: <case>' (ST-LN-91 D-12); absent when none
   deferred?: { kind: 'review' | 'plan' | 'approach'; round: number; n: number; cycle: number; failingCase?: true }[];
+  epicLessons?: string[]; // the '## Epic lessons' section's non-blank lines as written, comments stripped (ST-LN-28 D-15); absent when there are none
 }
 
 export interface Review {

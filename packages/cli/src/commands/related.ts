@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { relatedText } from '@accord-dev/accord-core';
 import type { CommandContext } from '../run.js';
 import { requireTicket } from './lane-args.js';
-import { withDefaultBranch } from './new-ticket.js';
+import { withDefaultBranch } from './ticket-shared.js';
 
 export function related(ctx: CommandContext, id: string): number {
   requireTicket(ctx.snapshot, id);

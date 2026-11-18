@@ -3,9 +3,10 @@
 import { shaEqual, unfinishedVerification } from '../gate/done.js';
 import { unfinishedPlan } from '../gate/plan.js';
 import { unfinishedDebug, workOf } from '../gate/work.js';
-import { headingKey, stripHtmlComments } from '../load/sections.js';
+import { headingKey, sectionLines } from '../load/sections.js';
 import { RULING } from '../load/work.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { epicBlock } from './epic.js';
 import { laneRNext, laneSNext, nextStep, progressOf } from './stage.js';
 import type { LaneRStage, LaneSStage } from './stage.js';
 
@@ -72,10 +73,12 @@ export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly 
     : lane === 'R' ? ['Question', 'Timebox', 'Token budget', ...optional(['Vetoes', 'Decisions', 'Corrections'])]
     : SECTIONS;
   for (const name of names) {
-    const s = ticket.sections.find((x) => headingKey(x.heading) === headingKey(name));
-    const lines = s === undefined ? [] : stripHtmlComments(s.lines).map((l) => l.text).filter((t) => t.trim() !== '');
+    const lines = sectionLines(ticket.sections, name);
     out.push('', `## ${name}`, ...(lines.length === 0 ? ['(none)'] : lines));
   }
+  // ST-LN-28 D-13: a story of an epic carries the epic's Vetoes and Decisions, built here, after its own sections.
+  const epic = epicBlock(snapshot, id);
+  if (epic !== undefined) out.push('', epic);
   // ST-LN-13: the research records the ticket lists, as written, in key order.
   const research = ticket.frontmatter?.research;
   if (research !== undefined && research.length > 0) out.push('', '## Research', ...research);

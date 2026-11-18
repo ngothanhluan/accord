@@ -6,7 +6,7 @@ import type { Debug, Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review 
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
 import { unfinishedEpisode, unfinishedLine } from './unfinished.js';
-import { headingKey, LIST_MARKER, scan, stripHtmlComments, taskBlocks } from './sections.js';
+import { headingKey, LIST_MARKER, scan, sectionLines, stripHtmlComments, taskBlocks } from './sections.js';
 import { parseYamlMap } from './yaml.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
@@ -215,7 +215,8 @@ export function parseDebug(file: string, text: string): Debug {
 
 /**
  * `- task <n> done <sha>` lines, the first per task winning, every `Ruling:` line anywhere in the file, and
- * the first `## Rulings` section as written, comments and blank lines dropped, when the file has one.
+ * the first `## Rulings` section as written, comments and blank lines dropped, when the file has one. ST-LN-28 D-15: the lines of the `## Epic lessons` section
+ * (`- Lesson: <lesson> — "<the owner's words>"`) in order, absent without any.
  */
 export function parseLedger(file: string, text: string): Ledger {
   const done: Record<string, string> = {};
@@ -249,9 +250,11 @@ export function parseLedger(file: string, text: string): Ledger {
       });
     }
   }
+  const epicLessons = sectionLines(sections, 'Epic lessons');
   const extra = {
     ...(wordingOnly.length > 0 ? { wordingOnly } : {}),
     ...(deferred.length > 0 ? { deferred } : {}),
+    ...(epicLessons.length > 0 ? { epicLessons } : {}),
   };
   if (section === undefined) return { file, done, rulings, ...extra };
   const written = stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');

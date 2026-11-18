@@ -34,6 +34,26 @@ it('risk:complex-branching accord gate plan refuses a plan over its expected siz
   }
 });
 
+it('ac-9 accord gate plan names the epic split on a plan over its expected size (ST-LN-28 7-ac-9)', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: sized(1) }) });
+  try {
+    await run(['approve', 'T-1'], repo);
+    const first = commitAll(repo);
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', first) + THIRD });
+    commitAll(repo);
+    const json = await run(['gate', 'plan', 'T-1', '--json'], repo);
+    expect(json.code).toBe(1);
+    const size = (JSON.parse(json.out).findings as Found[]).filter((f) => f.rule === 'gate.plan-size');
+    expect(size).toHaveLength(1);
+    expect(size[0].reason).toContain('split the work into an epic of smaller stories with /accord-new (lane L)');
+    // the printed text carries the same reason
+    const text = await run(['gate', 'plan', 'T-1'], repo);
+    expect(text.out.replace(/\s+/g, ' ')).toContain('split the work into an epic of smaller stories with /accord-new (lane L)');
+  } finally {
+    cleanup(repo);
+  }
+});
+
 // The pin the cut-off reads is the one at the plan's baseline: commit, so the CONFIG pin of the running CLI (the running version) never decides.
 const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
 const missing = (all: Found[]): Found[] => all.filter((f) => f.rule === 'gate.plan-size-missing');

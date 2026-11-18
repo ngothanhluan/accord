@@ -2,7 +2,7 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
-import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
+import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
@@ -10,7 +10,7 @@ import { pinMessage, versionOnDisk } from '../pin.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { cleanBudgetMs } from './fetch-limit.js';
-import { activeTicket, anchorOf } from './anchor.js';
+import { activeTicket, anchorOf, epicSnapshot } from './anchor.js';
 import { branchOf, cleanQuietly, fetchOrigin, guardAllowsContinue, ID, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, sessionNext, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
@@ -21,7 +21,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   if (event === 'pre-tool-use') return preToolUse(ctx);
   const rules = rulesetText(`npx --yes ${pkg.name}@${pkg.version}`);
   if (event === 'subagent-start') {
-    const out = { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: rules } };
+    const out = { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: rules + subagentEpic(ctx) } };
     ctx.stdout.write(JSON.stringify(out) + '\n');
     return 0;
   }
@@ -51,6 +51,34 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   if (event === 'session-start') startHold(ctx);
   sessionClean(ctx, event);
   return 0;
+}
+
+/**
+ * ST-LN-28 D-13: for a scout, planner, critic or reviewer dispatched in a story's worktree (`agent_type` and `cwd` on stdin), a blank line and the epic block of the story's
+ * `parent:`, built by the CLI from the default branch's copy of the epic and added after the ruleset; the agent is never told to go and read the epic. '' for any other
+ * agent, for a ticket without `parent:`, for a folder on no ticket branch and for input this hook cannot read. Fails open: any error is one stderr line and the ruleset alone.
+ */
+function subagentEpic(ctx: CommandContext): string {
+  try {
+    const input = hookInput(ctx);
+    if (input?.agent_type === undefined || !EPIC_ROLES.includes(input.agent_type)) return '';
+    const root = input.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
+    const c: CommandContext = { ...ctx, root };
+    if (root !== ctx.root) {
+      // another checkout than the one the launch loaded: its own tickets and branch decide
+      c.snapshot = loadSnapshot(loadFromFs(root));
+      delete c.branch;
+      delete c.plain;
+      delete c.light;
+    }
+    const id = activeTicket(root, c.snapshot, branchFor(root, ctx));
+    const block = id === undefined ? undefined : epicBlock(epicSnapshot(c, id), id);
+    return block === undefined ? '' : '\n\n' + block;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    ctx.stderr.write(`accord hook subagent-start: ${msg.split('\n')[0]}; the ruleset alone`.replace(/\\/g, '/') + '\n');
+    return '';
+  }
 }
 
 /**
@@ -177,7 +205,7 @@ function startHold(ctx: CommandContext): void {
   }
 }
 
-export function hookInput(ctx: CommandContext): { session_id?: string; command_name?: string; command_args?: string; cwd?: string; source?: string } | undefined {
+export function hookInput(ctx: CommandContext): { session_id?: string; command_name?: string; command_args?: string; cwd?: string; source?: string; agent_type?: string } | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(ctx.stdin ?? '');
@@ -186,7 +214,7 @@ export function hookInput(ctx: CommandContext): { session_id?: string; command_n
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
   const out: Record<string, string> = {};
-  for (const k of ['session_id', 'command_name', 'command_args', 'cwd', 'source']) {
+  for (const k of ['session_id', 'command_name', 'command_args', 'cwd', 'source', 'agent_type']) {
     const v = (parsed as Record<string, unknown>)[k];
     if (typeof v === 'string') out[k] = v;
   }

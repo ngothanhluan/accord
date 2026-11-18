@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, SECURITY_TRIGGER_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, SECURITY_TRIGGER_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { building, CONFIG } from '../../../test/helpers/lane.js';
 
@@ -264,8 +264,8 @@ const PHASE4_CUT: string[] = Object.values(PHASE4);
 // Phase 5 (ST-LN-36 rel-ac-1): the security record rule cuts off at 0.7.0, the release that ships it; every Phase 5 cut-off added later joins this list.
 const PHASE5: Record<string, string> = { SECURITY_TRIGGER_FROM };
 const PHASE5_CUT: string[] = Object.values(PHASE5);
-// Phase 7 (ST-LN-22 D-08b): the title rule of lint and gate ready cuts off at the release that ships it; every Phase 7 cut-off added later joins this list.
-const PHASE7: Record<string, string> = { TITLE_RULE_FROM };
+// Phase 7 (ST-LN-22 D-08b, ST-LN-28 D-17): the title rule of lint and gate ready, and the plan-large warning of gate plan, cut off at the release that ships them; every Phase 7 cut-off added later joins this list.
+const PHASE7: Record<string, string> = { TITLE_RULE_FROM, PLAN_LARGE_FROM };
 const PHASE7_CUT: string[] = Object.values(PHASE7);
 
 it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
@@ -395,7 +395,7 @@ it('risk:regression the 0.7.0 cut-off constants are one release and read only th
 });
 
 it('D-08b the title cut-off is read only through claimPinBefore (ST-LN-22 D-08b)', () => {
-  expect(Object.keys(PHASE7), 'the list names no constant').toEqual(['TITLE_RULE_FROM']);
+  expect(Object.keys(PHASE7), 'the list names no constant').toEqual(['TITLE_RULE_FROM', 'PLAN_LARGE_FROM']);
   // the value is a plain release, and one the running accord has not passed yet or is: never a range
   for (const v of PHASE7_CUT) expect(v).toMatch(/^\d+\.\d+\.0$/);
   const value = TITLE_RULE_FROM;
@@ -423,4 +423,22 @@ it('D-08b the title cut-off is read only through claimPinBefore or rulesetFrom (
   const lint = readFileSync(join(REPO_ROOT, 'packages/core/src/lint/ticket.ts'), 'utf8').split(/\r?\n/);
   expect(lint.some((line) => !isComment(line) && line.includes('rulesetFrom(t, TITLE_RULE_FROM)'))).toBe(true);
   expect(lint.filter((line) => !isComment(line) && line.includes('TITLE_RULE_FROM') && !/^import\s/.test(line.trim()) && !line.includes('rulesetFrom(t, TITLE_RULE_FROM)'))).toEqual([]);
+});
+
+it('ac-9 the plan-large cut-off is read only through claimPinBefore (ST-LN-28 7-ac-9)', () => {
+  expect(typeof PLAN_LARGE_FROM).toBe('string');
+  // the same release as the title rule: both ship in the one release that carries Phase 7
+  expect(PLAN_LARGE_FROM).toBe(TITLE_RULE_FROM);
+  expect(PHASE7_CUT).toContain(PLAN_LARGE_FROM);
+  // a bare literal of the cut-off and the constant outside the claim read are caught; the claim read, an import, its declaration and a comment are not
+  expect(cutOffOffences(`  return pinBefore('${PLAN_LARGE_FROM}', pin);`, 'packages/core/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (pinBefore(PLAN_LARGE_FROM, pin)) return [];', 'packages/core/src/gate/plan.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (claimPinBefore(snapshot, id, PLAN_LARGE_FROM)) return [];', 'packages/core/src/gate/plan.ts')).toEqual([]);
+  expect(cutOffOffences("import { claimPinBefore, PLAN_LARGE_FROM } from '../round/pin.js';", 'packages/core/src/gate/plan.ts')).toEqual([]);
+  expect(cutOffOffences(`export const PLAN_LARGE_FROM = '${PLAN_LARGE_FROM}';`, 'packages/core/src/round/pin.ts')).toEqual([]);
+  expect(cutOffOffences('  // PLAN_LARGE_FROM in a comment compares nothing', 'packages/core/src/x.ts')).toEqual([]);
+  // gate plan decides on the claim read, and no other code line of plan.ts holds the constant
+  const plan = readFileSync(join(REPO_ROOT, 'packages/core/src/gate/plan.ts'), 'utf8').split(/\r?\n/);
+  expect(plan.some((line) => !isComment(line) && line.includes('claimPinBefore(snapshot, id, PLAN_LARGE_FROM)'))).toBe(true);
+  expect(plan.filter((line) => !isComment(line) && line.includes('PLAN_LARGE_FROM') && !/^import\s/.test(line.trim()) && !line.includes('claimPinBefore(snapshot, id, PLAN_LARGE_FROM)'))).toEqual([]);
 });

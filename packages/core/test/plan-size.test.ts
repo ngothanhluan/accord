@@ -1,6 +1,6 @@
 // ST-LN-93: gate plan holds a plan to twice the size its Intent expects, and the owner's fixed-form Ruling lifts it.
 import { describe, expect, it } from 'vitest';
-import { gatePlan, loadSnapshot, PLAN_SIZE_FROM, pinAllowsV1, pinBefore } from '../src/index.js';
+import { gatePlan, loadSnapshot, OVERRIDABLE, PLAN_LARGE_FROM, PLAN_SIZE_FROM, pinAllowsV1, pinBefore, sizeRefusal, TITLE_RULE_FROM } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
 import { PLAN_RULES } from '../src/gate/rules.js';
 import { approved } from './helpers/approve.js';
@@ -23,8 +23,9 @@ interface Opts {
   ledger?: string;
   config?: string;
   pins?: { pin?: string; basePin?: string }; // the host fact gate plan merges: the pin at the plan baseline and at its merge base
+  claim?: { pin: string } | { error: string }; // the host fact gate plan merges: the pin the ticket was claimed under
 }
-const check = ({ body = sized(2), lane, plan = tasks(5), ledger, config = at('0.4.0'), pins }: Opts = {}): GateResult => {
+const check = ({ body = sized(2), lane, plan = tasks(5), ledger, config = at('0.4.0'), pins, claim }: Opts = {}): GateResult => {
   const files: Record<string, string> = approved(
     {
       'accord/config.yml': config,
@@ -36,7 +37,8 @@ const check = ({ body = sized(2), lane, plan = tasks(5), ledger, config = at('0.
   if (plan !== null) files['accord/tickets/T-1/plan.md'] = plan;
   if (ledger !== undefined) files['accord/tickets/T-1/ledger.md'] = ledger;
   const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
-  return gatePlan(pins === undefined ? snapshot : { ...snapshot, planPins: { 'T-1': pins } }, 'T-1');
+  const withPins = pins === undefined ? snapshot : { ...snapshot, planPins: { 'T-1': pins } };
+  return gatePlan(claim === undefined ? withPins : { ...withPins, claimPins: { 'T-1': claim } }, 'T-1');
 };
 const size = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-size');
 const missing = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-size-missing');
@@ -147,5 +149,65 @@ describe('expected size cut-off', () => {
     expect(pinAllowsV1(undefined)).toBe(false);
     expect(pinAllowsV1('0.3.0', '0.3.1')).toBe(false);
     expect(pinAllowsV1('0.3.0', 'main')).toBe(true);
+  });
+});
+
+// ST-LN-28 7-ac-9 (07-25, D-17): an oversized plan is pointed at an epic of smaller stories, and a plan of 15 tasks or more gets a warning that names the same split, from a cut-off.
+const SPLIT = 'split the work into an epic of smaller stories with /accord-new (lane L)';
+/** The lane plan's header, then n tasks that each follow nothing and cover @ac-1: well formed under every plan format rule. */
+const many = (n: number): string => {
+  const head = PLAN.split(/^(?=## Task )/m)[0];
+  const task = (i: number): string =>
+    [`## Task ${i}: Step ${i}`, 'covers: @ac-1, @ac-2, D-01', 'files: src/export.ts', 'verify: export#writes-csv (@ac-1)', 'after: none', `Do step ${i}.`, ''].join('\n');
+  return [head, ...Array.from({ length: n }, (_, i) => task(i + 1))].join('\n');
+};
+const large = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-large');
+
+describe('an oversized plan points to an epic', () => {
+  it('ac-9 an oversized plan points to an epic (ST-LN-28 7-ac-9)', () => {
+    // the refusal names the split and keeps the Ruling text after it
+    const reason = sizeRefusal(9, 4, []) as string;
+    expect(reason).toContain(SPLIT);
+    expect(reason).toContain('Ruling: the owner allows 9 plan tasks against an expected size of 4 tasks');
+    expect(reason.indexOf(SPLIT)).toBeLessThan(reason.indexOf('Ruling: the owner allows'));
+    expect(size(check())[0].reason).toContain(SPLIT);
+    // a lane M plan of 15 tasks within its size, claimed at the cut-off: the warning names the same split and fails nothing
+    const claim = { pin: PLAN_LARGE_FROM };
+    const fifteen = check({ body: sized(8), plan: many(15), claim });
+    const warn = large(fifteen);
+    expect(warn).toHaveLength(1);
+    expect(warn[0].level).toBe('warning');
+    expect(warn[0].file).toBe('accord/tickets/T-1/plan.md');
+    expect(warn[0].reason).toContain('plan.md has 15 tasks');
+    expect(warn[0].reason).toContain(SPLIT);
+    expect(fifteen.verdict).toBe('pass');
+    expect(size(fifteen)).toEqual([]);
+    // 14 tasks give no warning, and 30 tasks over the size still fail on the size rule, with the warning beside it
+    expect(large(check({ body: sized(8), plan: many(14), claim }))).toEqual([]);
+    expect(check({ body: sized(8), plan: many(14), claim }).verdict).toBe('pass');
+    const thirty = check({ body: sized(2), plan: many(30), claim });
+    expect(thirty.verdict).toBe('fail');
+    expect(size(thirty)).toHaveLength(1);
+    expect(large(thirty)).toHaveLength(1);
+    // lane S and a planless ticket get none
+    expect(large(check({ lane: 'S', body: LANE_S_BODY, plan: many(15), claim }))).toEqual([]);
+    expect(large(check({ plan: null, claim }))).toEqual([]);
+  });
+
+  it('ac-9 the plan-large warning judges only tickets claimed at or after its cut-off (ST-LN-28 7-ac-9)', () => {
+    const at15 = (claim?: { pin: string } | { error: string }, config?: string) => large(check({ body: sized(8), plan: many(15), claim, config }));
+    expect(PLAN_LARGE_FROM).toBe(TITLE_RULE_FROM);
+    // claimed under the release before the cut-off: not judged, whatever the plan
+    expect(at15({ pin: '0.7.1' })).toEqual([]);
+    expect(at15({ pin: '0.7.1' }, at(PLAN_LARGE_FROM))).toEqual([]); // the working-tree pin never outranks the claim fact
+    // claimed at the cut-off or later: judged
+    expect(at15({ pin: PLAN_LARGE_FROM })).toHaveLength(1);
+    // no claim fact: the working-tree pin decides, before and at the cut-off
+    expect(at15(undefined)).toEqual([]);
+    expect(at15(undefined, at(PLAN_LARGE_FROM))).toHaveLength(1);
+    // a failed claim read fails closed: the warning applies
+    expect(at15({ error: 'git failed' })).toHaveLength(1);
+    // a team may lower it, as any rule that is not on the floor
+    expect(OVERRIDABLE).toContain('gate.plan-large');
   });
 });

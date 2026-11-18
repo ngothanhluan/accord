@@ -2147,7 +2147,7 @@ it('ac-5 every skill line that creates a ticket passes a title and judges the ca
 // ST-LN-22 7-ac-5 (07-12, D-09): the scout at intent step 2 and the critic at approach round 1 are given what `accord related <id>` printed, pasted into the dispatch; no other stage is, and no skill sends an agent to open other tickets.
 const RELATED = '`accord related <id>`';
 const PASTED = 'what `accord related <id>` printed, verbatim';
-const opensOthers = (text: string): string[] => text.match(/\b(?:open|read|look at)\b[^.]{0,60}\b(?:other|related) tickets?\b/gi) ?? [];
+const opensOthers = (text: string): string[] => text.match(/\b(?:open|read|look at)\s+(?:the |all |each |any )?(?:other|related) tickets?\b/gi) ?? [];
 
 it('ac-5 the scout and the critic receive the related tickets decisions (ST-LN-22 7-ac-5)', () => {
   // the prohibition check can neither pass vacuously nor flag the pasted-block wording

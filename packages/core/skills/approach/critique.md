@@ -112,9 +112,10 @@ run it again.
 
 ## The rounds
 
-1. **Read.** Round 1 is `whole`: one `accord-critic` in a fresh context, mode
-   `approach`, with the path of the ticket file, whose `## Approach` holds
-   only the draft of step 2. When the ticket touches auth, money, migration,
+1. **Read.** Round 1 is `whole`: run `accord related <id>`, then dispatch one `accord-critic` in a
+   fresh context, mode `approach`, with the path of the ticket file, whose `## Approach` holds
+   only the draft of step 2, and what `accord related <id>` printed, verbatim, so it can check
+   the approach against the related tickets' Vetoes and Decisions. When the ticket touches auth, money, migration,
    or data deletion, ask it for three concrete failure scenarios as well.
    From round 2, even after a Must, the round is `diff`: write
    `git diff <the previous round's commit> -- accord/tickets/<id>.md`, which

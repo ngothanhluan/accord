@@ -86,7 +86,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('intent')).toBe('accord-intent');
     expect(installedName('designer')).toBe('accord-designer');
@@ -713,4 +713,34 @@ it('risk:regression the command pattern reads accord waves and accord worktree t
   expect(waves.length, 'accord-build/waves.md is missing from the render output').toBeGreaterThan(0);
   const named = new Set([...waves.matchAll(COMMAND)].map((m) => m[1]));
   for (const c of ['waves', 'worktree task', 'task-done', 'brief']) expect(named.has(c), c).toBe(true);
+});
+
+// ST-LN-83 7-ac-1 (D-02): each action of the old single /accord skill is its own command, one definition each, installed
+// by every runtime's directories from the same text.
+describe('one command per action', () => {
+  const copiesOf = (name: string, runtime: AccordConfig['runtimes'][number]): { dirs: string[]; texts: string[] } => {
+    const cfg = config({ runtimes: [runtime] });
+    const files = skillTargets(cfg);
+    const dirs = skillDirs(cfg);
+    return { dirs, texts: dirs.map((dir) => files.find((f) => f.path === `${dir}/${name}/SKILL.md`)?.text ?? '') };
+  };
+
+  it('ac-1 accord-continue renders from one definition for every runtime (ST-LN-83 7-ac-1)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const { dirs, texts } = copiesOf('accord-continue', runtime);
+      expect(dirs.length, runtime).toBeGreaterThan(0);
+      for (const [i, text] of texts.entries()) {
+        expect(text.length, `${runtime}: ${dirs[i]}/accord-continue/SKILL.md is missing`).toBeGreaterThan(0);
+        expect(text, `${runtime}: ${dirs[i]} differs from ${dirs[0]}`).toBe(texts[0]);
+      }
+      expect(frontmatter(texts[0])?.name, runtime).toBe('accord-continue');
+      const body = bodyOf(texts[0]);
+      expect(body, runtime).toContain('accord worktree open <id> --continue');
+      expect(body, runtime).toContain('accord anchor');
+      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
+      expect(accord.length, runtime).toBeGreaterThan(0);
+      expect(accord, runtime).toContain('accord-continue');
+      expect(accord, runtime).not.toContain('## Continue');
+    }
+  });
 });

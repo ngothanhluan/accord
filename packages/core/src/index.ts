@@ -131,6 +131,7 @@ export { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE } from './status/branch.js';
 export { DEFAULT_SUBJECTS, effectiveSubject, matchesSubject, renderSubject, SUBJECT_NAMES, subjectCollisions, subjectsFor } from './commits/subjects.js';
 export type { SubjectCollision, SubjectName } from './commits/subjects.js';
 export { anchorText } from './status/anchor.js';
+export { EPIC_LESSONS, EPIC_ROLES, epicBlock } from './status/epic.js';
 export { ticketDetail } from './status/show.js';
 export { approvalShort, approvalView } from './status/approval.js';
 export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/show.js';

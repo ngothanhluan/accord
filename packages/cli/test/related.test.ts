@@ -45,12 +45,15 @@ it('ac-5 accord related prints the block for a lane ticket (ST-LN-22 7-ac-5)', a
       '### Decisions',
       '- D-01 Quote every cell',
       '',
+      '## Rejected',
+      '(none)',
+      '',
     ].join('\n'),
   );
   // a ticket with nothing related prints the header and none
   const alone = await run(['related', 'R-3'], repo);
   expect(alone.code, alone.err).toBe(0);
-  expect(alone.out).toBe('# Related tickets of R-3\n\n(none)\n');
+  expect(alone.out).toBe('# Related tickets of R-3\n\n(none)\n\n## Rejected\n(none)\n');
 });
 
 it('ac-5 accord related refuses an id that is no ticket (ST-LN-22 7-ac-5)', async () => {

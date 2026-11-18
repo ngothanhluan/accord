@@ -52,11 +52,22 @@ function sectionLines(ticket: Ticket, name: string): string[] {
 }
 
 /**
- * The text `accord related <id>` prints: `# Related tickets of <id>`, then for each of `relatedIds` a block `## <id> "<title>" (<status>)` with
- * its `### Vetoes` and `### Decisions` lines as written, or `(none)` under the header when nothing is related. undefined when `id` is no ticket
- * of the snapshot.
+ * ST-LN-84 D-10: every line of the conventions text that records a refused option: its text, after an optional list marker, starts
+ * `Rejected:`. Lines inside HTML comments are not lines of the file's content; the ones that count are printed as written, minus the line break.
  */
-export function relatedText(snapshot: RepoSnapshot, id: string): string | undefined {
+function rejectedLines(conventions: string | undefined): string[] {
+  const raw = (conventions ?? '').replace(/^\u{FEFF}/u, '').split(/\r?\n/);
+  const visible = stripHtmlComments(raw.map((text, i) => ({ line: i + 1, text })));
+  return raw.filter((_, i) => /^\s*(?:[-*+]\s+)?Rejected:/.test(visible[i].text));
+}
+
+/**
+ * The text `accord related <id>` prints: `# Related tickets of <id>`, then for each of `relatedIds` a block `## <id> "<title>" (<status>)` with
+ * its `### Vetoes` and `### Decisions` lines as written, or `(none)` under the header when nothing is related, then `## Rejected` with every
+ * `Rejected:` line of `conventions` (the text of accord/product/conventions.md, a fact the CLI reads from disk; absent when there is no file)
+ * as written, or `(none)`. undefined when `id` is no ticket of the snapshot.
+ */
+export function relatedText(snapshot: RepoSnapshot, id: string, conventions?: string): string | undefined {
   if (copyOf(snapshot, id) === undefined) return undefined;
   const out = [`# Related tickets of ${id}`];
   const ids = relatedIds(snapshot, id);
@@ -67,5 +78,7 @@ export function relatedText(snapshot: RepoSnapshot, id: string): string | undefi
     out.push('', `## ${rid} "${printable(fm.title)}" (${fm.status})`);
     for (const name of SECTIONS) out.push(`### ${name}`, ...sectionLines(ticket, name));
   }
+  const rejected = rejectedLines(conventions);
+  out.push('', '## Rejected', ...(rejected.length === 0 ? ['(none)'] : rejected));
   return out.join('\n') + '\n';
 }

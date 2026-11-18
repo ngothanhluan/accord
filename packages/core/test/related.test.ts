@@ -61,6 +61,9 @@ describe('relatedText', () => {
         '### Decisions',
         '(none)',
         '',
+        '## Rejected',
+        '(none)',
+        '',
       ].join('\n'),
     );
   });
@@ -89,13 +92,14 @@ describe('relatedText', () => {
       '## R-1 "Export reports to CSV files" (open)',
       '## R-2 "Export reports" (open)',
       '## R-3 "Export csv" (open)',
+      '## Rejected',
     ]);
     expect(text).not.toContain('"Export reports to CSV" (open)'); // N-1 itself
   });
 
   it('ac-5 a ticket with nothing related prints none and an unknown id prints nothing (ST-LN-22 7-ac-5)', () => {
     const snap = tree({ 'accord/tickets/N-1.md': tk('N-1', 'Zebra crossing paint', 'open', intent('Stripes.')), 'accord/tickets/R-1.md': tk('R-1', 'Print the page', 'open', intent('Printer.')) });
-    expect(relatedText(snap, 'N-1')).toBe('# Related tickets of N-1\n\n(none)\n');
+    expect(relatedText(snap, 'N-1')).toBe('# Related tickets of N-1\n\n(none)\n\n## Rejected\n(none)\n');
     expect(relatedText(snap, 'NOPE')).toBeUndefined();
     expect(relatedIds(snap, 'NOPE')).toEqual([]);
   });

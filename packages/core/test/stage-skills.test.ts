@@ -2382,3 +2382,42 @@ it('ac-10 verify offers an epic lesson and writes it only to the story\'s own le
   }
   expect(Buffer.byteLength(files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '', 'utf8')).toBeLessThanOrEqual(6000);
 });
+
+// ST-LN-28 7-ac-9 (07-25, D-14 and D-16): lane L of accord-new runs one epic interview, shows the split, takes the owner's yes and runs the one split command; no critic is dispatched for the epic.
+it('ac-9 accord-new runs an epic interview and creates the approved split in one step (ST-LN-28 7-ac-9)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const get = (p: string) => flat(all.find((f) => f.path === dir + '/accord-new/' + p)?.text ?? '');
+    const skill = get('SKILL.md');
+    const epic = get('epic.md');
+    if (epic.length === 0) { bad.push(dir + '/accord-new/epic.md is not rendered'); continue; }
+    const route = skill.slice(skill.indexOf('- **L and P.**'), skill.indexOf('## Rules'));
+    for (const p of ['`./epic.md`', 'P is not built yet', 'propose an epic instead']) if (!route.includes(p)) bad.push(dir + ' accord-new lane L and P route lacks ' + p);
+    for (const p of [
+      'why',
+      'for whom',
+      'the Vetoes',
+      'one question at a time as `./ask.md` says',
+      '`depends_on`',
+      'explicit yes',
+      'outside the working tree',
+      '`accord new ticket --type epic --lane L --split <file> --queue`',
+      '`title`, `intent`, `vetoes`, `stories`',
+      '`/accord-pickup <id>`',
+      'its own worktree',
+      'in parallel',
+      'The epic itself gets no approach and no plan critique',
+      'each story its usual critique',
+      'gh pr create',
+    ]) if (!epic.includes(p)) bad.push(dir + ' epic.md lacks ' + p);
+    // the order: the interview, then the shown split, then the yes, then the command
+    const at = (p: string) => epic.indexOf(p);
+    if (!(at('for whom') < at('explicit yes') && at('explicit yes') < at('`accord new ticket --type epic --lane L --split <file> --queue`'))) bad.push(dir + ' epic.md runs the command before the yes');
+    // no critic is dispatched for the epic
+    if (epic.includes('accord-critic')) bad.push(dir + ' epic.md names accord-critic');
+    if (skill.includes('accord-critic')) bad.push(dir + ' accord-new SKILL.md names accord-critic');
+  }
+  expect(bad).toEqual([]);
+});

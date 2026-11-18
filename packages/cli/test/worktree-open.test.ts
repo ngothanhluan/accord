@@ -57,6 +57,36 @@ it('ac-1 the stop block of worktree open names the new continue command (ST-LN-8
   expect(out.split('\n').slice(0, 3)).toEqual(['stop: open a session in this folder and type the line below it', c.sibling('ST-9'), '/accord-continue ST-9']);
 });
 
+it('ac-12 accord worktree open prints its next actions (ST-LN-69 7-ac-12)', async () => {
+  // a worktree whose folder was deleted by hand: the pruned line names its action, and the stop block follows a `next:` line with its path lines unchanged
+  const p = copy({ setup: ['node setup-step.js ci'] });
+  p.git('worktree', 'add', '-q', '-b', 't/ST-9', p.sibling('ST-9'), 'origin/main');
+  rmSync(p.sibling('ST-9'), { recursive: true, force: true });
+  const rp = await run(['worktree', 'open', 'ST-9', '--continue'], p.root);
+  expect(rp.code).toBe(0);
+  const pl = lines(rp.out);
+  expect(pl[0]).toMatch(/^pruned .+ - next: \S/);
+  const stop = pl.findIndex((l) => l.startsWith('stop:'));
+  expect(stop).toBeGreaterThan(0);
+  expect(pl[stop - 1]).toMatch(/^next: \S/);
+  expect(pl.slice(stop)).toEqual(stopLines(p.sibling('ST-9'), 'ST-9'));
+  // a failed fetch: its line names its action
+  const f = copy();
+  f.git('remote', 'set-url', 'origin', f.remote + '-missing');
+  const rf = await run(['worktree', 'open', 'ST-9'], f.root);
+  expect(rf.code).toBe(0);
+  expect(lines(rf.out)[0]).toMatch(/^fetch from origin failed, going on with the refs already in this clone: .+ - next: \S/);
+  // a run that can enter: a `next:` line right before the unchanged `enter:` line
+  const e = copy({ setup: ['node setup-step.js ci'] });
+  setTable(tableOf(A));
+  const re = await run(['worktree', 'open', 'ST-9'], e.root, envOf(A));
+  expect(re.code).toBe(0);
+  const el = lines(re.out);
+  expect(el).toHaveLength(2);
+  expect(el[0]).toMatch(/^next: \S/);
+  expect(el[1]).toBe(`enter: ${e.sibling('ST-9')}`);
+}, 120_000);
+
 it('ac-2 a failing setup command exits 2 naming it and keeps the worktree', async () => {
   const c = copy({ setup: ['node setup-step.js ci', 'node setup-step.js fail'] });
   const { code, out, err } = await run(['worktree', 'open', 'ST-9'], c.root);

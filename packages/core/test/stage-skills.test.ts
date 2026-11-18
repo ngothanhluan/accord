@@ -2053,3 +2053,47 @@ it('ac-2 no skill switches a session between tickets (ST-LN-83 7-ac-2)', () => {
   expect(routes.length).toBeGreaterThan(0);
   for (const f of routes) expect(f.text, f.path).toContain('another ticket needs a session of its own');
 });
+
+// ST-LN-22 7-ac-5 (07-11, D-08): the session makes an English title, judges the candidates the CLI prints, and asks the owner one question only on a real match.
+const similarRender = () =>
+  skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] })
+    .filter((f) => f.path.endsWith('.md'))
+    .map((f) => ({ path: f.path, raw: f.text, text: f.text.replace(/\s+/g, ' ') }));
+
+it('ac-5 the new skill judges the candidates and asks one question on a match (ST-LN-22 7-ac-5)', () => {
+  const all = similarRender();
+  const skills = all.filter((f) => f.path.endsWith('/accord-new/SKILL.md'));
+  expect(skills.length).toBe(2);
+  for (const s of skills) {
+    const dir = s.path.slice(0, s.path.lastIndexOf('/'));
+    const ref = all.find((f) => f.path === dir + '/similar.md');
+    expect(ref, dir + '/similar.md is not rendered beside accord-new').toBeDefined();
+    const t = ref?.text ?? '';
+    for (const p of [
+      'short title in English, in business language',
+      "keeping the owner's meaning",
+      'may change the title before the ticket is created',
+      '`--title "<title>"`',
+      '`similar: <id> "<title>" (<status>)`',
+      'it exits 2 and writes nothing',
+      'judge which really match the request',
+      'ask the owner one question as `./ask.md` says',
+      'continue the existing ticket',
+      'merge this request into it',
+      'create a new ticket linked to it',
+      '`--related <id>`',
+      '`--related none`',
+      'ask the owner nothing',
+      '`similar: none`',
+      'no scout runs for this check',
+    ])
+      expect(t, `${dir}/similar.md: ${p}`).toContain(p);
+    expect(t, dir + '/similar.md').not.toContain('accord-scout');
+    for (const [from, to] of [['- **S.**', '- **M.**'], ['- **M.**', '- **R.**'], ['- **R.**', '- **L and P.**']] as const) {
+      const route = s.text.slice(s.text.indexOf(from), s.text.indexOf(to));
+      expect(route.length, `${dir}: ${from} route`).toBeGreaterThan(from.length);
+      expect(route, `${dir}: ${from} passes a title`).toContain('--title "<title>"');
+      expect(route, `${dir}: ${from} follows similar.md`).toContain('`./similar.md`');
+    }
+  }
+});

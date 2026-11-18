@@ -34,7 +34,7 @@ it('risk:parsing the scout prompt and the scout steps write the report form acco
     expect(flat(agent), phrase).toContain(phrase);
   }
 
-  for (const dir of ['accord', 'accord-intent']) {
+  for (const dir of ['accord-new', 'accord-intent']) {
     const scoutMd = flat(skillText(`.claude/skills/${dir}/scout.md`));
     expect(scoutMd.length, `${dir}/scout.md is missing`).toBeGreaterThan(0);
     for (const phrase of [

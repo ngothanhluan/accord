@@ -86,7 +86,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('intent')).toBe('accord-intent');
     expect(installedName('designer')).toBe('accord-designer');
@@ -234,9 +234,18 @@ const COMMAND =
 /** Spec §2: each skill targets at most 6000 bytes. */
 const MAX_SKILL_BYTES = 6000;
 
-/** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. */
-const firstCommand = (dir: string): string =>
-  dir === 'accord' ? 'dashboard' : dir === 'accord-designer' ? 'gate ready' : dir === 'accord-continue' ? 'status' : 'anchor';
+/** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. The command
+ *  skills open on what their moved rule names first: Continue and Pick up on the ticket-id rule (`accord status`), New request
+ *  on its lane routes, Upgrade on the dashboard line it reads the command from (ST-LN-83 7-ac-1). */
+const FIRST_COMMAND: Record<string, string> = {
+  accord: 'dashboard',
+  'accord-designer': 'gate ready',
+  'accord-continue': 'status',
+  'accord-pickup': 'status',
+  'accord-new': 'new ticket',
+  'accord-upgrade': 'dashboard',
+};
+const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
 
 /** The rendered text with its frontmatter block and its marker line removed — the prose a reader receives. */
 const bodyOf = (text: string) => withoutMarker(text).replace(FRONTMATTER, '');
@@ -540,7 +549,7 @@ it('ac-1 every reference file of a rendered skill is named in its own SKILL.md',
     expect(files.length).toBeGreaterThan(0);
     const paths = files.map((f) => f.path);
     for (const dir of ['.claude/skills', '.agents/skills']) {
-      for (const p of ['accord/finish.md', 'accord-debug/worktree.md', 'accord-debug/ids.md', 'accord-verify/worktree.md', 'accord-verify/ids.md']) {
+      for (const p of ['accord-new/finish.md', 'accord-debug/worktree.md', 'accord-debug/ids.md', 'accord-verify/worktree.md', 'accord-verify/ids.md']) {
         expect(paths, `${dir}/${p} is not rendered`).toContain(`${dir}/${p}`);
       }
     }
@@ -581,7 +590,7 @@ it('ac-3 each new mention names the step or event at which to read its file and 
   const D = 'at step 5';
   const vague = /\b(?:when|if|as) (?:needed|necessary|required)\b/i;
   const expectations: [string, string, string][] = [
-    ['accord', './finish.md', A],
+    ['accord-new', './finish.md', A],
     ['accord-debug', './worktree.md', B],
     ['accord-debug', './ids.md', C],
     ['accord-verify', './worktree.md', B],
@@ -609,9 +618,13 @@ it('ac-3 each new mention names the step or event at which to read its file and 
 // The hint each installed skill shows after its name in the slash-command picker, from what its body takes:
 // `/accord` takes nothing (the dashboard), a request, or an action on a ticket id; a stage runs
 // `accord anchor`, whose id defaults to the ticket of the current branch; designer runs `accord gate ready <id>`.
-const HINTS: Record<string, string> = {
-  accord: '[request | continue <id> | pick-up <id> | upgrade]',
+const HINTS: Record<string, string | null> = {
+  accord: '[request]',
   'accord-continue': '<ticket id>',
+  'accord-new': '<request>',
+  'accord-pickup': '<ticket id>',
+  // A command that takes no argument shows no hint.
+  'accord-upgrade': null,
   'accord-intent': '[ticket id]',
   'accord-approach': '[ticket id]',
   'accord-plan': '[ticket id]',
@@ -631,7 +644,7 @@ describe('argument hints', () => {
     for (const { path, text } of skillMds) {
       const name = baseOf(dirOf(path));
       expect(Object.hasOwn(HINTS, name), `${path} has no expected hint in HINTS`).toBe(true);
-      expect(frontmatter(text)?.['argument-hint'], path).toBe(HINTS[name]);
+      expect(frontmatter(text)?.['argument-hint'], path).toBe(HINTS[name] ?? undefined);
     }
     // Both directories receive both texts, and every authored skill is covered.
     expect(new Set(skillMds.map((f) => dirOf(dirOf(f.path))))).toEqual(new Set(['.claude/skills', '.agents/skills']));
@@ -639,7 +652,7 @@ describe('argument hints', () => {
   });
 
   it('risk:regression a hint is short and reads <required> [optional]', () => {
-    for (const hint of Object.values(HINTS)) {
+    for (const hint of Object.values(HINTS).filter((h): h is string => h !== null)) {
       expect(hint.length, hint).toBeLessThanOrEqual(64);
       expect(hint, hint).toMatch(/^(?:<[^<>[\]]+>|\[[^[\]]+\])(?: (?:<[^<>[\]]+>|\[[^[\]]+\]))*$/);
     }
@@ -658,8 +671,8 @@ describe('argument hints', () => {
       const keys = Object.keys(frontmatter(text) ?? {});
       expect(keys, path).not.toContain('kind');
       expect(keys, path).not.toContain('loads');
-      // Rendered order is the allowlist order: the hint comes last, after the spec fields.
-      expect(keys.at(-1), path).toBe('argument-hint');
+      // Rendered order is the allowlist order: the hint comes last, after the spec fields. A skill with no hint ends on its last spec field.
+      if (keys.includes('argument-hint')) expect(keys.at(-1), path).toBe('argument-hint');
     }
   });
 });

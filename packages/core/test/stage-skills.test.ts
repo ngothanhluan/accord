@@ -20,7 +20,11 @@ const config: AccordConfig = {
 };
 
 const REQUIRED: Record<string, readonly string[]> = {
-  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'user.email', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
+  accord: ['accord status --json', 'accord dashboard', 'user.email', './ids.md'],
+  // ST-LN-83 7-ac-1: Pick up, New request and Upgrade moved out of /accord with the phrases that only they carried.
+  pickup: ['accord status --json', 'accord worktree open <id>', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', './worktree.md'],
+  new: ['accord new ticket', '--lane M', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
+  upgrade: ['accord dashboard', './upgrade.md'],
   // ST-LN-83 7-ac-1: the Continue steps moved out of /accord, with the phrases that only they carried.
   continue: ['accord status --json', 'accord worktree open <id> --continue', 'accord anchor', 'accord-debug', '## Resolved', 'accord-approach', 'no `## Resolved` follows its last `## Episode`', '`done` → `accord-verify` at step 6', './worktree.md', './lane-s.md', './lane-r.md', 'accord gate ready <id>'],
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md'],
@@ -76,7 +80,7 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
   const DIALOG = "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -93,7 +97,7 @@ it('ac-2 the shared ask rule says when to ask multiple choice and when to ask an
   const KIND = "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -110,7 +114,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
   const PLAIN = 'Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss.';
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -127,7 +131,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
 it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
   const bad: string[] = [];
@@ -147,7 +151,7 @@ it('ac-4 the intent skill takes the kind of question from the shared ask rule', 
 it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -173,7 +177,7 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -199,7 +203,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -213,12 +217,13 @@ it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
 });
 
 it('ac-5 the accord skill takes the claim branch from the CLI in Continue Pick up and New request', () => {
-  const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
-  const slice = (a: string, b: string) => text.slice(text.indexOf(a), text.indexOf(b));
-  const continueText = (files.find((f) => f.path === '.claude/skills/accord-continue/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const flatOf = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const continueText = flatOf('.claude/skills/accord-continue/SKILL.md');
   const cont = continueText.slice(continueText.indexOf('## Steps'), continueText.indexOf('## Rules'));
-  const pick = slice('## Pick up', '## New request');
-  const m = slice('- **M.**', '- **L and P.**');
+  const pickText = flatOf('.claude/skills/accord-pickup/SKILL.md');
+  const pick = pickText.slice(pickText.indexOf('## Pick up'), pickText.indexOf('## Rules'));
+  const newText = flatOf('.claude/skills/accord-new/SKILL.md');
+  const m = newText.slice(newText.indexOf('- **M.**'), newText.indexOf('- **L and P.**'));
   expect([cont, pick, m].map((s) => s.length > 0)).toEqual([true, true, true]);
   for (const p of ['`branch`', '`accord status --json`']) expect(cont).toContain(p);
   for (const p of ['`branch`', '`accord status --json`', 'push it']) expect(pick).toContain(p);
@@ -231,7 +236,7 @@ it('ac-5 the accord skill takes the claim branch from the CLI in Continue Pick u
 
 it('ac-4 the accord skill picks up then continues a named ticket and treats any other text as a new request', () => {
   const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
-  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Pick up'));
+  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Onboard'));
   expect(named.length).toBeGreaterThan(0);
   expect(text.indexOf('## A ticket named')).toBeGreaterThan(text.indexOf('## Dashboard'));
   expect(named.indexOf('`/accord pick-up <id>`')).toBeGreaterThanOrEqual(0);
@@ -257,11 +262,13 @@ it('risk:regression the accord skill opens each ticket in its own worktree and c
   const ids = get('.claude/skills/accord/ids.md');
   const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
   const dash = slice(text, '## Dashboard', '## A ticket named');
-  const named = slice(text, '## A ticket named', '## Pick up');
+  const named = slice(text, '## A ticket named', '## Onboard');
   const continueText = get('.claude/skills/accord-continue/SKILL.md');
   const cont = slice(continueText, '## Steps', '## Rules');
-  const pick = slice(text, '## Pick up', '## New request');
-  const m = slice(text, '- **M.**', '- **L and P.**');
+  const pickText = get('.claude/skills/accord-pickup/SKILL.md');
+  const pick = slice(pickText, '## Pick up', '## Rules');
+  const newText = get('.claude/skills/accord-new/SKILL.md');
+  const m = slice(newText, '- **M.**', '- **L and P.**');
   expect(dash.indexOf('`accord worktree clean`')).toBeGreaterThanOrEqual(0);
   expect(dash.indexOf('`accord dashboard`')).toBeGreaterThan(dash.indexOf('`accord worktree clean`'));
   expect(dash).toContain('both outputs');
@@ -292,7 +299,7 @@ it('risk:data-loss the move to lane S carries Vetoes Decisions and Corrections i
   const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const ids = get('.claude/skills/accord/ids.md');
   const move = ids.slice(ids.indexOf('## Moving to lane S'));
-  const lane = get('.claude/skills/accord/lane-s.md');
+  const lane = get('.claude/skills/accord-new/lane-s.md');
   for (const h of ['## Vetoes', '## Decisions', '## Corrections']) {
     expect(move, h).toContain(h);
     expect(lane, h).toContain(h);
@@ -317,11 +324,11 @@ it('risk:complex-branching the accord skill pushes then enters the worktree on e
   expect(e).toBeGreaterThan(-1);
   expect(p).toBeLessThan(e);
   expect(q).toBeLessThan(e);
-  for (const x of ['Continue step 2', '`/accord continue <id>` to retry', 'or close this session and open one in that folder', 'editing nothing'])
+  for (const x of ['step 2 of `accord-continue`', '`/accord-continue <id>` to retry', 'or close this session and open one in that folder', 'editing nothing'])
     expect(enter).toContain(x);
   expect(ref).toContain('Exit 2 starting `this session works`');
   const setup = slice(ref, 'Exit 2 naming a setup command', 'Any other exit 2');
-  expect(setup).toContain('type `/accord continue <id>` again in this same session');
+  expect(setup).toContain('type `/accord-continue <id>` again in this same session');
   expect(setup).toContain('in a session opened there');
   const i = text.indexOf('First run the session check in `./worktree.md`, except for `/accord upgrade`.');
   expect(i).toBeGreaterThan(-1);
@@ -393,9 +400,9 @@ it('ac-2 every fix round, a Should-only one included, gets a re-review (ST-LN-56
     const skillPath = dir + '/accord-review/SKILL.md';
     const skill = everyFile.get(skillPath) ?? '';
     const record = everyFile.get(dir + '/accord-review/record.md') ?? '';
-    const lane = everyFile.get(dir + '/accord/lane-s.md') ?? '';
+    const lane = everyFile.get(dir + '/accord-new/lane-s.md') ?? '';
     if (skill === '' || record === '' || lane === '') {
-      bad.push(dir + ': accord-review/SKILL.md, accord-review/record.md or accord/lane-s.md is missing');
+      bad.push(dir + ': accord-review/SKILL.md, accord-review/record.md or accord-new/lane-s.md is missing');
       continue;
     }
     const step4 = skill.slice(skill.indexOf('4. **Classify.**'), skill.indexOf('5. **Converged**'));
@@ -424,8 +431,8 @@ it('ac-2 every fix round, a Should-only one included, gets a re-review (ST-LN-56
       if (!record.includes(p)) bad.push(dir + '/accord-review/record.md lacks: ' + p);
     }
     if (record.includes('every Should is fixed with that command passing')) bad.push(dir + '/accord-review/record.md still holds the old verdict');
-    if (!lane.includes('a fix no reviewer has seen never ships')) bad.push(dir + '/accord/lane-s.md lacks: a fix no reviewer has seen never ships');
-    if (!lane.includes('a finding closes on its `addressed:` answer')) bad.push(dir + '/accord/lane-s.md lacks: a finding closes on its `addressed:` answer');
+    if (!lane.includes('a fix no reviewer has seen never ships')) bad.push(dir + '/accord-new/lane-s.md lacks: a fix no reviewer has seen never ships');
+    if (!lane.includes('a finding closes on its `addressed:` answer')) bad.push(dir + '/accord-new/lane-s.md lacks: a finding closes on its `addressed:` answer');
   }
   expect(bad).toEqual([]);
 });
@@ -446,7 +453,7 @@ it('ac-1 record.md and lane S step 4 name the places-checked and re-review marks
     'from accord 0.6.0',
   ];
   for (const dir of skillDirs(all)) {
-    for (const path of [dir + '/accord-review/record.md', dir + '/accord/lane-s.md']) {
+    for (const path of [dir + '/accord-review/record.md', dir + '/accord-new/lane-s.md']) {
       const text = everyFile.get(path) ?? '';
       if (text === '') {
         bad.push(path + ' is missing');
@@ -463,8 +470,8 @@ it('ac-1 record.md and lane S step 4 name the places-checked and re-review marks
     for (const p of ['ask for one `places checked: <n>: <path>[:<line>], …` line per finding', '<r>.<n>: ADDRESSED <path>:<line>']) {
       if (!step4.includes(p)) bad.push(dir + '/accord-review/SKILL.md step 4 lacks: ' + p);
     }
-    const lane = everyFile.get(dir + '/accord/lane-s.md') ?? '';
-    if (!lane.includes('<r>.<n>: ADDRESSED <path>:<line>')) bad.push(dir + '/accord/lane-s.md reviewer dispatch lacks the ADDRESSED answer line');
+    const lane = everyFile.get(dir + '/accord-new/lane-s.md') ?? '';
+    if (!lane.includes('<r>.<n>: ADDRESSED <path>:<line>')) bad.push(dir + '/accord-new/lane-s.md reviewer dispatch lacks the ADDRESSED answer line');
   }
   expect(bad).toEqual([]);
   // the mark keys the skills tell the session to write are the keys core's record reader reads
@@ -481,7 +488,7 @@ it('ac-1 record.md and lane S step 4 name the places-checked and re-review marks
 
 it('risk:regression the accord skill takes an id that accord status lists with a branch', () => {
   const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
-  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Pick up'));
+  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Onboard'));
   expect(named).toContain('an id that `accord status --json` lists with a `branch`');
   expect(named).toContain('`/accord continue ST-99` is a New request');
 });
@@ -489,7 +496,7 @@ it('risk:regression the accord skill takes an id that accord status lists with a
 function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
   for (const dir of skillDirs(all)) {
@@ -839,7 +846,7 @@ it('risk:regression the build skill tells a missing or old executor report from 
 it('risk:regression from 0.6.0 the evidence rule text lets only a risk: mark keep an outside-diff finding open, in lane M and lane S (ST-LN-56 56-ac-2, D-10)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const bad: string[] = [];
-  for (const path of ['.claude/skills/accord-review/record.md', '.claude/skills/accord/lane-s.md']) {
+  for (const path of ['.claude/skills/accord-review/record.md', '.claude/skills/accord-new/lane-s.md']) {
     const text = read(path);
     const at = text.indexOf('blocks only with `test:`, `command:` or a `risk:` mark');
     if (at < 0) {
@@ -856,7 +863,7 @@ it('risk:regression from 0.6.0 the evidence rule text lets only a risk: mark kee
 it('risk:regression the re-review rule is stated once: added-code rounds, the next cycle\'s round 1, the Re-review: line, in lane M and lane S (ST-LN-56 56-ac-2, D-17)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const record = read('.claude/skills/accord-review/record.md');
-  const lane = read('.claude/skills/accord/lane-s.md');
+  const lane = read('.claude/skills/accord-new/lane-s.md');
   const skill = read('.claude/skills/accord-review/SKILL.md');
   const bad: string[] = [];
   // the old sentences that said the next round, whatever it is, answers a fix
@@ -915,6 +922,9 @@ it('risk:data-loss the drop steps carry the research records the default branch 
     '.claude/skills/accord-continue/ids.md',
     '.claude/skills/accord-debug/ids.md',
     '.claude/skills/accord-intent/ids.md',
+    '.claude/skills/accord-new/ids.md',
+    '.claude/skills/accord-pickup/ids.md',
+    '.claude/skills/accord-upgrade/ids.md',
     '.claude/skills/accord-verify/ids.md',
     '.claude/skills/accord/ids.md',
   ]);
@@ -936,7 +946,7 @@ const LIFT =
   "Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or auth, money, migration or data deletion, is touched; more than one plausible reading, where a reading one question settles stays lane S; the expected files, not counting test files and the copies accord itself generates, number more than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.";
 
 it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its scope', () => {
-  const ln = flatS('.claude/skills/accord/lane.md');
+  const ln = flatS('.claude/skills/accord-new/lane.md');
   expect(ln).not.toBe('');
   expect(ln).toBe(flatS('.claude/skills/accord-intent/lane.md'));
   const at = (s: string) => ln.indexOf(s);
@@ -960,11 +970,11 @@ it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its
   expect(ln).toContain(
     'counted over the files the scout reports plus the new files you name, minus test files and the copies accord generates: a request that creates 7 new files is lane M.',
   );
-  const acc = flatS('.claude/skills/accord/SKILL.md');
-  const nr = acc.slice(acc.indexOf('## New request'), acc.indexOf('## Upgrade'));
+  const acc = flatS('.claude/skills/accord-new/SKILL.md');
+  const nr = acc.slice(acc.indexOf('## New request'), acc.indexOf('## Rules'));
   expect(nr).toContain('`./lane.md`');
   expect(nr).toContain('however small it looks');
-  const ls = flatS('.claude/skills/accord/lane-s.md');
+  const ls = flatS('.claude/skills/accord-new/lane-s.md');
   expect(ls.slice(ls.indexOf('## Start'), ls.indexOf('## Steps'))).toContain('`## Scope`');
   const step1 = ls.slice(ls.indexOf('1. **Understood.**'), ls.indexOf('2. **Change.**'));
   expect(step1).toContain('When `## Scope` holds no path');
@@ -974,20 +984,20 @@ it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its
 
 it('ac-1 the accord skill lifts lane S to M only by the four conditions left', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  const ln = flatS('.claude/skills/accord/lane.md');
+  const ln = flatS('.claude/skills/accord-new/lane.md');
   expect(ln.split(LIFT).length - 1).toBe(1);
   expect(ln.split('lifts S to M').length - 1).toBe(1);
   expect(acc).not.toContain('lifts S to M');
   expect(acc).not.toContain('user-visible');
   expect(acc).not.toContain('about three files');
-  const ls = flatS('.claude/skills/accord/lane-s.md');
+  const ls = flatS('.claude/skills/accord-new/lane-s.md');
   expect(ls).not.toBe('');
   expect(ls).not.toContain('user-visible');
   expect(ls).not.toContain('lifts S to M');
 });
 
 it('ac-4 every lane S change is worked from its own lane S ticket in its worktree', () => {
-  const acc = flatS('.claude/skills/accord/SKILL.md');
+  const acc = flatS('.claude/skills/accord-new/SKILL.md');
   const s = acc.slice(acc.indexOf('- **S.**'), acc.indexOf('- **M.**'));
   expect(s).toContain('`accord new ticket <id> --lane S --worktree`');
   expect(s).toContain('`./lane-s.md`');
@@ -995,7 +1005,7 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
   const cont = continueSkill.slice(continueSkill.indexOf('## Steps'), continueSkill.indexOf('## Rules'));
   expect(cont).toContain('`Lane: S`');
   expect(cont).toContain('`./lane-s.md`');
-  const ls = flatS('.claude/skills/accord/lane-s.md');
+  const ls = flatS('.claude/skills/accord-new/lane-s.md');
   const phrases = [
     'never in the main checkout', '`accord worktree open <id>`', '`## Understood`', '`## Done when`', '`accord gate ready <id>`',
     'Make no other change before that', 'Never run `accord approve`', 'you make the change yourself', '`tests.affected`',
@@ -1011,7 +1021,7 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
   expect(ls.indexOf('`accord gate ready <id>`')).toBeLessThan(ls.indexOf('**Change.**'));
   expect(ls.indexOf('reproduces it')).toBeLessThan(ls.indexOf('then fix it'));
   expect(ls.indexOf('`## Round <n>`')).toBeLessThan(ls.indexOf('**Verdict.**'));
-  expect(flatS('.claude/skills/accord/lane-s.md')).toContain('run `tests.full` first');
+  expect(flatS('.claude/skills/accord-new/lane-s.md')).toContain('run `tests.full` first');
   expect(flatS('.claude/skills/accord/SKILL.md')).toContain('A lane never drops once its intent is approved');
   const rev = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
   expect(rev).toContain('`## Understood` and `## Done when`');
@@ -1021,11 +1031,12 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
 
 it('risk:regression the accord skill routes upgrade to its reference and the worktree reference names the continue merge and the automatic clean', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  for (const s of ['## Upgrade: `/accord upgrade`', '`./upgrade.md`', 'Any other text, but `upgrade` or `onboard`, starts']) expect(acc).toContain(s);
+  for (const s of ['`/accord upgrade` loads `accord-upgrade`', 'Any other text, but `upgrade` or `onboard`, starts']) expect(acc).toContain(s);
+  expect(flatS('.claude/skills/accord-upgrade/SKILL.md')).toContain('`./upgrade.md`');
   // WR-09: onboard is excluded from the New-request rule, and the session check still runs before it
   expect(acc).not.toContain('Any other text, but `upgrade`, starts');
   expect(acc).toContain('It is not a New request, and the session check above runs first.');
-  const up = flatS('.claude/skills/accord/upgrade.md');
+  const up = flatS('.claude/skills/accord-upgrade/upgrade.md');
   expect(up.length).toBeGreaterThan(0);
   for (const s of [
     'No session check runs first',
@@ -1048,7 +1059,7 @@ it('risk:regression the accord skill routes upgrade to its reference and the wor
     'A line starting `merged:`',
     'A line starting `behind:`',
     'Never sync here',
-    'only from `/accord` with no argument and from `/accord upgrade`',
+    'only from `/accord` with no argument and from `/accord-upgrade`',
     '`removed`, `deleted` or `kept`',
     'A New request the session check stops cleans nothing',
   ])
@@ -1060,8 +1071,8 @@ it('risk:regression the accord skill routes upgrade to its reference and the wor
 it('risk:regression a finished ticket reports a verdict, never a merge, then dashboard next steps', () => {
   const text = (path: string) => (files.find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
   expect(text('.claude/skills/accord-verify/SKILL.md')).toContain('7. Report the finish as `./finish.md` says.');
-  expect(text('.claude/skills/accord/lane-s.md')).toContain("It waits for the owner's merge. Report the finish as `./finish.md` says.");
-  for (const dir of ['accord-verify', 'accord']) {
+  expect(text('.claude/skills/accord-new/lane-s.md')).toContain("It waits for the owner's merge. Report the finish as `./finish.md` says.");
+  for (const dir of ['accord-verify', 'accord-new']) {
     const finish = text(`.claude/skills/${dir}/finish.md`);
     for (const s of [
       '`✅ <id> DONE — PR #<n> ready, waiting for your merge: <url>`',
@@ -1143,7 +1154,7 @@ it('risk:regression the stage skills run accord worktree push after each stage c
 
 it('risk:parsing the declaration lines the lane S steps the reviewer and the review record write match what gate done parses', () => {
   const rev = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
-  const ls = flatS('.claude/skills/accord/lane-s.md');
+  const ls = flatS('.claude/skills/accord-new/lane-s.md');
   const rec = flatS('.claude/skills/accord-review/record.md');
   const wording = '`Wording-only: <path> — <reason>`';
   const confirmed = '`Confirmed wording-only: <path>`';
@@ -1218,8 +1229,8 @@ it('ac-4 a lane M ticket moved to lane S at intent is changed in place and no sk
     const intent = get('.claude/skills/accord-intent/SKILL.md');
     for (const n of ['propose moving it to lane S', "Move it only on the owner's yes, as `## Moving to lane S` in `./ids.md` says"]) if (!intent.includes(n)) bad.push('accord-intent/SKILL.md lacks ' + n);
     if (intent.includes('Drop it')) bad.push('accord-intent/SKILL.md still holds Drop it');
-    const ls = get('.claude/skills/accord/lane-s.md');
-    if (!ls.includes('When `## Understood` and `## Done when` in `accord/tickets/<id>.md` each hold a line, keep them')) bad.push('accord/lane-s.md lost the keep rule');
+    const ls = get('.claude/skills/accord-new/lane-s.md');
+    if (!ls.includes('When `## Understood` and `## Done when` in `accord/tickets/<id>.md` each hold a line, keep them')) bad.push('accord-new/lane-s.md lost the keep rule');
   }
   expect(bad).toEqual([]);
   expect(offenders).toEqual([]);
@@ -1229,7 +1240,7 @@ it('risk:regression the lane S and approach skills wait for a prerequisite merge
   const wait =
     "When it says a `depends_on` ticket is not done on the default branch, never remove that entry from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and `accord gate ready <id>` again.";
   // ST-LN-91 plan 03-05: the approach wait text lives in approval.md, which SKILL.md step 5 names.
-  for (const p of ['.claude/skills/accord/lane-s.md', '.claude/skills/accord-approach/approval.md']) expect(flatS(p)).toContain(wait);
+  for (const p of ['.claude/skills/accord-new/lane-s.md', '.claude/skills/accord-approach/approval.md']) expect(flatS(p)).toContain(wait);
 });
 
 it('risk:regression a lane M ticket that gate ready refuses is never planned from approach or continue', () => {
@@ -1327,7 +1338,7 @@ it('risk:regression the review skills write version 2 records with heads marks a
     ...(step4.includes('re-review only the fix diff: `accord review-package <id>` into') ? [] : ['review step 4 lacks the package without --base']),
     ...(step4.includes('--base <the noted sha>') ? ['review step 4 still holds --base <the noted sha>'] : []),
     ...["--base <the plan's baseline:>", '(final review)'].filter((p) => !step7.includes(p)).map((p) => 'review step 7 lacks: ' + p),
-    ...missing('.claude/skills/accord/lane-s.md', [
+    ...missing('.claude/skills/accord-new/lane-s.md', [
       'Round record: 2',
       '`rests on: Understood "<quote>"`',
       '`rests on: Done when "<quote>"`',
@@ -1455,9 +1466,9 @@ it('risk:data-loss a listed research record the branch adds counts as the ticket
       const get = (p: string) => flat(render.find((f) => f.path === dir + '/' + p)?.text ?? '');
       const own = ['`.md` record under `accord/research/` that the ticket lists', "is the ticket's own file", 'needs no `## Scope` line'];
       const checks: [string, string[]][] = [
-        ['accord/lane.md', own],
+        ['accord-new/lane.md', own],
         ['accord-intent/lane.md', own],
-        ['accord/lane-s.md', own],
+        ['accord-new/lane-s.md', own],
         ['accord-intent/research.md', ['`.md` record under `accord/research/` that the ticket lists', "one of the ticket's own files", 'already holds does not count']],
       ];
       for (const [p, needles] of checks) {
@@ -1492,7 +1503,7 @@ it('risk:regression the review lane S and plan critique skills ask accord round 
       'Before writing the verdict, run `accord round <id>`',
       'git log -1 --format=%H -- accord/tickets/<id>/review.md',
     ]),
-    ...missing('.claude/skills/accord/lane-s.md', ['`accord round <id>`', 'Round record: 2', 'stop: report to owner', "before appending step 5's verdict", '## Return from verify <sha>']),
+    ...missing('.claude/skills/accord-new/lane-s.md', ['`accord round <id>`', 'Round record: 2', 'stop: report to owner', "before appending step 5's verdict", '## Return from verify <sha>']),
     ...missing('.claude/skills/accord-plan/critique.md', [
       '`accord round <id> --plan`',
       'Round record: 1',
@@ -1524,11 +1535,11 @@ it('risk:regression the worktree reference and the finish report say a session s
       'every session start, resume or /clear runs the same clean',
       '`tell the owner the lines above`',
       '`removed`, `deleted` or `kept`',
-      'only from `/accord` with no argument and from `/accord upgrade`',
+      'only from `/accord` with no argument and from `/accord-upgrade`',
     ])
       expect(wt, dir).toContain(s);
   }
-  for (const dir of ['accord', 'accord-verify']) {
+  for (const dir of ['accord-new', 'accord-verify']) {
     expect(flatS(`.claude/skills/${dir}/finish.md`), dir).toContain("Never wait for the merge, and never remove the ticket's worktree or branches by hand");
     expect(flatS(`.claude/skills/${dir}/finish.md`), dir).toContain(
       "A /clear in this finishing session keeps its worktree (`kept <path>: this session's worktree`): the folder goes only after this session has ended, at a session started in another folder, so tell the owner to close this session once the pull request is merged.",

@@ -658,10 +658,10 @@ it('ac-1 a failure reported after verify goes to the debug stage before any fix'
     'the debugger finds them itself', '`gh run view <run-id> --log-failed`', 'keeps its count of failed fixes',
     'a new bug ticket', "the failing check's log as the failing output",
     'say the reproduction test is skipped on this operating system',
-    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then Continue's step 2 only",
+    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then step 2 of `accord-continue` only (`accord anchor`)",
     'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, in place of the line it prints, and stop here',
     'When it printed `enter:`, or this session is already in that worktree,',
-    "in place of Continue's steps 3 and 4",
+    "in place of steps 3 and 4 of `accord-continue`",
     '(`done`: `accord-verify` at step 6, whose Finish closes the episode)',
   ]) expect(a, p).toContain(p);
   expect(a).not.toContain("first run the accord skill's Continue on it");
@@ -1188,7 +1188,7 @@ it('ac-4 a lane M ticket moved to lane S at intent is changed in place and no sk
     "`## Scope`, written as step 1 of the accord skill's lane S steps says",
     'Keep `## Vetoes`, `## Decisions` and `## Corrections` verbatim, and every other frontmatter key as it is',
     'git push -u origin <claim branch>',
-    'go on at its Continue step 2 in this same session',
+    'go on at its step 2 in this same session',
     'the lane S steps go on from step 1 on the same id, branch and worktree',
   ];
   const GONE = ['moved from <id>', 'Title: …', 'Keys: …', 'carried `Keys:` ', 'carried `## Vetoes` ', 'Understood: <one line>', 'carries `Understood: …` ', 'from a drop', 'lane S without asking again', '--reason "moved to lane S"'];
@@ -1245,7 +1245,7 @@ it('risk:regression the lane S and approach skills wait for a prerequisite merge
 
 it('risk:regression a lane M ticket that gate ready refuses is never planned from approach or continue', () => {
   const G = "Else, at any stage but `intent`, first run `accord gate ready <id>`; when it fails, show the owner what it prints and stop; when it changes the ticket, commit the ticket.";
-  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord continue <id>` plans the ticket once the gate passes.";
+  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord-continue <id>` plans the ticket once the gate passes.";
   const tickets: Files = { 'accord/config.yml': CONFIG, [P('A')]: laneTicket('A'), [P('B')]: laneTicket('B', { frontmatter: ['depends_on: ["A"]'] }) };
   approve(tickets, 'B');
   const snap = loadSnapshot({ files: tickets, tree: Object.keys(tickets) });

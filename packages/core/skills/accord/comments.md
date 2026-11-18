@@ -11,7 +11,7 @@ read a pull request's comments unasked. Given only a link, <id> is the
 ticket whose `branch` in `accord status --json` is the pull request's
 branch (`gh pr view <link> --json headRefName`). Work in the ticket's worktree: when
 this session is not in it, first run `accord worktree open <id> --continue`
-and follow `./worktree.md`, then Continue's step 2 only; after a `stop:`
+and follow `./worktree.md`, then step 2 of `accord-continue` only (`accord anchor`); after a `stop:`
 line, ask the owner to type, in the session opened there, `/accord <id> `
 followed by the request, in place of the line it prints, and stop here.
 

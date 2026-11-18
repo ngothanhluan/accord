@@ -2,7 +2,7 @@
 kind: reference
 ---
 
-# Upgrading accord: `/accord upgrade`
+# Upgrading accord: `/accord-upgrade`
 
 No session check runs first: the upgrade never touches a checkout, so it is allowed in a session that works a ticket.
 

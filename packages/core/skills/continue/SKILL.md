@@ -7,7 +7,7 @@ kind: skill
 loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/worktree.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md]
 ---
 
-`/accord-continue <id>` resumes one ticket, and `/accord continue <id>` loads this skill with that id. With no argument, ask the owner for the ticket id in one question and run, claim, create and edit nothing.
+`/accord-continue <id>` resumes one ticket, and the accord skill loads this skill with that id when a person types the older form of the command. With no argument, ask the owner for the ticket id in one question and run, claim, create and edit nothing.
 
 Continue applies only when the whole text after it is exactly one
 ticket id, the id of a ticket in `accord/tickets/`, an id that

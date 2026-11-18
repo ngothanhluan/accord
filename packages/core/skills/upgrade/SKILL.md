@@ -6,7 +6,7 @@ kind: skill
 loads: [accord/ids.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
-`/accord-upgrade` upgrades accord, and `/accord upgrade` loads this skill. Follow `./upgrade.md`: it takes the command from the first line of a fresh `accord dashboard` run, and the lines `accord worktree clean` prints are read as `./worktree.md` says.
+`/accord-upgrade` upgrades accord, and the accord skill loads this skill when a person types the older form of the command. Follow `./upgrade.md`: it takes the command from the first line of a fresh `accord dashboard` run, and the lines `accord worktree clean` prints are read as `./worktree.md` says.
 
 ## Rules
 

@@ -7,7 +7,7 @@ kind: skill
 loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
-`/accord-pickup <id>` claims one ticket, and `/accord pick-up <id>` loads this skill with that id. With no argument, ask the owner for the ticket id in one question and run, claim, create and edit nothing.
+`/accord-pickup <id>` claims one ticket, and the accord skill loads this skill with that id when a person types the older form of the command. With no argument, ask the owner for the ticket id in one question and run, claim, create and edit nothing.
 
 Pick up applies only when the whole text after it is exactly one
 ticket id, the id of a ticket in `accord/tickets/`, or an id that

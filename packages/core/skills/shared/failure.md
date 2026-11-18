@@ -22,11 +22,11 @@ accord skill's lane S steps say, and the fix gets another review round.
    root cause.
 2. When this session is not in that ticket's worktree, first run
    `accord worktree open <id> --continue` and follow the accord skill's
-   `./worktree.md`, then Continue's step 2 only; after a `stop:` line,
+   `./worktree.md`, then step 2 of `accord-continue` only (`accord anchor`); after a `stop:` line,
    ask the owner to type, in the session opened there, `/accord <id> `
    followed by the report, in place of the line it prints, and stop here.
    When it printed `enter:`, or this session is already in that worktree,
-   in place of Continue's steps 3 and 4, load
+   in place of steps 3 and 4 of `accord-continue`, load
    `accord-debug` for that ticket: a new episode, or the open one when
    no `## Resolved` follows the last `## Episode` heading of `debug.md`. Pass the debugger the report as given;
    when it names no failing command or output, say so, and the debugger

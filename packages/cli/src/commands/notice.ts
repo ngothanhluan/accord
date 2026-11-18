@@ -45,7 +45,7 @@ export async function upgradeNotice(pinned: string | undefined): Promise<string 
       }
     }
     if (latest !== undefined && PLAIN.test(latest) && newer(latest, pinned)) {
-      return `accord ${latest} is out, and this repository pins ${pinned}: type /accord upgrade to run npx --yes ${pkg.name}@${latest} upgrade`;
+      return `accord ${latest} is out, and this repository pins ${pinned}: type /accord-upgrade to run npx --yes ${pkg.name}@${latest} upgrade`;
     }
     return undefined;
   } catch {

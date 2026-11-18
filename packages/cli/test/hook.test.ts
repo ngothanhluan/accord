@@ -239,7 +239,7 @@ const [MAJOR, MINOR] = RUNNING.split('.').map(Number);
 const NEXT = `${MAJOR}.${MINOR + 1}.0`;
 const NEXT2 = `${MAJOR}.${MINOR + 2}.0`;
 const PREV = `${MAJOR}.${MINOR - 1}.0`;
-const N = `accord ${NEXT} is out, and this repository pins ${PIN}: type /accord upgrade to run npx --yes @accord-dev/accord@${NEXT} upgrade`;
+const N = `accord ${NEXT} is out, and this repository pins ${PIN}: type /accord-upgrade to run npx --yes @accord-dev/accord@${NEXT} upgrade`;
 const lines = (s: string): string[] => s.split('\n');
 
 function freshCache(): { dir: string; file: string } {

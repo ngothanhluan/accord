@@ -378,8 +378,8 @@ export function checkPin(ctx: CommandContext, id: string, path: string, branch: 
   }
   throw new UsageError(
     defPin === pinned
-      ? `${file} pins accord ${pinned} as ${def} does, but the main checkout ${mainPath} runs ${pkg.version} - update the main checkout to ${def} (git pull there), then type /accord continue ${id}; this session did not move`
-      : `${file} pins accord ${pinned}, running ${pkg.version} - merge ${def} into ${branch}, then type /accord continue ${id}; this session did not move`,
+      ? `${file} pins accord ${pinned} as ${def} does, but the main checkout ${mainPath} runs ${pkg.version} - update the main checkout to ${def} (git pull there), then type /accord-continue ${id}; this session did not move`
+      : `${file} pins accord ${pinned}, running ${pkg.version} - merge ${def} into ${branch}, then type /accord-continue ${id}; this session did not move`,
   );
 }
 
@@ -416,7 +416,7 @@ function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
   const me = gitUserEmail(ctx.root);
   if (me === '') throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>');
   if (claimant.trim().toLowerCase() !== me.trim().toLowerCase()) {
-    throw new UsageError(`claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord continue ${id}`);
+    throw new UsageError(`claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord-continue ${id}`);
   }
 }
 
@@ -933,9 +933,9 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
       {
         conflict:
           strategy === 'rebase'
-            ? `rebase it by hand with git -C "${path}" rebase ${def}, resolve the conflicts and finish with git rebase --continue, then type /accord continue ${id}`
-            : `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
-        clash: `move it, then type /accord continue ${id}`,
+            ? `rebase it by hand with git -C "${path}" rebase ${def}, resolve the conflicts and finish with git rebase --continue, then type /accord-continue ${id}`
+            : `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord-continue ${id}`,
+        clash: `move it, then type /accord-continue ${id}`,
       },
       sync === undefined ? undefined : { command: sync, ticket: id },
     );

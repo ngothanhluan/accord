@@ -193,7 +193,7 @@ export function hookInput(ctx: CommandContext): { session_id?: string; command_n
   return out;
 }
 
-/** D-05..D-07: block every typed "/accord <text>" in a session that works a ticket, except continue of that ticket. */
+/** D-05..D-07: the commands this hook sees are accord, accord-new, accord-continue and accord-pickup (the UserPromptExpansion matcher); it blocks a typed "/accord <text>" in a session that works a ticket, except continue of that ticket. */
 function promptExpansion(ctx: CommandContext): number {
   const allow = (why?: string) => {
     if (why !== undefined) ctx.stderr.write(`accord hook prompt-expansion: ${why.split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');

@@ -141,3 +141,82 @@ it('ac-5 the duplicate check is skipped only by an explicit flag that the output
   expect(r.err).toContain('nothing was written');
   expect(listing(both)).toEqual(before);
 });
+
+it('ac-5 a lane S or M ticket is not created without a title (ST-LN-22 7-ac-5)', async () => {
+  const refusals: string[][] = [
+    ['--lane', 'M'],
+    ['--lane', 'S'],
+    ['--type', 'bug', '--lane', 'M'],
+  ];
+  for (const flags of refusals) {
+    const key = flags.join(' ');
+    const repo = sandbox();
+    const before = listing(repo);
+    // refused: one line naming the rule and both remedies, and nothing written
+    const r = await run(['new', 'ticket', 'N-2', ...flags], repo);
+    expect(r.code, key + ' ' + r.out + r.err).toBe(2);
+    const refusal = lines(r.err);
+    expect(refusal, key).toHaveLength(1);
+    expect(refusal[0], key).toContain('--title is required for a lane S or M ticket');
+    expect(refusal[0], key).toContain('--title "<short English title>"');
+    expect(refusal[0], key).toContain('--no-dup-check');
+    expect(refusal[0], key).toContain(' - nothing was written');
+    expect(listing(repo), key).toEqual(before);
+    // the scripted escape creates it and says so
+    const escaped = await run(['new', 'ticket', 'N-2', ...flags, '--no-dup-check'], repo);
+    expect(escaped.code, key + ' ' + escaped.err).toBe(0);
+    expect(lines(escaped.out), key).toContain('similar: skipped (--no-dup-check)');
+    expect(listing(repo), key).toContain('N-2.md');
+    // a title keeps the check and creates it
+    const titled = sandbox();
+    const ok = await run(['new', 'ticket', 'N-2', ...flags, '--title', 'Archive old invoices', '--related', 'none'], titled);
+    expect(ok.code, key + ' ' + ok.err).toBe(0);
+    expect(listing(titled), key).toContain('N-2.md');
+  }
+});
+
+it('ac-5 a lane M ticket with --worktree and no title is refused before anything is fetched or pushed (ST-LN-22 7-ac-5)', async () => {
+  const c = makeClone({ tickets: [] });
+  clones.push(c);
+  const branches = (): string => gitRun(c.remote, 'for-each-ref', 'refs/heads');
+  const before = { remote: branches(), worktrees: c.git('worktree', 'list', '--porcelain') };
+  const r = await run(['new', 'ticket', 'N-2', '--lane', 'M', '--worktree'], c.root);
+  expect(r.code, r.out + r.err).toBe(2);
+  const refusal = lines(r.err);
+  expect(refusal).toHaveLength(1);
+  expect(refusal[0]).toContain('--title is required for a lane S or M ticket');
+  expect(refusal[0]).toContain('--no-dup-check');
+  expect(refusal[0]).toContain(' - nothing was written');
+  expect(existsSync(c.sibling('N-2'))).toBe(false);
+  expect({ remote: branches(), worktrees: c.git('worktree', 'list', '--porcelain') }).toEqual(before);
+
+  const escaped = await run(['new', 'ticket', 'N-2', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
+  expect(escaped.code, escaped.err).toBe(0);
+  expect(lines(escaped.out)).toContain('similar: skipped (--no-dup-check)');
+  expect(existsSync(join(c.sibling('N-2'), 'accord', 'tickets', 'N-2.md'))).toBe(true);
+
+  const titled = await run(['new', 'ticket', 'N-4', '--lane', 'M', '--worktree', '--title', 'Archive old invoices', '--related', 'none'], c.root);
+  expect(titled.code, titled.err).toBe(0);
+  expect(existsSync(join(c.sibling('N-4'), 'accord', 'tickets', 'N-4.md'))).toBe(true);
+}, 180_000);
+
+it('ac-5 the routes the title rule does not name still create a ticket without a title (ST-LN-22 7-ac-5)', async () => {
+  for (const flags of [[], ['--lane', 'R'], ['--lane', 'L'], ['--type', 'epic', '--lane', 'P']]) {
+    const repo = sandbox();
+    const r = await run(['new', 'ticket', 'N-3', ...flags], repo);
+    expect(r.code, flags.join(' ') + ' ' + r.err).toBe(0);
+    expect(listing(repo), flags.join(' ')).toContain('N-3.md');
+  }
+  // an epic keeps its own lane refusal
+  const epic = sandbox();
+  const refused = await run(['new', 'ticket', 'N-3', '--type', 'epic', '--lane', 'M'], epic);
+  expect(refused.code).toBe(2);
+  expect(refused.err).toContain('an epic is lane L or P, not M');
+  expect(refused.err).not.toContain('--title is required');
+  // the queue route keeps its own title refusal
+  const queue = sandbox();
+  const q = await run(['new', 'ticket', 'N-3', '--queue', '--lane', 'M'], queue);
+  expect(q.code).toBe(2);
+  expect(q.err).toContain('--queue needs --title');
+  expect(q.err).not.toContain('--title is required');
+});

@@ -2233,3 +2233,25 @@ it('ac-6 every stage offers a rule or Rejected line and records it only on a yes
   expect(ids.length).toBeGreaterThan(30);
   expect(ids.filter((id) => /convention/i.test(id) && id !== 'lint.id-convention')).toEqual([]);
 });
+
+// ST-LN-84 7-ac-6 (07-17, D-10): intent and approach name a matching `## Rejected` line before proposing an option; lane S's finish writes the ledger's lines before `accord gate done`.
+it('ac-6 intent and approach name a matching Rejected line before proposing (ST-LN-84 7-ac-6)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const read = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  for (const stage of ['intent', 'approach']) {
+    const text = read('.claude/skills/' + installedName(stage) + '/SKILL.md');
+    expect(text, stage).not.toBe('');
+    for (const phrase of ['compare it with the `## Rejected` lines `accord related <id>` printed', 'name a matching line to the owner first'])
+      expect(text, stage + ' names ' + phrase).toContain(phrase);
+  }
+  for (const dir of ['accord-new', 'accord-continue']) {
+    const lane = read('.claude/skills/' + dir + '/lane-s.md');
+    const finish = lane.slice(lane.indexOf('6. **Pull request.**'));
+    expect(finish.length, dir + ' lane-s.md finish').toBeGreaterThan(0);
+    const write = finish.indexOf("every line under the ledger's `## Conventions` into `accord/product/conventions.md`");
+    expect(write, dir + ' lane S writes the ledger lines').toBeGreaterThanOrEqual(0);
+    expect(write, dir + ' lane S writes them before the gate').toBeLessThan(finish.indexOf('`accord gate done <id>`'));
+  }
+  const big = files.filter((f) => f.path.endsWith('/SKILL.md') && (Buffer.byteLength(f.text, 'utf8') > 6000 || f.text.split('\n').length > 120)).map((f) => f.path);
+  expect(big).toEqual([]);
+});

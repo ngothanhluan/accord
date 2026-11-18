@@ -1,5 +1,6 @@
 // Agent definitions as data: one authored file under agents/ becomes `.claude/agents/<name>.md`, with the
-// model and effort filled in from `models:` in config.yml, falling back per field to the spec §12 default.
+// model and effort filled in from `models:` in config.yml, falling back per field to AGENT_DEFAULTS, whose values and
+// reasons docs/design.md gives under Routing.
 // `route` is an authoring key and never ships. Same marker-and-hash drift rule as skills (D-111).
 import { Document, Scalar, isScalar, parse } from 'yaml';
 import { agents } from '../generated/agents.js';

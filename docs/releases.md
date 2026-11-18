@@ -2,6 +2,11 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- The shipped executor default is now sonnet at high (it was medium) and the auditor default is opus at high (it was medium); the planner and the critic stay opus at high. A repository with no `models:` entry for them gets the new values at its next `accord skills sync`, which `accord upgrade` runs, and an entry under `models:` still wins field by field. There is no cut-off, so the executor of a ticket in flight runs at high from that sync on, which costs tokens, not correctness (ST-LN-85).
+- `accord-executor` now declares `tools: Read, Write, Edit, Bash, Grep, Glob`, so in Claude Code it no longer inherits the host's skills, MCP tools or web tools; it reads library docs and source through Read and Bash. One added sentence tells it to stop and return `BLOCKED` with a question naming what it needs and why when it needs something from outside the repository, instead of guessing. `accord-build` routes that stop as before: a new package goes to the owner, a question that touches intent, a veto, a criterion or a public interface goes to the owner, and any other question is answered by the main session as a Ruling. Cursor, Codex and Copilot are unaffected, since accord renders agent files only for the `claude` runtime (backlog 999.11) (ST-LN-85).
+
 ## 0.7.1 — 2026-11-17
 
 Release 0.7.1 ships the phase 5 review fixes to the security trigger and the `Security:` rule (the bullets below) with no cut-off of its own, so a ticket in flight that was claimed under 0.7.0 gets them once its repository pins 0.7.1 through `accord upgrade` (a ticket claimed under 0.6.x keeps its earlier rules), and a repository pinned to 0.7.0 keeps the 0.7.0 answers until then.

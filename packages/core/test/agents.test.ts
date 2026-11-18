@@ -365,7 +365,8 @@ it('ac-2 docs/design.md gives every default model choice with one reason line an
   const end = design.findIndex((l, i) => i > start && l.startsWith('**Tests.**'));
   expect(end, 'docs/design.md has no Tests paragraph after Routing').toBeGreaterThan(start);
   const routing = design.slice(start, end);
-  const rows = routing.filter((l) => l.startsWith('| `'));
+  // every table line but the header row (its first cell is the column name `models:`)
+  const rows = routing.filter((l) => l.startsWith('| `') && !l.startsWith('| `models:`'));
   const parsed = rows.map((l) => /^\| `([a-z.]+)` \| `accord-[a-z-]+` \| (haiku|sonnet|opus), (low|medium|high|xhigh|max) \| (.+) \|$/.exec(l));
   expect(rows.filter((_, i) => parsed[i] === null), 'rows that do not match the table shape').toEqual([]);
   const seen = parsed.map((m) => (m as RegExpExecArray)[1]);

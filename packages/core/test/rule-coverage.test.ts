@@ -1,4 +1,6 @@
 // ST-LN-70 6-ac-4: every rule line of every agent, skill and the shared ruleset is held in a golden.
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { agents, skills } from '../src/index.js';
 import { RULE_GOLDEN_PATH, ruleDiff, ruleGolden, ruleLines, ruleSources } from './helpers/rule-lines.js';
@@ -153,5 +155,20 @@ describe('rule coverage (ST-LN-70)', () => {
     expect(ruleDiff(gLines.join('\n'), sources)).toEqual([`${RULE_GOLDEN_PATH}:2: rule golden layout differs from the generated rule lines; no rule changed`]);
     const count = golden.split('\n').length - 1;
     expect(ruleDiff(`${golden}garbage\n`, sources)).toEqual([`${RULE_GOLDEN_PATH}:${count + 1}: unreadable rule golden line: garbage`]);
+  });
+
+  it('ac-4 the rule golden holds every rule line of every agent and skill and the ruleset (ST-LN-70 6-ac-4)', async () => {
+    const sources = ruleSources();
+    const current = ruleGolden(sources);
+    const file = fileURLToPath(new URL('./__golden__/rule-lines.txt', import.meta.url));
+    const stored = existsSync(file) ? readFileSync(file, 'utf8').replace(/\r\n/g, '\n') : '';
+    // The message is built from the golden on disk, so a failing comparison always names a file and a line.
+    let message = '';
+    if (stored === '') message = `${RULE_GOLDEN_PATH}:1: rule golden missing or empty; run vitest -u to write it, then read it before committing`;
+    else {
+      const changed = ruleDiff(stored, sources);
+      if (changed.length > 0) message = ['rule lines changed; read the diff, then run vitest -u if the change is meant:', ...changed].join('\n');
+    }
+    await expect(current, message).toMatchFileSnapshot('./__golden__/rule-lines.txt');
   });
 });

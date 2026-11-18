@@ -12,6 +12,8 @@ import { loadSnapshot } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadFromFs } from '../src/load/fs.js';
 import { cleanup, commitAll, gitRun, makeEmptyRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
+import { makeClone } from './helpers/worktree.js';
+import type { Clone } from './helpers/worktree.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 const ticket = (repo: string, id: string): string => join(repo, 'accord', 'tickets', id + '.md');
@@ -25,8 +27,10 @@ function sandbox(fixture = 'valid-build'): string {
   repos.push(repo);
   return repo;
 }
+const clones: Clone[] = [];
 afterEach(() => {
   while (repos.length > 0) cleanup(repos.pop() as string);
+  for (const c of clones.splice(0)) c.cleanupAll();
 });
 
 /** Rewrite the sandbox copy's config.yml; the shared fixture is never touched. */
@@ -341,3 +345,27 @@ it('risk:complex-branching a shallow clone refuses new ticket and writes nothing
   expect(err).toContain('--unshallow');
   expect(listing(clone)).toEqual(before);
 });
+
+it('title round-trips on the plain path and in a new worktree, and a blank or two-line title is refused (ST-LN-83 7-ac-4)', async () => {
+  const repo = sandbox();
+  const quoted = 'A "quoted" word';
+  const plain = await run(['new', 'ticket', 'TCK-1', '--title', quoted], repo);
+  expect(plain.code, plain.err).toBe(0);
+  expect(loadSnapshot(loadFromFs(repo)).tickets['TCK-1'].frontmatter?.title).toBe(quoted);
+
+  // nothing is written for a title that is blank or holds a line break
+  const before = listing(repo);
+  for (const title of ['   ', '', 'one\ntwo', 'one\r\ntwo']) {
+    const r = await run(['new', 'ticket', 'TCK-2', '--title', title], repo);
+    expect([JSON.stringify(title), r.code, r.err.includes('--title'), r.err.includes('nothing was written')]).toEqual([JSON.stringify(title), 2, true, true]);
+    expect(listing(repo)).toEqual(before);
+  }
+
+  // the --worktree path writes the title into the ticket of the new worktree
+  const c = makeClone({ tickets: ['ST-9'] });
+  clones.push(c);
+  const wt = await run(['new', 'ticket', 'TCK-3', '--lane', 'M', '--worktree', '--title', 'Note the second idea'], c.root);
+  expect(wt.code, wt.err).toBe(0);
+  const text = readFileSync(join(c.sibling('TCK-3'), 'accord', 'tickets', 'TCK-3.md'), 'utf8');
+  expect(text).toContain('\ntitle: "Note the second idea"');
+}, 120_000);

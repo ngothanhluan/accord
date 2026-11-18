@@ -5,7 +5,8 @@ import { readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { expect, it, vi } from 'vitest';
 import { gitRun, run } from './helpers/repo.js';
-import { A, copy, envOf, setTable, tableOf, useSandboxes } from './helpers/worktree.js';
+import { laneTicket } from '../../../test/helpers/lane.js';
+import { A, copy, envOf, pushMain, setTable, tableOf, useSandboxes } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -83,4 +84,55 @@ it('ac-4 queue writes a draft on a backlog branch and leaves the session ticket 
   expect(plain.code).toBe(2);
   expect(plain.err.startsWith('this session works')).toBe(true);
   expect(state()).toEqual(before);
+}, 180_000);
+
+it('ac-4 queue refuses an existing backlog branch and pushes nothing (ST-LN-83 7-ac-4)', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const d = today();
+  const refs = (): string => gitRun(c.remote, 'for-each-ref', '--format=%(refname) %(objectname)');
+  const queue = (...more: string[]) => run(['new', 'ticket', ...more], c.root);
+  const none = (what: string): void => {
+    expect(gitRun(c.root, 'status', '--porcelain', '--untracked-files=all'), what).toBe('');
+    expect(gitRun(c.root, 'for-each-ref', '--format=%(refname)', 'refs/heads/backlog'), what).toBe('');
+    expect(refs(), what).toBe(pushed);
+  };
+
+  // the branch is already on origin
+  c.git('push', '-q', 'origin', 'main:refs/heads/backlog/q-1-' + d);
+  let pushed = refs();
+  const taken = await queue('Q-1', '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'an idea');
+  expect([taken.code, taken.err]).toEqual([2, expect.stringContaining('backlog/q-1-' + d)]);
+  expect(taken.err).toContain('nothing was created');
+  expect(refs()).toBe(pushed);
+  expect(gitRun(c.root, 'status', '--porcelain', '--untracked-files=all')).toBe('');
+
+  // the branch is already here
+  c.git('branch', 'backlog/q-3-' + d);
+  const local = await queue('Q-3', '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'an idea');
+  expect([local.code, local.err]).toEqual([2, expect.stringContaining('backlog/q-3-' + d)]);
+  expect(refs()).toBe(pushed);
+
+  // the default branch already holds the ticket, which this clone has not fetched
+  pushMain(c, 'accord/tickets/Q-5.md', laneTicket('Q-5'));
+  pushed = refs();
+  const held = await queue('Q-5', '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'an idea');
+  expect([held.code, held.err]).toEqual([2, expect.stringContaining('accord/tickets/Q-5.md already exists')]);
+  expect(refs()).toBe(pushed);
+
+  // a bad flag is refused before anything is read, written or pushed
+  c.git('branch', '-q', '-D', 'backlog/q-3-' + d);
+  const four = ['--note', 'a', '--note', 'b', '--note', 'c', '--note', 'd'];
+  const bad: [string, string[], string][] = [
+    ['--queue with --worktree', ['Q-6', '--queue', '--worktree', '--lane', 'M', '--title', 'Note the idea'], '--worktree'],
+    ['--queue without --title', ['Q-6', '--queue', '--lane', 'M', '--note', 'a'], '--title'],
+    ['a fifth --note', ['Q-6', '--queue', '--lane', 'M', '--title', 'Note the idea', ...four, '--note', 'e'], 'four'],
+    ['--note without --queue', ['Q-6', '--lane', 'M', '--title', 'Note the idea', '--note', 'a'], '--queue'],
+    ['a --note with a line break', ['Q-6', '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'a\nb'], 'one line'],
+    ['--queue on a lane S template', ['Q-6', '--queue', '--lane', 'S', '--title', 'Note the idea'], '## Intent'],
+  ];
+  for (const [what, argv, word] of bad) {
+    const r = await queue(...argv);
+    expect([what, r.code, r.err.includes(word) && r.err.includes('nothing was written')], what + ': ' + r.err).toEqual([what, 2, true]);
+    none(what);
+  }
 }, 180_000);

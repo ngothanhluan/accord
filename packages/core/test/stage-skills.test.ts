@@ -2143,3 +2143,45 @@ it('ac-5 every skill line that creates a ticket passes a title and judges the ca
     expect(all.some((x) => x.path === dir + '/similar.md'), dir + ' renders lane-s.md without similar.md').toBe(true);
   }
 });
+
+// ST-LN-22 7-ac-5 (07-12, D-09): the scout at intent step 2 and the critic at approach round 1 are given what `accord related <id>` printed, pasted into the dispatch; no other stage is, and no skill sends an agent to open other tickets.
+const RELATED = '`accord related <id>`';
+const PASTED = 'what `accord related <id>` printed, verbatim';
+const opensOthers = (text: string): string[] => text.match(/\b(?:open|read|look at)\b[^.]{0,60}\b(?:other|related) tickets?\b/gi) ?? [];
+
+it('ac-5 the scout and the critic receive the related tickets decisions (ST-LN-22 7-ac-5)', () => {
+  // the prohibition check can neither pass vacuously nor flag the pasted-block wording
+  expect(opensOthers('open the related tickets and read their Decisions')).toHaveLength(1);
+  expect(opensOthers('read the other tickets for their vetoes')).toHaveLength(1);
+  expect(opensOthers('dispatch with what `accord related <id>` printed, verbatim')).toEqual([]);
+
+  const all = similarRender();
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
+    const intent = get('accord-intent/SKILL.md');
+    const step2 = intent.slice(intent.indexOf('2. **Look before asking.**'), intent.indexOf('3. **Confirm the parts.**'));
+    expect(step2.length, dir + ' intent step 2').toBeGreaterThan(0);
+    expect(step2, dir + ' intent step 2 runs the command').toContain(RELATED);
+    expect(step2, dir + ' intent step 2 dispatches the scout with it').toContain('Dispatch `accord-scout`');
+    expect(step2, dir + ' intent step 2 pastes it').toContain(PASTED);
+
+    const critique = get('accord-approach/critique.md');
+    const round1 = critique.slice(critique.indexOf('1. **Read.** Round 1 is `whole`'), critique.indexOf('2. **Record.**'));
+    expect(round1.length, dir + ' critique round 1').toBeGreaterThan(0);
+    const wholeRead = round1.slice(0, round1.indexOf('From round 2'));
+    expect(wholeRead, dir + ' round 1 dispatches the critic').toContain('`accord-critic`');
+    expect(wholeRead, dir + ' round 1 pastes it').toContain(PASTED);
+    expect(wholeRead, dir + ' round 1 checks against the related tickets').toContain("related tickets' Vetoes and Decisions");
+    expect(round1.slice(round1.indexOf('From round 2')), dir + ' a diff round never gets it').not.toContain('accord related');
+
+    for (const text of [step2, round1]) expect(opensOthers(text), dir).toEqual([]);
+  }
+
+  // the input reaches no other stage: build, review, verify and lane S name no `accord related`
+  const named = all.filter((f) => f.text.includes('accord related')).map((f) => f.path);
+  expect(named.length).toBeGreaterThan(0);
+  expect(named.filter((p) => /\/accord-(?:build|review|verify)\//.test(p) || p.endsWith('/lane-s.md'))).toEqual([]);
+  expect(named.filter((p) => !/\/accord-(?:intent|approach)\//.test(p))).toEqual([]);
+  // and no rendered skill text tells an agent to open other tickets' files for their decisions
+  expect(all.flatMap((f) => opensOthers(f.text).map((m) => f.path + ': ' + m))).toEqual([]);
+});

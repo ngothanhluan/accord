@@ -755,22 +755,22 @@ it('ac-5 the verify skill offers to promote a ruling or correction into the conv
   expect(from).toBeGreaterThan(-1);
   expect(to).toBeGreaterThan(-1);
   const step = text.slice(from, to);
+  // ST-LN-84 07-17: the judge-and-ask sentences moved to shared/ask.md; step 6 offers as ./ask.md says and writes the ledger's lines
   const phrases = [
-    "read the ticket's `## Corrections` and the Rulings under the ledger's `## Rulings`.",
-    'judge to hold across tickets',
-    'ask the owner whether it becomes a rule of this repository',
-    'write it as one rule line in `accord/product/conventions.md`.',
-    "Without the owner's yes, write nothing to `conventions.md`.",
+    'offer each Correction or Ruling that holds across tickets, as `./ask.md` says',
+    "write every line under the ledger's `## Conventions` into `accord/product/conventions.md`.",
   ];
   expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
-  const a = step.indexOf('ask the owner whether');
-  const w = step.indexOf('write it as one rule line');
+  const a = step.indexOf('offer each Correction or Ruling');
+  const w = step.indexOf('write every line under');
   const c = step.indexOf('Then commit only');
   expect(a).toBeGreaterThan(-1);
   expect(w).toBeGreaterThan(a);
   expect(c).toBeGreaterThan(w);
   expect(step.slice(c)).toContain('accord/tickets/<id>/verification.md');
   expect(step.slice(c)).toContain('accord/product/conventions.md');
+  const ask = (files.find((f) => f.path === '.claude/skills/accord-verify/ask.md')?.text ?? '').replace(/\s+/g, ' ');
+  expect(ask).toContain('Without an explicit yes write nothing anywhere.');
 });
 
 it('risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line', () => {

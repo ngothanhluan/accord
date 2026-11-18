@@ -60,12 +60,11 @@ judges, the owner decides.
 
 6. Run `accord gate done <id>` and work from what it prints. Leave `verification.md` and the tick uncommitted until it
    passes; the notice that the review file has no author yet is expected. When it
-   passes, read the ticket's `## Corrections` and the Rulings under the ledger's `## Rulings`. For each one you judge
-   to hold across tickets, ask the owner whether it becomes a rule of this repository; on a yes, write it as one rule
-   line in `accord/product/conventions.md`. Without the owner's yes, write nothing to `conventions.md`. Then commit
-   only `accord/tickets/<id>.md`, `accord/tickets/<id>/verification.md` and, when a rule was written,
-   `accord/product/conventions.md`; under `review: outcome` the commit message quotes the owner's answer. When both
-   files are already committed and no rule was written, commit nothing. Then finish CI as `./ci.md` says.
+   passes, offer each Correction or Ruling that holds across tickets, as `./ask.md` says, and write every line under the
+   ledger's `## Conventions` into `accord/product/conventions.md`. Then commit only `accord/tickets/<id>.md`,
+   `accord/tickets/<id>/verification.md` and, when a line was written, `accord/product/conventions.md` and the ledger;
+   under `review: outcome` the commit message quotes the owner's answer. When both files are already committed and
+   no line was written, commit nothing. Then finish CI as `./ci.md` says.
 
 7. Report the finish as `./finish.md` says.
 

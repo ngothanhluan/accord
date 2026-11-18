@@ -1355,3 +1355,48 @@ it('ac-12 the clean removes merged non-ticket branches and keeps unmerged ones (
   expect(out).not.toContain('ci/x');
   expect(out).not.toContain('pr1');
 }, 120_000);
+
+it('ac-12 the clean keeps a fresh branch with no commit of its own, and its worktree (ST-LN-87 7-ac-12)', async () => {
+  const c = copy();
+  // cut from origin's default branch, nothing edited yet: one branch at its tip, one cut before another commit landed there
+  const rel = `${c.root}/.claude/worktrees/agent-rel`;
+  const fix = `${c.root}/.claude/worktrees/agent-fix`;
+  c.git('worktree', 'add', '-q', '-b', 'release/0.8.0', rel, 'origin/main');
+  c.git('worktree', 'add', '-q', '-b', 'fix/old', fix, 'origin/main');
+  pushMain(c, 'later.txt', 'later\n');
+  const at = { rel: sha(c, 'refs/heads/release/0.8.0'), fix: sha(c, 'refs/heads/fix/old') };
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual(expect.arrayContaining([withAction('kept release/0.8.0: it has no commit of its own'), withAction('kept fix/old: it has no commit of its own')]));
+  expect(lines(out).filter((l) => /^(deleted|removed) /.test(l))).toEqual([]);
+  for (const n of ['release/0.8.0', 'fix/old']) expect(has(c.root, `refs/heads/${n}`), n).toBe(true);
+  expect(sha(c, 'refs/heads/release/0.8.0')).toBe(at.rel);
+  expect(sha(c, 'refs/heads/fix/old')).toBe(at.fix);
+  expect(existsSync(rel)).toBe(true);
+  expect(existsSync(fix)).toBe(true);
+}, 120_000);
+
+it('ac-12 the clean keeps a fresh branch that has no worktree, and still deletes a merged one (ST-LN-87 7-ac-12)', async () => {
+  const c = copy();
+  c.git('branch', 'backlog/z', 'origin/main');
+  // a branch with a commit of its own that a teammate merged with a merge commit is still deleted
+  c.git('switch', '-q', '-c', 'backlog/a', 'main');
+  writeFiles(c.root, { 'backlog-a.txt': 'a\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'backlog/a');
+  c.git('push', '-q', 'origin', 'backlog/a');
+  c.git('switch', '-q', 'main');
+  const o = c.otherClone();
+  gitRun(o, 'fetch', '-q', 'origin');
+  gitRun(o, 'merge', '-q', '--no-ff', '-m', 'merge backlog/a', 'origin/backlog/a');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  const z = sha(c, 'refs/heads/backlog/z');
+  const a = sha(c, 'refs/heads/backlog/a');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out).sort()).toEqual(
+    [withAction('kept backlog/z: it has no commit of its own'), withAction(`deleted backlog/a: merged into origin/main (was ${a})`)].sort(),
+  );
+  expect(sha(c, 'refs/heads/backlog/z')).toBe(z);
+  expect(has(c.root, 'refs/heads/backlog/a')).toBe(false);
+}, 120_000);

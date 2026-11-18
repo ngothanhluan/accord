@@ -1990,7 +1990,7 @@ it('ac-3 the foreign review is read-only with lenses by the size rule and posts 
   }
   // accord-reviewer is reused as it is: no tool and no sentence for a review without a ticket
   const reviewer = agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '';
-  expect(reviewer).toContain('tools: Read, Grep, Glob, Bash');
+  expect(reviewer).toContain('tools: "Read, Grep, Glob, Bash"');
   expect(reviewer).toContain('Never edits');
   expect(reviewer).not.toContain('diff-package');
 });

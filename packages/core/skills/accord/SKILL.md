@@ -4,10 +4,10 @@ description: Use when starting any work in an accord repository, when seeing whe
 license: MIT
 argument-hint: "[request]"
 kind: skill
-loads: [accord/comments.md, accord/ids.md, accord/onboard.md, accord/worktree.md, shared/ask.md, shared/failure.md]
+loads: [accord/comments.md, accord/ids.md, accord/onboard.md, accord/review-foreign.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
-First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`. A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check.
+First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`. A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check. A request to review code or a pull request accord did not build follows `./review-foreign.md`, without the session check.
 
 ## Dashboard: `/accord` with no argument
 

@@ -2404,7 +2404,7 @@ it('ac-9 accord-new runs an epic interview and creates the approved split in one
       'explicit yes',
       'outside the working tree',
       '`accord new ticket --type epic --lane L --split <file> --queue`',
-      '`title`, `intent`, `vetoes`, `stories`',
+      '`title`, `intent`, `vetoes` and `stories`',
       '`/accord-pickup <id>`',
       'its own worktree',
       'in parallel',

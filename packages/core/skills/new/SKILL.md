@@ -4,7 +4,7 @@ description: Use when starting new work from a request. Proposes a lane for it, 
 license: MIT
 argument-hint: "<request>"
 kind: skill
-loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/review-foreign.md, accord/route.md, accord/worktree.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
+loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/review-foreign.md, accord/route.md, accord/worktree.md, new/epic.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
 ---
 
 `/accord-new <request>` starts a New request, and `/accord <request>` loads this skill with the whole text once `./route.md` reads it as a change. With no argument, ask the owner for the request in one question and run, claim, create and edit nothing.
@@ -33,8 +33,8 @@ Propose a lane as `./lane.md` says, for every new request however small it looks
   `./worktree.md`, and push it as that file says when the push fails.
 - **R.** Run `accord new ticket <id> --lane R --worktree --title "<title>"` as `./similar.md` says; when config.yml has `people`, run it with
   `--type <story|bug>` and no id, as for M. Then follow `./lane-r.md`.
-- **L and P.** Not built yet. Say so, and propose splitting the work into
-  lane M tickets linked by `depends_on`.
+- **L and P.** L follows `./epic.md`. P is not built yet: say so, and propose
+  an epic instead.
 
 ## Rules
 

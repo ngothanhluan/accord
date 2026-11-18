@@ -234,7 +234,7 @@ it('ac-5 the accord skill takes the claim branch from the CLI in Continue Pick u
   }
 });
 
-it('ac-4 the accord skill picks up then continues a named ticket and treats any other text as a new request', () => {
+it('ac-4 the accord skill picks up then continues a named ticket and routes any other text by intent', () => {
   const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
   const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Onboard'));
   expect(named.length).toBeGreaterThan(0);
@@ -250,7 +250,7 @@ it('ac-4 the accord skill picks up then continues a named ticket and treats any 
     'the whole text after',
     '`continue the refactor`',
     '`/accord continue ST-2 now`',
-    '`/accord continue ST-99` is a New request',
+    '`/accord continue ST-99` follows `./route.md` like any other text',
   ])
     expect(named).toContain(p);
 });
@@ -330,7 +330,7 @@ it('risk:complex-branching the accord skill pushes then enters the worktree on e
   const setup = slice(ref, 'Exit 2 naming a setup command', 'Any other exit 2');
   expect(setup).toContain('type `/accord-continue <id>` again in this same session');
   expect(setup).toContain('in a session opened there');
-  const i = text.indexOf('First run the session check in `./worktree.md`, except for `/accord upgrade`.');
+  const i = text.indexOf('First run the session check in `./worktree.md` for the dashboard and for `/accord onboard`.');
   expect(i).toBeGreaterThan(-1);
   expect(i).toBeLessThan(text.indexOf('## Dashboard'));
   expect(ref.indexOf('## Session check')).toBeGreaterThan(-1);
@@ -490,7 +490,7 @@ it('risk:regression the accord skill takes an id that accord status lists with a
   const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
   const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Onboard'));
   expect(named).toContain('an id that `accord status --json` lists with a `branch`');
-  expect(named).toContain('`/accord continue ST-99` is a New request');
+  expect(named).toContain('`/accord continue ST-99` follows `./route.md` like any other text');
 });
 
 function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
@@ -1032,7 +1032,7 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
 
 it('risk:regression the accord skill routes upgrade to its reference and the worktree reference names the continue merge and the automatic clean', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  for (const s of ['`/accord upgrade` loads `accord-upgrade`', 'Any other text, but `upgrade` or `onboard`, starts']) expect(acc).toContain(s);
+  for (const s of ['`/accord upgrade` loads `accord-upgrade`', 'Any other text, but `upgrade` or `onboard`: follow `./route.md`']) expect(acc).toContain(s);
   expect(flatS('.claude/skills/accord-upgrade/SKILL.md')).toContain('`./upgrade.md`');
   // WR-09: onboard is excluded from the New-request rule, and the session check still runs before it
   expect(acc).not.toContain('Any other text, but `upgrade`, starts');
@@ -1970,7 +1970,8 @@ it('ac-3 the foreign review is read-only with lenses by the size rule and posts 
     const skill = all.find((s) => s.path === dir(f.path) + '/SKILL.md');
     expect(skill?.text, f.path).toContain('./review-foreign.md');
   }
-  expect(all.filter((s) => /(^|\/)skills\/accord\/SKILL\.md$/.test(s.path)).length).toBe(foreign.length);
+  // 07-08: accord-new loads it too, for a request it reads as a review
+  expect(all.filter((s) => /(^|\/)skills\/accord(-new)?\/SKILL\.md$/.test(s.path)).length).toBe(foreign.length);
   const phrases = [
     'accord diff-package', 'Changed lines:', 'accord-reviewer', '`both`', '`intent`', '`quality`', '`integration`', '`security`', 'about 500', 'about 1500',
     '## Security triggers', 'gh pr view', 'gh pr review', '--comment',

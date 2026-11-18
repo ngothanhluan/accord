@@ -1,0 +1,39 @@
+---
+kind: reference
+---
+
+# Routing a request
+
+This applies to any text after `/accord` that is not one of its typed forms. The main session judges the intent: the CLI cannot, because accord never calls a model. Before acting, say the route out loud: "I read this as <route> and will <action>; say so if not." Follow the owner's override at once. When two routes fit, or none does, ask the owner one short question as `./ask.md` says and wait for the answer; never default silently. This step never picks a model or a thinking level.
+
+## Change: a feature or a bug
+
+Load `accord-new` with the whole request: it proposes lane S or M and follows that lane's route. A release or an operations request takes this route too. A bug whose cause nobody has shown goes to `accord-debug` once its ticket exists, before its approach.
+
+## Question
+
+Answer it from the code: read the files yourself and reply in the chat. Create no ticket, write and commit nothing, and run no session check.
+
+## Brainstorm: an idea to explore
+
+This covers a raw idea to interview too. Go back and forth in a Socratic way, one question at a time, each built on the last answer, with nothing written meanwhile. End by proposing build now (`/accord-new`), queue (`/accord-queue`), research or nothing, and take the owner's choice.
+
+## Queue an idea
+
+Load `accord-queue` with the idea. It writes a draft ticket on its own `backlog/<topic>-<date>` branch cut from origin's default branch and never touches this session's ticket, so it runs in a ticket session too.
+
+## Research
+
+A question to answer that ends in a research record, such as comparing X with Y: load `accord-new` and take its lane R route.
+
+## An existing ticket: change, drop or merge
+
+Run the session check, then edit that ticket, putting the owner's words under its `## Corrections`, or run `accord drop <id> --reason "<why>"`. A merge is an edit of the ticket kept and a drop of the other. In a session that works a ticket, an edit of another ticket needs a session of its own: the session check says so and prints the line that opens it, and no skill moves this session to that ticket.
+
+## Review code or a pull request accord did not build
+
+Follow `./review-foreign.md`, without the session check.
+
+## Where the session check runs
+
+The session check of `./worktree.md` runs only on the change, research and existing-ticket routes, and at Pick up and Continue; the question, brainstorm, review and queue routes and the dashboard never stop on it. A session that works a ticket therefore answers questions, explores ideas, reviews code and queues ideas, and is refused only what would touch another ticket.

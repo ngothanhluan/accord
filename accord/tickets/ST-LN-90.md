@@ -2,7 +2,7 @@
 id: "ST-LN-90"                            # equals the file name: tickets/<id>.md
 title: "Benchmark round 2 re-checks the planner's effort on opus, for the direction pass and the plan, or shows it needs a new architecture"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-46"]
@@ -65,3 +65,6 @@ Feature: ST-LN-90
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+No benchmark replay is run (owner at the Phase 6 discussion, 2026-11-16). The owner asked whether a benchmark was needed at all, since GSD and other public repositories give a rough answer and a team can override the defaults, and agreed ("ok") to these findings: a team overrides each role's model and effort through `models:` in `accord/config.yml`; accord's defaults already match GSD's adaptive profile; only 5 executor samples exist, 0 to 2 per risk kind, too few to choose per kind; and the last benchmark round (ST-LN-46) cost about 9 to 27M weighted tokens and chose no arm. The signal instead is the real-ticket metrics after 0.6.0 (rounds, findings per round, weighted tokens); a benchmark reopens only if they get worse. The planner default stays opus at high, merged with the routing reasons in PR #212.

@@ -2,7 +2,7 @@
 id: "ST-LN-70"                            # equals the file name: tickets/<id>.md
 title: "A change to a skill's wording runs against a benchmark baseline before it merges"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
@@ -63,3 +63,6 @@ Feature: ST-LN-70
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Narrowed to a static check (backlog review F8a) and built by GSD (Phase 6), merged in PR #212 on 2026-11-18: `packages/core/test/rule-coverage.test.ts` keeps a golden of the rule lines of every accord agent and skill and the ruleset, so a wording change that drops or changes a rule fails until the golden is regenerated on purpose (`vitest -u`). No benchmark baseline run is made before a merge. Gaps in what the golden counts as a rule line are parked as GSD backlog item 999.25.

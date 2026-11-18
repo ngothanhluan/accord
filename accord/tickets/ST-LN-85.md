@@ -2,7 +2,7 @@
 id: "ST-LN-85"                            # equals the file name: tickets/<id>.md
 title: "Each accord agent carries only the fixed context it uses, proven on round 2 samples"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-79", "ST-LN-46", "ST-LN-89", "ST-LN-90"]
@@ -63,3 +63,6 @@ Feature: ST-LN-85
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 6) and merged in PR #212 on 2026-11-18. `accord-executor` now declares `tools: Read, Write, Edit, Bash, Grep, Glob`, and a golden test keeps every agent and skill rule line, so the cut lost no rule. The proof by benchmark replay was dropped with ST-LN-89 and ST-LN-90 (owner, 2026-11-16); the token saving is recorded as unmeasured in `docs/benchmark/fixed-context.md` (owner, 2026-11-18: "No, record it as not measured").

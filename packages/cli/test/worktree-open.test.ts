@@ -562,16 +562,17 @@ it('ac-3 a ticket branch with a commit not on the remote main is kept and not na
   expect(sha(c, 't/ST-9')).toBe(extra);
 });
 
-it('risk:data-loss a merged branch the ticket branch template does not name is never deleted', async () => {
+it('risk:data-loss a merged branch the ticket branch template does not name and no clean prefix covers is never deleted', async () => {
   const c = clone();
-  c.git('branch', 'backlog/notes', 'main');
+  // ST-LN-87: backlog/, fix/ and release/ branches are judged now; any other name is still never judged
+  c.git('branch', 'notes/keep', 'main');
   c.git('branch', 't/ST-9', 'main');
   const base = sha(c, 'main');
   doneOnRemote(c, ['ST-9']);
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(lines(out)).toEqual([`deleted t/ST-9 (was ${base})`]);
-  expect(sha(c, 'backlog/notes')).toBe(base);
+  expect(sha(c, 'notes/keep')).toBe(base);
   expect(sha(c, 'main')).toBe(base);
 });
 

@@ -1492,8 +1492,85 @@ function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'n
   if (halted(state)) return 0;
   cleanRecorded(ctx, ref, state, fetchFailed, merged);
   if (halted(state)) return 0;
+  cleanBranches(ctx, ref, state, merged);
+  if (halted(state)) return 0;
   cleanSiblings(ctx, ref, state, fetchFailed);
   return 0;
+}
+
+/** ST-LN-87 D-19: the only non-ticket branches the clean judges, by prefix; a branch named any other way is never looked at. */
+const CLEAN_PREFIXES = ['refs/heads/backlog/', 'refs/heads/fix/', 'refs/heads/release/'] as const;
+
+/**
+ * ST-LN-87 D-19: the local `backlog/*`, `fix/*` and `release/*` branches that are on `ref` or whose merge into it would change nothing (a squash or
+ * rebase merge) are deleted, and the worktree that has one checked out goes first, through the guards every worktree removal passes. A branch with
+ * commits `ref` lacks, or a conflicting or unclear one, is kept and named. A ticket's own branch belongs to the phases above, and no remote branch
+ * is ever touched: `ref` is origin's default, and what a host deletes after a merge is its own setting.
+ */
+function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: ReadonlySet<string>): void {
+  const def = ref.replace('refs/remotes/', '');
+  const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
+  const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
+  const listed = git(ctx.root, ['for-each-ref', '--format=%(objectname)%00%(refname)', ...CLEAN_PREFIXES]).split('\n');
+  const names = listed.flatMap((row) => {
+    const cut = row.indexOf('\0');
+    const name = cut < 0 ? '' : row.slice(cut + 1 + 'refs/heads/'.length).trim();
+    return name === '' || ticketOfBranch(name, templates, known) !== undefined ? [] : [name];
+  });
+  if (names.length === 0) return;
+  const after = readList(ctx, s.seen);
+  const tipOf = (b: string): string | undefined => {
+    const args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
+    return gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
+  };
+  const why = (tip: string, set?: ReadonlySet<string>): string | undefined => {
+    const v = safeTip(ctx.root, tip, undefined, ref, set);
+    if (v === 'safe') return undefined;
+    return v === 'conflict' ? `merging it into ${def} conflicts` : `it has commits ${def} lacks`;
+  };
+  for (const b of names.sort((x, y) => (x < y ? -1 : x > y ? 1 : 0))) {
+    try {
+      if (spent(ctx, s)) return;
+      let L = tipOf(b);
+      if (L === undefined) continue;
+      const first = why(L, merged);
+      if (first !== undefined) {
+        ctx.stdout.write(`kept ${b}: ${first}\n`);
+        continue;
+      }
+      // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
+      if (rebasing !== undefined) {
+        ctx.stdout.write(`kept ${b}: being rebased in ${rebasing.path}\n`);
+        continue;
+      }
+      const W = after.find((x) => x.branch === b);
+      if (W !== undefined && W === after[0]) {
+        ctx.stdout.write(`kept ${b}: checked out in ${W.path}\n`);
+        continue;
+      }
+      if (W !== undefined) {
+        const g = passGuards(ctx, W, b, s, after);
+        if (g === undefined || removeWorktree(ctx, W, b, g.h, s.seen).failed) {
+          ctx.stdout.write(`kept ${b}: checked out in ${W.path}\n`);
+          continue;
+        }
+      }
+      // A commit made while the guards ran counts: the delete names the sha it checked.
+      const was = L;
+      L = tipOf(b);
+      if (L === undefined) continue;
+      const again = L === was ? undefined : why(L);
+      if (again !== undefined) {
+        ctx.stdout.write(`kept ${b}: ${again}\n`);
+        continue;
+      }
+      execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      ctx.stdout.write(`deleted ${b}: merged into ${def} (was ${L})\n`);
+    } catch (e) {
+      ctx.stdout.write(`kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+    }
+  }
 }
 
 /** ST-LN-55 D-01 part C: folders next to the main checkout, named for a done or dropped ticket, that git does not list and the record never named (left before the record existed). Judged by `cleanForgotten` with all its guards. */

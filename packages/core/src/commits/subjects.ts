@@ -15,6 +15,7 @@ export const SUBJECT_NAMES = [
   'drop',
   'rebind',
   'ruleset_backfill',
+  'queue',
 ] as const;
 export type SubjectName = (typeof SUBJECT_NAMES)[number];
 
@@ -31,6 +32,7 @@ export const DEFAULT_SUBJECTS: Readonly<Record<SubjectName, string>> = {
   drop: 'drop: {id}',
   rebind: 'verify: {id} rebound after rebase',
   ruleset_backfill: 'ruleset: {id} from its claim commit',
+  queue: 'backlog: queue {id}', // ST-LN-83 D-03: the draft an idea is queued as; the repository convention for queue PRs
 };
 
 type WithCommits = Pick<AccordConfig, 'commits'> | undefined;

@@ -195,6 +195,7 @@ const CONVENTIONAL_SUBJECTS: Readonly<Record<SubjectName, string>> = {
   drop: 'chore(accord): drop {id}',
   rebind: 'chore(accord): rebind {id}',
   ruleset_backfill: 'chore(accord): ruleset {id}',
+  queue: 'chore(accord): queue {id}',
 };
 
 /**

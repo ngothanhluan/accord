@@ -30,6 +30,7 @@ it('risk:complex-branching subject templates render and match exactly (ST-LN-50 
     drop: 'drop: ST-1',
     rebind: 'verify: ST-1 rebound after rebase',
     ruleset_backfill: 'ruleset: ST-1 from its claim commit',
+    queue: 'backlog: queue ST-1',
   };
   expect([...SUBJECT_NAMES]).toEqual(Object.keys(today));
   for (const name of SUBJECT_NAMES) {
@@ -71,7 +72,7 @@ it('risk:parsing commits.subjects templates hold {id} once and no other brace, l
     expect(at({ subjects: { claim: bad } }), JSON.stringify(bad)).not.toEqual([]);
     expect(at({ legacy_subjects: { claim: [bad] } }), JSON.stringify(bad)).not.toEqual([]);
   }
-  // Only the eleven names are keys; a legacy list holds distinct entries.
+  // Only the twelve names are keys; a legacy list holds distinct entries.
   expect(at({ subjects: { unknown: 'x {id}' } })).not.toEqual([]);
   expect(at({ legacy_subjects: { unknown: ['x {id}'] } })).not.toEqual([]);
   expect(at({ legacy_subjects: { claim: ['claim: {id}', 'claim: {id}'] } })).toContain('schema.uniqueItems@/commits/legacy_subjects/claim');

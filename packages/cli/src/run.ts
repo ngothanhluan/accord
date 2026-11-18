@@ -212,7 +212,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // versions, so scaffolding from a template the repository is not pinned to is exactly the split
   // PITFALLS section 11 describes — the same shared preflight therefore stops it before any path is
   // constructed and before any byte is written. `--type` picks the template and `--lane` picks the lane
-  // variant: `--title` was rejected under D-104, and there is no `feature` subcommand — the one in docs/design.md section 7 died with
+  // variant; `--title` sets the title (ST-LN-83 D-03), and there is no `feature` subcommand — the one in docs/design.md section 7 died with
   // the features/ folder.
   program
     .command('new')
@@ -220,14 +220,17 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('ticket [id]')
     .description("write accord/tickets/<id>.md from the active profile's template, or the lane template under --lane, filling nothing in; the id is assigned when config.yml holds people")
     .addOption(
-      new Option('--type <type>', 'which template to render (D-104)')
+      new Option('--type <type>', 'which template to render')
         .choices(['epic', 'story', 'bug'])
         .default('story'),
     )
     .addOption(new Option('--lane <lane>', 'write a lane ticket (S, M, L, P, or R: research)').choices(['S', 'M', 'L', 'P', 'R']))
+    .option('--title <text>', "the ticket's title, one line")
     .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
-    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean }) => {
-      setCode(newTicket(preflight(opts, options.worktree === true ? 'light' : 'checkout'), id, options));
+    .option('--queue', "write the draft on a backlog branch off origin's default branch from a temporary worktree and push it, without touching this checkout")
+    .option('--note <line>', 'with --queue: one line of the queued idea under ## Intent, up to four; repeat the option', (line: string, previous: string[]) => [...previous, line], [] as string[])
+    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[] }) => {
+      setCode(newTicket(preflight(opts, options.worktree === true || options.queue === true ? 'light' : 'checkout'), id, options));
     });
 
   // D-121: the same `preflight` every other repository-reading command uses, so the pin check and the
@@ -277,7 +280,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // ST-LN-50 D-06: the subject of a commit accord writes, rendered from the team's template, so skills never carry a literal one.
   program
     .command('subject <name> <id> [tail...]')
-    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill) and a ticket id, from commits.subjects; a tail, such as a round count, follows after one space')
+    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill, queue) and a ticket id, from commits.subjects; a tail, such as a round count, follows after one space')
     .action((name: string, id: string, tail: string[]) => {
       setCode(subject(preflight(opts), name, id, tail));
     });

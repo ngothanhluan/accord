@@ -37,7 +37,9 @@ describe('lane R in the accord skill', () => {
       const rLine = acc.slice(acc.indexOf('- **R.**'), acc.indexOf('- **L and P.**'));
       expect(acc.indexOf('- **R.**'), dir + ': no R line').toBeGreaterThan(acc.indexOf('- **M.**'));
       for (const x of ['`accord new ticket <id> --lane R --worktree`', '`people`', '`--type <story|bug>`', '`./lane-r.md`']) expect(rLine, x).toContain(x);
-      const cont = acc.slice(acc.indexOf('4. Otherwise'), acc.indexOf('## Pick up'));
+      const continueSkill = flat(dir + '/accord-continue/SKILL.md');
+      expect(continueSkill.length, dir + '/accord-continue/SKILL.md').toBeGreaterThan(0);
+      const cont = continueSkill.slice(continueSkill.indexOf('4. Otherwise'), continueSkill.indexOf('## Rules'));
       expect(cont).toContain('when it prints `Lane: R`, follow `./lane-r.md`');
       expect(cont.indexOf('`./lane-r.md`')).toBeLessThan(cont.indexOf('first run `accord gate ready <id>`'));
 

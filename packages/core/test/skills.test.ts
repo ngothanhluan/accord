@@ -236,7 +236,7 @@ const MAX_SKILL_BYTES = 6000;
 
 /** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. */
 const firstCommand = (dir: string): string =>
-  dir === 'accord' ? 'dashboard' : dir === 'accord-designer' ? 'gate ready' : 'anchor';
+  dir === 'accord' ? 'dashboard' : dir === 'accord-designer' ? 'gate ready' : dir === 'accord-continue' ? 'status' : 'anchor';
 
 /** The rendered text with its frontmatter block and its marker line removed — the prose a reader receives. */
 const bodyOf = (text: string) => withoutMarker(text).replace(FRONTMATTER, '');
@@ -611,6 +611,7 @@ it('ac-3 each new mention names the step or event at which to read its file and 
 // `accord anchor`, whose id defaults to the ticket of the current branch; designer runs `accord gate ready <id>`.
 const HINTS: Record<string, string> = {
   accord: '[request | continue <id> | pick-up <id> | upgrade]',
+  'accord-continue': '<ticket id>',
   'accord-intent': '[ticket id]',
   'accord-approach': '[ticket id]',
   'accord-plan': '[ticket id]',

@@ -57,7 +57,7 @@ export function allSkillDirs(): string[] {
 }
 
 /** Spec §6: `/accord` and the seven stage skills, by source directory. Installed whatever `roles:` says. */
-export const STAGES: readonly string[] = ['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug'];
+export const STAGES: readonly string[] = ['accord', 'continue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug'];
 
 /** The installed directory name: `accord` is invoked as `/accord`, every other source directory X as `accord-X`. */
 export function installedName(dir: string): string {

@@ -25,33 +25,12 @@ An action applies only when the whole text after it is exactly one
 ticket id, the id of a ticket in `accord/tickets/`, an id that
 `accord status --json` lists with a `branch`, or for Continue a ticket
 `accord worktree open <id> --continue` finds; with none,
-`/accord continue ST-99` is a New request. Then run Pick up or
-Continue below on that ticket, without showing the dashboard first. Continue on a ticket nobody has claimed
+`/accord continue ST-99` is a New request. Then run Pick up below on that ticket, or for
+Continue load `accord-continue` with that id, without showing the dashboard first. Continue on a ticket nobody has claimed
 says so, offers Pick up, and never claims it. Any other text, but `upgrade` or `onboard`, starts a
 New request whose text is the whole text after `/accord`: for
 `/accord continue the refactor` it is `continue the refactor`, and
 `/accord continue ST-2 now` is a new request too.
-
-## Continue
-
-1. Run `accord worktree open <id> --continue` unless it just ran; follow
-   `./worktree.md`. The active ticket is its `branch` from
-   `accord status --json`, read from git, never from memory.
-2. Run `accord anchor`.
-3. If `accord/tickets/<id>/debug.md` exists and no `## Resolved` follows its last `## Episode` heading,
-   load `accord-debug` and resume there.
-4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md`; when it prints `Lane: R`, follow `./lane-r.md`. Else, at any stage
-   but `intent`, first run `accord gate ready <id>`; when it fails, show the
-   owner what it prints and stop; when it changes the ticket, commit the ticket.
-   Then load the stage skill for the stage it prints: `intent` →
-   `accord-approach` at step 5, the owner's yes, when the ticket's
-   `## Approach` holds a `- Rejected:` line, at step 3 when it holds only
-   the draft of its step 2, otherwise `accord-intent`, at step 9 when the anchor's next
-   step is the owner's approval; `plan` →
-   `accord-plan`, `build` → `accord-build`, `review` → `accord-review`,
-   `verify` → `accord-verify`; `done` → `accord-verify` at step 6.
-   Resume at the step the anchor names. Never re-run a task
-   the ledger records.
 
 ## Pick up
 

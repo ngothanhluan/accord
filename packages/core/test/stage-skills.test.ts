@@ -2185,3 +2185,21 @@ it('ac-5 the scout and the critic receive the related tickets decisions (ST-LN-2
   // and no rendered skill text tells an agent to open other tickets' files for their decisions
   expect(all.flatMap((f) => opensOthers(f.text).map((m) => f.path + ': ' + m))).toEqual([]);
 });
+
+it('ac-6 the drop steps offer the Rejected line first and pass the flag only on a yes (ST-LN-84 7-ac-6)', () => {
+  const OFFER = "`Rejected: <the ticket's title> — <the reason>`";
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    for (const name of ['accord/ids.md', 'accord/route.md', 'accord-new/ids.md', 'accord-new/route.md']) {
+      const text = (files.find((f) => f.path === dir + '/' + name)?.text ?? '').replace(/\s+/g, ' ');
+      expect(text, dir + '/' + name).not.toBe('');
+      const drop = text.indexOf('`accord drop <id>');
+      expect(drop, dir + '/' + name + ' names the drop').toBeGreaterThanOrEqual(0);
+      const offer = text.indexOf(OFFER);
+      expect(offer, dir + '/' + name + ' offers the line').toBeGreaterThanOrEqual(0);
+      expect(offer, dir + '/' + name + ' offers it before the drop').toBeLessThan(drop);
+      const flag = text.slice(offer);
+      expect(flag, dir + '/' + name + ' passes the flag only on a yes').toContain('--rejected');
+      expect(flag, dir + '/' + name).toContain('explicit yes');
+    }
+  }
+});

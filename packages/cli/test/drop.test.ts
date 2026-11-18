@@ -351,3 +351,55 @@ it('risk:data-loss drop refuses a listed non-Markdown research record only the c
   expect(r.err).not.toContain('not a file in the repository');
   expect(remoteDrop(c, 'ST-10')).toBeUndefined();
 }, 120_000);
+
+const CONVENTIONS = 'accord/product/conventions.md';
+const CONV_TEXT = '# Conventions\n\n- Never add a commit trailer.\n';
+
+/** A clone whose main holds a conventions file (added after the copy, rule 5). */
+function withConventions(): Clone {
+  const c = copy(plain);
+  const o = c.otherClone();
+  writeFiles(o, { [CONVENTIONS]: CONV_TEXT });
+  commitMsg(o, 'conventions');
+  gitRun(o, 'push', '-q');
+  c.git('pull', '-q');
+  return c;
+}
+
+it('ac-6 a dropped ticket reason becomes a Rejected line only on a yes (ST-LN-84 7-ac-6)', async () => {
+  // with --rejected: the drop commit holds the ticket and one more list item in conventions.md
+  const yes = withConventions();
+  let r = await run(['drop', 'ST-9', '--reason', 'replaced by ST-10', '--rejected'], yes.root);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out).toBe('branch: drop/ST-9\nbase: main\ntitle: drop: ST-9\nrejected: - Rejected: Export — replaced by ST-10\n');
+  let D = remoteDrop(yes, 'ST-9')!;
+  expect(gitRun(yes.remote, 'diff', '--name-only', 'main', D)).toBe(CONVENTIONS + '\naccord/tickets/ST-9.md\n');
+  expect(gitRun(yes.remote, 'cat-file', 'blob', D + ':' + CONVENTIONS)).toBe(CONV_TEXT + '- Rejected: Export — replaced by ST-10\n');
+
+  // without the flag: conventions.md is left as it is, and no rejected line prints
+  const no = withConventions();
+  r = await run(['drop', 'ST-9', '--reason', 'no longer needed'], no.root);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out).toBe('branch: drop/ST-9\nbase: main\ntitle: drop: ST-9\n');
+  D = remoteDrop(no, 'ST-9')!;
+  expect(gitRun(no.remote, 'diff', '--name-only', 'main', D)).toBe('accord/tickets/ST-9.md\n');
+
+  // no conventions file on the default branch: --rejected creates it with one line under a heading
+  const none = copy(plain);
+  r = await run(['drop', 'ST-9', '--reason', 'replaced by ST-10', '--rejected'], none.root);
+  expect(r.code, r.err).toBe(0);
+  D = remoteDrop(none, 'ST-9')!;
+  expect(gitRun(none.remote, 'cat-file', 'blob', D + ':' + CONVENTIONS)).toBe('# Conventions\n\n- Rejected: Export — replaced by ST-10\n');
+
+  // a file without a final line break, with CRLF: the new item follows in the file's own style
+  const crlfConv = copy(plain);
+  const o = crlfConv.otherClone();
+  writeFiles(o, { [CONVENTIONS]: '# Conventions\r\n\r\n- A rule.' });
+  commitMsg(o, 'conventions');
+  gitRun(o, 'push', '-q');
+  crlfConv.git('pull', '-q');
+  r = await run(['drop', 'ST-9', '--reason', 'x', '--rejected'], crlfConv.root);
+  expect(r.code, r.err).toBe(0);
+  D = remoteDrop(crlfConv, 'ST-9')!;
+  expect(gitRun(crlfConv.remote, 'cat-file', 'blob', D + ':' + CONVENTIONS)).toBe('# Conventions\r\n\r\n- A rule.\r\n- Rejected: Export — x\r\n');
+}, 180_000);

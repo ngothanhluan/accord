@@ -176,3 +176,7 @@ What the owner could cut: each line above is the cost per call that removing the
 
 Weights: fresh input 1, cache read 0.1, cache write 1.25, output 5. Output tokens are estimated at 4 characters a token, since transcripts keep the usage from the stream's start.
 The subagent share counts accord agents only; other subagents (such as Explore or general-purpose) count in the ticket's whole cost, and their fixed context is not measured.
+
+## accord-executor before and after the tools cut (ST-LN-85)
+
+The cut of the executor's tools (ST-LN-85, 2026-11-18) is unmeasured: the owner chose not to run the probe; the accord-executor rows above come from the all-on probe of 2026-10-31, before the cut, and do not show it.

@@ -96,6 +96,7 @@ Work starts from `/accord` or one of its own commands inside the agent session:
 | `/accord-new <request>` | New work. Accord proposes a lane with its reason; you may override it. |
 | `/accord-continue <id>` | Resume a ticket at the stage and step it reached. |
 | `/accord-pickup <id>` | Claim an unclaimed ticket and start it. |
+| `/accord-queue <idea>` | Note an idea as a draft ticket for later, from any session, without starting it or leaving the ticket you are on. |
 | `/accord-upgrade` | Move the repository to a newer accord release (see [Version pin](#8-version-pin-and-upgrading)). |
 
 Lanes:

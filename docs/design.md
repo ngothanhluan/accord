@@ -146,6 +146,8 @@ accord show <id>            # one lane ticket in full: row facts, Intent, each c
 
 When `config.yml` holds `people` (email to initials), `new ticket` assigns the id and refuses a typed one; `legacy_ids` exempts existing tickets, and `lint.id-convention` and `lint.initials-duplicate` check the rest.
 
+`accord new ticket --queue --title <title> --note <line>` queues an idea from any session, a session that works a ticket included: it writes the draft as the only file of one commit on `backlog/<id in lower case>-<date>`, cut from origin's default branch in a temporary worktree, and pushes it, leaving the session's branch and working tree as they were. `queue.merge` in `config.yml` is `owner` (the default) or `at-once` and decides what the `/accord-queue <idea>` skill does with the pull request it opens: under `owner` it leaves the pull request for a person to merge, under `at-once` it merges it at once with the method `git.merge` names, never with admin rights. The commit subject is `commits.subjects.queue`, default `backlog: queue {id}`.
+
 Why a CLI and not just templates and prompts: templates are suggestions and prompts are advice. Both can be ignored by an agent, which is the dominant failure mode. The CLI gives the same deterministic answer on a BA's laptop, inside an agent session, in CI, and later in the hub, from one implementation.
 
 ## 8. Out of scope for v0.1
@@ -158,7 +160,7 @@ Why a CLI and not just templates and prompts: templates are suggestions and prom
 
 The contract above says what must be true before and after a ticket. The workflow layer is how a coding agent gets there without drifting from the owner's intent. The full rules are in the [workflow layer spec](specs/2026-10-12-workflow-layer-design.md); this is the map.
 
-**Entry point.** `/accord` with no argument runs `accord dashboard` and shows its output verbatim: YOURS, TEAM, READY, UP NEXT with the unclaimed open tickets that are not ready, EPICS with children done over all children, one count line, and the actions that apply. The CLI ranks every section; the model never reorders or adds to it. `/accord-new <request>` proposes a lane, says why, and starts the intent stage.
+**Entry point.** `/accord` with no argument runs `accord dashboard` and shows its output verbatim: YOURS, TEAM, READY, UP NEXT with the unclaimed open tickets that are not ready, EPICS with children done over all children, one count line, and the actions that apply. The CLI ranks every section; the model never reorders or adds to it. `/accord-new <request>` proposes a lane, says why, and starts the intent stage. `/accord-queue <idea>` notes an idea as a draft ticket on its own backlog branch without starting it.
 
 **Lanes.** The size of the work decides how much each stage does; no lane skips a stage.
 

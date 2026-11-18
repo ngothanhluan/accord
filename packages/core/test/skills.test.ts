@@ -86,7 +86,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('intent')).toBe('accord-intent');
     expect(installedName('designer')).toBe('accord-designer');
@@ -244,6 +244,7 @@ const FIRST_COMMAND: Record<string, string> = {
   'accord-pickup': 'status',
   'accord-new': 'new ticket',
   'accord-upgrade': 'dashboard',
+  'accord-queue': 'new ticket',
 };
 const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
 
@@ -625,6 +626,7 @@ const HINTS: Record<string, string | null> = {
   'accord-pickup': '<ticket id>',
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
+  'accord-queue': '<idea>',
   'accord-intent': '[ticket id]',
   'accord-approach': '[ticket id]',
   'accord-plan': '[ticket id]',
@@ -777,6 +779,24 @@ describe('one command per action', () => {
       expect(accord, runtime).toContain('## Dashboard');
       for (const name of ['accord-new', 'accord-pickup', 'accord-upgrade']) expect(accord, `${runtime} ${name}`).toContain(name);
       for (const heading of ['## Pick up', '## New request: ', '## Upgrade: ']) expect(accord, `${runtime} ${heading}`).not.toContain(heading);
+    }
+  });
+
+  it('ac-4 accord-queue renders for every runtime and never checks the session (ST-LN-83 7-ac-4)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const { dirs, texts } = copiesOf('accord-queue', runtime);
+      expect(dirs.length, runtime).toBeGreaterThan(0);
+      for (const [i, text] of texts.entries()) {
+        expect(text.length, `${runtime}: ${dirs[i]}/accord-queue/SKILL.md is missing`).toBeGreaterThan(0);
+        expect(text, `${runtime}: ${dirs[i]} differs from ${dirs[0]}`).toBe(texts[0]);
+        expect(frontmatter(text)?.name, `${runtime}: ${dirs[i]}`).toBe('accord-queue');
+      }
+      const body = bodyOf(texts[0]);
+      for (const part of ['accord new ticket --queue', '--title', '--note', 'merge: at-once', 'merge: owner', 'gh pr create']) {
+        expect(body, `${runtime} ${part}`).toContain(part);
+      }
+      expect(body.replace(/\s+/g, ' '), runtime).toMatch(/With no argument, ask the owner for [^.]+ in one question and write nothing\./);
+      expect(body, runtime).not.toContain('accord worktree check');
     }
   });
 

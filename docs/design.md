@@ -181,15 +181,28 @@ Hidden complexity found mid-task lifts the lane; a lane never drops mid-task. A 
 
 `accord-debug` finds a root cause before any fix, ranks competing hypotheses before testing one, and returns to the stage it interrupted.
 
-**Agents.** Work that must not grade itself runs in fresh agent contexts, installed for the `claude` runtime at `.claude/agents/accord-<role>.md`: `scout`, `auditor`, `critic`, `planner`, `executor`, `reviewer`, `final-reviewer`, `verifier`, and `debugger`. Every agent receives the ticket verbatim, never a summary; an executor gets it inside `accord brief <id> <task>` and never sees chat history.
+**Agents.** Work that must not grade itself runs in fresh agent contexts, installed for the `claude` runtime at `.claude/agents/accord-<role>.md`: `scout`, `auditor`, `critic`, `planner`, `executor`, `reviewer`, `final-reviewer`, `verifier`, and `debugger`. Every agent receives the ticket verbatim, never a summary; an executor gets it inside `accord brief <id> <task>` and never sees chat history. Every agent declares its tools. The executor has Read, Write, Edit, Bash, Grep and Glob and no Skill, MCP or web tool: it reads installed library docs and source through Read and Bash, and when it needs something from outside the repository it stops and returns `BLOCKED` with a question naming what it needs and why, instead of guessing. `accord-build` step 4 and its Rules route that stop as they already do: a new package goes to the owner; `BLOCKED` with a question, or `NEEDS_CONTEXT`, goes to the owner when the question touches intent, a veto, a criterion or a public interface, and otherwise the main session, which keeps the host's web, MCP and skill tools, decides how to answer it as a Ruling before a fresh executor gets the answer. Agent files are rendered for the `claude` runtime only.
 
-**Routing.** `models:` in `config.yml` sets each agent's model and effort; an absent entry falls back to the default (the values below for these three). `reviewer.final` routes the final reviewer. From the fix round `escalation.fix_round_tier_up` names (default 4), the executor is dispatched one tier higher, in the order `haiku`, `sonnet`, `opus`. `accord skills sync` renders these values into each agent's frontmatter.
+**Routing.** `models:` in `config.yml` sets each agent's model and effort; an absent entry falls back to the default in the table below, which is `AGENT_DEFAULTS` in `packages/core/src/skills/agents.ts`. `reviewer.final` routes the final reviewer. From the fix round `escalation.fix_round_tier_up` names (default 4), the executor is dispatched one tier higher, in the order `haiku`, `sonnet`, `opus`. `accord skills sync` renders these values into each agent's frontmatter.
+
+| `models:` key | Agent | Default | Why |
+|---|---|---|---|
+| `scout` | `accord-scout` | haiku, low | Returns facts with file and line, high-volume structured reading where GSD's adaptive profile uses haiku; ST-LN-46's benchmark chose no other arm. |
+| `auditor` | `accord-auditor` | opus, high | Finds two readings per criterion; benchmark round 1: low missed Musts on 2 of 5 samples, high found 5 and 2 more Musts than medium, at under 30k tokens a run (raised from medium 2026-11-16). |
+| `critic` | `accord-critic` | opus, high | Argues against the approach and the plan, where reasoning quality matters most (GSD adaptive: opus for planning); the owner kept it at opus high on 2026-10-25. |
+| `planner` | `accord-planner` | opus, high | Drafts the approach and writes plan.md, GSD adaptive's opus role; at medium ST-LN-44's first plan took 5 Must and 14 Should (owner 2026-10-25). |
+| `executor` | `accord-executor` | sonnet, high | Builds one task from a brief that spells it out, GSD adaptive's sonnet role; high because medium left more defects for review to catch (owner 2026-10-25; raised from medium 2026-11-16). |
+| `reviewer` | `accord-reviewer` | sonnet, high | Reviews through one lens against a review package, GSD adaptive's sonnet verification role; high is the 2026-10-12 design's starting value, not measured since. |
+| `reviewer.final` | `accord-final-reviewer` | opus, high | The last review before verify, where a missed defect costs most; the 2026-10-12 design's starting value, not measured since. |
+| `verifier` | `accord-verifier` | sonnet, medium | Checks each criterion against evidence it runs, GSD adaptive's sonnet verifier; medium is the 2026-10-12 design's starting value, not measured since. |
+| `debugger` | `accord-debugger` | opus, high | Ranks competing hypotheses for a root cause, where GSD adaptive uses opus. |
+
+A team overrides any default in `config.yml` under `models:`, one entry per key of the first column. `model` is required; an entry without `effort` keeps the default effort, field by field. An entry wins over a later change of a default, and `accord skills sync` (which `accord upgrade` runs) renders the result into each agent's frontmatter. The defaults were set without a new benchmark: they follow GSD's `adaptive` role split and the evidence shown in the table, benchmark round 1 for the auditor included. A benchmark is reopened only if rounds, findings per round or weighted tokens on real tickets get worse against `docs/benchmark/metrics-v0.4.0.md`.
 
 ```yaml
 models:
-  executor:       { model: sonnet, effort: medium }
-  reviewer:       { model: sonnet, effort: high }
-  reviewer.final: { model: opus,   effort: high }
+  executor: { model: opus }                  # its effort stays at the default, high
+  verifier: { model: sonnet, effort: high }
 escalation:
   fix_round_tier_up: 4
 ```

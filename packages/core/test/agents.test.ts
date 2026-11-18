@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { agents, agentTargets, contentHash, markerHash, renderAgent, REPORT_CONTRACT, reportReasons, rulesetText, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
+import { AGENT_DEFAULTS, agents, agentTargets, contentHash, markerHash, renderAgent, REPORT_CONTRACT, reportReasons, rulesetText, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 
 const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
@@ -241,7 +241,7 @@ describe('rendered agents', () => {
 
   it('renders the auditor read-only on its spec route', () => {
     const text = agentTargets(config()).find((f) => f.path === '.claude/agents/accord-auditor.md')?.text ?? '';
-    expect(frontmatter(text)).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'medium' });
+    expect(frontmatter(text)).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'high' });
   });
 
   // Title kept for the baseline: the architect is gone, so this now asserts the critic only and that no architect file renders.
@@ -303,6 +303,81 @@ describe('rendered agents', () => {
       expect(agents[name as AgentKey], `${name} drifted: run npm run gen`).toBe(text);
     }
   });
+});
+
+// Phase 6 (cost): the shipped defaults of the executor and the auditor are high, and the executor declares its tools.
+const rendered = (c: AccordConfig, role: string): string => agentTargets(c).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
+
+it('ac-1 with no models entry the executor renders on sonnet at high and the planner stays on opus at high (ST-LN-85 6-ac-1)', () => {
+  expect(AGENT_DEFAULTS.executor).toEqual({ model: 'sonnet', effort: 'high' });
+  expect(AGENT_DEFAULTS.planner).toEqual({ model: 'opus', effort: 'high' });
+  expect(frontmatter(rendered(config(), 'executor'))).toMatchObject({ name: 'accord-executor', model: 'sonnet', effort: 'high' });
+  expect(frontmatter(rendered(config(), 'planner'))).toMatchObject({ model: 'opus', effort: 'high' });
+  // an entry wins, field by field
+  expect(frontmatter(rendered(config({ models: { executor: { model: 'opus' } } }), 'executor'))).toMatchObject({ model: 'opus', effort: 'high' });
+  expect(frontmatter(rendered(config({ models: { executor: { model: 'sonnet', effort: 'medium' } } }), 'executor'))).toMatchObject({ model: 'sonnet', effort: 'medium' });
+});
+
+it('ac-1b with no models entry the auditor renders on opus at high (ST-LN-85 6-ac-1b)', () => {
+  expect(AGENT_DEFAULTS.auditor).toEqual({ model: 'opus', effort: 'high' });
+  expect(frontmatter(rendered(config(), 'auditor'))).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'high' });
+  expect(AGENT_DEFAULTS.critic).toEqual({ model: 'opus', effort: 'high' });
+});
+
+it('ac-3 the executor declares its six tools and stops on a need outside the repository and every rendered accord agent declares a tools line (ST-LN-85 6-ac-3)', () => {
+  const tools = 'Read, Write, Edit, Bash, Grep, Glob';
+  const toolsLine = /^tools: "Read, Write, Edit, Bash, Grep, Glob"$/m;
+  const trigger =
+    "- When you need something from outside the repository (a web page, an external API's documentation, a service, an MCP or skill result), stop and return `BLOCKED` with a question that names what you need and why, instead of guessing.";
+  const executor = rendered(config(), 'executor');
+  expect(executor, 'accord-executor.md is missing from the render output').not.toBe('');
+  expect(frontmatter(executor).tools).toBe(tools);
+  expect(executor).toMatch(toolsLine);
+  const offenders: string[] = [];
+  for (const runtime of RUNTIME_LIST) {
+    for (const f of agentTargets(config({ runtimes: [runtime] }))) {
+      const t = frontmatter(f.text).tools;
+      if (typeof t !== 'string' || t.trim() === '') offenders.push(runtime + ' ' + f.path);
+    }
+  }
+  expect(offenders).toEqual([]);
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(9);
+  // the committed copies of this repository equal what the config renders, so each declares tools and the executor its six
+  const committedDir = new URL('../../../.claude/agents/', import.meta.url);
+  const committedFiles = readdirSync(committedDir).filter((n) => /^accord-.*\.md$/.test(n));
+  expect(committedFiles).toHaveLength(9);
+  const lacking = committedFiles.filter((n) => !/^tools: "[^"]+"$/m.test(readFileSync(new URL(n, committedDir), 'utf8')));
+  expect(lacking).toEqual([]);
+  const committed = readFileSync(new URL('accord-executor.md', committedDir), 'utf8');
+  expect(committed).toMatch(toolsLine);
+  // the stop trigger is one whole line of the core text, the render and the committed copy
+  const lines = (s: string): string[] => s.replace(/\r\n/g, '\n').split('\n');
+  const missing = ([['core', agents['executor.md']], ['rendered', executor], ['committed', committed]] as [string, string][])
+    .filter(([, text]) => !lines(text).includes(trigger))
+    .map(([name]) => name);
+  expect(missing, 'the executor stop trigger line is missing from').toEqual([]);
+});
+
+it('ac-2 docs/design.md gives every default model choice with one reason line and the models override (ST-LN-85 6-ac-2)', () => {
+  const design = readFileSync(new URL('../../../docs/design.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n').split('\n');
+  const start = design.findIndex((l) => l.startsWith('**Routing.**'));
+  expect(start, 'docs/design.md has no Routing paragraph').toBeGreaterThanOrEqual(0);
+  const end = design.findIndex((l, i) => i > start && l.startsWith('**Tests.**'));
+  expect(end, 'docs/design.md has no Tests paragraph after Routing').toBeGreaterThan(start);
+  const routing = design.slice(start, end);
+  // every table line but the header row (its first cell is the column name `models:`)
+  const rows = routing.filter((l) => l.startsWith('| `') && !l.startsWith('| `models:`'));
+  const parsed = rows.map((l) => /^\| `([a-z.]+)` \| `accord-[a-z-]+` \| (haiku|sonnet|opus), (low|medium|high|xhigh|max) \| (.+) \|$/.exec(l));
+  expect(rows.filter((_, i) => parsed[i] === null), 'rows that do not match the table shape').toEqual([]);
+  const seen = parsed.map((m) => (m as RegExpExecArray)[1]);
+  expect([...seen].sort()).toEqual(Object.keys(AGENT_DEFAULTS).sort());
+  for (const m of parsed as RegExpExecArray[]) {
+    const key = m[1] as keyof typeof AGENT_DEFAULTS;
+    expect({ model: m[2], effort: m[3] }, key).toEqual(AGENT_DEFAULTS[key]);
+    expect(m[4].length, key + ' has no reason').toBeGreaterThan(20);
+  }
+  const text = routing.join('\n');
+  for (const s of ['A team overrides', 'under `models:`', 'field by field', 'without a new benchmark']) expect(text, 'Routing lacks: ' + s).toContain(s);
 });
 
 it('ac-3 the critic and both reviewers define must should and nice by consequence', () => {

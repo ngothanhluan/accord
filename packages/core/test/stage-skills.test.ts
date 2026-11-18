@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, parseRounds, recordHeaderFaults, skillDirs, skillTargets, STAGES, UNFINISHED_MARKER } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_RULES } from '../src/gate/rules.js';
+import { RULES } from '../src/lint/rules.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
 import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
@@ -2202,4 +2204,32 @@ it('ac-6 the drop steps offer the Rejected line first and pass the flag only on 
       expect(flag, dir + '/' + name).toContain('explicit yes');
     }
   }
+});
+
+// ST-LN-84 7-ac-6 (07-17, D-10, D-11): one offer procedure in shared/ask.md, rendered beside every stage skill; a line the owner says yes to waits in the ticket ledger's `## Conventions` and reaches conventions.md at verify step 6.
+it('ac-6 every stage offers a rule or Rejected line and records it only on a yes (ST-LN-84 7-ac-6)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const read = (p: string) => files.find((f) => f.path === p)?.text ?? '';
+  for (const stage of STAGES) {
+    const ask = flat(read('.claude/skills/' + installedName(stage) + '/ask.md'));
+    expect(ask, stage + ' renders ask.md').not.toBe('');
+    const at = ask.indexOf('## Recording a rule or a refused option');
+    expect(at, stage + ' ask.md holds the offer procedure').toBeGreaterThanOrEqual(0);
+    const section = ask.slice(at);
+    for (const phrase of ['states a rule meant to last beyond this ticket', 'overrides a step of a skill', 'refuses an option', '`Rejected: <option> — <reason>`', 'explicit yes', "the ticket ledger's `## Conventions`", 'write nothing anywhere', 'accord/product/conventions.md', '`accord drop --rejected`'])
+      expect(section, stage + ' ask.md names ' + phrase).toContain(phrase);
+  }
+  const verify = flat(read('.claude/skills/accord-verify/SKILL.md'));
+  const step6 = verify.slice(verify.indexOf('6. Run `accord gate done <id>`'), verify.indexOf('7. Report the finish'));
+  expect(step6.length, 'verify step 6').toBeGreaterThan(0);
+  for (const phrase of ['./ask.md', "ledger's `## Conventions`", 'accord/product/conventions.md']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
+  // the sentences that moved to ask.md are gone from step 6, so the rendered file shrank (it was 5975 bytes)
+  expect(step6).not.toContain('Without the owner\'s yes');
+  const bytes = Buffer.byteLength(read('.claude/skills/accord-verify/SKILL.md'), 'utf8');
+  expect(bytes).toBeLessThanOrEqual(6000);
+  expect(bytes).toBeLessThan(5975);
+  // D-11: no lint or gate rule reads conventions.md
+  const ids = [...RULES.map((r) => r.id), ...[READY_RULES, PLAN_RULES, DONE_RULES, PLAN_R_RULES, DONE_S_RULES, DONE_R_RULES].flat().map((r) => r.id)];
+  expect(ids.length).toBeGreaterThan(30);
+  expect(ids.filter((id) => /convention/i.test(id) && id !== 'lint.id-convention')).toEqual([]);
 });

@@ -136,3 +136,27 @@ it('ac-4 queue refuses an existing backlog branch and pushes nothing (ST-LN-83 7
     none(what);
   }
 }, 180_000);
+
+it('ac-4 queue merge follows config (ST-LN-83 7-ac-4)', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const queue = (id: string) => run(['new', 'ticket', id, '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'an idea'], c.root);
+  const mergeLine = (out: string): string | undefined => lines(out).find((l) => l.startsWith('merge: '));
+
+  // shipped default: the key is absent, the skill leaves the pull request to a person
+  const first = await queue('Q-1');
+  expect(first.code, first.err).toBe(0);
+  expect(mergeLine(first.out)).toBe('merge: owner');
+
+  // accord config set writes the key, and the queue path prints it
+  const set = await run(['config', 'set', 'queue.merge', 'at-once'], c.root);
+  expect(set.code, set.err).toBe(0);
+  const second = await queue('Q-2');
+  expect(second.code, second.err).toBe(0);
+  expect(mergeLine(second.out)).toBe('merge: at-once');
+
+  // a refused value leaves the last good key in place
+  expect((await run(['config', 'set', 'queue.merge', 'sometimes'], c.root)).code).toBe(2);
+  const third = await queue('Q-3');
+  expect(third.code, third.err).toBe(0);
+  expect(mergeLine(third.out)).toBe('merge: at-once');
+}, 180_000);

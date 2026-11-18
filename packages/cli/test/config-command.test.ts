@@ -278,3 +278,37 @@ it('risk:data-loss accord config set stores a quoted command and a backslash pat
     await run(['config', 'unset', key], repo);
   }
 });
+
+// ST-LN-83 D-03: `queue.merge` decides whether /accord-queue merges its pull request at once; it is edited through accord config
+// like any dotted key, and a value other than owner or at-once is refused with the file untouched.
+it('ac-4 queue merge follows config (ST-LN-83 7-ac-4)', async () => {
+  const repo = sandbox();
+  const set = await run(['config', 'set', 'queue.merge', 'at-once'], repo);
+  expect(set.err).toBe('');
+  expect(set.code).toBe(0);
+  expect(set.out).toBe('changed: queue.merge unset -> at-once\n');
+  expect(text(repo)).toBe(CONFIG + 'queue:\n  merge: at-once\n');
+  expect((await run(['config', 'get', 'queue.merge'], repo)).out).toBe('at-once\n');
+  expect(JSON.parse((await run(['config', 'get', 'queue.merge', '--json'], repo)).out)).toEqual({ key: 'queue.merge', value: 'at-once' });
+  expect((await run(['lint'], repo)).code).toBe(0);
+
+  // any other value: exit 2, the reason, nothing written
+  const bytes = text(repo);
+  for (const bad of ['sometimes', 'admin', 'At-Once', '']) {
+    const r = await run(['config', 'set', 'queue.merge', bad], repo);
+    expect(r.code, bad).toBe(2);
+    expect(r.err, bad).toContain('queue.merge');
+    expect(r.err, bad).toContain('accord/config.yml was not changed');
+    expect(text(repo), bad).toBe(bytes);
+  }
+  // a second key under queue is refused too
+  const extra = await run(['config', 'set', 'queue.admin', 'true'], repo);
+  expect(extra.code).toBe(2);
+  expect(text(repo)).toBe(bytes);
+
+  // owner is the other value, and unset returns to the shipped default
+  expect((await run(['config', 'set', 'queue.merge', 'owner'], repo)).code).toBe(0);
+  expect((await run(['config', 'get', 'queue.merge'], repo)).out).toBe('owner\n');
+  expect((await run(['config', 'unset', 'queue.merge'], repo)).code).toBe(0);
+  expect((await run(['lint'], repo)).code).toBe(0);
+});

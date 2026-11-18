@@ -4,7 +4,7 @@ description: Use when continuing a ticket by its id. Resumes the ticket in its o
 license: MIT
 argument-hint: "<ticket id>"
 kind: skill
-loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/worktree.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md]
+loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/worktree.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
 ---
 
 `/accord-continue <id>` resumes one ticket, and the accord skill loads this skill with that id when a person types the older form of the command. With no argument, ask the owner for the ticket id in one question and run, claim, create and edit nothing.
@@ -23,7 +23,7 @@ says so, offers `/accord-pickup <id>`, and never claims it.
 2. Run `accord anchor`.
 3. If `accord/tickets/<id>/debug.md` exists and no `## Resolved` follows its last `## Episode` heading,
    load `accord-debug` and resume there.
-4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md`; when it prints `Lane: R`, follow `./lane-r.md`. Else, at any stage
+4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md` (a title it still needs is made as `./similar.md` says); when it prints `Lane: R`, follow `./lane-r.md`. Else, at any stage
    but `intent`, first run `accord gate ready <id>`; when it fails, show the
    owner what it prints and stop; when it changes the ticket, commit the ticket.
    Then load the stage skill for the stage it prints: `intent` →

@@ -9,8 +9,6 @@ loads: [accord/ids.md, shared/ask.md]
 
 `/accord-queue <idea>` notes an idea as a draft ticket for later. It never starts the work and never touches this session's branch or working tree, so it runs in a session that works a ticket as well as in the main checkout; it does not run the session check. With no argument, ask the owner for the idea in one question and write nothing.
 
-Read `./ask.md` before any question to the owner.
-
 ## Queue an idea: `/accord-queue <idea>`
 
 1. Turn the idea into a short title in business language and one to four one-line notes. Write them in English, keeping the owner's own words where they are English; the owner may chat in another language, and tickets are English. Never add a point the owner did not make.
@@ -24,6 +22,6 @@ Read `./ask.md` before any question to the owner.
 
 ## Rules
 
-- Anything touching intent, a veto, an acceptance criterion, or a public interface stops the run and asks the owner; a queued draft carries only what the owner said.
+- Anything touching intent, a veto, an acceptance criterion, or a public interface stops the run and asks the owner; a queued draft carries only what the owner said. Read `./ask.md` before any question to the owner.
 - Never merge with admin rights, never merge under `merge: owner`, and never push by hand: the command pushes.
 - Never switch branches, stash, or change a file in this session's working tree.

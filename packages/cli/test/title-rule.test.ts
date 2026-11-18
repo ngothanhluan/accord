@@ -3,8 +3,9 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { cleanup, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG } from '../../../test/helpers/lane.js';
+import { TITLE_RULE_FROM } from '@accord-dev/accord-core';
+import { claimedUnder, cleanup, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 const repos: string[] = [];
 afterEach(() => {
@@ -71,4 +72,31 @@ it('D-08b the title rule comes from config.yml and is printed at creation (ST-LN
   expect(long.code, long.out).toBe(2);
   expect(long.err).toContain('70 characters, more than 60');
   expect(long.err).toContain('at most 60 characters');
+});
+
+/** A lane M ticket T-1 titled `title`, claimed under accord `pin` (the claim commit holds that pin; the working tree keeps the running version's). */
+function claimedWith(title: string, pin: string): string {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1').replace('title: "Export"', `title: "${title}"`) });
+  repos.push(repo);
+  claimedUnder(repo, pin);
+  return repo;
+}
+const titleFindings = (out: string): { rule: string; level: string; reason: string }[] =>
+  (JSON.parse(out).findings as { rule: string; level: string; reason: string }[]).filter((f) => f.rule === 'gate.ticket-title');
+
+it('D-08b accord gate ready refuses a title that breaks the rule for a ticket claimed at the cut-off (ST-LN-22 D-08b)', async () => {
+  const placeholder = await run(['gate', 'ready', 'T-1', '--json'], claimedWith('Short title in business language', TITLE_RULE_FROM));
+  expect(placeholder.code, placeholder.out + placeholder.err).toBe(1);
+  const found = titleFindings(placeholder.out);
+  expect(found).toHaveLength(1);
+  expect(found[0].level).toBe('error');
+  expect(found[0].reason).toContain('placeholder');
+  expect(found[0].reason).toContain('title rule: English, in business language');
+  // the text form names the rule id too
+  const text = await run(['gate', 'ready', 'T-1'], claimedWith('x'.repeat(120), TITLE_RULE_FROM));
+  expect(text.code, text.out + text.err).toBe(1);
+  expect(text.out).toContain('gate.ticket-title');
+  // a ticket claimed before the cut-off is not judged, whatever its title
+  const old = await run(['gate', 'ready', 'T-1', '--json'], claimedWith('Short title in business language', '0.7.1'));
+  expect(titleFindings(old.out)).toEqual([]);
 });

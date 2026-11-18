@@ -757,7 +757,7 @@ it('ac-5 the verify skill offers to promote a ruling or correction into the conv
   const step = text.slice(from, to);
   // ST-LN-84 07-17: the judge-and-ask sentences moved to shared/ask.md; step 6 offers as ./ask.md says and writes the ledger's lines
   const phrases = [
-    'offer each Correction or Ruling that holds across tickets, as `./ask.md` says',
+    'offer each Correction or Ruling that holds across tickets or across its epic, as `./ask.md` says',
     "write every line under the ledger's `## Conventions` into `accord/product/conventions.md`.",
   ];
   expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
@@ -2373,7 +2373,7 @@ it('ac-10 verify offers an epic lesson and writes it only to the story\'s own le
   }
   const verify = read('.claude/skills/accord-verify/SKILL.md');
   const step6 = verify.slice(verify.indexOf('6. Run `accord gate done <id>`'), verify.indexOf('7. Report the finish'));
-  for (const phrase of ['across its epic', './ask.md', 'a lesson was written', 'and the ledger']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
+  for (const phrase of ['across its epic', './ask.md', 'a line or a lesson was written', 'and the ledger']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
   // no shared epic file and no write into another ticket's folder is asked of any rendered skill
   for (const f of files.filter((x) => x.path.endsWith('.md'))) {
     const text = flat(f.text);

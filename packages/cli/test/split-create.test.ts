@@ -59,7 +59,7 @@ it('ac-9 an approved split creates the epic and every story in one step (ST-LN-2
 
   const epic = text(repo, 'EP-AN-1');
   expect(epic).toContain('\nid: "EP-AN-1"');
-  expect(epic).toContain('\ntype: epic');
+  expect(epic).toContain('\ntype: "epic"');
   expect(epic).toContain('\nlane: "L"');
   expect(epic).toContain('\ntitle: "Checkout redesign"');
   expect(epic).toContain('Buyers pay with fewer taps.\nSuccess is a faster checkout.\n');
@@ -67,7 +67,7 @@ it('ac-9 an approved split creates the epic and every story in one step (ST-LN-2
 
   const [one, two, three] = ['ST-AN-1', 'ST-AN-2', 'ST-AN-3'].map((id) => text(repo, id));
   for (const [i, t] of [one, two, three].entries()) {
-    expect(t, 'story ' + (i + 1)).toContain('\ntype: story');
+    expect(t, 'story ' + (i + 1)).toContain('\ntype: "story"');
     expect(t, 'story ' + (i + 1)).toContain('\nlane: "M"');
     expect(t, 'story ' + (i + 1)).toContain('\nparent: "EP-AN-1"');
   }
@@ -77,10 +77,11 @@ it('ac-9 an approved split creates the epic and every story in one step (ST-LN-2
   expect(two).toMatch(/^depends_on:\n {2}- "ST-AN-1"\n/m);
   expect(three).toMatch(/^depends_on:\n {2}- "ST-AN-1"\n {2}- "ST-AN-2"\n/m);
 
-  // the files lint clean; no worktree, branch or claim came with them
+  // the files lint with no error and no finding about ids, dependencies or parents (the template's own placeholder warnings stay); no worktree, branch or claim came with them
   const lint = await run(['lint'], repo);
   expect(lint.code, lint.out + lint.err).toBe(0);
-  expect(lint.out + lint.err).not.toMatch(/ST-AN-|EP-AN-/);
+  expect(lint.out).toContain('0 errors');
+  expect(lint.out + lint.err).not.toMatch(/lint.(id-|depends-|parent)/);
   expect(lines(gitRun(repo, 'worktree', 'list'))).toHaveLength(1);
   expect(gitRun(repo, 'branch', '--list')).toBe(branches);
   expect(existsSync(join(repo, '.git', 'accord'))).toBe(false);

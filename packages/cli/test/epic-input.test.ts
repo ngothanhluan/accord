@@ -60,3 +60,59 @@ describe('accord anchor and the epic', () => {
     expect(r.out).not.toContain('### Vetoes');
   });
 });
+
+/**
+ * The group-6 story as a linked worktree: E-1 holds both Decisions on main; the worktree of S-1 (branch t/S-1) holds an older E-1 with one. T-1 has no parent and its own worktree.
+ * `repo` is the main checkout, which stays on its default branch, as the hook is launched from there.
+ */
+function worktrees(): { repo: string; story: string; plain: string } {
+  const repo = makeLaneRepo({ 'accord/tickets/E-1.md': epic('E-1', [D1, D2]), 'accord/tickets/S-1.md': laneTicket('S-1', { frontmatter: ['parent: "E-1"'] }) });
+  repos.push(repo);
+  commitAll(repo, 'main');
+  const story = repo + '-s-1';
+  const plain = repo + '-t-1';
+  repos.push(story, plain);
+  gitRun(repo, 'worktree', 'add', '-q', '-b', 't/S-1', story);
+  gitRun(repo, 'worktree', 'add', '-q', '-b', 't/T-1', plain);
+  writeFiles(story, { 'accord/tickets/E-1.md': epic('E-1', [D1]) });
+  commitAll(story, 'older epic copy on the story branch');
+  return { repo, story, plain };
+}
+
+/** `accord hook subagent-start` launched in `repo` for the subagent `agent` working in `cwd`; the additionalContext it prints. */
+async function contextOf(repo: string, input: string): Promise<{ context: string; err: string }> {
+  const r = await run(['hook', 'subagent-start'], repo, {}, input);
+  expect(r.code).toBe(0);
+  const out = JSON.parse(r.out) as { hookSpecificOutput: { hookEventName: string; additionalContext: string } };
+  expect(out.hookSpecificOutput.hookEventName).toBe('SubagentStart');
+  return { context: out.hookSpecificOutput.additionalContext, err: r.err };
+}
+const asked = (agent: string, cwd: string): string => JSON.stringify({ hook_event_name: 'SubagentStart', agent_type: agent, cwd });
+
+describe('accord hook subagent-start and the epic', () => {
+  it('ac-8 the scout planner critic and reviewer of a story receive its epic rules (ST-LN-28 7-ac-8)', async () => {
+    const { repo, story, plain } = worktrees();
+    const alone = (await contextOf(repo, '')).context;
+    expect(alone.startsWith('# accord rules')).toBe(true);
+    expect(alone).not.toContain('## Epic');
+    for (const agent of ['accord-scout', 'accord-planner', 'accord-critic', 'accord-reviewer', 'accord-final-reviewer']) {
+      const { context, err } = await contextOf(repo, asked(agent, story));
+      expect(err).toBe('');
+      // the ruleset first, then the epic block from the default branch's copy
+      expect(context, agent).toBe([alone, BLOCK([D1, D2])].join('\n\n'));
+    }
+    // the other roles, a ticket with no parent, the main checkout and unreadable input keep the ruleset alone
+    for (const agent of ['accord-executor', 'accord-auditor', 'accord-verifier', 'accord-debugger', 'accord-researcher']) {
+      expect((await contextOf(repo, asked(agent, story))).context, agent).toBe(alone);
+    }
+    expect((await contextOf(repo, asked('accord-planner', plain))).context).toBe(alone);
+    expect((await contextOf(repo, asked('accord-planner', repo))).context).toBe(alone);
+    expect((await contextOf(repo, JSON.stringify({ cwd: story }))).context).toBe(alone);
+    expect((await contextOf(repo, 'not json')).context).toBe(alone);
+    // a folder git cannot read fails open to the ruleset, with one line on stderr
+    const lost = await contextOf(repo, asked('accord-planner', repo + '-missing'));
+    expect(lost.context).toBe(alone);
+    expect(lost.err.trimEnd().split(/\r?\n/)).toHaveLength(1);
+    expect(lost.err).toContain('accord hook subagent-start');
+  });
+});

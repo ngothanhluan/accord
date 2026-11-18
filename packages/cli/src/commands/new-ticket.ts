@@ -7,7 +7,7 @@
 // nothing to generate — only to substitute.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_PATTERN, initialsHolder, insertTeamSections, initialsOf, loadSnapshot, nextTicketId, setFrontmatterKey, similarTickets, templates, ticketFacts, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
+import { DEFAULT_PATTERN, initialsHolder, insertTeamSections, initialsOf, loadSnapshot, nextTicketId, setFrontmatterKey, similarTickets, templates, ticketFacts, titleProblem, titleRuleLine, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
 import type { Lane } from '@accord-dev/accord-core';
 import { doneRef, gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, loadRefInput, UsageError } from '../load/fs.js';
 import { queueTicket, utcDate } from './queue.js';
@@ -41,6 +41,11 @@ export function newTicket(
   const title = options.title?.trim();
   if (title !== undefined && (title === '' || /[\r\n]/.test(title))) {
     throw new UsageError('--title must be one line of text - nothing was written');
+  }
+  // ST-LN-22 D-08b: a title that breaks the rule in config.yml is refused here, with the rule, before anything is read or written
+  if (title !== undefined) {
+    const problem = titleProblem(title, ctx.snapshot.config);
+    if (problem !== undefined) throw new UsageError(problem + '\n' + titleRuleLine(ctx.snapshot.config) + ' - nothing was written');
   }
   // ST-LN-22 D-08: --no-dup-check skips the check that --related records the judgment of, so the two never go together
   const dupCheck = options.dupCheck !== false;

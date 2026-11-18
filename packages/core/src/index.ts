@@ -139,6 +139,8 @@ export { nextRows, statusRows } from './status/rows.js';
 export { dashboard } from './status/dashboard.js';
 export { relatedIds, relatedText } from './tickets/related.js';
 export { requestWords, similarTickets, STOP_WORDS, ticketFacts } from './tickets/similar.js';
+export { DEFAULT_TITLE_RULE, TITLE_PLACEHOLDER, titleProblem, titleRuleLine, titleRuleOf } from './tickets/title.js';
+export type { TitleRule } from './tickets/title.js';
 export type { SimilarFact, SimilarTicket } from './tickets/similar.js';
 export type { Dashboard, DashboardSection, DashboardSummary, EpicRow } from './status/dashboard.js';
 export type { Stage } from './status/stage.js';

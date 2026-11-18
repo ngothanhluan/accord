@@ -86,7 +86,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('intent')).toBe('accord-intent');
     expect(installedName('designer')).toBe('accord-designer');
@@ -234,9 +234,19 @@ const COMMAND =
 /** Spec §2: each skill targets at most 6000 bytes. */
 const MAX_SKILL_BYTES = 6000;
 
-/** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. */
-const firstCommand = (dir: string): string =>
-  dir === 'accord' ? 'dashboard' : dir === 'accord-designer' ? 'gate ready' : 'anchor';
+/** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. The command
+ *  skills open on what their moved rule names first: Continue and Pick up on the ticket-id rule (`accord status`), New request
+ *  on its lane routes, Upgrade on the dashboard line it reads the command from (ST-LN-83 7-ac-1). */
+const FIRST_COMMAND: Record<string, string> = {
+  accord: 'dashboard',
+  'accord-designer': 'gate ready',
+  'accord-continue': 'status',
+  'accord-pickup': 'status',
+  'accord-new': 'new ticket',
+  'accord-upgrade': 'dashboard',
+  'accord-queue': 'new ticket',
+};
+const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
 
 /** The rendered text with its frontmatter block and its marker line removed — the prose a reader receives. */
 const bodyOf = (text: string) => withoutMarker(text).replace(FRONTMATTER, '');
@@ -540,7 +550,7 @@ it('ac-1 every reference file of a rendered skill is named in its own SKILL.md',
     expect(files.length).toBeGreaterThan(0);
     const paths = files.map((f) => f.path);
     for (const dir of ['.claude/skills', '.agents/skills']) {
-      for (const p of ['accord/finish.md', 'accord-debug/worktree.md', 'accord-debug/ids.md', 'accord-verify/worktree.md', 'accord-verify/ids.md']) {
+      for (const p of ['accord-new/finish.md', 'accord-debug/worktree.md', 'accord-debug/ids.md', 'accord-verify/worktree.md', 'accord-verify/ids.md']) {
         expect(paths, `${dir}/${p} is not rendered`).toContain(`${dir}/${p}`);
       }
     }
@@ -581,7 +591,7 @@ it('ac-3 each new mention names the step or event at which to read its file and 
   const D = 'at step 5';
   const vague = /\b(?:when|if|as) (?:needed|necessary|required)\b/i;
   const expectations: [string, string, string][] = [
-    ['accord', './finish.md', A],
+    ['accord-new', './finish.md', A],
     ['accord-debug', './worktree.md', B],
     ['accord-debug', './ids.md', C],
     ['accord-verify', './worktree.md', B],
@@ -609,8 +619,14 @@ it('ac-3 each new mention names the step or event at which to read its file and 
 // The hint each installed skill shows after its name in the slash-command picker, from what its body takes:
 // `/accord` takes nothing (the dashboard), a request, or an action on a ticket id; a stage runs
 // `accord anchor`, whose id defaults to the ticket of the current branch; designer runs `accord gate ready <id>`.
-const HINTS: Record<string, string> = {
-  accord: '[request | continue <id> | pick-up <id> | upgrade]',
+const HINTS: Record<string, string | null> = {
+  accord: '[request]',
+  'accord-continue': '<ticket id>',
+  'accord-new': '<request>',
+  'accord-pickup': '<ticket id>',
+  // A command that takes no argument shows no hint.
+  'accord-upgrade': null,
+  'accord-queue': '<idea>',
   'accord-intent': '[ticket id]',
   'accord-approach': '[ticket id]',
   'accord-plan': '[ticket id]',
@@ -630,7 +646,7 @@ describe('argument hints', () => {
     for (const { path, text } of skillMds) {
       const name = baseOf(dirOf(path));
       expect(Object.hasOwn(HINTS, name), `${path} has no expected hint in HINTS`).toBe(true);
-      expect(frontmatter(text)?.['argument-hint'], path).toBe(HINTS[name]);
+      expect(frontmatter(text)?.['argument-hint'], path).toBe(HINTS[name] ?? undefined);
     }
     // Both directories receive both texts, and every authored skill is covered.
     expect(new Set(skillMds.map((f) => dirOf(dirOf(f.path))))).toEqual(new Set(['.claude/skills', '.agents/skills']));
@@ -638,7 +654,7 @@ describe('argument hints', () => {
   });
 
   it('risk:regression a hint is short and reads <required> [optional]', () => {
-    for (const hint of Object.values(HINTS)) {
+    for (const hint of Object.values(HINTS).filter((h): h is string => h !== null)) {
       expect(hint.length, hint).toBeLessThanOrEqual(64);
       expect(hint, hint).toMatch(/^(?:<[^<>[\]]+>|\[[^[\]]+\])(?: (?:<[^<>[\]]+>|\[[^[\]]+\]))*$/);
     }
@@ -657,8 +673,8 @@ describe('argument hints', () => {
       const keys = Object.keys(frontmatter(text) ?? {});
       expect(keys, path).not.toContain('kind');
       expect(keys, path).not.toContain('loads');
-      // Rendered order is the allowlist order: the hint comes last, after the spec fields.
-      expect(keys.at(-1), path).toBe('argument-hint');
+      // Rendered order is the allowlist order: the hint comes last, after the spec fields. A skill with no hint ends on its last spec field.
+      if (keys.includes('argument-hint')) expect(keys.at(-1), path).toBe('argument-hint');
     }
   });
 });
@@ -713,4 +729,85 @@ it('risk:regression the command pattern reads accord waves and accord worktree t
   expect(waves.length, 'accord-build/waves.md is missing from the render output').toBeGreaterThan(0);
   const named = new Set([...waves.matchAll(COMMAND)].map((m) => m[1]));
   for (const c of ['waves', 'worktree task', 'task-done', 'brief']) expect(named.has(c), c).toBe(true);
+});
+
+// ST-LN-83 7-ac-1 (D-02): each action of the old single /accord skill is its own command, one definition each, installed
+// by every runtime's directories from the same text.
+describe('one command per action', () => {
+  const copiesOf = (name: string, runtime: AccordConfig['runtimes'][number]): { dirs: string[]; texts: string[] } => {
+    const cfg = config({ runtimes: [runtime] });
+    const files = skillTargets(cfg);
+    const dirs = skillDirs(cfg);
+    return { dirs, texts: dirs.map((dir) => files.find((f) => f.path === `${dir}/${name}/SKILL.md`)?.text ?? '') };
+  };
+
+  it('ac-1 accord-continue renders from one definition for every runtime (ST-LN-83 7-ac-1)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const { dirs, texts } = copiesOf('accord-continue', runtime);
+      expect(dirs.length, runtime).toBeGreaterThan(0);
+      for (const [i, text] of texts.entries()) {
+        expect(text.length, `${runtime}: ${dirs[i]}/accord-continue/SKILL.md is missing`).toBeGreaterThan(0);
+        expect(text, `${runtime}: ${dirs[i]} differs from ${dirs[0]}`).toBe(texts[0]);
+      }
+      expect(frontmatter(texts[0])?.name, runtime).toBe('accord-continue');
+      const body = bodyOf(texts[0]);
+      expect(body, runtime).toContain('accord worktree open <id> --continue');
+      expect(body, runtime).toContain('accord anchor');
+      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
+      expect(accord.length, runtime).toBeGreaterThan(0);
+      expect(accord, runtime).toContain('accord-continue');
+      expect(accord, runtime).not.toContain('## Continue');
+    }
+  });
+
+  it('ac-1 every action of the old accord skill is its own command for every runtime (ST-LN-83 7-ac-1)', () => {
+    const needle: Record<string, string> = { 'accord-new': 'accord new ticket', 'accord-pickup': 'accord worktree open <id>', 'accord-upgrade': './upgrade.md' };
+    for (const runtime of ALL_RUNTIMES) {
+      for (const [name, text] of Object.entries(needle)) {
+        const { dirs, texts } = copiesOf(name, runtime);
+        expect(dirs.length, `${runtime} ${name}`).toBeGreaterThan(0);
+        for (const [i, copy] of texts.entries()) {
+          expect(copy.length, `${runtime}: ${dirs[i]}/${name}/SKILL.md is missing`).toBeGreaterThan(0);
+          expect(copy, `${runtime}: ${dirs[i]}/${name} differs from ${dirs[0]}`).toBe(texts[0]);
+        }
+        expect(frontmatter(texts[0])?.name, `${runtime} ${name}`).toBe(name);
+        expect(bodyOf(texts[0]), `${runtime} ${name}`).toContain(text);
+      }
+      expect(bodyOf(copiesOf('accord-pickup', runtime).texts[0]), runtime).not.toContain('--continue');
+      const { dirs } = copiesOf('accord', runtime);
+      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
+      expect(accord, runtime).toContain('## Dashboard');
+      for (const name of ['accord-new', 'accord-pickup', 'accord-upgrade']) expect(accord, `${runtime} ${name}`).toContain(name);
+      for (const heading of ['## Pick up', '## New request: ', '## Upgrade: ']) expect(accord, `${runtime} ${heading}`).not.toContain(heading);
+    }
+  });
+
+  it('ac-4 accord-queue renders for every runtime and never checks the session (ST-LN-83 7-ac-4)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const { dirs, texts } = copiesOf('accord-queue', runtime);
+      expect(dirs.length, runtime).toBeGreaterThan(0);
+      for (const [i, text] of texts.entries()) {
+        expect(text.length, `${runtime}: ${dirs[i]}/accord-queue/SKILL.md is missing`).toBeGreaterThan(0);
+        expect(text, `${runtime}: ${dirs[i]} differs from ${dirs[0]}`).toBe(texts[0]);
+        expect(frontmatter(text)?.name, `${runtime}: ${dirs[i]}`).toBe('accord-queue');
+      }
+      const body = bodyOf(texts[0]);
+      for (const part of ['accord new ticket --queue', '--title', '--note', 'merge: at-once', 'merge: owner', 'gh pr create']) {
+        expect(body, `${runtime} ${part}`).toContain(part);
+      }
+      expect(body.replace(/\s+/g, ' '), runtime).toMatch(/With no argument, ask the owner for [^.]+ in one question and write nothing\./);
+      expect(body, runtime).not.toContain('accord worktree check');
+    }
+  });
+
+  it('ac-1 a command that needs an argument asks for it and runs nothing without it (ST-LN-83 7-ac-1)', () => {
+    const ASKS = /With no argument, ask the owner for [^.]+ in one question and run, claim, create and edit nothing\./;
+    for (const runtime of ALL_RUNTIMES) {
+      for (const name of ['accord-continue', 'accord-new', 'accord-pickup']) {
+        const { texts } = copiesOf(name, runtime);
+        expect(texts[0].length, `${runtime} ${name} is missing`).toBeGreaterThan(0);
+        expect(bodyOf(texts[0]).replace(/\s+/g, ' '), `${runtime} ${name}`).toMatch(ASKS);
+      }
+    }
+  });
 });

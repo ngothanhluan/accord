@@ -16,7 +16,7 @@ export const hookEntries = (pkg: { name: string; version: string }): HookEntries
     { matcher: 'resume|clear|compact', hooks: [{ type: 'command', command: cmd(pkg, 'session-resume'), timeout: 600 }] },
   ],
   SubagentStart: [{ matcher: 'accord-.*', hooks: [{ type: 'command', command: cmd(pkg, 'subagent-start') }] }],
-  UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: cmd(pkg, 'prompt-expansion') }] }],
+  UserPromptExpansion: [{ matcher: 'accord|accord-new|accord-continue|accord-pickup', hooks: [{ type: 'command', command: cmd(pkg, 'prompt-expansion') }] }],
   PreToolUse: [
     { matcher: 'Agent|Task', hooks: [{ type: 'command', command: cmd(pkg, 'pre-tool-use') }] },
     // ST-LN-39 D-08: the verification record's write guard. Plan 05-10's probe saw the `if` field honoured, so each tool's hook spawns

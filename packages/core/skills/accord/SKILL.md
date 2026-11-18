@@ -1,13 +1,13 @@
 ---
 name: accord
-description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
+description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and routes a request by intent, whether a change, a question, a brainstorm, an idea to queue, research, an existing ticket or a review.
 license: MIT
-argument-hint: "[request | continue <id> | pick-up <id> | upgrade]"
+argument-hint: "[request]"
 kind: skill
-loads: [accord/comments.md, accord/ids.md, accord/lane.md, accord/lane-s.md, accord/lane-r.md, accord/onboard.md, review/security.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/scout.md, shared/failure.md, shared/finish.md]
+loads: [accord/comments.md, accord/ids.md, accord/onboard.md, accord/review-foreign.md, accord/route.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
-First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`. A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check.
+First run the session check in `./worktree.md` for the dashboard and for `/accord onboard`. Any other text after `/accord` that is not a typed form below follows `./route.md`, which says where the check runs. A failure reported in a ticket that has reached verify follows `./failure.md`. A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check. A request to review code or a pull request accord did not build follows `./review-foreign.md`, without the session check.
 
 ## Dashboard: `/accord` with no argument
 
@@ -17,7 +17,7 @@ First run the session check in `./worktree.md`, except for `/accord upgrade`. A 
    and stop.
 2. Show both outputs verbatim in a code block. Never reorder, cut, merge, or
    add to it, and never build a section from `accord status --json`.
-3. Offer the actions its last line names: Continue, Pick up, New request.
+3. Offer the commands its last line names.
 
 ## A ticket named: `/accord pick-up <id>`, `/accord continue <id>`
 
@@ -25,68 +25,12 @@ An action applies only when the whole text after it is exactly one
 ticket id, the id of a ticket in `accord/tickets/`, an id that
 `accord status --json` lists with a `branch`, or for Continue a ticket
 `accord worktree open <id> --continue` finds; with none,
-`/accord continue ST-99` is a New request. Then run Pick up or
-Continue below on that ticket, without showing the dashboard first. Continue on a ticket nobody has claimed
-says so, offers Pick up, and never claims it. Any other text, but `upgrade` or `onboard`, starts a
-New request whose text is the whole text after `/accord`: for
+`/accord continue ST-99` follows `./route.md` like any other text. Then load `accord-pickup` for Pick up, or `accord-continue` for
+Continue, with that id, without showing the dashboard first. Continue on a ticket nobody has claimed
+says so, offers Pick up, and never claims it. `/accord upgrade` loads `accord-upgrade`, and `/accord onboard` follows the Onboard section below. Any other text, but `upgrade` or `onboard`: follow `./route.md`
+with the whole text after `/accord`, a change loading `accord-new`: for
 `/accord continue the refactor` it is `continue the refactor`, and
-`/accord continue ST-2 now` is a new request too.
-
-## Continue
-
-1. Run `accord worktree open <id> --continue` unless it just ran; follow
-   `./worktree.md`. The active ticket is its `branch` from
-   `accord status --json`, read from git, never from memory.
-2. Run `accord anchor`.
-3. If `accord/tickets/<id>/debug.md` exists and no `## Resolved` follows its last `## Episode` heading,
-   load `accord-debug` and resume there.
-4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md`; when it prints `Lane: R`, follow `./lane-r.md`. Else, at any stage
-   but `intent`, first run `accord gate ready <id>`; when it fails, show the
-   owner what it prints and stop; when it changes the ticket, commit the ticket.
-   Then load the stage skill for the stage it prints: `intent` →
-   `accord-approach` at step 5, the owner's yes, when the ticket's
-   `## Approach` holds a `- Rejected:` line, at step 3 when it holds only
-   the draft of its step 2, otherwise `accord-intent`, at step 9 when the anchor's next
-   step is the owner's approval; `plan` →
-   `accord-plan`, `build` → `accord-build`, `review` → `accord-review`,
-   `verify` → `accord-verify`; `done` → `accord-verify` at step 6.
-   Resume at the step the anchor names. Never re-run a task
-   the ledger records.
-
-## Pick up
-
-Run `accord worktree open <id>`: it makes its `branch` from
-`accord status --json` and commits the claim on it, with the subject of `commits.subjects.claim`. Follow
-`./worktree.md`; it says when to push it (the pushed branch is the claim).
-
-## New request: `/accord <request>`
-
-Propose a lane as `./lane.md` says, for every new request however small it looks; the owner may override. Check and save the scout's reply as `./scout.md` says.
-
-| Lane | Example |
-|---|---|
-| S: small fix | bug, copy change, one flag |
-| M: feature | one story |
-| L: epic | 3 to 10 related stories |
-| P: project | greenfield |
-| R: research | a question to answer, ending in a research record |
-
-- **S.** Run `accord new ticket <id> --lane S --worktree`; when config.yml has
-  `people`, follow `./ids.md` and run it with `--type <story|bug>` and no id
-  instead. Then follow `./lane-s.md` and `./security.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says.
-- **M.** Run `accord new ticket <id> --lane M --worktree`; when config.yml has
-  `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
-  --lane M --worktree` with no id instead. It writes the ticket on its
-  `branch` from `accord status --json`, commits it and pushes it; follow
-  `./worktree.md`, and push it as that file says when the push fails.
-- **R.** Run `accord new ticket <id> --lane R --worktree`; when config.yml has `people`, run it with
-  `--type <story|bug>` and no id, as for M. Then follow `./lane-r.md`.
-- **L and P.** Not built yet. Say so, and propose splitting the work into
-  lane M tickets linked by `depends_on`.
-
-## Upgrade: `/accord upgrade`
-
-Follow `./upgrade.md`.
+`/accord continue ST-2 now` is routed as text too.
 
 ## Onboard: `/accord onboard`
 

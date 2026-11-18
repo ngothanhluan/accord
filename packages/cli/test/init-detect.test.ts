@@ -193,6 +193,7 @@ const SUBJECTS_PROPOSED = {
   drop: 'chore(accord): drop {id}',
   rebind: 'chore(accord): rebind {id}',
   ruleset_backfill: 'chore(accord): ruleset {id}',
+  queue: 'chore(accord): queue {id}',
 };
 
 describe('accord init proposes the other conventions (ST-LN-50 t2-ac-8)', () => {

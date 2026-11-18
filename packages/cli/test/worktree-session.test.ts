@@ -293,7 +293,10 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
     for (const argv of argvs) {
       const r = await run(argv, dir, envOf(A));
       expect(r.code, `${dir} ${argv.join(' ')}`).toBe(2);
-      for (const w of WORKS) expect(r.err).toContain(w);
+      // ST-LN-83 D-06: the session check keeps its text; a refused pick up, continue or new ticket names its own command and the line to open the session
+      const check = argv[1] === 'check';
+      for (const w of check ? WORKS : [WORKS[0], 'needs a session of its own']) expect(r.err).toContain(w);
+      expect(r.err.trimEnd().split('\n').at(-1)).toMatch(/^cd ".+"; claude$/);
     }
     expect(state()).toEqual(before);
     expect(existsSync(c.sibling('ST-10'))).toBe(false);
@@ -314,6 +317,51 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
   expect(back.code).toBe(0);
   expect(lines(back.out)).toEqual([lines(BEHIND)[0], `enter: ${sib}`]);
 }, 180_000);
+
+const mainOf = (c: { git: (...a: string[]) => string }): string => c.git('worktree', 'list', '--porcelain').split('\n')[0].slice('worktree '.length);
+
+it('ac-4 a ticket session refuses continue of another ticket with the line to open its session (ST-LN-83 7-ac-4)', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  setTable(tableOf(A));
+  // B has no worktree: the main checkout, where /accord-continue ST-10 makes or finds it
+  const none = await run(['worktree', 'open', 'ST-10', '--continue'], sib, envOf(A));
+  expect(none.code).toBe(2);
+  expect(none.err.startsWith('this session works ST-9')).toBe(true);
+  expect(none.err).toContain('/accord-continue ST-10');
+  expect(none.err.trimEnd().split('\n').at(-1)).toBe(`cd "${mainOf(c)}"; claude`);
+  // B claimed in its own worktree: a session there
+  c.git('worktree', 'add', '-q', '-b', 't/ST-10', c.sibling('ST-10'), 'origin/main');
+  const there = await run(['worktree', 'open', 'ST-10', '--continue'], sib, envOf(A));
+  expect(there.code).toBe(2);
+  expect(there.err.startsWith('this session works ST-9')).toBe(true);
+  expect(there.err).toContain('/accord-continue ST-10');
+  expect(there.err.trimEnd().split('\n').at(-1)).toBe(`cd "${c.sibling('ST-10')}"; claude`);
+  expect(existsSync(holdsFile(c))).toBe(false);
+});
+
+it('ac-4 a ticket session lets a question and a queued idea through (ST-LN-83 7-ac-4)', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  setTable(tableOf(A));
+  // the CLI guard behind the hook refuses what touches another ticket: the check, a pick up and a plain new ticket, each ending with the main checkout's line
+  const main = `cd "${mainOf(c)}"; claude`;
+  const check = await run(['worktree', 'check'], sib, envOf(A));
+  expect(check.code).toBe(2);
+  expect(check.err.startsWith('this session works ST-9')).toBe(true);
+  expect(check.err.trimEnd().split('\n').at(-1)).toBe(main);
+  const pick = await run(['worktree', 'open', 'ST-10'], sib, envOf(A));
+  expect(pick.code).toBe(2);
+  expect(pick.err).toContain('/accord-pickup ST-10');
+  expect(pick.err.trimEnd().split('\n').at(-1)).toBe(main);
+  const fresh = await run(['new', 'ticket', 'Q-2', '--lane', 'M'], sib, envOf(A));
+  expect(fresh.code).toBe(2);
+  expect(fresh.err).toContain('/accord-new <request>');
+  expect(fresh.err.trimEnd().split('\n').at(-1)).toBe(main);
+  expect(existsSync(`${sib}/accord/tickets/Q-2.md`)).toBe(false);
+});
 
 it('ac-5 outside claude code pick up continue and new ticket print the stop lines and nothing is refused', async () => {
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
@@ -350,7 +398,8 @@ it('risk:complex-branching a linked worktree on a detached head refuses all but 
     const r = await run(argv, c.sibling('ST-10'), envOf(A));
     expect(r.code).toBe(2);
     expect(r.err).toContain('whose branch cannot be read');
-    expect(r.err).toContain('open a new session in the main checkout');
+    // the session check keeps its text; a refused continue names its command (ST-LN-83 D-06)
+    expect(r.err).toContain(argv[1] === 'check' ? 'open a new session in the main checkout' : 'needs a session of its own');
   }
   const own = await run(['worktree', 'open', 'ST-10', '--continue'], c.sibling('ST-10'), envOf(A));
   expect(own.err).not.toContain('this session works');

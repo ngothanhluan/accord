@@ -67,10 +67,10 @@ it('ac-3 the review skill runs a security reviewer on the security package when 
 it('ac-2 lane S review rounds add the security reviewer as lane M does, in every tool (ST-LN-36 36-ac-2)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
-    const security = filesOf(runtime, 'accord', 'security.md');
-    if (security.length === 0) bad.push(runtime + ': accord/security.md is missing');
-    const laneS = filesOf(runtime, 'accord', 'lane-s.md');
-    if (laneS.length === 0) bad.push(runtime + ': accord/lane-s.md is missing');
+    const security = filesOf(runtime, 'accord-new', 'security.md');
+    if (security.length === 0) bad.push(runtime + ': accord-new/security.md is missing');
+    const laneS = filesOf(runtime, 'accord-new', 'lane-s.md');
+    if (laneS.length === 0) bad.push(runtime + ': accord-new/lane-s.md is missing');
     for (const f of laneS)
       for (const p of lacks(flat(f.text), [
         'when the round\'s package lists a security trigger, add a security reviewer',
@@ -113,8 +113,8 @@ it('ac-4 the config skill asks the owner before it writes a Removed line for a d
 it('risk:regression the lane rule names migration and the plan critic\'s trigger is unchanged (ST-LN-36 D-05)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
-    const lane = filesOf(runtime, 'accord', 'lane.md');
-    if (lane.length === 0) bad.push(runtime + ': accord/lane.md is missing');
+    const lane = filesOf(runtime, 'accord-new', 'lane.md');
+    if (lane.length === 0) bad.push(runtime + ': accord-new/lane.md is missing');
     for (const f of lane) for (const p of lacks(flat(f.text), ['auth, money, migration or data deletion'])) bad.push(f.path + ' lacks ' + p);
     const critique = filesOf(runtime, 'accord-plan', 'critique.md');
     if (critique.length === 0) bad.push(runtime + ': accord-plan/critique.md is missing');

@@ -172,7 +172,8 @@
             "scout": { "$ref": "#/$defs/subject" },
             "drop": { "$ref": "#/$defs/subject" },
             "rebind": { "$ref": "#/$defs/subject" },
-            "ruleset_backfill": { "$ref": "#/$defs/subject" }
+            "ruleset_backfill": { "$ref": "#/$defs/subject" },
+            "queue": { "$ref": "#/$defs/subject" }
           }
         },
         "legacy_subjects": {
@@ -189,7 +190,8 @@
             "scout": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
             "drop": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
             "rebind": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
-            "ruleset_backfill": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } }
+            "ruleset_backfill": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "queue": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } }
           }
         }
       }
@@ -201,6 +203,13 @@
       "additionalProperties": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1, "allOf": [ { "pattern": "^[A-Za-z0-9._@-](?:[A-Za-z0-9._@/ -]*[A-Za-z0-9._@/-])?$" }, { "pattern": "^(?!(?:.*/)?\\.\\.(?:/|$))" }, { "pattern": "^(?!(?:.*/)?\\.(?:/|$))" }, { "pattern": "^(?!.*//)" } ] } }
     },
     "disposable": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1, "allOf": [ { "pattern": "^[^/\\\\]+$" }, { "pattern": "^(?!\\.{1,2}$)" } ] } },
+    "queue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "merge": { "type": "string", "enum": ["owner", "at-once"] }
+      }
+    },
     "git": {
       "type": "object",
       "additionalProperties": false,

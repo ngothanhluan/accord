@@ -172,9 +172,18 @@ describe('config.schema.json', () => {
     expect(has(review({ mode: 'human', max_pr_lines: 400 }), '/review', 'schema.additionalProperties')).toBe(true);
   });
 
+  it('queue.merge is owner or at-once and the only key (ST-LN-83 D-03)', () => {
+    const queue = (q: unknown) => validate('config', { ...minimal.config, queue: q });
+    expect(queue({})).toEqual([]);
+    expect(queue({ merge: 'owner' })).toEqual([]);
+    expect(queue({ merge: 'at-once' })).toEqual([]);
+    expect(has(queue({ merge: 'later' }), '/queue/merge', 'schema.enum')).toBe(true);
+    expect(has(queue({ merge: 'owner', extra: 1 }), '/queue', 'schema.additionalProperties')).toBe(true);
+  });
+
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'git', 'ids', 'strictness', 'template']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);

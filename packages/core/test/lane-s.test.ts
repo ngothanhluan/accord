@@ -139,7 +139,7 @@ it('ac-5 a queued lane M ticket drops to lane S only at intent on the owners yes
   for (const x of ['`git status --porcelain --untracked-files=all`', 'commit only those records', '`git add -A`'])
     expect(move, x).toContain(x);
   expect(move).not.toContain('commit every change');
-  const accord = flat('.claude/skills/accord/SKILL.md');
+  const accord = flat('.claude/skills/accord-new/SKILL.md');
   expect(accord).toContain('--lane S --worktree');
   const plan = flat('.claude/skills/accord-plan/SKILL.md');
   expect(plan).toContain('Run `git rev-parse HEAD` (lifted from lane S: the fork point in its ledger Ruling)');

@@ -24,7 +24,7 @@ interface SecuritySections {
  * ST-LN-36 D-05 (4): the security sections of a package, from its own diff text and changed list so they run no git command of their own. `triggers` is the `## Security triggers`
  * text; with `full`, `checklist` (every item in force, default and team) and `hunks` (matchedHunks, or the none line) are read too.
  */
-function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean, unreadable?: string[]): SecuritySections {
+export function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean, unreadable?: string[]): SecuritySections {
   try {
     const spec = securitySpec(s);
     const generated = s.config?.generated ?? [];
@@ -45,7 +45,8 @@ function securitySections(s: RepoSnapshot, diffText: string, changed: string[], 
   }
 }
 
-const securityText = (title: string, sec: SecuritySections): string =>
+/** The security package's layout, shared with `accord diff-package --security` (ST-LN-83 07-07). */
+export const securityText = (title: string, sec: SecuritySections): string =>
   [title, '## Checklist', sec.checklist, '## Security triggers', sec.triggers, '## Matched hunks', sec.hunks].join('\n\n') + '\n';
 
 /** A full 40 or 64 digit sha as its first twelve digits; any other ref as typed. */

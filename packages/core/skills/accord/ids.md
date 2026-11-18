@@ -85,6 +85,6 @@ id, branch and worktree, and this same session goes on with it.
    `## Corrections` verbatim, and every other frontmatter key as it is.
 4. Commit the ticket file and any record step 3 made with
    `git commit -m "<subject>" -- accord/tickets/<id>.md` (the line `accord subject intent <id> moved to lane S` prints) followed by the path of each such record, push with
-   `git push -u origin <claim branch>`, then load the accord skill and go on at its Continue step 2 in this same
+   `git push -u origin <claim branch>`, then load `accord-continue` and go on at its step 2 in this same
    session, where the anchor prints `Lane: S` and the lane S steps go on from step 1 on the same id, branch and
    worktree.

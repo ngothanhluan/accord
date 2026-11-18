@@ -74,9 +74,9 @@ it('risk:regression the planner lists gray areas in its discuss mode and writes 
 it('risk:regression Continue resumes a ticket whose intent is written at intent step 9 (ST-LN-91 91d-ac-4)', () => {
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const text = flat(rendered.get(dir + '/' + installedName('accord') + '/SKILL.md') ?? '');
-    const from = text.indexOf('## Continue');
-    const to = text.indexOf('## Pick up');
+    const text = flat(rendered.get(dir + '/' + installedName('continue') + '/SKILL.md') ?? '');
+    const from = text.indexOf('## Steps');
+    const to = text.indexOf('## Rules');
     const step = text.slice(from, to);
     if (from < 0 || to < from) {
       bad.push(dir + ': Continue section not found');

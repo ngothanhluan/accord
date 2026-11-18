@@ -56,8 +56,8 @@ export function allSkillDirs(): string[] {
   return [...new Set(Object.values(DIRS).flat())].sort(cmp);
 }
 
-/** Spec §6: `/accord` and the seven stage skills, by source directory. Installed whatever `roles:` says. */
-export const STAGES: readonly string[] = ['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug'];
+/** Spec §6: `/accord`, one command skill per action (continue, new, pickup, upgrade, queue) and the seven stage skills, by source directory. Installed whatever `roles:` says. */
+export const STAGES: readonly string[] = ['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug'];
 
 /** The installed directory name: `accord` is invoked as `/accord`, every other source directory X as `accord-X`. */
 export function installedName(dir: string): string {

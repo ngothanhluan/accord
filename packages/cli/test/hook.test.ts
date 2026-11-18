@@ -106,8 +106,9 @@ const blockedOf = (hook: ReturnType<typeof hookOf>) => async (o: Record<string, 
   const j = JSON.parse(r.out);
   expect(j.decision).toBe('block');
   expect(j.reason).toContain('this session works ST-9');
-  expect(j.reason).toContain('open a new session in the main checkout');
-  expect(j.reason).toContain('without "/accord"');
+  expect(j.reason).toContain('needs a session of its own');
+  expect(j.reason.split('\n').at(-1)).toMatch(/^cd ".+"; claude$/);
+  return j.reason as string;
 };
 
 it('risk:security the prompt expansion hook allows an empty prompt and a continue of the worked ticket', async () => {
@@ -139,15 +140,19 @@ it('risk:security the prompt expansion hook blocks continue and pick-up of other
   }
 });
 
-it('risk:security the prompt expansion hook blocks free text and other continues in the ticket worktree', async () => {
+// ST-LN-83 D-06: the skill routes free text, so the hook lets it through; a change it routes is refused by the CLI guard
+it('risk:security the prompt expansion hook lets free text through and still blocks other continues in the ticket worktree', async () => {
   const c = worked();
   try {
     const hook = hookOf(c);
     const blocked = blockedOf(hook);
     const wt = c.sibling('ST-9');
     for (const a of ['fix the typo in README', 'continue the refactor', 'explain ST-9']) {
-      await blocked({ cwd: wt, command_args: a });
+      const r = await hook({ cwd: wt, command_args: a });
+      expect(r.code).toBe(0);
+      expect(JSON.parse(r.out)).toEqual({});
     }
+    await blocked({ cwd: wt, command_args: 'continue ST-10' });
   } finally {
     c.cleanupAll();
   }
@@ -171,17 +176,80 @@ it('risk:security the prompt expansion hook blocks from a subfolder and by a hol
   }
 });
 
-it('risk:security the prompt expansion hook lets accord upgrade through in a session that works a ticket', async () => {
+it('risk:security the prompt expansion hook lets accord upgrade and other free text through in a session that works a ticket', async () => {
   const c = copyClone(tpl);
   try {
     c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
     const wt = c.sibling('ST-9');
     const hook = (a: string) => run(['hook', 'prompt-expansion'], c.root, {}, input({ cwd: wt, command_args: a }));
-    expect(JSON.parse((await hook('upgrade')).out)).toEqual({});
-    for (const a of ['upgrade now', 'upgrade ST-9']) {
-      const j = JSON.parse((await hook(a)).out);
+    // D-06: "upgrade now" and "upgrade ST-9" are free text the skill routes; they no longer stop at the hook
+    for (const a of ['upgrade', 'upgrade now', 'upgrade ST-9']) expect(JSON.parse((await hook(a)).out)).toEqual({});
+  } finally {
+    c.cleanupAll();
+  }
+});
+
+const mainOf = (c: Clone): string => c.git('worktree', 'list', '--porcelain').split('\n')[0].slice('worktree '.length);
+
+it('ac-4 a ticket session refuses continue of another ticket with the line to open its session (ST-LN-83 7-ac-4)', async () => {
+  const c = worked();
+  try {
+    const hook = hookOf(c);
+    const wt = c.sibling('ST-9');
+    const reasonOf = async (o: Record<string, string>): Promise<string> => {
+      const r = await hook({ cwd: wt, ...o });
+      expect(r.code).toBe(0);
+      const j = JSON.parse(r.out);
       expect(j.decision).toBe('block');
-      expect(j.reason).toContain('this session works ST-9');
+      return j.reason as string;
+    };
+    // B has no worktree yet: the line opens a session in the main checkout, where /accord-continue makes or finds it
+    const noWorktree = await reasonOf({ command_name: 'accord-continue', command_args: 'ST-10' });
+    expect(noWorktree.startsWith('this session works ST-9')).toBe(true);
+    expect(noWorktree).toContain('/accord-continue ST-10');
+    expect(noWorktree.split('\n').at(-1)).toBe(`cd "${mainOf(c)}"; claude`);
+    // B claimed in its own worktree: the line opens a session there
+    c.git('worktree', 'add', '-q', '-b', 't/ST-10', c.sibling('ST-10'), 'origin/main');
+    const typed = await reasonOf({ command_name: 'accord-continue', command_args: 'ST-10' });
+    expect(typed.startsWith('this session works ST-9')).toBe(true);
+    expect(typed).toContain('/accord-continue ST-10');
+    expect(typed.split('\n').at(-1)).toBe(`cd "${c.sibling('ST-10')}"; claude`);
+    // the legacy typed form gives the same reason
+    expect(await reasonOf({ command_name: 'accord', command_args: 'continue ST-10' })).toBe(typed);
+  } finally {
+    c.cleanupAll();
+  }
+});
+
+it('ac-4 a ticket session lets a question and a queued idea through (ST-LN-83 7-ac-4)', async () => {
+  const c = worked();
+  try {
+    const hook = hookOf(c);
+    const wt = c.sibling('ST-9');
+    const through: Record<string, string>[] = [
+      { command_name: 'accord', command_args: 'what does gate plan check?' },
+      { command_name: 'accord-queue', command_args: 'note the idea for later' },
+      { command_name: 'accord-queue', command_args: '' },
+      { command_name: 'accord-upgrade', command_args: '' },
+      { command_name: 'accord-continue', command_args: 'ST-9' },
+    ];
+    for (const o of through) {
+      const r = await hook({ cwd: wt, ...o });
+      expect(r.code, JSON.stringify(o)).toBe(0);
+      expect(JSON.parse(r.out), JSON.stringify(o)).toEqual({});
+    }
+    const blocks: [Record<string, string>, string][] = [
+      [{ command_name: 'accord-new', command_args: 'add a flag to status' }, '/accord-new <request>'],
+      [{ command_name: 'accord-pickup', command_args: 'ST-10' }, '/accord-pickup ST-10'],
+    ];
+    for (const [o, typed] of blocks) {
+      const r = await hook({ cwd: wt, ...o });
+      expect(r.code).toBe(0);
+      const j = JSON.parse(r.out);
+      expect(j.decision, JSON.stringify(o)).toBe('block');
+      expect(j.reason.startsWith('this session works ST-9')).toBe(true);
+      expect(j.reason).toContain(typed);
+      expect(j.reason.split('\n').at(-1)).toBe(`cd "${mainOf(c)}"; claude`);
     }
   } finally {
     c.cleanupAll();
@@ -239,7 +307,7 @@ const [MAJOR, MINOR] = RUNNING.split('.').map(Number);
 const NEXT = `${MAJOR}.${MINOR + 1}.0`;
 const NEXT2 = `${MAJOR}.${MINOR + 2}.0`;
 const PREV = `${MAJOR}.${MINOR - 1}.0`;
-const N = `accord ${NEXT} is out, and this repository pins ${PIN}: type /accord upgrade to run npx --yes @accord-dev/accord@${NEXT} upgrade`;
+const N = `accord ${NEXT} is out, and this repository pins ${PIN}: type /accord-upgrade to run npx --yes @accord-dev/accord@${NEXT} upgrade`;
 const lines = (s: string): string[] => s.split('\n');
 
 function freshCache(): { dir: string; file: string } {
@@ -281,6 +349,24 @@ it('ac-1 a newer release is announced by the session start hook and the dashboar
       }
     }
   } finally {
+    c.cleanupAll();
+  }
+});
+
+it('ac-1 the CLI messages name the new commands (ST-LN-83 7-ac-1)', async () => {
+  const c = copyClone(tpl);
+  const { dir } = freshCache();
+  try {
+    vi.mocked(requestLatest).mockClear().mockResolvedValue(NEXT);
+    expect((await run(['hook', 'session-start'], c.root)).code).toBe(0);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 60_000);
+    const b = await run(['hook', 'session-start'], c.root);
+    expect(b.code).toBe(0);
+    expect(lines(b.out).filter((l) => l.includes(' is out'))).toEqual([`accord ${NEXT} is out, and this repository pins ${PIN}: type /accord-upgrade to run npx --yes @accord-dev/accord@${NEXT} upgrade`]);
+  } finally {
+    resetNotice();
+    cleanup(dir);
     c.cleanupAll();
   }
 });

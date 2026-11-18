@@ -335,6 +335,7 @@ export interface AccordConfig {
     subjects?: Partial<Record<SubjectName, string>>; // ST-LN-50 D-06: the subject template of each commit accord writes, one `{id}`; absent means today's text
     legacy_subjects?: Partial<Record<SubjectName, string[]>>; // ST-LN-50 D-06: earlier templates accord still reads back (claim and plan_ready)
   };
+  queue?: { merge?: 'owner' | 'at-once' }; // ST-LN-83 D-03: whether the pull request of a queued draft waits for the owner (the default) or is merged at once, with the merge method of git.merge
   generated?: string[]; // ST-LN-62: paths a lane S ticket may change without listing them in ## Scope; an entry ending in / matches the folder
   sensitive?: Record<string, string[]>; // ST-LN-62: area name -> paths whose change fails a lane S ticket; an entry ending in / matches the folder
   git?: { merge?: 'merge' | 'rebase' | 'squash'; sync?: string }; // ST-LN-96 D-14: how `accord worktree sync` takes main; absent means merge, and squash names the team's PR merge style (the sync is still a merge). D-03: sync is the team's script, one command line

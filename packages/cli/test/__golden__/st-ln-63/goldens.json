@@ -21,7 +21,7 @@
   },
   "main dashboard": {
     "code": 0,
-    "out": "YOURS\n  id    lane  title   stage                                                           who                      blocked by\n  A-2   M     Export  plan                                                            fixture@example.invalid  -\n  A-3   M     Export  build 1/2                                                       fixture@example.invalid  -\n  A-4   M     Export  build 0/2                                                       fixture@example.invalid  -\n  A-5   M     Export  review                                                          fixture@example.invalid  -\n  A-6   M     Export  verify                                                          fixture@example.invalid  -\n  A-7   M     Export  verify                                                          fixture@example.invalid  -\n  A-13  M     Export  verify                                                          fixture@example.invalid  -\n  S-1   S     Export  done, next: the pull request; run accord gate done (lane-s.md)  fixture@example.invalid  -\n\nTEAM\n  none\n\nREADY\n  none\n\nUP NEXT\n  id   lane  title   stage                                                         who  blocked by\n  A-1  M     Export  intent, next: the owner approves the ticket (accord approve)  -    -\n\n8 in progress, 0 ready, 0 blocked, 1 backlog, 4 done\n-> [Continue A-2]  [Pick up A-1]  [New request]\n",
+    "out": "YOURS\n  id    lane  title   stage                                                           who                      blocked by\n  A-2   M     Export  plan                                                            fixture@example.invalid  -\n  A-3   M     Export  build 1/2                                                       fixture@example.invalid  -\n  A-4   M     Export  build 0/2                                                       fixture@example.invalid  -\n  A-5   M     Export  review                                                          fixture@example.invalid  -\n  A-6   M     Export  verify                                                          fixture@example.invalid  -\n  A-7   M     Export  verify                                                          fixture@example.invalid  -\n  A-13  M     Export  verify                                                          fixture@example.invalid  -\n  S-1   S     Export  done, next: the pull request; run accord gate done (lane-s.md)  fixture@example.invalid  -\n\nTEAM\n  none\n\nREADY\n  none\n\nUP NEXT\n  id   lane  title   stage                                                         who  blocked by\n  A-1  M     Export  intent, next: the owner approves the ticket (accord approve)  -    -\n\n8 in progress, 0 ready, 0 blocked, 1 backlog, 4 done\n-> [/accord-continue A-2]  [/accord-pickup A-1]  [/accord-new <request>]\n",
     "err": ""
   },
   "main dashboard --json": {
@@ -186,7 +186,7 @@
   },
   "main worktree open A-1": {
     "code": 0,
-    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\nstop: open a session in this folder and type the line below it\n<root>-a-1\n/accord continue A-1\n",
+    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\nstop: open a session in this folder and type the line below it\n<root>-a-1\n/accord-continue A-1\n",
     "err": "",
     "refs": [
       "<sha:A-11-squash> refs/heads/main",
@@ -313,7 +313,7 @@
   },
   "main new ticket N-1 --lane M --worktree": {
     "code": 0,
-    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\naccord/tickets/N-1.md\nstop: open a session in this folder and type the line below it\n<root>-n-1\n/accord continue N-1\n",
+    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\naccord/tickets/N-1.md\nstop: open a session in this folder and type the line below it\n<root>-n-1\n/accord-continue N-1\n",
     "err": "",
     "refs": [
       "<sha:A-11-squash> refs/heads/main",

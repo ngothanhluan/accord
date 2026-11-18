@@ -299,7 +299,7 @@ it("risk:regression S23 a rebased claim commit still names its claimant by subje
   const reused = await run(['worktree', 'open', 'ST-9'], own.root);
   expect(reused.err).toBe('');
   expect(reused.code).toBe(0);
-  expect(reused.out.split('\n').slice(0, 3)).toEqual(['stop: open a session in this folder and type the line below it', own.sibling('ST-9'), '/accord continue ST-9']);
+  expect(reused.out.split('\n').slice(0, 3)).toEqual(['stop: open a session in this folder and type the line below it', own.sibling('ST-9'), '/accord-continue ST-9']);
   expect(own.git('rev-parse', 'refs/heads/t/ST-9').trim()).toBe(own.git('rev-parse', 'origin/t/ST-9').trim());
   const theirs = copy();
   rebasedClaim(theirs, false);

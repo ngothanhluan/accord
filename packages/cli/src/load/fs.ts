@@ -1519,10 +1519,10 @@ export function gitDefaultRef(root: string): string | undefined {
  * The utf8 text of each `<ref>:<path>` spec, in order, read with one `git cat-file --batch`; a missing one is `undefined`.
  * `what` names the ref in the error.
  */
-export function catBatch(root: string, specs: readonly string[], what: string, maxBuffer = 64 * 1024 * 1024): (string | undefined)[] {
+export function catBatch(root: string, specs: readonly string[], what: string, maxBuffer = 64 * 1024 * 1024, env?: NodeJS.ProcessEnv): (string | undefined)[] {
   let out: Buffer;
   try {
-    out = catFileBatch(root, specs, { maxBuffer });
+    out = catFileBatch(root, specs, { maxBuffer, ...(env === undefined ? {} : { env }) });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
     throw new UsageError('git cat-file failed reading ' + what + (stderr === '' ? '' : '\n' + stderr));
@@ -1545,9 +1545,9 @@ export function catBatch(root: string, specs: readonly string[], what: string, m
 }
 
 /** The utf8 text of each existing `<ref>:<path>`, read with one `git cat-file --batch`; a missing path is left out. */
-export function gitFilesAt(root: string, ref: string, paths: readonly string[]): Record<string, string> {
+export function gitFilesAt(root: string, ref: string, paths: readonly string[], env?: NodeJS.ProcessEnv): Record<string, string> {
   if (paths.length === 0) return {};
-  const texts = catBatch(root, paths.map((p) => ref + ':' + p), ref);
+  const texts = catBatch(root, paths.map((p) => ref + ':' + p), ref, undefined, env);
   const files: Record<string, string> = {};
   paths.forEach((path, i) => {
     const text = texts[i];
@@ -1927,6 +1927,79 @@ export function withDefaultRef(root: string, snapshot: RepoSnapshot, known?: Def
   const ids = new Set(Object.keys(snapshot.tickets));
   for (const t of Object.values(snapshot.tickets)) for (const dep of t.frontmatter?.depends_on ?? []) ids.add(dep);
   return { ...snapshot, defaultRef: { ref, snapshot: snapshotAt(root, ref, [...ids]) } };
+}
+
+/** The ticket id shape every id of accord/tickets/ has (the same as ticket-shared.ts ID). */
+const QUEUED_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/** ST-LN-16: every remote-tracking ref with its sha, one line each; a change between two reads means a fetch moved something. undefined when git could not say. */
+export function remoteRefs(root: string): string | undefined {
+  try {
+    return execFileSync('git', ['for-each-ref', '--format=%(refname) %(objectname)', 'refs/remotes'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * ST-LN-16 D-19: the ticket files that `backlog/*` branches add over `ref`, the default ref, whose ids `known` does not hold and the tree of `ref` does not either, each read
+ * from the tip of the branch that adds it. The branches are the local ones and origin's that `ref` does not already hold; origin's copy of a name wins over the local one, and the
+ * branches go in code-point order, so the first of two that queue one id is the answer. A failed git call gives no drafts: they are a side view that never stops a command.
+ */
+export function gitQueued(root: string, ref: string, known: (id: string) => boolean): Record<string, { branch: string; text: string }> {
+  // a partial clone never fetches a blob here: the one fetch of the dashboard is its only network read
+  const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
+  const run = (args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, env });
+  const found: Record<string, { branch: string; text: string }> = {};
+  try {
+    const tips = new Map<string, string>();
+    for (const row of run(['for-each-ref', '--no-merged', ref, '--format=%(refname)%00%(objectname)', 'refs/heads/backlog', 'refs/remotes/origin/backlog']).split('\n')) {
+      const [name, sha] = row.split('\0');
+      const m = /^refs\/(heads|remotes\/origin)\/(backlog\/.+)$/.exec(name ?? '');
+      if (m === null || sha === undefined || sha === '') continue;
+      if (m[1] === 'heads' && tips.has(m[2])) continue;
+      tips.set(m[2], sha);
+    }
+    if (tips.size === 0) return found;
+    const onDefault = new Set<string>();
+    for (const f of run(['ls-tree', '-z', '--name-only', ref, '--', 'accord/tickets/']).split('\0')) {
+      const id = /^accord\/tickets\/([^/]+)\.md$/.exec(f)?.[1];
+      if (id !== undefined) onDefault.add(id);
+    }
+    for (const [name, sha] of [...tips].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))) {
+      const added = run(['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', `${ref}...${sha}`, '--', 'accord/tickets/']).split('\0');
+      const paths = added.flatMap((p) => {
+        const id = /^accord\/tickets\/([^/]+)\.md$/.exec(p)?.[1];
+        return id !== undefined && QUEUED_ID.test(id) && !known(id) && !onDefault.has(id) && !Object.hasOwn(found, id) ? [{ id, path: p }] : [];
+      });
+      const texts = gitFilesAt(root, sha, paths.map((p) => p.path), env);
+      for (const { id, path } of paths) if (Object.hasOwn(texts, path)) found[id] = { branch: name, text: texts[path] };
+    }
+  } catch {
+    return {};
+  }
+  return found;
+}
+
+/**
+ * ST-LN-16 D-19: `snapshot` with the drafts `gitQueued` finds added as tickets of their own, and `queued` naming the branch of each. They are read with the default ref's config,
+ * and only their own loader findings are kept, so a queued draft that fails the schema counts as any other ticket does. The snapshot itself when there is none.
+ */
+export function withQueued(root: string, snapshot: RepoSnapshot): RepoSnapshot {
+  const ref = snapshot.defaultRef?.ref ?? doneRef(root);
+  if (ref === undefined) return snapshot;
+  const found = gitQueued(root, ref, (id) => Object.hasOwn(snapshot.tickets, id));
+  const ids = Object.keys(found);
+  if (ids.length === 0) return snapshot;
+  const files = { ...gitFilesAt(root, ref, ['accord/config.yml']), ...Object.fromEntries(ids.map((id) => ['accord/tickets/' + id + '.md', found[id].text])) };
+  const read = loadSnapshot({ files, tree: [] });
+  const mine = new Set(ids.map((id) => 'accord/tickets/' + id + '.md'));
+  return {
+    ...snapshot,
+    tickets: { ...snapshot.tickets, ...Object.fromEntries(ids.filter((id) => Object.hasOwn(read.tickets, id)).map((id) => [id, read.tickets[id]])) },
+    errors: [...snapshot.errors, ...read.errors.filter((e) => mine.has(e.file))],
+    queued: Object.fromEntries(ids.map((id) => [id, { branch: found[id].branch }])),
+  };
 }
 
 /**

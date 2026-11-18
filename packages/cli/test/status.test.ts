@@ -353,13 +353,15 @@ it('ac-1 a ticket filed only on its pushed claim branch shows at that branch sta
     expect(json.code).toBe(0);
     const row = (JSON.parse(json.out) as StatusRow[]).find((r) => r.id === 'T-2');
     expect(row).toMatchObject({ claimedBy: 'fixture@example.invalid', stage: 'build', tasksDone: 1, tasksTotal: 3, branch: 't/T-2' });
+    // status never fetches; ST-LN-16: the dashboard makes one bounded fetch, which fails here and is said in one line
+    expect(existsSync(join(repo, '.git', 'FETCH_HEAD'))).toBe(false);
     const dash = await run(['dashboard'], repo);
     expect(dash.code).toBe(0);
     const line = dash.out.split('\n').find((l) => l.includes('T-2'));
     expect(line).toContain('build 1/3');
     expect(line).toContain('fixture@example.invalid');
     expect(dash.out).toMatch(/^1 in progress/m);
-    expect(existsSync(join(repo, '.git', 'FETCH_HEAD'))).toBe(false);
+    expect(dash.out.startsWith('fetch from origin failed')).toBe(true);
     expect(gitRun(repo, 'rev-parse', 'refs/remotes/origin/t/T-2').trim()).toBe(tip);
   } finally {
     cleanup(repo);

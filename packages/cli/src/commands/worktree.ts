@@ -761,8 +761,16 @@ export function gitNoPrompt(cwd: string, args: string[], timeout?: number, seen?
 
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
-/** ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on. */
-export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: CommandContext; fetched: 'ok' | 'failed' | 'none' } {
+/**
+ * ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on.
+ * ST-LN-16: `ms` replaces the limit; `quiet` prints no failure line and the reason comes back as `why`; `keep` returns the context as it came, for a caller
+ * that reloads in its own way after a fetch.
+ */
+export function fetchOrigin(
+  ctx: CommandContext,
+  known?: boolean,
+  options: { ms?: number; quiet?: boolean; keep?: boolean } = {},
+): { ctx: CommandContext; fetched: 'ok' | 'failed' | 'none'; why?: string } {
   // ST-LN-63: a context from a light preflight is finished here. With no fetch, or a failed one, nothing moved a ref or the working tree,
   // so the full load reuses what the light load read; after a fetch origin's refs may have moved, so it reads everything again.
   const finished = (): CommandContext => {
@@ -772,14 +780,15 @@ export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: Comman
     return { ...rest, snapshot: loadSnapshot(loaded.input), ...(loaded.branch === undefined ? {} : { branch: loaded.branch }) };
   };
   if (known !== true && !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return { ctx: finished(), fetched: 'none' };
-  const ms = fetchLimitMs();
+  const ms = options.ms ?? fetchLimitMs();
   try {
     gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms, ctx.ssh);
   } catch (e) {
     const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
-    ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
-    return { ctx: finished(), fetched: 'failed' };
+    if (options.quiet !== true) ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
+    return { ctx: finished(), fetched: 'failed', why };
   }
+  if (options.keep === true) return { ctx, fetched: 'ok' };
   const full: CommandContext = { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) };
   delete full.light;
   return { ctx: full, fetched: 'ok' };

@@ -17,10 +17,12 @@ export const utcDate = (): string => new Date().toISOString().slice(0, 10);
 const firstLine = (err: unknown): string => String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0];
 
 /**
- * Write `text` as `rel` on `backlog/<id in lower case>-<date>`, one commit over origin's default branch, and push that commit.
+ * Write each text of `files` (a path under accord/tickets/ and its text) on `backlog/<id in lower case>-<date>`, one commit over origin's default
+ * branch, and push that commit. A single ticket passes one file; an epic and its stories (ST-LN-28 D-14) pass them all, `id` being the epic's.
  * Prints the branch, the base, the subject and the `queue.merge` setting, which the `/accord-queue` command acts on (D-02, D-03).
  */
-export function queueTicket(ctx: CommandContext, id: string, rel: string, text: string, date: string = utcDate()): number {
+export function queueTicket(ctx: CommandContext, id: string, files: Record<string, string>, date: string = utcDate()): number {
+  const rels = Object.keys(files);
   const root = ctx.root;
   if (!gitOk(root, ['remote', 'get-url', 'origin'])) throw new UsageError('no origin remote - accord new ticket --queue pushes the draft there' + NOTHING);
   try {
@@ -48,12 +50,16 @@ export function queueTicket(ctx: CommandContext, id: string, rel: string, text: 
   if (gitOk(root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch])) {
     throw new UsageError(`${branch} already exists in this clone - delete it with git branch -D ${branch}, then try again` + NOTHING);
   }
-  if (gitOk(root, ['cat-file', '-e', `${ref}:${rel}`])) throw new UsageError(`${rel} already exists on ${short}` + NOTHING);
+  for (const rel of rels) {
+    if (gitOk(root, ['cat-file', '-e', `${ref}:${rel}`])) throw new UsageError(`${rel} already exists on ${short}` + NOTHING);
+  }
 
   // The draft is read back with the default branch's tickets before anything is written, as `accord drop` does.
   const input = loadRefInput(root, ref);
-  input.files[rel] = text;
-  if (!input.tree.includes(rel)) input.tree.push(rel);
+  for (const rel of rels) {
+    input.files[rel] = files[rel];
+    if (!input.tree.includes(rel)) input.tree.push(rel);
+  }
   const errors = lintSnapshot(loadSnapshot(input)).findings.filter((f) => f.level === 'error');
   if (errors.length > 0) {
     throw new UsageError(
@@ -67,10 +73,12 @@ export function queueTicket(ctx: CommandContext, id: string, rel: string, text: 
   let sha: string;
   try {
     git(root, ['worktree', 'add', '--detach', wt, base]);
-    const file = join(wt, ...rel.split('/'));
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, text);
-    git(wt, ['add', '--', rel]);
+    for (const rel of rels) {
+      const file = join(wt, ...rel.split('/'));
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, files[rel]);
+    }
+    git(wt, ['add', '--', ...rels]);
     // no hook: the repository's own commit hook has no installed dependencies in a throwaway folder, and accord linted the draft above
     git(wt, ['commit', '-q', '--no-verify', '-m', subject]);
     sha = git(wt, ['rev-parse', 'HEAD']).trim();

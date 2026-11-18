@@ -8,7 +8,8 @@ import type { Lane, Split } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { creatorInitials, ID, parseRelated, PLACEHOLDER, printable, refuseBadConfig, refuseUnknown, usedIds, withDefaultBranch } from './ticket-shared.js';
-import { guardTicketSession } from './worktree.js';
+import { queueTicket, utcDate } from './queue.js';
+import { fetchOrigin, guardTicketSession } from './worktree.js';
 
 const NOTHING = ' - nothing was written';
 
@@ -38,8 +39,8 @@ export function newSplit(ctx: CommandContext, givenId: string | undefined, optio
   if ((options.note ?? []).length > 0) throw new UsageError('--split and --note cannot go together: the split file holds the intent lines of the epic and of every story' + NOTHING);
   if (options.dupCheck === false) throw new UsageError('--split and --no-dup-check cannot go together: a split always runs the similar check, so the flag would be ignored unseen' + NOTHING);
   if (givenId !== undefined) throw new UsageError('--split takes no ticket id: accord assigns them, or the split file gives them (an id line on the epic and on every story)' + NOTHING);
-  if (options.queue === true) throw new UsageError('--split with --queue is not available yet' + NOTHING);
-  guardTicketSession(ctx, undefined, '/accord-new <request>');
+  // ST-LN-83 D-06: the queue path writes on another branch in a temporary worktree and touches nothing of this session's ticket, so it runs no session guard
+  if (options.queue !== true) guardTicketSession(ctx, undefined, '/accord-new <request>');
   const path = resolve(cwd, options.split);
   let source: string;
   try {
@@ -49,7 +50,9 @@ export function newSplit(ctx: CommandContext, givenId: string | undefined, optio
   }
   const parsed = parseSplit(source);
   if (parsed.split === undefined) throw new UsageError('the split file ' + options.split + ' has ' + parsed.problems.length + ' problem(s):\n' + parsed.problems.map((p) => '- ' + p).join('\n') + '\n' + NOTHING.trim());
-  return writeSplit(ctx, parsed.split, { related: options.related });
+  // the clone is fetched only after the file is read and checked, so a bad file touches no network; a light context is finished here
+  if (options.queue === true) ctx = fetchOrigin(ctx).ctx;
+  return writeSplit(ctx, parsed.split, { queue: options.queue === true, related: options.related });
 }
 
 /** `text` with the lines under `## <heading>` replaced by `lines`; the template's own guidance comment stays. */
@@ -162,6 +165,12 @@ export function writeSplit(ctx: CommandContext, split: Split, options: { queue?:
   }
 
   ctx.stdout.write(titleRuleLine(config) + '\n');
+  if (options.queue === true) {
+    // ST-LN-28 D-14: the epic and every story are one commit on one backlog branch, named for the epic; the paths follow the queue lines, in file order
+    const code = queueTicket(ctx, epicId, files, utcDate());
+    for (const rel of Object.keys(files)) ctx.stdout.write(rel + '\n');
+    return code;
+  }
   mkdirSync(join(ctx.root, 'accord', 'tickets'), { recursive: true });
   for (const [rel, text] of Object.entries(files)) {
     writeFileSync(join(ctx.root, rel), text);

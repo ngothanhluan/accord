@@ -1,7 +1,6 @@
 // ST-LN-28 D-14 (7-ac-9): `accord new ticket --type epic --lane L --split <file>` writes an approved epic and every story in one
 // step, in the working tree or, with --queue, as one commit on one backlog branch. Real files and real git in tmp sandboxes.
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, commitAll, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
@@ -101,19 +100,17 @@ it('ac-9 an approved split creates the epic and every story in one step (ST-LN-2
 });
 
 const today = (): string => new Date().toISOString().slice(0, 10);
-const tempFolders = (): string[] => readdirSync(tmpdir()).filter((n) => n.startsWith('accord-queue-')).sort();
 const FOUR = ['accord/tickets/EP-FX-1.md', 'accord/tickets/ST-FX-1.md', 'accord/tickets/ST-FX-2.md', 'accord/tickets/ST-FX-3.md'];
 
 it('ac-9 a queued split is one commit on one backlog branch and a bad split writes nothing (ST-LN-28 7-ac-9)', async () => {
   // a bare-origin clone whose default branch assigns ids to the person fixture@example.invalid
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
-  writeFiles(c.root, { 'accord/config.yml': CONFIG + 'people:\n  "fixture@example.invalid": FX\n', 'split.yml': SPLIT });
+  writeFiles(c.root, { 'accord/config.yml': CONFIG + 'people:\n  "fixture@example.invalid": FX\nlegacy_ids: [ST-9, ST-10]\n', 'split.yml': SPLIT });
   c.git('add', '-A');
   c.git('commit', '-q', '-m', 'people and a split');
   c.git('push', '-q', 'origin', 'main');
   const state = (): string[] => [c.git('rev-parse', 'HEAD'), c.git('status', '--porcelain', '--untracked-files=all'), c.git('worktree', 'list', '--porcelain'), c.git('for-each-ref', 'refs/heads/backlog')];
   const refs = (): string => gitRun(c.remote, 'for-each-ref', '--format=%(refname) %(objectname)');
-  const folders = tempFolders();
   const before = state();
   const pushed = refs();
 
@@ -124,7 +121,6 @@ it('ac-9 a queued split is one commit on one backlog branch and a bad split writ
     expect([what, r.code, r.err.includes(word) && r.err.includes('nothing was written')], what + ': ' + r.err).toEqual([what, 2, true]);
     expect(state(), what).toEqual(before);
     expect(refs(), what).toBe(pushed);
-    expect(tempFolders(), what).toEqual(folders);
   };
   await refuse('--worktree', '--worktree', '--worktree');
   await refuse('--no-dup-check', '--no-dup-check', '--no-dup-check');
@@ -136,7 +132,6 @@ it('ac-9 a queued split is one commit on one backlog branch and a bad split writ
     expect([what, r.code, r.err.includes(word) && r.err.includes('nothing was written')], what + ': ' + r.err).toEqual([what, 2, true]);
     expect(state(), what).toEqual(before);
     expect(refs(), what).toBe(pushed);
-    expect(tempFolders(), what).toEqual(folders);
   };
   await edit('a story title that breaks the rule', 'story 2 title', 'title: Payment form', 'title: Paiement des données');
   await edit('an after that points forward', 'story 2', '    after: [1]\n', '    after: [3]\n');
@@ -163,10 +158,9 @@ it('ac-9 a queued split is one commit on one backlog branch and a bad split writ
   expect(blob('ST-FX-3')).toMatch(/^parent: "EP-FX-1"$/m);
   expect(blob('ST-FX-3')).toMatch(/^depends_on:\n {2}- "ST-FX-1"\n {2}- "ST-FX-2"\n/m);
 
-  // this checkout is as it was, and no temporary folder is left
+  // this checkout is as it was: same HEAD, status and worktree list, so no temporary worktree is left registered (another test file may hold temporary folders of its own at the same time)
   expect(state()).toEqual(before);
   expect(c.git('for-each-ref', 'refs/heads/backlog')).toBe('');
-  expect(tempFolders()).toEqual(folders);
 }, 180_000);
 
 it('ac-9 a split gives its own ids where accord assigns none and refuses one that is used (ST-LN-28 7-ac-9)', async () => {

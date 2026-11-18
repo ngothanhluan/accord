@@ -166,7 +166,7 @@ export function newTicket(
   if (options.queue === true) {
     // ST-LN-83 D-06: the draft goes to a backlog branch off origin's default branch, not to this checkout
     const date = utcDate();
-    return queueTicket(ctx, id, rel, queuedIntent(text, date, notes), date);
+    return queueTicket(ctx, id, { [rel]: queuedIntent(text, date, notes) }, date);
   }
   if (options.worktree === true) {
     newTicketWorktree(ctx, id, rel, text, seen);

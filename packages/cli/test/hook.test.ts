@@ -285,6 +285,24 @@ it('ac-1 a newer release is announced by the session start hook and the dashboar
   }
 });
 
+it('ac-1 the CLI messages name the new commands (ST-LN-83 7-ac-1)', async () => {
+  const c = copyClone(tpl);
+  const { dir } = freshCache();
+  try {
+    vi.mocked(requestLatest).mockClear().mockResolvedValue(NEXT);
+    expect((await run(['hook', 'session-start'], c.root)).code).toBe(0);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 60_000);
+    const b = await run(['hook', 'session-start'], c.root);
+    expect(b.code).toBe(0);
+    expect(lines(b.out).filter((l) => l.includes(' is out'))).toEqual([`accord ${NEXT} is out, and this repository pins ${PIN}: type /accord-upgrade to run npx --yes @accord-dev/accord@${NEXT} upgrade`]);
+  } finally {
+    resetNotice();
+    cleanup(dir);
+    c.cleanupAll();
+  }
+});
+
 it('ac-2 an unreachable registry adds no line is given up after 3 seconds and is not asked again', async () => {
   const c = copyClone(tpl);
   const { dir } = freshCache();

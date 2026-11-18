@@ -13,10 +13,10 @@ export const agentDir = '.claude/agents';
 
 export const AGENT_DEFAULTS: Record<RouteKey, { model: string; effort: Effort }> = {
   scout: { model: 'haiku', effort: 'low' },
-  auditor: { model: 'opus', effort: 'medium' },
+  auditor: { model: 'opus', effort: 'high' },
   critic: { model: 'opus', effort: 'high' },
   planner: { model: 'opus', effort: 'high' },
-  executor: { model: 'sonnet', effort: 'medium' },
+  executor: { model: 'sonnet', effort: 'high' },
   reviewer: { model: 'sonnet', effort: 'high' },
   'reviewer.final': { model: 'opus', effort: 'high' },
   verifier: { model: 'sonnet', effort: 'medium' },

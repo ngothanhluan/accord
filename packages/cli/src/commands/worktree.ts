@@ -9,6 +9,7 @@ import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
+import { cleanLine, nextLine, withNext, withNextOnFirst } from './next-action.js';
 import { disposableNames, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
 import { runTeamCommand } from '../load/team-run.js';
@@ -97,16 +98,18 @@ export function worktrees(root: string, out: NodeJS.WritableStream, judged?: Set
   if (held.length === 0) {
     git(root, ['worktree', 'prune']);
     list = listWorktrees(root);
-    for (const w of stale) if (!list.some((x) => x.path === w.path)) out.write(`pruned ${w.path}: ${w.prunable}\n`);
+    for (const w of stale) if (!list.some((x) => x.path === w.path)) out.write(withNext('pruned', `pruned ${w.path}: ${w.prunable}`) + '\n');
     return list.filter((w) => w.prunable === undefined);
   }
   if (judged !== undefined) {
     for (const w of stale) {
       if (judged.has(norm(w.path))) continue;
       out.write(
-        held.includes(w)
-          ? `kept ${w.path}: its folder is missing and its detached HEAD ${w.head} is on no branch\n`
-          : `kept ${w.path}: its folder is missing (${w.prunable}); no prune runs while a missing folder holds a detached HEAD on no branch\n`,
+        cleanLine(
+          held.includes(w)
+            ? `kept ${w.path}: its folder is missing and its detached HEAD ${w.head} is on no branch`
+            : `kept ${w.path}: its folder is missing (${w.prunable}); no prune runs while a missing folder holds a detached HEAD on no branch`,
+        ) + '\n',
       );
       judged.add(norm(w.path));
     }
@@ -141,7 +144,7 @@ export function prepare(path: string): void {
   const failed = runSetup(setup, path).failed;
   if (failed !== undefined) {
     throw new UsageError(
-      `setup command failed in the new worktree: ${failed.command} (exit ${failed.code})\n${failed.tail}\nthe worktree is kept; fix the command, then continue the ticket again`,
+      withNextOnFirst('setup-failed', `setup command failed in the new worktree: ${failed.command} (exit ${failed.code})\n${failed.tail}\nthe worktree is kept; fix the command, then continue the ticket again`),
     );
   }
   writeFileSync(setupMarker(path), '');
@@ -261,7 +264,7 @@ function recordQuietly(ctx: CommandContext, id: string, path: string): void {
   try {
     recordWorktree(ctx.root, id, path);
   } catch (e) {
-    ctx.stdout.write(`note ${id}: the worktree ${path} was not recorded: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+    ctx.stdout.write(withNext('note', `note ${id}: the worktree ${path} was not recorded: ${firstLine(e instanceof UsageError ? e.message : e)}`) + '\n');
   }
 }
 
@@ -309,7 +312,7 @@ export function takeHold(ctx: CommandContext, id: string, path: string): void {
   withHolds(ctx.root, (holds) => {
     const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
     if (h !== undefined && !sameSession(h, session) && isLive(h, table)) {
-      throw new UsageError(`${id} is held by another session: ${describeSession(h)} - work it there, or close that session first`);
+      throw new UsageError(withNext('held-by-other', `${id} is held by another session: ${describeSession(h)} - work it there, or close that session first`));
     }
     const same = h !== undefined && sameSession(h, session);
     const here = (isLinked(ctx.root) ? ctx.root : path).replaceAll('\\', '/');
@@ -338,14 +341,12 @@ export function releaseHolds(root: string, session: { pid: number; start: string
 function hold(ctx: CommandContext, id: string, path: string): number {
   if (claudeEnv(ctx.env) === undefined) {
     if (!existsSync(setupMarker(path))) prepare(path);
-    ctx.stdout.write(`not held: ${id} - a second session in this worktree is not refused in this tool yet
-`);
+    ctx.stdout.write(withNext('not-held', `not held: ${id} - a second session in this worktree is not refused in this tool yet`) + '\n');
     return 0;
   }
   takeHold(ctx, id, path);
   if (!existsSync(setupMarker(path))) prepare(path);
-  ctx.stdout.write(`held: ${id} by this session
-`);
+  ctx.stdout.write(withNext('held', `held: ${id} by this session`) + '\n');
   return 0;
 }
 
@@ -387,13 +388,12 @@ export function enterOrStop(ctx: CommandContext, id: string, path: string, branc
   if (!enter) return printStop(ctx, path, id);
   takeHold(ctx, id, path);
   if (!existsSync(setupMarker(path))) prepare(path);
-  ctx.stdout.write(`enter: ${path}
-`);
+  ctx.stdout.write(`${nextLine('enter')}\nenter: ${path}\n`);
 }
 
 /** D-11, D-12: exactly three lines, naming no tool. */
 export function printStop(ctx: CommandContext, path: string, id: string): void {
-  ctx.stdout.write(`stop: open a session in this folder and type the line below it\n${path}\n/accord-continue ${id}\n`);
+  ctx.stdout.write(`${nextLine('stop')}\nstop: open a session in this folder and type the line below it\n${path}\n/accord-continue ${id}\n`);
 }
 
 /** Pick up reuses an existing branch only when its claim is the user's own (same email); otherwise exit 2, nothing created. */
@@ -416,7 +416,7 @@ function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
   const me = gitUserEmail(ctx.root);
   if (me === '') throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>');
   if (claimant.trim().toLowerCase() !== me.trim().toLowerCase()) {
-    throw new UsageError(`claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord-continue ${id}`);
+    throw new UsageError(withNext('claimed', `claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord-continue ${id}`));
   }
 }
 
@@ -466,13 +466,13 @@ export interface SessionNext {
 export function worksMessage(w: Works, mainPath: string, next?: SessionNext): string {
   const who = w.id === undefined ? `this session works the ticket worktree ${w.top}, whose branch cannot be read` : `this session works ${w.id}`;
   if (next !== undefined) {
-    return `${who}: ${next.command} needs a session of its own - open one with the line below and type ${next.command} there - nothing was changed\n${openLine(next.path)}`;
+    return `${withNext('session-works', `${who}: ${next.command} needs a session of its own - open one with the line below and type ${next.command} there - nothing was changed`)}\n${openLine(next.path)}`;
   }
   const text =
     w.id === undefined
       ? `${who}: open a new session in the main checkout ${mainPath} for other work, or type a request about that ticket without "/accord" - nothing was changed`
       : `${who}: open a new session in the main checkout ${mainPath} for other work, or type a request about ${w.id} without "/accord" - nothing was changed`;
-  return `${text}\n${openLine(mainPath)}`;
+  return `${withNext('session-works', text)}\n${openLine(mainPath)}`;
 }
 
 /** `;` sequences two commands in PowerShell 5.1 and 7, bash and zsh alike (`&&` fails in Windows PowerShell 5.1); the guard acts only in Claude Code, so it names `claude`. */
@@ -585,8 +585,8 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (opts.continue === true) {
     throw new UsageError(
       isTicket
-        ? `not claimed: ${id} has no branch ${branch} here or on origin - nothing was created; pick it up first`
-        : `not a ticket: ${id} is not in accord/tickets and has no branch ${branch} here or on origin - nothing was created`,
+        ? withNext('not-claimed', `not claimed: ${id} has no branch ${branch} here or on origin - nothing was created; pick it up first`)
+        : withNext('not-a-ticket', `not a ticket: ${id} is not in accord/tickets and has no branch ${branch} here or on origin - nothing was created`),
     );
   }
   if (!isTicket) throw new UsageError('no ticket ' + id + ' in accord/tickets - nothing was created');
@@ -761,8 +761,16 @@ export function gitNoPrompt(cwd: string, args: string[], timeout?: number, seen?
 
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
-/** ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on. */
-export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: CommandContext; fetched: 'ok' | 'failed' | 'none' } {
+/**
+ * ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on.
+ * ST-LN-16: `ms` replaces the limit; `quiet` prints no failure line and the reason comes back as `why`; `keep` returns the context as it came, for a caller
+ * that reloads in its own way after a fetch.
+ */
+export function fetchOrigin(
+  ctx: CommandContext,
+  known?: boolean,
+  options: { ms?: number; quiet?: boolean; keep?: boolean } = {},
+): { ctx: CommandContext; fetched: 'ok' | 'failed' | 'none'; why?: string } {
   // ST-LN-63: a context from a light preflight is finished here. With no fetch, or a failed one, nothing moved a ref or the working tree,
   // so the full load reuses what the light load read; after a fetch origin's refs may have moved, so it reads everything again.
   const finished = (): CommandContext => {
@@ -772,14 +780,15 @@ export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: Comman
     return { ...rest, snapshot: loadSnapshot(loaded.input), ...(loaded.branch === undefined ? {} : { branch: loaded.branch }) };
   };
   if (known !== true && !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return { ctx: finished(), fetched: 'none' };
-  const ms = fetchLimitMs();
+  const ms = options.ms ?? fetchLimitMs();
   try {
     gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms, ctx.ssh);
   } catch (e) {
     const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
-    ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
-    return { ctx: finished(), fetched: 'failed' };
+    if (options.quiet !== true) ctx.stdout.write(withNext('fetch-failed', `fetch from origin failed, going on with the refs already in this clone: ${why}`) + '\n');
+    return { ctx: finished(), fetched: 'failed', why };
   }
+  if (options.keep === true) return { ctx, fetched: 'ok' };
   const full: CommandContext = { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) };
   delete full.light;
   return { ctx: full, fetched: 'ok' };
@@ -812,7 +821,7 @@ export function syncDefault(
   const here = mine.filter((f) => existsSync(root + '/' + f)); // keeps the command line short: a big merged PR adds hundreds of paths, none normally on disk
   const clash = here.length === 0 ? undefined : git(root, ['ls-files', '--others', '-z', '--', ...here.map((f) => ':(literal)' + f)]).split('\0').find((l) => l !== '');
   if (clash !== undefined) {
-    throw new UsageError(`${verb} of ${def} into ${branch} failed: ${clash} is an ignored file here that the ${verb} would overwrite - ${again.clash} - ${branch} is as it was`);
+    throw new UsageError(withNext('merge-of', `${verb} of ${def} into ${branch} failed: ${clash} is an ignored file here that the ${verb} would overwrite - ${again.clash} - ${branch} is as it was`));
   }
   if (!rebase) {
     try {
@@ -822,9 +831,9 @@ export function syncDefault(
       const files = git(root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
       if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(root, ['merge', '--abort']);
       if (files.length > 0) {
-        throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`);
+        throw new UsageError(withNext('merge-of', `merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`));
       }
-      throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+      throw new UsageError(withNext('merge-of', `merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`));
     }
     return { rebased: [] };
   }
@@ -837,9 +846,9 @@ export function syncDefault(
     const dirs = ['rebase-merge', 'rebase-apply'].map((n) => resolve(root, git(root, ['rev-parse', '--git-path', n]).trim()));
     if (dirs.some((d) => existsSync(d))) git(root, ['rebase', '--abort']);
     if (files.length > 0) {
-      throw new UsageError(`rebase of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the rebase was aborted and ${branch} is as it was; ${again.conflict}`);
+      throw new UsageError(withNext('merge-of', `rebase of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the rebase was aborted and ${branch} is as it was; ${again.conflict}`));
     }
-    throw new UsageError(`rebase of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+    throw new UsageError(withNext('merge-of', `rebase of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`));
   }
   // full shas (core.abbrev=40), cut to 12 below; a pair is a `=` or `!` line, an unpaired commit (`<` or `>`) names no old-to-new pair
   const pairs: Array<[string, string]> = [];
@@ -863,7 +872,7 @@ const TEAM_SYNC_MAX_BUFFER = 64 * 1024 * 1024;
 function runTeamSync(root: string, ref: string, branch: string, team: { command: string; ticket: string }): void {
   // the callers check this before any network call; it is checked here too, so no path runs a repository script that `accord trust` did not allow
   const refusal = scriptRefusal(root, 'git.sync', team.command);
-  if (refusal !== undefined) throw new UsageError(`${refusal} - ${branch} was not pushed`);
+  if (refusal !== undefined) throw new UsageError(withNext('trust', `${refusal} - ${branch} was not pushed`));
   const r = runTeamCommand(team.command, {
     cwd: root,
     env: { ...process.env, ACCORD_TICKET: team.ticket, ACCORD_BRANCH: branch, ACCORD_BASE_REF: ref, ACCORD_ROOT: root },
@@ -941,7 +950,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   // round 3 WR-03: the allow is checked against the ticket's worktree, not the checkout Continue runs from, so the line names that worktree
   const where = `"${shown(path.replaceAll('\\', '/'))}"`;
   const unallowedHint = `; git.sync is not allowed to run here yet - run accord trust in ${where} to see what it covers, then accord trust git.sync@<the digest it shows> there`;
-  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}${unallowed ? unallowedHint : ''}\n`);
+  const behind = (): void => void ctx.stdout.write(withNext(unallowed ? 'trust' : 'behind', `behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way()}${unallowed ? unallowedHint : ''}`) + '\n');
   // a remote branch with commits this clone lacks (a teammate pushed): the stage here may be stale, and the push would be refused
   const own = 'refs/remotes/origin/' + branch;
   if (gitOk(path, ['rev-parse', '-q', '--verify', own]) && !gitOk(path, ['merge-base', '--is-ancestor', own, 'HEAD'])) return behind();
@@ -983,9 +992,9 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
     throw e;
   }
   const how = done.by !== undefined ? 'team' : strategy === 'rebase' ? 'rebase' : 'merge';
-  if (how === 'team') ctx.stdout.write(`synced: ${branch} by git.sync\n`);
-  else if (how === 'rebase') for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
-  else ctx.stdout.write(`merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}\n`);
+  if (how === 'team') ctx.stdout.write(withNext('synced', `synced: ${branch} by git.sync`) + '\n');
+  else if (how === 'rebase') for (const [was, now] of done.rebased) ctx.stdout.write(withNext('synced', `rebased: ${was} -> ${now}`) + '\n');
+  else ctx.stdout.write(withNext('synced', `merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}`) + '\n');
   backfilled(ctx, id, early ?? (rewrites ? undefined : backfillRuleset(ctx, id, path)));
   // the marker of the pre-merge setup never stands for the merge commit
   rmSync(setupMarker(path), { force: true });
@@ -997,7 +1006,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   }
   const push = pushAfterSync(ctx, path, branch, how, 'push');
   if (!push.pushed) {
-    ctx.stdout.write(`push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}\n`);
+    ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}`) + '\n');
   }
   if (failure !== undefined) throw failure;
 }
@@ -1007,7 +1016,7 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
   const kept = (why: string): number => {
-    ctx.stdout.write(`push of ${branch} failed; its commits stay local until the next push\n${why}\n`);
+    ctx.stdout.write(withNext('push-failed', `push of ${branch} failed; its commits stay local until the next push`) + `\n${why}\n`);
     return 0;
   };
   if (ctx.snapshot.config?.commits?.trailers === 'forbid') {
@@ -1114,7 +1123,7 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   // a repository script runs only once the person allowed it: refused before any network call, like the checks above
   const declared = ctx.snapshot.config?.git?.sync;
   const refusal = declared === undefined ? undefined : scriptRefusal(ctx.root, 'git.sync', declared);
-  if (refusal !== undefined) throw new UsageError(`${refusal} - nothing was synced`);
+  if (refusal !== undefined) throw new UsageError(withNext('trust', `${refusal} - nothing was synced`));
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   fetchOrigin(ctx, true);
   const ref = gitDefaultRef(ctx.root);
@@ -1137,10 +1146,10 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   }
 
   if (rewrote) {
-    if (done.by !== undefined) ctx.stdout.write(`synced: ${branch} by ${done.by}\n`);
+    if (done.by !== undefined) ctx.stdout.write(withNext('synced', `synced: ${branch} by ${done.by}`) + '\n');
     // the records that name a commit by sha (review heads, plan baseline) stay owner-typed: the pairs are what to retype
     else {
-      for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+      for (const [was, now] of done.rebased) ctx.stdout.write(withNext('synced', `rebased: ${was} -> ${now}`) + '\n');
       // ST-LN-96 D-16 Option E: accord's own rebase keeps an unchanged verification valid; a hand rebase and a team script never reach this line
       rebindAfterRebase(ctx, id, ctx.root);
     }
@@ -1151,7 +1160,7 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
     // A team script is pushed too, even when origin has no such branch yet: the branch on origin must hold what the gate judges
     const push = pushAfterSync(ctx, ctx.root, branch, done.by !== undefined ? 'team' : 'rebase', done.by !== undefined ? 'push' : 'skip');
     if (push.pushed) ctx.stdout.write(`pushed: ${branch}\n`);
-    else if (push.why !== undefined) ctx.stdout.write(`push of ${branch} failed: ${push.why} - run accord worktree push ${id}${push.lease ? ' --force-with-lease' : ''} after checking origin\n`);
+    else if (push.why !== undefined) ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - run accord worktree push ${id}${push.lease ? ' --force-with-lease' : ''} after checking origin`) + '\n');
   }
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
@@ -1193,9 +1202,14 @@ interface SeenList {
   main?: string;
 }
 
+/** ST-LN-69 D-19: one line of a clean, with its next action. */
+function cleanSay(ctx: CommandContext, text: string): void {
+  ctx.stdout.write(cleanLine(text) + '\n');
+}
+
 /** One folder line of a clean: `text` is written and the folder is remembered as judged. */
 function folderLine(ctx: CommandContext, seen: SeenList, path: string, text: string): void {
-  ctx.stdout.write(text + '\n');
+  cleanSay(ctx, text);
   (seen.judged ??= new Set()).add(norm(path));
 }
 
@@ -1241,7 +1255,7 @@ function spent(ctx: CommandContext, s: GuardState): boolean {
   if (s.stopped === true) return true;
   if (Date.now() < s.until) return false;
   s.stopped = true;
-  ctx.stdout.write('clean stopped: its time budget is spent; the rest waits for the next session start\n');
+  cleanSay(ctx, 'clean stopped: its time budget is spent; the rest waits for the next session start');
   return true;
 }
 
@@ -1255,28 +1269,25 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
   // readList already named a worktree whose folder is missing
   if (w.prunable !== undefined) return undefined;
   if (norm(w.path) === norm(ctx.root)) {
-    ctx.stdout.write(`kept ${w.path}: this session's worktree
-`);
+    cleanSay(ctx, `kept ${w.path}: this session's worktree`);
     return undefined;
   }
   // Task 6: `git worktree remove` would delete a worktree that sits inside this one, in an ignored folder
   const inner = list.find((x) => norm(x.path) !== norm(w.path) && norm(x.path).startsWith(norm(w.path) + '/'));
   if (inner !== undefined) {
-    ctx.stdout.write(`kept ${w.path}: it holds the worktree ${inner.path}\n`);
+    cleanSay(ctx, `kept ${w.path}: it holds the worktree ${inner.path}`);
     return undefined;
   }
   // D-08: `git worktree remove` deletes every ignored file, so they are judged here; `matching` lists an ignored file under a folder that is not itself ignored, and the untracked mode stays explicit whatever `status.showUntrackedFiles` says
   const status = git(w.path, ['status', '--porcelain', '-z', '--ignored=matching', '--untracked-files=normal', '--ignore-submodules=none']).split('\0').filter((e) => e !== '');
   if (status.some((e) => !e.startsWith('!! '))) {
-    ctx.stdout.write(`kept ${w.path}: uncommitted work
-`);
+    cleanSay(ctx, `kept ${w.path}: uncommitted work`);
     return undefined;
   }
   const names = disposableNames(ctx.snapshot.config?.disposable);
   const real = status.find((e) => !isDisposable(e.slice(3), names));
   if (real !== undefined) {
-    ctx.stdout.write(`kept ${w.path}: ${real.slice(3)}
-`);
+    cleanSay(ctx, `kept ${w.path}: ${real.slice(3)}`);
     return undefined;
   }
   // a nested repository in an ignored folder holds commits that `git worktree remove` would delete with it
@@ -1284,13 +1295,13 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
     if (!e.endsWith('/')) continue;
     const nested = gitInside(w.path, e.slice(3));
     if (nested !== undefined) {
-      ctx.stdout.write(`kept ${w.path}: ${repositoryReason(nested)}\n`);
+      cleanSay(ctx, `kept ${w.path}: ${repositoryReason(nested)}`);
       return undefined;
     }
   }
   const edited = editHiddenFromStatus(w.path);
   if (edited !== undefined) {
-    ctx.stdout.write(`kept ${w.path}: ${hiddenEditReason(edited)}\n`);
+    cleanSay(ctx, `kept ${w.path}: ${hiddenEditReason(edited)}`);
     return undefined;
   }
   const holds = guardHolds(ctx, s, w.path);
@@ -1298,13 +1309,13 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
   const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
   const why = h === undefined ? undefined : holdReason(ctx, h, s);
   if (why !== undefined) {
-    ctx.stdout.write(`kept ${w.path}: ${why}\n`);
+    cleanSay(ctx, `kept ${w.path}: ${why}`);
     return undefined;
   }
   // fix 2: a hold of another ticket that names this folder keeps it too
   const elsewhere = heldElsewhere(ctx, w.path, id, s);
   if (elsewhere !== undefined) {
-    ctx.stdout.write(`kept ${w.path}: ${elsewhere}\n`);
+    cleanSay(ctx, `kept ${w.path}: ${elsewhere}`);
     return undefined;
   }
   return { h };
@@ -1327,7 +1338,7 @@ function editHiddenFromStatus(path: string): string | undefined {
 }
 
 /** The holds file, read once per clean; undefined after the line `say` writes when it could not be read, naming `path`. */
-function guardHolds(ctx: CommandContext, s: GuardState, path: string, say: (text: string) => void = (t) => void ctx.stdout.write(t + '\n')): Record<string, Hold> | undefined {
+function guardHolds(ctx: CommandContext, s: GuardState, path: string, say: (text: string) => void = (t) => cleanSay(ctx, t)): Record<string, Hold> | undefined {
   if (s.holds === undefined && s.holdsError === undefined) {
     try {
       withHolds(ctx.root, (h) => ((s.holds = h), undefined));
@@ -1388,7 +1399,7 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
       try {
         dropRecorded(ctx.root, w.path);
       } catch (e) {
-        ctx.stdout.write(`note ${id}: the record of the removed worktree could not be updated: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+        cleanSay(ctx, `note ${id}: the record of the removed worktree could not be updated: ${firstLine(e instanceof UsageError ? e.message : e)}`);
       }
     }
   }
@@ -1397,8 +1408,7 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
     try {
       withHolds(ctx.root, (all) => (Object.hasOwn(all, id) ? Object.fromEntries(Object.entries(all).filter(([k]) => k !== id)) : undefined));
     } catch (e) {
-      ctx.stdout.write(`note ${id}: the hold of the removed worktree could not be dropped: ${firstLine(e instanceof UsageError ? e.message : e)}
-`);
+      cleanSay(ctx, `note ${id}: the hold of the removed worktree could not be dropped: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
   }
   return { failed: !gone };
@@ -1453,7 +1463,7 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   const accord = git(ctx.root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord';
   const lock = takeCleanLock(accord);
   if (typeof lock === 'string') {
-    ctx.stdout.write(lock + '\n');
+    cleanSay(ctx, lock);
     return 0;
   }
   try {
@@ -1479,8 +1489,7 @@ function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'n
     }
   } catch (e) {
     fetchFailed = true;
-    ctx.stdout.write(`fetch from origin failed, judging against the refs already in this clone: ${firstLine(e)}
-`);
+    cleanSay(ctx, `fetch from origin failed, judging against the refs already in this clone: ${firstLine(e)}`);
   }
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
@@ -1492,8 +1501,85 @@ function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'n
   if (halted(state)) return 0;
   cleanRecorded(ctx, ref, state, fetchFailed, merged);
   if (halted(state)) return 0;
+  cleanBranches(ctx, ref, state, merged);
+  if (halted(state)) return 0;
   cleanSiblings(ctx, ref, state, fetchFailed);
   return 0;
+}
+
+/** ST-LN-87 D-19: the only non-ticket branches the clean judges, by prefix; a branch named any other way is never looked at. */
+const CLEAN_PREFIXES = ['refs/heads/backlog/', 'refs/heads/fix/', 'refs/heads/release/'] as const;
+
+/**
+ * ST-LN-87 D-19: the local `backlog/*`, `fix/*` and `release/*` branches that are on `ref` or whose merge into it would change nothing (a squash or
+ * rebase merge) are deleted, and the worktree that has one checked out goes first, through the guards every worktree removal passes. A branch with
+ * commits `ref` lacks, or a conflicting or unclear one, is kept and named. A ticket's own branch belongs to the phases above, and no remote branch
+ * is ever touched: `ref` is origin's default, and what a host deletes after a merge is its own setting.
+ */
+function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: ReadonlySet<string>): void {
+  const def = ref.replace('refs/remotes/', '');
+  const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
+  const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
+  const listed = git(ctx.root, ['for-each-ref', '--format=%(objectname)%00%(refname)', ...CLEAN_PREFIXES]).split('\n');
+  const names = listed.flatMap((row) => {
+    const cut = row.indexOf('\0');
+    const name = cut < 0 ? '' : row.slice(cut + 1 + 'refs/heads/'.length).trim();
+    return name === '' || ticketOfBranch(name, templates, known) !== undefined ? [] : [name];
+  });
+  if (names.length === 0) return;
+  const after = readList(ctx, s.seen);
+  const tipOf = (b: string): string | undefined => {
+    const args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
+    return gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
+  };
+  const why = (tip: string, set?: ReadonlySet<string>): string | undefined => {
+    const v = safeTip(ctx.root, tip, undefined, ref, set);
+    if (v === 'safe') return undefined;
+    return v === 'conflict' ? `merging it into ${def} conflicts` : `it has commits ${def} lacks`;
+  };
+  for (const b of names.sort((x, y) => (x < y ? -1 : x > y ? 1 : 0))) {
+    try {
+      if (spent(ctx, s)) return;
+      let L = tipOf(b);
+      if (L === undefined) continue;
+      const first = why(L, merged);
+      if (first !== undefined) {
+        cleanSay(ctx, `kept ${b}: ${first}`);
+        continue;
+      }
+      // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
+      if (rebasing !== undefined) {
+        cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
+        continue;
+      }
+      const W = after.find((x) => x.branch === b);
+      if (W !== undefined && W === after[0]) {
+        cleanSay(ctx, `kept ${b}: checked out in ${W.path}`);
+        continue;
+      }
+      if (W !== undefined) {
+        const g = passGuards(ctx, W, b, s, after);
+        if (g === undefined || removeWorktree(ctx, W, b, g.h, s.seen).failed) {
+          cleanSay(ctx, `kept ${b}: checked out in ${W.path}`);
+          continue;
+        }
+      }
+      // A commit made while the guards ran counts: the delete names the sha it checked.
+      const was = L;
+      L = tipOf(b);
+      if (L === undefined) continue;
+      const again = L === was ? undefined : why(L);
+      if (again !== undefined) {
+        cleanSay(ctx, `kept ${b}: ${again}`);
+        continue;
+      }
+      execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      cleanSay(ctx, `deleted ${b}: merged into ${def} (was ${L})`);
+    } catch (e) {
+      cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
+    }
+  }
 }
 
 /** ST-LN-55 D-01 part C: folders next to the main checkout, named for a done or dropped ticket, that git does not list and the record never named (left before the record existed). Judged by `cleanForgotten` with all its guards. */
@@ -1642,7 +1728,7 @@ export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'no
   try {
     worktreeClean(ctx, { fetched, skip, seen, until: o.until });
   } catch (e) {
-    ctx.stdout.write(`clean failed, nothing more was removed: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+    cleanSay(ctx, `clean failed, nothing more was removed: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     return undefined;
   }
   return seen.list;
@@ -1750,14 +1836,12 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       // A worktree mid-rebase has a detached HEAD; its rebase still owns the branch.
       const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
       if (rebasing !== undefined) {
-        ctx.stdout.write(`kept ${b}: being rebased in ${rebasing.path}
-`);
+        cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
         continue;
       }
       const W = after.find((x) => x.branch === b);
       if (W !== undefined && W === after[0]) {
-        ctx.stdout.write(`kept ${b}: checked out in ${W.path}
-`);
+        cleanSay(ctx, `kept ${b}: checked out in ${W.path}`);
         continue;
       }
       const raw = snap.tickets[id]?.frontmatter?.verified_commit;
@@ -1773,15 +1857,13 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       let L = gitOk(ctx.root, tipArgs) ? git(ctx.root, tipArgs).trim() : undefined;
       const why = L === undefined ? undefined : reason(L, merged);
       if (why !== undefined) {
-        ctx.stdout.write(`kept ${b}: ${why}
-`);
+        cleanSay(ctx, `kept ${b}: ${why}`);
         continue;
       }
       if (W !== undefined) {
         const g = passGuards(ctx, W, id, s, after);
         if (g === undefined || removeWorktree(ctx, W, id, g.h, s.seen).failed) {
-          ctx.stdout.write(`kept ${b}: checked out in ${W.path}
-`);
+          cleanSay(ctx, `kept ${b}: checked out in ${W.path}`);
           continue;
         }
       }
@@ -1790,35 +1872,29 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
         L = git(ctx.root, tipArgs).trim();
         const again = reason(L);
         if (again !== undefined) {
-          ctx.stdout.write(`kept ${b}: ${again}
-`);
+          cleanSay(ctx, `kept ${b}: ${again}`);
           continue;
         }
         execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-        ctx.stdout.write(`deleted ${b} (was ${L})
-`);
+        cleanSay(ctx, `deleted ${b} (was ${L})`);
       }
       // The origin branch goes with a lease on the fetched sha; after a failed fetch it is not judged.
       const R = origin.get(b);
       if (R === undefined || fetchFailed) continue;
       const why2 = reason(R, merged);
       if (why2 !== undefined) {
-        ctx.stdout.write(`kept origin/${b}: ${why2}
-`);
+        cleanSay(ctx, `kept origin/${b}: ${why2}`);
         continue;
       }
       try {
         gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], pushLimit(s), ctx.ssh);
       } catch (e) {
-        ctx.stdout.write(`kept origin/${b}: git push failed: ${firstLine(e)}
-`);
+        cleanSay(ctx, `kept origin/${b}: git push failed: ${firstLine(e)}`);
         continue;
       }
-      ctx.stdout.write(`deleted origin/${b} (was ${R})
-`);
+      cleanSay(ctx, `deleted origin/${b} (was ${R})`);
     } catch (e) {
-      ctx.stdout.write(`kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}
-`);
+      cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
   }
 }
@@ -1867,7 +1943,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   if (ids.size === 0) return;
   const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);
   if (fetchFailed && [...ids.keys()].some((n) => dropped.has(ids.get(n)!))) {
-    ctx.stdout.write('kept dropped tickets: fetch from origin failed\n');
+    cleanSay(ctx, 'kept dropped tickets: fetch from origin failed');
     return;
   }
   const after = readList(ctx, s.seen);
@@ -1879,12 +1955,11 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
       const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
       if (rebasing !== undefined) {
-        ctx.stdout.write(`kept ${b}: being rebased in ${rebasing.path}
-`);
+        cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
         continue;
       }
       if (W !== undefined && W === after[0]) {
-        ctx.stdout.write(`kept ${b}: checked out in ${W.path}\n`);
+        cleanSay(ctx, `kept ${b}: checked out in ${W.path}`);
         continue;
       }
       let g: { h: Hold | undefined } | undefined;
@@ -1898,14 +1973,14 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       const R = tips.get(b)!.R;
       if (L !== undefined && R !== undefined && L !== R) {
         if (gitOk(ctx.root, ['merge-base', '--is-ancestor', R, L])) {
-          ctx.stdout.write(`kept ${b}: ${git(ctx.root, ['rev-list', '--count', `${R}..${L}`]).trim()} commits not on origin\n`);
-        } else ctx.stdout.write(`kept ${b}: origin/${b} has commits not here\n`);
+          cleanSay(ctx, `kept ${b}: ${git(ctx.root, ['rev-list', '--count', `${R}..${L}`]).trim()} commits not on origin`);
+        } else cleanSay(ctx, `kept ${b}: origin/${b} has commits not here`);
         continue;
       }
       if (L !== undefined && R === undefined && pruned.get('refs/remotes/origin/' + b) !== L) {
         const n = Number(git(ctx.root, ['rev-list', '--count', L, '--not', '--remotes=origin']).trim());
         if (n > 0) {
-          ctx.stdout.write(`kept ${b}: ${n} commits not on origin\n`);
+          cleanSay(ctx, `kept ${b}: ${n} commits not on origin`);
           continue;
         }
       }
@@ -1913,8 +1988,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       const lost = at === undefined ? undefined : researchNotOn(ctx.root, at, ref, id);
       if (lost !== undefined) {
         const d = ref.replace('refs/remotes/origin/', '');
-        ctx.stdout.write(`kept ${b}: research record ${lost} is not on ${d} as ${b} holds it - make the record on ${b} equal to the copy on ${d}, or put it on ${d}, then push
-`);
+        cleanSay(ctx, `kept ${b}: research record ${lost} is not on ${d} as ${b} holds it - make the record on ${b} equal to the copy on ${d}, or put it on ${d}, then push`);
         continue;
       }
       // git refuses to delete a branch checked out in a worktree, and a branch must not lose its folder after its origin copy is gone.
@@ -1923,24 +1997,22 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
         try {
           gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], pushLimit(s), ctx.ssh);
         } catch (e) {
-          ctx.stdout.write(`kept origin/${b}: git push failed: ${firstLine(e)}
-`);
-          if (L !== undefined) ctx.stdout.write(`kept ${b}: its origin branch was not deleted
-`);
+          cleanSay(ctx, `kept origin/${b}: git push failed: ${firstLine(e)}`);
+          if (L !== undefined) cleanSay(ctx, `kept ${b}: its origin branch was not deleted`);
           continue;
         }
-        ctx.stdout.write(`deleted origin/${b} (was ${R})\n`);
+        cleanSay(ctx, `deleted origin/${b} (was ${R})`);
       }
       if (L !== undefined) {
         try {
           execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-          ctx.stdout.write(`deleted ${b} (was ${L})\n`);
+          cleanSay(ctx, `deleted ${b} (was ${L})`);
         } catch (e) {
-          ctx.stdout.write(`kept ${b}: git update-ref failed: ${firstLine(e)}\n`);
+          cleanSay(ctx, `kept ${b}: git update-ref failed: ${firstLine(e)}`);
         }
       }
     } catch (e) {
-      ctx.stdout.write(`kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+      cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
   }
 }
@@ -1981,7 +2053,7 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   try {
     gitNoPrompt(path, ['push', '-u', 'origin', branch], undefined, ctx.ssh);
   } catch (e) {
-    throw new UsageError(`the ticket is committed in ${path} but the push failed: ${firstLine(e)} - push it with git -C "${path}" push -u origin ${branch}`);
+    throw new UsageError(withNext('ticket-push-failed', `the ticket is committed in ${path} but the push failed: ${firstLine(e)} - push it with git -C "${path}" push -u origin ${branch}`));
   }
   if (holdError !== undefined) throw holdError;
   if (enter) checkPin(ctx, id, path, branch, list[0].path);

@@ -284,12 +284,12 @@ it('risk:regression the accord skill opens each ticket in its own worktree and c
   for (const s of [named, cont, pick, m]) expect(s).not.toContain('worktree clean');
   expect(text).not.toContain('git switch');
   expect(ref.length).toBeGreaterThan(0);
+  // ST-LN-69 7-ac-12: the per-line cases (`pruned`, `not a ticket:`, `not claimed:`, `held:`, `not held:`, the stop and setup rules, the push of a new
+  // ticket) moved into the next actions the commands print; what stays here is what the commands cannot say
   for (const p of [
-    '`pruned <path>: <reason>`', '`stop:`', '`held: <id> by this session`', '`not held:`', '`not a ticket:`',
-    '`not claimed:`', 'Never change directory into the worktree', 'except the people entry below', 'editing nothing',
-    'runs every setup command again', 'the longest timeout', '`git push -u origin <branch>`',
+    '`stop:`', 'do what it says', 'the longest timeout', '`git push -u origin <branch>`',
     'even when a setup command failed', 'git -C "<path>" push -u origin <branch>', 'and only that entry',
-    'only from `/accord` with no argument', 'once it succeeds, run `accord worktree open <id> --continue`',
+    'only from `/accord` with no argument',
   ])
     expect(ref).toContain(p);
   expect(ref).not.toContain('git restore');
@@ -315,23 +315,15 @@ it('risk:complex-branching the accord skill pushes then enters the worktree on e
   const text = get('.claude/skills/accord/SKILL.md');
   const ref = get('.claude/skills/accord/worktree.md');
   const ids = get('.claude/skills/accord/ids.md');
-  const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
-  const enter = slice(ref, '`enter: <path>`', '`held: <id> by this session`');
-  expect(enter.length).toBeGreaterThan(0);
-  const p = enter.indexOf('`git push -u origin <branch>`');
-  const q = enter.indexOf('people entry');
-  const e = enter.indexOf('EnterWorktree');
-  expect(p).toBeGreaterThan(-1);
-  expect(q).toBeGreaterThan(-1);
-  expect(e).toBeGreaterThan(-1);
-  expect(p).toBeLessThan(e);
-  expect(q).toBeLessThan(e);
-  for (const x of ['step 2 of `accord-continue`', '`/accord-continue <id>` to retry', 'or close this session and open one in that folder', 'editing nothing'])
-    expect(enter).toContain(x);
-  expect(ref).toContain('Exit 2 starting `this session works`');
-  const setup = slice(ref, 'Exit 2 naming a setup command', 'Any other exit 2');
-  expect(setup).toContain('type `/accord-continue <id>` again in this same session');
-  expect(setup).toContain('in a session opened there');
+  // ST-LN-69 7-ac-12: EnterWorktree, the retry text and the setup rules are in the `enter` and `setup-failed` next actions; here the claim push and the
+  // people entry still come before any move into or stop at the worktree, and every other refusal still stops
+  const claim = ref.indexOf('`git push -u origin <branch>` before anything else');
+  const lines = ref.indexOf('Every line printed by');
+  expect(claim).toBeGreaterThan(-1);
+  expect(lines).toBeGreaterThan(-1);
+  expect(ref).toContain('carry it to the worktree before you stop or move into it');
+  expect(ref).toContain('Any other exit 2: show the message and stop');
+  expect(ref).not.toContain('EnterWorktree');
   const i = text.indexOf('First run the session check in `./worktree.md` for the dashboard and for `/accord onboard`.');
   expect(i).toBeGreaterThan(-1);
   expect(i).toBeLessThan(text.indexOf('## Dashboard'));
@@ -584,8 +576,9 @@ it('risk:regression the verify skill syncs the remote main after the review comm
   for (const p of ['exits 2', 'stop', '`git.merge`', '`git.sync`', '`rebased:`, `rebound:` and `verify again:`', '`fetch from origin failed`', 'that commit is the one verified'])
     expect(step).toContain(p);
   expect(text.indexOf('`accord worktree sync <id>`')).toBeLessThan(text.indexOf('accord-verifier'));
-  for (const p of ['A line starting `fetch from origin failed`', 'A line starting `behind:`', 'Never sync here'])
-    expect(ref).toContain(p);
+  // ST-LN-69 7-ac-12: the `behind:` and fetch-failure cases, with "never sync here", are in the next actions the commands print
+  expect(ref).toContain('do what it says');
+  expect(ref).not.toContain('A line starting');
 });
 
 it('risk:data-loss the verify skill local check stops on a deleted approved ticket not dropped on the default branch', () => {
@@ -1058,14 +1051,8 @@ it('risk:regression the accord skill routes upgrade to its reference and the wor
   expect(at('`accord dashboard` run')).toBeLessThan(at('exactly as printed'));
   expect(at('exactly as printed')).toBeLessThan(at('gh pr create'));
   const wt = flatS('.claude/skills/accord/worktree.md');
-  for (const s of [
-    'A line starting `merged:`',
-    'A line starting `behind:`',
-    'Never sync here',
-    'only from `/accord` with no argument and from `/accord-upgrade`',
-    '`removed`, `deleted` or `kept`',
-    'A New request the session check stops cleans nothing',
-  ])
+  // ST-LN-69 7-ac-12: the `merged:`, `behind:` and clean-line cases are in the next actions the commands print
+  for (const s of ['do what it says', 'only from `/accord` with no argument and from `/accord-upgrade`', 'A New request the session check stops cleans nothing'])
     expect(wt).toContain(s);
   expect(wt).not.toContain('./upgrade.md');
   expect(wt).not.toContain('never from Pick up or Continue');
@@ -1102,12 +1089,9 @@ it('risk:regression the stage skills run accord worktree push after each stage c
     ['build', '3. **Record.**', '4. **Blocked.**', 'commit the ticket together with `accord/tickets/<id>/ledger.md`', true],
     ['build', '6. **Change of course.**', '7. **Plan changed.**', 'on yes run `accord approve <id>`, commit the ticket', true],
   ];
-  const OPEN = 'A line starting `push of` that `accord worktree open <id> --continue` prints: the sync was not pushed.';
-  const OLD = 'A line starting `push of` (Continue only)';
-  const FROM = 'A line starting `push of` from `accord worktree push <id>`';
-  const NEXT = 'Lines starting `removed`';
-  const SAYS = ['the commits stay local until the next push', "go on with the stage's next step", 'never stop or ask the owner'];
-  const LEASE = ['After a commit is reworded', 'run the next push as `accord worktree push <id> --force-with-lease`'];
+  // ST-LN-69 7-ac-12: the failed-push cases (go on, never stop or ask, the lease after a reword) are in the `push-failed` and `push-after-sync` next actions
+  // the commands print (packages/cli/test/next-action.test.ts); worktree.md only says to do what the line says
+  const OLD = 'A line starting `push of`';
   const every = skillTargets(all);
   const flat = (path: string) => (every.find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
   const bad: string[] = [];
@@ -1141,16 +1125,8 @@ it('risk:regression the stage skills run accord worktree push after each stage c
   }
   for (const path of refs) {
     const text = flat(path);
-    const f = text.indexOf(FROM);
-    const n = text.indexOf(NEXT, f);
-    if (!text.includes(OPEN)) bad.push(`${path}: OPEN missing`);
-    if (text.includes(OLD)) bad.push(`${path}: old push bullet still there`);
-    if (f < 0 || n < 0) {
-      bad.push(`${path}: FROM / NEXT missing in order`);
-      continue;
-    }
-    const slice = text.slice(f, n);
-    for (const s of [...SAYS, ...LEASE]) if (!slice.includes(s)) bad.push(`${path}: bullet lacks ${s}`);
+    if (!text.includes('do what it says')) bad.push(`${path}: does not say to do what the line says`);
+    if (text.includes(OLD)) bad.push(`${path}: a push bullet is still there`);
   }
   expect(bad).toEqual([]);
 });
@@ -1526,17 +1502,11 @@ it('risk:regression the review lane S and plan critique skills ask accord round 
 it('risk:regression the worktree reference and the finish report say a session start cleans a merged ticket and nobody removes it by hand', () => {
   for (const dir of ['accord', 'accord-debug', 'accord-verify']) {
     const wt = flatS(`.claude/skills/${dir}/worktree.md`);
+    // ST-LN-69 7-ac-12: what each clean line asks of the agent (a `kept` line's reason, a research record, a `note`) is in the next action that line prints
     for (const s of [
-      '`clean skipped` or `clean stopped`',
-      'A `kept` line ends with its reason',
-      'Only when that reason names a file accord never deletes does the owner move or delete that file',
-      'for any other reason nothing is to be deleted',
-      '`holds a repository: <path>` (a nested repository, maybe with unpushed commits; never offer to delete it), `has an edit git status hides: <path>`',
-      "`research record <path> is not on <default> as <branch> holds it`: the record is the owner's to reconcile, never to delete or move; make the branch copy equal to the default branch's, or put it on the default branch, then push, and the branch stays",
-      'A line starting `note <id>:` says a record or a hold was not updated',
       'every session start, resume or /clear runs the same clean',
       '`tell the owner the lines above`',
-      '`removed`, `deleted` or `kept`',
+      'do what it says',
       'only from `/accord` with no argument and from `/accord-upgrade`',
     ])
       expect(wt, dir).toContain(s);
@@ -1546,6 +1516,34 @@ it('risk:regression the worktree reference and the finish report say a session s
     expect(flatS(`.claude/skills/${dir}/finish.md`), dir).toContain(
       "A /clear in this finishing session keeps its worktree (`kept <path>: this session's worktree`): the folder goes only after this session has ended, at a session started in another folder, so tell the owner to close this session once the pull request is merged.",
     );
+  }
+});
+
+it('ac-12 worktree.md tells the agent to do what the line says (ST-LN-69 7-ac-12)', () => {
+  for (const dir of ['accord', 'accord-debug', 'accord-verify']) {
+    const wt = flatS(`.claude/skills/${dir}/worktree.md`);
+    expect(wt.length, dir).toBeGreaterThan(0);
+    // what stays: the lead, the one sentence about the next action, and what the commands cannot say
+    for (const s of [
+      "Only a session rooted in a ticket's worktree works that ticket",
+      '`accord worktree open`, `accord new ticket --worktree`, `accord worktree push`, `accord worktree clean` and `accord worktree check`',
+      'ends with its next action (` - next: ...`)',
+      'or follows a line `next: ...`',
+      'do what it says',
+      'Any other exit 2: show the message and stop',
+      'even when a setup command failed',
+      'the longest timeout',
+      'carry it to the worktree before you stop or move into it',
+      'only from `/accord` with no argument and from `/accord-upgrade`',
+      'every session start, resume or /clear runs the same clean',
+      '`tell the owner the lines above`',
+      '## Session check',
+      '`accord worktree check`',
+    ])
+      expect(wt, `${dir}: ${s}`).toContain(s);
+    // what goes: the per-line cases, which the lines now say themselves
+    for (const s of ['A line starting', '`pruned <path>: <reason>`', 'Exit 2 naming', 'Exit 2 starting', 'A `kept` line ends with its reason', 'holds a repository', 'research record', '`not held:`', 'EnterWorktree'])
+      expect(wt, `${dir}: ${s}`).not.toContain(s);
   }
 });
 

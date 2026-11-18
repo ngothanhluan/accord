@@ -3,12 +3,13 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as limit from '../src/commands/fetch-limit.js';
+import { nextLine } from '../src/commands/next-action.js';
 import * as proc from '../src/load/proc.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
 import { ALIVE, exclude, forget, gone, link, listing, recorded, runWhole } from './helpers/done.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { claimWorktree, clone, copy, DEAD, doneOnRemote, doneTicket, dropAndMerge, dropOnRemote, has, lines, LIVE, pushMain, readHolds, recorder, sha, ticketBranches, ticketWorktree, useSandboxes, verifyStage, worktreeAndSshRemote, writeHolds, type Clone } from './helpers/worktree.js';
+import { claimWorktree, clone, copy, DEAD, doneOnRemote, doneTicket, dropAndMerge, dropOnRemote, has, lines, LIVE, pushMain, readHolds, recorder, sha, ticketBranches, ticketWorktree, useSandboxes, verifyStage, withAction, worktreeAndSshRemote, writeHolds, type Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -56,13 +57,13 @@ it('ac-5 bare accord fetches then removes merged worktrees and names what it kee
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
   expect(lines(out).sort()).toEqual(
     [
-      `removed ${c.sibling('ST-9')}`,
-      `kept ${c.sibling('ST-10')}: uncommitted work`,
-      `kept ${c.sibling('ST-12')}: held by another session`,
-      `deleted t/ST-9 (was ${sha9})`,
-      `deleted origin/t/ST-9 (was ${t['ST-9']})`,
-      `kept t/ST-10: checked out in ${c.sibling('ST-10')}`,
-      `kept t/ST-12: checked out in ${c.sibling('ST-12')}`,
+      withAction(`removed ${c.sibling('ST-9')}`),
+      withAction(`kept ${c.sibling('ST-10')}: uncommitted work`),
+      withAction(`kept ${c.sibling('ST-12')}: held by another session`),
+      withAction(`deleted t/ST-9 (was ${sha9})`),
+      withAction(`deleted origin/t/ST-9 (was ${t['ST-9']})`),
+      withAction(`kept t/ST-10: checked out in ${c.sibling('ST-10')}`),
+      withAction(`kept t/ST-12: checked out in ${c.sibling('ST-12')}`),
     ].sort(),
   );
   expect(existsSync(`${c.sibling('ST-10')}/new.txt`)).toBe(true);
@@ -82,9 +83,9 @@ it('risk:complex-branching a failed fetch is said and the refs in the clone are 
   expect(code).toBe(0);
   const l = lines(out);
   expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
-  expect(l[1]).toBe(`removed ${c.sibling('ST-9')}`);
+  expect(l[1]).toBe(withAction(`removed ${c.sibling('ST-9')}`));
   expect(l).toHaveLength(3);
-  expect(l[2]).toBe(`deleted t/ST-9 (was ${b9})`);
+  expect(l[2]).toBe(withAction(`deleted t/ST-9 (was ${b9})`));
 });
 
 it('risk:complex-branching clean with no origin prints nothing and a failed fetch with no ticket branch prints only that', async () => {
@@ -111,7 +112,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   writeFileSync(`${c.sibling('ST-10')}/new.txt`, 'new');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`kept ${c.sibling('ST-10')}: uncommitted work`, `kept t/ST-10: checked out in ${c.sibling('ST-10')}`, 'kept t/ST-9: it has commits after its verified commit']);
+  expect(lines(out)).toEqual([withAction(`kept ${c.sibling('ST-10')}: uncommitted work`), withAction(`kept t/ST-10: checked out in ${c.sibling('ST-10')}`), withAction('kept t/ST-9: it has commits after its verified commit')]);
   expect(existsSync(`${c.sibling('ST-10')}/new.txt`)).toBe(true);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
 
@@ -119,7 +120,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   ticketWorktree(d, 'ST-9');
   doneOnRemote(d, ['ST-9']);
   const r = await run(['worktree', 'clean'], d.sibling('ST-9'), {});
-  expect(lines(r.out)).toEqual([`kept ${d.sibling('ST-9')}: this session's worktree`, `kept t/ST-9: checked out in ${d.sibling('ST-9')}`]);
+  expect(lines(r.out)).toEqual([withAction(`kept ${d.sibling('ST-9')}: this session's worktree`), withAction(`kept t/ST-9: checked out in ${d.sibling('ST-9')}`)]);
   expect(existsSync(d.sibling('ST-9'))).toBe(true);
 });
 
@@ -134,7 +135,7 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
   expect(r.code).toBe(0);
   expect(lines(r.out)).toHaveLength(2);
   expect(r.out.startsWith(`kept ${c.sibling('ST-9')}: git worktree remove failed: `)).toBe(true);
-  expect(lines(r.out)[1]).toBe(`kept t/ST-9: checked out in ${c.sibling('ST-9')}`);
+  expect(lines(r.out)[1]).toBe(withAction(`kept t/ST-9: checked out in ${c.sibling('ST-9')}`));
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
 });
@@ -151,8 +152,8 @@ it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('risk:comple
     const q = await run(['worktree', 'clean'], d.root, {});
     expect(lines(q.out)).toHaveLength(3);
     expect(lines(q.out)[0]!.startsWith(`kept ${d.sibling('ST-9')}: `)).toBe(true);
-    expect(lines(q.out)[1]).toBe(`deleted t/ST-9 (was ${sha9d})`);
-    expect(lines(q.out)[2]).toBe(`deleted origin/t/ST-9 (was ${t['ST-9']})`);
+    expect(lines(q.out)[1]).toBe(withAction(`deleted t/ST-9 (was ${sha9d})`));
+    expect(lines(q.out)[2]).toBe(withAction(`deleted origin/t/ST-9 (was ${t['ST-9']})`));
     expect(existsSync(`${d.sibling('ST-9')}/sub/f.txt`)).toBe(true);
     expect(d.git('worktree', 'list', '--porcelain')).not.toContain(d.sibling('ST-9'));
     expect(Object.keys(readHolds(d))).toEqual([]);
@@ -171,10 +172,10 @@ it('risk:complex-branching clean prunes a worktree whose folder was deleted by h
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(lines(out)).toEqual([
-    `pruned ${c.sibling('ST-9')}: ${reason}`,
-    `removed ${c.sibling('ST-10')}`,
-    `deleted t/ST-10 (was ${base})`,
-    `deleted t/ST-9 (was ${base})`,
+    `pruned ${c.sibling('ST-9')}: ${reason} - ${nextLine('pruned')}`,
+    withAction(`removed ${c.sibling('ST-10')}`),
+    withAction(`deleted t/ST-10 (was ${base})`),
+    withAction(`deleted t/ST-9 (was ${base})`),
   ]);
   expect(out).not.toContain('repair');
   expect(c.git('worktree', 'list', '--porcelain')).not.toMatch(/^prunable/m);
@@ -230,7 +231,7 @@ it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, a
   expect(lines(out)).toHaveLength(4);
   for (const id of ['ST-9', 'ST-10']) {
     expect(out).toContain(`kept ${c.sibling(id)}: `);
-    expect(out).toContain(`kept t/${id}: checked out in ${c.sibling(id)}`);
+    expect(out).toContain(withAction(`kept t/${id}: checked out in ${c.sibling(id)}`));
   }
   expect(out).toContain('holds.lock');
 });
@@ -259,12 +260,12 @@ it('ac-1 bare accord deletes merged ticket branches with or without a worktree a
   expect(code).toBe(0);
   expect(lines(out).sort()).toEqual(
     [
-      `removed ${c.sibling('ST-10')}`,
-      `deleted t/ST-9 (was ${sha9})`,
-      `deleted origin/t/ST-9 (was ${t['ST-9']})`,
-      `deleted t/ST-10 (was ${sha10})`,
-      `deleted origin/t/ST-10 (was ${t['ST-10']})`,
-      `kept t/ST-12: checked out in ${c.root}`,
+      withAction(`removed ${c.sibling('ST-10')}`),
+      withAction(`deleted t/ST-9 (was ${sha9})`),
+      withAction(`deleted origin/t/ST-9 (was ${t['ST-9']})`),
+      withAction(`deleted t/ST-10 (was ${sha10})`),
+      withAction(`deleted origin/t/ST-10 (was ${t['ST-10']})`),
+      withAction(`kept t/ST-12: checked out in ${c.root}`),
     ].sort(),
   );
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
@@ -281,7 +282,7 @@ it('ac-3 clean deletes the worktree and both branches of a ticket dropped on the
   await dropAndMerge(c, 'ST-10');
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toEqual([`removed ${c.sibling('ST-10')}`, `deleted origin/t/ST-10 (was ${S})`, `deleted t/ST-10 (was ${S})`]);
+  expect(lines(r.out)).toEqual([withAction(`removed ${c.sibling('ST-10')}`), withAction(`deleted origin/t/ST-10 (was ${S})`), withAction(`deleted t/ST-10 (was ${S})`)]);
   expect(existsSync(c.sibling('ST-10'))).toBe(false);
   expect(has(c.root, 'refs/heads/t/ST-10')).toBe(false);
   expect(has(c.remote, 'refs/heads/t/ST-10')).toBe(false);
@@ -297,7 +298,7 @@ it('ac-4 clean keeps a dropped ticket whose local branch has commits not on orig
   dropOnRemote(c, ['ST-10']);
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toEqual(['kept t/ST-10: 1 commits not on origin']);
+  expect(lines(r.out)).toEqual([withAction('kept t/ST-10: 1 commits not on origin')]);
   expect(existsSync(c.sibling('ST-10'))).toBe(true);
   expect(sha(c, 't/ST-10')).toBe(L);
   expect(gitRun(c.remote, 'rev-parse', 't/ST-10').trim()).toBe(S);
@@ -312,7 +313,7 @@ it('risk:data-loss clean keeps a dropped ticket whose origin branch has commits 
   commitMsg(o, 'elsewhere');
   gitRun(o, 'push', '-q');
   dropOnRemote(c, ['ST-9']);
-  const kept = ['kept t/ST-9: origin/t/ST-9 has commits not here'];
+  const kept = [withAction('kept t/ST-9: origin/t/ST-9 has commits not here')];
   expect(lines((await run(['worktree', 'clean'], c.root)).out)).toEqual(kept);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
   expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
@@ -328,7 +329,7 @@ it('risk:data-loss clean keeps a dropped ticket whose local and origin branches 
   commitMsg(o, 'elsewhere');
   gitRun(o, 'push', '-q');
   dropOnRemote(c, ['ST-9']);
-  const kept = ['kept t/ST-9: origin/t/ST-9 has commits not here'];
+  const kept = [withAction('kept t/ST-9: origin/t/ST-9 has commits not here')];
   writeFiles(c.sibling('ST-9'), { 'l.txt': 'l\n' });
   commitMsg(c.sibling('ST-9'), 'local');
   expect(lines((await run(['worktree', 'clean'], c.root)).out)).toEqual(kept);
@@ -354,7 +355,7 @@ it('risk:data-loss clean deletes a dropped ticket branch that exists on one side
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   expect(lines(r.out).sort()).toEqual(
-    [`deleted origin/t/ST-9 (was ${S9})`, `removed ${c.sibling('ST-10')}`, `deleted t/ST-10 (was ${S10})`, 'kept t/ST-11: 2 commits not on origin'].sort(),
+    [withAction(`deleted origin/t/ST-9 (was ${S9})`), withAction(`removed ${c.sibling('ST-10')}`), withAction(`deleted t/ST-10 (was ${S10})`), withAction('kept t/ST-11: 2 commits not on origin')].sort(),
   );
   expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(false);
   expect(has(c.root, 'refs/heads/t/ST-11')).toBe(true);
@@ -377,10 +378,10 @@ it('risk:data-loss clean keeps everything of a dropped ticket that a guard keeps
   expect(r.code).toBe(0);
   const out = lines(r.out).sort();
   expect(out).toHaveLength(4);
-  expect(out).toContain(`kept ${c.sibling('ST-9')}: uncommitted work`);
+  expect(out).toContain(withAction(`kept ${c.sibling('ST-9')}: uncommitted work`));
   expect(out.some((l) => l.startsWith(`kept ${c.sibling('ST-10')}: git worktree remove failed: `))).toBe(true);
-  expect(out).toContain(`kept t/ST-11: checked out in ${c.root}`);
-  expect(out).toContain(`kept ${c.sibling('ST-12')}: held by another session`);
+  expect(out).toContain(withAction(`kept t/ST-11: checked out in ${c.root}`));
+  expect(out).toContain(withAction(`kept ${c.sibling('ST-12')}: held by another session`));
   for (const id of ['ST-9', 'ST-10', 'ST-11', 'ST-12']) {
     expect(has(c.root, `refs/heads/t/${id}`)).toBe(true);
     expect(has(c.remote, `refs/heads/t/${id}`)).toBe(true);
@@ -401,7 +402,7 @@ it('risk:data-loss a failed fetch keeps every dropped ticket and says so once', 
   const l = lines(r.out);
   expect(l).toHaveLength(2);
   expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
-  expect(l[1]).toBe('kept dropped tickets: fetch from origin failed');
+  expect(l[1]).toBe(withAction('kept dropped tickets: fetch from origin failed'));
   for (const id of ['ST-9', 'ST-10']) {
     expect(existsSync(c.sibling(id))).toBe(true);
     expect(has(c.root, `refs/heads/t/${id}`)).toBe(true);
@@ -425,9 +426,9 @@ it('risk:data-loss a stale lease keeps the local branch of a dropped ticket and 
   expect(r.code).toBe(0);
   const l = lines(r.out);
   expect(l).toHaveLength(3);
-  expect(l[0]).toBe(`removed ${c.sibling('ST-9')}`);
+  expect(l[0]).toBe(withAction(`removed ${c.sibling('ST-9')}`));
   expect(l[1].startsWith('kept origin/t/ST-9: git push failed: ')).toBe(true);
-  expect(l[2]).toBe('kept t/ST-9: its origin branch was not deleted');
+  expect(l[2]).toBe(withAction('kept t/ST-9: its origin branch was not deleted'));
   expect(sha(c, 't/ST-9')).toBe(S);
   expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(S2);
 }, 120_000);
@@ -440,7 +441,7 @@ it('risk:data-loss a second clone deletes its local branch of a dropped ticket a
   dropOnRemote(c, ['ST-9']);
   // H3: what the first clone's clean leaves on the remote; that clean and its exit 0 are the ac-3 test's (#105).
   c.git('push', '-q', 'origin', '--delete', 't/ST-9');
-  expect(lines((await run(['worktree', 'clean'], o2)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, `deleted t/ST-9 (was ${S})`]);
+  expect(lines((await run(['worktree', 'clean'], o2)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, withAction(`deleted t/ST-9 (was ${S})`)]);
   expect(has(o2, 'refs/heads/t/ST-9')).toBe(false);
 }, 120_000);
 
@@ -454,7 +455,7 @@ it('risk:data-loss a second clone keeps its local branch of a cleaned dropped ti
   gitRun(o3, 'switch', '-q', 'main');
   dropOnRemote(c, ['ST-9']);
   c.git('push', '-q', 'origin', '--delete', 't/ST-9');
-  expect(lines((await run(['worktree', 'clean'], o3)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, 'kept t/ST-9: 2 commits not on origin']);
+  expect(lines((await run(['worktree', 'clean'], o3)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, withAction('kept t/ST-9: 2 commits not on origin')]);
   expect(has(o3, 'refs/heads/t/ST-9')).toBe(true);
 }, 120_000);
 
@@ -474,8 +475,8 @@ it('risk:data-loss clean keeps the local branch of a dropped ticket that moved a
   expect(r.code).toBe(0);
   const l = lines(r.out);
   expect(l).toHaveLength(3);
-  expect(l[0]).toBe(`removed ${c.sibling('ST-9')}`);
-  expect(l[1]).toBe(`deleted origin/t/ST-9 (was ${S})`);
+  expect(l[0]).toBe(withAction(`removed ${c.sibling('ST-9')}`));
+  expect(l[1]).toBe(withAction(`deleted origin/t/ST-9 (was ${S})`));
   expect(l[2].startsWith('kept t/ST-9: git update-ref failed: ')).toBe(true);
   expect(sha(c, 't/ST-9')).toBe(S2);
   expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(false);
@@ -496,7 +497,7 @@ it('risk:data-loss clean keeps a dropped ticket branch whose listed research rec
   dropOnRemote(c, ['ST-10']);
   let r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  const kept = ['kept t/ST-10: research record ' + NEW + ' is not on main as t/ST-10 holds it' + FIX];
+  const kept = [withAction('kept t/ST-10: research record ' + NEW + ' is not on main as t/ST-10 holds it' + FIX)];
   expect(lines(r.out)).toEqual(kept);
   expect(existsSync(c.sibling('ST-10'))).toBe(true);
   expect(has(c.root, 'refs/heads/t/ST-10')).toBe(true);
@@ -516,7 +517,7 @@ it('risk:data-loss clean keeps a dropped ticket branch whose listed research rec
   commitMsg(o, 'same');
   gitRun(o, 'push', '-q', 'origin', 'main');
   r = await run(['worktree', 'clean'], c.root);
-  expect(lines(r.out)).toEqual([`removed ${c.sibling('ST-10')}`, `deleted origin/t/ST-10 (was ${S})`, `deleted t/ST-10 (was ${S})`]);
+  expect(lines(r.out)).toEqual([withAction(`removed ${c.sibling('ST-10')}`), withAction(`deleted origin/t/ST-10 (was ${S})`), withAction(`deleted t/ST-10 (was ${S})`)]);
   expect(existsSync(c.sibling('ST-10'))).toBe(false);
   expect(has(c.root, 'refs/heads/t/ST-10')).toBe(false);
   expect(has(c.remote, 'refs/heads/t/ST-10')).toBe(false);
@@ -533,7 +534,7 @@ it('risk:data-loss clean keeps a dropped ticket branch whose listed research rec
   gitRun(o2, 'push', '-q', 'origin', 'main');
   r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toEqual([`removed ${c.sibling('ST-11')}`, `deleted origin/t/ST-11 (was ${S11})`, `deleted t/ST-11 (was ${S11})`]);
+  expect(lines(r.out)).toEqual([withAction(`removed ${c.sibling('ST-11')}`), withAction(`deleted origin/t/ST-11 (was ${S11})`), withAction(`deleted t/ST-11 (was ${S11})`)]);
   expect(existsSync(c.sibling('ST-11'))).toBe(false);
   expect(has(c.root, 'refs/heads/t/ST-11')).toBe(false);
   expect(has(c.remote, 'refs/heads/t/ST-11')).toBe(false);
@@ -549,7 +550,7 @@ it('risk:data-loss clean keeps a dropped ticket branch whose listed non-Markdown
   dropOnRemote(c, ['ST-10']);
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toEqual(['kept t/ST-10: research record ' + TXT + ' is not on main as t/ST-10 holds it - make the record on t/ST-10 equal to the copy on main, or put it on main, then push']);
+  expect(lines(r.out)).toEqual([withAction('kept t/ST-10: research record ' + TXT + ' is not on main as t/ST-10 holds it - make the record on t/ST-10 equal to the copy on main, or put it on main, then push')]);
   expect(existsSync(c.sibling('ST-10'))).toBe(true);
   expect(has(c.root, 'refs/heads/t/ST-10')).toBe(true);
   expect(has(c.remote, 'refs/heads/t/ST-10')).toBe(true);
@@ -567,7 +568,7 @@ it('risk:data-loss clean keeps a dropped ticket branch that a detached worktree 
   dropOnRemote(c, ['ST-9']);
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toEqual([`kept t/ST-9: being rebased in ${c.sibling('ST-9')}`]);
+  expect(lines(r.out)).toEqual([withAction(`kept t/ST-9: being rebased in ${c.sibling('ST-9')}`)]);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
   expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
   expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
@@ -596,9 +597,9 @@ it('ac-2 a session start resume or clear cleans a done ticket worktree and branc
     expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(false);
     expect(Object.keys(readHolds(c))).not.toContain('ST-9');
     const L = lines(r.out);
-    const removed = L.indexOf(`removed ${c.sibling('ST-9')}`);
+    const removed = L.indexOf(withAction(`removed ${c.sibling('ST-9')}`));
     expect(removed).toBeGreaterThan(-1);
-    expect(L).toContain(`kept ${c.sibling('ST-10')}: held by another session`);
+    expect(L).toContain(withAction(`kept ${c.sibling('ST-10')}: held by another session`));
     expect(L.indexOf('tell the owner the lines above')).toBeGreaterThan(removed);
     expect(existsSync(c.sibling('ST-10'))).toBe(true);
     expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-10')}\n`);
@@ -665,7 +666,7 @@ it('risk:data-loss a session start whose clean output passes 128 KiB still print
   expect(r.out.length).toBeGreaterThan(131072);
   const L = lines(r.out);
   expect(L.filter((l) => l.startsWith('kept ') && l.includes(': its folder is missing (')).length).toBe(1000);
-  const removed = L.indexOf(`removed ${c.sibling('ST-9')}`);
+  const removed = L.indexOf(withAction(`removed ${c.sibling('ST-9')}`));
   expect(removed).toBeGreaterThan(-1);
   expect(L.indexOf('tell the owner the lines above')).toBeGreaterThan(removed);
   expect(gone(c.sibling('ST-9'))).toBe(true);
@@ -687,10 +688,10 @@ it('ac-1 clean removes a done ticket worktree completely and keeps and names one
   expect(r.code).toBe(0);
   expect(gone(c.sibling('ST-9'))).toBe(true);
   const L = lines(r.out);
-  expect(L).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(L).toContain(withAction(`removed ${c.sibling('ST-9')}`));
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-10')}\n`);
   expect(listing(c.sibling('ST-10'))).toEqual(before);
-  expect(L).toContain(`kept ${c.sibling('ST-10')}: .env`);
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-10')}: .env`));
   expect(L.some((l) => l.startsWith(`removed ${c.sibling('ST-10')}`))).toBe(false);
 }, 120_000);
 
@@ -703,7 +704,7 @@ it('risk:data-loss clean keeps a worktree holding an ignored env file when statu
   c.git('config', 'status.showUntrackedFiles', 'no');
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toContain(`kept ${c.sibling('ST-9')}: .env`);
+  expect(lines(r.out)).toContain(withAction(`kept ${c.sibling('ST-9')}: .env`));
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(readFileSync(`${c.sibling('ST-9')}/.env`, 'utf8')).toBe('SECRET=1\n');
 }, 120_000);
@@ -733,8 +734,8 @@ it('risk:data-loss the disposable list in config.yml decides which ignored folde
   const b = await run(['worktree', 'clean'], c.root);
   expect(b.code).toBe(0);
   const B = lines(b.out);
-  expect(B).toContain(`removed ${c.sibling('ST-9')}`);
-  expect(B).toContain(`removed ${c.sibling('ST-10')}`);
+  expect(B).toContain(withAction(`removed ${c.sibling('ST-9')}`));
+  expect(B).toContain(withAction(`removed ${c.sibling('ST-10')}`));
   expect(gone(c.sibling('ST-9'))).toBe(true);
   expect(gone(c.sibling('ST-10'))).toBe(true);
 }, 120_000);
@@ -748,14 +749,14 @@ it('risk:regression a done worktree holding only executor report folders is remo
   doneOnRemote(c, ['ST-9']);
   const a = await run(['worktree', 'clean'], c.root);
   expect(a.code).toBe(0);
-  expect(lines(a.out)).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(lines(a.out)).toContain(withAction(`removed ${c.sibling('ST-9')}`));
   expect(gone(c.sibling('ST-9'))).toBe(true);
   const cfg = `${c.root}/accord/config.yml`;
   writeFileSync(cfg, readFileSync(cfg, 'utf8').trimEnd() + '\ndisposable: [node_modules]\n');
   doneOnRemote(c, ['ST-10']);
   const b = await run(['worktree', 'clean'], c.root);
   expect(b.code).toBe(0);
-  expect(lines(b.out)).toContain(`removed ${c.sibling('ST-10')}`);
+  expect(lines(b.out)).toContain(withAction(`removed ${c.sibling('ST-10')}`));
   expect(gone(c.sibling('ST-10'))).toBe(true);
 }, 120_000);
 
@@ -777,7 +778,7 @@ it('risk:regression a folder git reports removed but leaves links and disposable
   expect(r.code).toBe(0);
   expect(gone(c.sibling('ST-9'))).toBe(true);
   const L = lines(r.out);
-  expect(L).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(L).toContain(withAction(`removed ${c.sibling('ST-9')}`));
   expect(L.some((l) => l.startsWith(`kept ${c.sibling('ST-9')}`))).toBe(false);
   expect(existsSync(`${c.root}/accord/config.yml`)).toBe(true);
 }, 120_000);
@@ -804,7 +805,7 @@ it('risk:complex-branching a worktree remove that fails after git unregistered t
   const r = await run(['worktree', 'clean'], c.root);
   spawnLog.on = false;
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toEqual([`kept ${c.sibling('ST-9')}: sub/f.txt`, `deleted t/ST-9 (was ${sha9})`, `deleted origin/t/ST-9 (was ${t['ST-9']})`]);
+  expect(lines(r.out)).toEqual([withAction(`kept ${c.sibling('ST-9')}: sub/f.txt`), withAction(`deleted t/ST-9 (was ${sha9})`), withAction(`deleted origin/t/ST-9 (was ${t['ST-9']})`)]);
   expect(readFileSync(`${c.sibling('ST-9')}/sub/f.txt`, 'utf8')).toBe('left\n');
   expect(c.git('worktree', 'list', '--porcelain')).not.toContain(c.sibling('ST-9'));
   expect(Object.keys(readHolds(c))).toEqual([]);
@@ -823,7 +824,7 @@ it('ac-3 a session start in a worktree and a clear in the main checkout delete t
   const a = await run(['hook', 'session-start'], w, {}, JSON.stringify({ session_id: 'sess-W', cwd: w, source: 'startup' }));
   expect(a.code).toBe(0);
   expect(gone(c.sibling('ST-9'))).toBe(true);
-  expect(lines(a.out)).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(lines(a.out)).toContain(withAction(`removed ${c.sibling('ST-9')}`));
   expect(existsSync(`${c.root}/accord/config.yml`)).toBe(true);
   expect(recorded(c).map((e) => e.path)).not.toContain(c.sibling('ST-9'));
   expect(recorded(c).map((e) => e.path)).toContain(c.sibling('ST-10'));
@@ -854,8 +855,8 @@ it('risk:data-loss a forgotten folder holding a dist file or a recorded path tha
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${c.sibling('ST-9')}: dist/index.js`);
-  expect(L).toContain(`kept ${c.sibling('ST-10')}: it is a link`);
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-9')}: dist/index.js`));
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-10')}: it is a link`));
   expect(listing(c.sibling('ST-9'))).toEqual(before);
   expect(listing(t)).toEqual(beforeT);
   expect(lstatSync(c.sibling('ST-10')).isSymbolicLink()).toBe(true);
@@ -890,8 +891,8 @@ it('risk:data-loss clean keeps a recorded detached worktree whose head is on no 
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${a}: its detached HEAD ${X} is on no branch`);
-  expect(L).toContain(`removed ${b}`);
+  expect(L).toContain(withAction(`kept ${a}: its detached HEAD ${X} is on no branch`));
+  expect(L).toContain(withAction(`removed ${b}`));
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${a}\n`);
   expect(readFileSync(`${a}/x.txt`, 'utf8')).toBe('x\n');
   expect(() => c.git('cat-file', '-e', X)).not.toThrow();
@@ -912,9 +913,9 @@ it('risk:data-loss clean never removes a recorded worktree on another branch or 
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${c.sibling('ST-9')}: checked out on other`);
-  expect(L).toContain(`kept ${c.sibling('ST-10')}: held by another session`);
-  expect(L).toContain(`kept ${c.sibling('ST-12')}: held by another session`);
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-9')}: checked out on other`));
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-10')}: held by another session`));
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-12')}: held by another session`));
   for (const id of ['ST-9', 'ST-10', 'ST-12']) expect(existsSync(c.sibling(id))).toBe(true);
   const listed = c.git('worktree', 'list', '--porcelain');
   expect(listed).toContain(`worktree ${c.sibling('ST-9')}\n`);
@@ -929,7 +930,7 @@ it('risk:complex-branching clean names a recorded worktree of a dropped ticket w
   dropOnRemote(c, ['ST-9']);
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toContain(`kept ${c.sibling('ST-9')}: its ticket is dropped and its branch t/ST-9 is already on origin/main`);
+  expect(lines(r.out)).toContain(withAction(`kept ${c.sibling('ST-9')}: its ticket is dropped and its branch t/ST-9 is already on origin/main`));
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
   expect(recorded(c).map((e) => e.path)).toEqual([c.sibling('ST-9')]);
@@ -948,7 +949,7 @@ it('risk:data-loss a bare clean keeps the record of a missing folder whose detac
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${p}: its folder is missing and its detached HEAD ${X} is on no branch`);
+  expect(L).toContain(withAction(`kept ${p}: its folder is missing and its detached HEAD ${X} is on no branch`));
   expect(L.some((l) => l.startsWith(`kept ${q}: its folder is missing (`))).toBe(true);
   expect(L.some((l) => l.startsWith('pruned'))).toBe(false);
   const listed = c.git('worktree', 'list', '--porcelain');
@@ -1020,7 +1021,7 @@ it('risk:data-loss clean keeps a done worktree that holds another listed worktre
   doneOnRemote(c, ['ST-9']);
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toContain(`kept ${c.sibling('ST-9')}: it holds the worktree ${n}`);
+  expect(lines(r.out)).toContain(withAction(`kept ${c.sibling('ST-9')}: it holds the worktree ${n}`));
   const listed = c.git('worktree', 'list', '--porcelain');
   expect(listed).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(listed).toContain(`worktree ${n}\n`);
@@ -1040,7 +1041,7 @@ it('risk:data-loss clean keeps a done worktree whose disposable folder holds a n
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${c.sibling('ST-9')}: holds a repository: dist/pkg/.git`);
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-9')}: holds a repository: dist/pkg/.git`));
   expect(L.some((l) => l.startsWith(`removed ${c.sibling('ST-9')}`))).toBe(false);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(gitRun(n, 'rev-parse', 'HEAD').trim()).toBe(N);
@@ -1060,8 +1061,8 @@ it('risk:data-loss clean keeps a done worktree holding an edit in a skip-worktre
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${s9}: has an edit git status hides: ST-9.txt`);
-  expect(L).toContain(`kept ${s10}: has an edit git status hides: ST-10.txt`);
+  expect(L).toContain(withAction(`kept ${s9}: has an edit git status hides: ST-9.txt`));
+  expect(L).toContain(withAction(`kept ${s10}: has an edit git status hides: ST-10.txt`));
   expect(L.some((l) => l.startsWith('removed'))).toBe(false);
   const listed = c.git('worktree', 'list', '--porcelain');
   expect(listed).toContain(`worktree ${s9}\n`);
@@ -1087,8 +1088,8 @@ it('risk:data-loss a forgotten folder holding a listed worktree or a git folder 
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${c.sibling('ST-9')}: inner`);
-  expect(L).toContain(`kept ${c.sibling('ST-10')}: holds a repository: sub/.git`);
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-9')}: inner`));
+  expect(L).toContain(withAction(`kept ${c.sibling('ST-10')}: holds a repository: sub/.git`));
   expect(listing(c.sibling('ST-9'))).toEqual(before9);
   expect(listing(c.sibling('ST-10'))).toEqual(before10);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${inner}\n`);
@@ -1107,8 +1108,8 @@ it('risk:data-loss the sibling sweep deletes an unrecorded leftover of a done ti
   expect(r.code).toBe(0);
   const L = lines(r.out);
   expect(gone(c.sibling('ST-9'))).toBe(true);
-  expect(L).toContain(`removed ${c.sibling('ST-9')}`);
-  expect(L.filter((l) => l === `kept ${c.sibling('ST-10')}: notes.txt`).length).toBe(1);
+  expect(L).toContain(withAction(`removed ${c.sibling('ST-9')}`));
+  expect(L.filter((l) => l === withAction(`kept ${c.sibling('ST-10')}: notes.txt`)).length).toBe(1);
   expect(readFileSync(`${c.sibling('ST-10')}/notes.txt`, 'utf8')).toBe('keep me\n');
   expect(existsSync(c.sibling('ST-11'))).toBe(true);
   expect(existsSync(c.sibling('ST-99'))).toBe(true);
@@ -1131,7 +1132,7 @@ it('risk:concurrency a clean that finds another clean running skips with one lin
   writeFileSync(lock, String(ended.pid));
   const taken = await run(['worktree', 'clean'], c.root);
   expect(taken.code).toBe(0);
-  expect(lines(taken.out)).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(lines(taken.out)).toContain(withAction(`removed ${c.sibling('ST-9')}`));
   expect(gone(c.sibling('ST-9'))).toBe(true);
   expect(gone(lock)).toBe(true);
 }, 120_000);
@@ -1144,7 +1145,7 @@ it('risk:complex-branching the hook clean starts no removal once its time budget
   const r = await run(['hook', 'session-start'], c.root, {}, startInput(c));
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  const stopped = L.indexOf('clean stopped: its time budget is spent; the rest waits for the next session start');
+  const stopped = L.indexOf(withAction('clean stopped: its time budget is spent; the rest waits for the next session start'));
   expect(stopped).toBeGreaterThan(-1);
   expect(L.indexOf('tell the owner the lines above')).toBeGreaterThan(stopped);
   expect(L.some((l) => l.startsWith('removed') || l.startsWith('deleted'))).toBe(false);
@@ -1166,7 +1167,7 @@ it('risk:data-loss a hook run for another repository judges with that repository
   b.git('remote', 'set-url', 'origin', b.remote + '-missing');
   const r = await run(['hook', 'session-start'], a.root, {}, JSON.stringify({ session_id: 'sess-B', cwd: b.root, source: 'startup' }));
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toContain(`kept ${b.sibling('ST-9')}: .env`);
+  expect(lines(r.out)).toContain(withAction(`kept ${b.sibling('ST-9')}: .env`));
   expect(readFileSync(`${b.sibling('ST-9')}/.env`, 'utf8')).toBe('SECRET=1\n');
   expect(b.git('worktree', 'list', '--porcelain')).toContain(`worktree ${b.sibling('ST-9')}\n`);
 }, 120_000);
@@ -1250,19 +1251,19 @@ for (const how of ['squash', 'rebase'] as const) {
       const { tip } = mergedBy(c, 'ST-9', how, { code: 'ST-9 fixed\n', later });
       const r = await run(['worktree', 'clean'], c.root, {});
       expect(r.code).toBe(0);
-      expect(lines(r.out), `${how}, main edited after: ${later !== undefined}`).toEqual([`removed ${c.sibling('ST-9')}`, `deleted t/ST-9 (was ${tip})`, `deleted origin/t/ST-9 (was ${tip})`]);
+      expect(lines(r.out), `${how}, main edited after: ${later !== undefined}`).toEqual([withAction(`removed ${c.sibling('ST-9')}`), withAction(`deleted t/ST-9 (was ${tip})`), withAction(`deleted origin/t/ST-9 (was ${tip})`)]);
       expect(has(c.root, 'refs/heads/t/ST-9')).toBe(false);
       expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(false);
     }
   }, 120_000);
 
   it(`risk:data-loss worktree clean keeps a ${how}-merged branch with content main lacks (ST-LN-96 t1-ac-5)`, async () => {
-    const reason = 'kept t/ST-9: merging it into origin/main conflicts';
+    const reason = withAction('kept t/ST-9: merging it into origin/main conflicts');
     // one more commit after the merge that adds a file main lacks
     const plain = copy();
     ticketWorktree(plain, 'ST-9');
     mergedBy(plain, 'ST-9', how, { code: 'ST-9 fixed\n', extra: { 'extra.txt': 'extra\n' } });
-    expect(lines((await run(['worktree', 'clean'], plain.root, {})).out)).toEqual(['kept t/ST-9: it has commits after its verified commit']);
+    expect(lines((await run(['worktree', 'clean'], plain.root, {})).out)).toEqual([withAction('kept t/ST-9: it has commits after its verified commit')]);
     // the extra commit conflicts with a later edit on main, and main never held its blob
     const edited = copy();
     ticketWorktree(edited, 'ST-9');
@@ -1298,10 +1299,59 @@ it('risk:data-loss accord worktree clean leaves a live task worktree and its bra
   doneOnRemote(c, ['ST-9']);
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(lines(out)).toContain(withAction(`removed ${c.sibling('ST-9')}`));
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
   expect(existsSync(task)).toBe(true);
   expect(c.git('rev-parse', 'refs/heads/accord-task/ST-9/2').trim()).toBe(work);
   expect(readFileSync(`${task}/task2.txt`, 'utf8')).toBe('task 2\n');
   expect(out).not.toContain('accord-task/');
 });
+
+it('ac-12 the clean removes merged non-ticket branches and keeps unmerged ones (ST-LN-87 7-ac-12)', async () => {
+  const c = copy();
+  // seven branches, each with one commit of its own, all pushed
+  const names = ['backlog/a', 'fix/b', 'release/c', 'backlog/d', 'fix/e', 'ci/x', 'pr1'];
+  for (const n of names) {
+    c.git('switch', '-q', '-c', n, 'main');
+    writeFiles(c.root, { [`${n.replace('/', '-')}.txt`]: n + '\n' });
+    c.git('add', '-A');
+    c.git('commit', '-q', '-m', n);
+    c.git('push', '-q', 'origin', n);
+    c.git('switch', '-q', 'main');
+  }
+  // a teammate merges all but backlog/d: a merge commit for most, a squash for fix/b
+  const o = c.otherClone();
+  gitRun(o, 'fetch', '-q', 'origin');
+  for (const n of ['backlog/a', 'release/c', 'fix/e', 'ci/x', 'pr1']) gitRun(o, 'merge', '-q', '--no-ff', '-m', 'merge ' + n, `origin/${n}`);
+  gitRun(o, 'merge', '--squash', '-q', 'origin/fix/b');
+  commitMsg(o, 'squash fix/b');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  // release/c is checked out in an agent folder; fix/e is checked out in one that holds an uncommitted file
+  const agent = `${c.root}/.claude/worktrees/agent-1`;
+  const held = `${c.root}/.claude/worktrees/agent-2`;
+  c.git('worktree', 'add', '-q', agent, 'release/c');
+  c.git('worktree', 'add', '-q', held, 'fix/e');
+  writeFileSync(`${held}/new.txt`, 'new');
+  const at = Object.fromEntries(names.map((n) => [n, sha(c, `refs/heads/${n}`)]));
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out).sort()).toEqual(
+    [
+      withAction(`removed ${agent}`),
+      withAction(`deleted backlog/a: merged into origin/main (was ${at['backlog/a']})`),
+      withAction(`deleted fix/b: merged into origin/main (was ${at['fix/b']})`),
+      withAction(`deleted release/c: merged into origin/main (was ${at['release/c']})`),
+      withAction('kept backlog/d: it has commits origin/main lacks'),
+      withAction(`kept ${held}: uncommitted work`),
+      withAction(`kept fix/e: checked out in ${held}`),
+    ].sort(),
+  );
+  for (const n of ['backlog/a', 'fix/b', 'release/c']) expect(has(c.root, `refs/heads/${n}`), n).toBe(false);
+  for (const n of ['backlog/d', 'fix/e', 'ci/x', 'pr1']) expect(has(c.root, `refs/heads/${n}`), n).toBe(true);
+  expect(existsSync(agent)).toBe(false);
+  expect(existsSync(`${held}/new.txt`)).toBe(true);
+  // no remote branch is deleted, and the two other names are never mentioned
+  for (const n of names) expect(has(c.remote, `refs/heads/${n}`), `origin ${n}`).toBe(true);
+  expect(out).not.toContain('ci/x');
+  expect(out).not.toContain('pr1');
+}, 120_000);

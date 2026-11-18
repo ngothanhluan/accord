@@ -103,7 +103,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
               tasksDone: progress.tasksDone,
               tasksTotal: progress.tasksTotal,
               ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !doneOnDefault(snapshot, d, plain ?? snapshot)) }),
-              ...(claims !== undefined && Object.hasOwn(claims, ticket.id) ? { claimedBy: claims[ticket.id] } : {}),
+              ...(claims !== undefined && Object.hasOwn(claims, ticket.id) && !(snapshot.queued !== undefined && Object.hasOwn(snapshot.queued, ticket.id)) ? { claimedBy: claims[ticket.id] } : {}),
               branch:
                 snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, ticket.id)
                   ? snapshot.claimBranches[ticket.id]

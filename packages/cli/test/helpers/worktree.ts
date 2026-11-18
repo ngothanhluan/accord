@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest';
 import * as limit from '../../src/commands/fetch-limit.js';
+import { nextLine, withNext } from '../../src/commands/next-action.js';
+import type { LineKind } from '../../src/commands/next-action.js';
 import * as proc from '../../src/load/proc.js';
 import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
 import { CONFIG, discussFor, discussPath, done, gateReadyIn, LANE_BODY, LANE_S_BODY, laneTicket, P, PLAN } from '../../../../test/helpers/lane.js';
@@ -186,6 +188,27 @@ export const stopLines = (path: string, id: string) => [
   `/accord-continue ${id}`,
 ];
 
+/** What a worktree open that cannot enter prints: a `next:` line, then the three `stop:` lines. */
+export const stopBlock = (path: string, id: string) => [nextLine('stop'), ...stopLines(path, id)];
+
+// ST-LN-69 D-19: the prefix of a clean line and the kind of next action it ends with, written here apart from the code that prints it.
+const CLEAN_KINDS: Array<[string, LineKind]> = [
+  ['removed ', 'removed'],
+  ['deleted ', 'deleted'],
+  ['kept ', 'kept'],
+  ['note ', 'note'],
+  ['clean failed', 'clean-failed'],
+  ['clean skipped', 'clean-skipped'],
+  ['clean stopped', 'clean-stopped'],
+];
+
+/** A clean line as it prints now: the old text, then ` - next: <its action>`. */
+export function withAction(line: string): string {
+  const kind = CLEAN_KINDS.find(([prefix]) => line.startsWith(prefix));
+  if (kind === undefined) throw new Error('not a clean line: ' + line);
+  return withNext(kind[1], line);
+}
+
 export const A = { pid: 7001, start: 'S-A', marker: 'sess-A' };
 export const B = { pid: 7002, start: 'S-B', marker: 'sess-B' };
 export const envOf = (s: { marker: string; pid: number }) => ({ CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: s.marker, CLAUDE_PID: String(s.pid) });
@@ -196,7 +219,7 @@ export const tableOf = (s: { pid: number; start: string }, ...others: { pid: num
 ];
 export const setTable = (rows: ReturnType<typeof tableOf>) => vi.mocked(proc.processTable).mockReturnValue(rows);
 export const holdsFile = (c: Clone) => `${c.root}/.git/accord/holds`;
-export const HELD = 'held: ST-9 by this session\n';
+export const HELD = `held: ST-9 by this session - ${nextLine('held')}\n`;
 
 // H3, H7: the worktree is added by git and the remote is dropped after its last use (no fetch in these scenarios).
 export const heldBy = async (c: Clone) => {
@@ -432,7 +455,7 @@ export function pushMain(c: Clone, file: string, text: string): string {
   return gitRun(o, 'rev-parse', 'HEAD').trim();
 }
 
-export const BEHIND = 'behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main';
+export const BEHIND = 'behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main - ' + nextLine('behind');
 export const twoOnMain = (k: Clone) => {
   const x = k.otherClone();
   for (const f of ['a.txt', 'b.txt']) {

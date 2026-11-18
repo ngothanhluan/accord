@@ -65,8 +65,9 @@ describe('the onboarding skill confirms each proposal and writes only what the u
       'must be committed to the default branch first',
     ].filter((p) => !onboard.includes(p));
     expect(missing).toEqual([]);
+    // ST-LN-69 7-ac-12: the refusal's own next action says accord trust is the owner's to run (packages/cli/test/next-action.test.ts); worktree.md says to do what the line says
     const worktree = flat(source('accord/worktree.md'));
-    for (const p of ['git.sync is not allowed to run here yet - run accord trust', "`accord trust` is the owner's to run, never yours"]) expect(worktree, p).toContain(p);
+    expect(worktree).toContain('do what it says');
   });
 
   // Round 3 WR-02, WR-03: `accord trust` alone only shows; naming a script allows it, in the checkout the line names.
@@ -76,8 +77,9 @@ describe('the onboarding skill confirms each proposal and writes only what the u
     for (const p of ['the files an allow covers and the ones that changed, and allows nothing', 'allows that one']) {
       expect(onboard, p).toContain(p);
     }
+    // ST-LN-69 7-ac-12: the `behind:` line and the sync refusal print where to run accord trust, with the path (packages/cli/test/worktree-sync.test.ts)
     const worktree = flat(source('accord/worktree.md'));
-    for (const p of ['run accord trust in "<path>"', 'the checkout it names']) expect(worktree, p).toContain(p);
+    expect(worktree).toContain('do what it says');
   });
 
   // Round 4 WR-04 and the owner's round 4 answer: an allow names the digest the preview showed, and the skills say what accord does not check.
@@ -90,8 +92,9 @@ describe('the onboarding skill confirms each proposal and writes only what the u
     ]) {
       expect(onboard, p).toContain(p);
     }
+    // ST-LN-69 7-ac-12: the digest form is printed by the `behind:` line itself (packages/cli/test/worktree-sync.test.ts)
     const worktree = flat(source('accord/worktree.md'));
-    for (const p of ['run accord trust in "<path>" to see what it covers, then accord trust git.sync@<the digest it shows> there', 'the checkout it names']) expect(worktree, p).toContain(p);
+    expect(worktree).toContain('do what it says');
   });
 
   // WR-14: the consequence table is what the agent relays before the yes, so it must not claim more than the code keeps working.

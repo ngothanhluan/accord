@@ -11,6 +11,7 @@ import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { cleanBudgetMs } from './fetch-limit.js';
 import { activeTicket, anchorOf, epicSnapshot } from './anchor.js';
+import { withNext } from './next-action.js';
 import { branchOf, cleanQuietly, fetchOrigin, guardAllowsContinue, ID, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, sessionNext, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
@@ -110,7 +111,7 @@ function sessionClean(ctx: CommandContext, event: 'session-start' | 'session-res
     // D-94: the pin check every repository-reading command makes (run.ts preflight) holds for another repository too; a mismatch removes nothing
     const pinned = root === ctx.root || c.snapshot.config === undefined ? undefined : pinMessage(c.snapshot.config.accord, pkg.version, versionOnDisk());
     if (pinned !== undefined) {
-      out.write(`clean skipped: ${pinned.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+      out.write(withNext('clean-skipped', `clean skipped: ${pinned.split('\n')[0]}`).replace(/\\/g, '/') + '\n');
     } else {
       // fix 5: the budget starts before the fetch
       const until = Date.now() + cleanBudgetMs();
@@ -120,7 +121,7 @@ function sessionClean(ctx: CommandContext, event: 'session-start' | 'session-res
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    out.write(`clean failed, nothing more was removed: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+    out.write(withNext('clean-failed', `clean failed, nothing more was removed: ${msg.split('\n')[0]}`).replace(/\\/g, '/') + '\n');
   }
   if (text !== '') ctx.stdout.write(text + 'tell the owner the lines above\n');
 }

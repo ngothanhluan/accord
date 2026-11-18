@@ -3,8 +3,9 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { BEHIND, clone, type Clone, conflictOnMain, copy, doneOnRemote, has, laneSBranch, lines, LIVE, mergeOnRemote, pushMain, setTable, sha, stopLines, tableOf, ticketWorktree, twoOnMain, useSandboxes, verifyStage, writeHolds } from './helpers/worktree.js';
+import { BEHIND, clone, conflictOnMain, copy, doneOnRemote, has, laneSBranch, lines, LIVE, mergeOnRemote, pushMain, setTable, sha, stopBlock, tableOf, ticketWorktree, twoOnMain, useSandboxes, verifyStage, withAction, writeHolds, type Clone } from './helpers/worktree.js';
 import * as limit from '../src/commands/fetch-limit.js';
+import { nextLine } from '../src/commands/next-action.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -38,8 +39,8 @@ it('ac-2 continue says the ticket branch is 2 commits behind the remote main and
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(r.code).toBe(0);
   const out = lines(r.out);
-  expect(out[0]).toBe('behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main');
-  expect(out.slice(1, 4)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect(out[0]).toBe(BEHIND);
+  expect(out.slice(1, 5)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
   expect(out.filter((l) => l.startsWith('behind:'))).toHaveLength(1);
   expect(sha(c, 't/ST-9')).toBe(before);
   expect(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(before);
@@ -309,7 +310,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   const re = await run(['worktree', 'open', 'ST-9', '--continue'], e.root);
   expect(re.code).toBe(0);
   one(re.out, re.err);
-  expect(lines(re.out).slice(-3)).toEqual(stopLines(e.sibling('ST-9'), 'ST-9'));
+  expect(lines(re.out).slice(-4)).toEqual(stopBlock(e.sibling('ST-9'), 'ST-9'));
 
   const f = copy();
   ticketWorktree(f, 'ST-9');
@@ -332,7 +333,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
     const rg = await run(['worktree', 'open', 'ST-9'], g.root);
     expect(rg.code).toBe(0);
     expect(Date.now() - t0).toBeLessThan(15000);
-    expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds');
+    expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds - ' + nextLine('fetch-failed'));
     expect(sha(g, 't/ST-9^')).toBe(sha(g, 'origin/main'));
   } finally {
     writeFileSync(release, '');
@@ -365,9 +366,9 @@ it('ac-4 continue merges the latest origin main into a ticket branch before veri
   expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(head);
   expect(readFileSync(sib + '/setup.log', 'utf8')).toBe('merged ci\n');
   const out = lines(r.out);
-  expect(out).toContain('merged: 2 commits of origin/main into t/ST-9');
+  expect(out).toContain(`merged: 2 commits of origin/main into t/ST-9 - ${nextLine('synced')}`);
   expect(out.some((l) => l.startsWith('behind:'))).toBe(false);
-  expect(out.slice(-3)).toEqual(stopLines(sib, 'ST-9'));
+  expect(out.slice(-4)).toEqual(stopBlock(sib, 'ST-9'));
 
   const s = copy({ setup: ['node setup-step.js ci'] });
   ticketWorktree(s, 'ST-9');
@@ -472,10 +473,10 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   const r1 = await run(['worktree', 'clean'], c.root);
   expect(r1.code).toBe(0);
   expect(lines(r1.out)).toEqual([
-    `removed ${c.sibling('ST-11')}`,
-    `deleted t/ST-11 (was ${t['ST-11']})`,
-    `deleted origin/t/ST-11 (was ${t['ST-11']})`,
-    'kept t/ST-9: it has commits after its verified commit',
+    withAction(`removed ${c.sibling('ST-11')}`),
+    withAction(`deleted t/ST-11 (was ${t['ST-11']})`),
+    withAction(`deleted origin/t/ST-11 (was ${t['ST-11']})`),
+    withAction('kept t/ST-9: it has commits after its verified commit'),
   ]);
   expect(existsSync(c.sibling('ST-11'))).toBe(false);
   expect(has(c.root, 'refs/heads/t/ST-11')).toBe(false);
@@ -498,7 +499,7 @@ it('risk:data-loss clean keeps a done ticket branch that a stopped rebase in its
   expect(gitRun(esib, 'branch', '--show-current').trim()).toBe('');
   const r2 = await run(['worktree', 'clean'], e.root);
   expect(r2.code).toBe(0);
-  expect(lines(r2.out)).toEqual([`kept t/ST-9: being rebased in ${esib}`]);
+  expect(lines(r2.out)).toEqual([withAction(`kept t/ST-9: being rebased in ${esib}`)]);
   expect(existsSync(esib)).toBe(true);
   expect(has(e.root, 'refs/heads/t/ST-9')).toBe(true);
   expect(has(e.remote, 'refs/heads/t/ST-9')).toBe(true);
@@ -532,10 +533,10 @@ it('risk:data-loss clean deletes a done lane S branch with no verified commit on
   const r3 = await run(['worktree', 'clean'], f.root);
   expect(r3.code).toBe(0);
   expect(lines(r3.out)).toEqual([
-    `removed ${f.sibling('ST-12')}`,
-    `deleted t/ST-12 (was ${t12})`,
-    `deleted origin/t/ST-12 (was ${t12})`,
-    'kept t/ST-13: it has changes not on origin/main',
+    withAction(`removed ${f.sibling('ST-12')}`),
+    withAction(`deleted t/ST-12 (was ${t12})`),
+    withAction(`deleted origin/t/ST-12 (was ${t12})`),
+    withAction('kept t/ST-13: it has changes not on origin/main'),
   ]);
   expect(has(f.remote, 'refs/heads/t/ST-13')).toBe(true);
   expect(r3.out).not.toContain('verified commit');
@@ -565,7 +566,7 @@ it('risk:data-loss clean keeps a done lane S branch whose merge into main confli
   expect(status).toBe(1);
   const r4 = await run(['worktree', 'clean'], g.root);
   expect(r4.code).toBe(0);
-  expect(lines(r4.out)).toEqual(['kept t/ST-14: merging it into origin/main conflicts']);
+  expect(lines(r4.out)).toEqual([withAction('kept t/ST-14: merging it into origin/main conflicts')]);
   expect(existsSync(sg)).toBe(true);
   expect(sha(g, 't/ST-14')).toBe(t14);
   expect(has(g.remote, 'refs/heads/t/ST-14')).toBe(true);
@@ -583,7 +584,7 @@ it('risk:data-loss clean keeps a done lane S origin branch whose merge into main
   g.git('update-ref', '-d', 'refs/heads/t/ST-14');
   const r5 = await run(['worktree', 'clean'], g.root);
   expect(r5.code).toBe(0);
-  expect(lines(r5.out)).toEqual(['kept origin/t/ST-14: merging it into origin/main conflicts']);
+  expect(lines(r5.out)).toEqual([withAction('kept origin/t/ST-14: merging it into origin/main conflicts')]);
   expect(gitRun(g.remote, 'rev-parse', 't/ST-14').trim()).toBe(t14);
 }, 240_000);
 
@@ -596,7 +597,7 @@ it('risk:data-loss clean keeps a done ticket branch whose commit after verify co
   const owner = commitMsg(sh, 'owner correction');
   const r6 = await run(['worktree', 'clean'], h.root);
   expect(r6.code).toBe(0);
-  expect(lines(r6.out)).toEqual(['kept t/ST-15: merging it into origin/main conflicts']);
+  expect(lines(r6.out)).toEqual([withAction('kept t/ST-15: merging it into origin/main conflicts')]);
   expect(existsSync(sh)).toBe(true);
   expect(sha(h, 't/ST-15')).toBe(owner);
   expect(has(h.remote, 'refs/heads/t/ST-15')).toBe(true);
@@ -619,8 +620,8 @@ it('risk:data-loss clean keeps an origin branch whose lease is stale and names t
   expect(r.code).toBe(0);
   const l = lines(r.out);
   expect(l).toHaveLength(3);
-  expect(l[0]).toBe(`removed ${c.sibling('ST-9')}`);
-  expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
+  expect(l[0]).toBe(withAction(`removed ${c.sibling('ST-9')}`));
+  expect(l[1]).toBe(withAction(`deleted t/ST-9 (was ${tip})`));
   expect(l[2].startsWith('kept origin/t/ST-9: git push failed: ')).toBe(true);
   expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(S2);
 }, 240_000);
@@ -635,8 +636,8 @@ it('risk:data-loss clean after a failed fetch deletes the local branch and never
   const rd = lines((await run(['worktree', 'clean'], d.root)).out);
   expect(rd).toHaveLength(3);
   expect(rd[0].startsWith('fetch from origin failed')).toBe(true);
-  expect(rd[1]).toBe(`removed ${d.sibling('ST-9')}`);
-  expect(rd[2]).toBe(`deleted t/ST-9 (was ${tipD})`);
+  expect(rd[1]).toBe(withAction(`removed ${d.sibling('ST-9')}`));
+  expect(rd[2]).toBe(withAction(`deleted t/ST-9 (was ${tipD})`));
   expect(gitRun(d.remote, 'rev-parse', 't/ST-9').trim()).toBe(tD['ST-9']);
 }, 240_000);
 
@@ -648,7 +649,7 @@ it('risk:data-loss clean deletes no origin branch that the prune already removed
   gitRun(e.remote, 'branch', '-D', 't/ST-9');
   const re = lines((await run(['worktree', 'clean'], e.root)).out);
   expect(re).toContain(`pruned refs/remotes/origin/t/ST-9 (was ${tipE})`);
-  expect(re).toContain(`removed ${e.sibling('ST-9')}`);
-  expect(re).toContain(`deleted t/ST-9 (was ${tipE})`);
+  expect(re).toContain(withAction(`removed ${e.sibling('ST-9')}`));
+  expect(re).toContain(withAction(`deleted t/ST-9 (was ${tipE})`));
   expect(re.some((x) => x.startsWith('kept origin/') || x.startsWith('deleted origin/'))).toBe(false);
 }, 240_000);

@@ -3,9 +3,10 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { pinBefore, RULESET_FROM, setFrontmatterKey } from '@accord-dev/accord-core';
+import { nextLine } from '../src/commands/next-action.js';
 import { laneTicket, RUNNING } from '../../../test/helpers/lane.js';
 import { gitRun, run, writeFiles } from './helpers/repo.js';
-import { A, clone, clones, type Clone, copy, copyClone, doneOnRemote, dropOnRemote, entries, envOf, has, lines, ME, mergeOnRemote, pushedWork, pushNext, setTable, sha, stopLines, tableOf, teammate, ticketBranch, ticketWorktree, useSandboxes } from './helpers/worktree.js';
+import { A, clone, clones, copy, copyClone, doneOnRemote, dropOnRemote, entries, envOf, has, lines, ME, mergeOnRemote, pushedWork, pushNext, setTable, sha, stopBlock, stopLines, tableOf, teammate, ticketBranch, ticketWorktree, useSandboxes, withAction, type Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -41,11 +42,7 @@ it('ac-1 pick up adds the ticket worktree from origin main runs setup in order a
   expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(c.git('rev-parse', 'origin/main').trim());
   expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\nbuild\n');
-  expect(out.split('\n').slice(0, 3)).toEqual([
-    'stop: open a session in this folder and type the line below it',
-    c.sibling('ST-9'),
-    '/accord-continue ST-9',
-  ]);
+  expect(out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
   expect(out).not.toMatch(/claude|cursor|codex|copilot/i);
   expect(c.git('branch', '--show-current').trim()).toBe('other');
 });
@@ -54,8 +51,38 @@ it('ac-1 the stop block of worktree open names the new continue command (ST-LN-8
   const c = copy();
   const { code, out } = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(code).toBe(0);
-  expect(out.split('\n').slice(0, 3)).toEqual(['stop: open a session in this folder and type the line below it', c.sibling('ST-9'), '/accord-continue ST-9']);
+  expect(out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
 });
+
+it('ac-12 accord worktree open prints its next actions (ST-LN-69 7-ac-12)', async () => {
+  // a worktree whose folder was deleted by hand: the pruned line names its action, and the stop block follows a `next:` line with its path lines unchanged
+  const p = copy({ setup: ['node setup-step.js ci'] });
+  p.git('worktree', 'add', '-q', '-b', 't/ST-9', p.sibling('ST-9'), 'origin/main');
+  rmSync(p.sibling('ST-9'), { recursive: true, force: true });
+  const rp = await run(['worktree', 'open', 'ST-9', '--continue'], p.root);
+  expect(rp.code).toBe(0);
+  const pl = lines(rp.out);
+  expect(pl[0]).toMatch(/^pruned .+ - next: \S/);
+  const stop = pl.findIndex((l) => l.startsWith('stop:'));
+  expect(stop).toBeGreaterThan(0);
+  expect(pl[stop - 1]).toMatch(/^next: \S/);
+  expect(pl.slice(stop)).toEqual(stopLines(p.sibling('ST-9'), 'ST-9'));
+  // a failed fetch: its line names its action
+  const f = copy();
+  f.git('remote', 'set-url', 'origin', f.remote + '-missing');
+  const rf = await run(['worktree', 'open', 'ST-9'], f.root);
+  expect(rf.code).toBe(0);
+  expect(lines(rf.out)[0]).toMatch(/^fetch from origin failed, going on with the refs already in this clone: .+ - next: \S/);
+  // a run that can enter: a `next:` line right before the unchanged `enter:` line
+  const e = copy({ setup: ['node setup-step.js ci'] });
+  setTable(tableOf(A));
+  const re = await run(['worktree', 'open', 'ST-9'], e.root, envOf(A));
+  expect(re.code).toBe(0);
+  const el = lines(re.out);
+  expect(el).toHaveLength(2);
+  expect(el[0]).toMatch(/^next: \S/);
+  expect(el[1]).toBe(`enter: ${e.sibling('ST-9')}`);
+}, 120_000);
 
 it('ac-2 a failing setup command exits 2 naming it and keeps the worktree', async () => {
   const c = copy({ setup: ['node setup-step.js ci', 'node setup-step.js fail'] });
@@ -97,7 +124,7 @@ it('ac-3 continue from another checkout reuses the worktree holding the branch',
   const before = entries(c);
   const { code, out } = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(code).toBe(0);
-  expect(out.split('\n').slice(0, 3)).toEqual(stopLines(hand, 'ST-9'));
+  expect(out.split('\n').slice(0, 4)).toEqual(stopBlock(hand, 'ST-9'));
   expect(existsSync(`${hand}/setup.log`)).toBe(false);
   expect(entries(c)).toEqual(before);
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
@@ -113,7 +140,7 @@ it('risk:complex-branching continue reaches a ticket whose file is only on its b
   gitRun(a.sibling('ST-9'), 'commit', '-q', '-m', 'ticket');
   const ra = await run(['worktree', 'open', 'ST-9', '--continue'], a.root);
   expect(ra.code).toBe(0);
-  expect(ra.out.split('\n').slice(0, 3)).toEqual(stopLines(a.sibling('ST-9'), 'ST-9'));
+  expect(ra.out.split('\n').slice(0, 4)).toEqual(stopBlock(a.sibling('ST-9'), 'ST-9'));
   expect(existsSync(`${a.root}/accord/tickets/ST-9.md`)).toBe(false);
 });
 
@@ -130,7 +157,7 @@ it('risk:complex-branching continue reaches a ticket whose file is only on a loc
   expect(rb.code).toBe(0);
   expect(b.git('worktree', 'list', '--porcelain')).toContain(`worktree ${b.sibling('ST-9')}\nHEAD ${tip}\nbranch refs/heads/t/ST-9`);
   expect(readFileSync(`${b.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
-  expect(rb.out.split('\n').slice(0, 3)).toEqual(stopLines(b.sibling('ST-9'), 'ST-9'));
+  expect(rb.out.split('\n').slice(0, 4)).toEqual(stopBlock(b.sibling('ST-9'), 'ST-9'));
 });
 
 it('risk:complex-branching continue reaches a ticket whose branch is only on origin and tracks it', async () => {
@@ -178,7 +205,7 @@ it('risk:complex-branching continue prunes a worktree whose folder was deleted b
   const reason = /^prunable (.*)$/m.exec(c.git('worktree', 'list', '--porcelain'))?.[1] ?? 'no reason given';
   const { code, out } = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(code).toBe(0);
-  expect(out.split('\n').filter((l) => l !== '')).toEqual([`pruned ${c.sibling('ST-9')}: ${reason}`, ...stopLines(c.sibling('ST-9'), 'ST-9')]);
+  expect(out.split('\n').filter((l) => l !== '')).toEqual([`pruned ${c.sibling('ST-9')}: ${reason} - ${nextLine('pruned')}`, ...stopBlock(c.sibling('ST-9'), 'ST-9')]);
   expect(out).not.toContain('repair');
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
   const list = c.git('worktree', 'list', '--porcelain');
@@ -230,7 +257,7 @@ it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and
   // ST-LN-96 t1-ac-1: from RULESET_FROM the claim writes the running pin as `ruleset` into the ticket it commits; below it the ticket is the one `new ticket` wrote.
   expect(c.git('show', 't/ST-9:accord/tickets/ST-9.md')).toBe(pinBefore(RULESET_FROM, RUNNING) ? text : setFrontmatterKey(text, 'ruleset', RUNNING));
   expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(base);
-  expect(out.split('\n').slice(0, 5)).toEqual(['similar: skipped (--no-dup-check)', 'accord/tickets/ST-9.md', ...stopLines(c.sibling('ST-9'), 'ST-9')]);
+  expect(out.split('\n').slice(0, 6)).toEqual(['similar: skipped (--no-dup-check)', 'accord/tickets/ST-9.md', ...stopBlock(c.sibling('ST-9'), 'ST-9')]);
   expect(c.git('branch', '--show-current').trim()).toBe('main');
   expect(existsSync(`${c.root}/accord/tickets/ST-9.md`)).toBe(false);
 });
@@ -249,7 +276,7 @@ it('risk:data-loss a failed push keeps the claim commit and names the quoted pus
   gitRun(c.sibling('ST-9'), 'push', '-u', 'origin', 't/ST-9');
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(r.code).toBe(0);
-  expect(r.out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect(r.out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
 });
 
 it('risk:regression this repository setup builds before it relinks the accord bin', async () => {
@@ -377,11 +404,7 @@ it('risk:complex-branching pick up reuses a branch claimed by the same email', a
 
   const r = await run(['worktree', 'open', 'ST-10'], c.root);
   expect(r.code).toBe(0);
-  expect(r.out.split('\n').slice(0, 3)).toEqual([
-    'stop: open a session in this folder and type the line below it',
-    c.sibling('ST-10'),
-    '/accord-continue ST-10',
-  ]);
+  expect(r.out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-10'), 'ST-10'));
   expect(gitRun(c.sibling('ST-10'), 'rev-parse', 'HEAD').trim()).toBe(c.git('rev-parse', 'origin/t/ST-10').trim());
   expect(c.git('log', '--all', '--format=%s').split('\n').filter((s) => s === 'claim: ST-10')).toHaveLength(1);
 });
@@ -396,11 +419,7 @@ it('risk:complex-branching continue opens a ticket another person claimed and a 
 
   let r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(r.code).toBe(0);
-  expect(r.out.split('\n').slice(0, 3)).toEqual([
-    'stop: open a session in this folder and type the line below it',
-    c.sibling('ST-9'),
-    '/accord-continue ST-9',
-  ]);
+  expect(r.out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
   r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
   expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
@@ -496,9 +515,9 @@ it('ac-5 clean pick up continue and a new worktree ticket remove the worktree an
     const r = await run(row.argv, c.root);
     expect(r.code, row.name + r.out).toBe(0);
     const l = lines(r.out);
-    expect(l, row.name).toContain(`removed ${sib9}`);
-    expect(l, row.name).toContain(`deleted t/ST-9 (was ${tip})`);
-    expect(l, row.name).toContain(`deleted origin/t/ST-9 (was ${tip})`);
+    expect(l, row.name).toContain(withAction(`removed ${sib9}`));
+    expect(l, row.name).toContain(withAction(`deleted t/ST-9 (was ${tip})`));
+    expect(l, row.name).toContain(withAction(`deleted origin/t/ST-9 (was ${tip})`));
     expect(existsSync(sib9), row.name).toBe(false);
     expect(has(c.root, 'refs/heads/t/ST-9'), row.name).toBe(false);
     expect(has(c.remote, 'refs/heads/t/ST-9'), row.name).toBe(false);
@@ -540,7 +559,7 @@ it('ac-2 a merged branch whose remote branch is gone is deleted from another tic
   expect(() => c.git('merge-base', '--is-ancestor', sha9, 'HEAD')).toThrow();
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${sha9})`]);
+  expect(lines(out)).toEqual([withAction(`deleted t/ST-9 (was ${sha9})`)]);
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
   expect(sha(c, 'main')).toBe(mainBefore);
   expect(c.git('branch', '--show-current').trim()).toBe('t/ST-20');
@@ -562,16 +581,17 @@ it('ac-3 a ticket branch with a commit not on the remote main is kept and not na
   expect(sha(c, 't/ST-9')).toBe(extra);
 });
 
-it('risk:data-loss a merged branch the ticket branch template does not name is never deleted', async () => {
+it('risk:data-loss a merged branch the ticket branch template does not name and no clean prefix covers is never deleted', async () => {
   const c = clone();
-  c.git('branch', 'backlog/notes', 'main');
+  // ST-LN-87: backlog/, fix/ and release/ branches are judged now; any other name is still never judged
+  c.git('branch', 'notes/keep', 'main');
   c.git('branch', 't/ST-9', 'main');
   const base = sha(c, 'main');
   doneOnRemote(c, ['ST-9']);
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${base})`]);
-  expect(sha(c, 'backlog/notes')).toBe(base);
+  expect(lines(out)).toEqual([withAction(`deleted t/ST-9 (was ${base})`)]);
+  expect(sha(c, 'notes/keep')).toBe(base);
   expect(sha(c, 'main')).toBe(base);
 });
 
@@ -589,7 +609,7 @@ it('risk:complex-branching a branch git refuses to delete is kept with git messa
   expect(l).toHaveLength(2);
   expect(l[0].startsWith('kept t/ST-1: could not be judged: ')).toBe(true);
   expect(l[0].length).toBeGreaterThan('kept t/ST-1: could not be judged: '.length);
-  expect(l[1]).toBe(`deleted t/ST-2 (was ${base})`);
+  expect(l[1]).toBe(withAction(`deleted t/ST-2 (was ${base})`));
   expect(sha(c, 't/ST-1')).toBe(base);
 });
 
@@ -628,7 +648,7 @@ it('ac-4 stale remote refs are pruned after a good fetch and a failed fetch prun
   const l = lines(bad.out);
   expect(l).toHaveLength(2);
   expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
-  expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
+  expect(l[1]).toBe(withAction(`deleted t/ST-9 (was ${tip})`));
   const r2 = d.git('branch', '-r');
   expect(r2).toContain('origin/t/ST-9');
   expect(r2).toContain('origin/backlog/notes');

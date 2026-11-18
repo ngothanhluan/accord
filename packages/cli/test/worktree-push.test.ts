@@ -5,6 +5,7 @@ import { expect, it } from 'vitest';
 import { trailerReason } from '@accord-dev/accord-core';
 import { CONFIG, junit, PLAN, REPORT, writeReport } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
+import { nextLine } from '../src/commands/next-action.js';
 import { makeClone, type Clone } from './helpers/worktree.js';
 
 /** The claim worktree of ST-9, with the plan's file in place and the claim branch pushed. */
@@ -19,7 +20,7 @@ function claimed(c: Clone): string {
 
 const onOrigin = (c: Clone) => gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim();
 const head = (dir: string) => gitRun(dir, 'rev-parse', 'HEAD').trim();
-const FAILED = 'push of t/ST-9 failed; its commits stay local until the next push';
+const FAILED = 'push of t/ST-9 failed; its commits stay local until the next push - ' + nextLine('push-failed');
 
 /** Reword the tip commit the way build step 3 does: from a file, never -m, no trailer; the message file lies outside every working tree. */
 function reword(c: Clone, dir: string, text: string): string {

@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { loadSnapshot } from '@accord-dev/accord-core';
 import { worksTicket } from '../src/commands/worktree.js';
+import { nextLine } from '../src/commands/next-action.js';
 import * as proc from '../src/load/proc.js';
 import { cleanup, commitMsg, gitRun, run } from './helpers/repo.js';
-import { A, A2, B, C, C3, clearOf, clone, copy, DEAD, doneOnRemote, envOf, HELD, heldBy, holdsFile, lines, LIVE, mergeOnRemote, PIN, pinnedWorktree, readHolds, setTable, stopLines, T, tableOf, ticketWorktree, useSandboxes, verifyStage, WORKS, writeHolds } from './helpers/worktree.js';
+import { A, A2, B, C, C3, clearOf, clone, copy, DEAD, doneOnRemote, envOf, HELD, heldBy, holdsFile, lines, LIVE, mergeOnRemote, PIN, pinnedWorktree, readHolds, setTable, stopBlock, T, tableOf, ticketWorktree, useSandboxes, verifyStage, withAction, WORKS, writeHolds } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -111,7 +112,7 @@ it('risk:complex-branching outside claude code no hold is taken and one line say
   const sib = c.sibling('ST-9');
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, {});
   expect(r.code).toBe(0);
-  expect(r.out).toBe('not held: ST-9 - a second session in this worktree is not refused in this tool yet\n');
+  expect(r.out).toBe(`not held: ST-9 - a second session in this worktree is not refused in this tool yet - ${nextLine('not-held')}\n`);
   expect(existsSync(holdsFile(c))).toBe(false);
   expect(proc.processTable).not.toHaveBeenCalled();
   const r2 = await run(['worktree', 'open', 'ST-9', '--continue'], sib, { CLAUDECODE: '1' });
@@ -145,7 +146,7 @@ it('ac-1 in claude code pick up from the main checkout takes the hold and prints
   setTable(tableOf(A));
   const { code, out } = await run(['worktree', 'open', 'ST-9'], c.root, envOf(A));
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`enter: ${c.sibling('ST-9')}`]);
+  expect(lines(out)).toEqual([nextLine('enter'), `enter: ${c.sibling('ST-9')}`]);
   expect(out).not.toContain('stop:');
   expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
   expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(c.git('rev-parse', 'origin/main').trim());
@@ -164,7 +165,7 @@ it('ac-2 in claude code continue from the main checkout enters a claimed worktre
   setTable(tableOf(A));
   const a = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
   expect(a.code).toBe(0);
-  expect(lines(a.out)).toEqual([`enter: ${c.sibling('ST-9')}`]);
+  expect(lines(a.out)).toEqual([nextLine('enter'), `enter: ${c.sibling('ST-9')}`]);
   expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
   expect((await run(['anchor'], c.sibling('ST-9'))).out).toBe((await run(['anchor', 'ST-9'], c.root)).out);
 
@@ -177,7 +178,7 @@ it('ac-2 in claude code continue from the main checkout enters a claimed worktre
   setTable(tableOf(C));
   const b = await run(['worktree', 'open', 'ST-10', '--continue'], c.root, envOf(C));
   expect(b.code).toBe(0);
-  expect(lines(b.out)).toEqual([`enter: ${c.sibling('ST-10')}`]);
+  expect(lines(b.out)).toEqual([nextLine('enter'), `enter: ${c.sibling('ST-10')}`]);
   expect(gitRun(c.sibling('ST-10'), 'rev-parse', 'HEAD').trim()).toBe(c.git('rev-parse', 'origin/t/ST-10').trim());
   expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-C');
 });
@@ -198,7 +199,7 @@ it('risk:complex-branching outside claude code a worktree pinned to another acco
   pinnedWorktree(c);
   const plain = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(plain.code).toBe(0);
-  expect(lines(plain.out)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect(lines(plain.out)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
 }, 120_000);
 
 it('risk:complex-branching in claude code a pick up whose origin main pins another version refuses and names the main checkout', async () => {
@@ -238,7 +239,7 @@ it('ac-3 in claude code a new lane m ticket is committed pushed and held and pri
   setTable(tableOf(A));
   const { code, out } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], c.root, envOf(A));
   expect(code).toBe(0);
-  expect(lines(out)).toEqual(['similar: skipped (--no-dup-check)', 'accord/tickets/ST-9.md', `enter: ${c.sibling('ST-9')}`]);
+  expect(lines(out)).toEqual(['similar: skipped (--no-dup-check)', 'accord/tickets/ST-9.md', nextLine('enter'), `enter: ${c.sibling('ST-9')}`]);
   expect(out).not.toContain('stop:');
   expect(c.git('ls-remote', 'origin', 'refs/heads/t/ST-9').split('\t')[0]).toBe(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim());
   expect(gitRun(c.sibling('ST-9'), 'log', '-1', '--format=%s').trim()).toBe('claim: ST-9');
@@ -311,11 +312,11 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
   expect(state()).toEqual(before);
   setTable(tableOf(A));
   const same = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
-  const BEHIND = 'behind: t/ST-9 is 1 commit behind origin/main; merge them with git merge origin/main\n';
+  const BEHIND = `behind: t/ST-9 is 1 commit behind origin/main; merge them with git merge origin/main - ${nextLine('behind')}\n`;
   expect([same.code, same.out]).toEqual([0, BEHIND + HELD]);
   const back = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
   expect(back.code).toBe(0);
-  expect(lines(back.out)).toEqual([lines(BEHIND)[0], `enter: ${sib}`]);
+  expect(lines(back.out)).toEqual([lines(BEHIND)[0], nextLine('enter'), `enter: ${sib}`]);
 }, 180_000);
 
 const mainOf = (c: { git: (...a: string[]) => string }): string => c.git('worktree', 'list', '--porcelain').split('\n')[0].slice('worktree '.length);
@@ -373,19 +374,19 @@ it('ac-5 outside claude code pick up continue and new ticket print the stop line
     outs.push(r.out, r.err);
     return r;
   };
-  expect((await go(['worktree', 'open', 'ST-9'], c.root)).out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
-  expect((await go(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree', '--no-dup-check'], c.root)).out.split('\n').slice(0, 5)).toEqual([
+  expect((await go(['worktree', 'open', 'ST-9'], c.root)).out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
+  expect((await go(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree', '--no-dup-check'], c.root)).out.split('\n').slice(0, 6)).toEqual([
     'similar: skipped (--no-dup-check)',
     'accord/tickets/ST-11.md',
-    ...stopLines(c.sibling('ST-11'), 'ST-11'),
+    ...stopBlock(c.sibling('ST-11'), 'ST-11'),
   ]);
   const s9 = c.sibling('ST-9');
-  expect((await go(['worktree', 'open', 'ST-10'], s9)).out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-10'), 'ST-10'));
+  expect((await go(['worktree', 'open', 'ST-10'], s9)).out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-10'), 'ST-10'));
   expect((await go(['worktree', 'open', 'ST-9', '--continue'], s9)).out).toContain('not held:');
   const chk = await go(['worktree', 'check'], s9);
   expect([chk.out, chk.err]).toEqual(['', '']);
   const n = await go(['new', 'ticket', 'ST-12', '--lane', 'M', '--worktree', '--no-dup-check'], s9);
-  expect(n.out.trimEnd().split('\n').slice(-3)).toEqual(stopLines(c.sibling('ST-12'), 'ST-12'));
+  expect(n.out.trimEnd().split('\n').slice(-4)).toEqual(stopBlock(c.sibling('ST-12'), 'ST-12'));
   for (const o of outs) expect(o).not.toMatch(/enter:|this session works/);
   expect(existsSync(holdsFile(c))).toBe(false);
   expect(proc.processTable).not.toHaveBeenCalled();
@@ -414,7 +415,7 @@ it('risk:complex-branching a claude code session that sets no session variables 
   expect([chk.code, chk.out, chk.err]).toEqual([0, '', '']);
   const o = await run(['worktree', 'open', 'ST-9'], c.root, E);
   expect(o.code).toBe(0);
-  expect(o.out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect(o.out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
   const n = await run(['new', 'ticket', 'ST-11', '--lane', 'M', '--no-dup-check'], c.root, E);
   expect(n.code).toBe(0);
   expect(existsSync(`${c.root}/accord/tickets/ST-11.md`)).toBe(true);
@@ -432,7 +433,7 @@ it('risk:complex-branching a claude code session without session variables gets 
   vi.mocked(proc.processTable).mockClear();
   const w = await run(['new', 'ticket', 'ST-12', '--lane', 'M', '--worktree', '--no-dup-check'], c.root, E);
   expect(w.code).toBe(0);
-  expect(w.out.trimEnd().split('\n').slice(-3)).toEqual(stopLines(c.sibling('ST-12'), 'ST-12'));
+  expect(w.out.trimEnd().split('\n').slice(-4)).toEqual(stopBlock(c.sibling('ST-12'), 'ST-12'));
   for (const s of [w.out]) expect(s).not.toContain('enter:');
   expect(existsSync(holdsFile(c))).toBe(false);
   expect(proc.processTable).not.toHaveBeenCalled();
@@ -494,8 +495,8 @@ it('risk:data-loss clean keeps a merged worktree this session holds when run fro
   vi.mocked(proc.processTable).mockClear();
   const { code, out } = await run(['worktree', 'clean'], c.root, envOf(A));
   expect(code).toBe(0);
-  expect(lines(out)).toContain(`kept ${c.sibling('ST-9')}: this session's worktree`);
-  expect(lines(out)).toContain('kept t/ST-9: checked out in ' + c.sibling('ST-9'));
+  expect(lines(out)).toContain(withAction(`kept ${c.sibling('ST-9')}: this session's worktree`));
+  expect(lines(out)).toContain(withAction('kept t/ST-9: checked out in ' + c.sibling('ST-9')));
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
   expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
   expect(proc.processTable).not.toHaveBeenCalled();
@@ -571,7 +572,7 @@ it('risk:data-loss clean removes a held done worktree and its hold and keeps the
   setTable(tableOf(B));
   const cl = await run(['worktree', 'clean'], c.root, envOf(B));
   expect(cl.code).toBe(0);
-  expect(cl.out).toContain(`removed ${sib}`);
+  expect(cl.out).toContain(withAction(`removed ${sib}`));
   expect(existsSync(sib)).toBe(false);
   expect(Object.hasOwn(readHolds(c), 'ST-9')).toBe(false);
   expect(worked()).toBe('ST-9\tsess-A\n');
@@ -610,7 +611,7 @@ it('risk:complex-branching a session whose hold was taken over still works its t
   setTable(tableOf(B));
   const tk = await run(['worktree', 'open', 'ST-10', '--continue'], c.root, envOf(B));
   expect(tk.code).toBe(0);
-  expect(lines(tk.out)).toEqual([`enter: ${c.sibling('ST-10')}`]);
+  expect(lines(tk.out)).toEqual([nextLine('enter'), `enter: ${c.sibling('ST-10')}`]);
   expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-B');
   expect(Object.values(readHolds(c)).some((x) => (x as { marker: string }).marker === 'sess-C')).toBe(false);
   setTable(tableOf(C));
@@ -725,7 +726,7 @@ it('ac-1 a clear in a window outside the ticket worktree removes the hold its ol
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
   expect(r.code).toBe(0);
   expect(r.err).not.toContain('held by another session');
-  expect(lines(r.out)).toEqual([`enter: ${sib}`]);
+  expect(lines(r.out)).toEqual([nextLine('enter'), `enter: ${sib}`]);
   expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-B');
 }, 120_000);
 
@@ -843,7 +844,7 @@ it('ac-4 a refusal names the folder and the local time with its offset of the ho
   setTable(tableOf(A));
   const first = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
   expect(first.code).toBe(0);
-  expect(lines(first.out)).toEqual([`enter: ${sib}`]);
+  expect(lines(first.out)).toEqual([nextLine('enter'), `enter: ${sib}`]);
   expect((readHolds(c)['ST-9'] as { folder: string }).folder).toBe(sib);
   writeHolds(c, { 'ST-9': { ...(readHolds(c)['ST-9'] as object), taken: T } });
   setTable(tableOf(B, A));

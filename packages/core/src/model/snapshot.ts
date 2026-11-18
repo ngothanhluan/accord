@@ -397,4 +397,6 @@ export interface RepoSnapshot {
   // ST-LN-91 D-14: host-supplied by accord round --plan: the last commit that changed plan-review.md, the -U0 hunks of plan.md from it to the
   // working tree, and both texts. A ticket with no entry (no such commit, or a pin below the cut-off) is not checked.
   planFix?: Record<string, PlanFix>;
+  // ST-LN-16 D-19: host-supplied by the dashboard: ticket id -> the `backlog/*` branch that queued it, for each ticket of `tickets` that no checkout or default branch holds and that was read from that branch's tip. Such a row has no claim.
+  queued?: Record<string, { branch: string }>;
 }

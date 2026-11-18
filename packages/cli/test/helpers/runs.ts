@@ -49,7 +49,7 @@ export const RUNS: string[] = [
   'main worktree open A-1',
   'main worktree clean',
   'wt-A-7 worktree merge A-7',
-  'main new ticket N-1 --lane M --worktree',
+  'main new ticket N-1 --lane M --worktree --no-dup-check',
 ];
 
 /** The four runs that change the repository, each on its own fresh MIXED copy. */

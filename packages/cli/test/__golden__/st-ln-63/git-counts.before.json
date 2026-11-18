@@ -13135,7 +13135,7 @@
       "--porcelain"
     ]
   ],
-  "main new ticket N-1 --lane M --worktree": [
+  "main new ticket N-1 --lane M --worktree --no-dup-check": [
     [
       "rev-parse",
       "--show-toplevel"

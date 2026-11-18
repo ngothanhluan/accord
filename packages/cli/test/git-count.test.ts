@@ -750,9 +750,9 @@ it('risk:security every network git call keeps prompts off while core.sshCommand
 it('risk:complex-branching pick-up and new ticket worktree reuse the worktree list clean read and read it again after clean removed one', async () => {
   const { mixed } = samples();
   // (a) clean removed no worktree: both commands print what they printed at the baseline.
-  const got = await runSample(['main worktree open A-1', 'main new ticket N-1 --lane M --worktree']);
+  const got = await runSample(['main worktree open A-1', 'main new ticket N-1 --lane M --worktree --no-dup-check']);
   const golden = readGolden<Record<string, { code: number; out: string }>>('goldens.json');
-  for (const key of ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree']) {
+  for (const key of ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree --no-dup-check']) {
     expect(got[key].code, key).toBe(golden[key].code);
     expect(got[key].out, key).toBe(golden[key].out);
   }
@@ -818,7 +818,7 @@ it('risk:complex-branching a command that proved the origin remote asks for it o
   for (const key of item('get-url').keys) await expectFewer(key, item('get-url').p, key.startsWith('wt-A-7 ') ? merged.argv : undefined);
 }, LIMIT);
 
-const WORKTREE_COMMANDS = ['main worktree open A-1', 'main worktree clean', 'wt-A-7 worktree merge A-7', 'main new ticket N-1 --lane M --worktree'];
+const WORKTREE_COMMANDS = ['main worktree open A-1', 'main worktree clean', 'wt-A-7 worktree merge A-7', 'main new ticket N-1 --lane M --worktree --no-dup-check'];
 
 it('ac-3 each worktree command starts fewer git processes than before the change and clean keeps and removes the same branches', async () => {
   const got = await runSample(WORKTREE_COMMANDS);
@@ -893,14 +893,14 @@ it('risk:complex-branching pick-up and new ticket worktree load the full snapsho
       expect(pick.argv.filter(facts), `${v.name} pick-up: git facts`).toHaveLength(1);
       if (v.name === 'reachable origin') runs['main worktree open A-1'] = pick.argv;
 
-      const made = await counted(['new', 'ticket', '--lane', 'M', '--worktree'], c.root);
+      const made = await counted(['new', 'ticket', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
       // ST-LN-1 has a branch with only an empty claim commit: the number after it is the next one, never ST-LN-1 again
       expect(made.out + made.err, `${v.name}: new ticket`).not.toContain('ST-LN-1.md');
       expect(made.argv.filter(isLsFiles), `${v.name} new ticket: light reads`).toHaveLength(v.reads);
       expect(made.argv.filter(isDefaultBranchRead), `${v.name} new ticket: default branch reads`).toHaveLength(v.reads);
       expect(made.argv.filter(facts), `${v.name} new ticket: git facts`).toHaveLength(1);
       if (v.name !== 'no origin') expect(made.out + made.err, `${v.name}: new ticket`).toContain('ST-LN-2');
-      if (v.name === 'reachable origin') runs['main new ticket N-1 --lane M --worktree'] = made.argv;
+      if (v.name === 'reachable origin') runs['main new ticket N-1 --lane M --worktree --no-dup-check'] = made.argv;
     } finally {
       c.cleanupAll();
     }

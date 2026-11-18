@@ -11,7 +11,7 @@ import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { cleanBudgetMs } from './fetch-limit.js';
 import { activeTicket, anchorOf } from './anchor.js';
-import { branchOf, cleanQuietly, fetchOrigin, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, takeHold, worksMessage, worksTicket } from './worktree.js';
+import { branchOf, cleanQuietly, fetchOrigin, guardAllowsContinue, ID, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, sessionNext, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
@@ -193,7 +193,14 @@ export function hookInput(ctx: CommandContext): { session_id?: string; command_n
   return out;
 }
 
-/** D-05..D-07: the commands this hook sees are accord, accord-new, accord-continue and accord-pickup (the UserPromptExpansion matcher); it blocks a typed "/accord <text>" in a session that works a ticket, except continue of that ticket. */
+/**
+ * ST-LN-83 D-06: the commands this hook sees are accord, accord-new, accord-continue and accord-pickup (the UserPromptExpansion matcher). In a session that works
+ * a ticket it blocks only what would touch another ticket: /accord-new, /accord-pickup, a Continue of any ticket but this one (as /accord-continue <id> or the
+ * typed "/accord continue <id>") and the typed "/accord pick-up <id>". The dashboard and any other "/accord <text>" go through: the skill routes the text (a question
+ * is answered there) and the CLI guard behind this hook (`accord worktree check`, `accord new ticket`) refuses a change, because a hook sees the typed command and
+ * not the intent, and accord never calls a model. A block reason is the CLI guard's own text and ends with the line that opens the right session; this hook never
+ * switches a session to another ticket (D-07). Any error of its own allows, with one stderr line.
+ */
 function promptExpansion(ctx: CommandContext): number {
   const allow = (why?: string) => {
     if (why !== undefined) ctx.stderr.write(`accord hook prompt-expansion: ${why.split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
@@ -203,16 +210,34 @@ function promptExpansion(ctx: CommandContext): number {
   try {
     const i = hookInput(ctx);
     if (i?.session_id === undefined) return allow('no session_id on stdin');
-    if (i.command_name !== 'accord') return allow();
+    const name = i.command_name;
     const args = (i.command_args ?? '').trim();
-    if (args === '') return allow();
-    if (args === 'upgrade') return allow(); // the upgrade never touches a checkout
+    const word = (re: RegExp) => re.exec(args)?.[1];
+    let cont: string | undefined; // the ticket a Continue asks for
+    let typed: string | undefined; // the command to type in the session that opens
+    if (name === 'accord') {
+      // empty, upgrade and free text are for the skill to route; only the typed forms name another ticket
+      cont = word(/^continue\s+(\S+)$/);
+      const pick = word(/^pick-up\s+(\S+)$/);
+      if (cont === undefined && pick === undefined) return allow();
+      typed = cont !== undefined ? undefined : `/accord-pickup ${ID.test(pick as string) ? pick : '<id>'}`;
+    } else if (name === 'accord-continue') {
+      cont = args.split(/\s+/)[0];
+      if (cont === '') return allow();
+    } else if (name === 'accord-pickup') {
+      const id = args.split(/\s+/)[0];
+      typed = `/accord-pickup ${ID.test(id) ? id : '<id>'}`;
+    } else if (name === 'accord-new') {
+      typed = '/accord-new <request>';
+    } else {
+      return allow(); // accord-queue, accord-upgrade and every other command never touch the ticket's branch
+    }
     const w = worksTicket(i.cwd ?? ctx.root, i.session_id, ctx.snapshot);
     if (w === undefined) return allow();
     const mainPath = listWorktrees(w.top)[0].path;
-    const cont = /^continue\s+(\S+)$/.exec(args)?.[1];
     if (cont !== undefined && guardAllowsContinue(w, mainPath, cont)) return allow();
-    ctx.stdout.write(JSON.stringify({ decision: 'block', reason: worksMessage(w, mainPath) }) + '\n');
+    const command = cont !== undefined ? `/accord-continue ${ID.test(cont) ? cont : '<id>'}` : (typed as string);
+    ctx.stdout.write(JSON.stringify({ decision: 'block', reason: worksMessage(w, mainPath, sessionNext(w.top, ctx.snapshot, mainPath, command, cont)) }) + '\n');
     return 0;
   } catch (e) {
     return allow(e instanceof Error ? e.message : String(e));

@@ -41,7 +41,7 @@ export function newTicket(
     throw new UsageError('--title must be one line of text - nothing was written');
   }
   // ST-LN-83 D-06: the queue path writes on another branch in a temporary worktree and touches nothing of this session's ticket, so it runs no session guard
-  if (options.queue !== true) guardTicketSession(ctx);
+  if (options.queue !== true) guardTicketSession(ctx, undefined, '/accord-new <request>');
   // the worktree list clean read last, for the new worktree's own check; undefined when nothing was read or a removal followed
   let seen: WorktreeEntry[] | undefined;
   if (options.worktree === true || options.queue === true) {

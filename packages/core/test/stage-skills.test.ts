@@ -2359,3 +2359,26 @@ it('ac-11 a session without the researcher agent follows the same rules (ST-LN-8
     expect(flat(all.find((f) => f.path === dir + '/accord-intent/discuss.md')?.text ?? ''), dir).toContain(RESEARCH_FALLBACK);
   }
 });
+
+// ST-LN-28 7-ac-10 (07-23, D-15): a lesson that holds for the whole epic is offered at verify and kept only in the story's own ledger; later stories read it from the default branch.
+it('ac-10 verify offers an epic lesson and writes it only to the story\'s own ledger (ST-LN-28 7-ac-10)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const read = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  for (const stage of STAGES) {
+    const ask = read('.claude/skills/' + installedName(stage) + '/ask.md');
+    const section = ask.slice(ask.indexOf('## Recording a rule or a refused option'));
+    expect(section.length, stage + ' ask.md holds the recording section').toBeGreaterThan(0);
+    for (const phrase of ['a story with `parent:`', 'holds for the whole epic', '`- Lesson: <lesson> — "<the owner\'s words, in English>"`', 'under `## Epic lessons`', "that story's own ledger", 'nowhere else', 'once this story is on the default branch'])
+      expect(section, stage + ' ask.md names ' + phrase).toContain(phrase);
+  }
+  const verify = read('.claude/skills/accord-verify/SKILL.md');
+  const step6 = verify.slice(verify.indexOf('6. Run `accord gate done <id>`'), verify.indexOf('7. Report the finish'));
+  for (const phrase of ['across its epic', './ask.md', 'a lesson was written', 'and the ledger']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
+  // no shared epic file and no write into another ticket's folder is asked of any rendered skill
+  for (const f of files.filter((x) => x.path.endsWith('.md'))) {
+    const text = flat(f.text);
+    expect(text, f.path).not.toMatch(/accord\/tickets\/<(?:parent|epic|sibling)[^>]*>/);
+    expect(text, f.path).not.toMatch(/epic[- ]wide (?:state )?file|STATE\.md/i);
+  }
+  expect(Buffer.byteLength(files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '', 'utf8')).toBeLessThanOrEqual(6000);
+});

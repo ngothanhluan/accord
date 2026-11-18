@@ -23,6 +23,7 @@ import { newTicket } from './commands/new-ticket.js';
 import { next } from './commands/next.js';
 import { upgradeNotice } from './commands/notice.js';
 import { dashboardCommand } from './commands/dashboard.js';
+import { diffPackage } from './commands/diff-package.js';
 import { reviewPackage } from './commands/review-package.js';
 import { round } from './commands/round.js';
 import { scoutCheckCommand } from './commands/scout.js';
@@ -190,6 +191,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--round <n>', 'with --security: the package of the n-th ## Round section of review.md')
     .action((id: string, options: { base?: string; security?: boolean; round?: string }) => {
       setCode(reviewPackage(preflight(opts), id, options));
+    });
+
+  program
+    .command('diff-package <base> <head>')
+    .description('print the review package of the changes from <base> to <head>, for a review of code accord did not build')
+    .option('--security', 'print the security package: the checklist, the security triggers and only the hunks they match')
+    .action((base: string, head: string, options: { security?: boolean }) => {
+      setCode(diffPackage(preflight(opts), base, head, options));
     });
 
   program

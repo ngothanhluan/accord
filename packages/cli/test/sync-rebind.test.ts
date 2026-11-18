@@ -186,7 +186,7 @@ function pinTo(c: Clone, v: string): void {
 
 /** A lane M ticket ST-9 created on its own branch by `new ticket --worktree` under the running version: its file is not on main. Returns its worktree. */
 async function claimedOnBranch(c: Clone): Promise<string> {
-  const made = await run(['new', 'ticket', ID, '--lane', 'M', '--worktree'], c.root);
+  const made = await run(['new', 'ticket', ID, '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
   expect([made.code, made.err]).toEqual([0, '']);
   return c.sibling(ID);
 }

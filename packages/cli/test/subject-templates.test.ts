@@ -92,7 +92,7 @@ it('risk:complex-branching the claimant is read from a templated or a legacy cla
 it('risk:complex-branching new ticket --worktree commits the templated claim subject (ST-LN-50 t2-ac-3)', async () => {
   const c = copy({ tickets: [] });
   commitConfig(c, readFileSync(`${c.root}/accord/config.yml`, 'utf8') + NO_LEGACY);
-  const made = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  const made = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
   expect(made.err).toBe('');
   expect(made.code).toBe(0);
   expect(subject(c, 't/ST-9')).toBe('chore(accord): claim ST-9');

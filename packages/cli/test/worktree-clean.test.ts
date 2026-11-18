@@ -867,7 +867,7 @@ it('risk:regression worktree open on an existing branch and new ticket in a work
   c.git('branch', 't/ST-10', 'origin/main');
   const a = await run(['worktree', 'open', 'ST-10'], c.root);
   expect(a.code).toBe(0);
-  const b = await run(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'], c.root);
+  const b = await run(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
   expect(b.code).toBe(0);
   expect(recorded(c)).toEqual([
     { id: 'ST-10', path: c.sibling('ST-10') },

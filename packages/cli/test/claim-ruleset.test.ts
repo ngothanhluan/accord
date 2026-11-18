@@ -79,7 +79,7 @@ it('risk:data-loss a ticket whose file already holds the pin keeps an empty clai
 it('risk:data-loss new ticket --worktree commits the ticket with its ruleset from RULESET_FROM, and without it below (ST-LN-96 t1-ac-1)', async () => {
   const c = copy({ tickets: [] });
   pinTo(c, RULESET_FROM);
-  const made = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  const made = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
   expect(made.err).toBe('');
   expect(made.code).toBe(0);
   expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
@@ -87,7 +87,7 @@ it('risk:data-loss new ticket --worktree commits the ticket with its ruleset fro
 
   const old = copy({ tickets: [] });
   pinTo(old, '0.4.1');
-  const plain = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], old.root);
+  const plain = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], old.root);
   expect(plain.err).toBe('');
   expect(plain.code).toBe(0);
   expect(old.git('show', 't/ST-9:accord/tickets/ST-9.md')).not.toContain('ruleset');

@@ -163,7 +163,7 @@ describe('printed paths', () => {
     { name: 'brief (refusal)', argv: ['brief', 'LOGIN-1', '1'], guard: 'accord/tickets/LOGIN-1.md' },
     { name: 'review-package (refusal)', argv: ['review-package', 'LOGIN-1'], guard: 'accord/tickets/LOGIN-1.md' },
     { name: 'tests baseline (refusal)', argv: ['tests', 'baseline'], guard: 'accord/config.yml' },
-    { name: 'new ticket --lane', argv: ['new', 'ticket', 'TCK-2', '--lane', 'M'], guard: 'accord/tickets/TCK-2.md' },
+    { name: 'new ticket --lane', argv: ['new', 'ticket', 'TCK-2', '--lane', 'M', '--no-dup-check'], guard: 'accord/tickets/TCK-2.md' },
   ];
 
   for (const { name, argv, guard } of COMMANDS) {

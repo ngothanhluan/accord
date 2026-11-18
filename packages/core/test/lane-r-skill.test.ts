@@ -36,7 +36,7 @@ describe('lane R in the accord skill', () => {
       expect(table).toContain('| R: research | a question to answer, ending in a research record |');
       const rLine = acc.slice(acc.indexOf('- **R.**'), acc.indexOf('- **L and P.**'));
       expect(acc.indexOf('- **R.**'), dir + ': no R line').toBeGreaterThan(acc.indexOf('- **M.**'));
-      for (const x of ['`accord new ticket <id> --lane R --worktree`', '`people`', '`--type <story|bug>`', '`./lane-r.md`']) expect(rLine, x).toContain(x);
+      for (const x of ['`accord new ticket <id> --lane R --worktree --title "<title>"`', '`people`', '`--type <story|bug>`', '`./lane-r.md`']) expect(rLine, x).toContain(x);
       const continueSkill = flat(dir + '/accord-continue/SKILL.md');
       expect(continueSkill.length, dir + '/accord-continue/SKILL.md').toBeGreaterThan(0);
       const cont = continueSkill.slice(continueSkill.indexOf('4. Otherwise'), continueSkill.indexOf('## Rules'));

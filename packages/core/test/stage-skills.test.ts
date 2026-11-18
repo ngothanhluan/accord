@@ -1000,7 +1000,7 @@ it('ac-1 the accord skill lifts lane S to M only by the four conditions left', (
 it('ac-4 every lane S change is worked from its own lane S ticket in its worktree', () => {
   const acc = flatS('.claude/skills/accord-new/SKILL.md');
   const s = acc.slice(acc.indexOf('- **S.**'), acc.indexOf('- **M.**'));
-  expect(s).toContain('`accord new ticket <id> --lane S --worktree`');
+  expect(s).toContain('`accord new ticket <id> --lane S --worktree --title "<title>"`');
   expect(s).toContain('`./lane-s.md`');
   const continueSkill = flatS('.claude/skills/accord-continue/SKILL.md');
   const cont = continueSkill.slice(continueSkill.indexOf('## Steps'), continueSkill.indexOf('## Rules'));
@@ -2085,7 +2085,7 @@ it('ac-5 the new skill judges the candidates and asks one question on a match (S
       '`--related none`',
       'ask the owner nothing',
       '`similar: none`',
-      'no scout runs for this check',
+      'No scout runs for this check',
     ])
       expect(t, `${dir}/similar.md: ${p}`).toContain(p);
     expect(t, dir + '/similar.md').not.toContain('accord-scout');

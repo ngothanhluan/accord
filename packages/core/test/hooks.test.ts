@@ -43,9 +43,18 @@ describe('mergeHooks', () => {
   });
 });
 
+it('ac-1 the session line and the hook matcher name the new commands (ST-LN-83 7-ac-1)', () => {
+  const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
+  expect(entries.UserPromptExpansion.map((x) => x.matcher)).toEqual(['accord|accord-new|accord-continue|accord-pickup']);
+  // letters, digits, hyphen and a bar make an exact-name list in Claude Code, so no other name can match by substring
+  const names = entries.UserPromptExpansion[0].matcher.split('|');
+  expect(names).toEqual(['accord', 'accord-new', 'accord-continue', 'accord-pickup']);
+  for (const other of ['accord-queue', 'accord-upgrade']) expect(names).not.toContain(other);
+});
+
 it('risk:data-loss a re-sync replaces an older prompt expansion hook and keeps a foreign one', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
-  const fresh = { matcher: 'accord', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.2.0 hook prompt-expansion' }] };
+  const fresh = { matcher: 'accord|accord-new|accord-continue|accord-pickup', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.2.0 hook prompt-expansion' }] };
   expect(entries.UserPromptExpansion).toEqual([fresh]);
   const old = { hooks: { UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook prompt-expansion' }, { type: 'command', command: 'echo hi' }] }] } };
   const once = mergeHooks(old, entries);

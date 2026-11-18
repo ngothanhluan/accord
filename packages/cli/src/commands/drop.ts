@@ -28,7 +28,32 @@ const resolve = (root: string, ref: string): string | undefined => {
   }
 };
 
-export function drop(ctx: CommandContext, id: string, opts: { reason?: string }): number {
+const CONVENTIONS = 'accord/product/conventions.md';
+
+/** The first line of text under `## Dropped` outside HTML comments, joined with a space: the reason a ticket file already carries. */
+function droppedReasonOf(text: string): string {
+  const lines = text.replace(/^\u{FEFF}/u, '').split(/\r?\n/);
+  const at = lines.findIndex((l) => /^##\s+dropped\s*$/i.test(l));
+  if (at < 0) return '';
+  const out: string[] = [];
+  let inComment = false;
+  for (const l of lines.slice(at + 1)) {
+    if (!inComment && /^##\s/.test(l)) break;
+    const bare = l.replace(/<!--.*?-->/g, '');
+    if (inComment) {
+      if (bare.includes('-->')) inComment = false;
+      continue;
+    }
+    if (bare.includes('<!--')) {
+      inComment = true;
+      continue;
+    }
+    if (bare.trim() !== '') out.push(bare.trim());
+  }
+  return out.join(' ');
+}
+
+export function drop(ctx: CommandContext, id: string, opts: { reason?: string; rejected?: boolean }): number {
   const root = ctx.root;
   const ssh = new Map<string, string>(); // core.sshCommand, read once for this command's network calls
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id + NOTHING);
@@ -110,8 +135,26 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     }
   }
 
+  // ST-LN-84 D-10: with --rejected the drop commit also appends `- Rejected: <title> - <reason>` to conventions.md.
+  let conventions: { text: string; line: string } | undefined;
+  if (opts.rejected === true) {
+    const title = loadSnapshot({ files: { [path]: next }, tree: [] }).tickets[id]?.frontmatter?.title?.trim() ?? '';
+    const why = reason ?? droppedReasonOf(next);
+    if (title === '' || why === '') throw new UsageError(`--rejected needs the ticket's title and a reason; ${path} has ${title === '' ? 'no title' : 'no reason'}` + NOTHING);
+    if (/[\r\n]/.test(title) || /[\r\n]/.test(why)) throw new UsageError('--rejected needs a one-line title and a one-line reason' + NOTHING);
+    const old = gitFilesAt(root, base, [CONVENTIONS])[CONVENTIONS];
+    const line = `- Rejected: ${title} — ${why}`;
+    const eol = old?.includes('\r\n') === true ? '\r\n' : '\n';
+    const head = old === undefined ? '# Conventions' + eol + eol : old === '' || old.endsWith('\n') ? old : old + eol;
+    conventions = { text: head + line + eol, line };
+  }
+
   const input = loadRefInput(root, ref);
   input.files[path] = next;
+  if (conventions !== undefined) {
+    input.files[CONVENTIONS] = conventions.text;
+    if (!input.tree.includes(CONVENTIONS)) input.tree.push(CONVENTIONS);
+  }
   if (!input.tree.includes(path)) input.tree.push(path);
   const extra = {
     ...gitFilesAt(root, tip, Object.keys(carried)),
@@ -137,6 +180,10 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     gitIn(root, ['read-tree', base], { env });
     gitIn(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${path}`], { env });
     for (const [p, b2] of Object.entries(carried)) gitIn(root, ['update-index', '--add', '--cacheinfo', `100644,${b2},${p}`], { env });
+    if (conventions !== undefined) {
+      const cblob = gitIn(root, ['hash-object', '-w', '--stdin'], { input: Buffer.from(conventions.text, 'utf8') }).trim();
+      gitIn(root, ['update-index', '--add', '--cacheinfo', `100644,${cblob},${CONVENTIONS}`], { env });
+    }
     const tree = gitIn(root, ['write-tree'], { env }).trim();
     sha = gitIn(root, ['commit-tree', tree, '-p', base], { input: Buffer.from(subject + '\n', 'utf8') }).trim();
   } finally {
@@ -149,6 +196,6 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
       `the drop commit ${sha} was made but the push failed: ${String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0]} - push it with git push origin ${sha}:refs/heads/drop/${id}`,
     );
   }
-  ctx.stdout.write(`branch: drop/${id}\nbase: ${short}\ntitle: ${subject}\n`);
+  ctx.stdout.write(`branch: drop/${id}\nbase: ${short}\ntitle: ${subject}\n` + (conventions === undefined ? '' : `rejected: ${conventions.line}\n`));
   return 0;
 }

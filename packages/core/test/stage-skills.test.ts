@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, parseRounds, recordHeaderFaults, skillDirs, skillTargets, STAGES, UNFINISHED_MARKER } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_RULES } from '../src/gate/rules.js';
+import { RULES } from '../src/lint/rules.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
 import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
@@ -753,22 +755,22 @@ it('ac-5 the verify skill offers to promote a ruling or correction into the conv
   expect(from).toBeGreaterThan(-1);
   expect(to).toBeGreaterThan(-1);
   const step = text.slice(from, to);
+  // ST-LN-84 07-17: the judge-and-ask sentences moved to shared/ask.md; step 6 offers as ./ask.md says and writes the ledger's lines
   const phrases = [
-    "read the ticket's `## Corrections` and the Rulings under the ledger's `## Rulings`.",
-    'judge to hold across tickets',
-    'ask the owner whether it becomes a rule of this repository',
-    'write it as one rule line in `accord/product/conventions.md`.',
-    "Without the owner's yes, write nothing to `conventions.md`.",
+    'offer each Correction or Ruling that holds across tickets, as `./ask.md` says',
+    "write every line under the ledger's `## Conventions` into `accord/product/conventions.md`.",
   ];
   expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
-  const a = step.indexOf('ask the owner whether');
-  const w = step.indexOf('write it as one rule line');
+  const a = step.indexOf('offer each Correction or Ruling');
+  const w = step.indexOf('write every line under');
   const c = step.indexOf('Then commit only');
   expect(a).toBeGreaterThan(-1);
   expect(w).toBeGreaterThan(a);
   expect(c).toBeGreaterThan(w);
   expect(step.slice(c)).toContain('accord/tickets/<id>/verification.md');
   expect(step.slice(c)).toContain('accord/product/conventions.md');
+  const ask = (files.find((f) => f.path === '.claude/skills/accord-verify/ask.md')?.text ?? '').replace(/\s+/g, ' ');
+  expect(ask).toContain('Without an explicit yes write nothing anywhere.');
 });
 
 it('risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line', () => {
@@ -2184,4 +2186,72 @@ it('ac-5 the scout and the critic receive the related tickets decisions (ST-LN-2
   expect(named.filter((p) => !/\/accord-(?:intent|approach)\//.test(p))).toEqual([]);
   // and no rendered skill text tells an agent to open other tickets' files for their decisions
   expect(all.flatMap((f) => opensOthers(f.text).map((m) => f.path + ': ' + m))).toEqual([]);
+});
+
+it('ac-6 the drop steps offer the Rejected line first and pass the flag only on a yes (ST-LN-84 7-ac-6)', () => {
+  const OFFER = "`Rejected: <the ticket's title> — <the reason>`";
+  for (const dir of ['.claude/skills']) {
+    for (const name of ['accord/ids.md', 'accord/route.md', 'accord-new/ids.md', 'accord-new/route.md']) {
+      const text = (files.find((f) => f.path === dir + '/' + name)?.text ?? '').replace(/\s+/g, ' ');
+      expect(text, dir + '/' + name).not.toBe('');
+      const drop = text.indexOf('`accord drop <id>');
+      expect(drop, dir + '/' + name + ' names the drop').toBeGreaterThanOrEqual(0);
+      const offer = text.indexOf(OFFER);
+      expect(offer, dir + '/' + name + ' offers the line').toBeGreaterThanOrEqual(0);
+      expect(offer, dir + '/' + name + ' offers it before the drop').toBeLessThan(drop);
+      const flag = text.slice(offer);
+      expect(flag, dir + '/' + name + ' passes the flag only on a yes').toContain('--rejected');
+      expect(flag, dir + '/' + name).toContain('explicit yes');
+    }
+  }
+});
+
+// ST-LN-84 7-ac-6 (07-17, D-10, D-11): one offer procedure in shared/ask.md, rendered beside every stage skill; a line the owner says yes to waits in the ticket ledger's `## Conventions` and reaches conventions.md at verify step 6.
+it('ac-6 every stage offers a rule or Rejected line and records it only on a yes (ST-LN-84 7-ac-6)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const read = (p: string) => files.find((f) => f.path === p)?.text ?? '';
+  for (const stage of STAGES) {
+    const ask = flat(read('.claude/skills/' + installedName(stage) + '/ask.md'));
+    expect(ask, stage + ' renders ask.md').not.toBe('');
+    const at = ask.indexOf('## Recording a rule or a refused option');
+    expect(at, stage + ' ask.md holds the offer procedure').toBeGreaterThanOrEqual(0);
+    const section = ask.slice(at);
+    for (const phrase of ['states a rule meant to last beyond this ticket', 'overrides a step of a skill', 'refuses an option', '`Rejected: <option> — <reason>`', 'explicit yes', "the ticket ledger's `## Conventions`", 'write nothing anywhere', 'accord/product/conventions.md', '`accord drop --rejected`'])
+      expect(section, stage + ' ask.md names ' + phrase).toContain(phrase);
+  }
+  const verify = flat(read('.claude/skills/accord-verify/SKILL.md'));
+  const step6 = verify.slice(verify.indexOf('6. Run `accord gate done <id>`'), verify.indexOf('7. Report the finish'));
+  expect(step6.length, 'verify step 6').toBeGreaterThan(0);
+  for (const phrase of ['./ask.md', "ledger's `## Conventions`", 'accord/product/conventions.md']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
+  // the sentences that moved to ask.md are gone from step 6, so the rendered file shrank (it was 5975 bytes)
+  expect(step6).not.toContain('Without the owner\'s yes');
+  const bytes = Buffer.byteLength(read('.claude/skills/accord-verify/SKILL.md'), 'utf8');
+  expect(bytes).toBeLessThanOrEqual(6000);
+  expect(bytes).toBeLessThan(5975);
+  // D-11: no lint or gate rule reads conventions.md
+  const ids = [...RULES.map((r) => r.id), ...[READY_RULES, PLAN_RULES, DONE_RULES, PLAN_R_RULES, DONE_S_RULES, DONE_R_RULES].flat().map((r) => r.id)];
+  expect(ids.length).toBeGreaterThan(30);
+  expect(ids.filter((id) => /convention/i.test(id) && id !== 'lint.id-convention')).toEqual([]);
+});
+
+// ST-LN-84 7-ac-6 (07-17, D-10): intent and approach name a matching `## Rejected` line before proposing an option; lane S's finish writes the ledger's lines before `accord gate done`.
+it('ac-6 intent and approach name a matching Rejected line before proposing (ST-LN-84 7-ac-6)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const read = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  for (const stage of ['intent', 'approach']) {
+    const text = read('.claude/skills/' + installedName(stage) + '/SKILL.md');
+    expect(text, stage).not.toBe('');
+    for (const phrase of ['compare it with the `## Rejected` lines `accord related <id>` printed', 'name a matching line to the owner first'])
+      expect(text, stage + ' names ' + phrase).toContain(phrase);
+  }
+  for (const dir of ['accord-new', 'accord-continue']) {
+    const lane = read('.claude/skills/' + dir + '/lane-s.md');
+    const finish = lane.slice(lane.indexOf('6. **Pull request.**'));
+    expect(finish.length, dir + ' lane-s.md finish').toBeGreaterThan(0);
+    const write = finish.indexOf("every line under the ledger's `## Conventions` into `accord/product/conventions.md`");
+    expect(write, dir + ' lane S writes the ledger lines').toBeGreaterThanOrEqual(0);
+    expect(write, dir + ' lane S writes them before the gate').toBeLessThan(finish.indexOf('`accord gate done <id>`'));
+  }
+  const big = files.filter((f) => f.path.endsWith('/SKILL.md') && (Buffer.byteLength(f.text, 'utf8') > 6000 || f.text.split('\n').length > 120)).map((f) => f.path);
+  expect(big).toEqual([]);
 });

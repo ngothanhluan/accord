@@ -61,6 +61,9 @@ describe('relatedText', () => {
         '### Decisions',
         '(none)',
         '',
+        '## Rejected',
+        '(none)',
+        '',
       ].join('\n'),
     );
   });
@@ -89,13 +92,14 @@ describe('relatedText', () => {
       '## R-1 "Export reports to CSV files" (open)',
       '## R-2 "Export reports" (open)',
       '## R-3 "Export csv" (open)',
+      '## Rejected',
     ]);
     expect(text).not.toContain('"Export reports to CSV" (open)'); // N-1 itself
   });
 
   it('ac-5 a ticket with nothing related prints none and an unknown id prints nothing (ST-LN-22 7-ac-5)', () => {
     const snap = tree({ 'accord/tickets/N-1.md': tk('N-1', 'Zebra crossing paint', 'open', intent('Stripes.')), 'accord/tickets/R-1.md': tk('R-1', 'Print the page', 'open', intent('Printer.')) });
-    expect(relatedText(snap, 'N-1')).toBe('# Related tickets of N-1\n\n(none)\n');
+    expect(relatedText(snap, 'N-1')).toBe('# Related tickets of N-1\n\n(none)\n\n## Rejected\n(none)\n');
     expect(relatedText(snap, 'NOPE')).toBeUndefined();
     expect(relatedIds(snap, 'NOPE')).toEqual([]);
   });
@@ -115,5 +119,38 @@ describe('relatedText', () => {
     expect(text).toContain('## W-1 "Export csv" (open)\n### Vetoes\n- Working veto\n### Decisions\n- D-01 Working decision');
     expect(text).not.toContain('Stale');
     expect(text.indexOf('## D-1 ')).toBeLessThan(text.indexOf('## W-1 '));
+  });
+
+  it('ac-6 the text ends with the Rejected lines of the conventions file as written (ST-LN-84 7-ac-6)', () => {
+    const snap = tree({
+      'accord/tickets/N-1.md': tk('N-1', 'Export reports to CSV', 'open', intent('Owners export csv files.')),
+      'accord/tickets/R-2.md': tk('R-2', 'Export csv', 'open', intent('x') + sections('- A veto', '- D-01 A decision')),
+    });
+    const conventions = [
+      '﻿# Conventions',
+      '',
+      '<!-- Record an option that was tried and refused as `Rejected: <option> — <reason>`.',
+      'Rejected: inside a comment is not a line -->',
+      '',
+      '- Never add a trailer.',
+      '- Rejected: a queue table — too slow to read',
+      'Rejected: a bare line — also kept',
+      '  - Rejected: an indented item — kept as written',
+      '- Not Rejected: this one is not a Rejected line',
+      '',
+    ].join('\r\n');
+    const text = relatedText(snap, 'N-1', conventions) as string;
+    const tail = '## Rejected\n- Rejected: a queue table — too slow to read\nRejected: a bare line — also kept\n  - Rejected: an indented item — kept as written\n';
+    expect(text.endsWith('\n' + tail)).toBe(true);
+    expect(text).not.toContain('\r');
+    expect(text.indexOf('## R-2 ')).toBeLessThan(text.indexOf('## Rejected'));
+    // none: no file, an empty file, a file with no such line
+    for (const none of [undefined, '', '# Conventions\n\n- Never add a trailer.\n']) {
+      expect((relatedText(snap, 'N-1', none) as string).endsWith('\n## Rejected\n(none)\n')).toBe(true);
+    }
+    // a ticket with nothing related still ends with the section; an unknown id prints nothing
+    const alone = tree({ 'accord/tickets/N-1.md': tk('N-1', 'Zebra crossing paint', 'open', intent('Stripes.')) });
+    expect(relatedText(alone, 'N-1', '- Rejected: x — y\n')).toBe('# Related tickets of N-1\n\n(none)\n\n## Rejected\n- Rejected: x — y\n');
+    expect(relatedText(alone, 'NOPE', '- Rejected: x — y\n')).toBeUndefined();
   });
 });

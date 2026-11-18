@@ -744,4 +744,37 @@ describe('one command per action', () => {
       expect(accord, runtime).not.toContain('## Continue');
     }
   });
+
+  it('ac-1 every action of the old accord skill is its own command for every runtime (ST-LN-83 7-ac-1)', () => {
+    const needle: Record<string, string> = { 'accord-new': 'accord new ticket', 'accord-pickup': 'accord worktree open <id>', 'accord-upgrade': './upgrade.md' };
+    for (const runtime of ALL_RUNTIMES) {
+      for (const [name, text] of Object.entries(needle)) {
+        const { dirs, texts } = copiesOf(name, runtime);
+        expect(dirs.length, `${runtime} ${name}`).toBeGreaterThan(0);
+        for (const [i, copy] of texts.entries()) {
+          expect(copy.length, `${runtime}: ${dirs[i]}/${name}/SKILL.md is missing`).toBeGreaterThan(0);
+          expect(copy, `${runtime}: ${dirs[i]}/${name} differs from ${dirs[0]}`).toBe(texts[0]);
+        }
+        expect(frontmatter(texts[0])?.name, `${runtime} ${name}`).toBe(name);
+        expect(bodyOf(texts[0]), `${runtime} ${name}`).toContain(text);
+      }
+      expect(bodyOf(copiesOf('accord-pickup', runtime).texts[0]), runtime).not.toContain('--continue');
+      const { dirs } = copiesOf('accord', runtime);
+      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
+      expect(accord, runtime).toContain('## Dashboard');
+      for (const name of ['accord-new', 'accord-pickup', 'accord-upgrade']) expect(accord, `${runtime} ${name}`).toContain(name);
+      for (const heading of ['## Pick up', '## New request: ', '## Upgrade: ']) expect(accord, `${runtime} ${heading}`).not.toContain(heading);
+    }
+  });
+
+  it('ac-1 a command that needs an argument asks for it and runs nothing without it (ST-LN-83 7-ac-1)', () => {
+    const ASKS = /With no argument, ask the owner for [^.]+ in one question and run, claim, create and edit nothing\./;
+    for (const runtime of ALL_RUNTIMES) {
+      for (const name of ['accord-continue', 'accord-new', 'accord-pickup']) {
+        const { texts } = copiesOf(name, runtime);
+        expect(texts[0].length, `${runtime} ${name} is missing`).toBeGreaterThan(0);
+        expect(bodyOf(texts[0]).replace(/\s+/g, ' '), `${runtime} ${name}`).toMatch(ASKS);
+      }
+    }
+  });
 });

@@ -67,13 +67,13 @@ const cells = (r) => {
   };
 };
 const epicCells = (r) => ({ id: r.id, lane: laneOf(r), stage: clean(`${r.done}/${r.total} done`), stageColor: undefined, title: r.title, blockedBy: '', who: '' });
-const act = (key, label, id) => ({ key: `${key}:${id}`, label, args: `${key} ${id}` });
-// same id pattern as cli new-ticket.ts: a file stem with spaces must never reach /accord as text
+const act = (key, label, command, id) => ({ key: `${key}:${id}`, label, command, args: id });
+// same id pattern as cli new-ticket.ts: a file stem with spaces must never reach a command as an id
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 // A lane row opens its detail; the row's own button (if any) moves into the detail view.
-const withOpen = (key, label) => (r) =>
+const withOpen = (key, label, command) => (r) =>
   SAFE_ID.test(r.id)
-    ? { ...cells(r), open: { key: `show:${r.id}`, id: r.id, ...(key ? { action: act(key, label, r.id) } : {}) } }
+    ? { ...cells(r), open: { key: `show:${r.id}`, id: r.id, ...(key ? { action: act(key, label, command, r.id) } : {}) } }
     : cells(r);
 
 export function view(state, query) {
@@ -87,10 +87,10 @@ export function view(state, query) {
     const rows = rowsOf(s).filter(keep).map(f);
     if (!q || rows.length > 0) sections.push({ heading, rows, more: s.more });
   };
-  section('YOURS', d.yours, (r) => ({ ...withOpen('continue', 'Continue')(r), who: '' }));
+  section('YOURS', d.yours, (r) => ({ ...withOpen('continue', 'Continue', 'accord-continue')(r), who: '' }));
   section('TEAM', d.team, withOpen());
-  section('READY', d.ready, withOpen('pick-up', 'Pick up'));
-  if (d.upNext) section('UP NEXT', d.upNext, withOpen('pick-up', 'Pick up'));
+  section('READY', d.ready, withOpen('pick-up', 'Pick up', 'accord-pickup'));
+  if (d.upNext) section('UP NEXT', d.upNext, withOpen('pick-up', 'Pick up', 'accord-pickup'));
   if (d.epics.rows.length > 0) {
     section('EPICS', d.epics, epicCells);
   }
@@ -110,8 +110,8 @@ export function view(state, query) {
   if (s.withoutLane > 0) summary += `, ${s.withoutLane} without lane`;
   if (s.withSchemaErrors > 0) summary += `, ${s.withSchemaErrors} with schema errors, run accord lint`;
   const args = query.trim();
-  const noMatch = args && sections.length === 0 ? 'No ticket shown here matches. Press New request to send this text to /accord.' : undefined;
-  return { sections, summary, widths, ...(noMatch ? { noMatch } : {}), ...(args ? { newRequest: { key: 'new-request', label: 'New request', args } } : {}) };
+  const noMatch = args && sections.length === 0 ? 'No ticket shown here matches. Press New request to send this text to /accord-new.' : undefined;
+  return { sections, summary, widths, ...(noMatch ? { noMatch } : {}), ...(args ? { newRequest: { key: 'new-request', label: 'New request', command: 'accord-new', args } } : {}) };
 }
 
 // The action a row of the current dashboard offers for id, read at draw time so it follows the latest run.

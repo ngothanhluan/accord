@@ -107,7 +107,7 @@ export function register(on) {
     }
     const { Box, Text, Button, Input } = $.ui.resolve(e);
     const children = [];
-    const run = (args) => () => void $.command.run({ command: 'accord', args });
+    const run = (action) => () => void $.command.run({ command: action.command, args: action.args });
     if (detail) {
       const d = detailView({ ...detail, action: actionFor(state, detail.id) });
       const bar = [
@@ -120,7 +120,7 @@ export function register(on) {
           },
         }),
       ];
-      if (d.action) bar.push(Button({ key: d.action.key, label: d.action.label, onPress: run(d.action.args) }));
+      if (d.action) bar.push(Button({ key: d.action.key, label: d.action.label, onPress: run(d.action) }));
       children.push(Box({ flexDirection: 'row', columnGap: 2, children: bar }));
       const wrapped = (props, text) => Text({ wrap: 'wrap', ...props, children: [text] });
       if (d.message) {
@@ -162,7 +162,7 @@ export function register(on) {
     } else {
       children.push(search());
       if (v.noMatch) children.push(Text({ children: [v.noMatch] }));
-      if (v.newRequest) children.push(Button({ key: v.newRequest.key, label: v.newRequest.label, onPress: run(v.newRequest.args) }));
+      if (v.newRequest) children.push(Button({ key: v.newRequest.key, label: v.newRequest.label, onPress: run(v.newRequest) }));
       const { widths } = v;
       const cellBoxes = (id, lane, stage, title) => [
         Box({ width: widths.id, flexShrink: 0, children: [id] }),

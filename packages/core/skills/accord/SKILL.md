@@ -17,7 +17,7 @@ First run the session check in `./worktree.md`, except for `/accord upgrade`. A 
    and stop.
 2. Show both outputs verbatim in a code block. Never reorder, cut, merge, or
    add to it, and never build a section from `accord status --json`.
-3. Offer the actions its last line names: Continue, Pick up, New request.
+3. Offer the commands its last line names.
 
 ## A ticket named: `/accord pick-up <id>`, `/accord continue <id>`
 

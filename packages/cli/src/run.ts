@@ -238,7 +238,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
     .option('--queue', "write the draft on a backlog branch off origin's default branch from a temporary worktree and push it, without touching this checkout")
     .option('--note <line>', 'with --queue: one line of the queued idea under ## Intent, up to four; repeat the option', (line: string, previous: string[]) => [...previous, line], [] as string[])
-    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[] }) => {
+    .option('--related <ids>', 'the ticket ids this request continues or builds on, comma-separated, or none')
+    .option('--no-dup-check', 'create without checking for similar tickets; for scripts and tests, never for a request a person made')
+    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[]; related?: string; dupCheck?: boolean }) => {
       setCode(newTicket(preflight(opts, options.worktree === true || options.queue === true ? 'light' : 'checkout'), id, options));
     });
 

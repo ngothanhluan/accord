@@ -7,7 +7,7 @@ import { afterEach, expect, it } from 'vitest';
 import { cleanup, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 import { makeClone, pushMain } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
-import { CONFIG } from '../../../test/helpers/lane.js';
+import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 const repos: string[] = [];
 const clones: Clone[] = [];
@@ -102,13 +102,13 @@ it('ac-5 --queue prints the candidates and pushes nothing until they are judged,
   const c = makeClone({ tickets: ['ST-9'] });
   clones.push(c);
   // a ticket only origin's default branch holds, found because the queue path fetches before it looks
-  pushMain(c, 'accord/tickets/D-1.md', tk('D-1', 'Reports in CSV', 'archived', 'Long done.'));
+  pushMain(c, 'accord/tickets/D-1.md', laneTicket('D-1', { frontmatter: ['status: archived'] }));
   const queue = (id: string, ...more: string[]) => run(['new', 'ticket', id, '--queue', '--lane', 'M', '--title', 'Export reports to CSV', ...more], c.root);
   const backlog = (): string => gitRun(c.remote, 'for-each-ref', 'refs/heads/backlog');
 
   const first = await queue('Q-1');
   expect(first.code, first.out + first.err).toBe(2);
-  expect(lines(first.out).filter((l) => l.startsWith('similar: '))).toEqual(['similar: D-1 "Reports in CSV" (archived)', 'similar: ST-9 "Export" (open)']);
+  expect(lines(first.out).filter((l) => l.startsWith('similar: '))).toEqual(['similar: D-1 "Export" (archived)', 'similar: ST-9 "Export" (open)']);
   expect(first.err).toContain('--related');
   expect(backlog()).toBe('');
 

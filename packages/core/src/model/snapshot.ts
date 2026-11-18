@@ -146,6 +146,7 @@ export interface TicketFrontmatter {
   assumptions?: { text: string; confirmed: boolean }[];
   lane?: Lane; // spec §3: present opts the ticket into the workflow-layer contract
   depends_on?: string[]; // spec §5: ticket ids that must reach done first
+  related?: string[]; // ST-LN-22 D-08: ticket ids this ticket continues or builds on; a link only, outside every hash and every gate
   // ST-LN-13: repository paths of research records under accord/research/; optional
   research?: string[];
   priority?: 'high' | 'medium' | 'low';// how the dashboard ranks this ticket; absent means medium

@@ -15,6 +15,8 @@ import { cleanQuietly, fetchOrigin, guardTicketSession, newTicketWorktree } from
 import type { WorktreeEntry } from './worktree.js';
 import type { CommandContext } from '../run.js';
 
+type Snapshot = CommandContext['snapshot'];
+
 // The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json). Duplicated as a
 // literal rather than read out of the schema so it is visible at the one call site that matters.
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -23,7 +25,7 @@ const PLACEHOLDER = 'TICKET-ID';
 export function newTicket(
   ctx: CommandContext,
   givenId: string | undefined,
-  options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[] },
+  options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[]; related?: string; dupCheck?: boolean },
 ): number {
   // ST-LN-83 D-03: every bad flag is refused before anything is read, written or pushed
   const notes = (options.note ?? []).map((n) => n.trim());
@@ -40,6 +42,12 @@ export function newTicket(
   if (title !== undefined && (title === '' || /[\r\n]/.test(title))) {
     throw new UsageError('--title must be one line of text - nothing was written');
   }
+  // ST-LN-22 D-08: --no-dup-check skips the check that --related records the judgment of, so the two never go together
+  const dupCheck = options.dupCheck !== false;
+  if (!dupCheck && options.related !== undefined) {
+    throw new UsageError('--no-dup-check skips the similar check that --related records the judgment of - use one of them - nothing was written');
+  }
+  const related = parseRelated(options.related);
   // ST-LN-83 D-06: the queue path writes on another branch in a temporary worktree and touches nothing of this session's ticket, so it runs no session guard
   if (options.queue !== true) guardTicketSession(ctx, undefined, '/accord-new <request>');
   // the worktree list clean read last, for the new worktree's own check; undefined when nothing was read or a removal followed
@@ -64,7 +72,12 @@ export function newTicket(
     throw new UsageError('accord/config.yml' + where + ' ' + bad.reason + ' - fix accord/config.yml before creating a ticket');
   }
   // ST-LN-22 D-08: before any id is chosen or any file written, the tickets most like the request are printed, and nothing is created until the session has judged them
-  if (title !== undefined) checkSimilar(ctx, [title, ...notes].join('\n'));
+  if (!dupCheck) ctx.stdout.write('similar: skipped (--no-dup-check)\n');
+  else if (title !== undefined || related !== undefined) {
+    const view = withDefaultBranch(ctx);
+    if (related !== undefined) refuseUnknown(related, view);
+    if (title !== undefined) checkSimilar(view, [title, ...notes].join('\n'), ctx.stdout, related !== undefined);
+  }
   const people = ctx.snapshot.config?.people;
   const ids = ctx.snapshot.config?.ids;
   // ST-LN-50 D-05: accord assigns ids while the convention is on, that is while `people` or `ids` exists
@@ -176,6 +189,8 @@ export function newTicket(
   if (options.lane !== undefined) text = setFrontmatterKey(text, 'lane', options.lane);
   // ST-LN-83 D-03: the title the person gave, written as a double-quoted string on every path
   if (title !== undefined) text = setFrontmatterKey(text, 'title', title);
+  // ST-LN-22 D-08: the tickets the session judged this request to continue, a block list; none writes no key
+  if (related !== undefined && related.length > 0) text = setFrontmatterKey(text, 'related', related);
   // ST-LN-50 D-10: the team's own sections go into every story and bug ticket, in the plain and the --worktree path alike; an epic holds none
   if (options.type !== 'epic') text = insertTeamSections(text, ctx.snapshot.config?.template?.sections);
 
@@ -214,19 +229,46 @@ function queuedIntent(text: string, date: string, notes: string[]): string {
 }
 
 /** The default branch as the clone holds it, read from git with no checkout, for the tickets a working tree may not have yet. */
-function withDefaultBranch(ctx: CommandContext): CommandContext['snapshot'] {
+function withDefaultBranch(ctx: CommandContext): Snapshot {
   const ref = doneRef(ctx.root);
   return ref === undefined ? ctx.snapshot : { ...ctx.snapshot, defaultRef: { ref, snapshot: loadSnapshot(loadRefInput(ctx.root, ref)) } };
 }
 
-/** ST-LN-22 D-08: prints up to five `similar:` lines, or `similar: none`; with candidates it then refuses, so the session judges them and runs the command again. */
-function checkSimilar(ctx: CommandContext, request: string): void {
-  const found = similarTickets(request, ticketFacts(withDefaultBranch(ctx)));
+/** ST-LN-22 D-08: `--related` as a list of ticket ids: undefined when absent, empty for `none`; an entry that is no ticket id is refused, a repeated one is kept once. */
+function parseRelated(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (value.trim() === 'none') return [];
+  const ids: string[] = [];
+  for (const entry of value.split(',').map((e) => e.trim())) {
+    if (!ID.test(entry)) {
+      throw new UsageError('--related takes ticket ids separated by commas, or none: "' + entry + '" is not a ticket id - nothing was written');
+    }
+    if (!ids.includes(entry)) ids.push(entry);
+  }
+  return ids;
+}
+
+/** ST-LN-22 T-07-16: every linked id names a ticket of the working tree or of the default branch. */
+function refuseUnknown(ids: readonly string[], view: Snapshot): void {
+  const known = (id: string): boolean => Object.hasOwn(view.tickets, id) || Object.hasOwn(view.defaultRef?.snapshot.tickets ?? {}, id);
+  const unknown = ids.filter((id) => !known(id));
+  if (unknown.length > 0) {
+    throw new UsageError('--related names ' + unknown.join(', ') + ', which is no ticket in this clone or on its default branch - nothing was written');
+  }
+}
+
+/**
+ * ST-LN-22 D-08: prints up to five `similar:` lines, or `similar: none`. With candidates and no `--related` it then refuses, so the
+ * session judges them and runs the command again; with `--related` the lines stay in the output as the record of what was judged.
+ */
+function checkSimilar(view: Snapshot, request: string, out: CommandContext['stdout'], judged: boolean): void {
+  const found = similarTickets(request, ticketFacts(view));
   if (found.length === 0) {
-    ctx.stdout.write('similar: none\n');
+    out.write('similar: none\n');
     return;
   }
-  for (const t of found) ctx.stdout.write('similar: ' + t.id + ' "' + printable(t.title) + '" (' + t.status + ')\n');
+  for (const t of found) out.write('similar: ' + t.id + ' "' + printable(t.title) + '" (' + t.status + ')\n');
+  if (judged) return;
   throw new UsageError(
     'judge the similar tickets above, then run this command again with --related <id>[,<id>] for the ones this request continues or builds on, or --related none - nothing was written',
   );

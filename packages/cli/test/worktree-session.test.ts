@@ -8,7 +8,7 @@ import { worksTicket } from '../src/commands/worktree.js';
 import { nextLine } from '../src/commands/next-action.js';
 import * as proc from '../src/load/proc.js';
 import { cleanup, commitMsg, gitRun, run } from './helpers/repo.js';
-import { A, A2, B, C, C3, clearOf, clone, copy, DEAD, doneOnRemote, envOf, HELD, heldBy, holdsFile, lines, LIVE, mergeOnRemote, PIN, pinnedWorktree, readHolds, setTable, stopBlock, T, tableOf, ticketWorktree, useSandboxes, verifyStage, WORKS, writeHolds } from './helpers/worktree.js';
+import { A, A2, B, C, C3, clearOf, clone, copy, DEAD, doneOnRemote, envOf, HELD, heldBy, holdsFile, lines, LIVE, mergeOnRemote, PIN, pinnedWorktree, readHolds, setTable, stopBlock, T, tableOf, ticketWorktree, useSandboxes, verifyStage, withAction, WORKS, writeHolds } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -495,8 +495,8 @@ it('risk:data-loss clean keeps a merged worktree this session holds when run fro
   vi.mocked(proc.processTable).mockClear();
   const { code, out } = await run(['worktree', 'clean'], c.root, envOf(A));
   expect(code).toBe(0);
-  expect(lines(out)).toContain(`kept ${c.sibling('ST-9')}: this session's worktree`);
-  expect(lines(out)).toContain('kept t/ST-9: checked out in ' + c.sibling('ST-9'));
+  expect(lines(out)).toContain(withAction(`kept ${c.sibling('ST-9')}: this session's worktree`));
+  expect(lines(out)).toContain(withAction('kept t/ST-9: checked out in ' + c.sibling('ST-9')));
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
   expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
   expect(proc.processTable).not.toHaveBeenCalled();
@@ -572,7 +572,7 @@ it('risk:data-loss clean removes a held done worktree and its hold and keeps the
   setTable(tableOf(B));
   const cl = await run(['worktree', 'clean'], c.root, envOf(B));
   expect(cl.code).toBe(0);
-  expect(cl.out).toContain(`removed ${sib}`);
+  expect(cl.out).toContain(withAction(`removed ${sib}`));
   expect(existsSync(sib)).toBe(false);
   expect(Object.hasOwn(readHolds(c), 'ST-9')).toBe(false);
   expect(worked()).toBe('ST-9\tsess-A\n');

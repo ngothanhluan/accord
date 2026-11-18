@@ -14,7 +14,7 @@ import { cleanup, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, mergeMsg, run,
 import { buildSample, oneTicketFrom, prepareSamples, SAMPLE_BUILD_LIMIT, samples, TWENTY, TWENTY_BUILD_LIMIT } from './helpers/samples.js';
 import type { Sample } from './helpers/samples.js';
 import type { Clone } from './helpers/worktree.js';
-import { copyClone, makeClone, makeTemplate } from './helpers/worktree.js';
+import { copyClone, makeClone, makeTemplate, withAction } from './helpers/worktree.js';
 
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 
@@ -762,7 +762,7 @@ it('risk:complex-branching pick-up and new ticket worktree reuse the worktree li
     const w = copy.worktree('A-12');
     const r = await counted(['worktree', 'open', 'A-1'], copy.root);
     expect(r.code).toBe(0);
-    expect(slashes(r.out)).toContain(`removed ${slashes(w)}\n`);
+    expect(slashes(r.out)).toContain(`${withAction(`removed ${slashes(w)}`)}\n`);
     expect(slashes(r.out)).toContain(`stop: open a session in this folder and type the line below it\n${slashes(copy.root)}-a-1\n/accord-continue A-1\n`);
     const removed = r.argv.findIndex((a) => a[0] === 'worktree' && a[1] === 'remove');
     const lists = r.argv.map((a, i) => (isListRead(a) ? i : -1)).filter((i) => i >= 0);

@@ -6,7 +6,7 @@ import { pinBefore, RULESET_FROM, setFrontmatterKey } from '@accord-dev/accord-c
 import { nextLine } from '../src/commands/next-action.js';
 import { laneTicket, RUNNING } from '../../../test/helpers/lane.js';
 import { gitRun, run, writeFiles } from './helpers/repo.js';
-import { A, clone, clones, type Clone, copy, copyClone, doneOnRemote, dropOnRemote, entries, envOf, has, lines, ME, mergeOnRemote, pushedWork, pushNext, setTable, sha, stopBlock, stopLines, tableOf, teammate, ticketBranch, ticketWorktree, useSandboxes } from './helpers/worktree.js';
+import { A, clone, clones, copy, copyClone, doneOnRemote, dropOnRemote, entries, envOf, has, lines, ME, mergeOnRemote, pushedWork, pushNext, setTable, sha, stopBlock, stopLines, tableOf, teammate, ticketBranch, ticketWorktree, useSandboxes, withAction, type Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -515,9 +515,9 @@ it('ac-5 clean pick up continue and a new worktree ticket remove the worktree an
     const r = await run(row.argv, c.root);
     expect(r.code, row.name + r.out).toBe(0);
     const l = lines(r.out);
-    expect(l, row.name).toContain(`removed ${sib9}`);
-    expect(l, row.name).toContain(`deleted t/ST-9 (was ${tip})`);
-    expect(l, row.name).toContain(`deleted origin/t/ST-9 (was ${tip})`);
+    expect(l, row.name).toContain(withAction(`removed ${sib9}`));
+    expect(l, row.name).toContain(withAction(`deleted t/ST-9 (was ${tip})`));
+    expect(l, row.name).toContain(withAction(`deleted origin/t/ST-9 (was ${tip})`));
     expect(existsSync(sib9), row.name).toBe(false);
     expect(has(c.root, 'refs/heads/t/ST-9'), row.name).toBe(false);
     expect(has(c.remote, 'refs/heads/t/ST-9'), row.name).toBe(false);
@@ -559,7 +559,7 @@ it('ac-2 a merged branch whose remote branch is gone is deleted from another tic
   expect(() => c.git('merge-base', '--is-ancestor', sha9, 'HEAD')).toThrow();
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${sha9})`]);
+  expect(lines(out)).toEqual([withAction(`deleted t/ST-9 (was ${sha9})`)]);
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
   expect(sha(c, 'main')).toBe(mainBefore);
   expect(c.git('branch', '--show-current').trim()).toBe('t/ST-20');
@@ -590,7 +590,7 @@ it('risk:data-loss a merged branch the ticket branch template does not name and 
   doneOnRemote(c, ['ST-9']);
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${base})`]);
+  expect(lines(out)).toEqual([withAction(`deleted t/ST-9 (was ${base})`)]);
   expect(sha(c, 'notes/keep')).toBe(base);
   expect(sha(c, 'main')).toBe(base);
 });
@@ -609,7 +609,7 @@ it('risk:complex-branching a branch git refuses to delete is kept with git messa
   expect(l).toHaveLength(2);
   expect(l[0].startsWith('kept t/ST-1: could not be judged: ')).toBe(true);
   expect(l[0].length).toBeGreaterThan('kept t/ST-1: could not be judged: '.length);
-  expect(l[1]).toBe(`deleted t/ST-2 (was ${base})`);
+  expect(l[1]).toBe(withAction(`deleted t/ST-2 (was ${base})`));
   expect(sha(c, 't/ST-1')).toBe(base);
 });
 
@@ -648,7 +648,7 @@ it('ac-4 stale remote refs are pruned after a good fetch and a failed fetch prun
   const l = lines(bad.out);
   expect(l).toHaveLength(2);
   expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
-  expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
+  expect(l[1]).toBe(withAction(`deleted t/ST-9 (was ${tip})`));
   const r2 = d.git('branch', '-r');
   expect(r2).toContain('origin/t/ST-9');
   expect(r2).toContain('origin/backlog/notes');

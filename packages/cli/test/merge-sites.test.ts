@@ -10,7 +10,7 @@ import { readHistory } from '../src/load/record-history.js';
 import { roundFactsFor } from '../src/load/round-facts.js';
 import { readWalk } from '../src/load/walk.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { claimWorktree, type Clone, copy, doneOnRemote, dropOnRemote, has, lines, ME, stopBlock, teammate, ticketWorktree, useSandboxes } from './helpers/worktree.js';
+import { claimWorktree, copy, doneOnRemote, dropOnRemote, has, lines, ME, stopBlock, teammate, ticketWorktree, useSandboxes, withAction, type Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -200,7 +200,7 @@ it("risk:data-loss S16 a dropped ticket's squash-merged branch stays a cleanup c
   const clean = squashed('ST-10');
   const a = await run(['worktree', 'clean'], clean.c.root);
   expect(a.code).toBe(0);
-  expect(lines(a.out)).toEqual([`removed ${clean.c.sibling('ST-10')}`, `deleted origin/t/ST-10 (was ${clean.tip})`, `deleted t/ST-10 (was ${clean.tip})`]);
+  expect(lines(a.out)).toEqual([withAction(`removed ${clean.c.sibling('ST-10')}`), withAction(`deleted origin/t/ST-10 (was ${clean.tip})`), withAction(`deleted t/ST-10 (was ${clean.tip})`)]);
   expect(has(clean.c.root, 'refs/heads/t/ST-10')).toBe(false);
   // a commit on the local branch that origin lacks: the drop guard keeps it, so the squash did not make it look merged
   const guarded = squashed('ST-10');
@@ -208,7 +208,7 @@ it("risk:data-loss S16 a dropped ticket's squash-merged branch stays a cleanup c
   const more = commitMsg(guarded.c.sibling('ST-10'), 'unpushed');
   const b = await run(['worktree', 'clean'], guarded.c.root);
   expect(b.code).toBe(0);
-  expect(lines(b.out)).toEqual(['kept t/ST-10: 1 commits not on origin']);
+  expect(lines(b.out)).toEqual([withAction('kept t/ST-10: 1 commits not on origin')]);
   expect(existsSync(guarded.c.sibling('ST-10'))).toBe(true);
   expect(guarded.c.git('rev-parse', 'refs/heads/t/ST-10').trim()).toBe(more);
 }, 120_000);

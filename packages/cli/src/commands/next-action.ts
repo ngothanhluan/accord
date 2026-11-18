@@ -71,6 +71,25 @@ export function withNext(kind: LineKind, line: string): string {
   return `${line} - ${nextLine(kind)}`;
 }
 
+/** The kind of a line of `accord worktree clean`, from its own prefix; undefined for a line that is none of them (a `pruned refs/...` line, a `prune of origin failed` line). */
+function cleanKind(text: string): LineKind | undefined {
+  if (text.startsWith('removed ')) return 'removed';
+  if (text.startsWith('deleted ')) return 'deleted';
+  if (text.startsWith('kept ')) return 'kept';
+  if (text.startsWith('note ')) return 'note';
+  if (text.startsWith('clean failed')) return 'clean-failed';
+  if (text.startsWith('clean skipped')) return 'clean-skipped';
+  if (text.startsWith('clean stopped')) return 'clean-stopped';
+  if (text.startsWith('fetch from origin failed')) return 'fetch-failed';
+  return undefined;
+}
+
+/** A clean line with its next action at the end of its first line; a line of no clean kind stays as it is. */
+export function cleanLine(text: string): string {
+  const kind = cleanKind(text);
+  return kind === undefined ? text : withNextOnFirst(kind, text);
+}
+
 /** `text` with ` - next: <action>` at the end of its first line; the lines after it (a path, git's message, a ready-to-copy command) stay as they were. */
 export function withNextOnFirst(kind: LineKind, text: string): string {
   const cut = text.indexOf('\n');

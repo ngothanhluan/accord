@@ -1,6 +1,7 @@
 // ST-LN-28 D-13: the epic's Vetoes and Decisions reach a story as CLI-built input, read from the default branch.
 import { describe, expect, it } from 'vitest';
 import { anchorText, epicBlock, loadSnapshot } from '../src/index.js';
+import { parseLedger } from '../src/load/work.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 import type { RepoSnapshot } from '../src/index.js';
 
@@ -19,6 +20,8 @@ const D1 = '- D-01 One cart — "one cart per user"';
 const D2 = '- D-02 Guest checkout stays — "guests must be able to pay"';
 const BLOCK = (decisions: string[]): string =>
   ['## Epic E-1 "Checkout epic"', '### Vetoes', ...VETOES, '### Decisions', ...decisions, '### Epic lessons', '(none)'].join('\n');
+
+const BLOCK_NONE = ['## Epic E-1 "Checkout epic"', '### Vetoes', '(none)', '### Decisions', '(none)', '### Epic lessons', '(none)'].join('\n');
 
 /** The working tree holds `tree` and the default branch holds `def`. */
 function withDefault(tree: Record<string, string>, def: Record<string, string>): RepoSnapshot {
@@ -58,8 +61,44 @@ describe('epicBlock', () => {
 
   it('ac-8 an epic with empty sections prints none under each (ST-LN-28 7-ac-8)', () => {
     const files = { 'accord/config.yml': CONFIG, [P('E-1')]: epic('E-1'), [P('S-1')]: story('S-1', 'E-1') };
-    expect(epicBlock(snap(files), 'S-1')).toBe(
-      ['## Epic E-1 "Checkout epic"', '### Vetoes', '(none)', '### Decisions', '(none)', '### Epic lessons', '(none)'].join('\n'),
-    );
+    expect(epicBlock(snap(files), 'S-1')).toBe(BLOCK_NONE);
+  });
+});
+
+/** A story's ledger file as a story writes it at verify: the lesson lines under `## Epic lessons`. */
+const ledgerOf = (id: string, lines: string[]): Record<string, string> => ({
+  ['accord/tickets/' + id + '/ledger.md']: ['## Rulings', '- none', '', '## Epic lessons', '<!-- one per line -->', ...lines, '', '## Deferred', ''].join('\n'),
+});
+const lesson = (what: string): string => `- Lesson: ${what} — "owner words about ${what}"`;
+
+describe('epic lessons', () => {
+  it('ac-10 parseLedger returns the epic lessons in order and none without the section (ST-LN-28 7-ac-10)', () => {
+    const text = ['## Rulings', '- Lesson: not here — "x"', '', '## Epic lessons', '<!-- a comment -->', lesson('one'), '', lesson('two'), '', '## Deferred', lesson('three')].join('\n');
+    expect(parseLedger('l.md', text).epicLessons).toEqual([lesson('one'), lesson('two')]);
+    expect('epicLessons' in parseLedger('l.md', '## Rulings\n- Ruling: x\n')).toBe(false);
+    expect('epicLessons' in parseLedger('l.md', '## Epic lessons\n<!-- nothing -->\n\n')).toBe(false);
+  });
+
+  it('ac-10 epicBlock lists the siblings lessons from the default branch by id then ledger order (ST-LN-28 7-ac-10)', () => {
+    const base = { 'accord/config.yml': CONFIG, [P('E-1')]: epic('E-1'), [P('S-1')]: story('S-1', 'E-1') };
+    const tree = { ...base, [P('S-2')]: story('S-2', 'E-1'), [P('S-10')]: story('S-10', 'E-1') };
+    // the story's own ledger on the default branch, a ticket of another parent and a ticket with no parent are never read
+    const def = {
+      ...tree,
+      ...ledgerOf('S-10', [lesson('ten')]),
+      ...ledgerOf('S-2', [lesson('two a'), lesson('two b')]),
+      ...ledgerOf('S-1', [lesson('mine')]),
+      [P('T-1')]: story('T-1', 'E-2'),
+      ...ledgerOf('T-1', [lesson('other epic')]),
+    };
+    const block = epicBlock(withDefault(tree, def), 'S-1') ?? '';
+    expect(block.endsWith(['### Epic lessons', '- S-2: ' + lesson('two a'), '- S-2: ' + lesson('two b'), '- S-10: ' + lesson('ten')].join('\n'))).toBe(true);
+    expect(block).not.toContain('mine');
+    expect(block).not.toContain('other epic');
+    // a lesson only in the working tree (an unmerged sibling branch, or this branch's copy) is not shown
+    const local = { ...tree, ...ledgerOf('S-2', [lesson('unmerged')]) };
+    expect(epicBlock(withDefault(local, tree), 'S-1')).toBe(BLOCK_NONE);
+    // no default branch read: nothing is shown
+    expect(epicBlock(snap(local), 'S-1')).toBe(BLOCK_NONE);
   });
 });

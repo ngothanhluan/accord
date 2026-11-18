@@ -1,6 +1,6 @@
 // ST-LN-28 D-13: the epic's Vetoes and Decisions reach a story's anchor and the SubagentStart hook, built by the CLI from the default branch.
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, gitRun, makeLaneRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
 
 const VETOES = ['- No new dependency.', '- No emoji.'];
@@ -114,5 +114,62 @@ describe('accord hook subagent-start and the epic', () => {
     expect(lost.context).toBe(alone);
     expect(lost.err.trimEnd().split(/\r?\n/)).toHaveLength(1);
     expect(lost.err).toContain('accord hook subagent-start');
+  });
+});
+
+const ROLES = ['accord-scout', 'accord-planner', 'accord-critic', 'accord-reviewer', 'accord-final-reviewer'];
+const L1 = '- Lesson: keep CSV columns stable — "keep the CSV columns stable"';
+const L3A = '- Lesson: quote every field — "always quote"';
+const L3B = '- Lesson: sort by id — "ids in order"';
+const ledger = (lines: string[]): string => ['## Rulings', '(none)', '', '## Epic lessons', ...lines, ''].join('\n');
+/** The block with its `### Epic lessons` part holding `lines`. */
+const WITH_LESSONS = (lines: string[]): string => [...BLOCK([D1, D2]).split('\n').slice(0, -1), ...lines].join('\n');
+
+describe('lessons across the stories of an epic', () => {
+  it('ac-10 a lesson from one story reaches its sibling once that story is on the default branch (ST-LN-28 7-ac-10)', async () => {
+    const story = (id: string): string => laneTicket(id, { frontmatter: ['parent: "E-1"'] });
+    const repo = makeLaneRepo({
+      'accord/tickets/E-1.md': epic('E-1', [D1, D2]),
+      'accord/tickets/S-1.md': story('S-1'),
+      'accord/tickets/S-2.md': story('S-2'),
+      'accord/tickets/S-3.md': story('S-3'),
+    });
+    repos.push(repo);
+    commitAll(repo, 'main');
+    const trunk = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    const second = repo + '-s-2';
+    const first = repo + '-s-1';
+    repos.push(second, first);
+    gitRun(repo, 'worktree', 'add', '-q', '-b', 't/S-2', second);
+    gitRun(repo, 'worktree', 'add', '-q', '-b', 't/S-1', first);
+    // S-1 records its lesson in its own ledger, on its own branch: the only path that commit changes
+    writeFiles(first, { 'accord/tickets/S-1/ledger.md': ledger([L1]) });
+    commitAll(first, 'S-1 lesson');
+    expect(gitRun(repo, 'diff', '--name-only', trunk + '...t/S-1').trim().split(/\r?\n/)).toEqual(['accord/tickets/S-1/ledger.md']);
+
+    const contextOf = async (agent: string): Promise<string> => {
+      const r = await run(['hook', 'subagent-start'], repo, {}, JSON.stringify({ hook_event_name: 'SubagentStart', agent_type: agent, cwd: second }));
+      expect(r.code).toBe(0);
+      return (JSON.parse(r.out) as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput.additionalContext;
+    };
+
+    // before the merge: nothing under Epic lessons, in the anchor and in the hook context
+    const before = await run(['anchor'], second);
+    expect(before.out).toContain('\n\n' + WITH_LESSONS(['(none)']) + '\n\n## Rulings');
+    expect((await contextOf('accord-planner')).endsWith(BLOCK([D1, D2]))).toBe(true);
+
+    // S-1's branch is merged, and S-3, which reached the default branch with two lessons, joins it
+    mergeMsg(repo, 't/S-1', 'merge S-1');
+    writeFiles(repo, { 'accord/tickets/S-3/ledger.md': ledger([L3A, L3B]) });
+    commitAll(repo, 'S-3 lessons');
+
+    const lines = [`- S-1: ${L1}`, `- S-3: ${L3A}`, `- S-3: ${L3B}`];
+    const after = await run(['anchor'], second);
+    expect(after.code).toBe(0);
+    expect(after.out).toContain('\n\n' + WITH_LESSONS(lines) + '\n\n## Rulings');
+    for (const agent of ROLES) expect((await contextOf(agent)).endsWith(WITH_LESSONS(lines)), agent).toBe(true);
+    // the other roles keep the ruleset alone; a ticket with no parent is unchanged
+    expect((await contextOf('accord-executor')).includes('Epic lessons')).toBe(false);
+    expect((await run(['anchor', 'T-1'], repo)).out).not.toContain('Epic lessons');
   });
 });

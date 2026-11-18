@@ -1513,7 +1513,7 @@ const CLEAN_PREFIXES = ['refs/heads/backlog/', 'refs/heads/fix/', 'refs/heads/re
 /**
  * ST-LN-87 D-19: the local `backlog/*`, `fix/*` and `release/*` branches that are on `ref` or whose merge into it would change nothing (a squash or
  * rebase merge) are deleted, and the worktree that has one checked out goes first, through the guards every worktree removal passes. A branch with
- * commits `ref` lacks, or a conflicting or unclear one, is kept and named. A ticket's own branch belongs to the phases above, and no remote branch
+ * commits `ref` lacks, a conflicting or unclear one, and one whose tip is on `ref`'s first-parent history (cut from it, no commit of its own yet; WR-01 of the phase 7 review) is kept and named. A ticket's own branch belongs to the phases above, and no remote branch
  * is ever touched: `ref` is origin's default, and what a host deletes after a merge is its own setting.
  */
 function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: ReadonlySet<string>): void {
@@ -1532,7 +1532,14 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
     const args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
     return gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
   };
+  // 07-review WR-01: a tip on ref's first-parent history is a branch cut from ref with no commit of its own yet (a branch merged through a merge commit has its tip only through a second parent)
+  let spine: Set<string> | undefined;
+  const fresh = (tip: string): boolean => {
+    spine ??= new Set(git(ctx.root, ['rev-list', '--first-parent', ref]).split('\n').map((l) => l.trim().toLowerCase()));
+    return spine.has(tip.toLowerCase());
+  };
   const why = (tip: string, set?: ReadonlySet<string>): string | undefined => {
+    if (fresh(tip)) return 'it has no commit of its own';
     const v = safeTip(ctx.root, tip, undefined, ref, set);
     if (v === 'safe') return undefined;
     return v === 'conflict' ? `merging it into ${def} conflicts` : `it has commits ${def} lacks`;

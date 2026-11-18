@@ -1368,8 +1368,7 @@ it('ac-12 the clean keeps a fresh branch with no commit of its own, and its work
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(lines(out)).toEqual(expect.arrayContaining([withAction('kept release/0.8.0: it has no commit of its own'), withAction('kept fix/old: it has no commit of its own')]));
-  expect(out).not.toContain('deleted');
-  expect(out).not.toContain('removed');
+  expect(lines(out).filter((l) => /^(deleted|removed) /.test(l))).toEqual([]);
   for (const n of ['release/0.8.0', 'fix/old']) expect(has(c.root, `refs/heads/${n}`), n).toBe(true);
   expect(sha(c, 'refs/heads/release/0.8.0')).toBe(at.rel);
   expect(sha(c, 'refs/heads/fix/old')).toBe(at.fix);

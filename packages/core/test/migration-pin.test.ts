@@ -401,3 +401,17 @@ it('D-08b the title cut-off is read only through claimPinBefore (ST-LN-22 D-08b)
   const ready = readFileSync(join(REPO_ROOT, 'packages/core/src/gate/ready.ts'), 'utf8').split(/\r?\n/);
   expect(ready.some((line) => !isComment(line) && line.includes('claimPinBefore(snapshot, id, TITLE_RULE_FROM)'))).toBe(true);
 });
+
+it('D-08b the title cut-off is read only through claimPinBefore or rulesetFrom (ST-LN-22 D-08b)', () => {
+  // lint has no claim fact, so it reads the ticket's own ruleset through rulesetFrom( ; a Phase 7 cut-off inside that call is allowed as inside claimPinBefore(
+  expect(cutOffOffences('  .filter((t) => rulesetFrom(t, TITLE_RULE_FROM))', 'packages/core/src/lint/x.ts')).toEqual([]);
+  expect(cutOffOffences('  if (rulesetFrom(t, TITLE_RULE_FROM) && titleProblem(t.title, c)) return [];', 'packages/core/src/lint/x.ts')).toEqual([]);
+  // outside both calls it is still an offence, and so is an earlier cut-off inside rulesetFrom( (that call is for the Phase 7 cut-offs only)
+  expect(cutOffOffences('  if (TITLE_RULE_FROM > pin) return;', 'packages/core/src/lint/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (rulesetFrom(t, 1) || pinBefore(TITLE_RULE_FROM, pin)) return;', 'packages/core/src/lint/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  .filter((t) => rulesetFrom(t, SECURITY_TRIGGER_FROM))', 'packages/core/src/lint/x.ts')).toHaveLength(1);
+  // lint.ticket-title reads the cut-off through rulesetFrom( and nothing else
+  const lint = readFileSync(join(REPO_ROOT, 'packages/core/src/lint/ticket.ts'), 'utf8').split(/\r?\n/);
+  expect(lint.some((line) => !isComment(line) && line.includes('rulesetFrom(t, TITLE_RULE_FROM)'))).toBe(true);
+  expect(lint.filter((line) => !isComment(line) && line.includes('TITLE_RULE_FROM') && !/^import\s/.test(line.trim()) && !line.includes('rulesetFrom(t, TITLE_RULE_FROM)'))).toEqual([]);
+});

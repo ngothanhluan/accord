@@ -1,7 +1,7 @@
 // ST-LN-22 D-08b: a ticket's title follows a rule that lives in config.yml (English, business language, a maximum
 // length). The check is pure and deterministic: length, letters and the template's placeholder, never a model call.
 import { describe, expect, it } from 'vitest';
-import { gateReady, loadSnapshot, OVERRIDABLE, TITLE_RULE_FROM, titleProblem, titleRuleLine } from '../src/index.js';
+import { gateReady, lintSnapshot, loadSnapshot, OVERRIDABLE, TITLE_RULE_FROM, titleProblem, titleRuleLine } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
@@ -69,5 +69,35 @@ describe('gate ready and the title rule', () => {
     expect(titleFindings(ticketWith(LONG, { error: 'git failed' }))).toHaveLength(1);
     // a team may lower it
     expect(OVERRIDABLE).toContain('gate.ticket-title');
+  });
+});
+
+/** A lane M ticket T-1 titled `title` whose frontmatter `ruleset` is `ruleset` (absent: none), through the whole lint. */
+function lintTitle(title: string, ruleset?: string) {
+  const files: Record<string, string> = {
+    'accord/config.yml': CONFIG,
+    'accord/tickets/T-1.md': laneTicket('T-1', { frontmatter: ruleset === undefined ? [] : [`ruleset: "${ruleset}"`] }).replace('title: "Export"', `title: "${title}"`),
+  };
+  return lintSnapshot(loadSnapshot({ files, tree: Object.keys(files).sort() })).findings.filter((f) => f.rule === 'lint.ticket-title');
+}
+
+describe('lint and the title rule', () => {
+  it('D-08b lint judges only titles of tickets at or after the cut-off (ST-LN-22 D-08b)', () => {
+    // a ticket whose ruleset is the cut-off: the placeholder is an error on /title, with the reason and the rule line
+    const found = lintTitle('Short title in business language', TITLE_RULE_FROM);
+    expect(found).toHaveLength(1);
+    expect(found[0].level).toBe('error');
+    expect(found[0].file).toBe('accord/tickets/T-1.md');
+    expect(found[0].pointer).toBe('/title');
+    expect(found[0].reason).toContain('placeholder');
+    expect(found[0].reason.endsWith(titleRuleLine(undefined))).toBe(true);
+    expect(lintTitle('x'.repeat(120), TITLE_RULE_FROM)[0].reason).toContain('120 characters, more than 80');
+    expect(lintTitle('Export reports to CSV', TITLE_RULE_FROM)).toEqual([]);
+    // an older ruleset or none (every ticket that exists when the rule ships): not judged, whatever the title
+    expect(lintTitle('Short title in business language', '0.7.1')).toEqual([]);
+    expect(lintTitle('Short title in business language')).toEqual([]);
+    expect(lintTitle('x'.repeat(120), '0.5.0')).toEqual([]);
+    // a team may lower it
+    expect(OVERRIDABLE).toContain('lint.ticket-title');
   });
 });

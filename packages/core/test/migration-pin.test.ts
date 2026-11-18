@@ -284,15 +284,24 @@ const LITERAL = new RegExp('([\'"`])(?:' + RELEASES.map((v) => v.replaceAll('.',
 const PHASE_NAMES = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7)];
 const isComment = (line: string): boolean => /^(\/\/|\*|\/\*)/.test(line.trim());
 
-/** Every index of `name` (a whole word) on `line` that does not sit between the parentheses of a `claimPinBefore(` call on the same line. */
+/** True when index `at` of `line` sits between the parentheses of a `<fn>(` call on the same line. */
+function insideCall(line: string, fn: string, at: number): boolean {
+  const call = line.lastIndexOf(fn + '(', at);
+  if (call < 0) return false;
+  let depth = 0;
+  for (let i = call + fn.length; i < at; i++) depth += line[i] === '(' ? 1 : line[i] === ')' ? -1 : 0;
+  return depth > 0;
+}
+
+/**
+ * Every index of `name` (a whole word) on `line` that does not sit between the parentheses of a `claimPinBefore(` call on the same line. ST-LN-22 D-08b: a Phase 7 cut-off may also sit inside a
+ * `rulesetFrom(` call (lint reads the ticket's own ruleset there, having no claim fact); an earlier phase's cut-off may not.
+ */
 function outsideClaimPinBefore(line: string, name: string): number[] {
   const out: number[] = [];
+  const calls = Object.hasOwn(PHASE7, name) ? ['claimPinBefore', 'rulesetFrom'] : ['claimPinBefore'];
   for (const m of line.matchAll(new RegExp(`\\b${name}\\b`, 'g'))) {
-    const at = m.index;
-    const call = line.lastIndexOf('claimPinBefore(', at);
-    let depth = 0;
-    if (call >= 0) for (let i = call + 'claimPinBefore'.length; i < at; i++) depth += line[i] === '(' ? 1 : line[i] === ')' ? -1 : 0;
-    if (depth <= 0) out.push(at);
+    if (!calls.some((fn) => insideCall(line, fn, m.index))) out.push(m.index);
   }
   return out;
 }
@@ -408,7 +417,7 @@ it('D-08b the title cut-off is read only through claimPinBefore or rulesetFrom (
   expect(cutOffOffences('  if (rulesetFrom(t, TITLE_RULE_FROM) && titleProblem(t.title, c)) return [];', 'packages/core/src/lint/x.ts')).toEqual([]);
   // outside both calls it is still an offence, and so is an earlier cut-off inside rulesetFrom( (that call is for the Phase 7 cut-offs only)
   expect(cutOffOffences('  if (TITLE_RULE_FROM > pin) return;', 'packages/core/src/lint/x.ts')).toHaveLength(1);
-  expect(cutOffOffences('  if (rulesetFrom(t, 1) || pinBefore(TITLE_RULE_FROM, pin)) return;', 'packages/core/src/lint/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (rulesetFrom(t, 1)) return pinBefore(TITLE_RULE_FROM, pin);', 'packages/core/src/lint/x.ts')).toHaveLength(1);
   expect(cutOffOffences('  .filter((t) => rulesetFrom(t, SECURITY_TRIGGER_FROM))', 'packages/core/src/lint/x.ts')).toHaveLength(1);
   // lint.ticket-title reads the cut-off through rulesetFrom( and nothing else
   const lint = readFileSync(join(REPO_ROOT, 'packages/core/src/lint/ticket.ts'), 'utf8').split(/\r?\n/);

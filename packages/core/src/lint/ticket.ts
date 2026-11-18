@@ -1,6 +1,8 @@
 // D-34 id verbatim: rules over ticket frontmatter. Levels live in rules.ts (D-57); no line, pointer only.
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
 import type { Line, RepoSnapshot, Section, Ticket, TicketFrontmatter } from '../model/snapshot.js';
+import { rulesetFrom, TITLE_RULE_FROM } from '../round/pin.js';
+import { titleProblem, titleRuleLine } from '../tickets/title.js';
 import type { Draft, Rule } from './rules.js';
 
 /** `frontmatter.id` must equal the file stem, case-sensitively (D-34, T-03-07); skipped without frontmatter (D-32). */
@@ -12,6 +14,18 @@ export const idMismatch: Rule['check'] = (snapshot) =>
       pointer: '/id',
       reason: `frontmatter id "${t.frontmatter?.id}" differs from the file name "${t.id}"`,
     }));
+
+/**
+ * ST-LN-22 D-08b: a ticket whose `ruleset` is TITLE_RULE_FROM or later (created in its worktree, or claimed, under the release that ships the rule) keeps the title rule that
+ * `accord new ticket` prints and checks at creation. A ticket with an older ruleset or none is not judged: no ticket that exists when the rule ships is refused for its title.
+ */
+export const ticketTitle: Rule['check'] = (snapshot) =>
+  typed(snapshot)
+    .filter((t) => rulesetFrom(t, TITLE_RULE_FROM))
+    .flatMap((t) => {
+      const problem = titleProblem(t.frontmatter.title, snapshot.config);
+      return problem === undefined ? [] : [{ file: t.file, pointer: '/title', reason: `${problem}; ${titleRuleLine(snapshot.config)}` }];
+    });
 
 // D-71 required headings by type; `## Verification notes` is never required.
 export const REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {

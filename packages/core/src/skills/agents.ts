@@ -27,7 +27,12 @@ export const AGENT_DEFAULTS: Record<RouteKey, { model: string; effort: Effort }>
 
 // ST-LN-80: files accord rendered before and no longer renders. `skills sync` and `accord upgrade` remove one when its
 // marker is intact; an edited copy stays.
-export const RETIRED_FILES: readonly string[] = [agentDir + '/accord-architect.md'];
+// Phase 7 (07-01): the accord skill stopped loading these reference files; the stage skills still render their own.
+const RETIRED_ACCORD_REFS = ['finish', 'lane', 'lane-r', 'lane-s', 'scout', 'security', 'upgrade'];
+export const RETIRED_FILES: readonly string[] = [
+  agentDir + '/accord-architect.md',
+  ...['.claude/skills', '.agents/skills'].flatMap((dir) => RETIRED_ACCORD_REFS.map((name) => dir + '/accord/' + name + '.md')),
+];
 
 /** True for a copy accord rendered that nobody edited: its marker hash equals the hash of the text around it. */
 export function isIntactRender(text: string): boolean {

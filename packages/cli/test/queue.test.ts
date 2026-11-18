@@ -1,7 +1,7 @@
 // ST-LN-83 D-03, D-06: `accord new ticket --queue` writes a draft on a backlog branch off origin's default branch in a
 // temporary worktree, so a session that works one ticket can queue an idea without touching that ticket. Real git in
 // tmp sandboxes with a bare origin; nothing here reaches the real origin.
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { expect, it, vi } from 'vitest';
 import { gitRun, run } from './helpers/repo.js';
@@ -160,3 +160,32 @@ it('ac-4 queue merge follows config (ST-LN-83 7-ac-4)', async () => {
   expect(third.code, third.err).toBe(0);
   expect(mergeLine(third.out)).toBe('merge: at-once');
 }, 180_000);
+
+it('risk:data-loss queue prunes no worktree whose folder is missing and whose detached HEAD is on no branch (ST-LN-83 7-ac-4)', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  // an agent folder with a commit on a detached HEAD, then deleted by hand: git lists it as prunable, and the commit is held by nothing else
+  const lost = `${c.root}/.claude/worktrees/agent-1`;
+  c.git('worktree', 'add', '-q', '--detach', lost, 'main');
+  writeFileSync(`${lost}/lost.txt`, 'lost\n');
+  gitRun(lost, 'add', '-A');
+  gitRun(lost, 'commit', '-q', '-m', 'work on a detached HEAD');
+  const head = gitRun(lost, 'rev-parse', 'HEAD').trim();
+  rmSync(lost, { recursive: true, force: true });
+  const listed = (): string => gitRun(c.root, 'worktree', 'list', '--porcelain');
+  expect(listed()).toContain(`HEAD ${head}`);
+
+  for (const args of [
+    ['new', 'ticket', 'Q-2', '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'one line'],
+    ['new', 'ticket', 'Q-3', '--queue', '--lane', 'M', '--title', 'Note another idea', '--note', 'one line'],
+  ]) {
+    const r = await run(args, c.root, {});
+    expect(r.code, r.err).toBe(0);
+    // the registration, and so the only ref to the commit, is still there
+    expect(listed()).toContain(`HEAD ${head}`);
+    expect(listed()).toContain('prunable');
+    expect(existsSync(`${c.root}/.git/worktrees/agent-1`)).toBe(true);
+  }
+  expect(gitRun(c.root, 'cat-file', '-t', head).trim()).toBe('commit');
+  // the queue's own temporary worktree is gone, and only the entry it made
+  expect(listed()).not.toContain('accord-queue-');
+});

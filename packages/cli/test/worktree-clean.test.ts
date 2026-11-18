@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as limit from '../src/commands/fetch-limit.js';
+import { nextLine } from '../src/commands/next-action.js';
 import * as proc from '../src/load/proc.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
 import { ALIVE, exclude, forget, gone, link, listing, recorded, runWhole } from './helpers/done.js';
@@ -171,7 +172,7 @@ it('risk:complex-branching clean prunes a worktree whose folder was deleted by h
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(lines(out)).toEqual([
-    `pruned ${c.sibling('ST-9')}: ${reason}`,
+    `pruned ${c.sibling('ST-9')}: ${reason} - ${nextLine('pruned')}`,
     `removed ${c.sibling('ST-10')}`,
     `deleted t/ST-10 (was ${base})`,
     `deleted t/ST-9 (was ${base})`,

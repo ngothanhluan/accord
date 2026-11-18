@@ -9,6 +9,7 @@ import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
+import { nextLine, withNext } from './next-action.js';
 import { disposableNames, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
 import { runTeamCommand } from '../load/team-run.js';
@@ -97,7 +98,7 @@ export function worktrees(root: string, out: NodeJS.WritableStream, judged?: Set
   if (held.length === 0) {
     git(root, ['worktree', 'prune']);
     list = listWorktrees(root);
-    for (const w of stale) if (!list.some((x) => x.path === w.path)) out.write(`pruned ${w.path}: ${w.prunable}\n`);
+    for (const w of stale) if (!list.some((x) => x.path === w.path)) out.write(withNext('pruned', `pruned ${w.path}: ${w.prunable}`) + '\n');
     return list.filter((w) => w.prunable === undefined);
   }
   if (judged !== undefined) {
@@ -387,13 +388,12 @@ export function enterOrStop(ctx: CommandContext, id: string, path: string, branc
   if (!enter) return printStop(ctx, path, id);
   takeHold(ctx, id, path);
   if (!existsSync(setupMarker(path))) prepare(path);
-  ctx.stdout.write(`enter: ${path}
-`);
+  ctx.stdout.write(`${nextLine('enter')}\nenter: ${path}\n`);
 }
 
 /** D-11, D-12: exactly three lines, naming no tool. */
 export function printStop(ctx: CommandContext, path: string, id: string): void {
-  ctx.stdout.write(`stop: open a session in this folder and type the line below it\n${path}\n/accord-continue ${id}\n`);
+  ctx.stdout.write(`${nextLine('stop')}\nstop: open a session in this folder and type the line below it\n${path}\n/accord-continue ${id}\n`);
 }
 
 /** Pick up reuses an existing branch only when its claim is the user's own (same email); otherwise exit 2, nothing created. */
@@ -785,7 +785,7 @@ export function fetchOrigin(
     gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms, ctx.ssh);
   } catch (e) {
     const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
-    if (options.quiet !== true) ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
+    if (options.quiet !== true) ctx.stdout.write(withNext('fetch-failed', `fetch from origin failed, going on with the refs already in this clone: ${why}`) + '\n');
     return { ctx: finished(), fetched: 'failed', why };
   }
   if (options.keep === true) return { ctx, fetched: 'ok' };

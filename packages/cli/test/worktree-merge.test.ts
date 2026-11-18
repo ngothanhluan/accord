@@ -3,8 +3,9 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { BEHIND, clone, type Clone, conflictOnMain, copy, doneOnRemote, has, laneSBranch, lines, LIVE, mergeOnRemote, pushMain, setTable, sha, stopLines, tableOf, ticketWorktree, twoOnMain, useSandboxes, verifyStage, writeHolds } from './helpers/worktree.js';
+import { BEHIND, clone, type Clone, conflictOnMain, copy, doneOnRemote, has, laneSBranch, lines, LIVE, mergeOnRemote, pushMain, setTable, sha, stopBlock, tableOf, ticketWorktree, twoOnMain, useSandboxes, verifyStage, writeHolds } from './helpers/worktree.js';
 import * as limit from '../src/commands/fetch-limit.js';
+import { nextLine } from '../src/commands/next-action.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -39,7 +40,7 @@ it('ac-2 continue says the ticket branch is 2 commits behind the remote main and
   expect(r.code).toBe(0);
   const out = lines(r.out);
   expect(out[0]).toBe('behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main');
-  expect(out.slice(1, 4)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect(out.slice(1, 5)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
   expect(out.filter((l) => l.startsWith('behind:'))).toHaveLength(1);
   expect(sha(c, 't/ST-9')).toBe(before);
   expect(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(before);
@@ -309,7 +310,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   const re = await run(['worktree', 'open', 'ST-9', '--continue'], e.root);
   expect(re.code).toBe(0);
   one(re.out, re.err);
-  expect(lines(re.out).slice(-3)).toEqual(stopLines(e.sibling('ST-9'), 'ST-9'));
+  expect(lines(re.out).slice(-4)).toEqual(stopBlock(e.sibling('ST-9'), 'ST-9'));
 
   const f = copy();
   ticketWorktree(f, 'ST-9');
@@ -332,7 +333,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
     const rg = await run(['worktree', 'open', 'ST-9'], g.root);
     expect(rg.code).toBe(0);
     expect(Date.now() - t0).toBeLessThan(15000);
-    expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds');
+    expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds - ' + nextLine('fetch-failed'));
     expect(sha(g, 't/ST-9^')).toBe(sha(g, 'origin/main'));
   } finally {
     writeFileSync(release, '');
@@ -367,7 +368,7 @@ it('ac-4 continue merges the latest origin main into a ticket branch before veri
   const out = lines(r.out);
   expect(out).toContain('merged: 2 commits of origin/main into t/ST-9');
   expect(out.some((l) => l.startsWith('behind:'))).toBe(false);
-  expect(out.slice(-3)).toEqual(stopLines(sib, 'ST-9'));
+  expect(out.slice(-4)).toEqual(stopBlock(sib, 'ST-9'));
 
   const s = copy({ setup: ['node setup-step.js ci'] });
   ticketWorktree(s, 'ST-9');

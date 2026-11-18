@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest';
 import * as limit from '../../src/commands/fetch-limit.js';
+import { nextLine } from '../../src/commands/next-action.js';
 import * as proc from '../../src/load/proc.js';
 import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
 import { CONFIG, discussFor, discussPath, done, gateReadyIn, LANE_BODY, LANE_S_BODY, laneTicket, P, PLAN } from '../../../../test/helpers/lane.js';
@@ -185,6 +186,9 @@ export const stopLines = (path: string, id: string) => [
   path,
   `/accord-continue ${id}`,
 ];
+
+/** What a worktree open that cannot enter prints: a `next:` line, then the three `stop:` lines. */
+export const stopBlock = (path: string, id: string) => [nextLine('stop'), ...stopLines(path, id)];
 
 export const A = { pid: 7001, start: 'S-A', marker: 'sess-A' };
 export const B = { pid: 7002, start: 'S-B', marker: 'sess-B' };

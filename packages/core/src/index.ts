@@ -137,6 +137,8 @@ export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/sho
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export { dashboard } from './status/dashboard.js';
+export { ownerDeferred, ratingOf } from './tickets/deferred.js';
+export type { DeferredRating, OwnerDeferred } from './tickets/deferred.js';
 export { relatedIds, relatedText } from './tickets/related.js';
 export { requestWords, similarTickets, STOP_WORDS, ticketFacts } from './tickets/similar.js';
 export { DEFAULT_TITLE_RULE, TITLE_PLACEHOLDER, titleProblem, titleRuleLine, titleRuleOf } from './tickets/title.js';

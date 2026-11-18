@@ -2255,3 +2255,38 @@ it('ac-6 intent and approach name a matching Rejected line before proposing (ST-
   const big = files.filter((f) => f.path.endsWith('/SKILL.md') && (Buffer.byteLength(f.text, 'utf8') > 6000 || f.text.split('\n').length > 120)).map((f) => f.path);
   expect(big).toEqual([]);
 });
+
+// ST-LN-12 7-ac-7 (07-19, D-12): verify shows the ledger's Must and Should deferred items and asks, in one question, which become backlog drafts through the queue route; nothing gates on the rest.
+it('ac-7 verify asks which deferred items go to the backlog through the queue route (ST-LN-12 7-ac-7)', () => {
+  const all = similarRender();
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
+    const verify = get('accord-verify/SKILL.md');
+    expect(verify, dir + ' verify names the lister').toContain('`accord deferred <id>`');
+    expect(verify, dir + ' verify follows the reference').toContain('`./deferred.md`');
+    const ref = get('accord-verify/deferred.md');
+    expect(ref.length, dir + ' accord-verify/deferred.md is not rendered').toBeGreaterThan(0);
+    for (const phrase of [
+      '`accord deferred <id>`',
+      '`Must: <text>`',
+      '`Should: <text>`',
+      '`no Must or Should deferred items`',
+      'ask the owner one question as `./ask.md` says',
+      'which become backlog draft tickets',
+      '`accord new ticket --queue --type <story|bug> --lane M --title "<title>" --note "<item>"`',
+      'as `accord-queue` does',
+      'every other item stays in the ledger as a record',
+      'A Nice item is never shown',
+      'nothing here blocks `accord gate done`',
+    ])
+      expect(ref, dir + ' deferred.md names ' + phrase).toContain(phrase);
+    // the no-items line asks nothing
+    expect(ref, dir + ' deferred.md asks nothing when there are none').toMatch(/no Must or Should deferred items`[^.]*ask nothing/);
+    // the queue route names a title, as the creating-command rule of 07-11 requires
+    expect(ref.match(/`accord new ticket[^`]*`/g) ?? [], dir).toEqual(['`accord new ticket --queue --type <story|bug> --lane M --title "<title>" --note "<item>"`']);
+    // the reference is loaded by verify, so it renders beside it and its relative references resolve there
+    for (const rel of ref.match(/`\.\/[a-z-]+\.md`/g) ?? []) expect(get('accord-verify/' + rel.slice(3, -1)).length, dir + ' ' + rel).toBeGreaterThan(0);
+  }
+  const bytes = Buffer.byteLength(files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '', 'utf8');
+  expect(bytes).toBeLessThanOrEqual(6000);
+});

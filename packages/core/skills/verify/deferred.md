@@ -1,0 +1,12 @@
+---
+kind: reference
+---
+
+# Deferred items at verify
+
+Verify step 4 lists what `accord deferred <id>` prints in the report, and this follows the owner's answer at step 5. The items are findings and notes the work set aside; the owner decides which of them become backlog tickets, and nothing here blocks `accord gate done`.
+
+1. Run `accord deferred <id>` again only when the ledger changed since the report. It prints one line per item, `Must: <text>` or `Should: <text>`, the Must items first, or `no Must or Should deferred items`. A Nice item is never shown. When it prints `no Must or Should deferred items`, ask nothing and go on to step 6.
+2. Otherwise show the lines numbered and ask the owner one question as `./ask.md` says: which become backlog draft tickets, all, none or some by number? Say that an item left out stays in the ledger as a record and that finishing this ticket does not wait on the answer.
+3. For each item the owner says yes to, run the queue route as `accord-queue` does, one draft ticket per item: a short English title, then `accord new ticket --queue --type <story|bug> --lane M --title "<title>" --note "<item>"`, with the item's ledger line, without its list marker, as the note; judge the similar tickets it prints and open its pull request as that skill says.
+4. An answer of none queues nothing, and every other item stays in the ledger as a record: edit, move or rate no ledger line.

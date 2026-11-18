@@ -1,9 +1,10 @@
 // ST-LN-83 D-03, D-06: `accord new ticket --queue` writes a draft on a backlog branch off origin's default branch in a
 // temporary worktree, so a session that works one ticket can queue an idea without touching that ticket. Real git in
 // tmp sandboxes with a bare origin; nothing here reaches the real origin.
-import { existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { expect, it, vi } from 'vitest';
+import { forgetRegistration } from '../src/commands/queue.js';
 import { gitRun, run } from './helpers/repo.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
 import { A, copy, envOf, pushMain, setTable, tableOf, useSandboxes } from './helpers/worktree.js';
@@ -188,4 +189,19 @@ it('risk:data-loss queue prunes no worktree whose folder is missing and whose de
   expect(gitRun(c.root, 'cat-file', '-t', head).trim()).toBe('commit');
   // the queue's own temporary worktree is gone, and only the entry it made
   expect(listed()).not.toContain('accord-queue-');
+});
+
+it('risk:data-loss forgetting the queue worktree registration drops that entry and no other (ST-LN-83 7-ac-4)', () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const base = `${realpathSync.native(tmpdir())}/accord-queue-test-${process.pid}`;
+  const mine = `${base}/wt`;
+  const other = `${c.root}/.claude/worktrees/agent-2`;
+  c.git('worktree', 'add', '-q', '--detach', mine, 'main');
+  c.git('worktree', 'add', '-q', '--detach', other, 'main');
+  rmSync(base, { recursive: true, force: true });
+  rmSync(other, { recursive: true, force: true });
+  forgetRegistration(c.root, mine.replaceAll('/', '\\'));
+  const listed = gitRun(c.root, 'worktree', 'list', '--porcelain');
+  expect(listed).not.toContain('accord-queue-test-');
+  expect(listed).toContain('agent-2');
 });

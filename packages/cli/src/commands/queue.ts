@@ -1,7 +1,7 @@
 // ST-LN-83 D-03, D-06 `accord new ticket --queue`: put the draft ticket on a new branch backlog/<id>-<date> made from origin's
 // default branch, in a temporary worktree, and push it. Nothing of the checkout the command runs in is read or written
 // after the load, so it works from inside a ticket session: that ticket's branch, HEAD, working tree and worktrees stay as they were.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { lintSnapshot, loadSnapshot, renderSubject } from '@accord-dev/accord-core';
@@ -15,6 +15,20 @@ const NOTHING = ' - nothing was created';
 export const utcDate = (): string => new Date().toISOString().slice(0, 10);
 
 const firstLine = (err: unknown): string => String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0];
+
+/** Delete the registration git keeps for `wt` and for no other worktree: the folder under `<common dir>/worktrees` whose `gitdir` file names `<wt>/.git`. A failure leaves the entry for `accord worktree clean`, which prunes it with the ST-LN-55 check. */
+export function forgetRegistration(root: string, wt: string): void {
+  try {
+    const slashed = (x: string): string => x.trim().replaceAll('\\', '/').toLowerCase();
+    const same = (x: string): boolean => slashed(x) === slashed(wt + '/.git');
+    const dir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/worktrees';
+    for (const name of readdirSync(dir)) {
+      if (same(readFileSync(join(dir, name, 'gitdir'), 'utf8'))) rmSync(join(dir, name), { recursive: true, force: true });
+    }
+  } catch {
+    // no registration to find
+  }
+}
 
 /**
  * Write each text of `files` (a path under accord/tickets/ and its text) on `backlog/<id in lower case>-<date>`, one commit over origin's default
@@ -68,7 +82,8 @@ export function queueTicket(ctx: CommandContext, id: string, files: Record<strin
   }
 
   const subject = renderSubject(ctx.snapshot.config, 'queue', id);
-  const folder = mkdtempSync(join(tmpdir(), 'accord-queue-'));
+  // the real path: git records the long form of a Windows short path, and forgetRegistration compares paths
+  const folder = realpathSync.native(mkdtempSync(join(tmpdir(), 'accord-queue-')));
   const wt = join(folder, 'wt');
   let sha: string;
   try {
@@ -83,17 +98,15 @@ export function queueTicket(ctx: CommandContext, id: string, files: Record<strin
     git(wt, ['commit', '-q', '--no-verify', '-m', subject]);
     sha = git(wt, ['rev-parse', 'HEAD']).trim();
   } finally {
+    let removed = true;
     try {
       git(root, ['worktree', 'remove', '--force', wt]);
     } catch {
-      // the folder is deleted below and the registration pruned
+      removed = false;
     }
     rmSync(folder, { recursive: true, force: true, maxRetries: 5 });
-    try {
-      git(root, ['worktree', 'prune']);
-    } catch {
-      // nothing left to prune that git would not prune itself
-    }
+    // 07-review WR-02: never `git worktree prune`; it drops every entry whose folder is missing, and for one whose detached HEAD is on no branch (ST-LN-55) that is the only ref to its commit
+    if (!removed) forgetRegistration(root, wt);
   }
   try {
     gitNoPrompt(root, ['push', 'origin', sha + ':refs/heads/' + branch], undefined, ctx.ssh);

@@ -2,7 +2,7 @@
 id: "ST-LN-69"                            # equals the file name: tickets/<id>.md
 title: "Each worktree command prints the next action itself, so the skill no longer maps its output lines"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -61,3 +61,6 @@ Feature: ST-LN-69
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 7) and merged in PR #221 on 2026-11-19. Each worktree command prints the next action itself, and the dashboard's `next:` lines come from one table. A few `accord worktree task` and prune lines still carry no next action (GSD backlog 999.26). The owner closed Phase 7 with six live-session checks outstanding (`.planning/phases/07-knowledge-and-ux/07-UAT.md`); this ticket's behaviour is covered by unit and render tests, not yet by a live run.

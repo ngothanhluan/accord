@@ -2,7 +2,7 @@
 id: "ST-LN-86"                            # equals the file name: tickets/<id>.md
 title: "An agent researches outside libraries, APIs and versions the code cannot answer, and records what it finds as research"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
@@ -65,3 +65,6 @@ Feature: ST-LN-86
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 7) and merged in PR #219 on 2026-11-19. An `accord-researcher` agent with web tools and no write tools runs at the intent stage's discuss step for an outside library, API or version; the main session writes the `accord/research/` record from its text (D-18). The agent keeps inherited MCP tools; the owner accepted that residual (07-CONTEXT, 2026-11-18). The owner closed Phase 7 with six live-session checks outstanding (`.planning/phases/07-knowledge-and-ux/07-UAT.md`); this ticket's behaviour is covered by unit and render tests, not yet by a live run.

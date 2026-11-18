@@ -2,7 +2,7 @@
 id: "ST-LN-22"                            # equals the file name: tickets/<id>.md
 title: "A new request is checked against existing tickets, and the related ones' decisions reach the scout and the critic"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
@@ -67,3 +67,6 @@ Feature: ST-LN-22
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 7) and merged in PR #216 on 2026-11-19. Narrowed per backlog review F5a: ticket creation on the change and queue routes prints up to five similar tickets, done and dropped included, and the related tickets' Decisions and Vetoes reach the scout and the critic by CLI-built input (D-08, D-09). The owner closed Phase 7 with six live-session checks outstanding (`.planning/phases/07-knowledge-and-ux/07-UAT.md`); this ticket's behaviour is covered by unit and render tests, not yet by a live run.

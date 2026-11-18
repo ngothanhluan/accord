@@ -2,7 +2,7 @@
 id: "ST-LN-83"                            # equals the file name: tickets/<id>.md
 title: "A request that is not a change goes to its own path, not to a scout and a lane proposal"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
@@ -64,3 +64,6 @@ Feature: ST-LN-83
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 7) and merged in PR #215 on 2026-11-19. Separate commands `/accord-new`, `/accord-continue`, `/accord-pickup`, `/accord-queue` and `/accord-upgrade`, one skill each, rendered for all four tools; `/accord <text>` still routes by intent (D-02). ST-LN-29 and ST-LN-49 were merged into this ticket. The owner closed Phase 7 with six live-session checks outstanding (`.planning/phases/07-knowledge-and-ux/07-UAT.md`); this ticket's behaviour is covered by unit and render tests, not yet by a live run.

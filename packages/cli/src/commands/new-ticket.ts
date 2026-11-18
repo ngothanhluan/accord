@@ -228,8 +228,8 @@ function queuedIntent(text: string, date: string, notes: string[]): string {
   return text.slice(0, from) + comment + lines.join('\n') + '\n' + (next < 0 ? '' : '\n' + text.slice(next + 1));
 }
 
-/** The default branch as the clone holds it, read from git with no checkout, for the tickets a working tree may not have yet. */
-function withDefaultBranch(ctx: CommandContext): Snapshot {
+/** The default branch as the clone holds it, read from git with no checkout, for the tickets a working tree may not have yet (`accord related` reads it too). */
+export function withDefaultBranch(ctx: CommandContext): Snapshot {
   const ref = doneRef(ctx.root);
   return ref === undefined ? ctx.snapshot : { ...ctx.snapshot, defaultRef: { ref, snapshot: loadSnapshot(loadRefInput(ctx.root, ref)) } };
 }

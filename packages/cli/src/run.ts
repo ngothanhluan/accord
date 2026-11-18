@@ -8,6 +8,7 @@ import type { Lane, RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { anchor } from './commands/anchor.js';
+import { related } from './commands/related.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
@@ -433,6 +434,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
     .action((id: string | undefined) => {
       setCode(anchor(preflight(opts, 'stage'), id));
+    });
+
+  program
+    .command('related <id>')
+    .description('print the Vetoes and Decisions of the tickets related to <id>, for the scout at intent and the critic at approach')
+    .action((id: string) => {
+      setCode(related(preflight(opts), id));
     });
 
   program

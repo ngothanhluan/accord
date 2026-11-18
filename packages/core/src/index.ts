@@ -137,6 +137,7 @@ export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/sho
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export { dashboard } from './status/dashboard.js';
+export { relatedIds, relatedText } from './tickets/related.js';
 export { requestWords, similarTickets, STOP_WORDS, ticketFacts } from './tickets/similar.js';
 export type { SimilarFact, SimilarTicket } from './tickets/similar.js';
 export type { Dashboard, DashboardSection, DashboardSummary, EpicRow } from './status/dashboard.js';

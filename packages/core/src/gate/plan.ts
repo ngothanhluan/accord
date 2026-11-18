@@ -6,7 +6,7 @@ import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { Plan, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { afterCycles } from '../plan/waves.js';
-import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore } from '../round/pin.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, stageLaneTicket, workOf } from './work.js';
@@ -95,6 +95,9 @@ function expectedSize(t: Ticket): number | undefined {
   return undefined;
 }
 
+/** ST-LN-28 D-17: the words both the size refusal and the plan-large warning use to point at an epic. */
+const SPLIT_HINT = 'split the work into an epic of smaller stories with /accord-new (lane L)';
+
 /** The reason a plan of `tasks` tasks is too large for `expected`, or undefined when it fits or an owner Ruling of `rulings` allows it. */
 export function sizeRefusal(tasks: number, expected: number, rulings: readonly string[]): string | undefined {
   if (tasks <= SIZE_MULTIPLE * expected) return undefined;
@@ -104,7 +107,7 @@ export function sizeRefusal(tasks: number, expected: number, rulings: readonly s
   }
   return (
     `plan.md has ${tasks} tasks, more than ${SIZE_MULTIPLE} × ${expected} (Expected size: ${expected} tasks in ## Intent); ` +
-    `split the work into another ticket, or add under ## Rulings in the ledger: ` +
+    `${SPLIT_HINT}, or into another ticket, or add under ## Rulings in the ledger: ` +
     `Ruling: the owner allows ${tasks} plan tasks against an expected size of ${expected} tasks — "<the owner's sentence>" — <cost if wrong>`
   );
 }
@@ -118,6 +121,26 @@ export const planSize: GateRule['check'] = (snapshot, id) => {
   if (expected === undefined) return [];
   const reason = sizeRefusal(work.plan.tasks.length, expected, work.ledger?.rulings ?? []);
   return reason === undefined ? [] : [{ file: work.plan.file, reason }];
+};
+
+/** ST-LN-28 D-17: a lane M plan of this many tasks or more is often an epic (ST-LN-44's plan reached 39 tasks). A constant, not a config.yml key. */
+export const PLAN_LARGE_TASKS = 15;
+
+/**
+ * ST-LN-28 D-17: a warning on a lane M plan of PLAN_LARGE_TASKS tasks or more, naming the epic split; it fails nothing. Judged only for a ticket not claimed before PLAN_LARGE_FROM (the claim fact, or
+ * the working-tree pin when there is none, and a failed claim read judges it), so no plan that exists when the rule ships gets it.
+ */
+export const planLarge: GateRule['check'] = (snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  const plan = workOf(snapshot, id)?.plan;
+  if (t === undefined || t.frontmatter?.lane === 'S' || plan === undefined || plan.tasks.length < PLAN_LARGE_TASKS) return [];
+  if (claimPinBefore(snapshot, id, PLAN_LARGE_FROM)) return [];
+  return [
+    {
+      file: plan.file,
+      reason: `plan.md has ${plan.tasks.length} tasks: work this size is often an epic; if it is, ${SPLIT_HINT}`,
+    },
+  ];
 };
 
 /**

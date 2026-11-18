@@ -154,12 +154,12 @@ describe('expected size cut-off', () => {
 
 // ST-LN-28 7-ac-9 (07-25, D-17): an oversized plan is pointed at an epic of smaller stories, and a plan of 15 tasks or more gets a warning that names the same split, from a cut-off.
 const SPLIT = 'split the work into an epic of smaller stories with /accord-new (lane L)';
-/** The lane plan's header, then n tasks that each follow nothing and cover @ac-1: well formed under every plan format rule. */
+/** The lane plan's two real tasks, then n - 2 more that each follow nothing and re-run the first test: well formed under every plan format rule. */
 const many = (n: number): string => {
-  const head = PLAN.split(/^(?=## Task )/m)[0];
-  const task = (i: number): string =>
-    [`## Task ${i}: Step ${i}`, 'covers: @ac-1, @ac-2, D-01', 'files: src/export.ts', 'verify: export#writes-csv (@ac-1)', 'after: none', `Do step ${i}.`, ''].join('\n');
-  return [head, ...Array.from({ length: n }, (_, i) => task(i + 1))].join('\n');
+  const [head, one, two] = PLAN.split(/^(?=## Task )/m);
+  const more = (i: number): string =>
+    [`## Task ${i}: Step ${i}`, 'covers: @ac-1', 'files: src/export.ts', 'verify: export#writes-csv', 'after: none', `Do step ${i}.`, ''].join('\n');
+  return [head, one, two, ...Array.from({ length: n - 2 }, (_, i) => more(i + 3))].join('\n');
 };
 const large = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-large');
 

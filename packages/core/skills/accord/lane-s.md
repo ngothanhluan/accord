@@ -9,7 +9,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
 
 ## Start
 
-- New request: the accord skill ran `accord new ticket <id> --lane S --worktree`. Before you follow the `enter:` or
+- New request: the accord skill ran `accord new ticket <id> --lane S --worktree --title "<title>"`. Before you follow the `enter:` or
   `stop:` line it printed as `./worktree.md` says, write the title, the two lines of step 1 and the `## Scope` lines `./lane.md` describes into
   `<path>/accord/tickets/<id>.md`, asking step 1's question first when it needs one. Then run
   `git -C "<path>" commit -m "<subject>" -- accord/tickets/<id>.md`, `<subject>` being the line `accord subject ticket_understood <id>` prints, and
@@ -25,8 +25,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    Otherwise write one line under `## Understood`: the change as you understood it, and one line under
    `## Done when`: the observable result that ends the work. Go on without waiting only when the request has a concrete anchor (file, symbol,
    error message, or expected behaviour) and one plausible reading; otherwise ask exactly one question, as
-   `./ask.md` says, and wait. When `title:` still reads `Short title in business language`, replace it with a few
-   words naming the change in business language. When `## Scope` holds no path, run step 1 of `./lane.md` and write its files there as its `## Scope` says. Run `accord gate ready <id>` and fix what it prints until it exits
+   `./ask.md` says, and wait. When `title:` still reads `Short title in business language`, replace it with the title `./similar.md` makes. When `## Scope` holds no path, run step 1 of `./lane.md` and write its files there as its `## Scope` says. Run `accord gate ready <id>` and fix what it prints until it exits
    0, then commit the ticket. When it says a `depends_on` ticket is not done on the default branch, never remove that entry
    from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and
    `accord gate ready <id>` again. Make no other change before that. Never run `accord approve`.

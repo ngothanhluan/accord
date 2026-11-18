@@ -8,6 +8,7 @@ import type { Lane, RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { anchor } from './commands/anchor.js';
+import { related } from './commands/related.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
@@ -234,11 +235,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         .default('story'),
     )
     .addOption(new Option('--lane <lane>', 'write a lane ticket (S, M, L, P, or R: research)').choices(['S', 'M', 'L', 'P', 'R']))
-    .option('--title <text>', "the ticket's title, one line")
+    .option('--title <text>', "the ticket's title, one line; required with --lane S or --lane M (and with --queue), so the similar tickets can be checked")
     .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
     .option('--queue', "write the draft on a backlog branch off origin's default branch from a temporary worktree and push it, without touching this checkout")
     .option('--note <line>', 'with --queue: one line of the queued idea under ## Intent, up to four; repeat the option', (line: string, previous: string[]) => [...previous, line], [] as string[])
-    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[] }) => {
+    .option('--related <ids>', 'the ticket ids this request continues or builds on, comma-separated, or none')
+    .option('--no-dup-check', 'create without checking for similar tickets, which is also how a script passes the --title that --lane S or --lane M needs; for scripts and tests, never for a request a person made')
+    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[]; related?: string; dupCheck?: boolean }) => {
       setCode(newTicket(preflight(opts, options.worktree === true || options.queue === true ? 'light' : 'checkout'), id, options));
     });
 
@@ -431,6 +434,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
     .action((id: string | undefined) => {
       setCode(anchor(preflight(opts, 'stage'), id));
+    });
+
+  program
+    .command('related <id>')
+    .description('print the Vetoes and Decisions of the tickets related to <id>, for the scout at intent and the critic at approach')
+    .action((id: string) => {
+      setCode(related(preflight(opts), id));
     });
 
   program

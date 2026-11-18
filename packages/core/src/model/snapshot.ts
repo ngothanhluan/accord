@@ -146,6 +146,7 @@ export interface TicketFrontmatter {
   assumptions?: { text: string; confirmed: boolean }[];
   lane?: Lane; // spec §3: present opts the ticket into the workflow-layer contract
   depends_on?: string[]; // spec §5: ticket ids that must reach done first
+  related?: string[]; // ST-LN-22 D-08: ticket ids this ticket continues or builds on; a link only, outside every hash and every gate
   // ST-LN-13: repository paths of research records under accord/research/; optional
   research?: string[];
   priority?: 'high' | 'medium' | 'low';// how the dashboard ranks this ticket; absent means medium
@@ -342,6 +343,7 @@ export interface AccordConfig {
   ids?: { mode?: 'pattern' | 'tracker'; pattern?: string; types?: Partial<Record<'story' | 'bug' | 'epic', string>>; projects?: string[] }; // ST-LN-50 D-05: absent means ST/BUG/EP-<initials>-<n> while people exists; tracker mode takes the Jira or Linear key as the id
   disposable?: string[]; // ST-LN-55 D-08, D-12: file and folder names an ignored path may hold at any depth and still be deleted with its worktree; absent means node_modules, dist, .DS_Store, Thumbs.db; accord's .accord-reports folder is disposable either way (ST-LN-59)
   template?: { sections?: { name: string; after?: string }[] }; // ST-LN-50 D-10: a team's own sections in every new story and bug ticket (scaffold/sections.ts); outside every hash
+  titles?: { rule?: string; max_length?: string; language?: 'english' | 'any' }; // ST-LN-22 D-08b: the rule a ticket's title follows (tickets/title.ts), each key falling back on its own: rule is one line of guidance, max_length digits ('1'..'999', absent means 80, YAML numerics stay strings), language english (the default, refusing a letter outside A-Z) or any
   strictness?: { rounds?: Partial<Record<'approach' | 'plan' | 'review', string>>; levels?: Record<string, 'error' | 'warning' | 'off'>; stages?: Partial<Record<'M' | 'L' | 'P' | 'S' | 'R', Partial<Record<string, 'on' | 'off'>>>> }; // ST-LN-50 D-07: the round cap of each critic record, '1'..'99'; YAML numerics stay strings. D-08: levels maps a rule id to its level; only an overridable rule takes one (gate/floor.ts). D-08: stages maps a lane to the stages a team turned off (`off`); only a stage that is not on the floor, of lane M, L or P, takes effect (gate/floor.ts). All three are read through resolveStrictness
 }
 

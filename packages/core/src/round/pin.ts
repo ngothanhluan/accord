@@ -1,7 +1,7 @@
 // ST-LN-57: the accord release that cut over to version 2 review records, and the pin reads that decide which version a record may be.
 import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { parseYamlMap } from '../load/yaml.js';
-import type { RepoSnapshot } from '../model/snapshot.js';
+import type { RepoSnapshot, Ticket } from '../model/snapshot.js';
 
 /** The release that ships version 2 records: a version 1 record is allowed only while its pin is below it. */
 export const RECORD_V2_FROM = '0.3.1';
@@ -113,6 +113,14 @@ export const PLAN_WAVES_FROM = '0.6.0';
  */
 export const SECURITY_TRIGGER_FROM = '0.7.0';
 
+/**
+ * ST-LN-22 D-08b and CONTEXT Ruling "Release": the release from which a ticket's title must keep the title rule (tickets/title.ts), refused by `accord gate ready`
+ * (gate.ticket-title, read through claimPinBefore: a ticket claimed under a pin below it is not judged) and by `accord lint` (lint.ticket-title, read through rulesetFrom: only a ticket whose own
+ * `ruleset` is not below it is judged). It is the next minor after the newest released heading of docs/releases.md (0.7.1 when it was set); the release that ships Phase 7 sets it to its own
+ * version if another release came first, and PHASE7 in migration-pin.test.ts follows.
+ */
+export const TITLE_RULE_FROM = '0.8.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;
@@ -148,6 +156,16 @@ export function claimPinBefore(snapshot: RepoSnapshot, id: string, from: string)
   if (own !== undefined && PLAIN.test(own)) return pinBefore(from, own);
   const { pin, basePin } = fact ?? { pin: snapshot.config?.accord, basePin: undefined };
   return pinBefore(from, pin, basePin);
+}
+
+/**
+ * ST-LN-22 D-08b: true only when the ticket's own frontmatter `ruleset` is a plain x.y.z not before `from`. Lint has no claim facts, so a Phase 7 rule that lint holds reads the release the ticket was
+ * created or claimed under here: a ticket with no `ruleset` (every ticket older than RULESET_FROM, and a hand-written draft) or an older one is not judged, so no existing ticket is refused by a rule
+ * that ships later. A hand edit that lowers the field only skips lint's early warning; the gate reads the claim fact, which outranks it (claimPinBefore). Read only for a Phase 7 cut-off.
+ */
+export function rulesetFrom(ticket: Ticket | undefined, from: string): boolean {
+  const ruleset = ticket?.frontmatter?.ruleset;
+  return ruleset !== undefined && PLAIN.test(ruleset) && compare(ruleset, from) >= 0;
 }
 
 /** ST-LN-91 WR-01: the git error text when the host failed to read the claim pin of `id` (the new rules then apply), else undefined. */

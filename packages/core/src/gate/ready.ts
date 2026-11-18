@@ -4,8 +4,9 @@
 import { classifyEars } from '../lint/ears.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
-import { claimPinBefore, claimPinError, DISCUSS_FROM } from '../round/pin.js';
+import { claimPinBefore, claimPinError, DISCUSS_FROM, TITLE_RULE_FROM } from '../round/pin.js';
 import { doneOnDefault } from '../status/stage.js';
+import { titleProblem, titleRuleLine } from '../tickets/title.js';
 import { approvedHash } from './hash.js';
 import { decisionIds } from './plan.js';
 import type { GateRule } from './rules.js';
@@ -51,6 +52,18 @@ export const intentEmpty: GateRule['check'] = (snapshot, id) => {
   if (s === undefined) return [];
   if (stripHtmlComments(s.lines).some((l) => l.text.trim() !== '')) return [];
   return [{ file: ticketFile(id), line: s.line, reason: '"## Intent" is empty; Ready needs the intent written' }];
+};
+
+/**
+ * ST-LN-22 D-08b: a lane ticket claimed at TITLE_RULE_FROM or later keeps the title rule (tickets/title.ts), the one `accord new ticket` prints and checks at creation. The claim pin
+ * decides, never the working-tree pin when the host read a claim fact, so an upgrade judges no ticket claimed before it; a failed claim read fails closed (the rule applies).
+ */
+export const ticketTitle: GateRule['check'] = (snapshot, id) => {
+  const ticket = ticketOf(snapshot, id);
+  if (ticket?.frontmatter?.lane === undefined || claimPinBefore(snapshot, id, TITLE_RULE_FROM)) return [];
+  const problem = titleProblem(ticket.frontmatter.title, snapshot.config);
+  if (problem === undefined) return [];
+  return [{ file: ticketFile(id), pointer: '/title', reason: `${problem}; ${titleRuleLine(snapshot.config)}` }];
 };
 
 /**

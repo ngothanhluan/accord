@@ -217,11 +217,11 @@ it('risk:complex-branching a pick up whose setup fails leaves no done marker', a
 
 it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and pushed', async () => {
   const plain = clone({ tickets: [] });
-  expect((await run(['new', 'ticket', 'ST-9', '--lane', 'M'], plain.root)).code).toBe(0);
+  expect((await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--no-dup-check'], plain.root)).code).toBe(0);
   const text = readFileSync(`${plain.root}/accord/tickets/ST-9.md`, 'utf8');
   const c = clone({ setup: ['node setup-step.js ci'], tickets: [] });
   const base = c.git('rev-parse', 'origin/main').trim();
-  const { code, out } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  const { code, out } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
   expect(code).toBe(0);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(c.git('worktree', 'list', '--porcelain')).toContain('branch refs/heads/t/ST-9');
@@ -230,7 +230,7 @@ it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and
   // ST-LN-96 t1-ac-1: from RULESET_FROM the claim writes the running pin as `ruleset` into the ticket it commits; below it the ticket is the one `new ticket` wrote.
   expect(c.git('show', 't/ST-9:accord/tickets/ST-9.md')).toBe(pinBefore(RULESET_FROM, RUNNING) ? text : setFrontmatterKey(text, 'ruleset', RUNNING));
   expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(base);
-  expect(out.split('\n').slice(0, 4)).toEqual(['accord/tickets/ST-9.md', ...stopLines(c.sibling('ST-9'), 'ST-9')]);
+  expect(out.split('\n').slice(0, 5)).toEqual(['similar: skipped (--no-dup-check)', 'accord/tickets/ST-9.md', ...stopLines(c.sibling('ST-9'), 'ST-9')]);
   expect(c.git('branch', '--show-current').trim()).toBe('main');
   expect(existsSync(`${c.root}/accord/tickets/ST-9.md`)).toBe(false);
 });
@@ -238,7 +238,7 @@ it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and
 it('risk:data-loss a failed push keeps the claim commit and names the quoted push to run', async () => {
   const c = copy({ setup: ['node setup-step.js ci'], tickets: [] });
   c.git('remote', 'set-url', '--push', 'origin', `${c.remote}-missing`);
-  const { code, out, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  const { code, out, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
   expect(code).toBe(2);
   expect(err).toContain(`git -C "${c.sibling('ST-9')}" push -u origin t/ST-9`);
   expect(gitRun(c.sibling('ST-9'), 'log', '-1', '--format=%s').trim()).toBe('claim: ST-9');
@@ -268,7 +268,7 @@ it('risk:data-loss new ticket worktree refuses a ticket that exists only on orig
   gitRun(other, 'commit', '-q', '-m', 'ticket');
   gitRun(other, 'push', '-q', 'origin', 'main');
   c.git('fetch', '-q', 'origin');
-  const { code, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  const { code, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
   expect(code).toBe(2);
   expect(err).toContain('accord/tickets/ST-9.md already exists on origin/main - nothing was written');
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
@@ -452,7 +452,7 @@ it('ac-1 pick up and a new worktree ticket cut the ticket branch from a main com
 
   const d = copy({ tickets: [] });
   const tip2 = pushNext(d);
-  const n = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], d.root);
+  const n = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], d.root);
   expect(n.code).toBe(0);
   expect(d.git('rev-parse', 't/ST-9^').trim()).toBe(tip2);
   expect(d.git('show', 't/ST-9:accord/tickets/ST-9.md')).not.toBe('');
@@ -477,7 +477,7 @@ it('ac-5 clean pick up continue and a new worktree ticket remove the worktree an
     { name: 'clean', argv: ['worktree', 'clean'] },
     { name: 'open', argv: ['worktree', 'open', 'ST-10'] },
     { name: 'continue', argv: ['worktree', 'open', 'ST-10', '--continue'], prep: (c) => ticketWorktree(c, 'ST-10') },
-    { name: 'new ticket', argv: ['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'] },
+    { name: 'new ticket', argv: ['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree', '--no-dup-check'] },
   ];
   // The done-ST-9 state is built once, with no linked worktree; each outline row copies it and adds its worktrees in the copy.
   const built = copy({ tickets: ['ST-9', 'ST-10'] });

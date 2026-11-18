@@ -36,6 +36,7 @@ import {
   scenariosOversize,
   sentinel,
   tickOrphan,
+  ticketTitle,
   trackerEmpty,
   vagueWording,
 } from './ticket.js';
@@ -64,6 +65,7 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.id-convention', level: 'error', profiles: ['build', 'maintain'], check: idConvention },
   { id: 'lint.initials-duplicate', level: 'error', profiles: ['build', 'maintain'], check: initialsDuplicate },
   { id: 'lint.test-tag-missing', level: 'warning', profiles: ['build', 'maintain'], check: testTagMissing },
+  { id: 'lint.ticket-title', level: 'error', profiles: ['build', 'maintain'], check: ticketTitle },
   { id: 'lint.heading-missing', level: 'error', profiles: ['build', 'maintain'], check: headingMissing },
   { id: 'lint.review-without-plan', level: 'error', profiles: ['build', 'maintain'], check: reviewWithoutPlan },
   { id: 'lint.lane-s-lane-m-records', level: 'error', profiles: ['build', 'maintain'], check: laneSLaneMRecords },

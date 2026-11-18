@@ -15,8 +15,8 @@ plans or builds. You run it in the main session.
 1. Run `accord anchor`. If the ticket file does not exist yet, `/accord`
    creates it first: start there.
 
-2. **Look before asking.** Dispatch `accord-scout` with the path of
-   `accord/tickets/<id>.md` and the questions the code can answer. Check its
+2. **Look before asking.** Run `accord related <id>`. Dispatch `accord-scout` with the path of
+   `accord/tickets/<id>.md`, the questions the code can answer, and what `accord related <id>` printed, verbatim. Check its
    reply as `./scout.md` says, and save it as `accord/tickets/<id>/scout.md`
    only when that file does not exist. Never ask the owner what the code answers. A question about an existing project
    cites the file that prompted it. Before any question, read `./research.md`.

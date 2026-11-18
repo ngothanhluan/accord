@@ -48,7 +48,7 @@ function cmpRun(a: string, b: string): number {
   }
   return cmp(a, b);
 }
-function cmpId(a: string, b: string): number {
+export function cmpId(a: string, b: string): number {
   const ra = a.match(/\d+|\D+/g) ?? [];
   const rb = b.match(/\d+|\D+/g) ?? [];
   for (let i = 0; i < Math.min(ra.length, rb.length); i++) {

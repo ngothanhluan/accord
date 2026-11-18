@@ -112,6 +112,8 @@ export const OVERRIDABLE: readonly string[] = [
   'gate.reference-unknown',
   'gate.author-match',
   'gate.author-skipped',
+  'gate.ticket-title',
+  'lint.ticket-title',
   'lint.depends-unknown',
   'lint.depends-cycle',
   'lint.depends-dropped',

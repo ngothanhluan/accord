@@ -27,7 +27,7 @@ it('risk:complex-branching new ticket --worktree commits the team sections with 
   commitMsg(c.root, 'config: team sections');
   c.git('push', '-q', 'origin', 'main');
 
-  const made = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  const made = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], c.root);
   expect(made.err).toBe('');
   expect(made.code).toBe(0);
 
@@ -50,7 +50,7 @@ it('risk:security new ticket exits 2 on a template key the schema refuses and wr
   c.git('push', '-q', 'origin', 'main');
   const before = c.git('status', '--porcelain');
 
-  for (const args of [['new', 'ticket', 'ST-9', '--lane', 'M'], ['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree']]) {
+  for (const args of [['new', 'ticket', 'ST-9', '--lane', 'M', '--no-dup-check'], ['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check']]) {
     const r = await run(args, c.root);
     expect(r.code, args.join(' ')).toBe(2);
     expect(r.err, args.join(' ')).toContain('accord/config.yml');

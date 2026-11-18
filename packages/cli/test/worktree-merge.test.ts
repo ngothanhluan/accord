@@ -299,7 +299,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   const d = copy({ tickets: [] });
   missing(d);
   d.git('remote', 'set-url', '--push', 'origin', d.remote);
-  const rd = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], d.root);
+  const rd = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree', '--no-dup-check'], d.root);
   expect(rd.code).toBe(0);
   one(rd.out, rd.err);
 

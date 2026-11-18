@@ -80,7 +80,7 @@ it('ac-4 queue writes a draft on a backlog branch and leaves the session ticket 
   expect(gitRun(c.root, 'for-each-ref', 'refs/heads/backlog')).toBe('');
 
   // the plain path from the same session is still refused
-  const plain = await run(['new', 'ticket', 'Q-2', '--lane', 'M'], sib, envOf(A));
+  const plain = await run(['new', 'ticket', 'Q-2', '--lane', 'M', '--no-dup-check'], sib, envOf(A));
   expect(plain.code).toBe(2);
   expect(plain.err.startsWith('this session works')).toBe(true);
   expect(state()).toEqual(before);

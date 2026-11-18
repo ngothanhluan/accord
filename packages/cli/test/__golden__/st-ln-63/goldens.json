@@ -311,9 +311,9 @@
       "<sha:S-1-review> refs/heads/t/S-1"
     ]
   },
-  "main new ticket N-1 --lane M --worktree": {
+  "main new ticket N-1 --lane M --worktree --no-dup-check": {
     "code": 0,
-    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\naccord/tickets/N-1.md\nstop: open a session in this folder and type the line below it\n<root>-n-1\n/accord-continue N-1\n",
+    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\nsimilar: skipped (--no-dup-check)\naccord/tickets/N-1.md\nstop: open a session in this folder and type the line below it\n<root>-n-1\n/accord-continue N-1\n",
     "err": "",
     "refs": [
       "<sha:A-11-squash> refs/heads/main",

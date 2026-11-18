@@ -13,7 +13,7 @@ intent interview moves a lane M ticket to lane S.
 Fetch first with
 `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`;
 on failure say so and continue, since only refs already in the clone are read.
-Then run `accord new ticket --type <story|bug> --lane <lane>` with no id, adding `--worktree` when the lane is M or S, and use the id it prints.
+Then run `accord new ticket --type <story|bug> --lane <lane> --title "<title>"` with no id, the title the route that creates the ticket made, adding `--worktree` when the lane is M or S, and use the id it prints.
 Never retry with an id.
 
 ## When your email is not registered
@@ -47,7 +47,7 @@ A ticket's type never changes and its id is never renamed. To change the type:
    close this session once the pull request is opened, because `accord worktree clean` keeps a worktree that a
    live session holds. Never delete a claim branch to drop a ticket: once the pull request is merged,
    `accord worktree clean` deletes it and its worktree.
-2. Create the new ticket with `accord new ticket --type <the other type> --lane <lane>`, always passing
+2. Create the new ticket with `accord new ticket --type <the other type> --lane <lane> --title "<the dropped ticket's title>" --related <the dropped ticket's id>`, always passing
    `--lane`: the dropped ticket's lane, except `L` for a new epic and `M` for a story or bug made from an epic.
 3. Copy into it the dropped ticket's frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on`,
    `research` and `tracker`, where present, and every section below its frontmatter except `## Dropped`; the

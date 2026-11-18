@@ -29,7 +29,7 @@ export const ITEMS: Item[] = [
   },
   {
     item: 'default ref',
-    keys: ['main worktree open A-1', 'main worktree clean', 'wt-A-7 worktree merge A-7', 'main new ticket N-1 --lane M --worktree', 'side-local status --json'],
+    keys: ['main worktree open A-1', 'main worktree clean', 'wt-A-7 worktree merge A-7', 'main new ticket N-1 --lane M --worktree --no-dup-check', 'side-local status --json'],
     p: (a) => {
       const refs = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master', 'refs/heads/main', 'refs/heads/master'];
       if (a[0] === 'symbolic-ref') return a.includes('refs/remotes/origin/HEAD');
@@ -49,17 +49,17 @@ export const ITEMS: Item[] = [
   },
   {
     item: 'worktree list',
-    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree'],
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree --no-dup-check'],
     p: (a) => a[0] === 'worktree' && a[1] === 'list' && a.includes('--porcelain'),
   },
   {
     item: 'get-url',
-    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree', 'wt-A-7 worktree merge A-7'],
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree --no-dup-check', 'wt-A-7 worktree merge A-7'],
     p: (a) => a[0] === 'remote' && a[1] === 'get-url' && a.includes('origin'),
   },
   {
     item: 'light preflight',
-    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree'],
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree --no-dup-check'],
     p: (a) => a.includes('log') && a.includes('--format=%x01%ae%x00%ct%x00%s') && a.includes('--name-only') && a.includes('accord/tickets'),
   },
 ];

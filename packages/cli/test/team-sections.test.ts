@@ -36,7 +36,7 @@ it('risk:complex-branching a new ticket carries the team\'s sections and lint ac
   expect((await lintFound(repo)).code).toBe(0);
 
   // the new ticket: ## Problem directly after ## Intent
-  const made = await run(['new', 'ticket', 'T-2', '--lane', 'M'], repo);
+  const made = await run(['new', 'ticket', 'T-2', '--lane', 'M', '--no-dup-check'], repo);
   expect(made.err).toBe('');
   expect(made.code).toBe(0);
   const text = read(repo, 'accord/tickets/T-2.md');
@@ -59,10 +59,10 @@ it('risk:complex-branching a new ticket carries the team\'s sections and lint ac
 
 it('risk:regression with no template key a new ticket is byte-identical to today\'s (ST-LN-50 t2-ac-6)', async () => {
   const repo = sandbox(CONFIG);
-  expect((await run(['new', 'ticket', 'T-2', '--lane', 'M'], repo)).code).toBe(0);
+  expect((await run(['new', 'ticket', 'T-2', '--lane', 'M', '--no-dup-check'], repo)).code).toBe(0);
   const lane = setFrontmatterKey(setFrontmatterKey(templates['ticket-lane.md'].replaceAll('TICKET-ID', 'T-2'), 'type', 'story'), 'lane', 'M');
   expect(read(repo, 'accord/tickets/T-2.md')).toBe(lane);
-  expect((await run(['new', 'ticket', 'T-3', '--lane', 'S'], repo)).code).toBe(0);
+  expect((await run(['new', 'ticket', 'T-3', '--lane', 'S', '--no-dup-check'], repo)).code).toBe(0);
   expect(read(repo, 'accord/tickets/T-3.md')).toBe(setFrontmatterKey(setFrontmatterKey(templates['ticket-lane-s.md'].replaceAll('TICKET-ID', 'T-3'), 'type', 'story'), 'lane', 'S'));
 
   // an epic never takes a team section
@@ -89,7 +89,7 @@ it('risk:security a config that replaces a required section is refused (ST-LN-50
   expect((JSON.parse(check.out) as { findings: { rule: string }[] }).findings.map((f) => f.rule)).toEqual(['lint.template-section']);
 
   // accord new ticket skips the reserved entry: no second Acceptance criteria
-  expect((await run(['new', 'ticket', 'T-2', '--lane', 'M'], repo)).code).toBe(0);
+  expect((await run(['new', 'ticket', 'T-2', '--lane', 'M', '--no-dup-check'], repo)).code).toBe(0);
   expect(headings(read(repo, 'accord/tickets/T-2.md')).filter((h) => h === 'Acceptance criteria')).toHaveLength(1);
 
   // accord config set refuses a reserved name, names it, and leaves the file as it was

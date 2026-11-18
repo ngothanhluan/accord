@@ -90,15 +90,15 @@ accord changes no GitHub setting, so nothing yet stops a pull request from mergi
 
 ### 5. Daily use in your coding agent
 
-All work starts from the `/accord` skill inside the agent session:
+Work starts from `/accord` or one of its own commands inside the agent session:
 
 | Command | What it does |
 |---|---|
 | `/accord` | The dashboard: your tickets, the team's, and what is ready to pick up, with the actions that apply. |
-| `/accord <request>` | New work. Accord proposes a lane with its reason; you may override it. |
-| `/accord continue <id>` | Resume a ticket at the stage and step it reached. |
-| `/accord pick-up <id>` | Claim an unclaimed ticket and start it. |
-| `/accord upgrade` | Move the repository to a newer accord release (see [Version pin](#8-version-pin-and-upgrading)). |
+| `/accord-new <request>` | New work. Accord proposes a lane with its reason; you may override it. |
+| `/accord-continue <id>` | Resume a ticket at the stage and step it reached. |
+| `/accord-pickup <id>` | Claim an unclaimed ticket and start it. |
+| `/accord-upgrade` | Move the repository to a newer accord release (see [Version pin](#8-version-pin-and-upgrading)). |
 
 Lanes:
 
@@ -117,7 +117,7 @@ Lanes:
 
 A request moves from S to M when it changes a public interface or schema, touches a listed sensitive area or auth, money, migration or data deletion, has more than one plausible reading that one question cannot settle, or is expected to touch more than 5 files or more than 3 code areas, tests and generated copies not counted. A scout reads the code before any lane is proposed; `accord scout check` checks the citations and logged searches of its report and prints the lane numbers, and the report is saved as `accord/tickets/<id>/scout.md`, which `accord approve` requires of a lane M ticket, judged by the same check at the commit that last changed it, unless the file holds a `skipped: <reason>` line. A lane S ticket records the files it expects to touch, and `accord gate done` fails it when it touches others. A lane only rises, except that a lane M ticket whose intent is not yet approved may move to lane S in place, keeping its id, branch and worktree.
 
-Each ticket is worked in its own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands listed in `config.yml`. `accord worktree open <id>` prints the folder and the `/accord continue <id>` line to type in a session opened there. Tickets done on the remote main branch have their worktree and branches removed by `accord worktree clean`, which `/accord` runs.
+Each ticket is worked in its own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands listed in `config.yml`. `accord worktree open <id>` prints the folder and the `/accord-continue <id>` line to type in a session opened there. Tickets done on the remote main branch have their worktree and branches removed by `accord worktree clean`, which `/accord` runs.
 
 In Claude Code, the pane shows the dashboard beside the chat.
 
@@ -165,7 +165,7 @@ npx --yes @accord-dev/accord@0.7.1 <command>
 
 There is no flag or environment variable that skips the check. Only `--version`, `--help` and `upgrade` run regardless.
 
-`/accord` says when a newer release is out. `/accord upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` from the remote default branch with one commit that moves the pin and regenerates the skill files. Your checkout is not touched; merge the pull request to upgrade. A repository still pinned to 0.1.0 runs `npx --yes @accord-dev/accord@0.7.1 upgrade` once by hand.
+`/accord` says when a newer release is out. `/accord-upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` from the remote default branch with one commit that moves the pin and regenerates the skill files. Your checkout is not touched; merge the pull request to upgrade. A repository still pinned to 0.1.0 runs `npx --yes @accord-dev/accord@0.7.1 upgrade` once by hand.
 
 Exit codes:
 

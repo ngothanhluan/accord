@@ -1920,3 +1920,37 @@ it('risk:data-loss a task stopped by a permission refusal is merged before its t
   }
   expect(bad).toEqual([]);
 });
+
+// ST-LN-83 7-ac-1 (07-04): every skill reference that tells a reader what to type names the new commands, in the render of all four runtimes.
+it('ac-1 no rendered skill reference names an old typed command (ST-LN-83 7-ac-1)', () => {
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] })
+    .filter((f) => f.path.endsWith('.md'))
+    .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
+  const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
+  const copies = (name: string) => all.filter((f) => base(f.path) === name);
+  const OLD = /\/accord (continue|pick-up|upgrade)/;
+  const SHORT = /\/accord (<[a-z ]*id>|<ticket>|[A-Z]+-[A-Z0-9-]*[0-9])(?![ A-Za-z0-9-])/;
+  // the guard can neither pass vacuously nor flag the routed text form D-02 keeps
+  for (const s of ['`/accord <id>`', '`/accord ST-9`', 'type `/accord <ticket id>` now', 'ends /accord T-1']) expect(SHORT.test(s), s).toBe(true);
+  for (const s of ['`/accord <id> ` followed by the report', '`/accord <request>`', '`/accord onboard`', '`/accord continue ST-99` is', '`/accord-continue <id>`', '`/accord`']) expect(SHORT.test(s), s).toBe(false);
+  expect(all.length).toBeGreaterThan(100);
+  expect(new Set(all.map((f) => f.path.split('/')[0])).size).toBe(2); // .claude and .agents
+  // (a) only the accord skill's own SKILL.md keeps the legacy typed forms
+  expect(all.filter((f) => OLD.test(f.text) && !/(^|\/)skills\/accord\/SKILL\.md$/.test(f.path)).map((f) => f.path)).toEqual([]);
+  expect(all.filter((f) => /(^|\/)skills\/accord\/SKILL\.md$/.test(f.path) && OLD.test(f.text)).length).toBe(2);
+  // (b) no short Continue or Pick up form anywhere
+  expect(all.filter((f) => SHORT.test(f.text)).map((f) => f.path)).toEqual([]);
+  // (c) the finish reference names the commands themselves
+  const finish = copies('finish.md');
+  expect(finish.length).toBeGreaterThan(0);
+  for (const f of finish) for (const s of ['`/accord-continue <id>`', '`/accord-pickup <id>`', '`/accord-new <request>`']) expect(f.text, f.path).toContain(s);
+  // (d) the routed `/accord <id> ` text form stays in comments.md and failure.md
+  for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('`/accord <id> ` followed by');
+  // (e) a step of the old Continue section is named as a step of accord-continue
+  const bad = all.filter((f) => /Continue('s)? steps?/.test(f.text)).map((f) => f.path);
+  expect(bad).toEqual([]);
+  for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('step 2 of `accord-continue` only (`accord anchor`)');
+  for (const f of copies('failure.md')) expect(f.text, f.path).toContain('in place of steps 3 and 4 of `accord-continue`');
+  expect(copies('ids.md').length).toBeGreaterThan(0);
+  for (const f of copies('ids.md')) expect(f.text, f.path).toContain('load `accord-continue` and go on at its step 2');
+});

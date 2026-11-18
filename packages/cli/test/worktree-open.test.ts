@@ -50,6 +50,13 @@ it('ac-1 pick up adds the ticket worktree from origin main runs setup in order a
   expect(c.git('branch', '--show-current').trim()).toBe('other');
 });
 
+it('ac-1 the stop block of worktree open names the new continue command (ST-LN-83 7-ac-1)', async () => {
+  const c = copy();
+  const { code, out } = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(code).toBe(0);
+  expect(out.split('\n').slice(0, 3)).toEqual(['stop: open a session in this folder and type the line below it', c.sibling('ST-9'), '/accord-continue ST-9']);
+});
+
 it('ac-2 a failing setup command exits 2 naming it and keeps the worktree', async () => {
   const c = copy({ setup: ['node setup-step.js ci', 'node setup-step.js fail'] });
   const { code, out, err } = await run(['worktree', 'open', 'ST-9'], c.root);

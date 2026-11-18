@@ -183,7 +183,7 @@ export const entries = (c: Clone) => c.git('worktree', 'list', '--porcelain').sp
 export const stopLines = (path: string, id: string) => [
   'stop: open a session in this folder and type the line below it',
   path,
-  `/accord continue ${id}`,
+  `/accord-continue ${id}`,
 ];
 
 export const A = { pid: 7001, start: 'S-A', marker: 'sess-A' };

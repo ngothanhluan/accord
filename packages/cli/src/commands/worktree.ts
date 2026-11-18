@@ -393,7 +393,7 @@ export function enterOrStop(ctx: CommandContext, id: string, path: string, branc
 
 /** D-11, D-12: exactly three lines, naming no tool. */
 export function printStop(ctx: CommandContext, path: string, id: string): void {
-  ctx.stdout.write(`stop: open a session in this folder and type the line below it\n${path}\n/accord continue ${id}\n`);
+  ctx.stdout.write(`stop: open a session in this folder and type the line below it\n${path}\n/accord-continue ${id}\n`);
 }
 
 /** Pick up reuses an existing branch only when its claim is the user's own (same email); otherwise exit 2, nothing created. */

@@ -44,7 +44,7 @@ it('ac-1 pick up adds the ticket worktree from origin main runs setup in order a
   expect(out.split('\n').slice(0, 3)).toEqual([
     'stop: open a session in this folder and type the line below it',
     c.sibling('ST-9'),
-    '/accord continue ST-9',
+    '/accord-continue ST-9',
   ]);
   expect(out).not.toMatch(/claude|cursor|codex|copilot/i);
   expect(c.git('branch', '--show-current').trim()).toBe('other');
@@ -67,7 +67,7 @@ it('ac-2 a failing setup command exits 2 naming it and keeps the worktree', asyn
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\nfail\n');
   for (const s of [out, err]) {
     expect(s).not.toContain(c.sibling('ST-9'));
-    expect(s).not.toContain('/accord continue');
+    expect(s).not.toContain('/accord-continue');
   }
 });
 
@@ -287,7 +287,7 @@ it('risk:parsing an invalid config in the new worktree stops setup, writes no do
   const { code, out, err } = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(code).toBe(2);
   expect(err).toContain('accord/config.yml');
-  expect(out + err).not.toContain('/accord continue');
+  expect(out + err).not.toContain('/accord-continue');
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
   const dir = gitRun(c.sibling('ST-9'), 'rev-parse', '--path-format=absolute', '--git-dir').trim();
   expect(existsSync(`${dir}/accord-setup-done`)).toBe(false);
@@ -368,7 +368,7 @@ it('risk:complex-branching pick up reuses a branch claimed by the same email', a
   expect(r.out.split('\n').slice(0, 3)).toEqual([
     'stop: open a session in this folder and type the line below it',
     c.sibling('ST-10'),
-    '/accord continue ST-10',
+    '/accord-continue ST-10',
   ]);
   expect(gitRun(c.sibling('ST-10'), 'rev-parse', 'HEAD').trim()).toBe(c.git('rev-parse', 'origin/t/ST-10').trim());
   expect(c.git('log', '--all', '--format=%s').split('\n').filter((s) => s === 'claim: ST-10')).toHaveLength(1);
@@ -387,7 +387,7 @@ it('risk:complex-branching continue opens a ticket another person claimed and a 
   expect(r.out.split('\n').slice(0, 3)).toEqual([
     'stop: open a session in this folder and type the line below it',
     c.sibling('ST-9'),
-    '/accord continue ST-9',
+    '/accord-continue ST-9',
   ]);
   r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);

@@ -7,9 +7,9 @@
 // nothing to generate — only to substitute.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_PATTERN, initialsHolder, insertTeamSections, initialsOf, nextTicketId, setFrontmatterKey, templates, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
+import { DEFAULT_PATTERN, initialsHolder, insertTeamSections, initialsOf, loadSnapshot, nextTicketId, setFrontmatterKey, similarTickets, templates, ticketFacts, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
 import type { Lane } from '@accord-dev/accord-core';
-import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
+import { doneRef, gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, loadRefInput, UsageError } from '../load/fs.js';
 import { queueTicket, utcDate } from './queue.js';
 import { cleanQuietly, fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
 import type { WorktreeEntry } from './worktree.js';
@@ -63,6 +63,8 @@ export function newTicket(
     const where = [bad.line === undefined ? '' : ':' + bad.line, bad.pointer ? ' ' + bad.pointer : ''].join('');
     throw new UsageError('accord/config.yml' + where + ' ' + bad.reason + ' - fix accord/config.yml before creating a ticket');
   }
+  // ST-LN-22 D-08: before any id is chosen or any file written, the tickets most like the request are printed, and nothing is created until the session has judged them
+  if (title !== undefined) checkSimilar(ctx, [title, ...notes].join('\n'));
   const people = ctx.snapshot.config?.people;
   const ids = ctx.snapshot.config?.ids;
   // ST-LN-50 D-05: accord assigns ids while the convention is on, that is while `people` or `ids` exists
@@ -210,3 +212,25 @@ function queuedIntent(text: string, date: string, notes: string[]): string {
   const lines = ['Queued ' + date + ', not approved; the intent interview replaces this:', ...notes.map((n) => '- ' + n)];
   return text.slice(0, from) + comment + lines.join('\n') + '\n' + (next < 0 ? '' : '\n' + text.slice(next + 1));
 }
+
+/** The default branch as the clone holds it, read from git with no checkout, for the tickets a working tree may not have yet. */
+function withDefaultBranch(ctx: CommandContext): CommandContext['snapshot'] {
+  const ref = doneRef(ctx.root);
+  return ref === undefined ? ctx.snapshot : { ...ctx.snapshot, defaultRef: { ref, snapshot: loadSnapshot(loadRefInput(ctx.root, ref)) } };
+}
+
+/** ST-LN-22 D-08: prints up to five `similar:` lines, or `similar: none`; with candidates it then refuses, so the session judges them and runs the command again. */
+function checkSimilar(ctx: CommandContext, request: string): void {
+  const found = similarTickets(request, ticketFacts(withDefaultBranch(ctx)));
+  if (found.length === 0) {
+    ctx.stdout.write('similar: none\n');
+    return;
+  }
+  for (const t of found) ctx.stdout.write('similar: ' + t.id + ' "' + printable(t.title) + '" (' + t.status + ')\n');
+  throw new UsageError(
+    'judge the similar tickets above, then run this command again with --related <id>[,<id>] for the ones this request continues or builds on, or --related none - nothing was written',
+  );
+}
+
+/** A title from a file anyone on the team wrote, on one line: every control character becomes a space. */
+const printable = (text: string): string => text.replace(/\p{Cc}/gu, ' ');

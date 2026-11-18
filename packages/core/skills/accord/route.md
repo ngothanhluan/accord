@@ -28,7 +28,7 @@ A question to answer that ends in a research record, such as comparing X with Y:
 
 ## An existing ticket: change, drop or merge
 
-Run the session check, then edit that ticket, putting the owner's words under its `## Corrections`, or run `accord drop <id> --reason "<why>"`. A merge is an edit of the ticket kept and a drop of the other. In a session that works a ticket, an edit of another ticket needs a session of its own: the session check says so and prints the line that opens it, and no skill moves this session to that ticket.
+Run the session check, then edit that ticket, putting the owner's words under its `## Corrections`, or drop it: offer the owner, as `./ask.md` says, the line `Rejected: <the ticket's title> — <the reason>`, then run `accord drop <id> --reason "<why>"`, adding `--rejected` only on an explicit yes. A merge is an edit of the ticket kept and a drop of the other. In a session that works a ticket, an edit of another ticket needs a session of its own: the session check says so and prints the line that opens it, and no skill moves this session to that ticket.
 
 ## Review code or a pull request accord did not build
 

@@ -394,6 +394,7 @@ it('ac-6 a dropped ticket reason becomes a Rejected line only on a yes (ST-LN-84
   // a file without a final line break, with CRLF: the new item follows in the file's own style
   const crlfConv = copy(plain);
   const o = crlfConv.otherClone();
+  gitRun(o, 'config', 'core.autocrlf', 'false');
   writeFiles(o, { [CONVENTIONS]: '# Conventions\r\n\r\n- A rule.' });
   commitMsg(o, 'conventions');
   gitRun(o, 'push', '-q');

@@ -285,7 +285,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('drop <id>')
     .description("put the ticket file, set to dropped with its reason, on a new branch drop/<id> from origin's default branch and push it, printing the pull request to open")
     .option('--reason <reason>', 'why the ticket is dropped; replaces the ## Dropped section')
-    .action((id: string, o: { reason?: string }) => {
+    .option('--rejected', "also add 'Rejected: <title> — <reason>' to accord/product/conventions.md in the drop commit; pass it only on the owner's yes")
+    .action((id: string, o: { reason?: string; rejected?: boolean }) => {
       setCode(drop(preflight(opts), id, o));
     });
 

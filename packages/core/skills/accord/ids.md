@@ -38,10 +38,13 @@ A ticket's type never changes and its id is never renamed. To change the type:
 
 1. When the ticket has a worktree, first commit every change in the ticket's worktree on its claim branch and
    push it with `git push -u origin <claim branch>`, so that the next `accord worktree clean` finds nothing that
-   exists only there. Then run `accord drop <id> --reason "<reason>"` with the owner's reason. It pushes a branch
+   exists only there. Then offer the owner, as `./ask.md` says, the line `Rejected: <the ticket's title> — <the reason>`
+   for the team's conventions; add `--rejected` to the command below only on an explicit yes, and the drop commit
+   appends `- Rejected: <title> — <reason>` to `accord/product/conventions.md` (without it that file stays as it is).
+   Then run `accord drop <id> --reason "<reason>"` with the owner's reason. It pushes a branch
    made from the default branch that holds the ticket file, set to dropped with that reason, and each record the
    ticket lists under `research:` that the default branch lacks, and prints
-   `branch:`, `base:` and `title:` lines. Open that pull request with
+   `branch:`, `base:` and `title:` lines (and `rejected:` with the flag). Open that pull request with
    `gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"` when `gh` is available,
    otherwise ask the owner to open it; it waits for the owner's merge like other ticket work. Tell the owner to
    close this session once the pull request is opened, because `accord worktree clean` keeps a worktree that a

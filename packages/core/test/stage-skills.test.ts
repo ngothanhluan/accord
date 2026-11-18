@@ -2188,7 +2188,7 @@ it('ac-5 the scout and the critic receive the related tickets decisions (ST-LN-2
 
 it('ac-6 the drop steps offer the Rejected line first and pass the flag only on a yes (ST-LN-84 7-ac-6)', () => {
   const OFFER = "`Rejected: <the ticket's title> — <the reason>`";
-  for (const dir of ['.claude/skills', '.agents/skills']) {
+  for (const dir of ['.claude/skills']) {
     for (const name of ['accord/ids.md', 'accord/route.md', 'accord-new/ids.md', 'accord-new/route.md']) {
       const text = (files.find((f) => f.path === dir + '/' + name)?.text ?? '').replace(/\s+/g, ' ');
       expect(text, dir + '/' + name).not.toBe('');

@@ -1994,3 +1994,62 @@ it('ac-3 the foreign review is read-only with lenses by the size rule and posts 
   expect(reviewer).toContain('Never edits');
   expect(reviewer).not.toContain('diff-package');
 });
+
+// ST-LN-83 7-ac-2 (07-08, D-03, D-04): /accord routes the text after it by intent; the main session says the route out loud and asks one short question when unsure.
+const routedRender = () =>
+  skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] })
+    .filter((f) => f.path.endsWith('.md'))
+    .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
+
+it('ac-2 the routing text maps each intent to its route and says it out loud (ST-LN-83 7-ac-2)', () => {
+  const all = routedRender();
+  const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
+  const dir = (p: string) => p.slice(0, p.lastIndexOf('/'));
+  const routes = all.filter((f) => base(f.path) === 'route.md');
+  // beside every rendered accord/SKILL.md and accord-new/SKILL.md, which both name it
+  const skills = all.filter((f) => /(^|\/)skills\/accord(-new)?\/SKILL\.md$/.test(f.path));
+  expect(routes.length).toBeGreaterThan(0);
+  expect(skills.length).toBe(routes.length);
+  for (const s of skills) expect(all.some((f) => f.path === dir(s.path) + '/route.md'), s.path).toBe(true);
+  for (const s of skills) expect(s.text, s.path).toContain('./route.md');
+  for (const f of routes) {
+    const section = (head: string): string => f.text.split(' ## ').find((s) => s.toLowerCase().startsWith(head)) ?? '';
+    const [change, question, brainstorm, queue, research, existing, review] = ['change', 'question', 'brainstorm', 'queue', 'research', 'an existing ticket', 'review'].map(section);
+    for (const [name, s] of Object.entries({ change, question, brainstorm, queue, research, existing, review })) expect(s.length, `${f.path}: ${name} section`).toBeGreaterThan(0);
+    for (const p of ['`accord-new`', '`accord-debug`']) expect(change, f.path).toContain(p);
+    expect(question, f.path).toContain('from the code');
+    for (const banned of ['accord new ticket', 'accord-scout', 'scout', 'lane']) expect(question.toLowerCase(), `${f.path}: question holds ${banned}`).not.toContain(banned);
+    const end = brainstorm.slice(brainstorm.indexOf('End by proposing'));
+    expect(brainstorm, f.path).toContain('one question at a time');
+    for (const p of ['End by proposing', 'build now', 'queue', 'research', 'nothing']) expect(end, f.path).toContain(p);
+    expect(queue, f.path).toContain('`accord-queue`');
+    expect(research, f.path).toContain('lane R');
+    expect(existing, f.path).toContain('`accord drop <id> --reason');
+    expect(review, f.path).toContain('`./review-foreign.md`');
+    for (const p of ['I read this as', 'say so if not', 'one short question', 'never default silently', '`./ask.md`']) expect(f.text, f.path).toContain(p);
+    expect(f.text, f.path).not.toMatch(/haiku|sonnet|opus|effort/i);
+    expect(f.text, f.path).toContain('runs only on the change, research and existing-ticket routes, and at Pick up and Continue');
+  }
+  // the session-check paragraph of worktree.md names the routes that run it and the routes that never stop on it
+  const checks = all.filter((f) => base(f.path) === 'worktree.md');
+  expect(checks.length).toBeGreaterThan(0);
+  for (const f of checks) {
+    const para = f.text.slice(f.text.indexOf('## Session check'), f.text.indexOf('- Exit 0'));
+    for (const p of [
+      'runs only on the change, research and existing-ticket routes, and at Pick up and Continue',
+      'the question, brainstorm, review and queue routes and the dashboard never stop on it',
+    ])
+      expect(para, f.path).toContain(p);
+  }
+});
+
+it('ac-2 no skill switches a session between tickets (ST-LN-83 7-ac-2)', () => {
+  const all = routedRender();
+  expect(all.length).toBeGreaterThan(100);
+  expect(all.filter((f) => f.text.includes('ExitWorktree')).map((f) => f.path)).toEqual([]);
+  expect(all.filter((f) => /releas\w* (?:the |its |a |that |this )?hold/i.test(f.text)).map((f) => f.path)).toEqual([]);
+  // the routing text sends a change to another ticket to its own session, never moves this one
+  const routes = all.filter((f) => f.path.endsWith('/route.md'));
+  expect(routes.length).toBeGreaterThan(0);
+  for (const f of routes) expect(f.text, f.path).toContain('another ticket needs a session of its own');
+});

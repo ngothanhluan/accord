@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { AGENT_DEFAULTS, agents, agentTargets, contentHash, markerHash, renderAgent, REPORT_CONTRACT, reportReasons, rulesetText, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
+import { AGENT_DEFAULTS, agents, agentTargets, contentHash, markerHash, renderAgent, REPORT_CONTRACT, reportReasons, rulesetText, skills, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 
 const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
@@ -328,7 +328,7 @@ it('ac-3 the executor declares its six tools and stops on a need outside the rep
   const tools = 'Read, Write, Edit, Bash, Grep, Glob';
   const toolsLine = /^tools: "Read, Write, Edit, Bash, Grep, Glob"$/m;
   const trigger =
-    "- When you need something from outside the repository (a web page, an external API's documentation, a service, an MCP or skill result), stop and return `BLOCKED` with a question that names what you need and why, instead of guessing.";
+    "- When you need something from outside the repository (a web page, an external API's documentation, a service, an MCP or skill result), stop and return `NEEDS_CONTEXT` with a question that names what you need and why, instead of guessing.";
   const executor = rendered(config(), 'executor');
   expect(executor, 'accord-executor.md is missing from the render output').not.toBe('');
   expect(frontmatter(executor).tools).toBe(tools);
@@ -356,6 +356,8 @@ it('ac-3 the executor declares its six tools and stops on a need outside the rep
     .filter(([, text]) => !lines(text).includes(trigger))
     .map(([name]) => name);
   expect(missing, 'the executor stop trigger line is missing from').toEqual([]);
+  // phase 6 review WR-01: the status this stop returns must have a route in accord-build step 4
+  expect(skills['build/SKILL.md'], 'accord-build step 4 lost its NEEDS_CONTEXT route').toContain('`NEEDS_CONTEXT`: answer, and dispatch again.');
 });
 
 it('ac-2 docs/design.md gives every default model choice with one reason line and the models override (ST-LN-85 6-ac-2)', () => {

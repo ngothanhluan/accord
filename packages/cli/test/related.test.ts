@@ -62,3 +62,23 @@ it('ac-5 accord related refuses an id that is no ticket (ST-LN-22 7-ac-5)', asyn
     expect(r.err, bad).toContain('no ticket');
   }
 });
+
+it('ac-6 accord related ends with the Rejected lines of conventions.md read from disk (ST-LN-84 7-ac-6)', async () => {
+  const repo = sandbox();
+  // no file: the section says none
+  let r = await run(['related', 'N-1'], repo);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out.endsWith('\n## Rejected\n(none)\n')).toBe(true);
+  // a file with a byte order mark and CRLF: the two Rejected lines come as written, the rule line does not
+  writeFiles(repo, {
+    'accord/product/conventions.md': '﻿# Conventions\r\n\r\n- Never add a trailer.\r\n- Rejected: a queue table — too slow to read\r\n- Rejected: shared state — two branches race\r\n',
+  });
+  r = await run(['related', 'N-1'], repo);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out.endsWith('\n## Rejected\n- Rejected: a queue table — too slow to read\n- Rejected: shared state — two branches race\n')).toBe(true);
+  expect(r.out).not.toContain('Never add a trailer');
+  expect(r.out.split('\n').filter((l) => l === '## Rejected')).toHaveLength(1);
+  // a ticket with nothing related still carries the section
+  const alone = await run(['related', 'R-3'], repo);
+  expect(alone.out).toBe('# Related tickets of R-3\n\n(none)\n\n## Rejected\n- Rejected: a queue table — too slow to read\n- Rejected: shared state — two branches race\n');
+});

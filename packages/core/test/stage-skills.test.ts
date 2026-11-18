@@ -2097,3 +2097,49 @@ it('ac-5 the new skill judges the candidates and asks one question on a match (S
     }
   }
 });
+
+// ST-LN-22 7-ac-5 (07-11, D-08 and the owner's ruling of 2026-11-18): every skill line that creates a ticket on the change or queue route passes a title, so the check in the creating path always runs.
+const CREATING = /`accord new ticket[^`]*`/g;
+const onCheckedRoute = (cmd: string): boolean => /--lane\s+(?:S|M|<lane>)(?![\w])|--queue(?![\w-])/.test(cmd) && !cmd.includes('--split');
+const withoutTitle = (text: string): string[] => (text.match(CREATING) ?? []).filter((c) => onCheckedRoute(c) && !c.includes('--title'));
+
+it('ac-5 every skill line that creates a ticket passes a title and judges the candidates (ST-LN-22 7-ac-5)', () => {
+  // the check can neither pass vacuously nor flag a line that only maps the command's output
+  expect(withoutTitle('run `accord new ticket --type story --lane M` now')).toEqual(['`accord new ticket --type story --lane M`']);
+  expect(withoutTitle('`accord new ticket --type epic --lane L --split <file> --queue`')).toEqual([]);
+  expect(withoutTitle('`accord new ticket --worktree`')).toEqual([]);
+
+  const all = similarRender();
+  expect(all.length).toBeGreaterThan(100);
+  expect(all.flatMap((f) => withoutTitle(f.text).map((c) => f.path + ': ' + c))).toEqual([]);
+  const checked = new Set(all.filter((f) => (f.text.match(CREATING) ?? []).some(onCheckedRoute)).map((f) => f.path));
+  for (const p of ['.claude/skills/accord-new/SKILL.md', '.claude/skills/accord-new/lane-s.md', '.claude/skills/accord-queue/SKILL.md', '.claude/skills/accord/ids.md'])
+    expect(checked.has(p), p + ' holds no checked creating line').toBe(true);
+  expect(all.filter((f) => f.text.includes('--no-dup-check')).map((f) => f.path)).toEqual([]);
+
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
+    const queue = get('accord-queue/SKILL.md');
+    expect(get('accord-queue/similar.md').length, dir + '/accord-queue/similar.md is not rendered').toBeGreaterThan(0);
+    expect(queue, dir + ' queue follows similar.md').toContain('as `./similar.md` says');
+    expect(queue, dir + ' queue judges the candidates').toContain('On exit 2 with `similar:` lines, judge them as `./similar.md` says; on any other exit 2');
+    expect(queue, dir + ' queue passes a title').toContain('--title "<title>"');
+    const ids = get('accord/ids.md');
+    expect(ids.length, dir + '/accord/ids.md').toBeGreaterThan(0);
+    expect(ids, dir + ' ids.md names no similar.md').not.toContain('./similar.md');
+    const assigning = ids.slice(ids.indexOf('## Assigning'), ids.indexOf('## When your email'));
+    expect(assigning, dir + ' ids.md assigning').toContain('--title "<title>"');
+    const step2 = ids.slice(ids.indexOf('2. Create the new ticket'), ids.indexOf('3. Copy into it'));
+    expect(step2.length, dir + ' ids.md step 2').toBeGreaterThan(0);
+    expect(step2, dir + ' ids.md step 2 title').toContain('--title "<the dropped ticket\'s title>"');
+    expect(step2, dir + ' ids.md step 2 link').toContain("--related <the dropped ticket's id>");
+    const laneS = get('accord-new/lane-s.md');
+    expect(laneS, dir + ' lane-s.md').toContain('./similar.md');
+    expect(laneS, dir + ' lane-s.md keeps no title hint of its own').not.toContain('a few words naming the change');
+  }
+  // every skill that loads lane-s.md also loads similar.md
+  for (const f of all.filter((x) => x.path.endsWith('/lane-s.md'))) {
+    const dir = f.path.slice(0, f.path.lastIndexOf('/'));
+    expect(all.some((x) => x.path === dir + '/similar.md'), dir + ' renders lane-s.md without similar.md').toBe(true);
+  }
+});

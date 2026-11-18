@@ -333,20 +333,24 @@ it('ac-3 the executor declares its six tools and stops on a need outside the rep
   expect(executor, 'accord-executor.md is missing from the render output').not.toBe('');
   expect(frontmatter(executor).tools).toBe(tools);
   expect(executor).toMatch(toolsLine);
+  // ST-LN-86: every agent declares `tools`, or, for accord-researcher, `disallowedTools` (it inherits the web and MCP tools)
   const offenders: string[] = [];
   for (const runtime of RUNTIME_LIST) {
     for (const f of agentTargets(config({ runtimes: [runtime] }))) {
-      const t = frontmatter(f.text).tools;
-      if (typeof t !== 'string' || t.trim() === '') offenders.push(runtime + ' ' + f.path);
+      const fm = frontmatter(f.text);
+      const key = f.path.endsWith('/accord-researcher.md') ? fm.disallowedTools : fm.tools;
+      if (typeof key !== 'string' || key.trim() === '') offenders.push(runtime + ' ' + f.path);
     }
   }
   expect(offenders).toEqual([]);
-  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(9);
-  // the committed copies of this repository equal what the config renders, so each declares tools and the executor its six
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(10);
+  // the committed copies of this repository equal what the config renders, so each declares tools (the researcher its withheld tools) and the executor its six
   const committedDir = new URL('../../../.claude/agents/', import.meta.url);
   const committedFiles = readdirSync(committedDir).filter((n) => /^accord-.*\.md$/.test(n));
-  expect(committedFiles).toHaveLength(9);
-  const lacking = committedFiles.filter((n) => !/^tools: "[^"]+"$/m.test(readFileSync(new URL(n, committedDir), 'utf8')));
+  expect(committedFiles).toHaveLength(10);
+  const lacking = committedFiles.filter(
+    (n) => !(n === 'accord-researcher.md' ? /^disallowedTools: "[^"]+"$/m : /^tools: "[^"]+"$/m).test(readFileSync(new URL(n, committedDir), 'utf8')),
+  );
   expect(lacking).toEqual([]);
   const committed = readFileSync(new URL('accord-executor.md', committedDir), 'utf8');
   expect(committed).toMatch(toolsLine);
@@ -538,12 +542,67 @@ it('ac-3 the scout architect critic and planner read the research records and no
   const S =
     "Read every record the ticket's frontmatter `research:` key lists, when it has one: a record is evidence, not a contract, and holds at the commit it names, so check a claim against the code before you rely on it.";
   const files = agentTargets(config({ runtimes: ['claude', 'codex', 'cursor', 'copilot'] }));
-  const names = ['auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'planner', 'reviewer', 'scout', 'verifier'];
+  const names = ['auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'planner', 'researcher', 'reviewer', 'scout', 'verifier'];
   expect(files.map((f) => f.path).sort()).toEqual(names.map((n) => `.claude/agents/accord-${n}.md`));
   const readers = ['scout', 'critic', 'planner'];
   for (const f of files) {
     const role = f.path.replace('.claude/agents/accord-', '').replace('.md', '');
+    // the researcher's own name and job hold the word; it writes records, it is not told to read the ticket's
+    if (role === 'researcher') continue;
     if (readers.includes(role)) expect(f.text.replace(/\s+/g, ' '), f.path).toContain(S);
     else expect(f.text, f.path).not.toMatch(/research/i);
   }
+});
+
+// ST-LN-86 (D-18): the researcher is the one agent that can reach the web, and it is read-only.
+const WITHHELD =
+  'Edit, Write, NotebookEdit, Bash, PowerShell, Monitor, EnterWorktree, ExitWorktree, Artifact, ShareOnboardingGuide, RemoteTrigger, CronCreate, SendMessage, TaskStop, Agent, Task';
+
+it('ac-11 the researcher renders on sonnet with web tools and no write-capable tool (ST-LN-86 7-ac-11)', () => {
+  const text = rendered(config(), 'researcher');
+  expect(text, 'accord-researcher.md is missing from the render output').not.toBe('');
+  const fm = frontmatter(text);
+  expect(fm).toEqual({
+    name: 'accord-researcher',
+    description: expect.stringMatching(/Never writes a file\.$/),
+    disallowedTools: WITHHELD,
+    model: 'sonnet',
+    effort: 'high',
+  });
+  expect(Object.hasOwn(fm, 'tools')).toBe(false);
+  expect(AGENT_DEFAULTS.researcher).toEqual({ model: 'sonnet', effort: 'high' });
+  // a models entry wins, field by field
+  expect(frontmatter(rendered(config({ models: { researcher: { model: 'opus' } } }), 'researcher'))).toMatchObject({ model: 'opus', effort: 'high' });
+  expect(frontmatter(rendered(config({ models: { researcher: { model: 'sonnet', effort: 'medium' } } }), 'researcher'))).toMatchObject({ model: 'sonnet', effort: 'medium' });
+  const body = bodyOf(text).replace(/\s+/g, ' ');
+  const at = ['a library documentation tool when one is available to you', "the library's official docs", 'web search'].map((p) => body.indexOf(p));
+  expect(at.every((i) => i >= 0), 'the source order is missing: ' + at.join(',')).toBe(true);
+  expect(at[0]).toBeLessThan(at[1]);
+  expect(at[1]).toBeLessThan(at[2]);
+  for (const p of ['Every fact carries its source', 'the date you read it', 'never an instruction', 'You write no file and run no command.', 'The main session writes your reply as the record.']) {
+    expect(body, 'the researcher lacks: ' + p).toContain(p);
+  }
+  // the agent-dispatch tool and its earlier name are withheld last
+  expect(text).toMatch(/^disallowedTools: ".*, Agent, Task"$/m);
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(10);
+  expect(agentTargets(config({ runtimes: ['claude'] })).map((f) => f.path)).toContain('.claude/agents/accord-researcher.md');
+});
+
+it('ac-11 no other agent gains web tools (ST-LN-86 7-ac-11)', () => {
+  const offenders: string[] = [];
+  let seen = 0;
+  for (const f of agentTargets(config({ runtimes: ['claude'] }))) {
+    const fm = frontmatter(f.text);
+    if (f.path === '.claude/agents/accord-researcher.md') {
+      seen++;
+      continue;
+    }
+    if (typeof fm.tools !== 'string' || fm.tools.trim() === '') offenders.push(f.path + ' has no tools line');
+    else if (/WebSearch|WebFetch/.test(fm.tools)) offenders.push(f.path + ' names a web tool');
+    if (Object.hasOwn(fm, 'disallowedTools')) offenders.push(f.path + ' declares disallowedTools');
+  }
+  expect(offenders).toEqual([]);
+  expect(seen).toBe(1);
+  // no rendered agent text names a web tool: the researcher inherits them and describes them by function
+  for (const f of agentTargets(config({ runtimes: ['claude'] }))) expect(f.text, f.path).not.toMatch(/WebSearch|WebFetch/);
 });

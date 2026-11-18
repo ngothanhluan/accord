@@ -22,6 +22,7 @@ export const AGENT_DEFAULTS: Record<RouteKey, { model: string; effort: Effort }>
   'reviewer.final': { model: 'opus', effort: 'high' },
   verifier: { model: 'sonnet', effort: 'medium' },
   debugger: { model: 'opus', effort: 'high' },
+  researcher: { model: 'sonnet', effort: 'high' },
 };
 
 // ST-LN-80: files accord rendered before and no longer renders. `skills sync` and `accord upgrade` remove one when its
@@ -45,7 +46,7 @@ function source(key: AgentKey): { yaml: Record<string, unknown>; body: string } 
   return { yaml: (split.yaml === null ? {} : parse(split.yaml, options)) as Record<string, unknown>, body: split.body };
 }
 
-/** The agent as it lands on disk: name, description, tools (when authored), model, effort, marker, body. */
+/** The agent as it lands on disk: name, description, tools and disallowedTools (when authored), model, effort, marker, body. */
 export function renderAgent(key: AgentKey, route: { model: string; effort: Effort }, name?: string): string {
   const { yaml, body } = source(key);
   if (typeof yaml.route !== 'string' || !Object.hasOwn(AGENT_DEFAULTS, yaml.route)) {
@@ -55,6 +56,7 @@ export function renderAgent(key: AgentKey, route: { model: string; effort: Effor
     ['name', name ?? yaml.name],
     ['description', yaml.description],
     ['tools', yaml.tools],
+    ['disallowedTools', yaml.disallowedTools],
     ['model', route.model],
     ['effort', route.effort],
   ];

@@ -308,3 +308,36 @@ it('ac-12 every worktree command line names its next action (ST-LN-69 7-ac-12)',
   // every kind of the sweep was produced by some run above
   for (const [name] of SWEPT) expect(seen.has(name), `no run produced a ${name} line`).toBe(true);
 }, 600_000);
+
+// The rules that worktree.md listed line by line before ST-LN-69 now live in the action each line prints; a rule that is dropped from an action fails here.
+it('ac-12 the next actions hold every rule that worktree.md listed per line (ST-LN-69 7-ac-12)', () => {
+  const holds = (kind: LineKind, ...parts: string[]): void => {
+    for (const p of parts) expect(NEXT_ACTIONS[kind], `${kind}: ${p}`).toContain(p);
+  };
+  holds('pruned', 'as it is', 'go on with the other lines');
+  holds('fetch-failed', 'go on with the other lines', 'the refs already in this clone');
+  holds('behind', 'never sync here', 'once at verify, after review');
+  holds('trust', 'accord trust', "the owner's to do, never yours", 'stop there');
+  holds('synced', 'go on');
+  holds('push-after-sync', 'the synced branch is local only', 'run the push command the line names', "show git's message and stop");
+  holds('push-failed', "go on with the stage's next step", 'never stop or ask the owner', '--force-with-lease');
+  holds('removed', 'go on with the other lines');
+  holds('deleted', 'go on with the other lines');
+  holds('kept', 'delete and move nothing it names', 'never offer to', 'the folder and the branch stay', "the owner's to move or delete", 'a research record is never deleted or moved', 'as the line says');
+  holds('clean-failed', 'the next clean retries');
+  holds('clean-skipped', 'go on with the other lines');
+  holds('clean-stopped', 'the rest waits for the next clean');
+  holds('note', 'go on');
+  holds('stop', 'show the two lines below as they are', 'stop there', 'never change directory into that folder', 'start the next stage', 'the people entry', "the scout's report", 'Done when');
+  holds('enter', 'call EnterWorktree', 'run accord anchor', 'without asking', 'every command, path and edit is in that worktree', 'stop, editing nothing');
+  holds('held', 'go on');
+  holds('not-held', 'go on');
+  holds('not-a-ticket', 'New request');
+  holds('not-claimed', 'offer Pick up', 'never claim it yourself');
+  holds('claimed', 'push nothing', 'show this message and stop');
+  holds('session-works', 'show this message and stop', 'editing nothing');
+  holds('setup-failed', 'the worktree is kept', 'the enter or stop line it prints', 'the setup commands run again');
+  holds('held-by-other', 'show this message and stop', 'editing nothing');
+  holds('merge-of', 'aborted', 'show this message and stop', 'editing nothing');
+  holds('ticket-push-failed', 'people entry', 'accord worktree open', '--continue', "show git's message and stop");
+});

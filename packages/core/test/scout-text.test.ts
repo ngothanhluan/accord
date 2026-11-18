@@ -51,9 +51,8 @@ it('risk:parsing the scout prompt and the scout steps write the report form acco
     }
   }
 
-  expect(flat(skillText('.claude/skills/accord/worktree.md'))).toContain(
-    "except the people entry below, the scout's report `accord/tickets/<id>/scout.md` with the commit and push that save it",
-  );
+  // ST-LN-69 7-ac-12: the stop block's next action names the scout's report as the one file a stopped session may edit (packages/cli/test/next-action.test.ts)
+  expect(flat(skillText('.claude/skills/accord/worktree.md'))).toContain('do what it says');
 });
 
 it('risk:complex-branching the approach and build stages send an approve refusal back to the scout steps', () => {

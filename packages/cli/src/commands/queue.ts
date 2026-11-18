@@ -34,6 +34,22 @@ export function queueTicket(ctx: CommandContext, id: string, rel: string, text: 
   const base = git(root, ['rev-parse', ref]).trim();
   const branch = 'backlog/' + id.toLowerCase() + '-' + date;
 
+  // T-07-05, T-07-08: the branch name is valid and free everywhere, and the default branch does not hold the ticket, before the temporary worktree is made
+  if (!gitOk(root, ['check-ref-format', '--branch', branch])) throw new UsageError(`${branch} is not a valid branch name` + NOTHING);
+  let onOrigin: string;
+  try {
+    onOrigin = gitNoPrompt(root, ['ls-remote', 'origin', 'refs/heads/' + branch], undefined, ctx.ssh).trim();
+  } catch (err) {
+    throw new UsageError('could not read the branches of origin: ' + firstLine(err) + NOTHING);
+  }
+  if (onOrigin !== '') {
+    throw new UsageError(`${branch} already exists on origin - pick another id, or delete it with git push origin --delete ${branch}, then try again` + NOTHING);
+  }
+  if (gitOk(root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch])) {
+    throw new UsageError(`${branch} already exists in this clone - delete it with git branch -D ${branch}, then try again` + NOTHING);
+  }
+  if (gitOk(root, ['cat-file', '-e', `${ref}:${rel}`])) throw new UsageError(`${rel} already exists on ${short}` + NOTHING);
+
   // The draft is read back with the default branch's tickets before anything is written, as `accord drop` does.
   const input = loadRefInput(root, ref);
   input.files[rel] = text;

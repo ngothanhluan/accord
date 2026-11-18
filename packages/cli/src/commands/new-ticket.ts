@@ -25,6 +25,21 @@ export function newTicket(
   givenId: string | undefined,
   options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[] },
 ): number {
+  // ST-LN-83 D-03: every bad flag is refused before anything is read, written or pushed
+  const notes = (options.note ?? []).map((n) => n.trim());
+  if (options.queue === true && options.worktree === true) {
+    throw new UsageError('--queue and --worktree cannot go together: --queue writes the draft on a backlog branch, --worktree claims the ticket in its own worktree - nothing was written');
+  }
+  if (options.queue === true && options.title === undefined) throw new UsageError('--queue needs --title: the draft is written on its own branch, so its title is given here - nothing was written');
+  if (notes.length > 0 && options.queue !== true) throw new UsageError('--note goes with --queue, which puts the lines under ## Intent of the queued draft - nothing was written');
+  if (notes.length > 4) throw new UsageError('--note is given at most four times: the five-line Intent holds the opening line and four notes - nothing was written');
+  if (notes.some((n) => n === '' || /[\r\n]/.test(n))) {
+    throw new UsageError('--note must be one line of text - nothing was written');
+  }
+  const title = options.title?.trim();
+  if (title !== undefined && (title === '' || /[\r\n]/.test(title))) {
+    throw new UsageError('--title must be one line of text - nothing was written');
+  }
   // ST-LN-83 D-06: the queue path writes on another branch in a temporary worktree and touches nothing of this session's ticket, so it runs no session guard
   if (options.queue !== true) guardTicketSession(ctx);
   // the worktree list clean read last, for the new worktree's own check; undefined when nothing was read or a removal followed
@@ -158,7 +173,7 @@ export function newTicket(
   // Spec §3: the lane the caller chose; the template's own value is only a default for reading.
   if (options.lane !== undefined) text = setFrontmatterKey(text, 'lane', options.lane);
   // ST-LN-83 D-03: the title the person gave, written as a double-quoted string on every path
-  if (options.title !== undefined) text = setFrontmatterKey(text, 'title', options.title);
+  if (title !== undefined) text = setFrontmatterKey(text, 'title', title);
   // ST-LN-50 D-10: the team's own sections go into every story and bug ticket, in the plain and the --worktree path alike; an epic holds none
   if (options.type !== 'epic') text = insertTeamSections(text, ctx.snapshot.config?.template?.sections);
 
@@ -170,7 +185,7 @@ export function newTicket(
   if (options.queue === true) {
     // ST-LN-83 D-06: the draft goes to a backlog branch off origin's default branch, not to this checkout
     const date = utcDate();
-    return queueTicket(ctx, id, rel, queuedIntent(text, date, options.note ?? []), date);
+    return queueTicket(ctx, id, rel, queuedIntent(text, date, notes), date);
   }
   if (options.worktree === true) {
     newTicketWorktree(ctx, id, rel, text, seen);

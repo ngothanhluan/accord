@@ -1264,7 +1264,6 @@ it('risk:regression a lane M ticket that gate ready refuses is never planned fro
   expect(mid).toBeLessThan(app.indexOf(H));
   expect(app.indexOf(H)).toBeLessThan(app.indexOf('## Rules'));
 
-  const acc = flatS('.claude/skills/accord/SKILL.md');
   const continueSkill = flatS('.claude/skills/accord-continue/SKILL.md');
   const step4 = continueSkill.slice(continueSkill.indexOf('4. Otherwise'), continueSkill.indexOf('## Rules'));
   const at = (x: string) => step4.indexOf(x);

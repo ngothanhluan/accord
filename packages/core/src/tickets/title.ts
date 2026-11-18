@@ -2,6 +2,7 @@
 // `accord new ticket` prints it when it creates a ticket from a given `--title`, so the model reads the rule at the
 // moment it writes the title. The checks are deterministic - length, letters and the template's placeholder - and never
 // a model call. Pure: no I/O.
+import type { AccordConfig } from '../model/snapshot.js';
 
 /** The title every ticket template starts with; a ticket that still reads it was never given a title. */
 export const TITLE_PLACEHOLDER = 'Short title in business language';
@@ -22,16 +23,17 @@ export interface TitleRule {
   language: 'english' | 'any';
 }
 
-/** The config a rule is read from; until config.yml holds a `titles` key (ST-LN-22 D-08b, 07-13 task 2) it reads nothing from it. */
-type ConfigLike = object | undefined;
+/** The `titles` key of config.yml, every field optional and falling back to the default on its own. */
+type ConfigLike = Pick<AccordConfig, 'titles'> | undefined;
 
-/** The rule in force: for now the default. */
+/** The rule in force: each key of `titles` that is set, else the default for that key. */
 export function titleRuleOf(config: ConfigLike): TitleRule {
-  void config; // read nothing yet: the `titles` key arrives with task 2
+  const titles = config?.titles;
+  const max = Number(titles?.max_length ?? DEFAULT_TITLE_RULE.max_length);
   return {
-    rule: DEFAULT_TITLE_RULE.rule,
-    maxLength: Number(DEFAULT_TITLE_RULE.max_length),
-    language: DEFAULT_TITLE_RULE.language,
+    rule: titles?.rule ?? DEFAULT_TITLE_RULE.rule,
+    maxLength: Number.isInteger(max) && max > 0 ? max : Number(DEFAULT_TITLE_RULE.max_length),
+    language: titles?.language ?? DEFAULT_TITLE_RULE.language,
   };
 }
 

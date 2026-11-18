@@ -1,10 +1,11 @@
 // CLI-04 `accord new ticket <id>`: the first command a BA runs, and the one place accord creates a
-// document a human is supposed to own. It substitutes the id and sets `type:`, and sets `title:` only when the
-// person gives `--title` (ST-LN-83 D-03) — and fills in nothing else (D-104). Intent, requirements, scenarios and
-// ticks stay the template's placeholder text, because accord records human intent and never synthesises it; the one
-// exception is `--queue`, whose `--note` lines are the person's own words under `## Intent`. The `@ac-1` tag
-// scaffolding ROADMAP criterion 1 asks for already ships inside ticket-build.md and ticket-maintain.md, so there is
-// nothing to generate — only to substitute.
+// document a human is supposed to own. It fills in the id, the type, the lane, the title (only when the person gives
+// `--title`, ST-LN-83 D-03, and then only a title that keeps the rule of config.yml's `titles`, ST-LN-22 D-08b) and the
+// related tickets (ST-LN-22 D-08), and nothing of the intent (D-104). Intent, requirements, scenarios and ticks stay
+// the template's placeholder text, because accord records human intent and never synthesises it; the one exception is
+// `--queue`, whose `--note` lines are the person's own words under `## Intent`. The `@ac-1` tag scaffolding ROADMAP
+// criterion 1 asks for already ships inside ticket-build.md and ticket-maintain.md, so there is nothing to generate,
+// only to substitute.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_PATTERN, initialsHolder, insertTeamSections, initialsOf, loadSnapshot, nextTicketId, setFrontmatterKey, similarTickets, templates, ticketFacts, titleProblem, titleRuleLine, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
@@ -69,7 +70,7 @@ export function newTicket(
   } catch {
     // absent counts as empty
   }
-  const bad = /^(?:people|ids|template)\s*:/m.test(raw)
+  const bad = /^(?:people|ids|template|titles)\s*:/m.test(raw)
     ? ctx.snapshot.errors.find((f) => f.file === 'accord/config.yml' && f.rule !== 'load.config-missing')
     : undefined;
   if (bad !== undefined) {
@@ -81,7 +82,7 @@ export function newTicket(
   else if (title !== undefined || related !== undefined) {
     const view = withDefaultBranch(ctx);
     if (related !== undefined) refuseUnknown(related, view);
-    if (title !== undefined) checkSimilar(view, [title, ...notes].join('\n'), ctx.stdout, related !== undefined);
+    if (title !== undefined) checkSimilar(view, [title, ...notes].join('\n'), ctx.stdout, related !== undefined, titleRuleLine(ctx.snapshot.config));
   }
   const people = ctx.snapshot.config?.people;
   const ids = ctx.snapshot.config?.ids;
@@ -204,6 +205,8 @@ export function newTicket(
   // T-05-15: refusing is the behaviour, not an afterthought — a BA-authored ticket can never be
   // destroyed by a second `new ticket`. Exit 2: this is a usage error, not a gate verdict.
   if (existsSync(file)) throw new UsageError(rel + ' already exists - nothing was written');
+  // ST-LN-22 D-08b: a run given --title prints the rule its title was checked against, once, before the path or the queue lines; a run without one prints none
+  if (title !== undefined) ctx.stdout.write(titleRuleLine(ctx.snapshot.config) + '\n');
   if (options.queue === true) {
     // ST-LN-83 D-06: the draft goes to a backlog branch off origin's default branch, not to this checkout
     const date = utcDate();
@@ -265,8 +268,9 @@ function refuseUnknown(ids: readonly string[], view: Snapshot): void {
 /**
  * ST-LN-22 D-08: prints up to five `similar:` lines, or `similar: none`. With candidates and no `--related` it then refuses, so the
  * session judges them and runs the command again; with `--related` the lines stay in the output as the record of what was judged.
+ * The refusal also prints the title rule line (ST-LN-22 D-08b), so the model reads the rule before it writes the title the second run is given.
  */
-function checkSimilar(view: Snapshot, request: string, out: CommandContext['stdout'], judged: boolean): void {
+function checkSimilar(view: Snapshot, request: string, out: CommandContext['stdout'], judged: boolean, ruleLine: string): void {
   const found = similarTickets(request, ticketFacts(view));
   if (found.length === 0) {
     out.write('similar: none\n');
@@ -274,6 +278,7 @@ function checkSimilar(view: Snapshot, request: string, out: CommandContext['stdo
   }
   for (const t of found) out.write('similar: ' + t.id + ' "' + printable(t.title) + '" (' + t.status + ')\n');
   if (judged) return;
+  out.write(ruleLine + '\n');
   throw new UsageError(
     'judge the similar tickets above, then run this command again with --related <id>[,<id>] for the ones this request continues or builds on, or --related none - nothing was written',
   );

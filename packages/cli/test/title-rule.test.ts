@@ -61,7 +61,8 @@ it('D-08b the title rule comes from config.yml and is printed at creation (ST-LN
   // accord config edits the rule, validated by the schema
   const set = await run(['config', 'set', 'titles.max_length', '60'], repo);
   expect(set.code, set.err).toBe(0);
-  expect((await run(['config', 'get', 'titles.max_length'], repo)).out).toBe('60\n');
+  // digits are kept as a string, so get prints them quoted, as it does for stale_days
+  expect((await run(['config', 'get', 'titles.max_length'], repo)).out).toBe('"60"\n');
   const bad = await run(['config', 'set', 'titles.language', 'french'], repo);
   expect(bad.code, bad.out).toBe(2);
   expect(bad.err).toContain('titles');

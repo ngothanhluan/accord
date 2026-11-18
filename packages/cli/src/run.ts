@@ -9,6 +9,7 @@ import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { anchor } from './commands/anchor.js';
 import { related } from './commands/related.js';
+import { deferred } from './commands/deferred.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
@@ -442,6 +443,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('print the Vetoes and Decisions of the tickets related to <id>, for the scout at intent and the critic at approach')
     .action((id: string) => {
       setCode(related(preflight(opts), id));
+    });
+
+  program
+    .command('deferred <id>')
+    .description("print the ledger's Must and Should deferred items, for the owner at verify")
+    .action((id: string) => {
+      setCode(deferred(preflight(opts), id));
     });
 
   program

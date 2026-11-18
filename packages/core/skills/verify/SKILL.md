@@ -4,7 +4,7 @@ description: Use when a lane M ticket's review.md ends with a verdict, or its re
 license: MIT
 argument-hint: "[ticket id]"
 kind: skill
-loads: [verify/ci.md, verify/writer.md, accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/resume.md]
+loads: [verify/ci.md, verify/deferred.md, verify/writer.md, accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/resume.md]
 ---
 
 This stage checks the built work against the ticket and hands it to the
@@ -41,7 +41,7 @@ judges, the owner decides.
    - CI: each check's result, or CI not checked and why;
    - three to five "try this" steps that take the owner about two minutes;
    - every Ruling under the ledger's `## Rulings`, ordered by its cost if wrong, highest first;
-   - the deferred items under the ledger's `## Deferred`;
+   - the Must and Should items `accord deferred <id>` prints, then follow `./deferred.md` after the owner's step-5 answer;
    - what was not checked, including every criterion the verifier recorded as `blocked`, every check CI did not check,
      and every test `accord tests skipped` printed, by name, with the operating system it names;
    - slow tests: the slowest cases in the report, with their times.

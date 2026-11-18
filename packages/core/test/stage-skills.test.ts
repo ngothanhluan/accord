@@ -1549,6 +1549,34 @@ it('risk:regression the worktree reference and the finish report say a session s
   }
 });
 
+it('ac-12 worktree.md tells the agent to do what the line says (ST-LN-69 7-ac-12)', () => {
+  for (const dir of ['accord', 'accord-debug', 'accord-verify']) {
+    const wt = flatS(`.claude/skills/${dir}/worktree.md`);
+    expect(wt.length, dir).toBeGreaterThan(0);
+    // what stays: the lead, the one sentence about the next action, and what the commands cannot say
+    for (const s of [
+      "Only a session rooted in a ticket's worktree works that ticket",
+      '`accord worktree open`, `accord new ticket --worktree`, `accord worktree push`, `accord worktree clean` and `accord worktree check`',
+      'ends with its next action (` - next: ...`)',
+      'or follows a line `next: ...`',
+      'do what it says',
+      'Any other exit 2: show the message and stop',
+      'even when a setup command failed',
+      'the longest timeout',
+      'carry it to the worktree before you stop or move into it',
+      'only from `/accord` with no argument and from `/accord-upgrade`',
+      'every session start, resume or /clear runs the same clean',
+      '`tell the owner the lines above`',
+      '## Session check',
+      '`accord worktree check`',
+    ])
+      expect(wt, `${dir}: ${s}`).toContain(s);
+    // what goes: the per-line cases, which the lines now say themselves
+    for (const s of ['A line starting', '`pruned <path>: <reason>`', 'Exit 2 naming', 'Exit 2 starting', 'A `kept` line ends with its reason', 'holds a repository', 'research record', '`not held:`', 'EnterWorktree'])
+      expect(wt, `${dir}: ${s}`).not.toContain(s);
+  }
+});
+
 it('risk:regression the plan skill and the planner run a measurement one arm on one sample first and the intent skill asks the expected size (ST-LN-93 ac-4)', () => {
   const plan = flatText('.claude/skills/accord-plan/SKILL.md');
   const intent = flatText('.claude/skills/accord-intent/SKILL.md');

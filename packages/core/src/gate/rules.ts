@@ -70,6 +70,7 @@ import {
   earsMissing,
   intentEmpty,
   sectionEmpty,
+  ticketTitle,
   ticketUnknown,
 } from './ready.js';
 import {
@@ -175,6 +176,7 @@ export const READY_RULES: readonly GateRule[] = [
   RULESET_MISSING,
   { id: 'gate.design-missing', level: 'error', profiles: ['build', 'maintain'], check: designMissing },
   { id: 'gate.intent-empty', level: 'error', profiles: ['build', 'maintain'], check: intentEmpty },
+  { id: 'gate.ticket-title', level: 'error', profiles: ['build', 'maintain'], check: ticketTitle },
   { id: 'gate.ears-missing', level: 'error', profiles: ['build', 'maintain'], check: earsMissing },
   { id: 'gate.approach-empty', level: 'error', profiles: ['build', 'maintain'], check: approachEmpty },
   { id: 'gate.discuss-missing', level: 'error', profiles: ['build', 'maintain'], check: discussMissing },

@@ -113,6 +113,14 @@ export const PLAN_WAVES_FROM = '0.6.0';
  */
 export const SECURITY_TRIGGER_FROM = '0.7.0';
 
+/**
+ * ST-LN-22 D-08b and CONTEXT Ruling "Release": the release from which a ticket's title must keep the title rule (tickets/title.ts), refused by `accord gate ready`
+ * (gate.ticket-title, read through claimPinBefore: a ticket claimed under a pin below it is not judged) and by `accord lint` (lint.ticket-title, read through rulesetFrom: only a ticket whose own
+ * `ruleset` is not below it is judged). It is the next minor after the newest released heading of docs/releases.md (0.7.1 when it was set); the release that ships Phase 7 sets it to its own
+ * version if another release came first, and PHASE7 in migration-pin.test.ts follows.
+ */
+export const TITLE_RULE_FROM = '0.8.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

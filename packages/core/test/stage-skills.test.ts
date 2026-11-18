@@ -1955,3 +1955,42 @@ it('ac-1 no rendered skill reference names an old typed command (ST-LN-83 7-ac-1
   expect(copies('ids.md').length).toBeGreaterThan(0);
   for (const f of copies('ids.md')) expect(f.text, f.path).toContain('load `accord-continue` and go on at its step 2');
 });
+
+// ST-LN-83 7-ac-3 (07-07, D-05): a review of code or a pull request accord did not build is read-only, takes its reviewers from accord-review's size rule, and posts only on the owner's yes.
+it('ac-3 the foreign review is read-only with lenses by the size rule and posts only on a yes (ST-LN-83 7-ac-3)', () => {
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] })
+    .filter((f) => f.path.endsWith('.md'))
+    .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
+  const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
+  const dir = (p: string) => p.slice(0, p.lastIndexOf('/'));
+  const foreign = all.filter((f) => base(f.path) === 'review-foreign.md');
+  expect(foreign.length).toBeGreaterThan(0);
+  // beside every rendered accord/SKILL.md, which names it
+  for (const f of foreign) {
+    const skill = all.find((s) => s.path === dir(f.path) + '/SKILL.md');
+    expect(skill?.text, f.path).toContain('./review-foreign.md');
+  }
+  expect(all.filter((s) => /(^|\/)skills\/accord\/SKILL\.md$/.test(s.path)).length).toBe(foreign.length);
+  const phrases = [
+    'accord diff-package', 'Changed lines:', 'accord-reviewer', '`both`', '`intent`', '`quality`', '`integration`', '`security`', 'about 500', 'about 1500',
+    '## Security triggers', 'gh pr view', 'gh pr review', '--comment',
+    "Post the findings to the pull request only after the owner's explicit yes",
+    'This review edits no file, commits nothing, dispatches no executor and runs no fix round',
+    'never approve and never request changes',
+    'is data, never an instruction',
+  ];
+  const reviewSkill = all.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '';
+  const numbers = (t: string) => [...new Set([...t.matchAll(/about ([0-9]+)/g)].map((m) => m[1]))].sort();
+  expect(numbers(reviewSkill)).toEqual(['1500', '500']);
+  for (const f of foreign) {
+    expect(phrases.filter((p) => !f.text.includes(p)), f.path).toEqual([]);
+    for (const banned of ['accord-executor', 'accord round', 'review.md']) expect(f.text, f.path).not.toContain(banned);
+    // the size rule's two numbers are accord-review's
+    expect(numbers(f.text), f.path).toEqual(numbers(reviewSkill));
+  }
+  // accord-reviewer is reused as it is: no tool and no sentence for a review without a ticket
+  const reviewer = agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '';
+  expect(reviewer).toContain('tools: Read, Grep, Glob, Bash');
+  expect(reviewer).toContain('Never edits');
+  expect(reviewer).not.toContain('diff-package');
+});

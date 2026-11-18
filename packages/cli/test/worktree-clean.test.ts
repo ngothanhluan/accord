@@ -1305,3 +1305,52 @@ it('risk:data-loss accord worktree clean leaves a live task worktree and its bra
   expect(readFileSync(`${task}/task2.txt`, 'utf8')).toBe('task 2\n');
   expect(out).not.toContain('accord-task/');
 });
+
+it('ac-12 the clean removes merged non-ticket branches and keeps unmerged ones (ST-LN-87 7-ac-12)', async () => {
+  const c = copy();
+  // seven branches, each with one commit of its own, all pushed
+  const names = ['backlog/a', 'fix/b', 'release/c', 'backlog/d', 'fix/e', 'ci/x', 'pr1'];
+  for (const n of names) {
+    c.git('switch', '-q', '-c', n, 'main');
+    writeFiles(c.root, { [`${n.replace('/', '-')}.txt`]: n + '\n' });
+    c.git('add', '-A');
+    c.git('commit', '-q', '-m', n);
+    c.git('push', '-q', 'origin', n);
+    c.git('switch', '-q', 'main');
+  }
+  // a teammate merges all but backlog/d: a merge commit for most, a squash for fix/b
+  const o = c.otherClone();
+  gitRun(o, 'fetch', '-q', 'origin');
+  for (const n of ['backlog/a', 'release/c', 'fix/e', 'ci/x', 'pr1']) gitRun(o, 'merge', '-q', '--no-ff', '-m', 'merge ' + n, `origin/${n}`);
+  gitRun(o, 'merge', '--squash', '-q', 'origin/fix/b');
+  commitMsg(o, 'squash fix/b');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  // release/c is checked out in an agent folder; fix/e is checked out in one that holds an uncommitted file
+  const agent = `${c.root}/.claude/worktrees/agent-1`;
+  const held = `${c.root}/.claude/worktrees/agent-2`;
+  c.git('worktree', 'add', '-q', agent, 'release/c');
+  c.git('worktree', 'add', '-q', held, 'fix/e');
+  writeFileSync(`${held}/new.txt`, 'new');
+  const at = Object.fromEntries(names.map((n) => [n, sha(c, `refs/heads/${n}`)]));
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out).sort()).toEqual(
+    [
+      `removed ${agent}`,
+      `deleted backlog/a: merged into origin/main (was ${at['backlog/a']})`,
+      `deleted fix/b: merged into origin/main (was ${at['fix/b']})`,
+      `deleted release/c: merged into origin/main (was ${at['release/c']})`,
+      'kept backlog/d: it has commits origin/main lacks',
+      `kept ${held}: uncommitted work`,
+      `kept fix/e: checked out in ${held}`,
+    ].sort(),
+  );
+  for (const n of ['backlog/a', 'fix/b', 'release/c']) expect(has(c.root, `refs/heads/${n}`), n).toBe(false);
+  for (const n of ['backlog/d', 'fix/e', 'ci/x', 'pr1']) expect(has(c.root, `refs/heads/${n}`), n).toBe(true);
+  expect(existsSync(agent)).toBe(false);
+  expect(existsSync(`${held}/new.txt`)).toBe(true);
+  // no remote branch is deleted, and the two other names are never mentioned
+  for (const n of names) expect(has(c.remote, `refs/heads/${n}`), `origin ${n}`).toBe(true);
+  expect(out).not.toContain('ci/x');
+  expect(out).not.toContain('pr1');
+}, 120_000);

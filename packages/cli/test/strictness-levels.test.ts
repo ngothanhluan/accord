@@ -119,15 +119,18 @@ it('risk:regression a repository with today\'s config answers as before: its con
   const root = fileURLToPath(new URL('../../../', import.meta.url));
   const maintain = { rounds: {}, levels: Object.fromEntries(['lint.token-hardcoded', 'lint.intent-oversize', 'lint.requirements-oversize', 'lint.scenarios-oversize'].map((id) => [id, 'warning'])) };
   const build = { rounds: {}, levels: {} };
-  for (const [file, profile, preset] of [
-    ['accord/config.yml', 'maintain', maintain],
-    ['examples/maintain/accord/config.yml', 'maintain', maintain],
-    ['examples/build/accord/config.yml', 'build', build],
+  // This repository's own config raises one rule on purpose (Phase 8 D-05); the examples carry no strictness at all.
+  const ownLevels = { 'lint.test-untraced': 'error' };
+  for (const [file, profile, preset, own] of [
+    ['accord/config.yml', 'maintain', maintain, ownLevels],
+    ['examples/maintain/accord/config.yml', 'maintain', maintain, undefined],
+    ['examples/build/accord/config.yml', 'build', build, undefined],
   ] as const) {
     const files = { 'accord/config.yml': readFileSync(join(root, file), 'utf8') };
     const loaded = loadSnapshot({ files, tree: Object.keys(files) });
     expect(loaded.config?.profile, file).toBe(profile);
-    expect(loaded.config?.strictness, file).toBeUndefined();
-    expect(resolveStrictness(loaded.config), file).toEqual({ ...preset, stages: { M: new Set(), L: new Set(), P: new Set() } });
+    if (own === undefined) expect(loaded.config?.strictness, file).toBeUndefined();
+    else expect(loaded.config?.strictness, file).toEqual({ levels: own });
+    expect(resolveStrictness(loaded.config), file).toEqual({ ...preset, levels: { ...preset.levels, ...own }, stages: { M: new Set(), L: new Set(), P: new Set() } });
   }
 });

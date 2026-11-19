@@ -26,7 +26,7 @@ const build = (o: Build): RepoSnapshot => {
 };
 const gate = (snap: RepoSnapshot, rule: string): string[] => gateDone(snap, 'T-1').findings.filter((f) => f.rule === rule).map((f) => f.reason);
 
-it('ac-2 a re-review finding outside the fix diff is deferred and starts no round (ST-LN-56 56-ac-2)', () => {
+it('risk:complex-branching a re-review finding outside the fix diff is deferred and starts no round (ST-LN-56 56-ac-2)', () => {
   const open = build({ rounds: [{ lines: [FIXED] }, { lines: [outside('open', 'test: export#writes-csv')] }] });
   const reasons = gate(open, RULE);
   expect(reasons).toHaveLength(1);

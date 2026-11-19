@@ -81,7 +81,7 @@ const reasons = (snap: RepoSnapshot): string[] => gateDone(snap, 'T-1').findings
 const finding1 = 'Should 1 [patch]: a cell is wrong — src/b.ts:1 — open';
 const places = ' — checked: src/a.ts:3, src/b.ts';
 
-it('ac-1 a fix recorded without the places it checked is refused at gate done, naming the finding, in lane M and lane S (ST-LN-56 56-ac-1)', () => {
+it('risk:regression a fix recorded without the places it checked is refused at gate done, naming the finding, in lane M and lane S (ST-LN-56 56-ac-1)', () => {
   expect(FIX_RECORD_FROM).toBe('0.6.0');
   for (const lane of ['M', 'S'] as const) {
     const claim = { pin: FIX_RECORD_FROM };
@@ -129,7 +129,7 @@ it('risk:regression a failed claim read applies the places rule with the git-err
 });
 
 // ST-LN-56 56-ac-1, the round half (plan 04-08 Task 1): `accord round` refuses the next review round while a fixed finding has no places-checked mark.
-it('ac-1 accord round refuses the review round for a fix recorded without the places it checked (ST-LN-56 56-ac-1)', () => {
+it('risk:regression accord round refuses the review round for a fix recorded without the places it checked (ST-LN-56 56-ac-1)', () => {
   const claim = { pin: FIX_RECORD_FROM };
   const refused = nextRound(build({ lines: [finding1, FIXED], claim }), 'T-1', 'review');
   expect(refused.kind).toBe('refused');
@@ -165,7 +165,7 @@ const refusal = (snap: RepoSnapshot): string => {
   return a.reasons.join('\n');
 };
 
-it('ac-2 a fixed finding closes only on the re-review\'s addressed: mark (ST-LN-56 56-ac-2)', () => {
+it('risk:regression a fixed finding closes only on the re-review\'s addressed: mark (ST-LN-56 56-ac-2)', () => {
   for (const lane of [undefined, 'S'] as const) {
     const at = (rounds: string[][], claim?: ClaimPin | undefined) => buildN(rounds, claim ?? { pin: FIX_RECORD_FROM }, lane);
     // a round followed by another with no answer on the fixed finding: gate done and accord round both refuse, naming it

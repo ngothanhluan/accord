@@ -164,7 +164,7 @@ const many = (n: number): string => {
 const large = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-large');
 
 describe('an oversized plan points to an epic', () => {
-  it('ac-9 an oversized plan points to an epic (ST-LN-28 7-ac-9)', () => {
+  it('risk:complex-branching an oversized plan points to an epic (ST-LN-28 7-ac-9)', () => {
     // the refusal names the split and keeps the Ruling text after it
     const reason = sizeRefusal(9, 4, []) as string;
     expect(reason).toContain(SPLIT);
@@ -194,7 +194,7 @@ describe('an oversized plan points to an epic', () => {
     expect(large(check({ plan: null, claim }))).toEqual([]);
   });
 
-  it('ac-9 the plan-large warning judges only tickets claimed at or after its cut-off (ST-LN-28 7-ac-9)', () => {
+  it('risk:complex-branching the plan-large warning judges only tickets claimed at or after its cut-off (ST-LN-28 7-ac-9)', () => {
     const at15 = (claim?: { pin: string } | { error: string }, config?: string) => large(check({ body: sized(8), plan: many(15), claim, config }));
     expect(PLAN_LARGE_FROM).toBe(TITLE_RULE_FROM);
     // claimed under the release before the cut-off: not judged, whatever the plan

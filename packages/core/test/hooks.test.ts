@@ -43,7 +43,7 @@ describe('mergeHooks', () => {
   });
 });
 
-it('ac-1 the session line and the hook matcher name the new commands (ST-LN-83 7-ac-1)', () => {
+it('risk:regression the session line and the hook matcher name the new commands (ST-LN-83 7-ac-1)', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
   expect(entries.UserPromptExpansion.map((x) => x.matcher)).toEqual(['accord|accord-new|accord-continue|accord-pickup']);
   // letters, digits, hyphen and a bar make an exact-name list in Claude Code, so no other name can match by substring
@@ -83,7 +83,7 @@ it('risk:regression both session start hooks carry a 600 second timeout and a re
   expect((mergeHooks(old, entries).hooks as Record<string, unknown>).SessionStart).toEqual(entries.SessionStart);
 });
 
-it('ac-1 the hook settings carry the write entry beside the dispatch entry and merge idempotently (ST-LN-39 39-ac-1)', () => {
+it('risk:data-loss the hook settings carry the write entry beside the dispatch entry and merge idempotently (ST-LN-39 39-ac-1)', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
   const command = 'npx --yes @accord-dev/accord@0.2.0 hook pre-tool-use';
   expect(entries.PreToolUse.map((x) => x.matcher)).toEqual(['Agent|Task', 'Write|Edit|MultiEdit']);

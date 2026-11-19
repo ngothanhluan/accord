@@ -15,7 +15,7 @@ const LEDGER = [
   '',
 ].join('\n');
 
-it('ac-7 the deferred lister shows Must then Should items and skips Nice (ST-LN-12 7-ac-7)', () => {
+it('risk:parsing the deferred lister shows Must then Should items and skips Nice (ST-LN-12 7-ac-7)', () => {
   // the Must line first, then the Should and the unmarked lines in ledger order; both Nice-first lines are skipped
   expect(ownerDeferred(LEDGER)).toEqual([
     { rating: 'Must', text: 'review 1.3: the lock is not released on a crash (Must)' },

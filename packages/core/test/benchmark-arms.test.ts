@@ -79,7 +79,7 @@ function armsFixture(t: string) {
   return { repo, linked, bench, B, git, cmd };
 }
 
-it('ac-1 a round plan lists every sample three times for each model and effort arm and a round for another agent is planned the same way', async () => {
+it('risk:complex-branching a round plan lists every sample three times for each model and effort arm and a round for another agent is planned the same way', async () => {
   const round = await roundMod();
   const rounds = JSON.parse(readFileSync(join(root, 'scripts', 'benchmark-rounds.json'), 'utf8')).rounds as Record<string, Def>;
   const r2 = rounds['r2-scout'];
@@ -230,7 +230,7 @@ function scoutFixture(t: string) {
   return { repo, wt, B, git };
 }
 
-it('ac-2 a scout run is scored by script on scout check and contradicted absent rows and recall against the merged diff and scoring again gives the same row', async () => {
+it('risk:parsing a scout run is scored by script on scout check and contradicted absent rows and recall against the merged diff and scoring again gives the same row', async () => {
   const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
   const t = tmp.replaceAll('\\', '/');
   try {
@@ -281,7 +281,7 @@ type Reporter = {
   armReport: (a: { name: string; def: Def; measures: Measure[]; records: Rec[]; leftOut?: Record<number, string>; notCounted?: { tag: string; reason: string }[] }) => string;
 };
 
-it('ac-3 the report shows pass mean ranges and weighted cost per arm and names the cheapest arm that ties the best one or no winner', async () => {
+it('risk:complex-branching the report shows pass mean ranges and weighted cost per arm and names the cheapest arm that ties the best one or no winner', async () => {
   const { SCOUT_MEASURES, armStats, armReport } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as Reporter;
   const def: Def = {
     agent: 'accord-scout', runs: 2, judges: 0, samples: [1, 2, 3], pricesAt: '2026-11-02', prices: { haiku: 1, sonnet: 3 },
@@ -432,7 +432,7 @@ type Repairer = Reporter & {
   repairBrief: (worktree: string, reply: string, failures: string[]) => string;
 };
 
-it('ac-4 the report scores the reply after one repair with the cost of both runs and names the winner after repair', async () => {
+it('risk:complex-branching the report scores the reply after one repair with the cost of both runs and names the winner after repair', async () => {
   const { SCOUT_MEASURES, armStats, afterRepair, repairBrief } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as Repairer;
   const def: Def = {
     agent: 'accord-scout', runs: 1, judges: 0, samples: [1, 2], pricesAt: '2026-11-02', prices: { haiku: 1, sonnet: 10 },

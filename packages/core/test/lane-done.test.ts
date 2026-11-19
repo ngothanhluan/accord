@@ -1,4 +1,6 @@
 // Spec §8-§11: Done for a lane ticket needs every task recorded, a converged review, and a traced, green suite.
+import { readFileSync } from 'node:fs';
+import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { lintSnapshot, loadSnapshot, ownRecordsOnly, setFrontmatterKey } from '../src/index.js';
 import { gateDone } from '../src/gate/index.js';
@@ -196,5 +198,27 @@ describe('lint.test-untraced (spec §9)', () => {
   it('is silent in a repository with no lane ticket', () => {
     const files = doneFiles({}, { ...CASES, 'util#formats-dates': 'passed' }, laneTicket('T-1', { lane: '' }));
     expect(untraced(files)).toEqual([]);
+  });
+
+  it("risk:regression strictness.levels raises lint.test-untraced to an error and the default stays a warning (8-ac-1)", () => {
+    const cases = { ...CASES, 'util#formats-dates': 'passed' } as const;
+    const levelOf = (files: Record<string, string>) => untraced(files).map((f) => f.level);
+    expect(levelOf(doneFiles({}, cases))).toEqual(['warning']);
+    const raised = doneFiles({ 'accord/config.yml': CONFIG + 'strictness:\n  levels:\n    lint.test-untraced: error\n' }, cases);
+    expect(untraced(raised)).toEqual([
+      {
+        file: 'reports/junit.xml',
+        rule: 'lint.test-untraced',
+        level: 'error',
+        reason: 'test "util#formats-dates" is named by no scenario\'s @test:, carries no risk:, and is not in accord/tests-baseline.txt',
+      },
+    ]);
+  });
+
+  it("risk:regression this repository's accord/config.yml raises lint.test-untraced to an error (8-ac-1)", () => {
+    const own = parse(readFileSync(new URL('../../../accord/config.yml', import.meta.url), 'utf8')) as {
+      strictness?: { levels?: Record<string, string> };
+    };
+    expect(own.strictness?.levels?.['lint.test-untraced']).toBe('error');
   });
 });

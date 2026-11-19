@@ -860,7 +860,7 @@ describe('plan contract checks', () => {
     }
   });
 
-  it('a passing gate plan writes plan_hash once; an edited plan stops task-done until gate plan runs again', async () => {
+  it('ac-3 a passing gate plan writes plan_hash once and an edited plan that passes gate plan again is recorded done', async () => {
     const repo = await committed(PLAN.replace(/plan_hash: .*\n/, ''));
     try {
       expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
@@ -875,7 +875,7 @@ describe('plan contract checks', () => {
       writeFiles(repo, { 'accord/tickets/T-1/plan.md': written.replace('Add a csv branch to the writer.', 'Add a csv branch to the report writer.') });
       const stale = await run(['task-done', 'T-1', '1'], repo);
       expect(stale.code).toBe(1);
-      expect(stale.out + stale.err).toContain('plan.md changed after accord gate plan last passed');
+      expect(stale.out + stale.err).toContain('plan.md changed since its plan_hash was recorded');
       expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
       const later = new Date(Date.now() + 5000);
       utimesSync(join(repo, 'reports', 'junit.xml'), later, later); // task-done needs a report newer than the commit

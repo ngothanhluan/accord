@@ -1,6 +1,6 @@
 ---
 baseline: 0a8181c266beb36a1d7cd8d19a9f0782a1bbdd43
-plan_hash: "fnv1a64:2f7fcc96d5aa7b5e"
+plan_hash: "fnv1a64:a58b231e6315a606"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -96,9 +96,10 @@ Test written first: `ac-3 copies freshly written by skills sync raise no trigger
   with empty `## Checklist` and `## Removed` sections. A pattern that matches only `.md` copies proves nothing.
 - On the ticket branch, after the claim and plan commits, run `skills sync` and commit what it wrote; review.md
   records round 1 at that commit with `Security: no pattern matched`.
-- Assert that every path the round changed under its base lies under `.claude/skills/`, `.agents/skills/`,
-  `.claude/agents/` or `.claude/accord-panel/` (so `.claude/settings.json` is untouched and `agent-config` of
-  Task 3 cannot fire).
+- Assert that no path the round changed under its base lies outside `.claude/skills/`, `.agents/skills/`,
+  `.claude/agents/`, `.claude/accord-panel/` and `accord/tickets/T-1/` (round 1 runs from the plan's
+  `baseline:`, `packages/cli/src/load/package-diff.ts:20-21`, so it holds the ticket's own files from the plan
+  commit on), so `.claude/settings.json` is untouched and `agent-config` of Task 3 cannot fire.
 - Assert that `gate done T-1 --json` has no `gate.security-unreviewed` finding; that in process
   `withSecurityFacts(repo, s, 'T-1', () => renderedFiles(config))` gives round 1 no trigger, while
   `withSecurityFacts(repo, s, 'T-1', () => [])` gives round 1 a trigger naming

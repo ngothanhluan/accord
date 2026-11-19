@@ -6,6 +6,7 @@
 - Ruling: `agent-config` goes before `security-config` in the template — the order is cosmetic — the id lists in the security tests are reordered
 - Ruling: the existing test titled "seven patterns" keeps its name and only its body changes — the title is its report id — a misleading test name until renamed
 - Ruling: copies are looked up only when a changed path starts with `.claude/` or `.agents/`, and exemption is still decided by exact path — it avoids rendering every copy on rounds that touch none (approach 1.2) — a sync root outside those folders would be scanned, never wrongly exempt
+- Ruling: the baseline tests are CI run 44471586361 (success) on 7056161f, whose product code equals the plan baseline (only `accord/` changed since), instead of a local tests.full — the owner prefers CI over a 30-minute local full run — a failure that shows only on this machine is found later, at verify's full run
 
 ## Deferred
 - approach 1.1: place the copy read inside the `try` of `securitySections` (review-package, diff-package) so a read failure prints `(cannot tell: …)` — failing case: `git cat-file` fails while reading copies at HEAD and `accord review-package <id>` exits 2 with no package

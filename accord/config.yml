@@ -59,3 +59,5 @@ sensitive:
 generated:
   - packages/core/src/generated/
   - packages/cli/README.md
+queue:
+  merge: at-once

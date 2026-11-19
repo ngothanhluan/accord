@@ -1,5 +1,7 @@
 // ST-LN-36 36-ac-2: `accord gate done` holds each recorded review round against the security triggers its own package had, on real git. The CLI here runs as the
 // cut-off release (0.7.0), so a repository pinned to 0.7.0 can be claimed under 0.7.0 and under 0.6.0 (the older answer).
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
@@ -171,5 +173,31 @@ it('risk:complex-branching gate done starts no security-fact git read for a tick
     expect((JSON.parse(run1.out).findings as Found[]).filter((f) => f.rule === RULE)).toHaveLength(1);
   } finally {
     cleanup(fresh.repo);
+  }
+}, 180_000);
+
+it('ac-1 gate done scans a hand-edited accord panel copy on real git (BUG-LN-25)', async () => {
+  const REGISTER = '.claude/accord-panel/plugin/hooks/register.js';
+  const added = "spawnSync('git', ['status']);";
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, { 'accord/config.yml': pinned('0.7.0'), 'accord/tickets/T-1.md': laneTicket('T-1'), 'src/plain.ts': 'export const a = 0;\n' });
+    const synced = await run(['skills', 'sync'], repo);
+    expect(synced.code).toBe(0);
+    const base = commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    commitMsg(repo, 'claim: T-1', undefined, true);
+    const copy = readFileSync(join(repo, REGISTER), 'utf8');
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), [REGISTER]: `${copy.replace(/\n$/, '')}\n${added}\n` });
+    const head = commitMsg(repo, 'code');
+    const line = readFileSync(join(repo, REGISTER), 'utf8').split('\n').indexOf(added) + 1;
+    writeFiles(repo, { [REVIEW]: record(head) });
+    commitMsg(repo, 'round 1');
+    const refused = await security(repo);
+    expect(refused).toHaveLength(1);
+    expect(refused[0].reason).toContain(`${REGISTER}:${line}: spawn`);
+  } finally {
+    cleanup(repo);
   }
 }, 180_000);

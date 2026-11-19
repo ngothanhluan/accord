@@ -185,16 +185,15 @@ it('risk:parsing the trigger reader places every diff spelling (ST-LN-36 36-ac-1
   ].join('\n');
   expect(texts(log, ['src/a.ts'])).toEqual(['src/a.ts:2: spawn (process spawn)', 'src/a.ts:4: spawn (process spawn)']);
 
-  // content patterns skip Markdown, test files and generated copies; an empty diff and a Markdown-only or test-only diff give nothing
+  // content patterns skip Markdown, test files and generated paths; an empty diff and a Markdown-only or test-only diff give nothing
   const skipped = [
     ...SECTION('docs/notes.md', ['@@ -1 +1,2 @@', ' a', '+spawn(1); token']),
     ...SECTION('packages/core/test/a.test.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
     ...SECTION('src/b.spec.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
     ...SECTION('src/__tests__/c.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
-    ...SECTION('.claude/skills/accord/x.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
     ...SECTION('gen/out.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
   ].join('\n');
-  const names = ['docs/notes.md', 'packages/core/test/a.test.ts', 'src/b.spec.ts', 'src/__tests__/c.ts', '.claude/skills/accord/x.ts', 'gen/out.ts'];
+  const names = ['docs/notes.md', 'packages/core/test/a.test.ts', 'src/b.spec.ts', 'src/__tests__/c.ts', 'gen/out.ts'];
   expect(texts(skipped, names, ['gen/'])).toEqual([]);
   expect(texts('', [])).toEqual([]);
   expect(texts('(no changes)', [])).toEqual([]);
@@ -533,4 +532,18 @@ it('risk:resource a path the host could not read as text is a trigger of its own
   expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] }).map(triggerText)).toEqual([label]);
   expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [] })).toEqual([]);
   expect(matchedHunks(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] })).toEqual([label]);
+});
+
+it('ac-2 a file accord does not write in a copy folder is scanned (BUG-LN-25)', () => {
+  const helper = '.claude/skills/accord/helper.js';
+  const diff = SECTION(helper, ['@@ -0,0 +1 @@', '+spawn(1);'], ['new file mode 100644', 'index 0000000..1111111']).join('\n');
+  const rendered = ['.claude/skills/accord/SKILL.md', '.claude/accord-panel/plugin/hooks/register.js'];
+  expect(securityTriggers(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: rendered }).map(triggerText)).toEqual([`${helper}:1: spawn (process spawn)`]);
+  expect(securityTriggers(DEFAULT_SECURITY, diff, [helper], { generated: [] }).map(triggerText)).toEqual([`${helper}:1: spawn (process spawn)`]);
+  const hunks = matchedHunks(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: rendered });
+  expect(hunks).toHaveLength(1);
+  expect(hunks[0]).toContain('+spawn(1);');
+  // the same path in the exempt list is an unmodified copy: no content trigger and no hunk
+  expect(securityTriggers(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: [helper] })).toEqual([]);
+  expect(matchedHunks(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: [helper] })).toEqual([]);
 });

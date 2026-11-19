@@ -27,6 +27,8 @@ ui: false
 related:
   - "BUG-LN-23"
 ruleset: "0.8.0"
+approved_hash: "fnv1a64:e06e31811dc19f6d"
+ac_hash: "fnv1a64:3d39081e7d77ffac"
 ---
 
 ## Intent

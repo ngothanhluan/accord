@@ -85,3 +85,5 @@ Feature: BUG-LN-24
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+- Chosen: Option 1, rewrite the two sentences in place. The two string literals in packages/core/src/gate/task.ts:19-20 become D-04's sentences, word for word, with no ticket id. The check order in taskVerdict and its signature stay as they are; no new file, export or dependency.
+- Affected: packages/core/src/gate/task.ts:19-20; packages/core/test/task.test.ts:63-74 (the "taskVerdict plan hash" block is replaced by two tests); packages/cli/test/lane-commands.test.ts:863 (renamed with an ac-3 id) and :878 (the substring changes to the start of the new sentence). Unchanged under D-05: the build and plan skills, docs/plans/2026-10-12-phase-2-skills.md:681, accord/tickets/BUG-LN-23.md:34, accord/research/2026-11-14-rule-enforcement.md:158 and :220. The caller packages/cli/src/commands/task-done.ts:114,128-132 prints the reasons verbatim and is not changed.

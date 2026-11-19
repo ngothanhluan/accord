@@ -9,6 +9,8 @@
 - Ruling: the baseline tests are CI run 44471586361 (success) on 7056161f, whose product code equals the plan baseline (only `accord/` changed since), instead of a local tests.full — the owner prefers CI over a 30-minute local full run — a failure that shows only on this machine is found later, at verify's full run
 - Ruling: the ac-1 fixture is built in the test body, not by `claimed` — `run(['skills','sync'])` is async and `claimed` has sync callers — a few duplicated fixture lines
 - Ruling: the CLI passes no `exempt` until task 2, so every copy is scanned in between — as the brief orders — none
+- Ruling: `factsFor` memoises the rendered-files getter, so the render runs at most once per command across rounds — as the brief says — one extra closure
+- Ruling: the ac-3 test checks that `.claude/settings.json` is untouched with an allow-list over `git diff --name-only base head` — as the brief orders — none
 
 ## Deferred
 - approach 1.1: place the copy read inside the `try` of `securitySections` (review-package, diff-package) so a read failure prints `(cannot tell: …)` — failing case: `git cat-file` fails while reading copies at HEAD and `accord review-package <id>` exits 2 with no package
@@ -16,3 +18,4 @@
 
 ## Tasks
 - task 1 done a1ed5334216d
+- task 2 done 5b6f70fbd3d8

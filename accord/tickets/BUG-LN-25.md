@@ -54,7 +54,7 @@ Feature: BUG-LN-25
     When a change adds a new file `.claude/skills/accord/helper.js` holding a line that matches a default content pattern
     Then the security triggers of that change name `.claude/skills/accord/helper.js` and that pattern
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/security-gate.test.ts#ac-3-copies-freshly-written-by-skills-sync-raise-no-trigger-on-real-git-(BUG-LN-25)
   Scenario: Copies freshly written by skills sync raise no trigger
     Given a repository whose accord copies are older than the running accord's
     When a change holds only the files `accord skills sync` rewrote under `.claude/skills/`, `.agents/skills/`, `.claude/agents/` and `.claude/accord-panel/`, with the text it wrote

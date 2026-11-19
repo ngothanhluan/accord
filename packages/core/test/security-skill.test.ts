@@ -23,7 +23,7 @@ const filesOf = (runtime: AccordConfig['runtimes'][number], skill: string, file:
 /** The phrases a text lacks, so a failing case names each one. */
 const lacks = (text: string, parts: readonly string[]): string[] => parts.filter((p) => !text.includes(p));
 
-it('ac-3 the review skill runs a security reviewer on the security package when the package lists a trigger, in every tool (ST-LN-36 36-ac-3)', () => {
+it('risk:security the review skill runs a security reviewer on the security package when the package lists a trigger, in every tool (ST-LN-36 36-ac-3)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const security = filesOf(runtime, 'accord-review', 'security.md');
@@ -64,7 +64,7 @@ it('ac-3 the review skill runs a security reviewer on the security package when 
   expect(bad).toEqual([]);
 });
 
-it('ac-2 lane S review rounds add the security reviewer as lane M does, in every tool (ST-LN-36 36-ac-2)', () => {
+it('risk:security lane S review rounds add the security reviewer as lane M does, in every tool (ST-LN-36 36-ac-2)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const security = filesOf(runtime, 'accord-new', 'security.md');
@@ -83,7 +83,7 @@ it('ac-2 lane S review rounds add the security reviewer as lane M does, in every
   expect(bad).toEqual([]);
 });
 
-it('ac-4 the config skill asks the owner before it writes a Removed line for a default pattern (ST-LN-36 36-ac-4)', () => {
+it('risk:security the config skill asks the owner before it writes a Removed line for a default pattern (ST-LN-36 36-ac-4)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const onboard = filesOf(runtime, 'accord', 'onboard.md');

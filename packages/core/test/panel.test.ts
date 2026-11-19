@@ -308,7 +308,7 @@ it('ac-4 pressing a row id opens its detail view with its button and back', asyn
   expect(h.$.process.run.mock.calls.length).toBe(calls);
 });
 
-it('ac-1 the panel buttons run the new commands (ST-LN-83 7-ac-1)', async () => {
+it('risk:regression the panel buttons run the new commands (ST-LN-83 7-ac-1)', async () => {
   const { view } = await loadView();
   const state = {
     dashboard: board({

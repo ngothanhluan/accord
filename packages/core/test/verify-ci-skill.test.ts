@@ -29,7 +29,7 @@ const requiredSection = (text: string): string => {
   return next < 0 ? text.slice(from) : text.slice(from, next);
 };
 
-it('ac-2 verify reads the default branch\'s rules and reports one line on the required check and up-to-date branches (ST-LN-37 37-ac-2)', () => {
+it('risk:regression verify reads the default branch\'s rules and reports one line on the required check and up-to-date branches (ST-LN-37 37-ac-2)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = ciFiles(runtime);
@@ -64,7 +64,7 @@ it('ac-2 verify reads the default branch\'s rules and reports one line on the re
 const finishReports = (runtime: AccordConfig['runtimes'][number]) =>
   skillTargets(config(runtime)).filter((f) => f.path.endsWith('/accord-verify/finish.md') || f.path.endsWith('/accord/finish.md'));
 
-it('ac-1 verify waits for the accord check on the tick commit and reports its verdict at finish (ST-LN-37 37-ac-1)', () => {
+it('risk:regression verify waits for the accord check on the tick commit and reports its verdict at finish (ST-LN-37 37-ac-1)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = ciFiles(runtime);

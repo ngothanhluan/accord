@@ -60,7 +60,7 @@ Feature: BUG-LN-25
     When a change holds only the files `accord skills sync` rewrote under `.claude/skills/`, `.agents/skills/`, `.claude/agents/` and `.claude/accord-panel/`, with the text it wrote
     Then the security facts of `accord gate done` for that change list no trigger
 
-  @ac-4
+  @ac-4 @test:packages/core/test/security.test.ts#ac-4-a-change-to-agent-configuration-raises-agent-config-under-a-team-security-file-(BUG-LN-25)
   Scenario: A change to agent configuration calls the security reviewer
     Given a repository with its own `accord/product/security.md` that does not mention agent configuration
     When a change adds, edits or deletes `.claude/settings.json` at the repository root, or a `.mcp.json` at any depth

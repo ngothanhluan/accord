@@ -47,14 +47,14 @@ it('ac-1 pick up adds the ticket worktree from origin main runs setup in order a
   expect(c.git('branch', '--show-current').trim()).toBe('other');
 });
 
-it('ac-1 the stop block of worktree open names the new continue command (ST-LN-83 7-ac-1)', async () => {
+it('risk:regression the stop block of worktree open names the new continue command (ST-LN-83 7-ac-1)', async () => {
   const c = copy();
   const { code, out } = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(code).toBe(0);
   expect(out.split('\n').slice(0, 4)).toEqual(stopBlock(c.sibling('ST-9'), 'ST-9'));
 });
 
-it('ac-12 accord worktree open prints its next actions (ST-LN-69 7-ac-12)', async () => {
+it('risk:regression accord worktree open prints its next actions (ST-LN-69 7-ac-12)', async () => {
   // a worktree whose folder was deleted by hand: the pruned line names its action, and the stop block follows a `next:` line with its path lines unchanged
   const p = copy({ setup: ['node setup-step.js ci'] });
   p.git('worktree', 'add', '-q', '-b', 't/ST-9', p.sibling('ST-9'), 'origin/main');

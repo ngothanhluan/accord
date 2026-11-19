@@ -851,7 +851,7 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
 
   // BUG-LN-18 18-ac-2 (Phase 5, D-04): the pull request moves the test the done ticket SIGNUP-1 names and leaves the ticket alone, with `lint.test-id-unknown` raised to error.
   // Before the fix the real `accord lint` exits 1 on the done ticket's tags; now the job is green and gates nothing.
-  it('ac-2 a pull request that moves a test a done ticket names passes the accord check (BUG-LN-18 18-ac-2)', () => {
+  it('risk:regression a pull request that moves a test a done ticket names passes the accord check (BUG-LN-18 18-ac-2)', () => {
     const repo = makeEmptyRepo();
     repos.push(repo);
     cpSync(example, repo, { recursive: true });

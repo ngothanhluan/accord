@@ -20,7 +20,7 @@ function sandbox(): string {
 }
 const tickets = (repo: string): string[] => (existsSync(join(repo, 'accord', 'tickets')) ? readdirSync(join(repo, 'accord', 'tickets')).sort() : []);
 
-it('D-08b accord new ticket refuses a title that breaks the rule (ST-LN-22 D-08b)', async () => {
+it('risk:parsing accord new ticket refuses a title that breaks the rule (ST-LN-22 D-08b 7-ac-5)', async () => {
   const repo = sandbox();
   const before = tickets(repo);
   for (const title of ['Exportation des données', 'Short title in business language', 'x'.repeat(81)]) {
@@ -84,7 +84,7 @@ function claimedWith(title: string, pin: string): string {
 const titleFindings = (out: string): { rule: string; level: string; reason: string }[] =>
   (JSON.parse(out).findings as { rule: string; level: string; reason: string }[]).filter((f) => f.rule === 'gate.ticket-title');
 
-it('D-08b accord gate ready refuses a title that breaks the rule for a ticket claimed at the cut-off (ST-LN-22 D-08b)', async () => {
+it('risk:complex-branching accord gate ready refuses a title that breaks the rule for a ticket claimed at the cut-off (ST-LN-22 D-08b 7-ac-5)', async () => {
   const placeholder = await run(['gate', 'ready', 'T-1', '--json'], claimedWith('Short title in business language', TITLE_RULE_FROM));
   expect(placeholder.code, placeholder.out + placeholder.err).toBe(1);
   const found = titleFindings(placeholder.out);

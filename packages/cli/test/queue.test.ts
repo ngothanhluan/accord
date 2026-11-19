@@ -51,7 +51,7 @@ const lines = (s: string): string[] => s.split('\n').filter((l) => l !== '');
 /** The section of `text` between the heading `from` and the heading `to`, the heading lines left out. */
 const between = (text: string, from: string, to: string): string => text.slice(text.indexOf(from) + from.length, text.indexOf(to));
 
-it('ac-4 queue writes a draft on a backlog branch and leaves the session ticket untouched (ST-LN-83 7-ac-4)', async () => {
+it('risk:data-loss queue writes a draft on a backlog branch and leaves the session ticket untouched (ST-LN-83 7-ac-4)', async () => {
   const decoys: string[] = [];
   try {
     const c = copy({ tickets: ['ST-9', 'ST-10'] });
@@ -118,7 +118,7 @@ it('ac-4 queue writes a draft on a backlog branch and leaves the session ticket 
   }
 }, 180_000);
 
-it('ac-4 queue refuses an existing backlog branch and pushes nothing (ST-LN-83 7-ac-4)', async () => {
+it('risk:data-loss queue refuses an existing backlog branch and pushes nothing (ST-LN-83 7-ac-4)', async () => {
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
   const d = today();
   const refs = (): string => gitRun(c.remote, 'for-each-ref', '--format=%(refname) %(objectname)');

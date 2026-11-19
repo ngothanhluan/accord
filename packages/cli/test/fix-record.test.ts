@@ -57,7 +57,7 @@ function fixed(claimPin: string, o: { lane?: 'S'; runtimes?: string } = {}): Fix
   };
 }
 
-it('ac-1 gate done refuses a lane M fix with no places-checked line on real git (ST-LN-56 56-ac-1)', async () => {
+it('risk:regression gate done refuses a lane M fix with no places-checked line on real git (ST-LN-56 56-ac-1)', async () => {
   const { repo, write } = fixed('0.6.0');
   try {
     write('');
@@ -85,7 +85,7 @@ it('risk:regression a ticket claimed under 0.5.1 answers as before while HEAD is
   }
 }, 120_000);
 
-it('ac-1 accord round refuses a lane M fix with no places-checked line on real git, reading the claim pin (ST-LN-56 56-ac-1)', async () => {
+it('risk:regression accord round refuses a lane M fix with no places-checked line on real git, reading the claim pin (ST-LN-56 56-ac-1)', async () => {
   const { repo, write } = fixed('0.6.0');
   try {
     write('');
@@ -124,7 +124,7 @@ async function fixRules(repo: string): Promise<string[]> {
   return [...new Set((JSON.parse(r.out).findings as Found[]).map((f) => f.rule).filter((id) => FIX_RULES.includes(id)))].sort();
 }
 
-it('ac-1 lane S refuses a fix with no places-checked line and a fix with no re-review answer (ST-LN-56 56-ac-1)', async () => {
+it('risk:regression lane S refuses a fix with no places-checked line and a fix with no re-review answer (ST-LN-56 56-ac-1)', async () => {
   const s = fixed('0.6.0', { lane: 'S' });
   try {
     // round 1 alone: the fix has no places mark (and, as the record's last round, no re-review yet)
@@ -190,7 +190,7 @@ const LEDGER = 'accord/tickets/T-1/ledger.md';
 const DEFERRED_LINE = '## Deferred\n- review 2.1: a cell is wrong — failing case: the export of a two-row table drops the second row\n';
 const outsideLine = (state: string, klass: string, marks = ''): string => `Should 1${klass}: a cell is wrong — src/z.ts:1 — ${state}${marks}`;
 
-it('ac-2 accord round refuses an open outside-diff re-review finding on real git (ST-LN-56 56-ac-2)', async () => {
+it('risk:complex-branching accord round refuses an open outside-diff re-review finding on real git (ST-LN-56 56-ac-2)', async () => {
   const { repo, rounds } = fixed('0.6.0');
   try {
     rounds(PLACES + ADDRESSED, outsideLine('open', ' [patch]', ' — test: export#writes-csv'));
@@ -213,7 +213,7 @@ it('ac-2 accord round refuses an open outside-diff re-review finding on real git
   }
 }, 240_000);
 
-it('ac-2 lane S defers an outside-diff re-review finding the same way (ST-LN-56 56-ac-2)', async () => {
+it('risk:complex-branching lane S defers an outside-diff re-review finding the same way (ST-LN-56 56-ac-2)', async () => {
   const { repo, rounds } = fixed('0.6.0', { lane: 'S' });
   const open = async (): Promise<string[]> => {
     const r = await run(['gate', 'done', 'T-1', '--json'], repo);

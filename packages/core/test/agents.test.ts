@@ -343,11 +343,11 @@ it('ac-3 the executor declares its six tools and stops on a need outside the rep
     }
   }
   expect(offenders).toEqual([]);
-  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(10);
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(11);
   // the committed copies of this repository equal what the config renders, so each declares tools (the researcher its withheld tools) and the executor its six
   const committedDir = new URL('../../../.claude/agents/', import.meta.url);
   const committedFiles = readdirSync(committedDir).filter((n) => /^accord-.*\.md$/.test(n));
-  expect(committedFiles).toHaveLength(10);
+  expect(committedFiles).toHaveLength(11);
   const lacking = committedFiles.filter(
     (n) => !(n === 'accord-researcher.md' ? /^disallowedTools: "[^"]+"$/m : /^tools: "[^"]+"$/m).test(readFileSync(new URL(n, committedDir), 'utf8')),
   );
@@ -542,7 +542,7 @@ it('ac-3 the scout architect critic and planner read the research records and no
   const S =
     "Read every record the ticket's frontmatter `research:` key lists, when it has one: a record is evidence, not a contract, and holds at the commit it names, so check a claim against the code before you rely on it.";
   const files = agentTargets(config({ runtimes: ['claude', 'codex', 'cursor', 'copilot'] }));
-  const names = ['auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'planner', 'researcher', 'reviewer', 'scout', 'verifier'];
+  const names = ['auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'foreign-reviewer', 'planner', 'researcher', 'reviewer', 'scout', 'verifier'];
   expect(files.map((f) => f.path).sort()).toEqual(names.map((n) => `.claude/agents/accord-${n}.md`));
   const readers = ['scout', 'critic', 'planner'];
   for (const f of files) {
@@ -584,7 +584,7 @@ it('ac-11 the researcher renders on sonnet with web tools and no write-capable t
   }
   // the agent-dispatch tool and its earlier name are withheld last
   expect(text).toMatch(/^disallowedTools: ".*, Agent, Task"$/m);
-  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(10);
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(11);
   expect(agentTargets(config({ runtimes: ['claude'] })).map((f) => f.path)).toContain('.claude/agents/accord-researcher.md');
 });
 

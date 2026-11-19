@@ -1,6 +1,7 @@
 // ST-LN-28 D-14 `accord new ticket --type epic --lane L --split <file>`: an approved split becomes the epic and every story in
 // one step, each story carrying `parent:` and its `depends_on:`. Every check runs before the first file is written, so a bad
-// split writes nothing. The command creates no worktree and claims no story: each story is picked up later in its own worktree.
+// split writes nothing. The epic's Decisions are numbered from the split and its Approach lists the stories with the ones each waits
+// for. The command creates no worktree and claims no story: each story is picked up later in its own worktree.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { insertTeamSections, nextTicketId, parseSplit, setFrontmatterKey, similarTickets, templates, ticketFacts, titleProblem, titleRuleLine, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
@@ -70,7 +71,8 @@ function fillSection(text: string, heading: string, lines: readonly string[]): s
 
 /**
  * Write an epic and its stories: check every title, the similar tickets and the ids, then build every text, and only then write.
- * Prints the title rule once and each path in file order (the epic, then the stories), ids ascending in that order.
+ * The epic's `## Decisions` is the split's `decisions` numbered D-01 on, and its `## Approach` lists the stories in order with the ones each
+ * waits for. Prints the title rule once and each path in file order (the epic, then the stories), ids ascending in that order.
  */
 export function writeSplit(ctx: CommandContext, split: Split, options: { queue?: boolean; related?: string }): number {
   const config = ctx.snapshot.config;
@@ -149,6 +151,12 @@ export function writeSplit(ctx: CommandContext, split: Split, options: { queue?:
   epic = setFrontmatterKey(epic, 'title', split.title);
   if (related !== undefined && related.length > 0) epic = setFrontmatterKey(epic, 'related', related);
   epic = fillSection(fillSection(epic, 'Intent', split.intent), 'Vetoes', split.vetoes.map((v) => '- ' + v));
+  if (split.decisions.length > 0) epic = fillSection(epic, 'Decisions', split.decisions.map((d, i) => '- D-' + String(i + 1).padStart(2, '0') + ' ' + d));
+  epic = fillSection(
+    epic,
+    'Approach',
+    split.stories.map((s, i) => '- ' + storyIds[i] + ' ' + s.title + (s.after.length > 0 ? ' — after ' + s.after.map((n) => storyIds[n - 1]).join(', ') : '')),
+  );
   files['accord/tickets/' + epicId + '.md'] = epic;
   split.stories.forEach((s, i) => {
     let text = setFrontmatterKey(templates['ticket-lane.md'].replaceAll(PLACEHOLDER, storyIds[i]), 'type', 'story');

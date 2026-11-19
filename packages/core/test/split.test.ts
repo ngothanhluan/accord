@@ -20,6 +20,7 @@ it('ac-9 a split is checked whole before anything is written (ST-LN-28 7-ac-9)',
     title: 'Checkout redesign',
     intent: ['Buyers pay faster.', 'Success is two taps fewer.'],
     vetoes: ['No new dependency.'],
+    decisions: [],
     stories: [
       { title: 'Cart summary', intent: ['Show it.'], after: [] },
       { title: 'Payment form', intent: ['Collect the card.'], after: [1] },
@@ -34,6 +35,7 @@ it('ac-9 a split is checked whole before anything is written (ST-LN-28 7-ac-9)',
   expect(numeric.split?.title).toBe('1e3');
   expect(numeric.split?.stories[0].id).toBe('0456');
   expect(numeric.split?.vetoes).toEqual([]);
+  expect(numeric.split?.decisions).toEqual([]);
 
   // one problem each, and no split, for every fault the plan names
   const bad = (text: string, ...words: string[]): void => {
@@ -56,4 +58,30 @@ it('ac-9 a split is checked whole before anything is written (ST-LN-28 7-ac-9)',
   bad(THREE.replace('vetoes:\n  - No new dependency.', 'vetoes:\n  - "a\\nb"'), 'epic', 'one line');
   bad(THREE.replace(/stories:[\s\S]*/, 'stories: nope\n'), 'stories');
   bad('title: [unclosed', 'YAML');
+});
+
+const D1 = 'Card payments only — "only cards at launch"';
+const D2 = 'Guests can pay — "no account is needed"';
+
+it('ac-8 a split carries the epic decisions and refuses a numbered one (ST-LN-28 7-ac-8)', () => {
+  const decided = THREE.replace('stories:', 'decisions:\n  - ' + D1 + '\n  - ' + D2 + '\nstories:');
+  const ok = parseSplit(decided);
+  expect(ok.problems).toEqual([]);
+  expect(ok.split?.decisions).toEqual([D1, D2]);
+
+  // backward compatible: no key, a null and an empty list all read as no decisions
+  for (const text of [THREE, THREE.replace('stories:', 'decisions:\nstories:'), THREE.replace('stories:', 'decisions: []\nstories:')]) {
+    const r = parseSplit(text);
+    expect(r.problems, text).toEqual([]);
+    expect(r.split?.decisions, text).toEqual([]);
+  }
+
+  const bad = (text: string, ...words: string[]): void => {
+    const r = parseSplit(text);
+    expect(r.split, text).toBeUndefined();
+    expect(r.problems, text).toHaveLength(1);
+    for (const w of words) expect(r.problems[0], text).toContain(w);
+  };
+  bad(THREE.replace('stories:', 'decisions: nope\nstories:'), 'epic decisions', 'list');
+  bad(THREE.replace('stories:', 'decisions:\n  - D-01 One cart — "x"\nstories:'), 'decision 1', 'D- number');
 });

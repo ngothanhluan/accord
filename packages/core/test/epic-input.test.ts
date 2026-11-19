@@ -29,7 +29,7 @@ function withDefault(tree: Record<string, string>, def: Record<string, string>):
 }
 
 describe('epicBlock', () => {
-  it('ac-8 a story\'s epic vetoes and decisions are built from the default branch (ST-LN-28 7-ac-8)', () => {
+  it('risk:complex-branching a story\'s epic vetoes and decisions are built from the default branch (ST-LN-28 7-ac-8)', () => {
     const old = { 'accord/config.yml': CONFIG, [P('E-1')]: epic('E-1', { vetoes: VETOES, decisions: [D1] }), [P('S-1')]: story('S-1', 'E-1') };
     const current = { ...old, [P('E-1')]: epic('E-1', { vetoes: VETOES, decisions: [D1, D2] }) };
     // the working tree's copy of the epic is the older one: the default branch's copy wins
@@ -43,14 +43,14 @@ describe('epicBlock', () => {
     expect(text).toContain('## Corrections\n(none)\n\n' + BLOCK([D1, D2]) + '\n\n## Rulings\n(none)\n');
   });
 
-  it('ac-8 a story without parent has no epic block and an unchanged anchor (ST-LN-28 7-ac-8)', () => {
+  it('risk:regression a story without parent has no epic block and an unchanged anchor (ST-LN-28 7-ac-8)', () => {
     const files = { 'accord/config.yml': CONFIG, [P('S-1')]: story('S-1'), [P('E-1')]: epic('E-1', { vetoes: VETOES }) };
     expect(epicBlock(snap(files), 'S-1')).toBeUndefined();
     expect(epicBlock(snap(files), 'NOPE-1')).toBeUndefined();
     expect(anchorText(snap(files), 'S-1')).not.toContain('Epic');
   });
 
-  it('ac-8 a parent that is no ticket or no epic gives one line and no sections (ST-LN-28 7-ac-8)', () => {
+  it('risk:complex-branching a parent that is no ticket or no epic gives one line and no sections (ST-LN-28 7-ac-8)', () => {
     const files = { 'accord/config.yml': CONFIG, [P('S-1')]: story('S-1', 'GONE-1'), [P('S-2')]: story('S-2', 'S-3'), [P('S-3')]: story('S-3') };
     expect(epicBlock(snap(files), 'S-1')).toBe('parent GONE-1 is not an epic in this clone');
     expect(epicBlock(snap(files), 'S-2')).toBe('parent S-3 is not an epic in this clone');
@@ -59,7 +59,7 @@ describe('epicBlock', () => {
     expect(text).not.toContain('### Vetoes');
   });
 
-  it('ac-8 an epic with empty sections prints none under each (ST-LN-28 7-ac-8)', () => {
+  it('risk:regression an epic with empty sections prints none under each (ST-LN-28 7-ac-8)', () => {
     const files = { 'accord/config.yml': CONFIG, [P('E-1')]: epic('E-1'), [P('S-1')]: story('S-1', 'E-1') };
     expect(epicBlock(snap(files), 'S-1')).toBe(BLOCK_NONE);
   });
@@ -72,14 +72,14 @@ const ledgerOf = (id: string, lines: string[]): Record<string, string> => ({
 const lesson = (what: string): string => `- Lesson: ${what} — "owner words about ${what}"`;
 
 describe('epic lessons', () => {
-  it('ac-10 parseLedger returns the epic lessons in order and none without the section (ST-LN-28 7-ac-10)', () => {
+  it('risk:parsing parseLedger returns the epic lessons in order and none without the section (ST-LN-28 7-ac-10)', () => {
     const text = ['## Rulings', '- Lesson: not here — "x"', '', '## Epic lessons', '<!-- a comment -->', lesson('one'), '', lesson('two'), '', '## Deferred', lesson('three')].join('\n');
     expect(parseLedger('l.md', text).epicLessons).toEqual([lesson('one'), lesson('two')]);
     expect('epicLessons' in parseLedger('l.md', '## Rulings\n- Ruling: x\n')).toBe(false);
     expect('epicLessons' in parseLedger('l.md', '## Epic lessons\n<!-- nothing -->\n\n')).toBe(false);
   });
 
-  it('ac-10 epicBlock lists the siblings lessons from the default branch by id then ledger order (ST-LN-28 7-ac-10)', () => {
+  it('risk:complex-branching epicBlock lists the siblings lessons from the default branch by id then ledger order (ST-LN-28 7-ac-10)', () => {
     const base = { 'accord/config.yml': CONFIG, [P('E-1')]: epic('E-1'), [P('S-1')]: story('S-1', 'E-1') };
     const tree = { ...base, [P('S-2')]: story('S-2', 'E-1'), [P('S-10')]: story('S-10', 'E-1') };
     // the story's own ledger on the default branch, a ticket of another parent and a ticket with no parent are never read

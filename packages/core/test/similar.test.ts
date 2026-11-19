@@ -20,7 +20,7 @@ const FACTS: SimilarFact[] = [
 ];
 
 describe('requestWords', () => {
-  it('lowercases, drops stop words and single characters, and keeps each word once (ST-LN-22 7-ac-5)', () => {
+  it('risk:parsing lowercases, drops stop words and single characters, and keeps each word once (ST-LN-22 7-ac-5)', () => {
     expect(requestWords('The CSV, the csv!')).toEqual(new Set(['csv']));
     expect(requestWords('A b Export-to_csv 2nd')).toEqual(new Set(['export', 'csv', '2nd']));
     expect(requestWords('Ticket accord should when')).toEqual(new Set());
@@ -28,7 +28,7 @@ describe('requestWords', () => {
 });
 
 describe('similarTickets', () => {
-  it('ac-5 the similarity judge ranks by shared words with stop words removed (ST-LN-22 7-ac-5)', () => {
+  it('risk:complex-branching the similarity judge ranks by shared words with stop words removed (ST-LN-22 7-ac-5)', () => {
     const found = similarTickets('Export reports to CSV', FACTS);
     expect(found).toHaveLength(5);
     // three shared: T-2 before T-4 before T-10 (digit runs by value, as the dashboard orders ids); then two shared: T-6, T-7
@@ -42,13 +42,13 @@ describe('similarTickets', () => {
     expect(similarTickets('Export reports to CSV', FACTS, 20).map((t) => t.id)).toEqual(['T-2', 'T-4', 'T-10', 'T-6', 'T-7', 'T-3', 'T-5']);
   });
 
-  it('ac-5 the same request over the same tickets returns equal results in any input order (ST-LN-22 7-ac-5)', () => {
+  it('risk:regression the same request over the same tickets returns equal results in any input order (ST-LN-22 7-ac-5)', () => {
     const a = similarTickets('Export reports to CSV', FACTS);
     expect(similarTickets('Export reports to CSV', FACTS)).toEqual(a);
     expect(similarTickets('Export reports to CSV', [...FACTS].reverse())).toEqual(a);
   });
 
-  it('ac-5 the text of a ticket counts as well as its title (ST-LN-22 7-ac-5)', () => {
+  it('risk:regression the text of a ticket counts as well as its title (ST-LN-22 7-ac-5)', () => {
     expect(similarTickets('weekly', FACTS).map((t) => t.id)).toEqual(['T-5']);
     expect(similarTickets('printer', FACTS).map((t) => t.id)).toEqual(['T-8']);
     expect(similarTickets('nothing alike here', FACTS)).toEqual([]);
@@ -61,7 +61,7 @@ describe('ticketFacts', () => {
   const M_BODY = '## Intent\n<!-- guidance -->\nOwners can export their report.\n\n## Acceptance criteria\nNever compared.\n';
   const tree = (files: Record<string, string>) => loadSnapshot({ files: { 'accord/config.yml': CONFIG, ...files }, tree: [] });
 
-  it('ac-5 reads Intent, else Understood, else Question, with comments stripped, and the default branch too (ST-LN-22 7-ac-5)', () => {
+  it('risk:parsing reads Intent, else Understood, else Question, with comments stripped, and the default branch too (ST-LN-22 7-ac-5)', () => {
     const working = tree({
       'accord/tickets/W-1.md': laneTicket('W-1', { body: M_BODY }),
       'accord/tickets/W-2.md': laneTicket('W-2', { lane: 'S', body: S_BODY }),

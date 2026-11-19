@@ -25,7 +25,7 @@ function sandbox(): string {
   return repo;
 }
 
-it('ac-5 accord related prints the block for a lane ticket (ST-LN-22 7-ac-5)', async () => {
+it('risk:parsing accord related prints the block for a lane ticket (ST-LN-22 7-ac-5)', async () => {
   const repo = sandbox();
   const r = await run(['related', 'N-1'], repo);
   expect(r.code, r.out + r.err).toBe(0);
@@ -56,7 +56,7 @@ it('ac-5 accord related prints the block for a lane ticket (ST-LN-22 7-ac-5)', a
   expect(alone.out).toBe('# Related tickets of R-3\n\n(none)\n\n## Rejected\n(none)\n');
 });
 
-it('ac-5 accord related refuses an id that is no ticket (ST-LN-22 7-ac-5)', async () => {
+it('risk:regression accord related refuses an id that is no ticket (ST-LN-22 7-ac-5)', async () => {
   const repo = sandbox();
   for (const bad of ['NOPE-9', '../x']) {
     const r = await run(['related', bad], repo);
@@ -66,7 +66,7 @@ it('ac-5 accord related refuses an id that is no ticket (ST-LN-22 7-ac-5)', asyn
   }
 });
 
-it('ac-6 accord related ends with the Rejected lines of conventions.md read from disk (ST-LN-84 7-ac-6)', async () => {
+it('risk:parsing accord related ends with the Rejected lines of conventions.md read from disk (ST-LN-84 7-ac-6)', async () => {
   const repo = sandbox();
   // no file: the section says none
   let r = await run(['related', 'N-1'], repo);

@@ -612,3 +612,40 @@ it('risk:security path patterns match ignoring letter case, the copy exemption a
   expect(run('src/Helper.js', { generated: [], exempt: ['src/helper.js'] }, '+spawn(1);')).toEqual(['src/Helper.js:1: spawn (process spawn)']);
   expect(run('src/helper.js', { generated: [], exempt: ['src/helper.js'] }, '+spawn(1);')).toEqual([]);
 });
+
+// 8-ac-3 (D-07): a team line pattern that can backtrack catastrophically is refused when the file is read, so it never reaches the scan. The test asserts only the read verdict
+// and never runs a refused regex on any input.
+it('risk:security a backtracking team line pattern is refused at read with its line and how to rewrite it (8-ac-3)', () => {
+  const text = [
+    '## Patterns',
+    '',
+    '- slow: line /(a+)+$/ — a pattern that can hang',
+    '- back: line /(a+)\1/ — a backreference',
+    '- fine: line /\bfoo\b/ — a safe pattern',
+    '',
+  ].join('\n');
+  const spec = parseSecurityFile(text);
+  // the refused lines are problems at their own lines, marked as pattern problems, and neither reaches the patterns
+  expect(spec.problems.map((p) => [p.line, p.pattern])).toEqual([[3, true], [4, true]]);
+  expect(spec.problems[0].reason).toContain('"slow"');
+  expect(spec.problems[0].reason).toContain('very slow');
+  expect(spec.problems[0].reason).toContain('a+');
+  expect(spec.problems[1].reason).toContain('"back"');
+  expect(spec.problems[1].reason).toContain('backreference');
+  expect(spec.patterns.map((p) => p.id)).toEqual(['fine']);
+  // the same lines are lint.security-file errors at their lines, and the merged spec carries them
+  const lint = lintSnapshot(withFile(text)).findings.filter((f) => f.file === FILE);
+  expect(lint.map((f) => [f.rule, f.level, f.line])).toEqual([['lint.security-file', 'error', 3], ['lint.security-file', 'error', 4]]);
+  expect(securitySpec(withFile(text)).patterns.map((p) => p.id)).not.toContain('slow');
+  // a line that does not compile is a pattern problem too (it is not in force either)
+  const broken = parseSecurityFile('## Patterns\n\n- broken: line /(/ — x\n');
+  expect(broken.problems.map((p) => [p.line, p.pattern])).toEqual([[3, true]]);
+  // a checklist or removed problem is not a pattern problem
+  const other = parseSecurityFile('## Checklist\n\n- a check with no id\n');
+  expect(other.problems).toHaveLength(1);
+  expect(other.problems[0]).not.toHaveProperty('pattern');
+  // the four default line patterns and the 0.8.0 built-path source read with no problem
+  const builtOld = String.raw`\b(join|resolve|normalize)\s*\(.*\b(input|argv|args?|params?|query|body|req|request)\b`;
+  expect(parseSecurityFile(`## Patterns\n\n- built-path: line /${builtOld}/ — paths built from input\n`).problems).toEqual([]);
+  expect(DEFAULT_SECURITY.problems).toEqual([]);
+});

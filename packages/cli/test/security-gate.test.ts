@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { loadSnapshot, pluginTargets } from '@accord-dev/accord-core';
+import { loadSnapshot, parseSecurityFile, pluginTargets } from '@accord-dev/accord-core';
 import type { RepoSnapshot, SkillFile } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { renderedFiles } from '../src/commands/branch-fact.js';
@@ -36,7 +36,7 @@ async function security(repo: string): Promise<Found[]> {
 }
 
 /** A ticket claimed under `claim` on its own branch: base, the claim commit, one code commit (`code`), then review.md headed by that code commit. */
-function claimed(o: { lane?: 'M' | 'S'; claim?: string; code: Record<string, string>; review: (head: string) => string }): { repo: string; head: string } {
+function claimed(o: { lane?: 'M' | 'S'; claim?: string; base?: Record<string, string>; code: Record<string, string>; review: (head: string) => string }): { repo: string; head: string } {
   const lane = o.lane ?? 'M';
   const repo = makeEmptyRepo();
   writeFiles(repo, {
@@ -312,5 +312,33 @@ it('risk:security only a copy whose head text equals the render is exempt and a 
     expect(facts).toEqual({ error: 'cannot render the copies' });
   } finally {
     cleanup(spawned.repo);
+  }
+}, 180_000);
+
+// 8-ac-5 (D-10) and 8-ac-3 (D-07): a team pattern the guard refuses, or that does not compile, is not in force; `accord gate done` says so instead of passing silently.
+const SECURITY_FILE = 'accord/product/security.md';
+const teamFile = (pattern: string): string => `# Security review\n\n## Patterns\n\n- team: line ${pattern} — a team pattern\n`;
+
+it('risk:security accord gate done refuses a ticket while the security file holds a backtracking or uncompilable pattern (8-ac-5)', async () => {
+  for (const [pattern, why] of [['/(a+)+$/', 'very slow'], ['/(/', 'does not compile']]) {
+    // the read refuses the pattern first, so a guard regression fails here before any slow scan can run
+    expect(parseSecurityFile(teamFile(pattern)).problems.map((p) => p.line), pattern).toEqual([5]);
+    const spawned = claimed({ base: { [SECURITY_FILE]: teamFile(pattern) }, code: { 'src/plain.ts': 'export const a = 1;\n' }, review: (h) => record(h, 'Security: no pattern matched') });
+    try {
+      const refused = await run(['gate', 'done', 'T-1', '--json'], spawned.repo);
+      expect(refused.code, pattern).toBe(1);
+      const found = (JSON.parse(refused.out).findings as Found[]).filter((f) => f.rule === RULE);
+      expect(found, pattern).toHaveLength(1);
+      expect(found[0], pattern).toMatchObject({ level: 'error', file: REVIEW });
+      expect(found[0].reason, pattern).toContain(`${SECURITY_FILE}:5: `);
+      expect(found[0].reason, pattern).toContain(why);
+      expect(found[0].reason, pattern).toContain('accord lint');
+      // the fix: a line that reads takes the finding away
+      writeFiles(spawned.repo, { [SECURITY_FILE]: teamFile(String.raw`/foo/`) });
+      commitMsg(spawned.repo, 'fix the pattern');
+      expect(await security(spawned.repo), pattern).toEqual([]);
+    } finally {
+      cleanup(spawned.repo);
+    }
   }
 }, 180_000);

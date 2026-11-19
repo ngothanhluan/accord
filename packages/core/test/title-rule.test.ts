@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { gateReady, lintSnapshot, loadSnapshot, OVERRIDABLE, TITLE_RULE_FROM, titleProblem, titleRuleLine } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
-import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, laneTicket, pinned } from '../../../test/helpers/lane.js';
 
 describe('the title rule', () => {
   it('D-08b the title rule refuses a placeholder a long title and a letter outside English (ST-LN-22 D-08b)', () => {
@@ -37,9 +37,9 @@ describe('the title rule from config.yml', () => {
 });
 
 /** A lane M ticket T-1 with `title`, and the claim fact `claim` (absent: no fact, so the working-tree pin decides). */
-function ticketWith(title: string, claim?: { pin: string } | { error: string }): RepoSnapshot {
+function ticketWith(title: string, claim?: { pin: string } | { error: string }, config: string = CONFIG): RepoSnapshot {
   const files: Record<string, string> = {
-    'accord/config.yml': CONFIG,
+    'accord/config.yml': config,
     'accord/tickets/T-1.md': laneTicket('T-1').replace('title: "Export"', `title: "${title}"`),
   };
   const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
@@ -64,7 +64,7 @@ describe('gate ready and the title rule', () => {
     expect(titleFindings(ticketWith('Export reports to CSV', { pin: TITLE_RULE_FROM }))).toEqual([]);
     // claimed before the cut-off, or with no claim fact and a working-tree pin before it: not judged, whatever the title
     expect(titleFindings(ticketWith(LONG, { pin: '0.7.1' }))).toEqual([]);
-    expect(titleFindings(ticketWith(LONG))).toEqual([]);
+    expect(titleFindings(ticketWith(LONG, undefined, pinned('0.7.1')))).toEqual([]);
     // a failed claim read fails closed: the rule applies
     expect(titleFindings(ticketWith(LONG, { error: 'git failed' }))).toHaveLength(1);
     // a team may lower it

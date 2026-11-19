@@ -347,6 +347,12 @@ it('risk:regression every Phase 5 cut-off stays at 0.7.0 (rel-ac-1)', () => {
   for (const [name, v] of Object.entries(PHASE5)) expect(v, name).toBe('0.7.0');
 });
 
+// Release 0.8.0 ships Phase 7: its cut-offs name this release and the CLI that ships them.
+it('risk:regression every Phase 7 cut-off is 0.8.0, the release that ships it (rel-ac-1)', () => {
+  expect(Object.keys(PHASE7).sort(), 'the list names no constant').toEqual(['PLAN_LARGE_FROM', 'TITLE_RULE_FROM']);
+  for (const [name, v] of Object.entries(PHASE7)) expect(v, name).toBe('0.8.0');
+});
+
 it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac-1)', () => {
   // The scan catches a literal comparison, and leaves prose holding the version inside a longer string alone.
   expect(cutOffOffences("  return pinBefore('0.6.0', pin);", 'packages/core/src/x.ts')).toEqual(["packages/core/src/x.ts:1: return pinBefore('0.6.0', pin);"]);

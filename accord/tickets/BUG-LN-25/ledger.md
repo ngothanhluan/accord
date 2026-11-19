@@ -23,3 +23,4 @@
 - review 1.1: one helper for the render getter written out in gate, round and review-package — failing case: none, no defect; a later edit to one site could make the gate and the reviewer's package disagree on what is exempt
 - review 1.2: the ac-4 test also asserts the Removed line, the id collision and the unchanged checklist — failing case: none; a new checklist item fails two tests for one reason
 - review 1.3: the ac-3 test's in-process assertion with the real render repeats the gate done --json assertion — failing case: none; a duplicate assertion
+- review 2.2: the ac-3 test reads changed paths line by line, not with -z — failing case: a fixture path with a non-ASCII name comes back quoted and the only-copies check misreads it

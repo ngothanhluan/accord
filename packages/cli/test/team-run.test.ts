@@ -1,5 +1,5 @@
 // ST-LN-96 t1-ac-3: `runTeamCommand`, the one runner for committed team commands (git.sync, later tracker.command): the ticket reaches the script only in its environment.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -71,6 +71,28 @@ it('risk:complex-branching output over maxBuffer is reported, not thrown (ST-LN-
   expect(r.code).not.toBe(0);
 });
 
+// 8-ac-6 (D-11): the report of a stopped command waits for its tree kill. `killDelayMs` is the runner's test seam: it holds the kill's completion back, as a slow
+// `taskkill /T /F` does on Windows, while the kill itself is still sent at once. The shell's pipes close right after the kill is sent, so a runner that reports
+// at `close` is back almost as early as without the delay; one that joins the kill is back at least as late as the delay.
+it('risk:resource a stopped team command is reported only after its tree kill has finished (8-ac-6)', () => {
+  const big = "process.stdout.write('x'.repeat(200000)); setTimeout(() => {}, 20000);";
+  const timed = (killDelayMs?: number): number => {
+    const t0 = Date.now();
+    const r = runTeamCommand(fixture(`kill-order-${killDelayMs ?? 0}.mjs`, big), {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 20_000,
+      maxBuffer: 1024,
+      ...(killDelayMs === undefined ? {} : { killDelayMs }),
+    });
+    expect(r.oversize).toBe(true);
+    return Date.now() - t0;
+  };
+  const plain = timed();
+  const slowKill = timed(2000);
+  expect(slowKill - plain).toBeGreaterThanOrEqual(1500);
+}, 60_000);
+
 /** A script that starts a long-lived child in `folder` (so the child holds it as its cwd), records the child's pid, then does `then`. */
 function treeScript(folder: string, pidFile: string, then: string): string {
   const path = join(folder, 'tree.mjs').replaceAll('\\', '/');
@@ -98,26 +120,31 @@ function alive(pid: number): boolean {
     const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
     return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0] !== 'Z';
   } catch {
-    return true;
+    // no /proc (macOS, Windows): kill(pid, 0) above already said the pid exists, and only a zombie's state says it is dead. ps prints a state starting
+    // with Z for a zombie. Anything else, an empty answer, a failed ps or no ps at all (Windows has no zombies), leaves the process alive, so a leak is never
+    // hidden; a process that died since the check above reads as gone on the next poll. No branch on the operating system sits in this test (ac-5 of the stage skills).
+    const ps = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' });
+    return !String(ps.stdout ?? '').trim().startsWith('Z');
   }
 }
 
-// ST-LN-96 t1-ac-3: a killed team command takes its whole process tree with it, so the ticket's worktree can be removed at once.
+// ST-LN-96 t1-ac-3: a killed team command takes its whole process tree with it, so the ticket's worktree can be removed.
 it.each([
   ['times out', 'setTimeout(() => {}, 20000);', { timeoutMs: 3000, maxBuffer: 1024 * 1024 }, 'timedOut'],
   ['prints too much', "process.stdout.write('x'.repeat(200000)); setTimeout(() => {}, 20000);", { timeoutMs: 20_000, maxBuffer: 1024 }, 'oversize'],
 ] as const)(
   'risk:resource a team command that %s leaves no process holding the worktree (ST-LN-96 t1-ac-3)',
-  (_name, then, limits, flag) => {
+  async (_name, then, limits, flag) => {
     const folder = mkdtempSync(join(tmpdir(), 'accord-team-tree-'));
     const pidFile = join(dir, `child-${flag}.pid`);
     const r = runTeamCommand(treeScript(folder, pidFile, then), { cwd: folder, env: process.env, ...limits });
     expect(r[flag]).toBe(true);
     expect(existsSync(pidFile)).toBe(true);
-    // at once: no retry and no wait for the child; a child still running holds the folder (EBUSY on Windows)
-    rmSync(folder, { recursive: true });
+    // the process is asserted gone first, within a bound: a child that survives the kill still fails here, however long the wait; alive() reads a killed, unreaped
+    // process as gone. Only then is the folder removed, with a bounded retry that covers just the late release of a dead process's folder handle (EBUSY on Windows).
+    expect(await until(() => !alive(Number(readFileSync(pidFile, 'utf8'))), 5000)).toBe(true);
+    rmSync(folder, { recursive: true, maxRetries: 20, retryDelay: 100 });
     expect(existsSync(folder)).toBe(false);
-    expect(alive(Number(readFileSync(pidFile, 'utf8')))).toBe(false);
   },
 );
 

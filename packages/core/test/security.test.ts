@@ -5,7 +5,7 @@ import { DEFAULT_SECURITY, LOCKED, lintSnapshot, loadSnapshot, matchedHunks, par
 const FILE = 'accord/product/security.md';
 /** A snapshot holding only the security file (or none): securitySpec reads nothing else. */
 const withFile = (text?: string) => loadSnapshot({ files: text === undefined ? {} : { [FILE]: text }, tree: text === undefined ? [] : [FILE] });
-const DEFAULT_IDS = ['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'security-config'];
+const DEFAULT_IDS = ['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'agent-config', 'security-config'];
 const CHECK_IDS = DEFAULT_SECURITY.checklist.map((c) => c.id);
 
 const DIFF = [
@@ -254,8 +254,8 @@ it('ac-1 the patterns in force are the defaults plus additions minus Removed lin
   );
   const spec = securitySpec(withFile(text));
   expect(spec.problems).toEqual([]);
-  // the template names seven defaults; one is removed and one is added, so seven are in force, the team's after the defaults
-  expect(ids(spec)).toEqual(['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'security-config', 'infra']);
+  // the template names eight defaults; one is removed and one is added, so eight are in force, the team's after the defaults
+  expect(ids(spec)).toEqual(['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'agent-config', 'security-config', 'infra']);
   expect(spec.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
   expect(spec.checklist).toHaveLength(8);
   expect(spec.removed.map((r) => [r.id, r.reason])).toEqual([['secret-name', 'our design tokens are not secrets']]);
@@ -297,7 +297,7 @@ it('risk:parsing a rewritten default is not read, a Removed line for a team or u
     '- infra: path infra/ — infrastructure\n- secret-name:',
   );
   const s = securitySpec(withFile(text));
-  expect(ids(s)).toEqual(['file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'security-config', 'infra']);
+  expect(ids(s)).toEqual(['file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'agent-config', 'security-config', 'infra']);
   expect(s.removed.map((x) => x.id)).toEqual(['spawn']);
   expect(s.problems).toHaveLength(3);
 
@@ -546,4 +546,44 @@ it('ac-2 a file accord does not write in a copy folder is scanned (BUG-LN-25)', 
   // the same path in the exempt list is an unmodified copy: no content trigger and no hunk
   expect(securityTriggers(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: [helper] })).toEqual([]);
   expect(matchedHunks(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: [helper] })).toEqual([]);
+});
+
+it('ac-4 a change to agent configuration raises agent-config under a team security file (BUG-LN-25)', () => {
+  const team = ['# Security review', '', '## Patterns', '', '- infra: path infra/ — infrastructure', '', '## Checklist', '', '## Removed', ''].join('\n');
+  const spec = securitySpec(withFile(team));
+  expect(spec.problems).toEqual([]);
+  expect(ids(spec)).toContain('agent-config');
+  const label = 'agent-config (agent configuration that can start commands)';
+  const run = (s: ReturnType<typeof securitySpec>, path: string, head: string[], hunk: string[]) => {
+    const diff = SECTION(path, hunk, head).join('\n');
+    return securityTriggers(s, diff, [path], { generated: [] }).map(triggerText);
+  };
+  const settings = '.claude/settings.json';
+  const added = ['new file mode 100644', 'index 0000000..1111111'];
+  // added, edited and deleted: each is a trigger of its own
+  expect(run(spec, settings, added, ['@@ -0,0 +1 @@', '+{}'])).toEqual([`${settings}: ${label}`]);
+  expect(run(spec, settings, ['index 1111111..2222222 100644'], ['@@ -1,2 +1,2 @@', ' {', '-  "a": 1', '+  "a": 2'])).toEqual([`${settings}: ${label}`]);
+  const gone = ['diff --git a/.claude/settings.json b/.claude/settings.json', 'deleted file mode 100644', 'index 1111111..0000000', '--- a/.claude/settings.json', '+++ /dev/null', '@@ -1 +0,0 @@', '-{}'].join('\n');
+  expect(securityTriggers(spec, gone, [settings], { generated: [] }).map(triggerText)).toEqual([`${settings}: ${label}`]);
+  // .mcp.json at any depth
+  for (const mcp of ['.mcp.json', 'sub/.mcp.json']) {
+    expect(run(spec, mcp, added, ['@@ -0,0 +1 @@', '+{}'])).toEqual([`${mcp}: ${label}`]);
+  }
+  // .claude/settings.json is the root file only
+  expect(run(spec, 'sub/.claude/settings.json', added, ['@@ -0,0 +1 @@', '+{}'])).toEqual([]);
+
+  // a Removed line takes the pattern out, with no problem
+  const removed = securitySpec(withFile(team.replace('## Removed\n', '## Removed\n\n- Removed: agent-config — we review these files by hand\n')));
+  expect(removed.problems).toEqual([]);
+  expect(ids(removed)).not.toContain('agent-config');
+  expect(run(removed, settings, added, ['@@ -0,0 +1 @@', '+{}'])).toEqual([]);
+
+  // a team line with the id agent-config is one problem and the default still applies
+  const clash = securitySpec(withFile(team.replace('- infra:', '- agent-config: path other.json — x\n- infra:')));
+  expect(clash.problems).toHaveLength(1);
+  expect(clash.patterns.find((p) => p.id === 'agent-config')?.entries).toEqual(['.claude/settings.json', '.mcp.json']);
+
+  // no new checklist item (D-13)
+  expect(spec.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
+  expect(spec.checklist).toHaveLength(8);
 });

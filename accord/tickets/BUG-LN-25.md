@@ -42,13 +42,13 @@ Expected size: 3 tasks
 ```gherkin
 Feature: BUG-LN-25
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/security-gate.test.ts#ac-1-gate-done-scans-a-hand-edited-accord-panel-copy-on-real-git-(BUG-LN-25)
   Scenario: A hand-edited accord copy is scanned
     Given a repository whose accord copies were written by `accord skills sync`
     When a change adds a line matching a default content pattern to `.claude/accord-panel/plugin/hooks/register.js`
     Then the security triggers of that change name `.claude/accord-panel/plugin/hooks/register.js` and that pattern
 
-  @ac-2
+  @ac-2 @test:packages/core/test/security.test.ts#ac-2-a-file-accord-does-not-write-in-a-copy-folder-is-scanned-(BUG-LN-25)
   Scenario: A file accord does not write in a copy folder is scanned
     Given a repository whose accord copies were written by `accord skills sync`
     When a change adds a new file `.claude/skills/accord/helper.js` holding a line that matches a default content pattern

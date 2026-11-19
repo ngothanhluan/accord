@@ -1,0 +1,6 @@
+# Ledger: BUG-LN-24
+
+## Rulings
+Ruling: lane M although the lane scout found no lift condition (2 files, 2 code areas, no sensitive area, one reading) — the owner asked for a ticket that exercises the verify stage ("Bạn tự ra một ticket rồi test giùm luôn đi", for Phase 5 UAT test 1), and lane S has no verify — cost if wrong: a small change takes the full lane M route
+Ruling: created as a new ticket related to BUG-LN-23 rather than continuing that draft — BUG-LN-23 also holds two review-round mismatches that need the owner's decisions; this ticket takes only its first bullet, and BUG-LN-23 stays a draft — cost if wrong: BUG-LN-23's first bullet is done twice unless its interview drops it
+Ruling: the ticket stays lane M at the intent stage's lane S check, for the same reason as the first Ruling — cost if wrong: as the first Ruling

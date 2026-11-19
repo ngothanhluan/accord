@@ -5,7 +5,7 @@
 import { Document, Scalar, isMap, isScalar, isSeq, parse, parseDocument } from 'yaml';
 import type { Node } from 'yaml';
 import configSchema from '../../schemas/config.schema.json' with { type: 'json' };
-import { breaksConvention, conventionKey, LEGACY_ID } from '../lint/ids.js';
+import { breaksConvention, conventionKey, LEGACY_ID, peopleOf } from '../lint/ids.js';
 import { normaliseText } from '../load/frontmatter.js';
 import { stringNumerics } from '../load/yaml.js';
 import type { AccordConfig } from '../model/snapshot.js';
@@ -223,6 +223,36 @@ export function appendConfigList(text: string, path: string[], items: string[]):
     return undefined;
   }
   return e.doc.toString(WRITE) === before ? text : finish(e, before, e.doc);
+}
+
+/**
+ * G-07-2 (A-1): `text` with one people entry, `  "<key>": <INITIALS>`, added after the last entry of the existing `people` map, every other line kept
+ * (an empty flow map becomes a block). A key already listed in another case leaves the text as it was. Undefined when the text does not parse,
+ * holds no `people` map, the key or initials break the schema patterns, or the result would not read as the old people plus that one entry.
+ */
+export function addPersonEntry(text: string, key: string, initials: string): string | undefined {
+  if (!/^[^@\s]+@[^@\s]+$/.test(key) || !/^[A-Z]{2,4}$/.test(initials)) return undefined;
+  const old = peopleOf(text);
+  const e = open(text);
+  if (old === undefined || e === undefined) return undefined;
+  if (Object.keys(old).some((k) => k.toLowerCase() === key.toLowerCase())) return text;
+  const people = e.doc.get('people', true);
+  if (!isMap(people)) return undefined;
+  const before = e.doc.toString(WRITE);
+  try {
+    const k = new Scalar(key);
+    k.type = Scalar.QUOTE_DOUBLE;
+    const v = new Scalar(initials);
+    if (AMBIGUOUS.test(initials)) v.type = Scalar.QUOTE_DOUBLE;
+    if (people.items.length === 0) people.flow = false;
+    people.items.push(e.doc.createPair(k, v));
+  } catch {
+    return undefined;
+  }
+  const out = finish(e, before, e.doc);
+  const after = peopleOf(out);
+  const want = Object.entries({ ...old, [key]: initials }).sort();
+  return after !== undefined && JSON.stringify(Object.entries(after).sort()) === JSON.stringify(want) ? out : undefined;
 }
 
 /**

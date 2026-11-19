@@ -13,7 +13,8 @@ import type { Lane } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import { queueTicket, utcDate } from './queue.js';
 import { newSplit } from './split.js';
-import { checkSimilar, creatorInitials, ID, parseRelated, PLACEHOLDER, refuseBadConfig, refuseUnknown, usedIds, withDefaultBranch } from './ticket-shared.js';
+import { checkSimilar, creatorEntry, ID, parseRelated, PLACEHOLDER, refuseBadConfig, refuseUnknown, usedIds, withDefaultBranch } from './ticket-shared.js';
+import type { Creator } from './ticket-shared.js';
 import { cleanQuietly, fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
 import type { WorktreeEntry } from './worktree.js';
 import type { CommandContext } from '../run.js';
@@ -81,6 +82,8 @@ export function newTicket(
   // ST-LN-50 D-05: accord assigns ids while the convention is on, that is while `people` or `ids` exists
   const assigns = people !== undefined || ids !== undefined;
   let id: string;
+  // G-07-2: the creator's people entry, when accord assigned the id from their initials; the queue commits it with the draft
+  let creator: Creator | undefined;
   if (ids?.mode === 'tracker') {
     // ST-LN-50 D-05: the creator gives the Jira or Linear key; accord checks its form, its project and that it is unused, and assigns nothing
     if (givenId === undefined) {
@@ -108,7 +111,8 @@ export function newTicket(
   } else if (givenId !== undefined) id = givenId;
   else if (!assigns) throw new UsageError('a ticket id is required: accord new ticket <id>');
   else {
-    id = nextTicketId(options.type, creatorInitials(ctx), usedIds(ctx), ids);
+    creator = creatorEntry(ctx);
+    id = nextTicketId(options.type, creator?.initials, usedIds(ctx), ids);
   }
 
   // T-05-14: this is the only guard between an argv string and a filesystem write, so it runs before
@@ -166,7 +170,7 @@ export function newTicket(
   if (options.queue === true) {
     // ST-LN-83 D-06: the draft goes to a backlog branch off origin's default branch, not to this checkout
     const date = utcDate();
-    return queueTicket(ctx, id, { [rel]: queuedIntent(text, date, notes) }, date);
+    return queueTicket(ctx, id, { [rel]: queuedIntent(text, date, notes) }, date, creator);
   }
   if (options.worktree === true) {
     newTicketWorktree(ctx, id, rel, text, seen);

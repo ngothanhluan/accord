@@ -121,7 +121,7 @@ export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from 
 export type { SecurityCheck, SecurityPattern, SecuritySpec } from './security/spec.js';
 export { diffFiles, matchedHunks, securityTriggers, triggerText } from './security/match.js';
 export type { DiffFile, DiffHunk, Trigger } from './security/match.js';
-export { compilePattern, DEFAULT_PATTERN, ID_PREFIX, initialsHolder, initialsOf, nextTicketId, peopleOf, prefixOf, TRACKER_KEY, trackerKeyOk } from './lint/ids.js';
+export { compilePattern, DEFAULT_PATTERN, ID_PREFIX, initialsHolder, initialsOf, initialsOnRefs, nextTicketId, peopleOf, prefixOf, TRACKER_KEY, trackerKeyOk } from './lint/ids.js';
 export type { CompiledPattern, IdsConfig } from './lint/ids.js';
 export { untracedTests } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';
@@ -176,7 +176,7 @@ export { refreshLintStep, repinConfig, repinWorkflow } from './scaffold/repin.js
 export type { StepRefresh } from './scaffold/repin.js';
 export { insertTeamSections, reservedSections, TEAM_HINT, teamSectionProblems } from './scaffold/sections.js';
 export type { TeamSection } from './scaffold/sections.js';
-export { appendConfigList, flowValue, getConfigValue, idConsequences, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from './scaffold/configEdit.js';
+export { addPersonEntry, appendConfigList, flowValue, getConfigValue, idConsequences, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from './scaffold/configEdit.js';
 export { mergePanel, panelSettings } from './scaffold/panel.js';
 export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.js';
 export type { HookEntries } from './scaffold/hooks.js';

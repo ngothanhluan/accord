@@ -73,6 +73,19 @@ Feature: BUG-LN-25
 - D-03 There is no smaller version: all three parts are done in this ticket — "A" (owner, 2026-11-19, choosing this against deferring the agent-config pattern to the backlog)
 - D-04 The plan is expected to take 3 tasks, one per part — "A" (owner, 2026-11-19, choosing this against 2 tasks)
 - D-05 The criteria read as follows after the audit: ac-3's "no trigger" covers the copies under the four copy folders only, and a sync edit to `.claude/settings.json` still raises `agent-config` as D-02 says; ac-4's pattern fires on adding, editing or deleting the file, matches `.claude/settings.json` at the repository root only and `.mcp.json` at any depth — "A" (owner, 2026-11-19, to these readings)
+- D-06 the CLI decides which copies are exempt: it reads the head text of each changed path that `renderedFiles(config)` holds and keeps those equal to the rendered text; core gets the exact exempt paths and the folder-prefix skip goes; the marker hash is never trusted — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-07 a copy's text is read at each package's own head (the round's head for gate done, accord round and review-package --round) — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-08 all five call sites (gate done, accord round, review-package, review-package --round, diff-package) pass the exempt paths, so the triggers a reviewer sees match the ones gate done enforces — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-09 a copy changed by a round made with an older accord is scanned (fail closed), with no fall-back to the marker check — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-10 a failure to read the copy texts becomes an error fact, so the gate refuses — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-11 a change that deletes a copy that is not on the retired list has its removed lines scanned — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-12 `agent-config` can be removed with a `Removed:` line like every default except `security-config` — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-13 no new checklist item: the existing `hook-commands` item covers agent configuration — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-14 a team pattern already named `agent-config` follows the existing collision rule: a lint problem, and the default still applies — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-15 the exemption option on the exported `securityTriggers` and `matchedHunks` is optional, and nothing is exempt when it is absent — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-16 the gate path gets the rendered files from the existing `renderedFiles(config)`, passed in by its callers, so there is one definition of what sync writes — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-17 "the text it writes" means equal after `normaliseText`, so line endings do not count — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
+- D-18 ac-1 and ac-3 are proven on real git in `packages/cli/test/security-gate.test.ts`, ac-2 and ac-4 in core; the ac-3 fixture holds a team line pattern that matches the rewritten copies, so the test fails without the exemption — "A" (owner, 2026-11-19, taking the planner's recommendation at discuss)
 
 ## Corrections
 

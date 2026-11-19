@@ -2,7 +2,7 @@
 id: "ST-LN-29"                            # equals the file name: tickets/<id>.md
 title: "An idea that comes up mid-session is queued as a draft ticket without leaving the session"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                            # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
@@ -62,3 +62,6 @@ Feature: ST-LN-29
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+Merged into ST-LN-83 at the Phase 7 discussion (2026-11-18, 07-CONTEXT Ruling "Tickets"); the work shipped there in PR #215 on 2026-11-19.

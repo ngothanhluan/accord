@@ -2,7 +2,7 @@
 id: "ST-LN-88"                            # equals the file name: tickets/<id>.md
 title: "The benchmark cleans its run worktrees once the round report is written"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                            # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -67,3 +67,6 @@ Feature: ST-LN-88
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+No benchmark runs are made since Phase 6 D-01 (owner, 2026-11-16), so there are no benchmark runs to clean up (Phase 7 D-20, owner: "ok").

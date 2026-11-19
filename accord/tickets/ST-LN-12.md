@@ -2,7 +2,7 @@
 id: "ST-LN-12"                            # equals the file name: tickets/<id>.md
 title: "Every deferred item is decided at verify: a backlog ticket or a reason to drop it"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
@@ -61,3 +61,6 @@ Feature: ST-LN-12
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 7) and merged in PR #218 on 2026-11-19. Narrowed: at verify the agent shows the ledger's Must and Should `## Deferred` items through `accord deferred <id>` and asks which become backlog drafts (D-12). The gate part, `accord gate done` refusing undecided items, was dropped. The owner closed Phase 7 with six live-session checks outstanding (`.planning/phases/07-knowledge-and-ux/07-UAT.md`); this ticket's behaviour is covered by unit and render tests, not yet by a live run.

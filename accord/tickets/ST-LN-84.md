@@ -2,7 +2,7 @@
 id: "ST-LN-84"                            # equals the file name: tickets/<id>.md
 title: "A lasting rule the owner states reaches the repository, so every teammate and tool follows it"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 research: ["accord/research/2026-11-03-backlog-review.md", "accord/research/2026-11-14-rule-enforcement.md"]
 # Tickets that must reach done before this one can start.
@@ -67,3 +67,6 @@ Feature: ST-LN-84
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 7) and merged in PR #217 on 2026-11-19. Soft part: the agent offers a lasting rule or a `Rejected:` line for `accord/product/conventions.md` and writes it only on a yes; `accord drop --rejected` and intent and approach name a matching `Rejected:` line before proposing that option again (D-10). Hard enforcement and direction B stay in GSD backlog 999.5 (D-11). ST-LN-68 was merged into this ticket. The owner closed Phase 7 with six live-session checks outstanding (`.planning/phases/07-knowledge-and-ux/07-UAT.md`); this ticket's behaviour is covered by unit and render tests, not yet by a live run.

@@ -2,7 +2,7 @@
 id: "ST-LN-87"                            # equals the file name: tickets/<id>.md
 title: "Merged branches made outside a ticket are cleaned with their worktrees"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -68,3 +68,6 @@ Feature: ST-LN-87
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 7) and merged in PR #221 on 2026-11-19. `accord worktree clean` also removes merged `backlog/`, `fix/` and `release/` branches and their worktrees. PR #222 (2026-11-19) made it keep a branch with no commit of its own. The owner closed Phase 7 with six live-session checks outstanding (`.planning/phases/07-knowledge-and-ux/07-UAT.md`); this ticket's behaviour is covered by unit and render tests, not yet by a live run.

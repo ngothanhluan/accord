@@ -2,7 +2,7 @@
 id: "ST-LN-49"                            # equals the file name: tickets/<id>.md
 title: "Each /accord action is its own command, so a person sees what to type"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                            # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
@@ -63,3 +63,6 @@ Feature: ST-LN-49
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+Merged into ST-LN-83 at the Phase 7 discussion (2026-11-18, 07-CONTEXT Ruling "Tickets"); the separate commands it asked for shipped there in PR #215 on 2026-11-19.

@@ -2,7 +2,7 @@
 id: "ST-LN-68"                             # equals the file name: tickets/<id>.md
 title: "A refused option reaches every teammate and agent before it is proposed again"
 type: "story" # story | bug
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                            # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
 research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
@@ -32,3 +32,6 @@ packages/core/skills/approach/SKILL.md
 packages/core/agents/scout.md
 packages/core/src/generated/skills.ts
 packages/core/test/skills.test.ts
+
+## Dropped
+Merged into ST-LN-84 at the Phase 7 discussion (2026-11-18, 07-CONTEXT Ruling "Tickets"); the work shipped there in PR #217 on 2026-11-19.

@@ -275,7 +275,7 @@ it('risk:complex-branching an archived claimed ticket is in no section and no co
   expect(d.summary.backlog).toBe(0);
 });
 
-it('ac-1 the dashboard action line names the new commands in a fixed order (ST-LN-83 7-ac-1)', () => {
+it('risk:regression the dashboard action line names the new commands in a fixed order (ST-LN-83 7-ac-1)', () => {
   const row = (id: string): StatusRow => ({
     id, title: 'T', ui: false, errors: 0, warnings: 0, ready: 'ok', ticksVerified: 0, ticksTagged: 0,
     ticksBinding: 'none', lane: 'M', stage: 'plan', tasksDone: 0, tasksTotal: 0,

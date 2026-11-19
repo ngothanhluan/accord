@@ -58,7 +58,7 @@ it('risk:parsing a round\'s Security line reads one way (ST-LN-36 36-ac-2)', () 
   }
 });
 
-it('ac-2 a round with security triggers and no security review is refused from 0.7.0 (ST-LN-36 36-ac-2)', () => {
+it('risk:security a round with security triggers and no security review is refused from 0.7.0 (ST-LN-36 36-ac-2)', () => {
   expect(SECURITY_TRIGGER_FROM).toBe('0.7.0');
   const plain = [[{ lines: [] }]];
   const triggered = reasons(build({ cycles: plain, triggers: [[TRIGGER]] }));
@@ -89,7 +89,7 @@ it('ac-2 a round with security triggers and no security review is refused from 0
 
 const lineRound = (lines: string[], mark?: 'added' | 'final'): RoundSpec => ({ lines: ['No findings', ...lines], ...(mark === undefined ? {} : { mark }) });
 
-it('ac-2 the security record rule holds in lane S, across cycles and for every round kind (ST-LN-36 36-ac-2)', () => {
+it('risk:security the security record rule holds in lane S, across cycles and for every round kind (ST-LN-36 36-ac-2)', () => {
   // lane S: the same finding through DONE_S_RULES, and the same no-line finding
   const laneS = (lines: string[], triggers: string[]) => reasons(build({ lane: 'S', cycles: [[lineRound(lines)]], triggers: [triggers] }));
   const refusedS = laneS([], [TRIGGER]);

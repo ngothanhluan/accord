@@ -25,7 +25,7 @@ const PLAN = [
 const LEDGER = '## Tasks\n' + [1, 2, 3, 4, 5].map((n) => `- task ${n} done abc1234\n`).join('');
 
 describe('accord waves', () => {
-  it('ac-1 accord waves prints the waves and the cap (ST-LN-92 92-ac-1)', async () => {
+  it('risk:complex-branching accord waves prints the waves and the cap (ST-LN-92 92-ac-1)', async () => {
     const repo = makeLaneRepo({ 'accord/tickets/T-1/plan.md': PLAN });
     try {
       const r = await run(['waves', 'T-1'], repo);
@@ -63,7 +63,7 @@ const cyclePlan = (fixed = false): string =>
 const cycleRuntimes = (config: string, runtimes: string): string => config.replace(/^runtimes: .*$/m, `runtimes: ${runtimes}`);
 
 describe('gate plan and the after: cycle', () => {
-  it('ac-1 gate plan refuses an after: cycle on real git (ST-LN-92 92-ac-1)', async () => {
+  it('risk:complex-branching gate plan refuses an after: cycle on real git (ST-LN-92 92-ac-1)', async () => {
     for (const runtimes of ['[claude]', '[codex, cursor, copilot]']) {
       // D-18: the rule is a CLI check, so a repository with no accord agent installed (runtimes without claude) gets it too
       const head = cycleRuntimes(CONFIG, runtimes);

@@ -41,7 +41,7 @@ function reviewedRepo(): string {
   return repo;
 }
 
-it('ac-7 accord deferred prints the items and gate done passes with them undecided (ST-LN-12 7-ac-7)', async () => {
+it('risk:parsing accord deferred prints the items and gate done passes with them undecided (ST-LN-12 7-ac-7)', async () => {
   const repo = reviewedRepo();
   try {
     // the baseline: the ticket passes gate done, and with no ledger the lister prints the one line
@@ -70,7 +70,7 @@ it('ac-7 accord deferred prints the items and gate done passes with them undecid
   }
 }, 120_000);
 
-it('ac-7 accord deferred refuses an id that is no ticket or no id (ST-LN-12 7-ac-7)', async () => {
+it('risk:security accord deferred refuses an id that is no ticket or no id (ST-LN-12 7-ac-7)', async () => {
   const repo = reviewedRepo();
   try {
     for (const bad of ['../S-1', '..', '.hidden', 'a/b', 'a\\b', '']) {

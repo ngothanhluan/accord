@@ -33,7 +33,7 @@ function storyRepo(): string {
 }
 
 describe('accord anchor and the epic', () => {
-  it('ac-8 accord anchor prints a story\'s epic rules (ST-LN-28 7-ac-8)', async () => {
+  it('risk:complex-branching accord anchor prints a story\'s epic rules (ST-LN-28 7-ac-8)', async () => {
     const repo = storyRepo();
     // on the story's branch: the epic block, from the default branch's copy, after Corrections and before Research and Rulings
     const here = await run(['anchor'], repo);
@@ -50,7 +50,7 @@ describe('accord anchor and the epic', () => {
     expect(plain.out.endsWith('## Corrections\n(none)\n\n## Rulings\n(none)\n')).toBe(true);
   });
 
-  it('ac-8 a story whose parent is no epic gets one line in its anchor (ST-LN-28 7-ac-8)', async () => {
+  it('risk:complex-branching a story whose parent is no epic gets one line in its anchor (ST-LN-28 7-ac-8)', async () => {
     const repo = makeLaneRepo({ 'accord/tickets/S-1.md': laneTicket('S-1', { frontmatter: ['parent: "T-1"'] }) });
     repos.push(repo);
     commitAll(repo, 'main');
@@ -90,7 +90,7 @@ async function contextOf(repo: string, input: string): Promise<{ context: string
 const asked = (agent: string, cwd: string): string => JSON.stringify({ hook_event_name: 'SubagentStart', agent_type: agent, cwd });
 
 describe('accord hook subagent-start and the epic', () => {
-  it('ac-8 the scout planner critic and reviewer of a story receive its epic rules (ST-LN-28 7-ac-8)', async () => {
+  it('risk:complex-branching the scout planner critic and reviewer of a story receive its epic rules (ST-LN-28 7-ac-8)', async () => {
     const { repo, story, plain } = worktrees();
     const alone = (await contextOf(repo, '')).context;
     expect(alone.startsWith('# accord rules')).toBe(true);
@@ -126,7 +126,7 @@ const ledger = (lines: string[]): string => ['## Rulings', '(none)', '', '## Epi
 const WITH_LESSONS = (lines: string[]): string => [...BLOCK([D1, D2]).split('\n').slice(0, -1), ...lines].join('\n');
 
 describe('lessons across the stories of an epic', () => {
-  it('ac-10 a lesson from one story reaches its sibling once that story is on the default branch (ST-LN-28 7-ac-10)', async () => {
+  it('risk:complex-branching a lesson from one story reaches its sibling once that story is on the default branch (ST-LN-28 7-ac-10)', async () => {
     const story = (id: string): string => laneTicket(id, { frontmatter: ['parent: "E-1"'] });
     const repo = makeLaneRepo({
       'accord/tickets/E-1.md': epic('E-1', [D1, D2]),

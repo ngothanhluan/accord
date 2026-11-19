@@ -172,7 +172,7 @@ describe('config.schema.json', () => {
     expect(has(review({ mode: 'human', max_pr_lines: 400 }), '/review', 'schema.additionalProperties')).toBe(true);
   });
 
-  it('queue.merge is owner or at-once and the only key (ST-LN-83 D-03)', () => {
+  it('risk:parsing queue.merge is owner or at-once and the only key (ST-LN-83 D-03)', () => {
     const queue = (q: unknown) => validate('config', { ...minimal.config, queue: q });
     expect(queue({})).toEqual([]);
     expect(queue({ merge: 'owner' })).toEqual([]);

@@ -12,7 +12,7 @@ const story = (title: string | undefined, extra: string[] = ['intent: [Show it.]
 const split = (...stories: string[][]): string => [...HEAD, 'stories:', ...stories.flat(), ''].join('\n');
 const THREE = split(story('Cart summary'), story('Payment form', ['intent: [Collect the card.]', 'after: [1]']), story('Receipt email', ['intent: [Send a receipt.]', 'after: [1, 2]']));
 
-it('ac-9 a split is checked whole before anything is written (ST-LN-28 7-ac-9)', () => {
+it('risk:data-loss a split is checked whole before anything is written (ST-LN-28 7-ac-9)', () => {
   // a valid split: the epic, then the stories in file order, `after` as numbers
   const ok = parseSplit(THREE);
   expect(ok.problems).toEqual([]);
@@ -63,7 +63,7 @@ it('ac-9 a split is checked whole before anything is written (ST-LN-28 7-ac-9)',
 const D1 = 'Card payments only — "only cards at launch"';
 const D2 = 'Guests can pay — "no account is needed"';
 
-it('ac-8 a split carries the epic decisions and refuses a numbered one (ST-LN-28 7-ac-8)', () => {
+it('risk:parsing a split carries the epic decisions and refuses a numbered one (ST-LN-28 7-ac-8)', () => {
   const decided = THREE.replace('stories:', 'decisions:\n  - ' + D1 + '\n  - ' + D2 + '\nstories:');
   const ok = parseSplit(decided);
   expect(ok.problems).toEqual([]);

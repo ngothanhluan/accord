@@ -41,7 +41,7 @@ const DIFF = [
   '+keep the token secret',
 ].join('\n');
 
-it('ac-1 the default patterns match added and removed lines and changed paths of a diff (ST-LN-36 36-ac-1)', () => {
+it('risk:security the default patterns match added and removed lines and changed paths of a diff (ST-LN-36 36-ac-1)', () => {
   const changed = ['src/run.ts', '.github/workflows/ci.yml', 'package.json', 'README.md'];
   const triggers = securityTriggers(DEFAULT_SECURITY, DIFF, changed, { generated: [] });
   expect(triggers.map(triggerText)).toEqual([
@@ -247,7 +247,7 @@ const edit = (section: 'Patterns' | 'Checklist' | 'Removed', ...add: string[]): 
 };
 const ids = (s: ReturnType<typeof securitySpec>) => s.patterns.map((p) => p.id);
 
-it('ac-1 the patterns in force are the defaults plus additions minus Removed lines (ST-LN-36 36-ac-1)', () => {
+it('risk:security the patterns in force are the defaults plus additions minus Removed lines (ST-LN-36 36-ac-1)', () => {
   const text = edit('Removed', '- Removed: secret-name — our design tokens are not secrets', '').replace(
     '- secret-name:',
     '- infra: path infra/ — infrastructure\n- secret-name:',
@@ -394,7 +394,7 @@ const HUNKS_DIFF = [
   ]),
 ].join('\n');
 
-it('ac-3 the matched hunks are the hunks that hold a match, whole, and a path match is capped (ST-LN-36 36-ac-3)', () => {
+it('risk:security the matched hunks are the hunks that hold a match, whole, and a path match is capped (ST-LN-36 36-ac-3)', () => {
   const changed = ['src/run.ts', 'package-lock.json'];
   const blocks = matchedHunks(DEFAULT_SECURITY, HUNKS_DIFF, changed, { generated: [] });
   const run = blocks.find((b) => b.startsWith('diff --git a/src/run.ts'))!;

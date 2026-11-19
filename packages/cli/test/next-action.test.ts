@@ -50,7 +50,7 @@ const MAPPED: LineKind[] = [
   'merge-of',
 ];
 
-it('ac-12 every mapped worktree line kind has a next action (ST-LN-69 7-ac-12)', () => {
+it('risk:regression every mapped worktree line kind has a next action (ST-LN-69 7-ac-12)', () => {
   for (const kind of MAPPED) {
     const action = NEXT_ACTIONS[kind];
     expect(typeof action, kind).toBe('string');
@@ -121,7 +121,7 @@ const go = async (label: string, argv: string[], cwd: string, env?: NodeJS.Proce
   return r;
 };
 
-it('ac-12 open push and session lines name their next action (ST-LN-69 7-ac-12)', async () => {
+it('risk:regression open push and session lines name their next action (ST-LN-69 7-ac-12)', async () => {
   // pruned, fetch failure, stop and enter
   const p = copy({ setup: ['node setup-step.js ci'] });
   p.git('worktree', 'add', '-q', '-b', 't/ST-9', p.sibling('ST-9'), 'origin/main');
@@ -233,7 +233,7 @@ it('ac-12 open push and session lines name their next action (ST-LN-69 7-ac-12)'
   expect(seen.has('stop')).toBe(true);
 }, 600_000);
 
-it('ac-12 every worktree command line names its next action (ST-LN-69 7-ac-12)', async () => {
+it('risk:regression every worktree command line names its next action (ST-LN-69 7-ac-12)', async () => {
   // removed, deleted and kept lines of a clean: a done ticket, one with uncommitted work, a merged and an unmerged non-ticket branch
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
   for (const id of ['ST-9', 'ST-10']) ticketWorktree(c, id);
@@ -310,7 +310,7 @@ it('ac-12 every worktree command line names its next action (ST-LN-69 7-ac-12)',
 }, 600_000);
 
 // The rules that worktree.md listed line by line before ST-LN-69 now live in the action each line prints; a rule that is dropped from an action fails here.
-it('ac-12 the next actions hold every rule that worktree.md listed per line (ST-LN-69 7-ac-12)', () => {
+it('risk:regression the next actions hold every rule that worktree.md listed per line (ST-LN-69 7-ac-12)', () => {
   const holds = (kind: LineKind, ...parts: string[]): void => {
     for (const p of parts) expect(NEXT_ACTIONS[kind], `${kind}: ${p}`).toContain(p);
   };

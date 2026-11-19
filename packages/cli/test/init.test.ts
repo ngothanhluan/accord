@@ -156,7 +156,7 @@ describe('accord init — the first run', () => {
     expect(readFileSync(at(repo, 'accord/product/business-rules.md'), 'utf8')).toContain('# Business rules');
   });
 
-  it('ac-4 accord init writes the security file and never overwrites it (ST-LN-36 36-ac-4)', async () => {
+  it('risk:security accord init writes the security file and never overwrites it (ST-LN-36 36-ac-4)', async () => {
     const repo = sandbox();
     const { code, out } = await run(['init'], repo);
     expect(code).toBe(0);
@@ -221,7 +221,7 @@ describe('accord init — the first run', () => {
 });
 
 describe('accord init — the required-check steps (ST-LN-37 37-ac-3)', () => {
-  it('ac-3 accord init prints the steps to make the accord check required and require up-to-date branches (ST-LN-37 37-ac-3)', async () => {
+  it('risk:regression accord init prints the steps to make the accord check required and require up-to-date branches (ST-LN-37 37-ac-3)', async () => {
     const repo = sandbox();
     for (const [label, runNo] of [['first run', 1], ['second run', 2]] as const) {
       const { code, out, err } = await run(['init'], repo);
@@ -237,7 +237,7 @@ describe('accord init — the required-check steps (ST-LN-37 37-ac-3)', () => {
     }
   });
 
-  it('ac-3 a refused run prints no required-check line (ST-LN-37 37-ac-3)', async () => {
+  it('risk:complex-branching a refused run prints no required-check line (ST-LN-37 37-ac-3)', async () => {
     const repo = sandbox();
     mkdirSync(at(repo, '.claude/skills/accord/SKILL.md'), { recursive: true });
     const { code, out } = await run(['init'], repo);

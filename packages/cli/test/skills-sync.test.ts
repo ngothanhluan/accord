@@ -535,7 +535,7 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
   const commands = (repo: string): string[] =>
     JSON.stringify(JSON.parse(bytes(at(repo, SETTINGS)))).match(/npx --yes [^"]+/g) ?? [];
 
-  it('creates the file with the accord commands; a second run is unchanged and writes nothing', async () => {
+  it('risk:regression creates the file with the accord commands; a second run is unchanged and writes nothing', async () => {
     const repo = sandbox();
     const first = await run(['skills', 'sync'], repo);
     expect(first.out).toContain('created ' + SETTINGS + '\n');

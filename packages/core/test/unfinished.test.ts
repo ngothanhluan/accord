@@ -140,7 +140,7 @@ describe('unfinished marker: gate plan', () => {
     expect(unfinished(check({ plan: quoting, claim: NEW }))).toEqual([]);
   });
 
-  it('ac-1 gate plan refuses a plan.md that carries the unfinished marker, naming the file (ST-LN-72 72-ac-1)', () => {
+  it('risk:regression gate plan refuses a plan.md that carries the unfinished marker, naming the file (ST-LN-72 72-ac-1)', () => {
     const got = unfinished(check({ claim: NEW }));
     expect(got).toHaveLength(1);
     expect(got[0].level).toBe('error');
@@ -206,7 +206,7 @@ const verifUnfinished = (r: GateResult) => r.findings.filter((f) => f.rule === '
 const anchor = (o: DoneOpts = {}): string[] => (anchorText(buildDone(o), 'T-1') ?? '').split('\n').filter((l) => l.startsWith('Unfinished:'));
 
 describe('unfinished marker: gate done', () => {
-  it('ac-1 gate done refuses a verification.md that carries the unfinished marker, naming the file (ST-LN-72 72-ac-1)', () => {
+  it('risk:regression gate done refuses a verification.md that carries the unfinished marker, naming the file (ST-LN-72 72-ac-1)', () => {
     expect(parseVerification(VERIFICATION, VERIFICATION, verificationWith(UNFINISHED_MARKER)).verification.unfinished).toBe(6);
     expect(Object.hasOwn(parseVerification(VERIFICATION, VERIFICATION, verificationWith(undefined)).verification, 'unfinished')).toBe(false);
 
@@ -406,7 +406,7 @@ describe('unfinished marker: debug.md episodes', () => {
     expect(unfinishedEpisode([...episode(1, UNFINISHED_MARKER), '## Resolved', 'x', '## Fixes', 'y'].join('\n'))).toBeUndefined();
   });
 
-  it('ac-1 the anchor tells the debug stage to resume the debugger, and says nothing about a finished debug.md (ST-LN-72 review round 1)', () => {
+  it('risk:regression the anchor tells the debug stage to resume the debugger, and says nothing about a finished debug.md (ST-LN-72 review round 1)', () => {
     const withDebug = (debug: string | undefined, lane?: string) => {
       const files: Record<string, string> = approved(
         {

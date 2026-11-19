@@ -400,7 +400,7 @@ it('risk:regression the 0.7.0 cut-off constants are one release and read only th
   expect(loader.some((line) => !isComment(line) && line.includes('claimPinBefore(snapshot, id, SECURITY_TRIGGER_FROM)'))).toBe(true);
 });
 
-it('D-08b the title cut-off is read only through claimPinBefore (ST-LN-22 D-08b)', () => {
+it('risk:regression the title cut-off is read only through claimPinBefore (ST-LN-22 D-08b)', () => {
   expect(Object.keys(PHASE7), 'the list names no constant').toEqual(['TITLE_RULE_FROM', 'PLAN_LARGE_FROM']);
   // the value is a plain release, and one the running accord has not passed yet or is: never a range
   for (const v of PHASE7_CUT) expect(v).toMatch(/^\d+\.\d+\.0$/);
@@ -417,7 +417,7 @@ it('D-08b the title cut-off is read only through claimPinBefore (ST-LN-22 D-08b)
   expect(ready.some((line) => !isComment(line) && line.includes('claimPinBefore(snapshot, id, TITLE_RULE_FROM)'))).toBe(true);
 });
 
-it('D-08b the title cut-off is read only through claimPinBefore or rulesetFrom (ST-LN-22 D-08b)', () => {
+it('risk:regression the title cut-off is read only through claimPinBefore or rulesetFrom (ST-LN-22 D-08b)', () => {
   // lint has no claim fact, so it reads the ticket's own ruleset through rulesetFrom( ; a Phase 7 cut-off inside that call is allowed as inside claimPinBefore(
   expect(cutOffOffences('  .filter((t) => rulesetFrom(t, TITLE_RULE_FROM))', 'packages/core/src/lint/x.ts')).toEqual([]);
   expect(cutOffOffences('  if (rulesetFrom(t, TITLE_RULE_FROM) && titleProblem(t.title, c)) return [];', 'packages/core/src/lint/x.ts')).toEqual([]);
@@ -431,7 +431,7 @@ it('D-08b the title cut-off is read only through claimPinBefore or rulesetFrom (
   expect(lint.filter((line) => !isComment(line) && line.includes('TITLE_RULE_FROM') && !/^import\s/.test(line.trim()) && !line.includes('rulesetFrom(t, TITLE_RULE_FROM)'))).toEqual([]);
 });
 
-it('ac-9 the plan-large cut-off is read only through claimPinBefore (ST-LN-28 7-ac-9)', () => {
+it('risk:regression the plan-large cut-off is read only through claimPinBefore (ST-LN-28 7-ac-9)', () => {
   expect(typeof PLAN_LARGE_FROM).toBe('string');
   // the same release as the title rule: both ship in the one release that carries Phase 7
   expect(PLAN_LARGE_FROM).toBe(TITLE_RULE_FROM);

@@ -77,7 +77,7 @@ describe('plan model: the clause after a new path', () => {
     expect(same.models).toEqual([{ path: 'src/csv.ts', like: 'src/json.ts' }, { path: 'src/c.ts' }]);
   });
 
-  it('ac-1 gate plan refuses a new path with no model or a model absent at the baseline, naming the task and the path (ST-LN-10 10-ac-1)', () => {
+  it('risk:complex-branching gate plan refuses a new path with no model or a model absent at the baseline, naming the task and the path (ST-LN-10 10-ac-1)', () => {
     const bare = model(check({ plan: two('src/c.ts (new)'), claim: NEW }));
     expect(bare).toHaveLength(1);
     expect(bare[0].rule).toBe('gate.task-model-missing');

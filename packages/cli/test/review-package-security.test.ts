@@ -25,7 +25,7 @@ const section = (out: string): string => {
   return at < 0 ? '' : out.slice(at, next < 0 ? undefined : next).trimEnd();
 };
 
-it('ac-1 review-package prints the security triggers of a change in lane M and lane S (ST-LN-36 36-ac-1)', async () => {
+it('risk:security review-package prints the security triggers of a change in lane M and lane S (ST-LN-36 36-ac-1)', async () => {
   const repo = makeEmptyRepo();
   try {
     identity(repo);
@@ -150,7 +150,7 @@ const OWN_FILE = [
   '',
 ].join('\n');
 
-it('ac-1 review-package matches with the repository\'s security file (ST-LN-36 36-ac-1)', async () => {
+it('risk:security review-package matches with the repository\'s security file (ST-LN-36 36-ac-1)', async () => {
   const repo = makeEmptyRepo();
   try {
     identity(repo);
@@ -217,7 +217,7 @@ function laneM(change: Record<string, string>): { repo: string; base: string } {
   return { repo, base };
 }
 
-it('ac-3 review-package --security prints the checklist, the triggers and the matched hunks (ST-LN-36 36-ac-3)', async () => {
+it('risk:security review-package --security prints the checklist, the triggers and the matched hunks (ST-LN-36 36-ac-3)', async () => {
   const hit = laneM({ 'src/run.ts': RUN_NEW, 'src/other.ts': 'export const o = 2;\n' });
   try {
     const before = gitRun(hit.repo, 'status', '--porcelain');
@@ -259,7 +259,7 @@ it('ac-3 review-package --security prints the checklist, the triggers and the ma
   expect(readme).toContain('--security');
 }, 120_000);
 
-it('ac-3 review-package --security --round prints the package of a recorded round (ST-LN-36 36-ac-3)', async () => {
+it('risk:security review-package --security --round prints the package of a recorded round (ST-LN-36 36-ac-3)', async () => {
   const m = laneM({ 'src/run.ts': RUN_NEW });
   try {
     const c1 = gitRun(m.repo, 'rev-parse', 'HEAD').trim();

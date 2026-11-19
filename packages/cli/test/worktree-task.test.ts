@@ -134,7 +134,7 @@ const open = (b: Box, n: number) => run(['worktree', 'task', 'open', 'T-1', Stri
 const merge = (b: Box, n: number) => run(['worktree', 'task', 'merge', 'T-1', String(n)], b.ticket);
 const clean = (b: Box, n: number) => run(['worktree', 'task', 'clean', 'T-1', String(n)], b.ticket);
 
-it('ac-2 a task worktree is opened from the ticket branch, merged in task order and removed (ST-LN-92 92-ac-2)', async () => {
+it('risk:concurrency a task worktree is opened from the ticket branch, merged in task order and removed (ST-LN-92 92-ac-2)', async () => {
   const b = sandbox();
   const start = head(b.ticket);
   for (const n of [2, 3]) {
@@ -222,7 +222,7 @@ it('risk:regression a ticket claimed before 0.6.0 gets no task worktree and no W
   expect(opened.out.startsWith(`path: ${b.task(2)}\n`)).toBe(true);
 }, 120_000);
 
-it('ac-4 a merge conflict only in generated files is told apart from one in a hand-written file (ST-LN-92 92-ac-4)', async () => {
+it('risk:complex-branching a merge conflict only in generated files is told apart from one in a hand-written file (ST-LN-92 92-ac-4)', async () => {
   const b = sandbox({ config: CONFIG + 'generated:\n  - gen/\n', files: { 'gen/out.txt': 'gen\n', 'src/x.ts': 'x\n' } });
   for (const n of [1, 2, 3, 4]) expect((await open(b, n)).code).toBe(0);
   change(b.task(2), 'gen/out.txt', 'two\n', 'task 2');

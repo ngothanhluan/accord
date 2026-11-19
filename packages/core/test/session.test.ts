@@ -24,7 +24,7 @@ describe('sessionLine', () => {
   it('says so when there is no lane row', () => {
     expect(sessionLine([])).toBe('accord: no lane tickets yet · type /accord-new <request> to start one');
   });
-  it('ac-1 the session line names /accord-new for a new request and /accord for the dashboard (ST-LN-83 7-ac-1)', () => {
+  it('risk:regression the session line names /accord-new for a new request and /accord for the dashboard (ST-LN-83 7-ac-1)', () => {
     expect(sessionLine([])).toBe('accord: no lane tickets yet · type /accord-new <request> to start one');
     expect(sessionLine([row({})])).toMatch(/ · type \/accord$/);
   });

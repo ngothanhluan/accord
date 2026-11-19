@@ -56,7 +56,7 @@ function claimed(o: { lane?: 'M' | 'S'; claim?: string; code: Record<string, str
   return { repo, head };
 }
 
-it('ac-2 gate done refuses a lane M round whose package matched a pattern and records no security review, on real git (ST-LN-36 36-ac-2)', async () => {
+it('risk:security gate done refuses a lane M round whose package matched a pattern and records no security review, on real git (ST-LN-36 36-ac-2)', async () => {
   const spawned = claimed({ code: { 'src/run.ts': RUN_NEW }, review: (h) => record(h) });
   try {
     const refused = await security(spawned.repo);
@@ -88,7 +88,7 @@ it('ac-2 gate done refuses a lane M round whose package matched a pattern and re
   }
 }, 180_000);
 
-it('ac-2 gate done refuses an unreviewed security trigger in lane S and keeps the older answer for a ticket claimed at 0.6.0, on real git (ST-LN-36 36-ac-2)', async () => {
+it('risk:security gate done refuses an unreviewed security trigger in lane S and keeps the older answer for a ticket claimed at 0.6.0, on real git (ST-LN-36 36-ac-2)', async () => {
   const s = claimed({ lane: 'S', code: { 'src/run.ts': RUN_NEW }, review: (h) => record(h) });
   try {
     const refused = await security(s.repo);
@@ -111,7 +111,7 @@ it('ac-2 gate done refuses an unreviewed security trigger in lane S and keeps th
   }
 }, 180_000);
 
-it('ac-2 gate done asks the re-review round after a final review whose fix matched a pattern, and never the final review, on real git (ST-LN-36 36-ac-2)', async () => {
+it('risk:security gate done asks the re-review round after a final review whose fix matched a pattern, and never the final review, on real git (ST-LN-36 36-ac-2)', async () => {
   const final = '## Round 2 head %1 (final review)\n\nMust 1 [patch]: the runner takes a shell — src/run.ts:3 — open\n\n';
   const repo = makeEmptyRepo();
   try {

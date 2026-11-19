@@ -19,7 +19,7 @@ const lacks = (text: string, parts: readonly string[]): string[] => parts.filter
 const bytes = (text: string): number => Buffer.byteLength(text, 'utf8');
 const lines = (text: string): number => text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
 
-it('ac-2 the verify skill says the verifier-only rule is not enforced in cursor codex and copilot (ST-LN-39 39-ac-2)', () => {
+it('risk:regression the verify skill says the verifier-only rule is not enforced in cursor codex and copilot (ST-LN-39 39-ac-2)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = skillTargets(config(runtime));

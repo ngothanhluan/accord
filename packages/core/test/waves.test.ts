@@ -25,7 +25,7 @@ const cycleFindings = (plan: string, claim: Claim): Finding[] => {
 const afterLine = (plan: string, n: number): number => parsePlan('accord/tickets/T-1/plan.md', plan).plan.tasks.find((t) => t.n === n)!.after!.line;
 
 describe('gate plan: an after: self reference or cycle', () => {
-  it('ac-1 gate plan refuses an after: self reference or cycle, naming the tasks (ST-LN-92 92-ac-1)', () => {
+  it('risk:complex-branching gate plan refuses an after: self reference or cycle, naming the tasks (ST-LN-92 92-ac-1)', () => {
     const NEW: Claim = { pin: PLAN_WAVES_FROM };
 
     // a self reference: task 2 names itself
@@ -65,7 +65,7 @@ describe('gate plan: an after: self reference or cycle', () => {
 });
 
 describe('the wave builder', () => {
-  it('ac-1 tasks with no dependency or shared file share a wave, every after: target sits in an earlier wave (ST-LN-92 92-ac-1)', () => {
+  it('risk:complex-branching tasks with no dependency or shared file share a wave, every after: target sits in an earlier wave (ST-LN-92 92-ac-1)', () => {
     const tasks = tasksOf(
       task(1, 'src/a.ts', 'none'),
       task(2, 'src/b.ts', '1'),

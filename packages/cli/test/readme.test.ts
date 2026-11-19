@@ -73,7 +73,7 @@ describe('generated README', () => {
 
 // ST-LN-37 37-ac-3 (D-03): the README and `accord init` give a team the same steps, read from one core source.
 describe('README: make the accord check a merge gate', () => {
-  it('ac-3 the README carries the same steps as accord init (ST-LN-37 37-ac-3)', () => {
+  it('risk:regression the README carries the same steps as accord init (ST-LN-37 37-ac-3)', () => {
     const readme = normalise(readFileSync(source, 'utf8'));
     expect(readme).toContain('### 4. Make the accord check a merge gate');
     const steps = requiredCheckSteps();

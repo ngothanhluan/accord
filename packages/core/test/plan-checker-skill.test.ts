@@ -258,7 +258,7 @@ it('risk:regression the plan skill names the after: line (ST-LN-91 91p-ac-2)', (
 
 // ST-LN-10 10-ac-2, D-13, D-18: the plan checker asks for the same three things inside its existing seven checks (a model file per new path, the
 // valid spellings of a `risk:parsing` task's input, the likely untested failure modes), and the planner's copy of the seven checks reads the same.
-it('ac-2 the plan checker checks the three asks inside its seven plan-mode checks (ST-LN-10 10-ac-2)', () => {
+it('risk:regression the plan checker checks the three asks inside its seven plan-mode checks (ST-LN-10 10-ac-2)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = agents(runtime);

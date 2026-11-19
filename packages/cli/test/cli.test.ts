@@ -103,7 +103,7 @@ describe('accord argument handling', () => {
     expect(out).toContain('lint');
   });
 
-  it('worktree sync --help names merge, rebase and the git.sync team command, and no longer assumes a merge commit', async () => {
+  it('risk:regression worktree sync --help names merge, rebase and the git.sync team command, and no longer assumes a merge commit', async () => {
     const { code, out } = await run(['worktree', 'sync', '--help'], repo);
     expect(code).toBe(0);
     const text = out.replace(/\s+/g, ' ');

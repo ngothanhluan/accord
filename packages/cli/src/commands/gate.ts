@@ -10,7 +10,7 @@ import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
 import { colourFindings } from '../render/color.js';
-import { branchFactFor } from './branch-fact.js';
+import { branchFactFor, renderedFiles } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
 
@@ -64,7 +64,9 @@ export function gate(
   const hasRounds = roundRecord !== undefined && roundRecord.cycles.some((c) => c.rounds.length > 0);
   const withRefs = hasRounds && (which === 'done' || !roundRecord.versioned) ? withDefaultRef(ctx.root, forRounds) : forRounds;
   // ST-LN-36 D-05 (5): Done holds each recorded review round against the security triggers of its own package; read after the default ref, whose snapshot says a ticket done there is skipped.
-  const forGate = which === 'done' ? withSecurityFacts(ctx.root, withRefs, id) : withRefs;
+  // BUG-LN-25 D-16: the copies `accord skills sync` writes come from renderedFiles, so a changed copy equal to its render is the one thing the scan leaves out.
+  const config = ctx.snapshot.config;
+  const forGate = which === 'done' ? withSecurityFacts(ctx.root, withRefs, id, () => (config === undefined ? [] : renderedFiles(config))) : withRefs;
   const result =
     which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id)), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
   ctx.stdout.write(

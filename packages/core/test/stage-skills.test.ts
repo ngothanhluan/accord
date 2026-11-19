@@ -1972,7 +1972,7 @@ it('ac-3 the foreign review is read-only with lenses by the size rule and posts 
   // 07-08: accord-new loads it too, for a request it reads as a review
   expect(all.filter((s) => /(^|\/)skills\/accord(-new)?\/SKILL\.md$/.test(s.path)).length).toBe(foreign.length);
   const phrases = [
-    'accord diff-package', 'Changed lines:', 'accord-reviewer', '`both`', '`intent`', '`quality`', '`integration`', '`security`', 'about 500', 'about 1500',
+    'accord diff-package', 'Changed lines:', 'accord-foreign-reviewer', '`both`', '`intent`', '`quality`', '`integration`', '`security`', 'about 500', 'about 1500',
     '## Security triggers', 'gh pr view', 'gh pr review', '--comment',
     "Post the findings to the pull request only after the owner's explicit yes",
     'This review edits no file, commits nothing, dispatches no executor and runs no fix round',
@@ -1988,7 +1988,7 @@ it('ac-3 the foreign review is read-only with lenses by the size rule and posts 
     // the size rule's two numbers are accord-review's
     expect(numbers(f.text), f.path).toEqual(numbers(reviewSkill));
   }
-  // accord-reviewer is reused as it is: no tool and no sentence for a review without a ticket
+  // T-07-10: the foreign review dispatches accord-foreign-reviewer; accord-reviewer stays as it is for ticket reviews: Bash kept and no sentence for a review without a ticket
   const reviewer = agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '';
   expect(reviewer).toContain('tools: "Read, Grep, Glob, Bash"');
   expect(reviewer).toContain('Never edits');

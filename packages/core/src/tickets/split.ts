@@ -19,6 +19,8 @@ export interface Split {
   title: string;
   intent: string[];
   vetoes: string[];
+  /** the epic's Decisions, each "<decision> — \"<the owner's sentence>\"", without a D- number: the CLI numbers them D-01, D-02 in order */
+  decisions: string[];
   /** two to ten stories, in the order they are written and printed */
   stories: SplitStory[];
   /** the epic's ticket id, only in a repository where accord assigns none */
@@ -28,7 +30,7 @@ export interface Split {
 const MIN_STORIES = 2;
 const MAX_STORIES = 10;
 const MAX_INTENT = 5;
-const EPIC_KEYS = ['id', 'title', 'intent', 'vetoes', 'stories'];
+const EPIC_KEYS = ['id', 'title', 'intent', 'vetoes', 'decisions', 'stories'];
 const STORY_KEYS = ['id', 'title', 'intent', 'after'];
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -94,7 +96,8 @@ function unknownKeys(map: Record<string, unknown>, known: readonly string[], wha
 
 /**
  * Read a split file: the epic's `title`, `intent` (one to five lines) and `vetoes`, and two to ten `stories`, each with a `title`,
- * an `intent` and an optional `after` of earlier story numbers. Returns the split when nothing is wrong, else only the problems,
+ * an `intent` and an optional `after` of earlier story numbers. An optional `decisions` list holds the epic's Decisions, one line each and
+ * without a D- number. Returns the split when nothing is wrong, else only the problems,
  * one per fault, each naming the epic or the story. Nothing here touches a file; a story that names itself or a later story in
  * `after` is refused, so the depends_on graph the stories get is acyclic by construction.
  */
@@ -120,6 +123,9 @@ export function parseSplit(text: string): { split?: Split; problems: string[] } 
     }
   }
   const vetoes = root.vetoes === undefined || root.vetoes === null ? [] : lineList(root.vetoes, 'epic vetoes', problems);
+  const decisions = root.decisions === undefined || root.decisions === null ? [] : lineList(root.decisions, 'epic decisions', problems);
+  const numbered = decisions?.findIndex((d) => /^D-[0-9]/.test(d)) ?? -1;
+  if (numbered >= 0) problems.push('epic decision ' + (numbered + 1) + ' starts with a D- number: write it without one, the command numbers the decisions D-01, D-02 in order');
 
   const stories: SplitStory[] = [];
   if (!Array.isArray(root.stories)) problems.push('stories must be a list of ' + MIN_STORIES + ' to ' + MAX_STORIES + ' stories');
@@ -152,6 +158,6 @@ export function parseSplit(text: string): { split?: Split; problems: string[] } 
     });
   }
 
-  if (problems.length > 0 || typeof title !== 'string' || intent === undefined || vetoes === undefined) return { problems };
-  return { split: { title, intent, vetoes, stories, ...(id === undefined ? {} : { id }) }, problems };
+  if (problems.length > 0 || typeof title !== 'string' || intent === undefined || vetoes === undefined || decisions === undefined) return { problems };
+  return { split: { title, intent, vetoes, decisions, stories, ...(id === undefined ? {} : { id }) }, problems };
 }

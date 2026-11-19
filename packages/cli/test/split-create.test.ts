@@ -143,6 +143,20 @@ it('ac-8 an epic decision in an approved split reaches each story anchor (ST-LN-
   expect(lessons).toBeGreaterThan(b);
 });
 
+it('ac-8 a split without decisions leaves the Decisions section as the template has it (ST-LN-28 7-ac-8)', async () => {
+  const repo = sandbox();
+  writeFileSync(join(repo, 'split.yml'), SPLIT);
+  const r = await run(['new', 'ticket', '--type', 'epic', '--lane', 'L', '--split', 'split.yml', '--related', 'none'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  const epic = text(repo, 'EP-AN-1');
+  const start = epic.indexOf('\n## Decisions\n');
+  const section = epic.slice(start, epic.indexOf('\n## Corrections\n'));
+  expect(lines(section)).toHaveLength(2);
+  expect(section).toContain('<!-- Settled answers');
+  // the Approach lists the stories even when there are no decisions
+  expect(epic).toContain('\n- ST-AN-1 Cart summary\n- ST-AN-2 Payment form — after ST-AN-1\n- ST-AN-3 Receipt email — after ST-AN-1, ST-AN-2\n');
+});
+
 const today = (): string => new Date().toISOString().slice(0, 10);
 const FOUR = ['accord/tickets/EP-FX-1.md', 'accord/tickets/ST-FX-1.md', 'accord/tickets/ST-FX-2.md', 'accord/tickets/ST-FX-3.md'];
 

@@ -27,6 +27,8 @@ ui: false
 related:
   - "ST-LN-36"
 ruleset: "0.8.0"
+approved_hash: "fnv1a64:24c89796a42dec2b"
+ac_hash: "fnv1a64:f2cef17806d9e61c"
 ---
 
 ## Intent

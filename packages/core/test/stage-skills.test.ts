@@ -2402,7 +2402,10 @@ it('ac-9 accord-new runs an epic interview and creates the approved split in one
       'explicit yes',
       'outside the working tree',
       '`accord new ticket --type epic --lane L --split <file> --queue`',
-      '`title`, `intent`, `vetoes` and `stories`',
+      '`title`, `intent`, `vetoes`, `decisions` and `stories`',
+      'what the owner has already settled for every story (the Decisions)',
+      'is a Decision, never a line of Intent',
+      'the command numbers them D-01, D-02 in order',
       '`/accord-pickup <id>`',
       'its own worktree',
       'in parallel',
@@ -2413,9 +2416,44 @@ it('ac-9 accord-new runs an epic interview and creates the approved split in one
     // the order: the interview, then the shown split, then the yes, then the command
     const at = (p: string) => epic.indexOf(p);
     if (!(at('for whom') < at('explicit yes') && at('explicit yes') < at('`accord new ticket --type epic --lane L --split <file> --queue`'))) bad.push(dir + ' epic.md runs the command before the yes');
+    if (!(at('(the Decisions)') < at('explicit yes'))) bad.push(dir + ' epic.md asks the Decisions after the yes');
     // no critic is dispatched for the epic
     if (epic.includes('accord-critic')) bad.push(dir + ' epic.md names accord-critic');
     if (skill.includes('accord-critic')) bad.push(dir + ' accord-new SKILL.md names accord-critic');
+  }
+  expect(bad).toEqual([]);
+});
+
+// G-07-4 (D-14): a request of three or more story-sized parts is proposed as lane L, and the router says accord-new proposes S, M or L.
+it('ac-9 accord-new proposes lane L for a request of three or more stories (ST-LN-28 7-ac-9)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const get = (p: string) => flat(all.find((f) => f.path === dir + '/' + p)?.text ?? '');
+    const lane = get('accord-new/lane.md');
+    for (const p of [
+      'is lane L, an epic, when it names three or more parts that would each be a story of its own',
+      'Count only the parts the request names',
+      'a request of one or two such parts stays lane S or M',
+    ]) if (!lane.includes(p)) bad.push(dir + ' accord-new/lane.md lacks ' + p);
+    if (!get('accord-new/route.md').includes('it proposes lane S, M or L')) bad.push(dir + ' accord-new/route.md does not say lane S, M or L');
+    if (lane.split('lifts S to M').length !== 2) bad.push(dir + ' accord-new/lane.md does not hold the lift paragraph exactly once');
+  }
+  expect(bad).toEqual([]);
+});
+
+// G-07-5 (D-18): the researcher is never dispatched at the lane step of accord-new; it runs once per library at discuss.
+it('ac-11 the lane step of accord-new dispatches no researcher (ST-LN-86 7-ac-11)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const get = (p: string) => flat(all.find((f) => f.path === dir + '/' + p)?.text ?? '');
+    const lane = get('accord-new/lane.md');
+    for (const p of ['Dispatch only the scout at this step, and never the researcher', 'at the discuss step of the intent stage']) if (!lane.includes(p)) bad.push(dir + ' accord-new/lane.md lacks ' + p);
+    const skill = get('accord-new/SKILL.md');
+    for (const p of ['Never dispatch the researcher from this skill', 'at the discuss step of `accord-intent`']) if (!skill.includes(p)) bad.push(dir + ' accord-new/SKILL.md lacks ' + p);
   }
   expect(bad).toEqual([]);
 });

@@ -18,11 +18,11 @@ When Pick up's `accord worktree open <id>` did not refuse with `claimed:`, push 
 
 Setup commands can take minutes: run these commands with the longest timeout your tool allows.
 
-When `./ids.md` had you add an entry under `people` before `accord new ticket --worktree`, carry it to the
+When `git diff HEAD -- accord/config.yml` here shows your entry under `people` as added (`./ids.md` had you add it, in this run or an earlier one) and you ran `accord new ticket --worktree`, carry it to the
 worktree before you stop or move into it: add the same entry to `<path>/accord/config.yml`, run
 `git -C "<path>" commit -m "people: <email>" -- accord/config.yml` and
 `git -C "<path>" push -u origin <branch>`, then remove that entry, and only that entry, from
-`accord/config.yml` here, leaving every other line of the file as it is.
+`accord/config.yml` here, leaving every other line of the file as it is. When `<path>/accord/config.yml` already lists your email, only remove the entry here.
 
 This skill runs `accord worktree clean` itself only from `/accord` with no argument and from `/accord-upgrade`;
 `accord worktree open` and `accord new ticket --worktree` clean the same way on their own, so a ticket done on

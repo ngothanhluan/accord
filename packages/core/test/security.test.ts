@@ -587,3 +587,28 @@ it('ac-4 a change to agent configuration raises agent-config under a team securi
   expect(spec.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
   expect(spec.checklist).toHaveLength(8);
 });
+
+it('risk:security path patterns match ignoring letter case, the copy exemption and the generated skip stay exact (BUG-LN-25)', () => {
+  const added = ['new file mode 100644', 'index 0000000..1111111'];
+  const run = (path: string, options: { generated: string[]; exempt?: string[] } = { generated: [] }, line = '+{}') =>
+    securityTriggers(DEFAULT_SECURITY, SECTION(path, ['@@ -0,0 +1 @@', line], added).join('\n'), [path], options).map(triggerText);
+  const cfg = 'agent-config (agent configuration that can start commands)';
+  // a case-insensitive file system opens each of these as the agent's configuration; the trigger names the path as the diff spells it
+  for (const path of ['.MCP.json', 'sub/.Mcp.JSON', '.Claude/Settings.json']) expect(run(path)).toEqual([`${path}: ${cfg}`]);
+  // the root-only rule of .claude/settings.json holds in any case
+  expect(run('sub/.claude/settings.json')).toEqual([]);
+  expect(run('sub/.CLAUDE/Settings.json')).toEqual([]);
+  // folder prefixes and manifests (bare names) compare ignoring case too
+  expect(run('.GITHUB/workflows/x.yml')).toEqual(['.GITHUB/workflows/x.yml: ci-workflow (CI workflow files)']);
+  expect(run('web/Package.JSON')).toEqual(['web/Package.JSON: manifest (dependency manifests)']);
+  // a team pattern is case-insensitive as well
+  const team = securitySpec(withFile(['# Security review', '', '## Patterns', '', '- infra: path infra/, Deploy.sh — infrastructure', '', '## Checklist', '', '## Removed', ''].join('\n')));
+  const diff = (path: string) => SECTION(path, ['@@ -0,0 +1 @@', '+x'], added).join('\n');
+  expect(securityTriggers(team, diff('INFRA/a.tf'), ['INFRA/a.tf'], { generated: [] }).map((t) => t.pattern)).toEqual(['infra']);
+  expect(securityTriggers(team, diff('bin/deploy.SH'), ['bin/deploy.SH'], { generated: [] }).map((t) => t.pattern)).toEqual(['infra']);
+  // generated and exempt keep exact matching: a path that differs in case is still content-scanned
+  expect(run('src/Gen/x.ts', { generated: ['src/gen/'] }, '+spawn(1);')).toEqual(['src/Gen/x.ts:1: spawn (process spawn)']);
+  expect(run('src/gen/x.ts', { generated: ['src/gen/'] }, '+spawn(1);')).toEqual([]);
+  expect(run('src/Helper.js', { generated: [], exempt: ['src/helper.js'] }, '+spawn(1);')).toEqual(['src/Helper.js:1: spawn (process spawn)']);
+  expect(run('src/helper.js', { generated: [], exempt: ['src/helper.js'] }, '+spawn(1);')).toEqual([]);
+});

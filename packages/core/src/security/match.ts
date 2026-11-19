@@ -180,9 +180,12 @@ const isTestFile = (path: string): boolean => {
   return parts.slice(0, -1).some((d) => TEST_FOLDER.has(d)) || name.includes('.test.') || name.includes('.spec.');
 };
 
+/** A path entry of a security pattern compares ignoring letter case: Windows and default macOS open `.MCP.json` as `.mcp.json`. The trigger still names the path as the diff spells it. */
 const pathMatches = (entry: string, path: string): boolean => {
-  if (entry.endsWith('/') || entry.includes('/')) return matches(entry, path);
-  return path === entry || path.endsWith('/' + entry);
+  const e = entry.toLowerCase();
+  const p = path.toLowerCase();
+  if (e.endsWith('/') || e.includes('/')) return matches(e, p);
+  return p === e || p.endsWith('/' + e);
 };
 
 /** Code point order, so the same input sorts the same on every runtime. */

@@ -326,6 +326,19 @@ it.skipIf(process.platform === 'win32')('risk:regression bash runs on a posix ho
   expect(noBash, `${BASH} did not run on a POSIX host; set ACCORD_BASH`).toBe(false);
 });
 
+// 8-ac-18 (D-25): a stuck accord job holds the required check of every pull request until GitHub's six-hour default stops it. Both the workflow `accord init` writes
+// and this repository's committed copy carry a job timeout, directly under the job's `runs-on:`.
+it("risk:resource the generated accord job and this repository's copy stop after 15 minutes (8-ac-18)", () => {
+  const generated = initFiles({ name: pkg.name, version: pkg.version }).find((f) => f.path === '.github/workflows/accord.yml')?.text ?? '';
+  const own = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+  const job = (yml: string): { 'runs-on': string; 'timeout-minutes'?: number } =>
+    (parse(yml) as unknown as { jobs: { accord: { 'runs-on': string; 'timeout-minutes'?: number } } }).jobs.accord;
+  for (const [what, yml] of [['generated', generated], ['this repository', own]] as const) {
+    expect(job(yml)['timeout-minutes'], what).toBe(15);
+    expect(yml, what).toContain('    runs-on: ubuntu-latest\n    timeout-minutes: 15\n');
+  }
+});
+
 // Each case spawns git twice and bash once; on Windows, under a full parallel `npm test`, that
 // overruns the 5 s default. The budget is generous on purpose — a timeout here reads as a flake, and a
 // flaky case is one someone eventually deletes.

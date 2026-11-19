@@ -46,7 +46,7 @@ function claimed(claimPin: string, files: Record<string, string> = {}): string {
   return repo;
 }
 
-it('ac-1 brief names the report file and task-done refuses a task whose report is missing or lacks its lines (ST-LN-59 59-ac-1)', async () => {
+it('risk:regression brief names the report file and task-done refuses a task whose report is missing or lacks its lines (ST-LN-59 59-ac-1)', async () => {
   const repo = makeLaneRepo();
   try {
     commitMsg(repo, 'claim: T-1');

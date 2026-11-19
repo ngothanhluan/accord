@@ -38,7 +38,7 @@ function claimed(o: { lane?: 'M' | 'S'; claim?: string; code: Record<string, str
   return { repo, head };
 }
 
-it('ac-2 accord round refuses a round whose package matched a pattern and records no security review, on real git (ST-LN-36 36-ac-2)', async () => {
+it('risk:security accord round refuses a round whose package matched a pattern and records no security review, on real git (ST-LN-36 36-ac-2)', async () => {
   for (const lane of ['M', 'S'] as const) {
     const spawned = claimed({ lane, code: { 'src/run.ts': RUN_NEW }, review: (h) => record(h) });
     try {

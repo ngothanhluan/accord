@@ -34,7 +34,7 @@ it('risk:complex-branching accord gate plan refuses a plan over its expected siz
   }
 });
 
-it('ac-9 accord gate plan names the epic split on a plan over its expected size (ST-LN-28 7-ac-9)', async () => {
+it('risk:complex-branching accord gate plan names the epic split on a plan over its expected size (ST-LN-28 7-ac-9)', async () => {
   const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: sized(1) }) });
   try {
     await run(['approve', 'T-1'], repo);

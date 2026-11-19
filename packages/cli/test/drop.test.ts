@@ -366,7 +366,7 @@ function withConventions(): Clone {
   return c;
 }
 
-it('ac-6 a dropped ticket reason becomes a Rejected line only on a yes (ST-LN-84 7-ac-6)', async () => {
+it('risk:complex-branching a dropped ticket reason becomes a Rejected line only on a yes (ST-LN-84 7-ac-6)', async () => {
   // with --rejected: the drop commit holds the ticket and one more list item in conventions.md
   const yes = withConventions();
   let r = await run(['drop', 'ST-9', '--reason', 'replaced by ST-10', '--rejected'], yes.root);

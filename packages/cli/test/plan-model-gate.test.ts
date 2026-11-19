@@ -57,7 +57,7 @@ async function planned(text: string, head = CONFIG, claimPin = PLAN_MODEL_FROM):
   return { repo, baseline };
 }
 
-it('ac-1 gate plan on real git refuses a missing and an unknown model and passes a real one (ST-LN-10 10-ac-1)', async () => {
+it('risk:complex-branching gate plan on real git refuses a missing and an unknown model and passes a real one (ST-LN-10 10-ac-1)', async () => {
   const { repo, baseline } = await planned(plan('src/csv.ts (new, like src/nope.ts)'));
   try {
     const got = await gate(repo);

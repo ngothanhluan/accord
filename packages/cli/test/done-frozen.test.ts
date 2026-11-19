@@ -39,7 +39,7 @@ function movedTests(more: (files: Files) => void = () => undefined): string {
   return repo;
 }
 
-it('ac-2 a pull request that moves a test a done ticket names passes accord lint (BUG-LN-18 18-ac-2)', async () => {
+it('risk:regression a pull request that moves a test a done ticket names passes accord lint (BUG-LN-18 18-ac-2)', async () => {
   const repo = movedTests();
   const moved = await unknown(repo);
   expect(moved.found, 'the done ticket is not asked for its test ids').toEqual([]);
@@ -47,7 +47,7 @@ it('ac-2 a pull request that moves a test a done ticket names passes accord lint
   expect((await run(['lint'], repo)).code).toBe(0);
 }, 120_000);
 
-it('ac-2 a ticket not done that names the same moved test still fails accord lint (BUG-LN-18 18-ac-1)', async () => {
+it('risk:regression a ticket not done that names the same moved test still fails accord lint (BUG-LN-18 18-ac-1)', async () => {
   const repo = movedTests((files) => building(files, 'T-2'));
   const moved = await unknown(repo);
   expect(moved.found.map((f) => f.file)).toEqual([P('T-2'), P('T-2')]);

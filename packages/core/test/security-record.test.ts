@@ -221,7 +221,7 @@ it('risk:security a team pattern that is not in force is a gate finding of gate 
   const clean = build({ cycles: [[lineRound([none])]], triggers: [[]] });
   // with no such line the findings are as before, a good team line included
   expect(reasons(clean)).toEqual([]);
-  expect(reasons(withSecurityFile(clean, '- infra: path infra/ — infrastructure', '- word: line /\bfoo\b/ — a safe pattern'))).toEqual([]);
+  expect(reasons(withSecurityFile(clean, '- infra: path infra/ — infrastructure', '- word: line /\\bfoo\\b/ — a safe pattern'))).toEqual([]);
   expect(nextRound(withSecurityFile(clean, '- infra: path infra/ — infrastructure'), 'T-1', 'review').reasons.join('\n')).not.toContain('security.md');
 
   for (const [pattern, why] of [['/(/', 'does not compile'], ['/(a+)+$/', 'very slow']]) {

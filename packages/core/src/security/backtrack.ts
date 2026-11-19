@@ -16,8 +16,10 @@ type Tree =
 const MAX = 0xffff;
 const K = 4; // an exact count up to K is written out
 const CAP_POSITIONS = 4000;
+const CAP_SCC_EDGES = 1024; // inside edges of a loop that needs a pair graph
 const CAP_FOLLOW = 50000;
 const CAP_LOOPS = 64;
+const MAX_WAYS = 16; // most routes that may reach one position after reading one text
 
 // ---------- character sets: sorted, merged [lo, hi] ranges over code units
 const norm = (rs: CharSet): CharSet => {
@@ -39,6 +41,22 @@ const comp = (rs: CharSet): CharSet => {
   }
   if (lo <= MAX) out.push([lo, MAX]);
   return out;
+};
+/** Do two sets share a character? */
+const meet = (x: CharSet, y: CharSet): boolean => {
+  let i = 0;
+  let j = 0;
+  while (i < x.length && j < y.length) {
+    if (x[i][1] < y[j][0]) i++;
+    else if (y[j][1] < x[i][0]) j++;
+    else return true;
+  }
+  return false;
+};
+const inter = (x: CharSet, y: CharSet): CharSet => {
+  const out: CharSet = [];
+  for (const [a, b] of x) for (const [c, d] of y) if (Math.max(a, c) <= Math.min(b, d)) out.push([Math.max(a, c), Math.min(b, d)]);
+  return norm(out);
 };
 const ch = (c: number): CharSet => [[c, c]];
 const DIGIT: CharSet = [[48, 57]];
@@ -355,14 +373,22 @@ function tarjan(count: number, next: (v: number) => number[]): number[][] {
   return comps;
 }
 
-const BACKREFERENCE_REASON = 'a backreference (\\1..\\9 or \\k<name>) can take exponential time; rewrite it without one';
+const BACKREFERENCE_REASON =
+  'a backreference (\\1..\\9 or \\k<name>) can take exponential time; rewrite it without one, writing out each choice, as "[^"]*"|\'[^\']*\' for a quoted string or <(\\w+)>.*</\\w+> for a tag pair ' +
+  '(an octal escape such as \\1 with no group reads the same way: write \\x01)';
 const SIZE_REASON = 'it is too large to check for slow matching; split it into smaller patterns';
 const EXPONENTIAL_REASON =
   'a repeated part can match the same text in more than one way, so a failing line can take exponential time; give each repeat one way to match (a+ for (a+)+, a* for (a|a)*, (?:ab?)* for (a?b?)*)';
+const WAYS_REASON =
+  'it can reach one place by more than 16 routes that read the same text (optional parts or alternatives in a row that can match alike, such as a?a?a?a?a? or (a|a)(a|a)(a|a)(a|a)(a|a)), so one line can take very long; make each choice match different text';
+const CHAIN_REASON =
+  'three or more repeats in a row can match the same text, so a long line can take minutes; merge them into one repeat (\\d{3,9} for \\d{1,3}\\d{1,3}\\d{1,3}), drop a leading or trailing .* ' +
+  '(it adds nothing to whether a line matches), or put text between them that they cannot match';
 
 /**
  * Why a line regex can backtrack catastrophically, with how to rewrite it; undefined when the guard finds nothing. `source` has already compiled, `flags` is '' or 'i'.
- * Not a proof: it refuses every shape measured exponential in V8 and accepts every default and every pattern measured linear.
+ * Not a proof: it refuses every shape measured exponential in V8 and every run of three overlapping repeats, and accepts every default and every pattern measured linear.
+ * What it accepts is at most two overlapping repeats in a row and at most 16 routes, which the scan bounds per changed line (SCAN_LINE_LIMIT).
  */
 export function backtrackProblem(source: string, flags: string): string | undefined {
   let auto: Automaton;
@@ -372,21 +398,138 @@ export function backtrackProblem(source: string, flags: string): string | undefi
     if (e instanceof Refuse) return e.message === 'backreference' ? BACKREFERENCE_REASON : SIZE_REASON;
     throw e;
   }
-  const { sets, follow } = auto;
+  const { sets, follow, start } = auto;
   const n = sets.length;
+  // do two different positions' sets share a character? sort and sweep over the ranges
+  const overlapAny = (qs: number[]): boolean => {
+    const rs: [number, number, number][] = [];
+    for (const q of qs) for (const [lo, hi] of sets[q]) rs.push([lo, hi, q]);
+    rs.sort((x, y) => x[0] - y[0]);
+    let maxHi = -1;
+    let owner = -1;
+    for (const [lo, hi, q] of rs) {
+      if (lo <= maxHi && owner !== q) return true;
+      if (hi > maxHi) {
+        maxHi = hi;
+        owner = q;
+      }
+    }
+    return false;
+  };
   const comps = tarjan(n, (p) => [...follow[p].keys()]);
   const compOf = new Array<number>(n);
   comps.forEach((c, k) => c.forEach((p) => (compOf[p] = k)));
   const cyclic = comps.map((c, k) => ({ c, k })).filter(({ c }) => c.length > 1 || follow[c[0]].has(c[0]));
   if (cyclic.length > CAP_LOOPS) return SIZE_REASON;
 
-  // exponential: two routes inside one loop from one position to the same position
+  // (2) exponential: two ways through one loop. Two routes from one position to the same position of the loop, or, in the loop's pair graph, one strongly connected part holding both
+  // a pair (p, p) and a pair (p, q) with p and q different.
   for (const { c, k } of cyclic) {
+    let deterministic = true;
+    let edges = 0;
     for (const p of c) {
-      for (const [q, count] of follow[p]) {
-        if (compOf[q] === k && count >= 2) return EXPONENTIAL_REASON;
+      const inside = [...follow[p]].filter(([q]) => compOf[q] === k);
+      edges += inside.length;
+      if (inside.some(([, count]) => count >= 2)) return EXPONENTIAL_REASON;
+      if (deterministic && overlapAny(inside.map(([q]) => q))) deterministic = false;
+    }
+    if (deterministic) continue;
+    if (edges > CAP_SCC_EDGES) return SIZE_REASON;
+    const index = new Map(c.map((p, j) => [p, j] as const));
+    const m = c.length;
+    const insideNext = c.map((p) => [...follow[p].keys()].filter((q) => compOf[q] === k).map((q) => index.get(q) as number));
+    const pairNext = (v: number): number[] => {
+      const a = Math.floor(v / m);
+      const b = v % m;
+      const out: number[] = [];
+      for (const x of insideNext[a]) for (const y of insideNext[b]) if (meet(sets[c[x]], sets[c[y]])) out.push(x * m + y);
+      return out;
+    };
+    // only the pairs reachable from the diagonal matter
+    const seen = new Set<number>();
+    const queue: number[] = [];
+    for (let j = 0; j < m; j++) {
+      seen.add(j * m + j);
+      queue.push(j * m + j);
+    }
+    while (queue.length > 0) {
+      for (const w of pairNext(queue.pop() as number)) {
+        if (!seen.has(w)) {
+          seen.add(w);
+          queue.push(w);
+        }
       }
     }
+    const nodes = [...seen];
+    const at = new Map(nodes.map((v, j) => [v, j] as const));
+    for (const part of tarjan(nodes.length, (j) => pairNext(nodes[j]).map((w) => at.get(w) as number))) {
+      const vs = part.map((j) => nodes[j]);
+      const diagonal = vs.some((v) => Math.floor(v / m) === v % m);
+      const off = vs.some((v) => Math.floor(v / m) !== v % m);
+      if (diagonal && off) return EXPONENTIAL_REASON;
+    }
+  }
+
+  // (4) finite but large: how many routes can reach one position after reading the same text. Routes into q come from predecessors that read the same previous character, so only
+  // predecessors whose sets share a character add up (an over-count).
+  const heaviest = (weighted: [number, number][]): number => {
+    const events: [number, number][] = [];
+    for (const [p, weight] of weighted) for (const [lo, hi] of sets[p]) events.push([lo, weight], [hi + 1, -weight]);
+    events.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    let current = 0;
+    let best = 0;
+    for (const [, delta] of events) best = Math.max(best, (current += delta));
+    return best;
+  };
+  // In a loop that passed (2), routes that entered at different positions never meet again, so the loop carries the largest count of any one of its entry positions.
+  const into: [number, number][][] = Array.from({ length: n }, () => []);
+  for (let p = 0; p < n; p++) for (const [q, count] of follow[p]) if (compOf[q] !== compOf[p]) into[q].push([p, count]);
+  const ways = new Array<number>(comps.length).fill(0);
+  let most = 1;
+  for (let k = comps.length - 1; k >= 0; k--) {
+    let w = 0;
+    for (const q of comps[k]) {
+      const fromPredecessors = heaviest(into[q].map(([p, count]) => [p, ways[compOf[p]] * count]));
+      w = Math.max(w, start.get(q) ?? 0, fromPredecessors);
+    }
+    ways[k] = Math.min(1e9, w);
+    most = Math.max(most, ways[k]);
+  }
+  if (most > MAX_WAYS) return WAYS_REASON;
+
+  // (3) polynomial: a run of three loops that can pump the same characters. Loop S comes before loop T, X is what both can read, and S chains to T when T is reachable from S
+  // through positions whose sets meet X.
+  const charsOf = (c: number[]): CharSet => norm(c.flatMap((p) => sets[p]));
+  const loops = cyclic.map(({ c, k }) => ({ k, chars: charsOf(c), members: c }));
+  const chainable = (s: { k: number; members: number[]; chars: CharSet }, t: { k: number; chars: CharSet }): boolean => {
+    const x = inter(s.chars, t.chars);
+    if (x.length === 0) return false;
+    const seen = new Set(s.members);
+    const queue = [...s.members];
+    while (queue.length > 0) {
+      const p = queue.pop() as number;
+      for (const q of follow[p].keys()) {
+        if (seen.has(q)) continue;
+        if (compOf[q] === t.k) return true;
+        if (compOf[q] === s.k || meet(sets[q], x)) {
+          seen.add(q);
+          queue.push(q);
+        }
+      }
+    }
+    return false;
+  };
+  // components come in reverse topological order: a larger k is earlier in the pattern
+  const order = [...loops].sort((a, b) => b.k - a.k);
+  const run = new Map<number, number>();
+  for (const t of order) {
+    let best = 1;
+    for (const s of order) {
+      if (s === t || s.k <= t.k) continue;
+      if (chainable(s, t)) best = Math.max(best, (run.get(s.k) ?? 1) + 1);
+    }
+    run.set(t.k, best);
+    if (best >= 3) return CHAIN_REASON;
   }
   return undefined;
 }

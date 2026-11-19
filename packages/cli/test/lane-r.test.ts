@@ -20,9 +20,9 @@ it('risk:complex-branching accord new ticket --lane R writes the research templa
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': CONFIG });
   try {
-    const made = await run(['new', 'ticket', 'R-1', '--lane', 'R'], repo);
+    const made = await run(['new', 'ticket', 'R-1', '--lane', 'R', '--title', 'Compare export formats'], repo);
     expect(made.code).toBe(0);
-    expect(made.out).toBe('accord/tickets/R-1.md\n');
+    expect(made.out).toMatch(/^similar: none\ntitle rule: .+\naccord\/tickets\/R-1\.md\n$/);
     const file = join(repo, 'accord', 'tickets', 'R-1.md');
     const text = readFileSync(file, 'utf8');
     expect(text).toContain('id: "R-1"');
@@ -53,7 +53,7 @@ it('risk:regression accord gate plan refuses a lane R ticket on real git (ST-LN-
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': CONFIG });
   try {
-    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R'], repo)).code).toBe(0);
+    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R', '--title', 'Compare export formats'], repo)).code).toBe(0);
     const file = join(repo, 'accord', 'tickets', 'R-1.md');
     writeFileSync(file, decide(fill(readFileSync(file, 'utf8'))));
     expect((await run(['gate', 'ready', 'R-1', '--json'], repo)).code).toBe(0);
@@ -72,7 +72,7 @@ it('risk:complex-branching accord gate ready names the unanswered budget of a la
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': CONFIG });
   try {
-    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R'], repo)).code).toBe(0);
+    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R', '--title', 'Compare export formats'], repo)).code).toBe(0);
     const file = join(repo, 'accord', 'tickets', 'R-1.md');
     const filled = fill(readFileSync(file, 'utf8'));
     writeFileSync(file, filled);
@@ -261,7 +261,7 @@ it('risk:complex-branching the build-stage commands refuse a lane R ticket (ST-L
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': CONFIG });
   try {
-    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R'], repo)).code).toBe(0);
+    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R', '--title', 'Compare export formats'], repo)).code).toBe(0);
     const file = join(repo, 'accord', 'tickets', 'R-1.md');
     writeFileSync(file, decide(fill(readFileSync(file, 'utf8'))));
     expect((await run(['gate', 'ready', 'R-1', '--json'], repo)).code).toBe(0);

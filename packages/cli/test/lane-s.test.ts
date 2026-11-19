@@ -9,9 +9,9 @@ type F = { rule: string; reason: string; file: string; level: string };
 it('ac-2 a lane S ticket is written and passes gate ready without acceptance criteria', async () => {
   const repo = makeLaneRepo();
   try {
-    const made = await run(['new', 'ticket', 'S-1', '--lane', 'S', '--no-dup-check'], repo);
+    const made = await run(['new', 'ticket', 'S-1', '--lane', 'S', '--no-dup-check', '--title', 'Export reports to CSV'], repo);
     expect(made.code).toBe(0);
-    expect(made.out).toBe('similar: skipped (--no-dup-check)\naccord/tickets/S-1.md\n');
+    expect(made.out).toMatch(/^similar: skipped \(--no-dup-check\)\ntitle rule: .+\naccord\/tickets\/S-1\.md\n$/);
     const file = join(repo, 'accord', 'tickets', 'S-1.md');
     const text = readFileSync(file, 'utf8');
     expect(text).toContain('id: "S-1"');

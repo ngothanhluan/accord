@@ -1,5 +1,5 @@
 // ST-LN-96 t1-ac-3: `runTeamCommand`, the one runner for committed team commands (git.sync, later tracker.command): the ticket reaches the script only in its environment.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -115,31 +115,38 @@ function alive(pid: number): boolean {
   } catch (e) {
     return (e as NodeJS.ErrnoException).code === 'EPERM';
   }
+  if (process.platform === 'win32') return true;
   try {
     // Linux: field 3 of /proc/<pid>/stat is the state; Z is a killed process its new parent has not reaped yet.
     const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
     return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0] !== 'Z';
   } catch {
-    return true;
+    // no /proc (macOS): a killed process its parent has not reaped yet still answers kill(pid, 0), and only its state says it is dead.
+    // ps prints nothing for a pid that is gone and a state starting with Z for a zombie; ps itself failing to start says nothing, so that reads as alive.
+    const ps = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' });
+    if (ps.error !== undefined) return true;
+    const state = String(ps.stdout).trim();
+    return state !== '' && !state.startsWith('Z');
   }
 }
 
-// ST-LN-96 t1-ac-3: a killed team command takes its whole process tree with it, so the ticket's worktree can be removed at once.
+// ST-LN-96 t1-ac-3: a killed team command takes its whole process tree with it, so the ticket's worktree can be removed.
 it.each([
   ['times out', 'setTimeout(() => {}, 20000);', { timeoutMs: 3000, maxBuffer: 1024 * 1024 }, 'timedOut'],
   ['prints too much', "process.stdout.write('x'.repeat(200000)); setTimeout(() => {}, 20000);", { timeoutMs: 20_000, maxBuffer: 1024 }, 'oversize'],
 ] as const)(
   'risk:resource a team command that %s leaves no process holding the worktree (ST-LN-96 t1-ac-3)',
-  (_name, then, limits, flag) => {
+  async (_name, then, limits, flag) => {
     const folder = mkdtempSync(join(tmpdir(), 'accord-team-tree-'));
     const pidFile = join(dir, `child-${flag}.pid`);
     const r = runTeamCommand(treeScript(folder, pidFile, then), { cwd: folder, env: process.env, ...limits });
     expect(r[flag]).toBe(true);
     expect(existsSync(pidFile)).toBe(true);
-    // at once: no retry and no wait for the child; a child still running holds the folder (EBUSY on Windows)
-    rmSync(folder, { recursive: true });
+    // the process is asserted gone first, within a bound: a child that survives the kill still fails here, however long the wait; alive() reads a killed, unreaped
+    // process as gone. Only then is the folder removed, with a bounded retry that covers just the late release of a dead process's folder handle (EBUSY on Windows).
+    expect(await until(() => !alive(Number(readFileSync(pidFile, 'utf8'))), 5000)).toBe(true);
+    rmSync(folder, { recursive: true, maxRetries: 20, retryDelay: 100 });
     expect(existsSync(folder)).toBe(false);
-    expect(alive(Number(readFileSync(pidFile, 'utf8')))).toBe(false);
   },
 );
 

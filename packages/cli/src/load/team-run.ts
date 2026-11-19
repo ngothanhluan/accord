@@ -24,6 +24,8 @@ export interface TeamRunOptions {
   input?: string;
   timeoutMs: number;
   maxBuffer: number;
+  /** A test seam: holds the completion of the tree kill back by this many ms, as a slow `taskkill /T /F` does; the kill itself is sent at once. Production callers leave it out. */
+  killDelayMs?: number;
 }
 
 /**
@@ -31,7 +33,7 @@ export interface TeamRunOptions {
  * Why a worker: `spawnSync` can only kill the shell on a timeout, and the script's own children run on and hold the ticket's
  * worktree. The worker starts the shell with the event loop `spawnSync` lacks, so on a timeout or oversize output it can kill the
  * whole process tree first (`taskkill /T /F` on Windows; on POSIX the shell leads its own process group and the group is killed),
- * wait until the output pipes close, and only then report - the caller removes the folder the moment `runTeamCommand` returns.
+ * wait until the kill has returned and the output pipes have closed, and only then report - the caller removes the folder the moment `runTeamCommand` returns.
  * The POSIX group is also out of the terminal's reach, and the caller blocks in `Atomics.wait` where no signal handler can run, so Ctrl-C
  * or a kill of accord would leave the script running. A guard process in a session of its own holds a pipe the worker keeps open: a normal
  * end writes a line to it and the guard leaves; the pipe closing any other way (accord gone) makes the guard kill the script's group.
@@ -39,7 +41,7 @@ export interface TeamRunOptions {
 const RUNNER = String.raw`
 const { workerData } = require('node:worker_threads');
 const { spawn } = require('node:child_process');
-const { command, cwd, env, input, timeoutMs, maxBuffer, port, flag } = workerData;
+const { command, cwd, env, input, timeoutMs, maxBuffer, killDelayMs, port, flag } = workerData;
 const win = process.platform === 'win32';
 const out = { stdout: [], stderr: [] };
 const size = { stdout: 0, stderr: 0 };
@@ -49,6 +51,8 @@ let child;
 let guard;
 let timer;
 let settled = false;
+/** The promise of the tree kill, set when a stop begins: a stopped command is reported only after it settles. */
+let killed;
 
 /** Tells the guard the command ended normally, so it leaves the group alone, and waits until the line is written: a closed pipe is the signal to kill. */
 function release(next) {
@@ -91,7 +95,7 @@ function finish(code, signal, error) {
   });
 }
 
-function killTree() {
+function sendKill() {
   if (win) {
     return new Promise((resolve) => {
       const k = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
@@ -107,11 +111,17 @@ function killTree() {
   return Promise.resolve();
 }
 
+function killTree() {
+  const sent = sendKill();
+  return killDelayMs > 0 ? sent.then(() => new Promise((resolve) => setTimeout(resolve, killDelayMs))) : sent;
+}
+
 function stop() {
-  killTree().then(() => {
-    // the pipes close when the last process of the tree is gone; a safety net keeps a stuck one from hanging the caller
-    setTimeout(() => finish(null, 'SIGKILL'), 10000).unref();
-  });
+  if (killed) return;
+  killed = killTree();
+  // the shell's pipes can close before the kill has returned (taskkill /T /F is still walking the tree), and the report must not come before it:
+  // close joins this promise. The safety net starts with the stop and keeps a stuck kill or a stuck pipe from hanging the caller for longer than before.
+  setTimeout(() => finish(null, 'SIGKILL'), 10000).unref();
 }
 
 function take(name, chunk) {
@@ -141,7 +151,10 @@ try {
   child.stdin.on('error', () => {});
   child.stdin.end(input);
   child.on('error', (e) => finish(null, null, String(e)));
-  child.on('close', (code, signal) => finish(code, signal));
+  child.on('close', (code, signal) => {
+    if (killed === undefined) return finish(code, signal);
+    killed.then(() => finish(code, signal));
+  });
   timer = setTimeout(() => {
     timedOut = true;
     stop();
@@ -173,7 +186,7 @@ export function runTeamCommand(command: string, o: TeamRunOptions): TeamRun {
   const { port1, port2 } = new MessageChannel();
   const worker = new Worker(RUNNER, {
     eval: true,
-    workerData: { command, cwd: o.cwd, env: { ...o.env }, input: o.input ?? '', timeoutMs: o.timeoutMs, maxBuffer: o.maxBuffer, port: port2, flag },
+    workerData: { command, cwd: o.cwd, env: { ...o.env }, input: o.input ?? '', timeoutMs: o.timeoutMs, maxBuffer: o.maxBuffer, killDelayMs: o.killDelayMs ?? 0, port: port2, flag },
     transferList: [port2],
   });
   const woke = Atomics.wait(flag, 0, 0, o.timeoutMs + GRACE_MS);

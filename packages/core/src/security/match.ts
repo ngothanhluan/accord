@@ -172,7 +172,6 @@ const UNREADABLE = 'too large to read as text, so its lines were not scanned';
 const tooLong = (text: string): boolean => text.length > MAX_LINE;
 const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const TEST_FOLDER = new Set(['test', 'tests', '__tests__']);
-const OWN_COPIES = ['.claude/skills/', '.agents/skills/', '.claude/agents/', '.claude/accord-panel/'];
 
 /** lane.md's definition: under a folder named `test`, `tests` or `__tests__`, or a name holding `.test.` or `.spec.`. */
 const isTestFile = (path: string): boolean => {
@@ -181,9 +180,12 @@ const isTestFile = (path: string): boolean => {
   return parts.slice(0, -1).some((d) => TEST_FOLDER.has(d)) || name.includes('.test.') || name.includes('.spec.');
 };
 
+/** A path entry of a security pattern compares ignoring letter case: Windows and default macOS open `.MCP.json` as `.mcp.json`. The trigger still names the path as the diff spells it. */
 const pathMatches = (entry: string, path: string): boolean => {
-  if (entry.endsWith('/') || entry.includes('/')) return matches(entry, path);
-  return path === entry || path.endsWith('/' + entry);
+  const e = entry.toLowerCase();
+  const p = path.toLowerCase();
+  if (e.endsWith('/') || e.includes('/')) return matches(e, p);
+  return p === e || p.endsWith('/' + e);
 };
 
 /** Code point order, so the same input sorts the same on every runtime. */
@@ -211,16 +213,19 @@ function compileLines(spec: SecuritySpec): { p: SecurityPattern; re: RegExp }[] 
   return out;
 }
 
-/** Content patterns are not run over Markdown, test files, accord's own generated copies or the repository's generated paths. */
-const contentSkipped = (path: string, generated: readonly string[]): boolean =>
-  MARKDOWN.test(path) || isTestFile(path) || OWN_COPIES.some((e) => path.startsWith(e)) || generated.some((e) => matches(e, path));
+/**
+ * Content patterns are not run over Markdown, test files, the repository's generated paths or a path in `exempt` (exactly an unmodified copy `accord skills sync`
+ * writes, decided by the caller). No folder is skipped as a whole: a file accord does not write, or a copy changed by hand, is scanned.
+ */
+const contentSkipped = (path: string, generated: readonly string[], exempt: readonly string[]): boolean =>
+  MARKDOWN.test(path) || isTestFile(path) || exempt.includes(path) || generated.some((e) => matches(e, path));
 
 /**
  * The triggers of a package: path patterns over every changed path (both sides of a rename); content patterns over the added and removed lines of
- * files that are not binary, not Markdown, not test files and not generated copies; one `cannot` trigger for each changed path the diff text does not
+ * files that are not binary, not Markdown, not test files, not generated and not an exact `exempt` path (nothing is exempt when absent); one `cannot` trigger for each changed path the diff text does not
  * show. Deduplicated and sorted by path, then line, then pattern id.
  */
-export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[] }): Trigger[] {
+export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[] }): Trigger[] {
   const files = diffFiles(diffText);
   const shown = new Set<string>();
   for (const f of files) {
@@ -237,7 +242,7 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
     for (const p of pathPatterns) if (p.entries.some((e) => pathMatches(e, path))) add({ path, pattern: p.id, label: p.label });
   }
   const lineRes = compileLines(spec);
-  const skipped = (path: string): boolean => contentSkipped(path, options.generated);
+  const skipped = (path: string): boolean => contentSkipped(path, options.generated, options.exempt ?? []);
   for (const f of files) {
     if (f.binary || f.path === undefined || skipped(f.path)) continue;
     const scanLines = (lines: DiffFile['added'], removed: boolean) => {
@@ -273,9 +278,9 @@ export function triggerText(t: Trigger): string {
  * `(truncated: <n> more lines in <path>)`; a hunk that holds a content match is printed whole even past the cap, so a cut never hides a match. A path the diff text does not
  * show is one block, `(cannot tell: …)`. Content matches are read from the hunks themselves, with the patterns and skips securityTriggers uses, so the two agree.
  */
-export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; cap?: number }): string[] {
+export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[]; cap?: number }): string[] {
   const cap = options.cap ?? 300;
-  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated, unreadable: options.unreadable });
+  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated, unreadable: options.unreadable, exempt: options.exempt });
   const pathHit = new Set(triggers.filter((t) => t.cannot !== true && t.line === undefined).map((t) => t.path));
   const lineRes = compileLines(spec);
   const holds = (h: DiffHunk): boolean =>
@@ -290,7 +295,7 @@ export function matchedHunks(spec: SecuritySpec, diffText: string, changed: read
     if (f.binary && f.path !== undefined && files.some((g) => !g.binary && g.path === f.path)) continue;
     const name = f.path ?? f.oldPath;
     const byPath = (f.path !== undefined && pathHit.has(f.path)) || (f.oldPath !== undefined && pathHit.has(f.oldPath));
-    const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds));
+    const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated, options.exempt ?? []) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds));
     if (!byPath && content.size === 0) continue;
     const lines = [...f.header];
     let budget = cap;

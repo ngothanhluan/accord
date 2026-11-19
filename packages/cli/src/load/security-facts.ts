@@ -3,9 +3,9 @@
 // order across cycles, so a round that fixed something is asked only when its fix matches a pattern. The triggers of a package come from packageDiff, the function review-package prints from.
 // Every git failure is an `error` fact, which the rule reports (fail closed); nothing here writes.
 import { execFileSync } from 'node:child_process';
-import { claimPinBefore, reviewSkipped, SECURITY_TRIGGER_FROM, securityExemptRounds, securitySpec, securityTriggers, triggerText, workOf } from '@accord-dev/accord-core';
-import type { RepoSnapshot, SecurityFacts } from '@accord-dev/accord-core';
-import { defaultRefOf, UsageError } from './fs.js';
+import { claimPinBefore, normaliseText, reviewSkipped, SECURITY_TRIGGER_FROM, securityExemptRounds, securitySpec, securityTriggers, triggerText, workOf } from '@accord-dev/accord-core';
+import type { RepoSnapshot, SecurityFacts, SkillFile } from '@accord-dev/accord-core';
+import { defaultRefOf, gitFilesAt, UsageError } from './fs.js';
 import { packageDiff, roundOneBase, why } from './package-diff.js';
 import { whyGit } from './round-facts.js';
 
@@ -64,23 +64,41 @@ export function securityRoundRanges(root: string, snapshot: RepoSnapshot, id: st
   return { rounds };
 }
 
-function factsFor(root: string, snapshot: RepoSnapshot, id: string): SecurityFacts {
+/**
+ * BUG-LN-25 D-06, D-07, D-09, D-11, D-17: the changed paths that are exactly a copy `accord skills sync` writes, in `changed` order: each path `rendered()` holds whose text at `head` equals
+ * the render after normaliseText. A path absent at `head` (deleted) or differing from the running accord's render (edited by hand, or written by an older accord) is not exempt, so it is
+ * scanned; the marker hash is never read. `rendered` is called and git started only when a changed path lies under `.claude/` or `.agents/`, the two roots every rendered path has. A git failure throws.
+ */
+export function exemptCopies(root: string, head: string, changed: readonly string[], rendered: () => readonly SkillFile[]): string[] {
+  if (!changed.some((p) => p.startsWith('.claude/') || p.startsWith('.agents/'))) return [];
+  const touched = new Set(changed);
+  const copies = rendered().filter((f) => touched.has(f.path));
+  if (copies.length === 0) return [];
+  const at = gitFilesAt(root, head, copies.map((f) => f.path));
+  const same = new Set(copies.filter((f) => at[f.path] !== undefined && normaliseText(at[f.path]) === f.text).map((f) => f.path));
+  return changed.filter((p) => same.has(p));
+}
+
+function factsFor(root: string, snapshot: RepoSnapshot, id: string, rendered: () => readonly SkillFile[]): SecurityFacts {
   try {
     const ranges = securityRoundRanges(root, snapshot, id);
     if ('error' in ranges) return { error: ranges.error };
     const spec = securitySpec(snapshot);
     const generated = snapshot.config?.generated ?? [];
     const def = defaultRefOf(root);
-    const exempt = securityExemptRounds(snapshot, id);
+    const exemptRounds = securityExemptRounds(snapshot, id);
+    let list: readonly SkillFile[] | undefined;
+    const once = (): readonly SkillFile[] => (list ??= rendered()); // at most one render per command
     const rounds = ranges.rounds.map((r, k) => {
-      if (exempt.has(k + 1)) return { head: r.head, triggers: [] }; // D-10: a final review that follows a round of its stretch is exempt; a lone one is read like any round
+      if (exemptRounds.has(k + 1)) return { head: r.head, triggers: [] }; // D-10: a final review that follows a round of its stretch is exempt; a lone one is read like any round
       let pkg;
       try {
         pkg = packageDiff(root, { base: r.base, head: r.head, def, allowPlainLog: false });
       } catch (e) {
         throw new Error(`git failed reading the package of review round ${k + 1}: ${e instanceof UsageError ? e.message : why(e)}`, { cause: e });
       }
-      return { head: r.head, triggers: securityTriggers(spec, pkg.diff, pkg.changed, { generated, unreadable: pkg.unread }).map(triggerText) };
+      const exempt = exemptCopies(root, r.head, pkg.changed, once);
+      return { head: r.head, triggers: securityTriggers(spec, pkg.diff, pkg.changed, { generated, unreadable: pkg.unread, exempt }).map(triggerText) };
     });
     return { rounds };
   } catch (e) {
@@ -93,11 +111,12 @@ function factsFor(root: string, snapshot: RepoSnapshot, id: string): SecurityFac
  * default branch, or the ticket done there), or the rule does not apply to it: ST-LN-36, Orchestrator Ruling (route a), a ticket whose claim pin is before SECURITY_TRIGGER_FROM answers as
  * before and starts no git read for it. The claim fact is the one the caller already loaded (gate done, accord round); this never calls withClaimPins, so the pin gate adds no git read. A failed
  * claim read is false in claimPinBefore (fail closed), so the facts are read and the rule applies. Each of those is decided on the snapshot, before the first git call.
+ * BUG-LN-25 D-16: `rendered` is the files `accord skills sync` writes (renderedFiles of the config), called at most once, so a copy sync just wrote raises no trigger.
  */
-export function withSecurityFacts(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot {
+export function withSecurityFacts(root: string, snapshot: RepoSnapshot, id: string, rendered: () => readonly SkillFile[]): RepoSnapshot {
   const rec = workOf(snapshot, id)?.rounds;
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
   if (lane === undefined || rec === undefined || rec.version !== 2 || rec.cycles.every((c) => c.rounds.length === 0) || snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;
   if (claimPinBefore(snapshot, id, SECURITY_TRIGGER_FROM)) return snapshot;
-  return { ...snapshot, securityFacts: { ...snapshot.securityFacts, [id]: factsFor(root, snapshot, id) } };
+  return { ...snapshot, securityFacts: { ...snapshot.securityFacts, [id]: factsFor(root, snapshot, id, rendered) } };
 }

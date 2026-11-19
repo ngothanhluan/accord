@@ -7,6 +7,7 @@ import { withPlanFix } from '../load/plan-diff.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
 import type { CommandContext } from '../run.js';
+import { renderedFiles } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 
 /** ST-LN-17: the next review, plan critique or approach critique round, its cap and the fix executor's model, or the stop or refusal; exit 0 only for a next round. */
@@ -39,7 +40,10 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
       ? withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'approach')
       : // ST-LN-56 D-08, D-16: the fix record rules read the ticket's claim pin (RESEARCH Pitfall 7), never the working-tree pin.
         // ST-LN-36 D-05: the security record rule reads the same claim fact, so the loader reads nothing for a ticket claimed before its cut-off.
-        withSecurityFacts(ctx.root, withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id), id);
+        // BUG-LN-25 D-16: the same render list as gate done, so the round and the gate agree on which copies are exempt.
+        withSecurityFacts(ctx.root, withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id), id, () =>
+          ctx.snapshot.config === undefined ? [] : renderedFiles(ctx.snapshot.config),
+        );
   const answer = nextRound(snapshot, id, plan ? 'plan' : approach ? 'approach' : 'review');
   ctx.stdout.write(roundText(answer));
   return answer.kind === 'next' ? 0 : 1;

@@ -5,7 +5,7 @@ import { DEFAULT_SECURITY, LOCKED, lintSnapshot, loadSnapshot, matchedHunks, par
 const FILE = 'accord/product/security.md';
 /** A snapshot holding only the security file (or none): securitySpec reads nothing else. */
 const withFile = (text?: string) => loadSnapshot({ files: text === undefined ? {} : { [FILE]: text }, tree: text === undefined ? [] : [FILE] });
-const DEFAULT_IDS = ['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'security-config'];
+const DEFAULT_IDS = ['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'agent-config', 'security-config'];
 const CHECK_IDS = DEFAULT_SECURITY.checklist.map((c) => c.id);
 
 const DIFF = [
@@ -185,16 +185,15 @@ it('risk:parsing the trigger reader places every diff spelling (ST-LN-36 36-ac-1
   ].join('\n');
   expect(texts(log, ['src/a.ts'])).toEqual(['src/a.ts:2: spawn (process spawn)', 'src/a.ts:4: spawn (process spawn)']);
 
-  // content patterns skip Markdown, test files and generated copies; an empty diff and a Markdown-only or test-only diff give nothing
+  // content patterns skip Markdown, test files and generated paths; an empty diff and a Markdown-only or test-only diff give nothing
   const skipped = [
     ...SECTION('docs/notes.md', ['@@ -1 +1,2 @@', ' a', '+spawn(1); token']),
     ...SECTION('packages/core/test/a.test.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
     ...SECTION('src/b.spec.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
     ...SECTION('src/__tests__/c.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
-    ...SECTION('.claude/skills/accord/x.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
     ...SECTION('gen/out.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(1);']),
   ].join('\n');
-  const names = ['docs/notes.md', 'packages/core/test/a.test.ts', 'src/b.spec.ts', 'src/__tests__/c.ts', '.claude/skills/accord/x.ts', 'gen/out.ts'];
+  const names = ['docs/notes.md', 'packages/core/test/a.test.ts', 'src/b.spec.ts', 'src/__tests__/c.ts', 'gen/out.ts'];
   expect(texts(skipped, names, ['gen/'])).toEqual([]);
   expect(texts('', [])).toEqual([]);
   expect(texts('(no changes)', [])).toEqual([]);
@@ -255,8 +254,8 @@ it('ac-1 the patterns in force are the defaults plus additions minus Removed lin
   );
   const spec = securitySpec(withFile(text));
   expect(spec.problems).toEqual([]);
-  // the template names seven defaults; one is removed and one is added, so seven are in force, the team's after the defaults
-  expect(ids(spec)).toEqual(['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'security-config', 'infra']);
+  // the template names eight defaults; one is removed and one is added, so eight are in force, the team's after the defaults
+  expect(ids(spec)).toEqual(['spawn', 'file-write', 'built-path', 'ci-workflow', 'manifest', 'agent-config', 'security-config', 'infra']);
   expect(spec.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
   expect(spec.checklist).toHaveLength(8);
   expect(spec.removed.map((r) => [r.id, r.reason])).toEqual([['secret-name', 'our design tokens are not secrets']]);
@@ -298,7 +297,7 @@ it('risk:parsing a rewritten default is not read, a Removed line for a team or u
     '- infra: path infra/ — infrastructure\n- secret-name:',
   );
   const s = securitySpec(withFile(text));
-  expect(ids(s)).toEqual(['file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'security-config', 'infra']);
+  expect(ids(s)).toEqual(['file-write', 'built-path', 'ci-workflow', 'manifest', 'secret-name', 'agent-config', 'security-config', 'infra']);
   expect(s.removed.map((x) => x.id)).toEqual(['spawn']);
   expect(s.problems).toHaveLength(3);
 
@@ -533,4 +532,83 @@ it('risk:resource a path the host could not read as text is a trigger of its own
   expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] }).map(triggerText)).toEqual([label]);
   expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [] })).toEqual([]);
   expect(matchedHunks(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] })).toEqual([label]);
+});
+
+it('ac-2 a file accord does not write in a copy folder is scanned (BUG-LN-25)', () => {
+  const helper = '.claude/skills/accord/helper.js';
+  const diff = SECTION(helper, ['@@ -0,0 +1 @@', '+spawn(1);'], ['new file mode 100644', 'index 0000000..1111111']).join('\n');
+  const rendered = ['.claude/skills/accord/SKILL.md', '.claude/accord-panel/plugin/hooks/register.js'];
+  expect(securityTriggers(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: rendered }).map(triggerText)).toEqual([`${helper}:1: spawn (process spawn)`]);
+  expect(securityTriggers(DEFAULT_SECURITY, diff, [helper], { generated: [] }).map(triggerText)).toEqual([`${helper}:1: spawn (process spawn)`]);
+  const hunks = matchedHunks(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: rendered });
+  expect(hunks).toHaveLength(1);
+  expect(hunks[0]).toContain('+spawn(1);');
+  // the same path in the exempt list is an unmodified copy: no content trigger and no hunk
+  expect(securityTriggers(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: [helper] })).toEqual([]);
+  expect(matchedHunks(DEFAULT_SECURITY, diff, [helper], { generated: [], exempt: [helper] })).toEqual([]);
+});
+
+it('ac-4 a change to agent configuration raises agent-config under a team security file (BUG-LN-25)', () => {
+  const team = ['# Security review', '', '## Patterns', '', '- infra: path infra/ — infrastructure', '', '## Checklist', '', '## Removed', ''].join('\n');
+  const spec = securitySpec(withFile(team));
+  expect(spec.problems).toEqual([]);
+  expect(ids(spec)).toContain('agent-config');
+  const label = 'agent-config (agent configuration that can start commands)';
+  const run = (s: ReturnType<typeof securitySpec>, path: string, head: string[], hunk: string[]) => {
+    const diff = SECTION(path, hunk, head).join('\n');
+    return securityTriggers(s, diff, [path], { generated: [] }).map(triggerText);
+  };
+  const settings = '.claude/settings.json';
+  const added = ['new file mode 100644', 'index 0000000..1111111'];
+  // added, edited and deleted: each is a trigger of its own
+  expect(run(spec, settings, added, ['@@ -0,0 +1 @@', '+{}'])).toEqual([`${settings}: ${label}`]);
+  expect(run(spec, settings, ['index 1111111..2222222 100644'], ['@@ -1,2 +1,2 @@', ' {', '-  "a": 1', '+  "a": 2'])).toEqual([`${settings}: ${label}`]);
+  const gone = ['diff --git a/.claude/settings.json b/.claude/settings.json', 'deleted file mode 100644', 'index 1111111..0000000', '--- a/.claude/settings.json', '+++ /dev/null', '@@ -1 +0,0 @@', '-{}'].join('\n');
+  expect(securityTriggers(spec, gone, [settings], { generated: [] }).map(triggerText)).toEqual([`${settings}: ${label}`]);
+  // .mcp.json at any depth
+  for (const mcp of ['.mcp.json', 'sub/.mcp.json']) {
+    expect(run(spec, mcp, added, ['@@ -0,0 +1 @@', '+{}'])).toEqual([`${mcp}: ${label}`]);
+  }
+  // .claude/settings.json is the root file only
+  expect(run(spec, 'sub/.claude/settings.json', added, ['@@ -0,0 +1 @@', '+{}'])).toEqual([]);
+
+  // a Removed line takes the pattern out, with no problem
+  const removed = securitySpec(withFile(team.replace('## Removed\n', '## Removed\n\n- Removed: agent-config — we review these files by hand\n')));
+  expect(removed.problems).toEqual([]);
+  expect(ids(removed)).not.toContain('agent-config');
+  expect(run(removed, settings, added, ['@@ -0,0 +1 @@', '+{}'])).toEqual([]);
+
+  // a team line with the id agent-config is one problem and the default still applies
+  const clash = securitySpec(withFile(team.replace('- infra:', '- agent-config: path other.json — x\n- infra:')));
+  expect(clash.problems).toHaveLength(1);
+  expect(clash.patterns.find((p) => p.id === 'agent-config')?.entries).toEqual(['.claude/settings.json', '.mcp.json']);
+
+  // no new checklist item (D-13)
+  expect(spec.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
+  expect(spec.checklist).toHaveLength(8);
+});
+
+it('risk:security path patterns match ignoring letter case, the copy exemption and the generated skip stay exact (BUG-LN-25)', () => {
+  const added = ['new file mode 100644', 'index 0000000..1111111'];
+  const run = (path: string, options: { generated: string[]; exempt?: string[] } = { generated: [] }, line = '+{}') =>
+    securityTriggers(DEFAULT_SECURITY, SECTION(path, ['@@ -0,0 +1 @@', line], added).join('\n'), [path], options).map(triggerText);
+  const cfg = 'agent-config (agent configuration that can start commands)';
+  // a case-insensitive file system opens each of these as the agent's configuration; the trigger names the path as the diff spells it
+  for (const path of ['.MCP.json', 'sub/.Mcp.JSON', '.Claude/Settings.json']) expect(run(path)).toEqual([`${path}: ${cfg}`]);
+  // the root-only rule of .claude/settings.json holds in any case
+  expect(run('sub/.claude/settings.json')).toEqual([]);
+  expect(run('sub/.CLAUDE/Settings.json')).toEqual([]);
+  // folder prefixes and manifests (bare names) compare ignoring case too
+  expect(run('.GITHUB/workflows/x.yml')).toEqual(['.GITHUB/workflows/x.yml: ci-workflow (CI workflow files)']);
+  expect(run('web/Package.JSON')).toEqual(['web/Package.JSON: manifest (dependency manifests)']);
+  // a team pattern is case-insensitive as well
+  const team = securitySpec(withFile(['# Security review', '', '## Patterns', '', '- infra: path infra/, Deploy.sh — infrastructure', '', '## Checklist', '', '## Removed', ''].join('\n')));
+  const diff = (path: string) => SECTION(path, ['@@ -0,0 +1 @@', '+x'], added).join('\n');
+  expect(securityTriggers(team, diff('INFRA/a.tf'), ['INFRA/a.tf'], { generated: [] }).map((t) => t.pattern)).toEqual(['infra']);
+  expect(securityTriggers(team, diff('bin/deploy.SH'), ['bin/deploy.SH'], { generated: [] }).map((t) => t.pattern)).toEqual(['infra']);
+  // generated and exempt keep exact matching: a path that differs in case is still content-scanned
+  expect(run('src/Gen/x.ts', { generated: ['src/gen/'] }, '+spawn(1);')).toEqual(['src/Gen/x.ts:1: spawn (process spawn)']);
+  expect(run('src/gen/x.ts', { generated: ['src/gen/'] }, '+spawn(1);')).toEqual([]);
+  expect(run('src/Helper.js', { generated: [], exempt: ['src/helper.js'] }, '+spawn(1);')).toEqual(['src/Helper.js:1: spawn (process spawn)']);
+  expect(run('src/helper.js', { generated: [], exempt: ['src/helper.js'] }, '+spawn(1);')).toEqual([]);
 });

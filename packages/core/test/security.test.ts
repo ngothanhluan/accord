@@ -621,21 +621,25 @@ it('risk:security a backtracking team line pattern is refused at read with its l
     '',
     '- slow: line /(a+)+$/ — a pattern that can hang',
     '- back: line /(a+)\\1/ — a backreference',
-    '- fine: line /\bfoo\b/ — a safe pattern',
+    '- overlap: line /(a|a)*$/ — alternatives that match the same text under a repeat',
+    '- optional: line /(a?b?)*$/ — optional parts under a repeat',
+    '- fine: line /\\bfoo\\b/ — a safe pattern',
     '',
   ].join('\n');
   const spec = parseSecurityFile(text);
   // the refused lines are problems at their own lines, marked as pattern problems, and neither reaches the patterns
-  expect(spec.problems.map((p) => [p.line, p.pattern])).toEqual([[3, true], [4, true]]);
+  expect(spec.problems.map((p) => [p.line, p.pattern])).toEqual([[3, true], [4, true], [5, true], [6, true]]);
   expect(spec.problems[0].reason).toContain('"slow"');
   expect(spec.problems[0].reason).toContain('very slow');
   expect(spec.problems[0].reason).toContain('a+');
   expect(spec.problems[1].reason).toContain('"back"');
   expect(spec.problems[1].reason).toContain('backreference');
+  expect(spec.problems[2].reason).toContain('"overlap"');
+  expect(spec.problems[3].reason).toContain('"optional"');
   expect(spec.patterns.map((p) => p.id)).toEqual(['fine']);
   // the same lines are lint.security-file errors at their lines, and the merged spec carries them
   const lint = lintSnapshot(withFile(text)).findings.filter((f) => f.file === FILE);
-  expect(lint.map((f) => [f.rule, f.level, f.line])).toEqual([['lint.security-file', 'error', 3], ['lint.security-file', 'error', 4]]);
+  expect(lint.map((f) => [f.rule, f.level, f.line])).toEqual([3, 4, 5, 6].map((n) => ['lint.security-file', 'error', n]));
   expect(securitySpec(withFile(text)).patterns.map((p) => p.id)).not.toContain('slow');
   // a line that does not compile is a pattern problem too (it is not in force either)
   const broken = parseSecurityFile('## Patterns\n\n- broken: line /(/ — x\n');

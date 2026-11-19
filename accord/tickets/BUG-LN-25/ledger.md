@@ -11,6 +11,7 @@
 - Ruling: the CLI passes no `exempt` until task 2, so every copy is scanned in between — as the brief orders — none
 - Ruling: `factsFor` memoises the rendered-files getter, so the render runs at most once per command across rounds — as the brief says — one extra closure
 - Ruling: the ac-3 test checks that `.claude/settings.json` is untouched with an allow-list over `git diff --name-only base head` — as the brief orders — none
+- Ruling: every path entry of a security pattern matches ignoring letter case, defaults and team patterns alike, and the template's format comment says so; the copy exemption and the `generated:` skip keep exact matching — the owner chose this to fix final-review finding 2.1 ("A", 2026-11-19, against case-insensitive matching for `agent-config` only and against accepting the risk) — more triggers, never fewer, on a repository whose paths differ only by case
 
 ## Deferred
 - approach 1.1: place the copy read inside the `try` of `securitySections` (review-package, diff-package) so a read failure prints `(cannot tell: …)` — failing case: `git cat-file` fails while reading copies at HEAD and `accord review-package <id>` exits 2 with no package

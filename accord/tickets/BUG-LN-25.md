@@ -29,6 +29,9 @@ related:
 ruleset: "0.8.0"
 approved_hash: "fnv1a64:24c89796a42dec2b"
 ac_hash: "fnv1a64:f2cef17806d9e61c"
+verified_hash: "fnv1a64:f2cef17806d9e61c"
+verified_commit: "5b0e396b6ed0a387835c32d83231fe02b473a4f8"
+verified: [ac-1, ac-2, ac-3, ac-4]
 ---
 
 ## Intent

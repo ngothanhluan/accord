@@ -43,7 +43,7 @@ const files = skillTargets(config);
 
 describe('stage skills name what the spec requires', () => {
   for (const [stage, phrases] of Object.entries(REQUIRED)) {
-    it(`${stage} names every required phrase`, () => {
+    it(`risk:regression ${stage} names every required phrase`, () => {
       const skill = files.find((f) => f.path === '.claude/skills/' + installedName(stage) + '/SKILL.md')?.text ?? '';
       expect(skill.length, stage + '/SKILL.md is missing from the render output').toBeGreaterThan(0);
       // ST-LN-91 plan 03-05: the owner's yes of the approach stage lives in its approval.md, so its phrases are read there too.
@@ -236,7 +236,7 @@ it('ac-5 the accord skill takes the claim branch from the CLI in Continue Pick u
   }
 });
 
-it('ac-4 the accord skill picks up then continues a named ticket and routes any other text by intent', () => {
+it('risk:regression the accord skill picks up then continues a named ticket and routes any other text by intent', () => {
   const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
   const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Onboard'));
   expect(named.length).toBeGreaterThan(0);
@@ -386,7 +386,7 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
 });
 
 // ST-LN-56 D-17 (owner choice 2026-11-16) replaces 'ac-2 a review round with only should findings converges without a re-review': every fix round gets a re-review.
-it('ac-2 every fix round, a Should-only one included, gets a re-review (ST-LN-56 56-ac-2)', () => {
+it('risk:regression every fix round, a Should-only one included, gets a re-review (ST-LN-56 56-ac-2)', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text.replace(/\s+/g, ' ')]));
   const bad: string[] = [];
@@ -431,7 +431,7 @@ it('ac-2 every fix round, a Should-only one included, gets a re-review (ST-LN-56
   expect(bad).toEqual([]);
 });
 
-it('ac-1 record.md and lane S step 4 name the places-checked and re-review marks, in all four tools (ST-LN-56 56-ac-1)', () => {
+it('risk:regression record.md and lane S step 4 name the places-checked and re-review marks, in all four tools (ST-LN-56 56-ac-1)', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text.replace(/\s+/g, ' ')]));
   const bad: string[] = [];
@@ -1519,7 +1519,7 @@ it('risk:regression the worktree reference and the finish report say a session s
   }
 });
 
-it('ac-12 worktree.md tells the agent to do what the line says (ST-LN-69 7-ac-12)', () => {
+it('risk:regression worktree.md tells the agent to do what the line says (ST-LN-69 7-ac-12)', () => {
   for (const dir of ['accord', 'accord-debug', 'accord-verify']) {
     const wt = flatS(`.claude/skills/${dir}/worktree.md`);
     expect(wt.length, dir).toBeGreaterThan(0);
@@ -1661,7 +1661,7 @@ it('risk:regression each stage skill skips its stage when the team turned it off
   expect(missing).toEqual([]);
 });
 
-it('ac-2 the plan, verify and debug skills dispatch resume mode when they find the marker, in every roster (ST-LN-72 72-ac-2)', () => {
+it('risk:regression the plan, verify and debug skills dispatch resume mode when they find the marker, in every roster (ST-LN-72 72-ac-2)', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   const rosters = [all, { ...all, roles: ['ba', 'dev'] } as AccordConfig, ...(['claude', 'codex', 'cursor', 'copilot'] as const).map((r) => ({ ...config, runtimes: [r] }) as AccordConfig)];
   const bad: string[] = [];
@@ -1771,7 +1771,7 @@ const wavesRosters = (): { dir: string; skill: string; waves: string; steps: str
 };
 const lacking = (where: string, text: string, phrases: readonly string[]): string[] => phrases.filter((p) => !text.includes(p)).map((p) => where + ' lacks ' + p);
 
-it('ac-2 the build skill dispatches a wave in batches up to the cap, each in its own worktree, merged and recorded in task order (ST-LN-92 92-ac-2)', () => {
+it('risk:concurrency the build skill dispatches a wave in batches up to the cap, each in its own worktree, merged and recorded in task order (ST-LN-92 92-ac-2)', () => {
   const bad: string[] = [];
   for (const { dir, skill, waves, steps } of wavesRosters()) {
     if (waves === '') {
@@ -1808,7 +1808,7 @@ it('ac-2 the build skill dispatches a wave in batches up to the cap, each in its
   expect(bad).toEqual([]);
 });
 
-it('ac-3 a blocked or refused task does not stop its wave (ST-LN-92 92-ac-3)', () => {
+it('risk:concurrency a blocked or refused task does not stop its wave (ST-LN-92 92-ac-3)', () => {
   const bad: string[] = [];
   for (const { dir, steps } of wavesRosters()) {
     const step = steps.find((s) => s.includes('does not stop the others')) ?? '';
@@ -1825,7 +1825,7 @@ it('risk:regression the executor resolves and stages a stopped rebase conflict w
     expect(exec).toContain(p);
 });
 
-it('ac-4 a generated-only conflict runs build.regenerate, any other a fresh executor, neither stops for the owner (ST-LN-92 92-ac-4)', () => {
+it('risk:concurrency a generated-only conflict runs build.regenerate, any other a fresh executor, neither stops for the owner (ST-LN-92 92-ac-4)', () => {
   const bad: string[] = [];
   for (const { dir, waves, steps } of wavesRosters()) {
     const step = steps.find((s) => s.includes('`conflict:`')) ?? '';
@@ -1922,7 +1922,7 @@ it('risk:data-loss a task stopped by a permission refusal is merged before its t
 });
 
 // ST-LN-83 7-ac-1 (07-04): every skill reference that tells a reader what to type names the new commands, in the render of all four runtimes.
-it('ac-1 no rendered skill reference names an old typed command (ST-LN-83 7-ac-1)', () => {
+it('risk:regression no rendered skill reference names an old typed command (ST-LN-83 7-ac-1)', () => {
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] })
     .filter((f) => f.path.endsWith('.md'))
     .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
@@ -1956,7 +1956,7 @@ it('ac-1 no rendered skill reference names an old typed command (ST-LN-83 7-ac-1
 });
 
 // ST-LN-83 7-ac-3 (07-07, D-05): a review of code or a pull request accord did not build is read-only, takes its reviewers from accord-review's size rule, and posts only on the owner's yes.
-it('ac-3 the foreign review is read-only with lenses by the size rule and posts only on a yes (ST-LN-83 7-ac-3)', () => {
+it('risk:security the foreign review is read-only with lenses by the size rule and posts only on a yes (ST-LN-83 7-ac-3)', () => {
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] })
     .filter((f) => f.path.endsWith('.md'))
     .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
@@ -2001,7 +2001,7 @@ const routedRender = () =>
     .filter((f) => f.path.endsWith('.md'))
     .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
 
-it('ac-2 the routing text maps each intent to its route and says it out loud (ST-LN-83 7-ac-2)', () => {
+it('risk:regression the routing text maps each intent to its route and says it out loud (ST-LN-83 7-ac-2)', () => {
   const all = routedRender();
   const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
   const dir = (p: string) => p.slice(0, p.lastIndexOf('/'));
@@ -2043,7 +2043,7 @@ it('ac-2 the routing text maps each intent to its route and says it out loud (ST
   }
 });
 
-it('ac-2 no skill switches a session between tickets (ST-LN-83 7-ac-2)', () => {
+it('risk:regression no skill switches a session between tickets (ST-LN-83 7-ac-2)', () => {
   const all = routedRender();
   expect(all.length).toBeGreaterThan(100);
   expect(all.filter((f) => f.text.includes('ExitWorktree')).map((f) => f.path)).toEqual([]);
@@ -2060,7 +2060,7 @@ const similarRender = () =>
     .filter((f) => f.path.endsWith('.md'))
     .map((f) => ({ path: f.path, raw: f.text, text: f.text.replace(/\s+/g, ' ') }));
 
-it('ac-5 the new skill judges the candidates and asks one question on a match (ST-LN-22 7-ac-5)', () => {
+it('risk:regression the new skill judges the candidates and asks one question on a match (ST-LN-22 7-ac-5)', () => {
   const all = similarRender();
   const skills = all.filter((f) => f.path.endsWith('/accord-new/SKILL.md'));
   expect(skills.length).toBe(2);
@@ -2103,7 +2103,7 @@ const CREATING = /`accord new ticket[^`]*`/g;
 const onCheckedRoute = (cmd: string): boolean => /--lane\s+(?:S|M|<lane>)(?![\w])|--queue(?![\w-])/.test(cmd) && !cmd.includes('--split');
 const withoutTitle = (text: string): string[] => (text.match(CREATING) ?? []).filter((c) => onCheckedRoute(c) && !c.includes('--title'));
 
-it('ac-5 every skill line that creates a ticket passes a title and judges the candidates (ST-LN-22 7-ac-5)', () => {
+it('risk:regression every skill line that creates a ticket passes a title and judges the candidates (ST-LN-22 7-ac-5)', () => {
   // the check can neither pass vacuously nor flag a line that only maps the command's output
   expect(withoutTitle('run `accord new ticket --type story --lane M` now')).toEqual(['`accord new ticket --type story --lane M`']);
   expect(withoutTitle('`accord new ticket --type epic --lane L --split <file> --queue`')).toEqual([]);
@@ -2149,7 +2149,7 @@ const RELATED = '`accord related <id>`';
 const PASTED = 'what `accord related <id>` printed, verbatim';
 const opensOthers = (text: string): string[] => text.match(/\b(?:open|read|look at)\s+(?:the |all |each |any )?(?:other|related) tickets?\b/gi) ?? [];
 
-it('ac-5 the scout and the critic receive the related tickets decisions (ST-LN-22 7-ac-5)', () => {
+it('risk:regression the scout and the critic receive the related tickets decisions (ST-LN-22 7-ac-5)', () => {
   // the prohibition check can neither pass vacuously nor flag the pasted-block wording
   expect(opensOthers('open the related tickets and read their Decisions')).toHaveLength(1);
   expect(opensOthers('read the other tickets for their vetoes')).toHaveLength(1);
@@ -2186,7 +2186,7 @@ it('ac-5 the scout and the critic receive the related tickets decisions (ST-LN-2
   expect(all.flatMap((f) => opensOthers(f.text).map((m) => f.path + ': ' + m))).toEqual([]);
 });
 
-it('ac-6 the drop steps offer the Rejected line first and pass the flag only on a yes (ST-LN-84 7-ac-6)', () => {
+it('risk:regression the drop steps offer the Rejected line first and pass the flag only on a yes (ST-LN-84 7-ac-6)', () => {
   const OFFER = "`Rejected: <the ticket's title> — <the reason>`";
   for (const dir of ['.claude/skills']) {
     for (const name of ['accord/ids.md', 'accord/route.md', 'accord-new/ids.md', 'accord-new/route.md']) {
@@ -2205,7 +2205,7 @@ it('ac-6 the drop steps offer the Rejected line first and pass the flag only on 
 });
 
 // ST-LN-84 7-ac-6 (07-17, D-10, D-11): one offer procedure in shared/ask.md, rendered beside every stage skill; a line the owner says yes to waits in the ticket ledger's `## Conventions` and reaches conventions.md at verify step 6.
-it('ac-6 every stage offers a rule or Rejected line and records it only on a yes (ST-LN-84 7-ac-6)', () => {
+it('risk:regression every stage offers a rule or Rejected line and records it only on a yes (ST-LN-84 7-ac-6)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const read = (p: string) => files.find((f) => f.path === p)?.text ?? '';
   for (const stage of STAGES) {
@@ -2233,7 +2233,7 @@ it('ac-6 every stage offers a rule or Rejected line and records it only on a yes
 });
 
 // ST-LN-84 7-ac-6 (07-17, D-10): intent and approach name a matching `## Rejected` line before proposing an option; lane S's finish writes the ledger's lines before `accord gate done`.
-it('ac-6 intent and approach name a matching Rejected line before proposing (ST-LN-84 7-ac-6)', () => {
+it('risk:regression intent and approach name a matching Rejected line before proposing (ST-LN-84 7-ac-6)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const read = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
   for (const stage of ['intent', 'approach']) {
@@ -2255,7 +2255,7 @@ it('ac-6 intent and approach name a matching Rejected line before proposing (ST-
 });
 
 // ST-LN-12 7-ac-7 (07-19, D-12): verify shows the ledger's Must and Should deferred items and asks, in one question, which become backlog drafts through the queue route; nothing gates on the rest.
-it('ac-7 verify asks which deferred items go to the backlog through the queue route (ST-LN-12 7-ac-7)', () => {
+it('risk:regression verify asks which deferred items go to the backlog through the queue route (ST-LN-12 7-ac-7)', () => {
   const all = similarRender();
   for (const dir of ['.claude/skills', '.agents/skills']) {
     const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
@@ -2293,7 +2293,7 @@ it('ac-7 verify asks which deferred items go to the backlog through the queue ro
 // researcher agent follows the same rules with its own tools.
 const RESEARCH_FALLBACK = 'When no `accord-researcher` agent is available to you, look the library up yourself with your own tools as `./research.md` says, and write the record the same way.';
 
-it('ac-11 only the discuss step dispatches the researcher and the session writes its record (ST-LN-86 7-ac-11)', () => {
+it('risk:regression only the discuss step dispatches the researcher and the session writes its record (ST-LN-86 7-ac-11)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig);
   const bad: string[] = [];
@@ -2341,7 +2341,7 @@ it('ac-11 only the discuss step dispatches the researcher and the session writes
   expect(bad).toEqual([]);
 });
 
-it('ac-11 a session without the researcher agent follows the same rules (ST-LN-86 7-ac-11)', () => {
+it('risk:regression a session without the researcher agent follows the same rules (ST-LN-86 7-ac-11)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   // the tools that render no agent file: the .agents/skills copy they load carries the sentence
   for (const runtimes of [['codex'], ['cursor'], ['copilot'], ['codex', 'cursor', 'copilot']] as AccordConfig['runtimes'][]) {
@@ -2359,7 +2359,7 @@ it('ac-11 a session without the researcher agent follows the same rules (ST-LN-8
 });
 
 // ST-LN-28 7-ac-10 (07-23, D-15): a lesson that holds for the whole epic is offered at verify and kept only in the story's own ledger; later stories read it from the default branch.
-it('ac-10 verify offers an epic lesson and writes it only to the story\'s own ledger (ST-LN-28 7-ac-10)', () => {
+it('risk:regression verify offers an epic lesson and writes it only to the story\'s own ledger (ST-LN-28 7-ac-10)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const read = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
   for (const stage of STAGES) {
@@ -2382,7 +2382,7 @@ it('ac-10 verify offers an epic lesson and writes it only to the story\'s own le
 });
 
 // ST-LN-28 7-ac-9 (07-25, D-14 and D-16): lane L of accord-new runs one epic interview, shows the split, takes the owner's yes and runs the one split command; no critic is dispatched for the epic.
-it('ac-9 accord-new runs an epic interview and creates the approved split in one step (ST-LN-28 7-ac-9)', () => {
+it('risk:regression accord-new runs an epic interview and creates the approved split in one step (ST-LN-28 7-ac-9)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
   const bad: string[] = [];
@@ -2425,7 +2425,7 @@ it('ac-9 accord-new runs an epic interview and creates the approved split in one
 });
 
 // G-07-4 (D-14): a request of three or more story-sized parts is proposed as lane L, and the router says accord-new proposes S, M or L.
-it('ac-9 accord-new proposes lane L for a request of three or more stories (ST-LN-28 7-ac-9)', () => {
+it('risk:regression accord-new proposes lane L for a request of three or more stories (ST-LN-28 7-ac-9)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
   const bad: string[] = [];
@@ -2444,7 +2444,7 @@ it('ac-9 accord-new proposes lane L for a request of three or more stories (ST-L
 });
 
 // G-07-5 (D-18): the researcher is never dispatched at the lane step of accord-new; it runs once per library at discuss.
-it('ac-11 the lane step of accord-new dispatches no researcher (ST-LN-86 7-ac-11)', () => {
+it('risk:regression the lane step of accord-new dispatches no researcher (ST-LN-86 7-ac-11)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
   const bad: string[] = [];

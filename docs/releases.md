@@ -2,6 +2,10 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- The accord job that `accord init` writes now stops after 15 minutes (`timeout-minutes: 15`), so a stuck run no longer holds the required check for GitHub's six-hour default. `accord upgrade` rewrites only the `lint and gate` step, so a repository whose workflow `accord init` wrote earlier adds `timeout-minutes: 15` under the accord job's `runs-on:` by hand.
+
 ## 0.8.0 — 2026-11-19
 
 Release 0.8.0 ships Phase 7: intent routing for `/accord <text>`, the duplicate check and related-ticket Decisions, the title rule, `/accord-queue` from any session, kept conventions and Rejected offers, the verify deferred question, the read-only researcher, lane L (epics and their stories), the read-only foreign-PR reviewer, and next-action lines on worktree commands (the bullets below). Tickets in flight: the two new rules with a cut-off, the title rule (`gate.ticket-title`, `lint.ticket-title`, `TITLE_RULE_FROM`) and the large-plan warning of `gate plan` (`PLAN_LARGE_FROM`), both 0.8.0, judge only a ticket claimed (or, for lint, created) under 0.8.0 or later, so no existing ticket is refused for its title or warned for its plan size. Everything else applies to every ticket once its repository pins 0.8.0. Pinned repositories: the new skills, agents (`accord-researcher`, `accord-foreign-reviewer`) and hook matcher reach a repository with `accord upgrade`, which moves the pin and regenerates them; `queue.merge` stays `owner` until a team sets it, and `titles` takes its defaults when absent. A repository pinned to 0.7.x keeps its 0.7.x answers, skills and hooks until then.

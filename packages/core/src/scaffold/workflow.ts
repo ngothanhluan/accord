@@ -85,6 +85,7 @@ jobs:
   accord:
     name: ${ACCORD_CHECK_NAME}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:

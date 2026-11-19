@@ -72,6 +72,10 @@ Feature: BUG-LN-24
 - D-01 Fix both refusals, the changed plan and the plan with no plan_hash — "Both sentences"
 - D-02 The work is one plan task — "1 task"
 - D-03 Neither refusal contains the words "accord gate plan"; it names the skill step instead — "A: it does not contain those words"
+- D-04 Each refusal writes its way out in full: "plan.md changed since its plan_hash was recorded: show the owner the diff of plan.md; if the owner made the change, accord-plan reviews it; otherwise restore plan.md with the owner's yes" and "plan.md has no plan_hash: the plan stage has not finished; go back to accord-plan", with no ticket id — "Write it all in the sentence"
+- D-05 Only the code and its tests change; the build and plan skills and the old records that quote the message stay as they are — "No, only code + test"
+- D-06 The check is a case-sensitive absence of "accord gate plan" in the joined reasons — "Absence of the phrase 'accord gate plan'"
+- D-07 ac-1 and ac-2 are proved by two core tests replacing "taskVerdict plan hash" in packages/core/test/task.test.ts; ac-3 by the existing CLI test in packages/cli/test/lane-commands.test.ts, renamed with an ac-3 id — "Core for AC1-2, the existing CLI test for AC3"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

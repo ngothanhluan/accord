@@ -99,6 +99,42 @@ export function initialsHolder(
   return undefined;
 }
 
+// the schema's own patterns for a people entry (packages/core/schemas/config.schema.json): a hostile branch cannot hand out other initials
+const PEOPLE_KEY = /^[^@\s]+@[^@\s]+$/;
+const PEOPLE_INITIALS = /^[A-Z]{2,4}$/;
+
+/**
+ * G-07-2 (A-2): the creator's people entry as the refs list it, when this checkout does not. The default ref wins whenever it
+ * lists the email; otherwise every other ref that lists it must give the same initials (the first in sorted order is returned),
+ * else the refs and initials in conflict, sorted by ref. An entry whose key or initials break the schema patterns counts as
+ * not listing. Keys compare without case; the key returned is spelled as the ref spells it.
+ */
+export function initialsOnRefs(
+  email: string,
+  byRef: Record<string, Record<string, string>>,
+  defaultRef: string | undefined,
+): { key: string; initials: string; ref: string } | { conflict: { ref: string; initials: string }[] } | undefined {
+  const want = email.toLowerCase();
+  const entryOf = (map: Record<string, string> | undefined): { key: string; initials: string } | undefined => {
+    for (const key of Object.keys(map ?? {})) {
+      const initials = map?.[key];
+      if (initials !== undefined && PEOPLE_KEY.test(key) && key.toLowerCase() === want && PEOPLE_INITIALS.test(initials)) return { key, initials };
+    }
+    return undefined;
+  };
+  const def = defaultRef === undefined ? undefined : entryOf(byRef[defaultRef]);
+  if (defaultRef !== undefined && def !== undefined) return { ...def, ref: defaultRef };
+  const hits: { ref: string; key: string; initials: string }[] = [];
+  for (const ref of Object.keys(byRef).sort()) {
+    if (ref === defaultRef) continue;
+    const hit = entryOf(byRef[ref]);
+    if (hit !== undefined) hits.push({ ref, ...hit });
+  }
+  if (hits.length === 0) return undefined;
+  if (hits.every((h) => h.initials === hits[0].initials)) return { key: hits[0].key, initials: hits[0].initials, ref: hits[0].ref };
+  return { conflict: hits.map((h) => ({ ref: h.ref, initials: h.initials })) };
+}
+
 /** ST-LN-50 D-05 tracker mode: a Jira project key or Linear team key, a hyphen, then the issue number (bounded, no leading zero). */
 export const TRACKER_KEY = /^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}$/;
 

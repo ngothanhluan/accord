@@ -8,7 +8,8 @@ import { insertTeamSections, nextTicketId, parseSplit, setFrontmatterKey, simila
 import type { Lane, Split } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
-import { creatorInitials, ID, parseRelated, PLACEHOLDER, printable, refuseBadConfig, refuseUnknown, usedIds, withDefaultBranch } from './ticket-shared.js';
+import { creatorEntry, ID, parseRelated, PLACEHOLDER, printable, refuseBadConfig, refuseUnknown, usedIds, withDefaultBranch } from './ticket-shared.js';
+import type { Creator } from './ticket-shared.js';
 import { queueTicket, utcDate } from './queue.js';
 import { fetchOrigin, guardTicketSession } from './worktree.js';
 
@@ -113,11 +114,13 @@ export function writeSplit(ctx: CommandContext, split: Split, options: { queue?:
   const given = [split.id, ...split.stories.map((s) => s.id)];
   const used = usedIds(ctx);
   const epicStory: string[] = [];
+  let creator: Creator | undefined;
   if (assigns) {
     if (given.some((g) => g !== undefined)) {
       throw new UsageError('the split file gives an id, but accord assigns ids while accord/config.yml has ' + (people !== undefined ? 'people' : 'ids') + ' - remove the id lines' + NOTHING);
     }
-    const initials = creatorInitials(ctx);
+    creator = creatorEntry(ctx);
+    const initials = creator?.initials;
     for (const type of ['epic', ...split.stories.map(() => 'story' as const)] as const) {
       const id = nextTicketId(type, initials, used, idsConfig);
       used.push(id);
@@ -175,7 +178,7 @@ export function writeSplit(ctx: CommandContext, split: Split, options: { queue?:
   ctx.stdout.write(titleRuleLine(config) + '\n');
   if (options.queue === true) {
     // ST-LN-28 D-14: the epic and every story are one commit on one backlog branch, named for the epic; the paths follow the queue lines, in file order
-    const code = queueTicket(ctx, epicId, files, utcDate());
+    const code = queueTicket(ctx, epicId, files, utcDate(), creator);
     for (const rel of Object.keys(files)) ctx.stdout.write(rel + '\n');
     return code;
   }

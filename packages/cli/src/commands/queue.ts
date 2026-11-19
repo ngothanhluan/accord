@@ -1,12 +1,15 @@
 // ST-LN-83 D-03, D-06 `accord new ticket --queue`: put the draft ticket on a new branch backlog/<id>-<date> made from origin's
-// default branch, in a temporary worktree, and push it. Nothing of the checkout the command runs in is read or written
-// after the load, so it works from inside a ticket session: that ticket's branch, HEAD, working tree and worktrees stay as they were.
+// default branch, in a temporary worktree, and push it. G-07-2 (A-1): when origin's default branch has a people mapping that does not list the
+// creator, the same commit holds one added people line in accord/config.yml. Nothing of the checkout the command runs in is written: HEAD's
+// config.yml is only read, to tell the session whether an uncommitted entry is left to remove, so it works from inside a ticket session:
+// that ticket's branch, HEAD, working tree and worktrees stay as they were.
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { lintSnapshot, loadSnapshot, renderSubject } from '@accord-dev/accord-core';
-import { gitDefaultRef, loadRefInput, UsageError } from '../load/fs.js';
+import { addPersonEntry, lintSnapshot, loadSnapshot, peopleOf, renderSubject } from '@accord-dev/accord-core';
+import { gitDefaultRef, gitFilesAt, loadRefInput, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
+import type { Creator } from './ticket-shared.js';
 import { git, gitNoPrompt, gitOk } from './worktree.js';
 
 const NOTHING = ' - nothing was created';
@@ -30,12 +33,18 @@ export function forgetRegistration(root: string, wt: string): void {
   }
 }
 
+const listsKey = (people: Record<string, string> | undefined, key: string): boolean =>
+  people !== undefined && Object.keys(people).some((k) => k.toLowerCase() === key.toLowerCase());
+
 /**
  * Write each text of `files` (a path under accord/tickets/ and its text) on `backlog/<id in lower case>-<date>`, one commit over origin's default
  * branch, and push that commit. A single ticket passes one file; an epic and its stories (ST-LN-28 D-14) pass them all, `id` being the epic's.
- * Prints the branch, the base, the subject and the `queue.merge` setting, which the `/accord-queue` command acts on (D-02, D-03).
+ * The commit also holds the `creator`'s people entry, added to the default branch's accord/config.yml, when that file has a people mapping
+ * that does not list the creator (G-07-2 A-1); a default branch with no people mapping gets none, so the queue never switches the id convention on.
+ * Prints the branch, the base, the subject and the `queue.merge` setting, which the `/accord-queue` command acts on (D-02, D-03), then a `people:` line
+ * about the creator's entry.
  */
-export function queueTicket(ctx: CommandContext, id: string, files: Record<string, string>, date: string = utcDate()): number {
+export function queueTicket(ctx: CommandContext, id: string, files: Record<string, string>, date: string = utcDate(), creator?: Creator): number {
   const rels = Object.keys(files);
   const root = ctx.root;
   if (!gitOk(root, ['remote', 'get-url', 'origin'])) throw new UsageError('no origin remote - accord new ticket --queue pushes the draft there' + NOTHING);
@@ -74,6 +83,32 @@ export function queueTicket(ctx: CommandContext, id: string, files: Record<strin
     input.files[rel] = files[rel];
     if (!input.tree.includes(rel)) input.tree.push(rel);
   }
+  // G-07-2 A-1: the creator's entry joins the commit when the default branch has a people mapping that lacks it; the lint below reads the edited file
+  let config: string | undefined;
+  let noMapping = false;
+  let removeHere = false;
+  if (creator !== undefined) {
+    const text = input.files['accord/config.yml'];
+    const old = text === undefined ? undefined : peopleOf(text);
+    if (text === undefined || old === undefined) noMapping = true;
+    else if (!listsKey(old, creator.key)) {
+      config = addPersonEntry(text, creator.key, creator.initials);
+      if (config === undefined) {
+        throw new UsageError(
+          `could not add ${JSON.stringify(creator.key)}: ${creator.initials} under people in accord/config.yml of ${short} - add it there, then try again` + NOTHING,
+        );
+      }
+      input.files['accord/config.yml'] = config;
+      let committed = false;
+      try {
+        const head = gitFilesAt(root, 'HEAD', ['accord/config.yml'])['accord/config.yml'];
+        committed = head !== undefined && listsKey(peopleOf(head), creator.key);
+      } catch {
+        // no readable HEAD config counts as not committed
+      }
+      removeHere = listsKey(ctx.snapshot.config?.people, creator.key) && !committed;
+    }
+  }
   const errors = lintSnapshot(loadSnapshot(input)).findings.filter((f) => f.level === 'error');
   if (errors.length > 0) {
     throw new UsageError(
@@ -93,7 +128,12 @@ export function queueTicket(ctx: CommandContext, id: string, files: Record<strin
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, files[rel]);
     }
-    git(wt, ['add', '--', ...rels]);
+    const written = [...rels];
+    if (config !== undefined) {
+      writeFileSync(join(wt, 'accord', 'config.yml'), config);
+      written.push('accord/config.yml');
+    }
+    git(wt, ['add', '--', ...written]);
     // no hook: the repository's own commit hook has no installed dependencies in a throwaway folder, and accord linted the draft above
     git(wt, ['commit', '-q', '--no-verify', '-m', subject]);
     sha = git(wt, ['rev-parse', 'HEAD']).trim();
@@ -114,5 +154,11 @@ export function queueTicket(ctx: CommandContext, id: string, files: Record<strin
     throw new UsageError(`the draft is committed as ${sha} but the push failed: ${firstLine(err)} - push it with git push origin ${sha}:refs/heads/${branch}`);
   }
   ctx.stdout.write(`branch: ${branch}\nbase: ${short}\ntitle: ${subject}\nmerge: ${ctx.snapshot.config?.queue?.merge ?? 'owner'}\n`);
+  if (config !== undefined && creator !== undefined) {
+    const clause = removeHere ? '; remove this entry, and only it, from accord/config.yml here, leaving every other line as it is' : '';
+    ctx.stdout.write(`people: ${JSON.stringify(creator.key)}: ${creator.initials} - committed with the draft${clause}\n`);
+  } else if (noMapping) {
+    ctx.stdout.write("people: no entry committed - origin's default branch has no people mapping, and the queue never creates one\n");
+  }
   return 0;
 }

@@ -3,7 +3,7 @@
 // out of new-ticket.ts unchanged so split.ts can use them without importing new-ticket.ts, which imports split.ts.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_PATTERN, initialsHolder, initialsOf, loadSnapshot, similarTickets, ticketFacts } from '@accord-dev/accord-core';
+import { DEFAULT_PATTERN, initialsHolder, initialsOnRefs, loadSnapshot, similarTickets, ticketFacts } from '@accord-dev/accord-core';
 import { doneRef, gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, loadRefInput, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 
@@ -45,44 +45,76 @@ export const usedIds = (ctx: CommandContext): string[] => [
   ...gitTicketIdsInHistory(ctx.root),
 ];
 
+/** The creator's people entry: the key as it is spelled where it was found, and the initials. */
+export interface Creator {
+  key: string;
+  initials: string;
+}
+
+const shortRef = (ref: string): string => ref.replace(/^refs\/(?:remotes|heads)\//, '');
+
 /**
- * ST-LN-50 D-05: the creator's initials for an id pattern that holds {initials}, after the checks that keep them unique and the
- * ticket numbers visible; undefined (after the shallow-clone check) for a pattern without them.
+ * ST-LN-50 D-05, G-07-2 A-2: the creator's people entry for an id pattern that holds {initials}, after the checks that keep initials unique and the
+ * ticket numbers visible; undefined (after the shallow-clone check) for a pattern without them. When this checkout's people does not list the git
+ * email, or has no people at all, the entry comes from origin's default branch, else from the local and fetched branches when every one that lists
+ * the email agrees; branches that disagree refuse. Initials another email holds on any branch are refused whichever way the entry was found.
  */
-export function creatorInitials(ctx: CommandContext): string | undefined {
+export function creatorEntry(ctx: CommandContext): Creator | undefined {
   const people = ctx.snapshot.config?.people;
   const ids = ctx.snapshot.config?.ids;
   // a pattern holding {initials} keeps the people flow; one without it needs no people table and no email
-  if ((ids?.pattern ?? DEFAULT_PATTERN).includes('{initials}')) {
-    if (people === undefined) {
-      throw new UsageError('ids.pattern has {initials} but accord/config.yml has no people - add people, or drop {initials} from ids.pattern');
-    }
-    const email = gitUserEmail(ctx.root);
-    if (email === '') {
-      throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>, then register it under people in accord/config.yml');
-    }
-    const initials = initialsOf(people, email);
-    if (initials === undefined) {
-      throw new UsageError(
-        email + ' is not registered - add "' + email + '": <INITIALS> (2 to 4 capital letters) under people in accord/config.yml, or ask /accord to register you',
-      );
-    }
+  if (!(ids?.pattern ?? DEFAULT_PATTERN).includes('{initials}')) {
     if (gitIsShallow(ctx.root)) {
       throw new UsageError('this clone is shallow, so ticket numbers already used cannot be seen - run git fetch --unshallow, then try again');
     }
-    const { byRef, defaultRef } = gitPeopleOnRefs(ctx.root);
-    const holder = initialsHolder(initials, email, byRef, defaultRef);
-    if (holder !== undefined) {
+    return undefined;
+  }
+  const email = gitUserEmail(ctx.root);
+  const noPeople = new UsageError('ids.pattern has {initials} but accord/config.yml has no people - add people, or drop {initials} from ids.pattern');
+  if (people === undefined && email === '') throw noPeople;
+  if (email === '') {
+    throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>, then register it under people in accord/config.yml');
+  }
+  // one read of every ref's people per run: the lookup below and the holder check share it
+  let read: ReturnType<typeof gitPeopleOnRefs> | undefined;
+  const onRefs = (): ReturnType<typeof gitPeopleOnRefs> => (read ??= gitPeopleOnRefs(ctx.root));
+  const own = people === undefined ? undefined : Object.keys(people).find((k) => k.toLowerCase() === email.toLowerCase());
+  let creator: Creator;
+  if (people !== undefined && own !== undefined) {
+    creator = { key: own, initials: people[own] };
+  } else {
+    const { byRef, defaultRef } = onRefs();
+    const hit = initialsOnRefs(email, byRef, defaultRef);
+    if (hit !== undefined && 'conflict' in hit) {
       throw new UsageError(
-        'initials ' + initials + ' already belong to ' + holder + ' on another branch - choose other initials for ' + email + ' in accord/config.yml',
+        email +
+          ' has different initials on other branches (' +
+          hit.conflict.map((c) => shortRef(c.ref) + ': ' + c.initials).join(', ') +
+          ') and none here or on the default branch - add the initials to keep under people in accord/config.yml - nothing was written',
       );
     }
-    return initials;
+    if (hit === undefined) {
+      if (people === undefined) throw noPeople;
+      throw new UsageError(
+        email +
+          ' is not registered in accord/config.yml here, on the default branch or on any fetched branch - add "' +
+          email +
+          '": <INITIALS> (2 to 4 capital letters) under people in accord/config.yml, or ask /accord to register you',
+      );
+    }
+    creator = { key: hit.key, initials: hit.initials };
   }
   if (gitIsShallow(ctx.root)) {
     throw new UsageError('this clone is shallow, so ticket numbers already used cannot be seen - run git fetch --unshallow, then try again');
   }
-  return undefined;
+  const { byRef, defaultRef } = onRefs();
+  const holder = initialsHolder(creator.initials, email, byRef, defaultRef);
+  if (holder !== undefined) {
+    throw new UsageError(
+      'initials ' + creator.initials + ' already belong to ' + holder + ' on another branch - choose other initials for ' + email + ' in accord/config.yml',
+    );
+  }
+  return creator;
 }
 
 /** ST-LN-22 D-08: `--related` as a list of ticket ids: undefined when absent, empty for `none`; an entry that is no ticket id is refused, a repeated one is kept once. */

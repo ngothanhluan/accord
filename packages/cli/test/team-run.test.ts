@@ -71,6 +71,28 @@ it('risk:complex-branching output over maxBuffer is reported, not thrown (ST-LN-
   expect(r.code).not.toBe(0);
 });
 
+// 8-ac-6 (D-11): the report of a stopped command waits for its tree kill. `killDelayMs` is the runner's test seam: it holds the kill's completion back, as a slow
+// `taskkill /T /F` does on Windows, while the kill itself is still sent at once. The shell's pipes close right after the kill is sent, so a runner that reports
+// at `close` is back almost as early as without the delay; one that joins the kill is back at least as late as the delay.
+it('risk:resource a stopped team command is reported only after its tree kill has finished (8-ac-6)', () => {
+  const big = "process.stdout.write('x'.repeat(200000)); setTimeout(() => {}, 20000);";
+  const timed = (killDelayMs?: number): number => {
+    const t0 = Date.now();
+    const r = runTeamCommand(fixture(`kill-order-${killDelayMs ?? 0}.mjs`, big), {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 20_000,
+      maxBuffer: 1024,
+      ...(killDelayMs === undefined ? {} : { killDelayMs }),
+    });
+    expect(r.oversize).toBe(true);
+    return Date.now() - t0;
+  };
+  const plain = timed();
+  const slowKill = timed(2000);
+  expect(slowKill - plain).toBeGreaterThanOrEqual(1500);
+}, 60_000);
+
 /** A script that starts a long-lived child in `folder` (so the child holds it as its cwd), records the child's pid, then does `then`. */
 function treeScript(folder: string, pidFile: string, then: string): string {
   const path = join(folder, 'tree.mjs').replaceAll('\\', '/');

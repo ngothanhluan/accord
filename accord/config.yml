@@ -20,6 +20,10 @@ tests:
   full: npx vitest run --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml
 review:
   mode: outcome
+# Phase 8 D-05: in this repository a test that names no scenario's @test:, carries no risk: and is not in the baseline fails CI; other repositories keep the warning, since their gate done refuses it.
+strictness:
+  levels:
+    lint.test-untraced: error
 # ST-LN-47 D-01, D-02: benchmark round 1 raised the auditor; the scout moves to sonnet
 # unmeasured, and ST-LN-46 measures it before any default in AGENT_DEFAULTS changes.
 # Owner 2026-10-25: the executor runs sonnet at high, since medium left more defects for review to catch.

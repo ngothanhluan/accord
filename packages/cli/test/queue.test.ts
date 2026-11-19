@@ -4,7 +4,7 @@
 import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { forgetRegistration } from '../src/commands/queue.js';
 import { gitRun, run } from './helpers/repo.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
@@ -19,6 +19,29 @@ vi.mock('../src/commands/fetch-limit.js', async (orig) => {
   return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs) };
 });
 
+// The OS temp directory is shared with the test files that run beside this one: similar-create and split-create run the same queue command and
+// make accord-queue- folders in it. This file therefore works under a temp parent of its own: tmpdir() reads TMPDIR, TEMP and TMP when it is
+// called, in the tests, the helpers and the command alike, so the sandboxes and the queue's folder all land in `own`. The stub is set before
+// useSandboxes makes its template and again before each test, because useSandboxes unstubs the environment after each one (vitest forks one
+// process per file, so the stub reaches no other file).
+let realTmp = '';
+let own = '';
+const stubTmp = (): void => {
+  vi.stubEnv('TMPDIR', own);
+  vi.stubEnv('TEMP', own);
+  vi.stubEnv('TMP', own);
+};
+beforeAll(() => {
+  realTmp = tmpdir();
+  own = mkdtempSync(join(realTmp, 'p8-own-tmp-'));
+  stubTmp();
+});
+beforeEach(stubTmp);
+afterAll(() => {
+  vi.unstubAllEnvs();
+  rmSync(own, { recursive: true, force: true, maxRetries: 5 });
+});
+
 useSandboxes([{ tickets: ['ST-9', 'ST-10'] }]);
 
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -29,7 +52,6 @@ const lines = (s: string): string[] => s.split('\n').filter((l) => l !== '');
 const between = (text: string, from: string, to: string): string => text.slice(text.indexOf(from) + from.length, text.indexOf(to));
 
 it('ac-4 queue writes a draft on a backlog branch and leaves the session ticket untouched (ST-LN-83 7-ac-4)', async () => {
-  const realTmp = tmpdir();
   const decoys: string[] = [];
   try {
     const c = copy({ tickets: ['ST-9', 'ST-10'] });
@@ -45,7 +67,7 @@ it('ac-4 queue writes a draft on a backlog branch and leaves the session ticket 
     ];
     const before = state();
     const folders = tempFolders();
-    // a parallel test file (similar-create, split-create) makes its own accord-queue- folder in the shared temp directory while this test runs
+    // a parallel test file makes its own accord-queue- folder in the real temp directory while this test runs; it must not reach the listing
     decoys.push(mkdtempSync(join(realTmp, 'accord-queue-')));
     const first = today();
 
@@ -92,7 +114,7 @@ it('ac-4 queue writes a draft on a backlog branch and leaves the session ticket 
     expect(plain.err.startsWith('this session works')).toBe(true);
     expect(state()).toEqual(before);
   } finally {
-    for (const d of decoys) rmSync(d, { recursive: true, force: true });
+    for (const d of decoys) rmSync(d, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 180_000);
 

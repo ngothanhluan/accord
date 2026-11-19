@@ -9,5 +9,12 @@ Nice 3 [patch]: the ac-3 test's in-process `withSecurityFacts` with the real ren
 
 ## Round 2 head 930e4883f1ef056dae2079d8539c298e9d78d1d0 (final review)
 
-Should 1 [patch]: the `agent-config` path pattern matches only the exact letter case, so a root `.MCP.json` or `.Claude/settings.json`, which a case-insensitive file system (Windows, default macOS) opens as the agent's configuration, raises no trigger — packages/core/src/security/match.ts:183 — fixed in eab4714b — risk: security — command: securityTriggers(DEFAULT_SECURITY, <diff adding .MCP.json>, ['.MCP.json'], { generated: [] }) returns [] — rests on: Intent "any change to `.claude/settings.json` or `.mcp.json` calls the security reviewer" — checked: packages/core/src/security/match.ts:183, packages/core/src/security/match.ts:217, packages/core/src/security/match.ts:239, packages/core/src/gate/scope.ts:32, packages/core/src/security/spec.ts:93, packages/core/templates/security.md:3
+Should 1 [patch]: the `agent-config` path pattern matches only the exact letter case, so a root `.MCP.json` or `.Claude/settings.json`, which a case-insensitive file system (Windows, default macOS) opens as the agent's configuration, raises no trigger — packages/core/src/security/match.ts:183 — fixed in eab4714b — addressed: packages/core/src/security/match.ts:184 — risk: security — command: securityTriggers(DEFAULT_SECURITY, <diff adding .MCP.json>, ['.MCP.json'], { generated: [] }) returns [] — rests on: Intent "any change to `.claude/settings.json` or `.mcp.json` calls the security reviewer" — checked: packages/core/src/security/match.ts:183, packages/core/src/security/match.ts:217, packages/core/src/security/match.ts:239, packages/core/src/gate/scope.ts:32, packages/core/src/security/spec.ts:93, packages/core/templates/security.md:3
 Nice 2 [patch]: the ac-3 test reads changed paths from git line by line instead of NUL-separated, against the repository convention — packages/cli/test/security-gate.test.ts:825 — deferred
+
+## Round 3 head eab4714b1439db2de1417963475e4eab677d08c5
+
+Security: no pattern matched
+No findings
+
+verdict: converged

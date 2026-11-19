@@ -169,7 +169,7 @@ it('ac-4 queue refuses an existing backlog branch and pushes nothing (ST-LN-83 7
   }
 }, 180_000);
 
-it('ac-4 queue merge follows config (ST-LN-83 7-ac-4)', async () => {
+it('risk:complex-branching queue merge follows config: the queue path prints the merge line and keeps the last good value (ST-LN-83 7-ac-4)', async () => {
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
   const queue = (id: string) => run(['new', 'ticket', id, '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'an idea'], c.root);
   const mergeLine = (out: string): string | undefined => lines(out).find((l) => l.startsWith('merge: '));

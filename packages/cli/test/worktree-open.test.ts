@@ -320,7 +320,7 @@ it('risk:parsing an invalid config in the new worktree stops setup, writes no do
   expect(existsSync(`${dir}/accord-setup-done`)).toBe(false);
 });
 
-it('ac-1 the CLI messages name the new commands (ST-LN-83 7-ac-1)', async () => {
+it('risk:regression the CLI messages name the new commands in the worktree open refusal (ST-LN-83 7-ac-1)', async () => {
   const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
   const o = teammate(c);
   gitRun(o, 'switch', '-q', '-c', 't/ST-9', 'main');

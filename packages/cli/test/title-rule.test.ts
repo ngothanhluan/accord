@@ -39,7 +39,7 @@ it('D-08b accord new ticket refuses a title that breaks the rule (ST-LN-22 D-08b
 const lines = (s: string): string[] => s.split('\n').filter((l) => l !== '');
 const RULE = 'title rule: English, in business language: what the reader gets, not how the code changes; at most 80 characters; English letters only';
 
-it('D-08b the title rule comes from config.yml and is printed at creation (ST-LN-22 D-08b)', async () => {
+it('risk:parsing the title rule comes from config.yml and is printed at creation (ST-LN-22 D-08b 7-ac-5)', async () => {
   const repo = sandbox();
   // a creation given --title prints the rule line once, before the path
   const ok = await run(['new', 'ticket', 'N-1', '--lane', 'M', '--title', 'Export reports to CSV', '--related', 'none'], repo);

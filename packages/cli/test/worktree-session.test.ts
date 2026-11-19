@@ -321,7 +321,7 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
 
 const mainOf = (c: { git: (...a: string[]) => string }): string => c.git('worktree', 'list', '--porcelain').split('\n')[0].slice('worktree '.length);
 
-it('ac-4 a ticket session refuses continue of another ticket with the line to open its session (ST-LN-83 7-ac-4)', async () => {
+it('risk:complex-branching worktree open --continue in a ticket session refuses continue of another ticket with the line to open its session (ST-LN-83 7-ac-4)', async () => {
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
   const sib = c.sibling('ST-9');
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
@@ -342,7 +342,7 @@ it('ac-4 a ticket session refuses continue of another ticket with the line to op
   expect(existsSync(holdsFile(c))).toBe(false);
 });
 
-it('ac-4 a ticket session lets a question and a queued idea through (ST-LN-83 7-ac-4)', async () => {
+it('risk:complex-branching the CLI guard of a ticket session lets a question and a queued idea through (ST-LN-83 7-ac-4)', async () => {
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
   const sib = c.sibling('ST-9');
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');

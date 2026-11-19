@@ -21,7 +21,7 @@ describe('the title rule', () => {
 });
 
 describe('the title rule from config.yml', () => {
-  it('D-08b the title rule comes from config.yml and is printed at creation (ST-LN-22 D-08b)', () => {
+  it('risk:parsing the title rule comes from config.yml and its line is built from it (ST-LN-22 D-08b 7-ac-5)', () => {
     const config = { titles: { max_length: '100', language: 'any' as const } };
     // the 81-character title and a letter outside English are fine under this team's rule
     expect(titleProblem('x'.repeat(81), config)).toBeUndefined();

@@ -281,7 +281,7 @@ it('risk:data-loss accord config set stores a quoted command and a backslash pat
 
 // ST-LN-83 D-03: `queue.merge` decides whether /accord-queue merges its pull request at once; it is edited through accord config
 // like any dotted key, and a value other than owner or at-once is refused with the file untouched.
-it('ac-4 queue merge follows config (ST-LN-83 7-ac-4)', async () => {
+it('risk:parsing queue merge follows config: accord config edits queue.merge and refuses any other value (ST-LN-83 7-ac-4)', async () => {
   const repo = sandbox();
   const set = await run(['config', 'set', 'queue.merge', 'at-once'], repo);
   expect(set.err).toBe('');

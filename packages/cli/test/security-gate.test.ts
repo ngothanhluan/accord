@@ -44,6 +44,7 @@ function claimed(o: { lane?: 'M' | 'S'; claim?: string; base?: Record<string, st
     'accord/tickets/T-1.md': lane === 'S' ? laneTicket('T-1', { lane: 'S', body: LANE_S_BODY }) : laneTicket('T-1'),
     'src/run.ts': RUN_BASE,
     'src/plain.ts': 'export const a = 0;\n',
+    ...o.base,
   });
   const base = commitMsg(repo, 'base');
   gitRun(repo, 'branch', '-M', 'main');

@@ -620,7 +620,7 @@ it('risk:security a backtracking team line pattern is refused at read with its l
     '## Patterns',
     '',
     '- slow: line /(a+)+$/ — a pattern that can hang',
-    '- back: line /(a+)\1/ — a backreference',
+    '- back: line /(a+)\\1/ — a backreference',
     '- fine: line /\bfoo\b/ — a safe pattern',
     '',
   ].join('\n');

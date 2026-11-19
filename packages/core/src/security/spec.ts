@@ -4,6 +4,7 @@ import { templates } from '../generated/templates.js';
 import { scan, stripHtmlComments } from '../load/sections.js';
 import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { backtrackProblem } from './backtrack.js';
 
 export interface SecurityPattern {
   id: string;
@@ -29,8 +30,8 @@ export interface SecuritySpec {
   checklist: SecurityCheck[];
   /** the ids named by `- Removed: <id> — <reason>` lines. */
   removed: { id: string; reason: string; line: number }[];
-  /** a list line that does not read; it is never a pattern, a check or a removal. */
-  problems: { line: number; reason: string }[];
+  /** a list line that does not read; it is never a pattern, a check or a removal. `pattern` marks a line of `## Patterns`: a team pattern that is not in force (D-10). */
+  problems: { line: number; reason: string; pattern?: true }[];
 }
 
 const ID = '[a-z0-9][a-z0-9-]*';
@@ -65,38 +66,40 @@ export function parseSecurityFile(text: string): SecuritySpec {
   const spec: SecuritySpec = { patterns: [], checklist: [], removed: [], problems: [] };
   const seen = new Set<string>();
   const problem = (line: number, reason: string) => spec.problems.push({ line, reason });
+  // a problem of a `## Patterns` line means a team pattern is not in force; the gate reads it (D-10)
+  const patternProblem = (line: number, reason: string) => spec.problems.push({ line, reason, pattern: true });
   const isListLine = (t: string) => t.startsWith('- ');
 
   for (const { line, text: raw } of sectionLines(sections, 'patterns')) {
     const t = raw.trimEnd();
     if (!isListLine(t)) continue;
     if (t.length > MAX_LINE) {
-      problem(line, `a pattern line is longer than ${MAX_LINE} characters`);
+      patternProblem(line, `a pattern line is longer than ${MAX_LINE} characters`);
       continue;
     }
     const m = PATTERN.exec(t);
     if (m === null) {
       const bad = idProblem(t);
       if (bad !== undefined) {
-        problem(line, bad);
+        patternProblem(line, bad);
         continue;
       }
-      problem(line, 'not a pattern: write "- <id>: path <entry>[, <entry>…] — <what it guards>" or "- <id>: line /<regex>/[i] — <what it guards>"');
+      patternProblem(line, 'not a pattern: write "- <id>: path <entry>[, <entry>…] — <what it guards>" or "- <id>: line /<regex>/[i] — <what it guards>"');
       continue;
     }
     const [, id, kind, spec_, label] = m;
     if (seen.has(id)) {
-      problem(line, `the id "${id}" is used twice`);
+      patternProblem(line, `the id "${id}" is used twice`);
       continue;
     }
     if (kind === 'path') {
       const entries = spec_.split(',').map((e) => e.trim());
       if (entries.some((e) => e === '' || /\s/.test(e))) {
-        problem(line, `"${id}": a path entry is empty or holds a space`);
+        patternProblem(line, `"${id}": a path entry is empty or holds a space`);
         continue;
       }
       if (entries.some((e) => /[*?[]/.test(e))) {
-        problem(line, `"${id}": a path entry holds *, ? or [; there is no glob, an entry ending in / is a folder`);
+        patternProblem(line, `"${id}": a path entry holds *, ? or [; there is no glob, an entry ending in / is a folder`);
         continue;
       }
       seen.add(id);
@@ -106,13 +109,18 @@ export function parseSecurityFile(text: string): SecuritySpec {
     const r = LINE_SPEC.exec(spec_.trim());
     if (r === null) {
       const f = ANY_FLAGS.exec(spec_.trim());
-      problem(line, f === null ? `"${id}": a line pattern is /<regex>/ with the optional flag i` : `"${id}": the flag "${f[2]}" is not allowed; the only flag is i`);
+      patternProblem(line, f === null ? `"${id}": a line pattern is /<regex>/ with the optional flag i` : `"${id}": the flag "${f[2]}" is not allowed; the only flag is i`);
       continue;
     }
     try {
       new RegExp(r[1], r[2]);
     } catch (e) {
-      problem(line, `"${id}": the regex does not compile: ${e instanceof Error ? e.message : String(e)}`);
+      patternProblem(line, `"${id}": the regex does not compile: ${e instanceof Error ? e.message : String(e)}`);
+      continue;
+    }
+    const slow = backtrackProblem(r[1], r[2]);
+    if (slow !== undefined) {
+      patternProblem(line, `"${id}": the regex can be very slow on some lines: ${slow}`);
       continue;
     }
     seen.add(id);

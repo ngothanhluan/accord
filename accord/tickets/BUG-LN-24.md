@@ -45,21 +45,21 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BUG-LN-24
 
-  @ac-1
+  @ac-1 @test:packages/core/test/task.test.ts#ac-1-a-plan-edited-after-it-passed-the-gate-is-refused-with-the-build-skill-way-out
   Scenario: A plan edited after it passed the gate is refused with the build skill's way out
     Given plan.md of ticket T-1 passed accord gate plan and was then edited
     When the agent runs accord task-done T-1 1
     Then it exits 1 and its reason says to show the owner the diff of plan.md, that accord-plan reviews it when the owner made the change, and that otherwise plan.md is restored with the owner's yes
     And the words "accord gate plan" appear nowhere in the reason
 
-  @ac-2
+  @ac-2 @test:packages/core/test/task.test.ts#ac-2-a-plan-that-never-passed-the-gate-is-sent-back-to-accord-plan
   Scenario: A plan that never passed the gate sends the agent back to the plan stage
     Given plan.md of ticket T-1 has no plan_hash line
     When the agent runs accord task-done T-1 1
     Then it exits 1 and its reason says the plan stage has not finished and names accord-plan
     And the words "accord gate plan" appear nowhere in the reason
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/lane-commands.test.ts#plan-contract-checks->-ac-3-a-passing-gate-plan-writes-plan_hash-once-and-an-edited-plan-that-passes-gate-plan-again-is-recorded-done
   Scenario: A changed plan that accord-plan passes again is recorded as before
     Given plan.md of ticket T-1 was edited after accord gate plan passed and then passed accord gate plan again
     When the agent runs accord task-done T-1 1 with the task's tests recorded passed in a report that task-done already accepts

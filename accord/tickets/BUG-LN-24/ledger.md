@@ -7,3 +7,7 @@ Ruling: the ticket stays lane M at the intent stage's lane S check, for the same
 Ruling: the approach ladder is 1. Rewrite in place: the two refusal sentences become the decided sentences word for word, proved by two core tests and the renamed existing command-line test; 2. Command-line proof: the same sentences, with the first two criteria proved by new command-line tests on a real git repository; Rewrite in place is Recommended because it is the lightest change that meets every criterion and keeps the test layers the owner decided — kept so a resumed or revised round critiques the option ## Approach names and nobody picks again — a ruled-out option comes back
 Ruling: the two core tests are top-level `it(...)`, with no `describe` around them — the approach only says the block "is replaced by two tests", and top-level keeps the ids short, as in the BASE-1 plan — cost if wrong: the two ac-1/ac-2 ids gain a prefix and the `verify:` line has to be edited
 Ruling: the ac-3 test asserts only the start of the new sentence — the approach says so, and asserting the full sentence again would repeat the ac-1 test at another layer — cost if wrong: the command-line path could print a shortened sentence and no test would catch it
+
+## Tasks
+- task 1 done 6c3cb2e9186b
+Ruling: the command-line ac-3 test needed npm run build before the test run, since it runs the built packages — reported by the task 1 executor — cost if wrong: none

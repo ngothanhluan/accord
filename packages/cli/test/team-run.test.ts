@@ -115,18 +115,16 @@ function alive(pid: number): boolean {
   } catch (e) {
     return (e as NodeJS.ErrnoException).code === 'EPERM';
   }
-  if (process.platform === 'win32') return true;
   try {
     // Linux: field 3 of /proc/<pid>/stat is the state; Z is a killed process its new parent has not reaped yet.
     const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
     return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0] !== 'Z';
   } catch {
-    // no /proc (macOS): a killed process its parent has not reaped yet still answers kill(pid, 0), and only its state says it is dead.
-    // ps prints nothing for a pid that is gone and a state starting with Z for a zombie; ps itself failing to start says nothing, so that reads as alive.
+    // no /proc (macOS, Windows): kill(pid, 0) above already said the pid exists, and only a zombie's state says it is dead. ps prints a state starting
+    // with Z for a zombie. Anything else, an empty answer, a failed ps or no ps at all (Windows has no zombies), leaves the process alive, so a leak is never
+    // hidden; a process that died since the check above reads as gone on the next poll. No branch on the operating system sits in this test (ac-5 of the stage skills).
     const ps = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' });
-    if (ps.error !== undefined) return true;
-    const state = String(ps.stdout).trim();
-    return state !== '' && !state.startsWith('Z');
+    return !String(ps.stdout ?? '').trim().startsWith('Z');
   }
 }
 

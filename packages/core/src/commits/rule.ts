@@ -44,7 +44,7 @@ export function commitRuleOf(config: Pick<AccordConfig, 'commits'> | undefined):
 const firstLine = (message: string): string => message.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split('\n')[0] ?? '';
 
 /** A commit subject on its way to a terminal: every control, invisible format and separator character written as `<U+XXXX>`, so a subject cannot hide or reorder what the reader sees (T-08.1-04). */
-const visible = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (ch) => '<U+' + (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0') + '>');
+export const visible = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (ch) => '<U+' + (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0') + '>');
 
 /**
  * Why `message` breaks `rule`, or undefined when it passes. Merge commits and commits already on the default branch are exempt by the caller (they are never offered here);

@@ -7,6 +7,7 @@ import type { AuditFact, AuditGap } from '@accord-dev/accord-core';
 import { gitDefaultRef, gitTracked } from '../load/fs.js';
 import { machineFacts } from '../load/audit-facts.js';
 import { auditHealth, NOT_CHECKED } from '../load/audit-health.js';
+import { auditHygiene } from '../load/audit-hygiene.js';
 import type { Found } from '../load/audit-facts.js';
 import { printable } from '../load/detect.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
@@ -98,6 +99,11 @@ export async function audit(ctx: CommandContext): Promise<number> {
   const health = await auditHealth(ctx);
   for (const f of health.facts) fact(f.name, f.value);
   for (const g of health.gaps) gap(g.id, g.text, g.fix);
+
+  // group 3 (Phase 8.2 D-01..D-08): work hygiene; reads git and files, writes nothing, fetches nothing
+  const hygiene = await auditHygiene(ctx);
+  for (const f of hygiene.facts) fact(f.name, f.value);
+  for (const g of hygiene.gaps) gap(g.id, g.text, g.fix);
 
   // group 6 (D-08, D-19): the team's own audit script, run only when accord trust allowed exactly this command and the files it reaches; an untrusted one is left to group 2's script-untrusted gap
   const command = config?.audit?.command;

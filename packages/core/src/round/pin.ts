@@ -136,6 +136,14 @@ export const PLAN_LARGE_FROM = '0.8.0';
  */
 export const COMMIT_MESSAGE_FROM = '0.9.0';
 
+/**
+ * Phase 8.1 D-17 and CONTEXT Ruling "Release": the release from which `accord gate done` refuses a slop hit of the ticket's cumulative diff that is neither fixed nor justified by a
+ * `slop:<kind> <path>:<line> — <reason>` line in the last review round (gate.slop-unresolved). Read only through claimPinBefore, in the loader that reads the slop facts: a ticket claimed under a
+ * pin below it is not judged and starts no slop read. It is the next minor after the newest released heading of docs/releases.md (0.8.1 when it was set); the release that ships Phase 8.1 sets it to
+ * its own version if another release came first, and PHASE8_1 in migration-pin.test.ts follows.
+ */
+export const SLOP_FROM = '0.9.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

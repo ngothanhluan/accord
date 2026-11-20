@@ -2,8 +2,8 @@
 // sandboxes; nothing here reaches the real origin.
 import { afterEach, expect, it } from 'vitest';
 import { SLOP_FROM } from '@accord-dev/accord-core';
-import { claimedUnder, cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, laneTicket, pinned, PLAN } from '../../../test/helpers/lane.js';
 
 const RULE = 'gate.slop-unresolved';
 const REVIEW = 'accord/tickets/T-1/review.md';
@@ -17,22 +17,22 @@ afterEach(() => {
 });
 
 /**
- * A lane M ticket T-1 on its own branch, claimed under `pin`: the base commit is on the default ref, the claim commit starts the branch, the plan's baseline is the base, `code` is committed on
+ * A lane M ticket T-1 on its own branch, claimed under `pin`: the base commit (config pinned to `pin`) is on the default ref, the claim commit starts the branch, the plan's baseline is the base, `code` is committed on
  * top, then (`fix`, when given) a later commit, and review.md, headed by the last code commit, is committed last.
  */
-function ticket(o: { pin?: string; code?: Record<string, string>; fix?: Record<string, string>; config?: string; review?: (head: string) => string; extra?: Record<string, string> }): { repo: string; head: string } {
+function ticket(o: { pin?: string; code?: Record<string, string>; fix?: Record<string, string>; review?: (head: string) => string; extra?: Record<string, string> }): { repo: string; head: string } {
   const repo = makeEmptyRepo();
   repos.push(repo);
   gitRun(repo, 'config', 'user.email', 'an@example.com');
   gitRun(repo, 'config', 'user.name', 'an');
   gitRun(repo, 'config', 'commit.gpgsign', 'false');
-  writeFiles(repo, { 'accord/config.yml': o.config ?? CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1'), 'src/a.ts': BASE, ...o.extra });
+  writeFiles(repo, { 'accord/config.yml': pinned(o.pin ?? SLOP_FROM), 'accord/tickets/T-1.md': laneTicket('T-1'), 'src/a.ts': BASE, ...o.extra });
   const base = commitMsg(repo, 'base');
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'update-ref', 'refs/remotes/origin/main', base);
   gitRun(repo, 'switch', '-q', '-c', 't/T-1');
-  claimedUnder(repo, o.pin ?? SLOP_FROM);
-  writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), 'src/a.ts': SLOPPY, ...o.code });
+  commitMsg(repo, 'claim: T-1', undefined, true);
+  writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), 'src/a.ts': SLOPPY, ...o.code });
   let head = commitMsg(repo, 'code');
   if (o.fix !== undefined) {
     writeFiles(repo, o.fix);

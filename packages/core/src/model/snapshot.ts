@@ -1,6 +1,7 @@
 // D-28 input contract and the RepoSnapshot model (D-30 to D-32, D-42, D-46). Type-only file.
 // Plain records and arrays, never Map/Set, so JSON.stringify of a snapshot is the golden (D-54).
 import type { SubjectName } from '../commits/subjects.js';
+import type { SlopHit } from '../slop/match.js';
 import type { LoadFinding } from './finding.js';
 
 export interface SnapshotInput {
@@ -88,6 +89,12 @@ export type RoundFacts =
  * could not say.
  */
 export type SecurityFacts = { error: string } | { rounds: { head: string; triggers: string[] }[] };
+
+/**
+ * Phase 8.1 D-14, D-17, D-20: the slop hits of a ticket's cumulative diff as the host read them from git (the list `accord review-package` prints under `## Slop`), and how many lines of the team's
+ * slop file did not read; `error` when git could not say or the ticket's plan records no baseline. gate.slop-unresolved fails closed on it.
+ */
+export type SlopFacts = { hits: SlopHit[]; unread: number } | { error: string };
 
 /** Full shas, first parent first; `files` are the paths the commit changes (for a merge, the paths its remerge diff
  * shows), absent for a merge whose own changes git could not show. */
@@ -240,6 +247,7 @@ export interface Review {
   trailing?: true; // a non-blank line follows the last verdict line
   confirmed?: string[]; // paths of 'Confirmed wording-only: <path>' lines in the last '## Round'; absent when none
   notInterface?: string[]; // paths of 'Not an interface: <path> — <reason>' lines in the last '## Round'; absent when none
+  slopJustified?: { kind: string; path: string; line: number; reason: string }[]; // 'slop:<kind> <path>:<line> — <reason>' lines in the last '## Round' (Phase 8.1 D-17); absent when none
 }
 
 export type Severity = 'Must' | 'Should' | 'Nice';
@@ -382,6 +390,7 @@ export interface RepoSnapshot {
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
   securityFacts?: Record<string, SecurityFacts>; // ST-LN-36: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, a ticket claimed before the security record rule's cut-off)
+  slopFacts?: Record<string, SlopFacts>; // Phase 8.1 D-17: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, review skipped, a ticket claimed before the slop gate's cut-off)
   researchFacts?: Record<string, ResearchFact>; // carried through from SnapshotInput
   // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or
   // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every

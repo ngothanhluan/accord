@@ -178,7 +178,7 @@ export { insertTeamSections, reservedSections, TEAM_HINT, teamSectionProblems } 
 export type { TeamSection } from './scaffold/sections.js';
 export { addPersonEntry, appendConfigList, flowValue, getConfigValue, idConsequences, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from './scaffold/configEdit.js';
 export { mergePanel, panelSettings } from './scaffold/panel.js';
-export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.js';
+export { hookEntries, isAccordHookCommand, mergeHooks, mergeHooksWithNotes, runsAccordHook } from './scaffold/hooks.js';
 export type { HookEntries } from './scaffold/hooks.js';
 export { skills } from './generated/skills.js';
 export type { SkillKey } from './generated/skills.js';

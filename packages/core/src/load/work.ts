@@ -19,6 +19,9 @@ export const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
 const WORDING = /^\s*(?:[-*+]\s+)?Wording-only:\s+(\S.*?)\s+—\s+(.*\S)\s*$/;
 const CONFIRMED = /^Confirmed wording-only:\s+(.+)$/;
 const NOT_INTERFACE = /^Not an interface:\s+(\S.*?)\s+—\s+(.*\S)$/;
+// Phase 8.1 D-17: `slop:<kind> <path>:<line> — <reason>`, the justification of a slop hit, with or without a list marker (as WORDING above): the path is everything up to the last `:<line> — `, so a path
+// may hold a colon or spaces. Exported for the test; the last `## Round` loop below reads it.
+export const SLOP_OK = /^\s*(?:(?:[-*+]|\d+\.)\s+)?slop:([a-z0-9][a-z0-9-]*)\s+(\S.*?):([1-9][0-9]*)\s+—\s+(.*\S)\s*$/;
 // Spec §10: the verdict is the first token; accepted-by-owner carries the owner's sentence after it.
 const VERDICT = /^verdict:\s*(\S+)(?:\s.*)?$/;
 
@@ -275,15 +278,19 @@ export function parseReview(file: string, text: string): Review {
   const rounds = scan(normal, 0).sections.filter((s) => headingKey(s.heading).startsWith('round '));
   const confirmed: string[] = [];
   const notInterface: string[] = [];
+  const slopJustified: { kind: string; path: string; line: number; reason: string }[] = [];
   for (const l of rounds[rounds.length - 1]?.lines ?? []) {
     const t = l.text.replace(LIST_MARKER, '').trim();
     const c = CONFIRMED.exec(t);
     if (c) confirmed.push(declared(c[1]));
     const n = NOT_INTERFACE.exec(t);
     if (n) notInterface.push(declared(n[1]));
+    const o = SLOP_OK.exec(t);
+    if (o) slopJustified.push({ kind: o[1], path: o[2], line: Number(o[3]), reason: o[4] });
   }
   if (confirmed.length > 0) review = { ...review, confirmed };
   if (notInterface.length > 0) review = { ...review, notInterface };
+  if (slopJustified.length > 0) review = { ...review, slopJustified };
   return review;
 }
 

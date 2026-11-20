@@ -17,14 +17,12 @@ import {
   slopSpec,
   sortHits,
 } from '@accord-dev/accord-core';
-import type { RepoSnapshot, SkillFile, SlopHit } from '@accord-dev/accord-core';
+import { claimPinBefore, reviewSkipped, SLOP_FROM, workOf } from '@accord-dev/accord-core';
+import type { RepoSnapshot, SkillFile, SlopFacts } from '@accord-dev/accord-core';
 import { defaultRefOf, gitFilesAt, UsageError } from './fs.js';
 import { packageDiff, roundOneBase, why } from './package-diff.js';
 import { exemptCopies } from './security-facts.js';
 import { whyGit } from './round-facts.js';
-
-/** The hits, and how many lines of the team's slop file did not read; or why the list could not be made. */
-export type SlopFacts = { hits: SlopHit[]; unread: number } | { error: string };
 
 /** At most this many new files are searched for a file that names them, so one commit of generated files never starts thousands of searches. */
 const MAX_ORPHAN_SEARCH = 200;
@@ -138,4 +136,18 @@ export function slopFacts(root: string, snapshot: RepoSnapshot, id: string, rend
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'git failed reading the slop facts: ' + whyGit(e) };
   }
+}
+
+/**
+ * `snapshot` with slopFacts[id] set (Phase 8.1 D-17, for gate.slop-unresolved); `snapshot` itself when the ticket has no lane, no version 2 review record with a round, no git, the review checks
+ * are skipped (HEAD on the default branch, or the ticket done there), or the ticket was claimed before SLOP_FROM: that is decided on the snapshot, before the first git call, so a ticket the rule does
+ * not apply to starts no slop read. A failed claim read is false in claimPinBefore (fail closed), so the facts are read and the rule applies. `rendered` is the files `accord skills sync` writes
+ * (renderedFilesOf of the config), called at most once, as for the security facts.
+ */
+export function withSlopFacts(root: string, snapshot: RepoSnapshot, id: string, rendered: () => readonly SkillFile[]): RepoSnapshot {
+  const rec = workOf(snapshot, id)?.rounds;
+  const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
+  if (lane === undefined || rec === undefined || rec.version !== 2 || rec.cycles.every((c) => c.rounds.length === 0) || snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;
+  if (claimPinBefore(snapshot, id, SLOP_FROM)) return snapshot;
+  return { ...snapshot, slopFacts: { ...snapshot.slopFacts, [id]: slopFacts(root, snapshot, id, rendered) } };
 }

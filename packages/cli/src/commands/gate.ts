@@ -9,6 +9,7 @@ import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitR
 import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
+import { withSlopFacts } from '../load/slop-facts.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -67,7 +68,11 @@ export function gate(
   // ST-LN-36 D-05 (5): Done holds each recorded review round against the security triggers of its own package; read after the default ref, whose snapshot says a ticket done there is skipped.
   // BUG-LN-25 D-16: the copies `accord skills sync` writes come from renderedFilesOf, so a changed copy equal to its render is the one thing the scan leaves out.
   const config = ctx.snapshot.config;
-  const forGate = which === 'done' ? withSecurityFacts(ctx.root, withRefs, id, renderedFilesOf(config)) : withRefs;
+  // Phase 8.1 D-17: Done also holds the slop hits of the ticket's cumulative diff against the last review round's justification lines; the same rendered copies are left out.
+  const render = renderedFilesOf(config);
+  let list: ReturnType<typeof render> | undefined;
+  const rendered = (): ReturnType<typeof render> => (list ??= render()); // at most one render per command, for the two readers
+  const forGate = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
   const result =
     which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id)), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
   ctx.stdout.write(

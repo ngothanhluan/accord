@@ -23,6 +23,7 @@ export function declared(ctx: CommandContext): Array<{ kind: ScriptKind; command
   if (config?.build?.regenerate !== undefined) found.push({ kind: 'build.regenerate', command: config.build.regenerate });
   if (config?.commits?.message?.command !== undefined) found.push({ kind: 'commits.message.command', command: config.commits.message.command });
   if (config?.pr?.command !== undefined) found.push({ kind: 'pr.command', command: config.pr.command });
+  if (config?.audit?.command !== undefined) found.push({ kind: 'audit.command', command: config.audit.command });
   return found;
 }
 

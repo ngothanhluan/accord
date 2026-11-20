@@ -53,7 +53,10 @@ const flat = (text: string): string => text.replace(/\s+/g, ' ');
 /** The last numbered step of a loaded reference, flattened: from its number to the next `## ` heading or the end. */
 function lastStep(path: string): string {
   const lines = (skills[path as SkillKey] ?? '').split('\n');
-  const from = lines.findLastIndex((l) => /^\d+\. /.test(l));
+  let from = -1;
+  lines.forEach((l, i) => {
+    if (/^\d+\. /.test(l)) from = i;
+  });
   if (from < 0) return '';
   const next = lines.findIndex((l, i) => i > from && /^## /.test(l));
   return flat(lines.slice(from, next < 0 ? lines.length : next).join(' '));

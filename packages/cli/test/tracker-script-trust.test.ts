@@ -408,7 +408,7 @@ describe('accord trust shows each script before it allows it, and allows only th
     const b = sandbox();
     const unknown = await run(['trust', 'setup'], b.repo, b.env);
     expect(unknown.code).toBe(2);
-    expect(unknown.err).toMatch(/tracker\.command, git\.sync, build\.regenerate, commits\.message\.command or pr\.command/);
+    expect(unknown.err).toMatch(/tracker\.command, git\.sync, build\.regenerate, commits\.message\.command, pr\.command or audit\.command/);
     const undeclared = await run(['trust', 'git.sync'], b.repo, b.env);
     expect(undeclared.code).toBe(2);
     expect(undeclared.err).toMatch(/declares no git\.sync/);

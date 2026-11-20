@@ -3,5 +3,6 @@
   { "key": "commits.subjects.people", "since": "0.9.0", "default": "people: {id}, the email of the people entry in place of {id}" },
   { "key": "commits.subjects.conventions", "since": "0.9.0", "default": "conventions: {id}, the UTC date in place of {id}" },
   { "key": "pr.template", "since": "0.9.0", "default": "the first pull request template GitHub would use, else today's body" },
-  { "key": "pr.command", "since": "0.9.0", "default": "no script: accord fills the template" }
+  { "key": "pr.command", "since": "0.9.0", "default": "no script: accord fills the template" },
+  { "key": "audit.command", "since": "0.9.0", "default": "no team audit script runs" }
 ]

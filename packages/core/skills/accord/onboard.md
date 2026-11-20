@@ -4,7 +4,7 @@ kind: reference
 
 # Onboarding a repository: `/accord onboard`
 
-Use this after `accord init` printed `proposal:` lines, or when the user types `/accord onboard`. `accord init` only
+Use this after `accord init` printed its `proposals:` line (`proposal:` lines, or `proposals: 0`), or when the user types `/accord onboard`. `accord init` only
 proposes: it writes nothing to `accord/config.yml`. This file writes only through `accord config set`, and only
 after the user's yes. An agent that ran `accord init` itself follows this file right after, and never answers a
 question for the user. When the session check of `./worktree.md` says this session works a ticket, stop and say the
@@ -12,7 +12,7 @@ team's settings are changed from the main checkout, not from a ticket branch. Re
 
 1. Take the `proposal:` lines of the `accord init` output just printed, or run `accord init` again (it changes
    nothing it already wrote). Each line reads `proposal: <key> = <JSON value>  (evidence: <text>)`. When there is
-   none, say accord has nothing to propose for this repository and go to step 5.
+   none (`proposals: 0`), say accord has nothing to propose for this repository and go to step 6.
 2. Go through the proposals one proposal at a time, in the order printed. Never ask about two at once, and never
    skip one without asking.
 3. For a proposal, say in plain words what the key controls, show the value and its evidence, and run
@@ -48,13 +48,20 @@ team's settings are changed from the main checkout, not from a ticket branch. Re
    nothing; `accord trust git.sync@<digest>` or `accord trust tracker.command@<digest>`, with the digest exactly as
    shown, allows that one, and refuses if the files changed since. accord checks only the files `accord trust` lists;
    anything else the command loads is not checked, so whoever allows a script must review the pull request that
-   changed it. After setting one, say so and name the command. Run `accord trust` only when the user asks you to, never on your
+   changed it. Three more keys declare a script the same way and run only after `accord trust <kind>@<digest>`:
+   `commits.message.command` (builds a commit message), `pr.command` (builds a pull request title and body) and
+   `audit.command` (adds the team's own checks to `accord audit`). After setting one, say so and name the command. Run `accord trust` only when the user asks you to, never on your
    own. The built-in trackers (`none`, `github-issues`, `jira`, `linear`) run no repository script; a Jira
    `tracker.url` is sent the credential only when the default branch's `accord/config.yml` holds the same url, so
    after setting it say it must be committed to the default branch first.
 5. When the last proposal is answered, run `git diff -- accord/config.yml` and show it. Say that this skill does not
    commit: the user commits the file in the team's usual way. Then say that the first ticket starts with
    `/accord <request>`.
+6. Ask one question that stands alone, as `./ask.md` says: whether to run `accord audit` now. Say what it does: it reads
+   the repository's files and reports what a machine can see about its conventions and its accord setup, each gap with
+   its fix, and it changes nothing. On no, run nothing, and say that `/accord-audit` runs it any time. On yes, run
+   `accord audit` and show each `gap:` line with its `- fix:`; when a `conventions-empty` or `conventions-thin` gap is
+   listed, offer the conventions draft that `/accord-audit` makes, and run nothing else unasked.
 
 ## Changing a value later
 

@@ -1,6 +1,6 @@
 // Phase 8.2 group 3 (work hygiene): the pure gap builders and the open-work predicate they share with the dashboard. No git, no filesystem.
 import { expect, it } from 'vitest';
-import { branchGaps, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, statusRows, ticketIdleGaps } from '../src/index.js';
+import { branchGaps, deferredGaps, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, statusRows, ticketIdleGaps } from '../src/index.js';
 import type { ClaimRefFact, StatusRow } from '../src/index.js';
 import { CONFIG, done, laneTicket, P, building } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
@@ -164,5 +164,37 @@ it('risk:security a branch name a shell would read gets no command in its fix (T
       expect(g.fix).not.toContain('git branch');
       expect(g.fix).not.toContain('git push');
     }
+  }
+});
+
+// ---- 08.2-05 (D-04, D-10): deferred items nobody decided ---------------------------------------------------------------------------------
+
+it('risk:complex-branching each undecided Must or Should item of a judged ticket is one deferred-undecided gap (8.2-ac-5)', () => {
+  const gaps = deferredGaps([{ id: 'D-1', items: [{ rating: 'Must', text: 'review 1.3: a lock (Must)' }] }]);
+  expect(gaps).toEqual([
+    {
+      id: 'deferred-undecided',
+      text: 'D-1 has an undecided Must item: review 1.3: a lock (Must)',
+      fix: 'queue it with /accord-queue and append " → <new id>" to its line in accord/tickets/D-1/ledger.md, or append " → declined" there; a pull request that changes only that ledger',
+    },
+  ]);
+  // D-10: no lane is read, so neither the text nor the fix holds one
+  for (const g of gaps) expect(`${g.text} ${g.fix}`).not.toMatch(/lane/i);
+  // an empty item list gives none; tickets come in id code-point order and items in the order given
+  expect(deferredGaps([{ id: 'D-1', items: [] }])).toEqual([]);
+  expect(deferredGaps([])).toEqual([]);
+  const many = deferredGaps([
+    { id: 'B-2', items: [{ rating: 'Should', text: 'b (Should)' }] },
+    { id: 'A-10', items: [{ rating: 'Must', text: 'a (Must)' }, { rating: 'Should', text: 'c (Should)' }] },
+  ]);
+  expect(many.map((g) => g.text)).toEqual(['A-10 has an undecided Must item: a (Must)', 'A-10 has an undecided Should item: c (Should)', 'B-2 has an undecided Should item: b (Should)']);
+});
+
+it('risk:security a ticket id a shell would read gets no command in a deferred-undecided fix (D-04)', () => {
+  for (const id of ['T 1', 'T;1', 'T$(x)', '-T1']) {
+    const [gap] = deferredGaps([{ id, items: [{ rating: 'Must', text: 'a (Must)' }] }]);
+    expect(gap.id).toBe('deferred-undecided');
+    expect(gap.fix).toBe('the ticket id holds characters a command line would read, so no command is printed: rename its ticket file to a plain id first');
+    expect(gap.fix).not.toContain('/accord-queue');
   }
 });

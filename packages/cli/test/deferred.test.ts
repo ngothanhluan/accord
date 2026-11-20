@@ -85,3 +85,39 @@ it('risk:security accord deferred refuses an id that is no ticket or no id (ST-L
     cleanup(repo);
   }
 }, 120_000);
+
+// Phase 8.2 D-04: the owner's answer is a mark at the end of the ledger line; `accord deferred` asks only about the lines with none, and no gate reads a mark.
+it('risk:regression accord deferred hides marked items and gate done passes with marks (8.2-ac-5)', async () => {
+  const repo = reviewedRepo();
+  try {
+    writeFiles(repo, { [LEDGER]: DEFERRED_LEDGER });
+    commitMsg(repo, 'ledger');
+    expect((await run(['gate', 'done', 'S-1'], repo)).code).toBe(0);
+
+    // the Must line marked declined, not yet committed: only the Should line is asked about, and the gate still passes
+    const declined = DEFERRED_LEDGER.replace('(Must)', '(Must) → declined');
+    writeFiles(repo, { [LEDGER]: declined });
+    const one = await run(['deferred', 'S-1'], repo);
+    expect(one.code, one.err).toBe(0);
+    expect(one.out).toBe('Should: review 1.2: the export drops a trailing comma (Should)\n');
+    const open = await run(['gate', 'done', 'S-1'], repo);
+    expect(open.code, open.out + open.err).toBe(0);
+
+    // the Should line marked with a queued ticket id too: nothing is left to ask
+    writeFiles(repo, { [LEDGER]: declined.replace('(Should)', '(Should) → ST-9') });
+    const none = await run(['deferred', 'S-1'], repo);
+    expect(none.code, none.err).toBe(0);
+    expect(none.out).toBe('no Must or Should deferred items\n');
+
+    // committed, the gate still passes: a mark changes no hash it binds
+    commitMsg(repo, 'ledger marks');
+    const after = await run(['gate', 'done', 'S-1'], repo);
+    expect(after.code, after.out + after.err).toBe(0);
+
+    // an ASCII arrow is not a mark: the item is asked about again
+    writeFiles(repo, { [LEDGER]: DEFERRED_LEDGER.replace('(Must)', '(Must) -> declined') });
+    expect((await run(['deferred', 'S-1'], repo)).out).toContain('Must: review 1.3');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

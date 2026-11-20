@@ -4,7 +4,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
-import { CONFIG, done, laneTicket, P } from '../../../test/helpers/lane.js';
+import { DEFERRED_MARK_FROM } from '@accord-dev/accord-core';
+import { building, CONFIG, done, gateReadyIn, junit, LANE_S_BODY, laneTicket, P, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
@@ -355,4 +356,111 @@ it("risk:data-loss accord audit with a done ticket's worktree writes nothing and
   expect(existsSync(dir + '/clean.lock') || existsSync(dir + '/holds.lock')).toBe(false);
   expect(spawnLog.calls.length).toBeGreaterThan(0);
   expect(spawnLog.calls.filter((a) => writes(a)).map((a) => a.join(' '))).toEqual([]);
+});
+
+// ---- 08.2-05 (D-04, D-06, D-10): deferred items nobody decided ----------------------------------------------------------------------------
+
+const LEDGER_TASKS = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n\n';
+/** The ledger's deferred section: an unmarked Must, a Should marked with a queued id, a Should marked declined, and an unmarked Nice. */
+const ITEMS = [
+  '## Deferred',
+  '- review 1.1: the lock is not released on a crash (Must)',
+  '- review 1.2: the export drops a trailing comma (Should) → ST-9',
+  '- review 1.3: the cache can go stale (Should) → declined',
+  '- review 1.4: a rename (Nice)',
+  '',
+].join('\n');
+const ledgerOf = (id: string): string => `accord/tickets/${id}/ledger.md`;
+
+/** A finished lane M ticket claimed under `ruleset`, its ledger holding `ledger`. */
+function doneM(files: Files, id: string, ruleset: string | undefined, ledger: string): void {
+  done(files, id, { frontmatter: [...(ruleset === undefined ? [] : [`ruleset: "${ruleset}"`]), 'verified_commit: "abcdef1234567"'] });
+  files[ledgerOf(id)] = LEDGER_TASKS + ledger;
+}
+
+/** A finished lane S ticket (its converged review closes it) claimed under `ruleset`, its ledger holding `ledger`. */
+function doneS(files: Files, id: string, ruleset: string, ledger: string): void {
+  files['accord/config.yml'] = CONFIG;
+  files['src/a.ts'] = 'a\n';
+  files[REPORT] = junit({ 'a#b': 'passed' });
+  files[P(id)] = laneTicket(id, { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n', frontmatter: [`ruleset: "${ruleset}"`] });
+  expect(gateReadyIn(files, id)).toBe('pass');
+  files[`accord/tickets/${id}/review.md`] = 'verdict: converged\n';
+  files[ledgerOf(id)] = ledger;
+}
+
+/** D-1 (lane M, claimed under the cut-off), D-2 (lane M, claimed under 0.9.0), D-3 (lane S, claimed under the cut-off) and D-4 (lane M at build) each hold an unmarked Must item. */
+function deferredRepo(): string {
+  const files: Files = {};
+  doneM(files, 'D-1', DEFERRED_MARK_FROM, ITEMS);
+  doneM(files, 'D-2', '0.9.0', ITEMS);
+  doneS(files, 'D-3', DEFERRED_MARK_FROM, ITEMS);
+  building(files, 'D-4');
+  files[ledgerOf('D-4')] = LEDGER_TASKS + ITEMS;
+  return sandbox(files, CONFIG, 3);
+}
+
+const undecided = (lines: string[]): string[] => gapsOf(lines, 'deferred-undecided');
+
+it('risk:complex-branching accord audit lists undecided items of done tickets claimed at or after the cut-off on every lane (8.2-ac-5)', async () => {
+  const repo = deferredRepo();
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  const gaps = undecided(r.lines);
+  expect(gaps, r.out).toHaveLength(2);
+  const d1 = gaps.find((l) => l.includes('D-1 ')) ?? '';
+  const d3 = gaps.find((l) => l.includes('D-3 ')) ?? '';
+  for (const part of ['D-1 has an undecided Must item: review 1.1: the lock is not released on a crash (Must)', '/accord-queue', 'accord/tickets/D-1/ledger.md', ' → declined']) expect(d1, r.out).toContain(part);
+  expect(d3, r.out).toContain('D-3 has an undecided Must item: review 1.1: the lock is not released on a crash (Must)');
+  // D-10: the text and fix of a lane S ticket's gap read as a lane M ticket's do, and name no lane
+  expect(d3.replaceAll('D-3', 'D-1')).toBe(d1);
+  expect(gaps.join('\n')).not.toMatch(/lane/i);
+  // the marked Shoulds, the Nice, the ticket claimed before the cut-off and the ticket still at build are not listed
+  expect(gaps.some((l) => l.includes('D-2') || l.includes('D-4') || l.includes('ST-9') || l.includes('cache') || l.includes('rename'))).toBe(false);
+  expect(r.lines, r.out).toContain('fact: deferred-marks: 2 done tickets judged; 1 claimed before deferred marks were recorded and 0 whose claim release cannot be read are skipped');
+});
+
+it("risk:complex-branching a done lane S ticket's undecided Must item is listed and its declined mark clears it (D-10)", async () => {
+  const repo = deferredRepo();
+  expect(undecided((await audit(repo)).lines).some((l) => l.includes('D-3 '))).toBe(true);
+  // the fix route: one line edit of that ledger, committed on the default branch
+  writeFiles(repo, { [ledgerOf('D-3')]: ITEMS.replace('(Must)', '(Must) → declined') });
+  commitMsg(repo, 'D-3: decide the deferred item');
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  const gaps = undecided(r.lines);
+  expect(gaps, r.out).toHaveLength(1);
+  expect(gaps[0], r.out).toContain('D-1 has an undecided Must item');
+  expect(gaps.some((l) => l.includes('D-3'))).toBe(false);
+  // a queued-ticket mark clears the other ticket the same way
+  writeFiles(repo, { [ledgerOf('D-1')]: ITEMS.replace('(Must)', '(Must) → ST-12') });
+  commitMsg(repo, 'D-1: decide the deferred item');
+  expect(undecided((await audit(repo)).lines)).toEqual([]);
+});
+
+it('risk:complex-branching a done ticket whose claim release cannot be read is counted and never listed (8.2-ac-5)', async () => {
+  const files: Files = {};
+  doneM(files, 'D-5', undefined, ITEMS);
+  const repo = sandbox(files, CONFIG, 3);
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  expect(undecided(r.lines), r.out).toEqual([]);
+  expect(r.lines, r.out).toContain('fact: deferred-marks: 0 done tickets judged; 0 claimed before deferred marks were recorded and 1 whose claim release cannot be read are skipped');
+});
+
+it('risk:data-loss accord audit with undecided deferred items writes nothing and leaves every ledger as it was (8.2-ac-8)', async () => {
+  const repo = deferredRepo();
+  const ids = ['D-1', 'D-2', 'D-3', 'D-4'];
+  const before = listings(repo);
+  const ledgers = ids.map((id) => readFileSync(resolve(repo, ledgerOf(id))));
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  const r = await audit(repo);
+  spawnLog.on = false;
+  expect(r.code, r.out).toBe(0);
+  expect(undecided(r.lines), r.out).toHaveLength(2);
+  expect(listings(repo)).toEqual(before);
+  ids.forEach((id, i) => expect(readFileSync(resolve(repo, ledgerOf(id))).equals(ledgers[i] as Buffer), id).toBe(true));
+  expect(spawnLog.calls.length).toBeGreaterThan(0);
+  expect(spawnLog.calls.filter((c) => writes(c)).map((c) => c.join(' '))).toEqual([]);
 });

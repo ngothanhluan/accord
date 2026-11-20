@@ -76,7 +76,9 @@ it('risk:security review-package prints the security triggers of a change in lan
 // The text origin/main printed for each fixture before the section existed (recorded once from its build, plan 05-04), shas replaced by <sha>.
 const BEFORE = fileURLToPath(new URL('./fixtures/review-package-before/', import.meta.url));
 const shas = (text: string): string => text.replace(/\b[0-9a-f]{7,40}\b/g, '<sha>');
-const withoutSecurity = (text: string): string => text.replace(/## Security triggers\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '');
+// Phase 8.1 G4a: the `## Slop` section that follows the security one is left out as well; review-package-slop.test.ts proves it.
+const withoutSecurity = (text: string): string =>
+  text.replace(/## Security triggers\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '').replace(/## Slop\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '');
 
 it.each(PACKAGE_FIXTURES)(
   'risk:regression review-package is byte-identical apart from the security section and runs no new git command, %s (ST-LN-36 36-ac-1)',

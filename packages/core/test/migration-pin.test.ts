@@ -353,6 +353,14 @@ it('risk:regression every Phase 7 cut-off is 0.8.0, the release that ships it (r
   for (const [name, v] of Object.entries(PHASE7)) expect(v, name).toBe('0.8.0');
 });
 
+// Release 0.8.1 ships Phase 8: the CLI is no longer 0.8.0, so a Phase 7 cut-off is compared with '0.8.0' only, and the 0.8.1 rules (the security-file refusals, D-07 and D-10) have no cut-off of their own.
+it('risk:regression release 0.8.1 adds no cut-off constant: pin.ts holds the Phase 4, 5 and 7 ones and the older ones, none at 0.8.1 (8-ac-13)', () => {
+  const exported = [...readFileSync(join(REPO_ROOT, PIN_FILE), 'utf8').matchAll(/^export const (\w+_FROM) = '([^']+)';/gm)].map((m) => ({ name: m[1], value: m[2] }));
+  const known = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7), 'RECORD_V2_FROM', 'PLAN_SIZE_FROM', 'GROUNDS_V2_FROM', 'DISCUSS_FROM', 'APPROACH_CAP_FROM', 'PLAN_FORMAT_FROM', 'PLAN_CAP_FROM', 'PLAN_GROUNDS_FROM', 'RULESET_FROM'];
+  expect(exported.map((e) => e.name).sort(), 'a new cut-off constant needs its own release test').toEqual([...known].sort());
+  expect(exported.filter((e) => e.value === '0.8.1').map((e) => e.name), 'no cut-off names 0.8.1').toEqual([]);
+});
+
 it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac-1)', () => {
   // The scan catches a literal comparison, and leaves prose holding the version inside a longer string alone.
   expect(cutOffOffences("  return pinBefore('0.6.0', pin);", 'packages/core/src/x.ts')).toEqual(["packages/core/src/x.ts:1: return pinBefore('0.6.0', pin);"]);

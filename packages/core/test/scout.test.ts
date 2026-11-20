@@ -1,6 +1,6 @@
 // ST-LN-81: the scout report parser.
 import { expect, it } from 'vitest';
-import { parseScoutReport } from '../src/index.js';
+import { expandPath, parseScoutReport } from '../src/index.js';
 
 const REPORT = [
   '## Files',
@@ -36,4 +36,23 @@ it('risk:parsing a Files entry loses a trailing colon inside or outside backtick
     ['## Files', '- packages/x/a.ts: defines x', '- `packages/x/b.ts`: wires x', '- `packages/x/c.ts:` colon inside', '- src/a.ts:12 a line number', ''].join('\n'),
   );
   expect(parsed.files).toEqual(['packages/x/a.ts', 'packages/x/b.ts', 'packages/x/c.ts', 'src/a.ts']);
+});
+
+it('risk:complex-branching expandPath returns the one tracked path that ends with a slash and the path (8-ac-8)', () => {
+  const tracked = ['packages/x/a.ts', 'packages/y/a.ts', 'packages/y/data.ts', 'top.ts'];
+  expect(expandPath('x/a.ts', tracked)).toBe('packages/x/a.ts');
+  expect(expandPath('data.ts', tracked)).toBe('packages/y/data.ts');
+  expect(expandPath('a.ts', tracked)).toBeUndefined();
+  expect(expandPath('ata.ts', tracked)).toBeUndefined();
+  expect(expandPath('q/none.ts', tracked)).toBeUndefined();
+  expect(expandPath('', tracked)).toBeUndefined();
+});
+
+it('risk:parsing a citation written with backslashes reads as the same citation with slashes (8-ac-8)', () => {
+  const parsed = parseScoutReport('## Files\n- src\\a.ts\n\nSee src\\b.ts:3 and `docs\\c.md:2-4`.\n');
+  expect(parsed.files).toEqual(['src/a.ts']);
+  expect(parsed.citations.map((c) => [c.path, c.numbers])).toEqual([
+    ['src/b.ts', [3]],
+    ['docs/c.md', [2, 4]],
+  ]);
 });

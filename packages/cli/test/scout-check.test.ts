@@ -213,3 +213,113 @@ it('risk:parsing accord scout check passes a Files list that writes a path with 
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:parsing accord scout check reads a citation written with backslashes (8-ac-8)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      'packages/x/a.ts': 'export const a = 1;\nexport const b = 2;\nexport const c = 3;\n',
+    });
+    commitMsg(repo, 'fixture');
+    writeFileSync(join(repo, 'report.md'), '## Files\n- packages\\x\\a.ts\n\n## Facts\n- the rule sits at packages\\x\\a.ts:3\n- also `packages\\x\\a.ts:2`\n');
+    const passing = await run(['scout', 'check', 'report.md'], repo);
+    expect(passing.out).not.toContain('does not resolve');
+    expect(passing.out.endsWith('scout check passed\n')).toBe(true);
+    expect(passing.code).toBe(0);
+
+    // read, not ignored: a line past the end still fails, and the printed path holds no backslash
+    writeFileSync(join(repo, 'report.md'), '## Files\n- packages/x/a.ts\n\n## Facts\n- the rule sits at packages\\x\\a.ts:99\n');
+    const failing = await run(['scout', 'check', 'report.md'], repo);
+    expect(failing.code).toBe(1);
+    expect(failing.out).toContain('citation packages/x/a.ts:99 does not resolve: packages/x/a.ts has 3 lines');
+    expect(failing.out).not.toContain('\\');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching a shortened path with one tracked match is expanded and one with none or several still fails (8-ac-8)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      'packages/x/a.ts': 'export const a = 1;\nexport const b = 2;\nexport const c = 3;\n',
+      'packages/y/a.ts': 'export const a = 1;\n',
+    });
+    commitMsg(repo, 'fixture');
+
+    writeFileSync(join(repo, 'report.md'), '## Files\n- x/a.ts: the writer\n\n## Facts\n- the rule sits at x/a.ts:3\n');
+    const one = await run(['scout', 'check', 'report.md'], repo);
+    expect(one.out).toContain('expanded x/a.ts to packages/x/a.ts\n');
+    expect(one.out.match(/expanded /g)?.length).toBe(1);
+    expect(one.out).toContain('expected files: 1 (packages/x/a.ts)');
+    expect(one.out.endsWith('scout check passed\n')).toBe(true);
+    expect(one.code).toBe(0);
+
+    // a citation past the end of the expanded file still fails, naming the full path
+    writeFileSync(join(repo, 'report.md'), '## Files\n- packages/x/a.ts\n\n## Facts\n- the rule sits at x/a.ts:99\n');
+    const past = await run(['scout', 'check', 'report.md'], repo);
+    expect(past.code).toBe(1);
+    expect(past.out).toContain('citation x/a.ts:99 does not resolve: packages/x/a.ts has 3 lines');
+
+    // several matches: no guess
+    writeFileSync(join(repo, 'report.md'), '## Files\n- a.ts\n');
+    const several = await run(['scout', 'check', 'report.md'], repo);
+    expect(several.code).toBe(1);
+    expect(several.out).toContain('fail: ## Files lists a.ts, which git does not track');
+    expect(several.out).not.toContain('expanded');
+
+    // no match
+    writeFileSync(join(repo, 'report.md'), '## Files\n- q/none.ts\n\n## Facts\n- see q/none.ts:2\n');
+    const none = await run(['scout', 'check', 'report.md'], repo);
+    expect(none.code).toBe(1);
+    expect(none.out).toContain('fail: ## Files lists q/none.ts, which git does not track');
+    expect(none.out).toContain('citation q/none.ts:2 does not resolve: git does not track q/none.ts');
+    expect(none.out).not.toContain('expanded');
+
+    // New files is never expanded
+    writeFileSync(join(repo, 'report.md'), '## Files\n- packages/x/a.ts\n\n## New files\n- x/a.ts\n');
+    const fresh = await run(['scout', 'check', 'report.md'], repo);
+    expect(fresh.out).not.toContain('expanded');
+    expect(fresh.out).toContain('expected files: 2 (packages/x/a.ts, x/a.ts)');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching absence claims do not search .claude/ or .agents/ (8-ac-8)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/skills/x/SKILL.md': 'call widgetThing here\n',
+      '.agents/skills/x/SKILL.md': 'call widgetThing here\n',
+    });
+    commitMsg(repo, 'fixture');
+    const head = '## Files\n- src/a.ts\n\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n|---|---|---|---|\n';
+
+    writeFileSync(join(repo, 'report.md'), head + '| no widgetThing anywhere | `widgetThing` | . | |\n');
+    const skipped = await run(['scout', 'check', 'report.md'], repo);
+    expect(skipped.out).not.toContain('matches its pattern');
+    expect(skipped.out.endsWith('scout check passed\n')).toBe(true);
+    expect(skipped.code).toBe(0);
+
+    writeFileSync(join(repo, 'report.md'), head + '| no widgetThing in the skills | `widgetThing` | `.claude/` | |\n');
+    const only = await run(['scout', 'check', 'report.md'], repo);
+    expect(only.code).toBe(1);
+    expect(only.out).toContain('its folders cover no tracked file');
+
+    // product code is still searched
+    writeFiles(repo, { 'src/b.ts': 'widgetThing();\n' });
+    commitMsg(repo, 'second');
+    writeFileSync(join(repo, 'report.md'), head + '| no widgetThing anywhere | `widgetThing` | . | |\n');
+    const found = await run(['scout', 'check', 'report.md'], repo);
+    expect(found.code).toBe(1);
+    expect(found.out).toContain('src/b.ts:1 matches its pattern outside its allowed hits');
+    expect(found.out).not.toContain('.claude/');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

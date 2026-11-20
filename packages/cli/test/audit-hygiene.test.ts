@@ -1,6 +1,6 @@
 // Phase 8.2 group 3 (D-01, D-02, D-06, D-07, D-08): `accord audit` reports claimed tickets idle past stale_days and unclaimed drafts untouched past stale_draft_days,
 // naming the person, from the branches already in the clone. It reads git and files, writes nothing and calls no model.
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -8,14 +8,26 @@ import { CONFIG, done, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { makeClone } from './helpers/worktree.js';
+import { copy, doneOnRemote, has, makeClone, ticketWorktree, useSandboxes } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
+import * as limit from '../src/commands/fetch-limit.js';
 
+vi.mock('../src/load/proc.js', async (orig) => {
+  const real = await orig<typeof import('../src/load/proc.js')>();
+  return { ...real, processTable: vi.fn(real.processTable) };
+});
+vi.mock('../src/commands/fetch-limit.js', async (orig) => {
+  const real = await orig<typeof import('../src/commands/fetch-limit.js')>();
+  return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs), cleanBudgetMs: vi.fn(real.cleanBudgetMs) };
+});
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
+
+useSandboxes([{ tickets: ['ST-9'] }, { tickets: ['T-1'] }]);
 
 const dirs: string[] = [];
 const clones: Clone[] = [];
 afterEach(() => {
+  vi.mocked(limit.cleanBudgetMs).mockReset();
   while (dirs.length > 0) cleanup(dirs.pop() as string);
   while (clones.length > 0) (clones.pop() as Clone).cleanupAll();
   spawnLog.on = false;
@@ -225,4 +237,122 @@ it('risk:resource the creator is read only for drafts past the threshold (D-02)'
   expect(draftLines(r.lines), r.out).toHaveLength(1);
   const creatorReads = spawnLog.calls.filter((c) => verbOf(c).verb === 'log' && c.includes('--diff-filter=A'));
   expect(creatorReads.map((c) => c.join(' '))).toHaveLength(1);
+});
+
+// ---- 08.2-04 (D-03, D-06): what a clean would remove, and the branches no clean handles --------------------------------------------------
+
+/** The 8.2-ac-3 sandbox: ST-9 done on the remote with its worktree here, after a fetch so every ref is already in the clone. */
+function doneWorktree(): Clone {
+  const c = copy({ tickets: ['ST-9'] });
+  ticketWorktree(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
+  c.git('fetch', '-q', 'origin');
+  return c;
+}
+
+const gapsOf = (lines: string[], id: string): string[] => lines.filter((l) => l.startsWith(`gap: ${id}:`));
+
+it("risk:data-loss accord audit lists a done ticket's worktree as worktree-leftover and deletes nothing (8.2-ac-3)", async () => {
+  const c = doneWorktree();
+  const tip = c.git('rev-parse', 't/ST-9').trim();
+  const remoteTip = c.git('rev-parse', 'origin/t/ST-9').trim();
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  const r = await audit(c.root);
+  spawnLog.on = false;
+  expect(r.code, r.out).toBe(0);
+  const left = gapsOf(r.lines, 'worktree-leftover');
+  expect(left, r.out).toHaveLength(3);
+  expect(left.some((l) => l.includes(`removed ${c.sibling('ST-9')}`)), r.out).toBe(true);
+  expect(left.some((l) => l.includes(`deleted t/ST-9 (was ${tip})`)), r.out).toBe(true);
+  expect(left.some((l) => l.includes(`deleted origin/t/ST-9 (was ${remoteTip})`)), r.out).toBe(true);
+  for (const l of left) {
+    expect(l, r.out).toContain('branch tip by fixture@example.invalid');
+    expect(l, r.out).toContain('accord worktree clean');
+    expect(l, r.out).not.toContain(' - next: ');
+  }
+  expect(r.lines, r.out).toContain('fact: worktree-refs: judged against the refs already in this clone; accord worktree clean --dry-run fetches first');
+  // the branches the dry clean names are not listed a second time
+  expect(gapsOf(r.lines, 'branch-orphan'), r.out).toEqual([]);
+  expect(gapsOf(r.lines, 'claim-unpushed'), r.out).toEqual([]);
+
+  // nothing was deleted, and nothing was asked of the remote
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
+  expect(has(c.root, 'refs/remotes/origin/t/ST-9')).toBe(true);
+  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
+  expect(spawnLog.calls.length).toBeGreaterThan(0);
+  const asked = spawnLog.calls.filter((a) => ['fetch', 'push'].includes(verbOf(a).verb) || (verbOf(a).verb === 'remote' && verbOf(a).rest[0] === 'prune'));
+  expect(asked.map((a) => a.join(' '))).toEqual([]);
+});
+
+it('risk:complex-branching accord audit lists an orphan branch and an old unpushed claim branch and deletes neither (8.2-ac-4)', async () => {
+  const c = copy({ tickets: ['T-1'] });
+  c.git('branch', 't/ZZ-9');
+  c.git('switch', '-q', '-c', 't/T-1');
+  commitMsg(c.root, 'claim: T-1', ago(20), true);
+  c.git('switch', '-q', 'main');
+  const r = await audit(c.root);
+  expect(r.code, r.out).toBe(0);
+  const orphan = gapsOf(r.lines, 'branch-orphan');
+  expect(orphan, r.out).toHaveLength(1);
+  for (const part of ['t/ZZ-9 (local)', 'ticket ZZ-9', 'tip by fixture@example.invalid', 'git branch -D t/ZZ-9']) expect(orphan[0], r.out).toContain(part);
+  const unpushed = gapsOf(r.lines, 'claim-unpushed');
+  expect(unpushed, r.out).toHaveLength(1);
+  for (const part of ['t/T-1 (ticket T-1)', '20 days old', 'tip by fixture@example.invalid', 'git push -u origin t/T-1']) expect(unpushed[0], r.out).toContain(part);
+  expect(r.lines.some((l) => l.startsWith('fact: claim-unpushed:')), r.out).toBe(false);
+  expect(has(c.root, 'refs/heads/t/ZZ-9')).toBe(true);
+  expect(has(c.root, 'refs/heads/t/T-1')).toBe(true);
+});
+
+it("risk:complex-branching a pushed claim branch and a team-mate's orphan on origin are judged from the refs in the clone (D-06)", async () => {
+  const c = copy({ tickets: ['T-1'] });
+  const other = c.otherClone();
+  gitRun(other, 'switch', '-q', '-c', 't/YY-1');
+  gitRun(other, 'config', 'user.email', 'mate@x.io');
+  commitMsg(other, 'claim: YY-1', undefined, true);
+  gitRun(other, 'push', '-q', 'origin', 't/YY-1');
+  c.git('fetch', '-q', 'origin');
+  c.git('switch', '-q', '-c', 't/T-1');
+  commitMsg(c.root, 'claim: T-1', ago(20), true);
+  c.git('push', '-q', '-u', 'origin', 't/T-1');
+  c.git('switch', '-q', 'main');
+  const r = await audit(c.root);
+  expect(r.code, r.out).toBe(0);
+  const orphan = gapsOf(r.lines, 'branch-orphan');
+  expect(orphan, r.out).toHaveLength(1);
+  for (const part of ['t/YY-1 (origin)', 'tip by mate@x.io', 'git push origin --delete t/YY-1']) expect(orphan[0], r.out).toContain(part);
+  expect(gapsOf(r.lines, 'claim-unpushed'), r.out).toEqual([]);
+  expect(has(c.remote, 'refs/heads/t/YY-1')).toBe(true);
+});
+
+it('risk:complex-branching with no origin remote claim-unpushed says no observation (D-03)', async () => {
+  const repo = idleRepo();
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  expect(r.lines, r.out).toContain('fact: claim-unpushed: no observation (no origin remote)');
+  expect(r.lines, r.out).toContain('fact: worktree-refs: no observation (no default branch in this clone)');
+  expect(gapsOf(r.lines, 'claim-unpushed'), r.out).toEqual([]);
+  expect(gapsOf(r.lines, 'worktree-leftover'), r.out).toEqual([]);
+});
+
+it("risk:data-loss accord audit with a done ticket's worktree writes nothing and fetches nothing (8.2-ac-8)", async () => {
+  const c = doneWorktree();
+  const before = listings(c.root);
+  const dir = resolve(c.root, c.git('rev-parse', '--git-common-dir').trim(), 'accord');
+  let locked = false;
+  spawnLog.after = () => {
+    if (existsSync(dir + '/clean.lock') || existsSync(dir + '/holds.lock')) locked = true;
+  };
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  const r = await audit(c.root);
+  spawnLog.on = false;
+  expect(r.code, r.out).toBe(0);
+  expect(gapsOf(r.lines, 'worktree-leftover'), r.out).toHaveLength(3);
+  expect(listings(c.root)).toEqual(before);
+  expect(locked).toBe(false);
+  expect(existsSync(dir + '/clean.lock') || existsSync(dir + '/holds.lock')).toBe(false);
+  expect(spawnLog.calls.length).toBeGreaterThan(0);
+  expect(spawnLog.calls.filter((a) => writes(a)).map((a) => a.join(' '))).toEqual([]);
 });

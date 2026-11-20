@@ -1,7 +1,7 @@
 // Phase 8.2 group 3 (work hygiene): the pure gap builders and the open-work predicate they share with the dashboard. No git, no filesystem.
 import { expect, it } from 'vitest';
-import { draftAge, draftStaleGaps, isOpenWork, loadSnapshot, statusRows, ticketIdleGaps } from '../src/index.js';
-import type { StatusRow } from '../src/index.js';
+import { branchGaps, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, statusRows, ticketIdleGaps } from '../src/index.js';
+import type { ClaimRefFact, StatusRow } from '../src/index.js';
 import { CONFIG, done, laneTicket, P, building } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
@@ -90,4 +90,79 @@ it('risk:parsing a draft age comes from its last activity or its queued branch d
   expect(draftAge(snap, 'ST-8', now)).toBeUndefined(); // no date suffix: the loader reads the branch tip
   expect(draftAge(snap, 'ST-7', now)).toBeUndefined(); // not a calendar date
   expect(draftAge(snap, 'NONE', now)).toBeUndefined();
+});
+
+it('risk:parsing a would-be removal line becomes one worktree-leftover gap with its next action cut (8.2-ac-3)', () => {
+  const lines = [
+    'removed /x/a-st-9 - next: tell the owner',
+    'deleted t/ST-9 (was abc1234) - next: tell the owner',
+    'kept t/ST-10: checked out in /x - next: tell the owner',
+    'pruned /x/gone: gitdir file points to non-existent location - next: tell the owner',
+    'deleted backlog/x: merged into origin/main (was def5678)',
+  ];
+  const authors: Record<string, string> = { 'removed /x/a-st-9': 'a@x.io', 'deleted t/ST-9 (was abc1234)': 'b@x.io' };
+  const gaps = leftoverGaps(lines, (line) => authors[line], same);
+  expect(gaps).toEqual([
+    { id: 'worktree-leftover', text: 'removed /x/a-st-9; branch tip by a@x.io', fix: 'accord worktree clean' },
+    { id: 'worktree-leftover', text: 'deleted t/ST-9 (was abc1234); branch tip by b@x.io', fix: 'accord worktree clean' },
+    { id: 'worktree-leftover', text: 'pruned /x/gone: gitdir file points to non-existent location', fix: 'accord worktree clean' },
+    { id: 'worktree-leftover', text: 'deleted backlog/x: merged into origin/main (was def5678); branch tip by an unknown author', fix: 'accord worktree clean' },
+  ]);
+  // D-08: the person is shown through the function the caller passes
+  expect(leftoverGaps([lines[0]], () => 'a@x.io', () => 'AX')[0].text).toBe('removed /x/a-st-9; branch tip by AX');
+  expect(leftoverGaps(['kept t/ST-10: checked out in /x'], () => 'a@x.io', same)).toEqual([]);
+});
+
+const NOW = Date.UTC(2026, 10, 20, 12) / 1000;
+const ref = (over: Partial<ClaimRefFact>): ClaimRefFact => ({ name: 't/T-1', local: true, id: 'T-1', tip: NOW - 20 * 86400 - 3600, author: 'a@x.io', ticketAnywhere: true, origin: false, merged: false, ...over });
+
+it('risk:complex-branching orphan and unpushed claim branches are judged once each (8.2-ac-4)', () => {
+  const orphan = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false, tip: NOW - 3 * 86400 })], new Set(), '14', NOW, same, { defaultName: 'origin/main' });
+  expect(orphan).toEqual([
+    {
+      id: 'branch-orphan',
+      text: 't/ZZ-9 (local) names ticket ZZ-9, and no accord/tickets/ZZ-9.md is in the checkout, on origin/main or on the branch; tip by a@x.io',
+      fix: 'git branch -D t/ZZ-9',
+    },
+  ]);
+  const remote = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', local: false, ticketAnywhere: false, origin: true })], new Set(), '14', NOW, same);
+  expect(remote.map((g) => [g.id, g.fix])).toEqual([['branch-orphan', 'git push origin --delete t/ZZ-9']]);
+  expect(remote[0].text).toContain('t/ZZ-9 (origin) names ticket ZZ-9');
+
+  const unpushed = branchGaps([ref({})], new Set(), '14', NOW, same);
+  expect(unpushed).toEqual([
+    {
+      id: 'claim-unpushed',
+      text: 't/T-1 (ticket T-1) has no origin/t/T-1, and its tip is 20 days old (stale_days 14); tip by a@x.io',
+      fix: 'git push -u origin t/T-1 to keep it, or git branch -D t/T-1 to delete it',
+    },
+  ]);
+
+  // left out: a name the dry clean deletes (local and origin spelling), a merged ref, a ref with an origin counterpart, a 3 day old tip, exactly stale_days old
+  expect(branchGaps([ref({}), ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false })], new Set(['t/T-1', 't/ZZ-9']), '14', NOW, same)).toEqual([]);
+  expect(branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', local: false, ticketAnywhere: false, origin: true })], new Set(['origin/t/ZZ-9']), '14', NOW, same)).toEqual([]);
+  expect(branchGaps([ref({ merged: true })], new Set(), '14', NOW, same)).toEqual([]);
+  expect(branchGaps([ref({ origin: true })], new Set(), '14', NOW, same)).toEqual([]);
+  expect(branchGaps([ref({ tip: NOW - 3 * 86400 })], new Set(), '14', NOW, same)).toEqual([]);
+  expect(branchGaps([ref({ tip: NOW - 14 * 86400 - 3600 })], new Set(), '14', NOW, same)).toEqual([]);
+  // an origin-only ref is never an unpushed local claim
+  expect(branchGaps([ref({ local: false, origin: true })], new Set(), '14', NOW, same)).toEqual([]);
+  // an unknown author is named as such
+  expect(branchGaps([ref({ author: undefined })], new Set(), '14', NOW, same)[0].text).toContain('tip by an unknown author');
+  // no origin remote: only the orphan check runs
+  expect(branchGaps([ref({}), ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false })], new Set(), '14', NOW, same, { unpushed: false }).map((g) => g.id)).toEqual(['branch-orphan']);
+  // D-08
+  expect(branchGaps([ref({})], new Set(), '14', NOW, () => 'AX')[0].text).toContain('tip by AX');
+});
+
+it('risk:security a branch name a shell would read gets no command in its fix (T-08.2-07)', () => {
+  for (const name of ['t/x y', 't/x;rm -rf', 't/$(x)', 't/`x`', "t/x'y"]) {
+    const gaps = branchGaps([ref({ name, local: true, ticketAnywhere: false }), ref({ name, local: false, ticketAnywhere: false, origin: true })], new Set(), '14', NOW, same);
+    expect(gaps.map((g) => g.id).sort()).toEqual(['branch-orphan', 'branch-orphan', 'claim-unpushed']);
+    for (const g of gaps) {
+      expect(g.fix, name).toBe('the branch name holds characters a command line would read, so no command is printed; push or delete it by hand');
+      expect(g.fix).not.toContain('git branch');
+      expect(g.fix).not.toContain('git push');
+    }
+  }
 });

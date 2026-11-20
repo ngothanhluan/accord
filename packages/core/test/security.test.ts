@@ -612,6 +612,71 @@ it('risk:regression a security file written by 0.7.0, with its older security-co
   expect(other.problems).toHaveLength(1);
 });
 
+// 8-ac-4 (D-08): the default built-path was quadratic on a long line of `join(` (about 1,400 ms on 100,000 characters). The linear default must match the same lines as the old one.
+const OLD_BUILT_PATH = String.raw`\b(join|resolve|normalize)\s*\(.*\b(input|argv|args?|params?|query|body|req|request)\b`;
+const OLD_BUILT_PATH_LINE = `- built-path: line /${OLD_BUILT_PATH}/ — paths built from input`;
+const builtPath = (spec: ReturnType<typeof securitySpec>): RegExp => {
+  const p = spec.patterns.find((x) => x.id === 'built-path');
+  return new RegExp(p?.source ?? '(unreadable)', p?.flags ?? '');
+};
+
+it('risk:security the default built-path matches the same lines as before and stays fast on 100,000 characters (8-ac-4)', () => {
+  const now = builtPath(DEFAULT_SECURITY);
+  const old = new RegExp(OLD_BUILT_PATH);
+  const openers = ['join', 'resolve', 'normalize'];
+  const keywords = ['input', 'argv', 'arg', 'args', 'param', 'params', 'query', 'body', 'req', 'request'];
+  const corpus: string[] = [];
+  for (const o of openers) {
+    for (const k of keywords) corpus.push(`${o}(${k})`, `${k} = ${o}(x)`, `${o} (a, ${k})`, `${o}(x) + ${k}`, `path.${o}(__dirname, req.${k}.file)`, `${o}(${k}s)`, `${o}\t(  ${k} )`);
+  }
+  corpus.push(
+    'join(a, resolve(normalize(x)), query)', 'join(a) join(b) input', 'join(a, b)', 'const a = input;', 'rejoin(input)', 'joined (input)', 'join', 'join(', 'input join(', 'join( inputs', 'resolve(x) ; unrelated',
+    'normalize(x) .. query', '', ' ', 'join (', 'xjoin(input)', 'join(input', 'join(requestor)', 'JOIN(input)', 'x.resolve(  argv[2] )', 'normalize(a)\tparams', 'join(' + 'a'.repeat(5000) + ', body)',
+    'join('.repeat(20_000), 'join('.repeat(20_000) + ' input', 'join('.repeat(2000) + 'x'.repeat(5000), 'join(' + ' '.repeat(3000) + ')', 'a'.repeat(3000) + 'join(input)',
+  );
+  // a seeded pseudo-random corpus of short lines made of the same tokens (no line terminator in any line)
+  const tokens = ['join', 'resolve', 'normalize', '(', ')', ' ', '\t', 'input', 'argv', 'args', 'param', 'query', 'body', 'req', 'request', 'x', '.', ',', 'rejoin', 'inputs', 'a_', '=', '"'];
+  let seed = 20_261_119;
+  const next = (n: number): number => {
+    seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0;
+    return seed % n;
+  };
+  for (let i = 0; i < 3000; i++) corpus.push(Array.from({ length: 2 + next(14) }, () => tokens[next(tokens.length)]).join(''));
+  expect(corpus.length).toBeGreaterThan(3000);
+  expect(now.source).not.toBe(old.source);
+  const differing = corpus.filter((line) => now.test(line) !== old.test(line));
+  expect(differing).toEqual([]);
+  // the corpus is not vacuous: both sides match some lines and miss some
+  expect(corpus.filter((line) => old.test(line)).length).toBeGreaterThan(300);
+  expect(corpus.filter((line) => !old.test(line)).length).toBeGreaterThan(300);
+  // the new default ends in well under 200 ms on 100,000 characters, with and without the keyword at the end
+  for (const line of ['join('.repeat(20_000), 'join('.repeat(20_000) + ' input', 'join('.repeat(19_999) + 'x'.repeat(5) + ' '.repeat(5)]) {
+    const started = performance.now();
+    now.test(line);
+    expect(performance.now() - started).toBeLessThan(200);
+  }
+});
+
+it('risk:regression a security file written by 0.8.0 still reads clean and the current defaults apply (8-ac-4)', () => {
+  // the 0.8.0 file: the old built-path line, and no agent-config line (that default came after 0.8.0)
+  const written = templates['security.md']
+    .split('\n')
+    .filter((l) => !l.startsWith('- agent-config:'))
+    .map((l) => (l.startsWith('- built-path:') ? OLD_BUILT_PATH_LINE : l))
+    .join('\n');
+  expect(written).toContain(OLD_BUILT_PATH_LINE);
+  const spec = securitySpec(withFile(written));
+  expect(spec.problems).toEqual([]);
+  // the current default applies, not the file's line
+  expect(builtPath(spec).source).toBe(builtPath(DEFAULT_SECURITY).source);
+  expect(builtPath(spec).source).not.toBe(OLD_BUILT_PATH);
+  expect(ids(spec)).toContain('agent-config');
+  expect(DEFAULT_SECURITY.problems).toEqual([]);
+  // any other value of the default is still a problem
+  const other = securitySpec(withFile(written.replace(OLD_BUILT_PATH_LINE, '- built-path: line /\\bjoin\\(/ — x')));
+  expect(other.problems).toHaveLength(1);
+});
+
 it('risk:resource a path the host could not read as text is a trigger of its own, listed and printed once (CR-01)', () => {
   const binary = ['diff --git a/big.js b/big.js', 'new file mode 100644', 'index 0000000..1111111', 'Binary files /dev/null and b/big.js differ'].join('\n');
   const label = '(cannot tell: big.js: too large to read as text, so its lines were not scanned)';

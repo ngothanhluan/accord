@@ -1,4 +1,4 @@
-accord: "0.8.0"
+accord: "0.8.1"
 profile: staging
 tracker:
   adapter: github-issues

@@ -41,6 +41,7 @@ import {
   vagueWording,
 } from './ticket.js';
 import { securityFile } from '../security/spec.js';
+import { slopFile } from '../slop/spec.js';
 import { researchReference } from './research.js';
 import { testUntraced } from './tests.js';
 import { prototypeDerivation, tokenHardcoded, tokensMissing } from './tokens.js';
@@ -102,5 +103,7 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.commit-rule', level: 'error', profiles: ['build', 'maintain'], check: commitRule },
   { id: 'lint.config-floor', level: 'error', profiles: ['build', 'maintain'], check: configFloor },
   { id: 'lint.security-file', level: 'error', profiles: ['build', 'maintain'], check: securityFile },
+  // Phase 8.1 D-15: overridable (a team may lower it), and no claim cut-off: it reads the team's file, not a ticket.
+  { id: 'lint.slop-file', level: 'error', profiles: ['build', 'maintain'], check: slopFile },
   { id: 'lint.template-section', level: 'error', profiles: ['build', 'maintain'], check: templateSection },
 ];

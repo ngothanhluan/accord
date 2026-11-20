@@ -146,6 +146,7 @@ export const OVERRIDABLE: readonly string[] = [
   'lint.tokens-missing',
   'lint.prototype-derivation',
   'lint.model-retired',
+  'lint.slop-file',
 ];
 
 const OVERRIDABLE_SET: ReadonlySet<string> = new Set(OVERRIDABLE);

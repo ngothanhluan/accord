@@ -1,7 +1,8 @@
 // Phase 8.1 D-15, D-16: the slop file (`accord/product/slop.md`) holds the patterns a reviewer is shown on every added line. It reuses the security file's list-line grammar, its backtracking guard
 // (security/backtrack.ts) and its line bound, and adds an optional `for .<ext>[, .<ext>]` scope. Pure text in, a spec out; the defaults are the text of templates/slop.md, read from the generated record.
 import { templates } from '../generated/templates.js';
-import { scan, stripHtmlComments } from '../load/sections.js';
+import { headingKey, scan, stripHtmlComments } from '../load/sections.js';
+import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { backtrackProblem } from '../security/backtrack.js';
 
@@ -29,6 +30,8 @@ export interface SlopSpec {
 const ID = '[a-z0-9][a-z0-9-]*';
 // One anchored pattern, no nested quantifier; `.+` before the last ` — ` is greedy, so the label is the text after the last ` — `.
 const PATTERN = new RegExp(`^- (${ID}): (path|line) (.+) — (.+)$`);
+const REMOVED = new RegExp(`^- Removed: (${ID}) — (.+)$`);
+const HAS_WORD = /[\p{L}\p{N}]/u;
 const ID_ONLY = new RegExp(`^${ID}$`);
 const LEADING_ID = /^- ([^:\s]+): /;
 const LINE_SPEC = /^\/(.+)\/(i?)$/;
@@ -38,6 +41,12 @@ const FOR_LIST = / for (\.[a-z0-9]+(?:, \.[a-z0-9]+)*)$/;
 const FOR_ANY = /^(\/.+\/i?) for (.*)$/;
 /** The longest line of a slop file the reader takes: the security file's bound, 2000 (a team's file line, a different input from a changed line, SCAN_LINE_LIMIT in security/match.ts). */
 const MAX_PATTERN_LINE = 2000;
+
+/** The sections of a slop file the reader takes, by headingKey. */
+const SECTIONS = new Set(['patterns', 'removed']);
+
+/** The kinds that are not patterns (D-14): `- Removed: <kind> — <reason>` switches each off. */
+export const STRUCTURAL_KINDS: readonly string[] = ['new-dependency', 'file-growth', 'orphan-file'];
 
 const BOM = String.fromCharCode(0xfeff);
 
@@ -115,6 +124,31 @@ export function parseSlop(text: string): SlopSpec {
     seen.add(id);
     spec.patterns.push({ id, source: r[1], flags: r[2], ...(exts === undefined ? {} : { exts }), label: label.trim(), line });
   }
+
+  const gone = sections.find((x) => x.heading.toLowerCase() === 'removed');
+  for (const { line, text: raw } of gone === undefined ? [] : stripHtmlComments(gone.lines)) {
+    const t = raw.trimEnd();
+    if (!t.startsWith('- ')) continue;
+    const m = t.length > MAX_PATTERN_LINE ? null : REMOVED.exec(t);
+    if (m === null) {
+      spec.problems.push({ line, reason: 'not a removal: write "- Removed: <id> — <reason>", the reason in words' });
+      continue;
+    }
+    if (!HAS_WORD.test(m[2])) {
+      spec.problems.push({ line, reason: `the removal of "${m[1]}" gives no reason in words` });
+      continue;
+    }
+    spec.removed.push({ id: m[1], reason: m[2].trim(), line });
+  }
+
+  // lint only: the reader takes the first section of each name, so a repeated heading is ignored and a heading it does not know (a misspelling such as `## Pattern`) silently does nothing
+  const headings = new Set<string>();
+  for (const s of sections) {
+    const key = headingKey(s.heading);
+    if (headings.has(key)) spec.problems.push({ line: s.line, reason: `the section "## ${s.heading}" appears twice; only the first is read, so move its lines into the first one` });
+    else if (!SECTIONS.has(key)) spec.problems.push({ line: s.line, reason: `"## ${s.heading}" is not a section accord reads; use ## Patterns or ## Removed` });
+    headings.add(key);
+  }
   return spec;
 }
 
@@ -124,8 +158,40 @@ export const DEFAULT_SLOP: SlopSpec = parseSlop(templates['slop.md']);
 /** Where the repository's own file lives; an absent file means the defaults. */
 export const SLOP_FILE = 'accord/product/slop.md';
 
-/** The spec a repository runs under: the defaults (the repository's own file is merged in by the next change of this group). */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/**
+ * D-15: the patterns in force are the defaults, minus each default a `- Removed: <id> — <reason>` line names, with each default the file rewrites under its id replaced by the file's row, plus the
+ * file's rows with new ids. A `Removed:` line may also name a structural kind (`new-dependency`, `file-growth`, `orphan-file`). `removed` holds the removals that took effect; every line that did not
+ * read, or read and changed nothing it claims to, is in `problems`.
+ */
+function mergeSlop(file: SlopSpec): SlopSpec {
+  const problems = [...file.problems];
+  const defaults = new Set(DEFAULT_SLOP.patterns.map((p) => p.id));
+  const teamIds = new Set(file.patterns.map((p) => p.id));
+  const removed: SlopSpec['removed'] = [];
+  const gone = new Set<string>();
+  for (const r of file.removed) {
+    if (gone.has(r.id)) problems.push({ line: r.line, reason: `"${r.id}" is removed twice` });
+    else if (defaults.has(r.id) || STRUCTURAL_KINDS.includes(r.id)) {
+      gone.add(r.id);
+      removed.push(r);
+    } else if (teamIds.has(r.id)) problems.push({ line: r.line, reason: `"${r.id}" is not a default kind; delete its own line instead` });
+    else problems.push({ line: r.line, reason: `"${r.id}" is not a default kind, so nothing is removed` });
+  }
+  return {
+    patterns: [...DEFAULT_SLOP.patterns.filter((p) => !gone.has(p.id) && !teamIds.has(p.id)), ...file.patterns],
+    removed,
+    problems: problems.sort((a, b) => a.line - b.line),
+  };
+}
+
+/** The spec a repository runs under: the defaults, merged with the repository's `accord/product/slop.md` when it has one. */
 export function slopSpec(snapshot: RepoSnapshot): SlopSpec {
-  return DEFAULT_SLOP;
+  const text = Object.hasOwn(snapshot.files, SLOP_FILE) ? snapshot.files[SLOP_FILE] : undefined;
+  return text === undefined ? DEFAULT_SLOP : mergeSlop(parseSlop(text));
+}
+
+/** The lint check of `lint.slop-file`: one draft per line of the slop file that does not read, at its line. An absent file has none. */
+export function slopFile(snapshot: RepoSnapshot): Omit<Finding, 'level' | 'rule'>[] {
+  if (!Object.hasOwn(snapshot.files, SLOP_FILE)) return [];
+  return slopSpec(snapshot).problems.map((p) => ({ file: SLOP_FILE, line: p.line, reason: p.reason }));
 }

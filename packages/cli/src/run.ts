@@ -506,7 +506,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('deferred <id>')
-    .description("print the ledger's Must and Should deferred items, for the owner at verify")
+    .description("print the ledger's Must and Should deferred items that carry no owner's mark (→ <id> or → declined), for the owner at verify")
     .action((id: string) => {
       setCode(deferred(preflight(opts), id));
     });

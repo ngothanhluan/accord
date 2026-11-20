@@ -1,7 +1,8 @@
-// Phase 8.2 group 3 (work hygiene, D-01, D-02, D-06): the gaps `accord audit` prints about claimed tickets that went quiet and about drafts nobody touched. Pure: no node import, no
+// Phase 8.2 group 3 (work hygiene, D-01..D-06, D-10): the gaps `accord audit` prints about claimed tickets that went quiet, drafts nobody touched, and deferred items nobody decided. Pure: no node import, no
 // filesystem, no git; the CLI hands it rows and ages it already read, and the function that shows a person (D-08).
 import type { RepoSnapshot } from '../model/snapshot.js';
 import type { StatusRow } from '../status/rows.js';
+import type { OwnerDeferred } from '../tickets/deferred.js';
 import type { AuditGap } from './conventions.js';
 
 /** The ticket id shape a command may be printed for: the same as the CLI's `ID` (packages/cli/src/commands/worktree.ts) and the panel's SAFE_ID. Ruling "ids in fix commands". */
@@ -161,4 +162,22 @@ export function branchGaps(
             fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : `git push -u origin ${r.name} to keep it, or git branch -D ${r.name} to delete it`,
           }));
   return [...orphans, ...unpushed];
+}
+
+/**
+ * D-04, D-06, D-10: one `deferred-undecided` gap per unmarked Must or Should item of a done ticket the loader judged (claimed at or after DEFERRED_MARK_FROM), in id code-point order, the items in
+ * the order `ownerDeferred` gave them. No lane is read: the text, the fix and the input hold none, so the same route clears the gap on every lane.
+ */
+export function deferredGaps(tickets: readonly { id: string; items: readonly OwnerDeferred[] }[]): AuditGap[] {
+  return [...tickets]
+    .sort((a, b) => cmp(a.id, b.id))
+    .flatMap((t) =>
+      t.items.map((i) => ({
+        id: 'deferred-undecided',
+        text: `${t.id} has an undecided ${i.rating} item: ${i.text}`,
+        fix: SAFE_ID.test(t.id)
+          ? `queue it with /accord-queue and append " → <new id>" to its line in accord/tickets/${t.id}/ledger.md, or append " → declined" there; a pull request that changes only that ledger`
+          : NO_COMMAND,
+      })),
+    );
 }

@@ -1,6 +1,6 @@
 // Phase 8.1 D-14, D-20: which added lines of a package's diff text match the slop patterns. Pure: it reads the `-U10` diff text the host already produced, never git.
 // Every added line of every changed text file is judged, test files included; only Markdown, generated files and dependency lockfiles are skipped (copyGeneratedOrMarkdown, LOCKFILES).
-import { copyGeneratedOrMarkdown, diffFiles, SCAN_LINE_LIMIT } from '../security/match.js';
+import { copyGeneratedOrMarkdown, diffFiles, KNOWN_BINARY, SCAN_LINE_LIMIT } from '../security/match.js';
 import type { SlopPattern, SlopSpec } from './spec.js';
 
 /**
@@ -81,19 +81,34 @@ function compile(spec: SlopSpec): { p: SlopPattern; re: RegExp }[] {
 }
 
 /**
- * The slop hits of a package: each pattern of `spec` over the added lines of every changed text file its scope allows. A binary file has no added text lines in the diff, so it gives no hit.
- * A line is matched on its first SCAN_LINE_LIMIT characters; slop is a quality signal, not a security boundary, so the rest of a longer line adds no hit.
+ * WR-02: the kind of the hit a line or a file the scan could not read whole gets, as the security scan reports `cannot` (fail closed). It is not a pattern and not in the `Removed:` list, so only a
+ * fix or a justification line (`slop:unscanned <path>:<line> — <reason>`) clears it; padding a line past SCAN_LINE_LIMIT or hiding a NUL byte in a code file cannot.
+ */
+export const UNSCANNED = 'unscanned';
+const LONG_LINE = `line longer than ${SCAN_LINE_LIMIT} characters, only its first ${SCAN_LINE_LIMIT} were scanned`;
+const BINARY_FILE = 'binary file, its lines were not scanned';
+
+/**
+ * The slop hits of a package: each pattern of `spec` over the added lines of every changed text file its scope allows. A line is matched on its first SCAN_LINE_LIMIT characters (which bounds the time
+ * a pattern may take); a longer line, and a file git calls binary that is not a known image, font or archive and has no text section of the same path, are an `unscanned` hit (WR-02), never silence.
  */
 export function slopHits(spec: SlopSpec, diffText: string, options: { generated: readonly string[]; exempt?: readonly string[] }): SlopHit[] {
   const res = compile(spec);
   const hits: SlopHit[] = [];
-  for (const f of diffFiles(diffText)) {
-    if (f.binary || f.path === undefined || slopSkipped(f.path, options.generated, options.exempt ?? [])) continue;
+  const files = diffFiles(diffText);
+  for (const f of files) {
+    if (f.path === undefined || slopSkipped(f.path, options.generated, options.exempt ?? [])) continue;
     const ext = extensionOf(f.path);
     const scoped = res.filter(({ p }) => p.exts === undefined || p.exts.includes(ext));
     if (scoped.length === 0) continue;
+    if (f.binary) {
+      if (!KNOWN_BINARY.has(ext.slice(1)) && !files.some((g) => !g.binary && g.path === f.path)) hits.push({ kind: UNSCANNED, path: f.path, line: 1, label: BINARY_FILE });
+      continue;
+    }
     for (const l of f.added) {
-      const head = l.text.length > SCAN_LINE_LIMIT ? l.text.slice(0, SCAN_LINE_LIMIT) : l.text;
+      const long = l.text.length > SCAN_LINE_LIMIT;
+      const head = long ? l.text.slice(0, SCAN_LINE_LIMIT) : l.text;
+      if (long) hits.push({ kind: UNSCANNED, path: f.path, line: l.line, label: LONG_LINE });
       for (const { p, re } of scoped) if (re.test(head)) hits.push({ kind: p.id, path: f.path, line: l.line, label: p.label });
     }
   }

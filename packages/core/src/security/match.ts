@@ -178,7 +178,7 @@ const tooLong = (text: string): boolean => text.length > SCAN_LINE_LIMIT;
 /** The label of the trigger a file git calls binary gets when it is not a known binary type (D-20): a NUL byte on a changed line makes git call a code file binary, and its lines were then never scanned. */
 const BINARY_LABEL = 'binary file, its lines were not scanned';
 /** Image, font and archive types git rightly calls binary; any other binary file with no text twin is a `cannot` trigger (fail closed). */
-const KNOWN_BINARY = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'avif', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'zip', 'gz', 'tgz', 'tar', 'bz2', 'xz', '7z', 'pdf']);
+export const KNOWN_BINARY = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'avif', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'zip', 'gz', 'tgz', 'tar', 'bz2', 'xz', '7z', 'pdf']);
 /** The extension of a path: the text after the last `.` of its name, lower-cased; empty when the name holds none. */
 const extensionOf = (path: string): string => {
   const name = path.slice(path.lastIndexOf('/') + 1);

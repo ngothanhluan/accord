@@ -82,3 +82,83 @@ export function draftStaleGaps(drafts: readonly OldDraft[], staleDraftDays: stri
       };
     });
 }
+
+/** What a G2 fix says for a branch name a command line would read (Ruling "branch checks"). */
+export const NO_COMMAND_CLAIM = 'the branch name holds characters a command line would read, so no command is printed; push or delete it by hand';
+
+const NEXT = ' - next: ';
+
+/**
+ * D-03, D-06: the removed, deleted and pruned lines of an offline dry clean, one `worktree-leftover` gap each, in the clean's order: the line with its next action cut,
+ * then the person who made the tip it concerns. `authorOf` gets the cut line and returns an email (or nothing); a `pruned` line names nobody and a `kept` line is no gap.
+ */
+export function leftoverGaps(lines: readonly string[], authorOf: (line: string) => string | undefined, who: (email: string) => string): AuditGap[] {
+  const gaps: AuditGap[] = [];
+  for (const raw of lines) {
+    const cut = raw.indexOf(NEXT);
+    const line = cut < 0 ? raw : raw.slice(0, cut);
+    if (line.startsWith('pruned ')) {
+      gaps.push({ id: 'worktree-leftover', text: line, fix: 'accord worktree clean' });
+    } else if (line.startsWith('removed ') || line.startsWith('deleted ')) {
+      const email = authorOf(line);
+      gaps.push({ id: 'worktree-leftover', text: `${line}; branch tip by ${email === undefined || email === '' ? 'an unknown author' : who(email)}`, fix: 'accord worktree clean' });
+    }
+  }
+  return gaps;
+}
+
+/** One claim branch ref read from git: local or origin-tracking, the ticket id its name carries, its tip, and what is known about it (Ruling "branch checks"). */
+export interface ClaimRefFact {
+  /** The branch name without `origin/`, as `t/ST-9`. */
+  name: string;
+  local: boolean;
+  id: string;
+  /** The tip's committer time, epoch seconds. */
+  tip: number;
+  /** The tip's author email, when git named one. */
+  author: string | undefined;
+  /** Some ticket file `accord/tickets/<id>.md` exists in the checkout, on the default branch or at this tip. */
+  ticketAnywhere: boolean;
+  /** `refs/remotes/origin/<name>` exists in this clone. */
+  origin: boolean;
+  /** The tip is already on the default ref. */
+  merged: boolean;
+}
+
+/**
+ * D-03, D-06: `branch-orphan` for a claim ref whose ticket exists nowhere, `claim-unpushed` for a local claim branch never pushed whose tip is older than `stale_days` (strictly).
+ * A branch the dry clean already names in a `deleted` line is in neither (`deleted` holds `t/x` for a local ref and `origin/t/x` for an origin one). `unpushed: false` leaves the
+ * second check out (no origin remote to compare with); `defaultName` is how the default branch reads in the text. A name a command line would read gets no command.
+ */
+export function branchGaps(
+  refs: readonly ClaimRefFact[],
+  deleted: ReadonlySet<string>,
+  staleDays: string,
+  now: number,
+  who: (email: string) => string,
+  opts: { unpushed?: boolean; defaultName?: string } = {},
+): AuditGap[] {
+  const def = opts.defaultName ?? 'the default branch';
+  const by = (r: ClaimRefFact): string => (r.author === undefined || r.author === '' ? 'an unknown author' : who(r.author));
+  const listed = refs.filter((r) => !deleted.has(r.local ? r.name : `origin/${r.name}`));
+  const orphans = listed
+    .filter((r) => !r.ticketAnywhere)
+    .sort((a, b) => cmp(a.name, b.name) || Number(b.local) - Number(a.local))
+    .map((r) => ({
+      id: 'branch-orphan',
+      text: `${r.name} (${r.local ? 'local' : 'origin'}) names ticket ${r.id}, and no accord/tickets/${r.id}.md is in the checkout, on ${def} or on the branch; tip by ${by(r)}`,
+      fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : r.local ? `git branch -D ${r.name}` : `git push origin --delete ${r.name}`,
+    }));
+  const unpushed =
+    opts.unpushed === false
+      ? []
+      : listed
+          .filter((r) => r.local && !r.origin && !r.merged && Math.floor((now - r.tip) / 86400) > Number(staleDays))
+          .sort((a, b) => cmp(a.name, b.name))
+          .map((r) => ({
+            id: 'claim-unpushed',
+            text: `${r.name} (ticket ${r.id}) has no origin/${r.name}, and its tip is ${Math.floor((now - r.tip) / 86400)} days old (stale_days ${staleDays}); tip by ${by(r)}`,
+            fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : `git push -u origin ${r.name} to keep it, or git branch -D ${r.name} to delete it`,
+          }));
+  return [...orphans, ...unpushed];
+}

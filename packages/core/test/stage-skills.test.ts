@@ -2302,7 +2302,7 @@ it("risk:regression verify records the owner's answer on each deferred item's le
       "the word of the queue's `title:` line",
       'the part of its `branch:` line between `backlog/` and the closing `-<YYYY-MM-DD>`',
       'the id of the existing ticket the owner chose',
-      'append ` → declined` to the end of the line of each listed item the owner did not choose',
+      'Append ` → declined` to the end of the line of each listed item the owner did not choose',
       'every other item stays in the ledger as a record',
       'append the mark only',
       'edit, move or rate no ledger line',

@@ -369,11 +369,11 @@ it('risk:regression every Phase 8.1 cut-off is 0.9.0 the release that ships it a
   expect(cutOffOffences('  if (pinBefore(SLOP_FROM, pin)) return snapshot;', 'packages/cli/src/x.ts')).toHaveLength(1);
 });
 
-// Release 0.9.0: the CLI that ships Phase 8.1 is 0.9.0, so each Phase 8.1 cut-off equals the version this package carries; a later release moves the CLI and leaves the cut-offs at 0.9.0, so this test is dropped then, as the 0.6.0 one was.
-it('risk:regression the CLI version is 0.9.0, the release every Phase 8.1 cut-off names (D-07)', () => {
-  const manifest = JSON.parse(readFileSync(join(REPO_ROOT, 'packages/cli/package.json'), 'utf8')) as { version: string };
-  expect(manifest.version).toBe('0.9.0');
-  for (const [name, v] of Object.entries(PHASE8_1)) expect(v, name).toBe(manifest.version);
+// Release 0.9.1 is a patch of Phase 8.1: the CLI is no longer 0.9.0, so the Phase 8.1 cut-offs stay at 0.9.0, and the 0.9.1 fixes (the commit-message length bound, the unscanned slop hits, the audit and conventions-write hardening) have no cut-off of their own.
+it('risk:regression release 0.9.1 adds no cut-off constant: the Phase 8.1 ones stay at 0.9.0 and none names 0.9.1', () => {
+  const exported = [...readFileSync(join(REPO_ROOT, PIN_FILE), 'utf8').matchAll(/^export const (\w+_FROM) = '([^']+)';/gm)].map((m) => ({ name: m[1], value: m[2] }));
+  expect(exported.filter((e) => e.value === '0.9.1').map((e) => e.name), 'no cut-off names 0.9.1').toEqual([]);
+  for (const [name, v] of Object.entries(PHASE8_1)) expect(v, name).toBe('0.9.0');
 });
 
 // Release 0.8.1 ships Phase 8: the CLI is no longer 0.8.0, so a Phase 7 cut-off is compared with '0.8.0' only, and the 0.8.1 rules (the security-file refusals, D-07 and D-10) have no cut-off of their own.

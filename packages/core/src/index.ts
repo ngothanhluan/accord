@@ -130,6 +130,8 @@ export { writeTestTags } from './write/testtag.js';
 export { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE } from './status/branch.js';
 export { auditLines, CONVENTIONS_THIN, conventionLines, conventionsEmpty } from './audit/conventions.js';
 export type { AuditFact, AuditGap } from './audit/conventions.js';
+export { CONFIG_KEYS, newKeys, setKeysOf } from './audit/keys.js';
+export type { ConfigKeyRow } from './audit/keys.js';
 export { subjectRuleProblems } from './lint/config.js';
 export type { SubjectRuleProblem } from './lint/config.js';
 export { DEFAULT_SUBJECTS, effectiveSubject, matchesSubject, OFF_TICKET_BRANCH, renderSubject, SUBJECT_NAMES, subjectCollisions, subjectsFor } from './commits/subjects.js';

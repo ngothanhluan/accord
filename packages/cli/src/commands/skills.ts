@@ -17,6 +17,7 @@ import {
   allSkillDirs,
   contentHash,
   hookEntries,
+  isAccordHookCommand,
   isIntactRender,
   markerHash,
   mergeHooks,
@@ -27,12 +28,14 @@ import {
   pluginDir,
   pluginTargets,
   RETIRED_FILES,
+  runsAccordHook,
   skillTargets,
   withoutMarker,
 } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { UsageError } from '../load/fs.js';
+import { shown } from '../load/script-trust.js';
 import type { AccordConfig, SkillFile } from '@accord-dev/accord-core';
 import type { CommandContext } from '../run.js';
 
@@ -231,6 +234,116 @@ function scannable(root: string, dir: string): boolean {
     if (found?.isDirectory() !== true) return false;
   }
   return true;
+}
+
+/** A hook problem as the audit prints it: the text after the gap id and the fix after `- fix:`. */
+export interface HookProblem {
+  text: string;
+  fix: string;
+}
+
+/** What `accord audit` reads of the rendered files and of accord's hooks (Phase 8.1 G3b, D-08 group 2); every list holds repository-relative paths or hook problems, sorted as found. */
+export interface RenderHealth {
+  /** How many skill, agent and plugin files this config renders. */
+  checked: number;
+  /** Expected skill, agent and plugin files that are not on disk. */
+  missing: string[];
+  /** Expected files whose render marker does not match their contents (what `sync` would report as `overwrote local edits`). */
+  edited: string[];
+  orphans: string[];
+  /** Files accord once rendered and no longer renders, still on disk (`RETIRED_FILES`). */
+  retired: string[];
+  hooksMissing: HookProblem[];
+  hooksEdited: HookProblem[];
+  hooksDoubled: HookProblem[];
+}
+
+/**
+ * Where `path` stands under `root`, read the way the orphan scan reads (`scannable`): a link anywhere on the way is a skip, never followed and never a throw. `missing` is a path whose
+ * walk ends at a name that does not exist; a regular file gives its text.
+ */
+export function readRegular(root: string, path: string): { state: 'missing' } | { state: 'skip' } | { state: 'file'; text: string } {
+  const parts = path.split('/');
+  for (let i = 0; i < parts.length; i++) {
+    const found = lstatSync(join(root, ...parts.slice(0, i + 1)), { throwIfNoEntry: false });
+    if (found === undefined) return { state: 'missing' };
+    if (i === parts.length - 1 ? !found.isFile() : !found.isDirectory()) return { state: 'skip' };
+  }
+  try {
+    return { state: 'file', text: readFileSync(join(root, ...parts), 'utf8') };
+  } catch {
+    return { state: 'skip' };
+  }
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * Phase 8.1 D-08 group 2: the rendered skill, agent and panel plugin files, and accord's hooks in .claude/settings.json, as a report. It writes nothing and follows no link.
+ * The files are judged by their render marker like `sync` judges them: an older but intact copy is neither missing nor edited. The hooks are judged per hook identity (event, subcommand, `if`)
+ * of `hookEntries`, because the settings file is the owner's and shared with other tools, and only with the claude runtime in `runtimes`, the only one that renders a hook.
+ */
+export function renderHealth(root: string, config: AccordConfig): RenderHealth {
+  const out: RenderHealth = { checked: 0, missing: [], edited: [], orphans: [], retired: [], hooksMissing: [], hooksEdited: [], hooksDoubled: [] };
+  const targets = [...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg)];
+  out.checked = targets.length;
+  for (const { path } of targets) {
+    const found = readRegular(root, path);
+    if (found.state === 'missing') out.missing.push(path);
+    else if (found.state === 'file' && !isIntactRender(found.text)) out.edited.push(path);
+  }
+  out.orphans = orphans(root, config);
+  for (const path of RETIRED_FILES) {
+    if (scannable(root, path.slice(0, path.lastIndexOf('/'))) && lstatSync(join(root, ...path.split('/')), { throwIfNoEntry: false })?.isFile() === true) out.retired.push(path);
+  }
+  if (!config.runtimes.includes('claude')) return out;
+
+  const found = readRegular(root, SETTINGS);
+  if (found.state === 'skip') return out;
+  if (found.state === 'missing') {
+    out.hooksMissing.push({ text: SETTINGS + " does not exist, so it holds none of accord's hooks", fix: 'accord skills sync' });
+    return out;
+  }
+  const entries = hookEntries(pkg);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(found.text);
+    mergeHooksWithNotes(parsed, entries);
+  } catch (err) {
+    if (!(err instanceof SyntaxError || err instanceof TypeError)) throw err;
+    out.hooksMissing.push({ text: SETTINGS + ' is not a JSON object, so no accord hook can be read from it', fix: 'make it a JSON object, then run accord skills sync, which refuses it until then' });
+    return out;
+  }
+  const hooksOf = (event: string): Record<string, unknown>[] => {
+    const list = isRecord(parsed) && isRecord(parsed.hooks) ? parsed.hooks[event] : undefined;
+    if (!Array.isArray(list)) return [];
+    return list.flatMap((entry) => (isRecord(entry) && Array.isArray(entry.hooks) ? entry.hooks.filter(isRecord) : []));
+  };
+  const commandOf = (h: Record<string, unknown>): string | undefined => (typeof h.command === 'string' ? h.command : undefined);
+  for (const [event, groups] of Object.entries(entries)) {
+    const present = hooksOf(event);
+    for (const wanted of groups.flatMap((g) => g.hooks)) {
+      const sub = runsAccordHook(wanted.command);
+      const kind = `accord ${event} hook for ${sub}${wanted.if === undefined ? '' : ' if ' + wanted.if}`;
+      const same = present.filter((h) => {
+        const c = commandOf(h);
+        return c !== undefined && runsAccordHook(c) === sub && (typeof h.if === 'string' ? h.if : undefined) === wanted.if;
+      });
+      if (same.length === 0) out.hooksMissing.push({ text: `${SETTINGS} has no ${kind}`, fix: 'accord skills sync' });
+      else if (same.length > 1) out.hooksDoubled.push({ text: `${SETTINGS} has ${same.length} of the ${kind}`, fix: `remove the extra accord hook from ${SETTINGS}` });
+    }
+    // a hook that runs accord in a form sync did not write: sync keeps it (D-16), so it is named here with the edit first
+    for (const h of present) {
+      const c = commandOf(h);
+      if (c !== undefined && runsAccordHook(c) !== undefined && !isAccordHookCommand(c)) {
+        out.hooksEdited.push({
+          text: `${SETTINGS} ${event} hook "${shown(c)}" runs accord hook ${runsAccordHook(c)} in a form accord skills sync did not write`,
+          fix: `restore it to the form sync writes or remove it in ${SETTINGS}, then run accord skills sync (sync alone keeps it)`,
+        });
+      }
+    }
+  }
+  return out;
 }
 
 export function skills(ctx: CommandContext): number {

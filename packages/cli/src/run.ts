@@ -76,6 +76,8 @@ export interface CommandContext {
   light?: LightLoad;
   /** Phase 8.1 D-18: the pin message of a run under the `report` pin check (only `accord audit`) whose pin differs from the running version; absent when the pin matches or the check refuses. */
   pinMismatch?: string;
+  /** Phase 8.1 D-18: the pin the `report` pin check read (from the validated config, else the raw text); absent when config.yml names none or the check refuses. */
+  pinned?: string;
 }
 
 /**
@@ -99,15 +101,17 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
   // D-18 (Phase 8.1): the `report` pin check is the second stated exception, beside `upgrade`: the pin is read here, before anything reads `snapshot.config`, from the validated config or, when this CLI's schema
   // refused it (a key a newer release added), from the raw text, and the message goes back on the context instead of being thrown. Only `accord audit` asks for it.
   let pinMismatch: string | undefined;
+  let pinned: string | undefined;
   if (options.pinCheck === 'report') {
-    pinMismatch = pinMessage(loaded.config === undefined ? configPin(input.files['accord/config.yml']) : loaded.config.accord, pkg.version, versionOnDisk());
+    pinned = loaded.config === undefined ? configPin(input.files['accord/config.yml']) : loaded.config.accord;
+    pinMismatch = pinMessage(pinned, pkg.version, versionOnDisk());
   } else if (loaded.config !== undefined) {
     const message = pinMessage(loaded.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
   // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
   const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs) : loaded;
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }) };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
 }
 
 /**
@@ -389,9 +393,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   program
     .command('audit')
     .description("report what a machine can see about this repository's conventions: fact: <name>: <value> lines (languages, layout, linter and its rules, formatter, type checking, tests, PR template, commit rule, conventions), then gap: <id>: <text> - fix: <fix> lines, then gaps: <n>; exit 0 whenever it ran, whatever it found; it reads files only, calls no model, and no gate runs it")
-    .action(() => {
+    .action(async () => {
       // D-18: the second stated exception to the pin check, beside `upgrade`: the audit reports a mismatch as a gap (pinCheck 'report'); every other command still refuses it.
-      setCode(audit(preflight(opts, 'checkout', { pinCheck: 'report' })));
+      setCode(await audit(preflight(opts, 'checkout', { pinCheck: 'report' })));
     });
 
   // Phase 8.1 D-09: the convention lines the owner accepted in /accord-audit, on their own branch for a pull request the owner merges; the skill opens it.

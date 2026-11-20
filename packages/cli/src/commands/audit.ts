@@ -37,7 +37,7 @@ export function conventionsNotice(root: string): string | undefined {
 const tools = (found: readonly Found[]): string => found.map((f) => `${f.tool} (${printable(f.file)})`).join(', ');
 const FIX_QUEUE = (what: string): string => `queue a draft ticket with /accord-queue to ${what}; the audit never changes code or configuration`;
 
-export function audit(ctx: CommandContext): number {
+export async function audit(ctx: CommandContext): Promise<number> {
   const config = ctx.snapshot.config;
   const tracked = gitTracked(ctx.root);
   const m = machineFacts(ctx.root, tracked);
@@ -90,7 +90,7 @@ export function audit(ctx: CommandContext): number {
   }
 
   // group 2 (D-08, D-18): accord's own setup, after group 1
-  const health = auditHealth(ctx);
+  const health = await auditHealth(ctx);
   for (const f of health.facts) fact(f.name, f.value);
   for (const g of health.gaps) gap(g.id, g.text, g.fix);
 

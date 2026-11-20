@@ -15,9 +15,12 @@ export function newer(a: string, b: string): boolean {
   return false;
 }
 
-export async function upgradeNotice(pinned: string | undefined): Promise<string | undefined> {
+/**
+ * The newest release the registry names, from the 24-hour cache or one request (Phase 8.1 G3b: `accord audit` and the notice share it). `observed` is true only when a version came back:
+ * an unreachable registry, a bad answer or a cached failed attempt leaves `latest` undefined and `observed` false, so a caller never reads "no answer" as "up to date". Never throws.
+ */
+export async function latestRelease(): Promise<{ latest?: string; observed: boolean }> {
   try {
-    if (pinned === undefined || !PLAIN.test(pinned)) return undefined;
     const file = cachePath();
     let latest: string | undefined;
     let fresh = false;
@@ -44,6 +47,16 @@ export async function upgradeNotice(pinned: string | undefined): Promise<string 
         // a write failure only means the next run asks again
       }
     }
+    return latest === undefined ? { observed: false } : { latest, observed: true };
+  } catch {
+    return { observed: false };
+  }
+}
+
+export async function upgradeNotice(pinned: string | undefined): Promise<string | undefined> {
+  try {
+    if (pinned === undefined || !PLAIN.test(pinned)) return undefined;
+    const { latest } = await latestRelease();
     if (latest !== undefined && PLAIN.test(latest) && newer(latest, pinned)) {
       return `accord ${latest} is out, and this repository pins ${pinned}: type /accord-upgrade to run npx --yes ${pkg.name}@${latest} upgrade`;
     }

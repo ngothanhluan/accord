@@ -15,7 +15,7 @@ import type { CommandContext } from '../run.js';
  * The scripts this checkout declares: `tracker.command` only under `tracker.adapter: script` (the one adapter that runs it), `git.sync`, and `build.regenerate`
  * (ST-LN-92 review round 1 finding 7: the build stage runs it only when accord worktree task merge prints it, which it does once it is allowed here).
  */
-function declared(ctx: CommandContext): Array<{ kind: ScriptKind; command: string }> {
+export function declared(ctx: CommandContext): Array<{ kind: ScriptKind; command: string }> {
   const config = ctx.snapshot.config;
   const found: Array<{ kind: ScriptKind; command: string }> = [];
   if (config?.tracker?.adapter === 'script' && config.tracker.command !== undefined) found.push({ kind: 'tracker.command', command: config.tracker.command });

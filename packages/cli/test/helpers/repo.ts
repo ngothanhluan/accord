@@ -220,7 +220,7 @@ export function claimedUnder(repo: string, pin: string, id = 'T-1'): void {
   const file = join(repo, 'accord', 'config.yml');
   const head = readFileSync(file, 'utf8');
   writeFiles(repo, { 'accord/config.yml': head.replace(/accord: "[^"]*"/, `accord: "${pin}"`) });
-  commitMsg(repo, `claim: ${id}`);
+  commitMsg(repo, `claim: ${id}`, undefined, true); // allow-empty: at the running release the claim pin equals the working pin, so the config does not change
   writeFiles(repo, { 'accord/config.yml': head });
 }
 

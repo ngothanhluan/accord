@@ -10,7 +10,7 @@
 - ci-workflow: path .github/workflows/ — CI workflow files
 - manifest: path package.json, package-lock.json, npm-shrinkwrap.json, yarn.lock, pnpm-lock.yaml, requirements.txt, pyproject.toml, poetry.lock, go.mod, go.sum, Cargo.toml, Cargo.lock, Gemfile, Gemfile.lock — dependency manifests
 - secret-name: line /\b(secrets?|tokens?|passwords?|passwd|api[_-]?keys?|credentials?|private[_-]?keys?|auth|authn|authz|authenticat\w*|authori[sz]\w*)\b/i — auth and secret or token names
-- agent-config: path .claude/settings.json, .mcp.json — agent configuration that can start commands
+- agent-config: path .claude/settings.json, .claude/settings.local.json, .mcp.json — agent configuration that can start commands
 - security-config: path accord/product/security.md, accord/config.yml, .gitattributes — the security trigger list, the generated paths it skips and the diff attributes that can hide a file from the scan
 
 ## Checklist

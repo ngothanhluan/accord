@@ -228,12 +228,21 @@ function compileLines(spec: SecuritySpec): { p: SecurityPattern; re: RegExp }[] 
   return out;
 }
 
+/** The folders an agent loads and runs code from (D-22): a skill's scripts, a sub-agent's files and the panel. Compared ignoring letter case, as path entries are. */
+const AGENT_FOLDERS = ['.claude/skills/', '.agents/skills/', '.claude/agents/', '.claude/accord-panel/'];
+const underAgentFolder = (path: string): boolean => {
+  const p = path.toLowerCase();
+  return AGENT_FOLDERS.some((f) => p.startsWith(f));
+};
+
 /**
  * Content patterns are not run over Markdown, test files, the repository's generated paths or a path in `exempt` (exactly an unmodified copy `accord skills sync`
  * writes, decided by the caller). No folder is skipped as a whole: a file accord does not write, or a copy changed by hand, is scanned.
+ * D-22: a test-named file under an agent-loaded folder (AGENT_FOLDERS) is not skipped as a test, because an agent session can run it; Markdown there stays skipped, and an
+ * exempt copy or a generated path is skipped first.
  */
 const contentSkipped = (path: string, generated: readonly string[], exempt: readonly string[]): boolean =>
-  MARKDOWN.test(path) || isTestFile(path) || exempt.includes(path) || generated.some((e) => matches(e, path));
+  exempt.includes(path) || generated.some((e) => matches(e, path)) || MARKDOWN.test(path) || (isTestFile(path) && !underAgentFolder(path));
 
 /**
  * The triggers of a package: path patterns over every changed path (both sides of a rename); content patterns over the added and removed lines of

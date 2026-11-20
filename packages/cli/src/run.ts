@@ -14,6 +14,7 @@ import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
 import { commitCheck, commitMessage } from './commands/commit.js';
+import { pr } from './commands/pr.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
@@ -314,6 +315,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("run the team's commits.message.command, only after accord trust allowed it, with the ticket in its environment (ACCORD_TICKET, ACCORD_TICKET_FILE, ACCORD_BASE_REF, ACCORD_ROOT): its first output line is the subject and the rest the body; write the message to a file under .git and print message-file: <path> for git commit -F, then judge it against commits.message like commit check (exit 1 naming the rule); an untrusted script is never run (exit 2 naming accord trust), and a failing, slow, oversized or empty one is exit 2 with no file")
     .action((id: string) => {
       setCode(commitMessage(preflight(opts), id));
+    });
+
+  // Phase 8.1 D-01, D-03: the title and the body file of a ticket's pull request, from the team's template and what the ticket knows; `gh pr create` itself stays in the skills.
+  program
+    .command('pr <id>')
+    .description("write the body file of a ticket's pull request from the repository's PR template with every heading kept and the ticket's id, title, Intent, criteria and test evidence filled in, and print title: <title>, body-file: <path>, template: <path>, and one remaining: <heading> line per section left for you to write; the skill then runs gh pr create --title <title> --body-file <path>")
+    .action((id: string) => {
+      setCode(pr(preflight(opts), id));
     });
 
   // ST-LN-50 D-11: the deterministic way to change accord/config.yml; every subcommand reads the repository, so each goes

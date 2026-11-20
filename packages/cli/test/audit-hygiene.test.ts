@@ -1,10 +1,11 @@
 // Phase 8.2 group 3 (D-01, D-02, D-06, D-07, D-08): `accord audit` reports claimed tickets idle past stale_days and unclaimed drafts untouched past stale_draft_days,
 // naming the person, from the branches already in the clone. It reads git and files, writes nothing and calls no model.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, utimesSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
-import { CONFIG, done, laneTicket, P } from '../../../test/helpers/lane.js';
+import { DEFERRED_MARK_FROM } from '@accord-dev/accord-core';
+import { building, CONFIG, done, gateReadyIn, junit, LANE_BODY, LANE_S_BODY, laneTicket, P, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
@@ -355,4 +356,194 @@ it("risk:data-loss accord audit with a done ticket's worktree writes nothing and
   expect(existsSync(dir + '/clean.lock') || existsSync(dir + '/holds.lock')).toBe(false);
   expect(spawnLog.calls.length).toBeGreaterThan(0);
   expect(spawnLog.calls.filter((a) => writes(a)).map((a) => a.join(' '))).toEqual([]);
+});
+
+// ---- 08.2-05 (D-04, D-06, D-10): deferred items nobody decided ----------------------------------------------------------------------------
+
+const LEDGER_TASKS = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n\n';
+/** The ledger's deferred section: an unmarked Must, a Should marked with a queued id, a Should marked declined, and an unmarked Nice. */
+const ITEMS = [
+  '## Deferred',
+  '- review 1.1: the lock is not released on a crash (Must)',
+  '- review 1.2: the export drops a trailing comma (Should) → ST-9',
+  '- review 1.3: the cache can go stale (Should) → declined',
+  '- review 1.4: a rename (Nice)',
+  '',
+].join('\n');
+const ledgerOf = (id: string): string => `accord/tickets/${id}/ledger.md`;
+
+/** A finished lane M ticket claimed under `ruleset`, its ledger holding `ledger`. */
+function doneM(files: Files, id: string, ruleset: string | undefined, ledger: string): void {
+  done(files, id, { frontmatter: [...(ruleset === undefined ? [] : [`ruleset: "${ruleset}"`]), 'verified_commit: "abcdef1234567"'] });
+  files[ledgerOf(id)] = LEDGER_TASKS + ledger;
+}
+
+/** A finished lane S ticket (its converged review closes it) claimed under `ruleset`, its ledger holding `ledger`. */
+function doneS(files: Files, id: string, ruleset: string, ledger: string): void {
+  files['accord/config.yml'] = CONFIG;
+  files['src/a.ts'] = 'a\n';
+  files[REPORT] = junit({ 'a#b': 'passed' });
+  files[P(id)] = laneTicket(id, { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n', frontmatter: [`ruleset: "${ruleset}"`] });
+  expect(gateReadyIn(files, id)).toBe('pass');
+  files[`accord/tickets/${id}/review.md`] = 'verdict: converged\n';
+  files[ledgerOf(id)] = ledger;
+}
+
+/** D-1 (lane M, claimed under the cut-off), D-2 (lane M, claimed under 0.9.0), D-3 (lane S, claimed under the cut-off) and D-4 (lane M at build) each hold an unmarked Must item. */
+function deferredRepo(): string {
+  const files: Files = {};
+  doneM(files, 'D-1', DEFERRED_MARK_FROM, ITEMS);
+  doneM(files, 'D-2', '0.9.0', ITEMS);
+  doneS(files, 'D-3', DEFERRED_MARK_FROM, ITEMS);
+  building(files, 'D-4');
+  files[ledgerOf('D-4')] = LEDGER_TASKS + ITEMS;
+  return sandbox(files, CONFIG, 3);
+}
+
+const undecided = (lines: string[]): string[] => gapsOf(lines, 'deferred-undecided');
+
+it('risk:complex-branching accord audit lists undecided items of done tickets claimed at or after the cut-off on every lane (8.2-ac-5)', async () => {
+  const repo = deferredRepo();
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  const gaps = undecided(r.lines);
+  expect(gaps, r.out).toHaveLength(2);
+  const d1 = gaps.find((l) => l.includes('D-1 ')) ?? '';
+  const d3 = gaps.find((l) => l.includes('D-3 ')) ?? '';
+  for (const part of ['D-1 has an undecided Must item: review 1.1: the lock is not released on a crash (Must)', '/accord-queue', 'accord/tickets/D-1/ledger.md', ' → declined']) expect(d1, r.out).toContain(part);
+  expect(d3, r.out).toContain('D-3 has an undecided Must item: review 1.1: the lock is not released on a crash (Must)');
+  // D-10: the text and fix of a lane S ticket's gap read as a lane M ticket's do, and name no lane
+  expect(d3.replaceAll('D-3', 'D-1')).toBe(d1);
+  expect(gaps.join('\n')).not.toMatch(/lane/i);
+  // the marked Shoulds, the Nice, the ticket claimed before the cut-off and the ticket still at build are not listed
+  expect(gaps.some((l) => l.includes('D-2') || l.includes('D-4') || l.includes('ST-9') || l.includes('cache') || l.includes('rename'))).toBe(false);
+  expect(r.lines, r.out).toContain('fact: deferred-marks: 2 done tickets judged; 1 claimed before deferred marks were recorded and 0 whose claim release cannot be read are skipped');
+});
+
+it("risk:complex-branching a done lane S ticket's undecided Must item is listed and its declined mark clears it (D-10)", async () => {
+  const repo = deferredRepo();
+  expect(undecided((await audit(repo)).lines).some((l) => l.includes('D-3 '))).toBe(true);
+  // the fix route: one line edit of that ledger, committed on the default branch
+  writeFiles(repo, { [ledgerOf('D-3')]: ITEMS.replace('(Must)', '(Must) → declined') });
+  commitMsg(repo, 'D-3: decide the deferred item');
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  const gaps = undecided(r.lines);
+  expect(gaps, r.out).toHaveLength(1);
+  expect(gaps[0], r.out).toContain('D-1 has an undecided Must item');
+  expect(gaps.some((l) => l.includes('D-3'))).toBe(false);
+  // a queued-ticket mark clears the other ticket the same way
+  writeFiles(repo, { [ledgerOf('D-1')]: ITEMS.replace('(Must)', '(Must) → ST-12') });
+  commitMsg(repo, 'D-1: decide the deferred item');
+  expect(undecided((await audit(repo)).lines)).toEqual([]);
+});
+
+it('risk:complex-branching a done ticket whose claim release cannot be read is counted and never listed (8.2-ac-5)', async () => {
+  const files: Files = {};
+  doneM(files, 'D-5', undefined, ITEMS);
+  const repo = sandbox(files, CONFIG, 3);
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  expect(undecided(r.lines), r.out).toEqual([]);
+  expect(r.lines, r.out).toContain('fact: deferred-marks: 0 done tickets judged; 0 claimed before deferred marks were recorded and 1 whose claim release cannot be read are skipped');
+});
+
+it('risk:data-loss accord audit with undecided deferred items writes nothing and leaves every ledger as it was (8.2-ac-8)', async () => {
+  const repo = deferredRepo();
+  const ids = ['D-1', 'D-2', 'D-3', 'D-4'];
+  const before = listings(repo);
+  const ledgers = ids.map((id) => readFileSync(resolve(repo, ledgerOf(id))));
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  const r = await audit(repo);
+  spawnLog.on = false;
+  expect(r.code, r.out).toBe(0);
+  expect(undecided(r.lines), r.out).toHaveLength(2);
+  expect(listings(repo)).toEqual(before);
+  ids.forEach((id, i) => expect(readFileSync(resolve(repo, ledgerOf(id))).equals(ledgers[i] as Buffer), id).toBe(true));
+  expect(spawnLog.calls.length).toBeGreaterThan(0);
+  expect(spawnLog.calls.filter((c) => writes(c)).map((c) => c.join(' '))).toEqual([]);
+});
+
+// ---- 08.2-05 (D-05, D-11): the tests baseline ---------------------------------------------------------------------------------------------
+
+const BASELINE = 'accord/tests-baseline.txt';
+const BASELINE_TEXT = ['# Test cases that existed before the test policy applied.', '# This file only shrinks.', 'a.test.ts#one', 'c.test.ts#risk:parsing-x', 'a.test.ts#gone', 'b.test.ts#kept', 'a.test.ts#other', ''].join('\n');
+const BASELINE_REPORT = junit({ 'a.test.ts#other': 'passed', 'a.test.ts#one': 'passed' });
+const NO_REPORT_CONFIG = CONFIG.replace(`tests:\n  report: ${REPORT}\n`, '');
+
+/** A repository whose ticket names a.test.ts#one, holding the five-id baseline, committed 30 days ago. */
+function baselineRepo(config = CONFIG, baseline: string | null = BASELINE_TEXT): string {
+  const files: Files = { [P('T-1')]: laneTicket('T-1', { body: LANE_BODY.replace('export#writes-csv', 'a.test.ts#one') }) };
+  if (baseline !== null) files[BASELINE] = baseline;
+  return sandbox(files, config, 30);
+}
+
+const baselineFact = (lines: string[]): string => lines.find((l) => l.startsWith('fact: tests-baseline:')) ?? '';
+
+it('risk:complex-branching accord audit counts the baseline and lists removable ids with a fresh report (8.2-ac-6)', async () => {
+  const repo = baselineRepo();
+  writeFiles(repo, { [REPORT]: BASELINE_REPORT }); // written after the last commit: fresh
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  expect(r.lines.filter((l) => l.startsWith('fact: tests-baseline:')), r.out).toEqual(['fact: tests-baseline: 5 ids, 1 not judged: their files have no case in the report']);
+  const gaps = gapsOf(r.lines, 'baseline-removable');
+  expect(gaps, r.out).toHaveLength(1);
+  for (const part of [
+    '3 of 5 ids in accord/tests-baseline.txt can be removed',
+    'a.test.ts#one (line 3: named by @test:)',
+    'c.test.ts#risk:parsing-x (line 4: carries risk:)',
+    'a.test.ts#gone (line 5: not in the report)',
+    'delete lines 3, 4, 5 of accord/tests-baseline.txt',
+  ]) {
+    expect(gaps[0], r.out).toContain(part);
+  }
+  expect(gaps[0]).not.toContain('b.test.ts#kept');
+  expect(gaps[0]).not.toContain('again');
+});
+
+it('risk:complex-branching the baseline check says no observation without a fresh report (8.2-ac-6)', async () => {
+  // no tests.report in the config
+  const none = await audit(baselineRepo(NO_REPORT_CONFIG));
+  expect(none.code, none.out).toBe(0);
+  expect(baselineFact(none.lines), none.out).toBe('fact: tests-baseline: 5 ids; removable ones: no observation (no tests.report in accord/config.yml)');
+  expect(gapsOf(none.lines, 'baseline-removable'), none.out).toEqual([]);
+
+  // a configured report that does not exist
+  const missing = await audit(baselineRepo());
+  expect(baselineFact(missing.lines), missing.out).toBe(`fact: tests-baseline: 5 ids; removable ones: no observation (${REPORT} was not found; run tests.full)`);
+  expect(gapsOf(missing.lines, 'baseline-removable'), missing.out).toEqual([]);
+
+  // a report written before the last commit (D-11's staleness guard)
+  const stale = baselineRepo();
+  writeFiles(stale, { [REPORT]: BASELINE_REPORT });
+  const old = new Date(Date.now() - 40 * 24 * 3600 * 1000); // older than the commit of 30 days ago
+  utimesSync(resolve(stale, REPORT), old, old);
+  const s = await audit(stale);
+  expect(baselineFact(s.lines), s.out).toBe(`fact: tests-baseline: 5 ids; removable ones: no observation (${REPORT} was written before the last commit; run tests.full)`);
+  expect(gapsOf(s.lines, 'baseline-removable'), s.out).toEqual([]);
+
+  // no baseline file
+  const bare = await audit(baselineRepo(CONFIG, null));
+  expect(baselineFact(bare.lines), bare.out).toBe('fact: tests-baseline: no accord/tests-baseline.txt');
+  expect(gapsOf(bare.lines, 'baseline-removable'), bare.out).toEqual([]);
+});
+
+it('risk:data-loss accord audit with a baseline and a report writes nothing and leaves both files as they were (8.2-ac-8)', async () => {
+  const repo = baselineRepo();
+  writeFiles(repo, { [REPORT]: BASELINE_REPORT });
+  const before = listings(repo);
+  const baseline = readFileSync(resolve(repo, BASELINE));
+  const report = readFileSync(resolve(repo, REPORT));
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  const r = await audit(repo);
+  spawnLog.on = false;
+  expect(r.code, r.out).toBe(0);
+  expect(gapsOf(r.lines, 'baseline-removable'), r.out).toHaveLength(1);
+  expect(listings(repo)).toEqual(before);
+  expect(readFileSync(resolve(repo, BASELINE)).equals(baseline)).toBe(true);
+  expect(readFileSync(resolve(repo, REPORT)).equals(report)).toBe(true);
+  expect(spawnLog.calls.length).toBeGreaterThan(0);
+  expect(spawnLog.calls.filter((c) => writes(c)).map((c) => c.join(' '))).toEqual([]);
 });

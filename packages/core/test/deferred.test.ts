@@ -1,6 +1,6 @@
 // ST-LN-12 7-ac-7 (D-12): the ledger's deferred items the owner is asked about at verify, Must then Should, Nice never.
 import { expect, it } from 'vitest';
-import { ownerDeferred, ratingOf } from '../src/index.js';
+import { deferredMark, ownerDeferred, ratingOf } from '../src/index.js';
 
 const LEDGER = [
   '## Rulings',
@@ -55,4 +55,50 @@ it('risk:parsing the deferred lister shows Must then Should items and skips Nice
 
   // the heading is matched as the ledger parser matches it: case and spacing do not matter; a line that is no list item is skipped
   expect(ownerDeferred('##  deferred\nplain prose (Must)\n- kept (Must)\n')).toEqual([{ rating: 'Must', text: 'kept (Must)' }]);
+});
+
+// Phase 8.2 D-04: the owner's answer on a deferred item is a mark at the end of its ledger line, read on the full line before the short form.
+it('risk:parsing a deferred mark is the arrow and an id or declined at the end of the full line (8.2-ac-5)', () => {
+  expect(deferredMark('- review 1.3: a lock (Must) → declined')).toEqual({ kind: 'declined' });
+  expect(deferredMark('- review 1.2: a comma (Should) → ST-LN-101')).toEqual({ kind: 'queued', id: 'ST-LN-101' });
+  // ASCII -> is not a mark, an id holds a digit, declined is the whole last word, and the arrow sits at the end
+  expect(deferredMark('- a (Must) -> ST-1')).toBeUndefined();
+  expect(deferredMark('- a (Must) → foo')).toBeUndefined();
+  expect(deferredMark('- a (Must) → declined but more')).toBeUndefined();
+  expect(deferredMark('- a (Must) → declinedx')).toBeUndefined();
+  expect(deferredMark('- a (Must) →declined')).toBeUndefined();
+  expect(deferredMark('- a (Must)')).toBeUndefined();
+  expect(deferredMark('- a → ST-1 (Must)')).toBeUndefined();
+  // trailing spaces and a CRLF read the same
+  expect(deferredMark('- a (Must) → declined   ')).toEqual({ kind: 'declined' });
+  expect(deferredMark('- a (Must) → ST-7\r')).toEqual({ kind: 'queued', id: 'ST-7' });
+  // the last mark of a line counts
+  expect(deferredMark('- a (Must) → ST-1 → declined')).toEqual({ kind: 'declined' });
+  expect(deferredMark('- a (Must) → declined → ST-2')).toEqual({ kind: 'queued', id: 'ST-2' });
+  // read before the 160-character short form: a 200-character item still reads its mark
+  const long = '- ' + 'x'.repeat(200) + ' (Must) → declined';
+  expect(deferredMark(long)).toEqual({ kind: 'declined' });
+  expect(ownerDeferred('## Deferred\n' + long + '\n')).toEqual([]);
+  // a CRLF ledger reads the same
+  expect(ownerDeferred('## Deferred\r\n- a (Must) → declined\r\n- b (Must)\r\n')).toEqual([{ rating: 'Must', text: 'b (Must)' }]);
+});
+
+it('risk:regression ownerDeferred lists only unmarked Must and Should items (D-04)', () => {
+  const ledger = [
+    '## Deferred',
+    '- review 1.1: marked must (Must) → declined',
+    '- review 1.2: open must (Must)',
+    '- review 1.3: queued should (Should) → T-9',
+    '- review 1.4: open should (Should)',
+    '- review 1.5: a nice thing (Nice)',
+    '- review 1.6: note ending in an ASCII arrow (Must) -> ST-1',
+    '',
+  ].join('\n');
+  expect(ownerDeferred(ledger)).toEqual([
+    { rating: 'Must', text: 'review 1.2: open must (Must)' },
+    { rating: 'Must', text: 'review 1.6: note ending in an ASCII arrow (Must) -> ST-1' },
+    { rating: 'Should', text: 'review 1.4: open should (Should)' },
+  ]);
+  // every item marked: nothing is left to ask
+  expect(ownerDeferred('## Deferred\n- a (Must) → declined\n- b (Should) → T-2\n')).toEqual([]);
 });

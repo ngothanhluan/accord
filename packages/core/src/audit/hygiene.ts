@@ -1,7 +1,8 @@
-// Phase 8.2 group 3 (work hygiene, D-01, D-02, D-06): the gaps `accord audit` prints about claimed tickets that went quiet and about drafts nobody touched. Pure: no node import, no
+// Phase 8.2 group 3 (work hygiene, D-01..D-06, D-10): the gaps `accord audit` prints about claimed tickets that went quiet, drafts nobody touched, and deferred items nobody decided. Pure: no node import, no
 // filesystem, no git; the CLI hands it rows and ages it already read, and the function that shows a person (D-08).
 import type { RepoSnapshot } from '../model/snapshot.js';
 import type { StatusRow } from '../status/rows.js';
+import type { OwnerDeferred } from '../tickets/deferred.js';
 import type { AuditGap } from './conventions.js';
 
 /** The ticket id shape a command may be printed for: the same as the CLI's `ID` (packages/cli/src/commands/worktree.ts) and the panel's SAFE_ID. Ruling "ids in fix commands". */
@@ -161,4 +162,45 @@ export function branchGaps(
             fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : `git push -u origin ${r.name} to keep it, or git branch -D ${r.name} to delete it`,
           }));
   return [...orphans, ...unpushed];
+}
+
+/**
+ * D-04, D-06, D-10: one `deferred-undecided` gap per unmarked Must or Should item of a done ticket the loader judged (claimed at or after DEFERRED_MARK_FROM), in id code-point order, the items in
+ * the order `ownerDeferred` gave them. No lane is read: the text, the fix and the input hold none, so the same route clears the gap on every lane.
+ */
+export function deferredGaps(tickets: readonly { id: string; items: readonly OwnerDeferred[] }[]): AuditGap[] {
+  return [...tickets]
+    .sort((a, b) => cmp(a.id, b.id))
+    .flatMap((t) =>
+      t.items.map((i) => ({
+        id: 'deferred-undecided',
+        text: `${t.id} has an undecided ${i.rating} item: ${i.text}`,
+        fix: SAFE_ID.test(t.id)
+          ? `queue it with /accord-queue and append " → <new id>" to its line in accord/tickets/${t.id}/ledger.md, or append " → declined" there; a pull request that changes only that ledger`
+          : NO_COMMAND,
+      })),
+    );
+}
+
+/** D-11: the most baseline ids one audit run lists; the baseline of this repository holds over a thousand, and a line naming them all cannot be read. */
+export const BASELINE_LISTED = 10;
+
+const WHY: Record<'test' | 'risk' | 'absent', string> = { test: 'named by @test:', risk: 'carries risk:', absent: 'not in the report' };
+
+/**
+ * D-05, D-11: one `baseline-removable` gap for the baseline ids that can go, the first BASELINE_LISTED in line order, each with its 1-based line of accord/tests-baseline.txt and its reason, and the
+ * fix that names those lines (deleting is allowed: the baseline only shrinks); `(+K more)` and "run accord audit again" when more were found than listed. Undefined for an empty list.
+ * `total` is the number of ids in the baseline.
+ */
+export function baselineGap(found: readonly { id: string; why: 'test' | 'risk' | 'absent'; line: number }[], total: number): AuditGap | undefined {
+  if (found.length === 0) return undefined;
+  const sorted = [...found].sort((a, b) => a.line - b.line);
+  const listed = sorted.slice(0, BASELINE_LISTED);
+  const more = sorted.length - listed.length;
+  const items = listed.map((f) => `${f.id} (line ${f.line}: ${WHY[f.why]})`).join(', ');
+  return {
+    id: 'baseline-removable',
+    text: `${sorted.length} of ${total} ids in accord/tests-baseline.txt can be removed: ${items}${more > 0 ? `, (+${more} more)` : ''}`,
+    fix: `delete lines ${listed.map((f) => f.line).join(', ')} of accord/tests-baseline.txt (the baseline only shrinks, so deleting is allowed)${more > 0 ? '; run accord audit again for the rest' : ''}`,
+  };
 }

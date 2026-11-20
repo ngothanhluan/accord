@@ -62,9 +62,9 @@ judges, the owner decides.
    passes; the notice that the review file has no author yet is expected. When it
    passes, offer each Correction or Ruling that holds across tickets or across its epic, as `./ask.md` says, and write every line under the
    ledger's `## Conventions` into `accord/product/conventions.md`. Then commit only `accord/tickets/<id>.md`,
-   `accord/tickets/<id>/verification.md` and, when a line or a lesson was written, `accord/product/conventions.md` and the ledger;
+   `accord/tickets/<id>/verification.md` and, when a line, a lesson or a mark was written, `accord/product/conventions.md` and the ledger;
    under `review: outcome` the commit message quotes the owner's answer. When both files are already committed and
-   no line was written, commit nothing. Then finish CI as `./ci.md` says.
+   no line or mark was written, commit nothing. Then finish CI as `./ci.md` says.
 
 7. Report the finish as `./finish.md` says.
 

@@ -135,5 +135,7 @@ export function upgrade(ctx: InitContext): number {
   }
   ctx.stdout.write(`branch: upgrade/${v}\nbase: ${short}\ntitle: upgrade: accord ${v}\n`);
   if (warning !== undefined) ctx.stderr.write(warning + '\n');
+  // D-16: an accord hook the owner edited was kept in the upgrade commit; one line each, on stderr beside the warning.
+  ctx.stderr.write((hooks?.notes ?? []).map((n) => n + '\n').join(''));
   return 0;
 }

@@ -540,6 +540,8 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
       // `--version` and `--help` are answered before any action runs, so they never reach preflight
       // and D-95's exemption holds by construction. Every other commander refusal is a bad argument,
       // which STACK Decision 1 puts at exit 2 — exit 1 is reserved for a lint or gate verdict.
+      // D-26: `accord help` and `accord help <command>` throw `commander.help` with exit code 0; bare `accord` throws it with exit code 1, which stays a usage error.
+      if (err.code === 'commander.help') return err.exitCode === 0 ? 0 : 2;
       return err.code === 'commander.version' || err.code === 'commander.helpDisplayed' ? 0 : 2;
     }
     opts.stderr.write(slashed(err instanceof Error ? err.message : String(err)));

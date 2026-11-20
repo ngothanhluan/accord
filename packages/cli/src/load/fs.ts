@@ -1996,7 +1996,8 @@ export function withQueued(root: string, snapshot: RepoSnapshot): RepoSnapshot {
   const mine = new Set(ids.map((id) => 'accord/tickets/' + id + '.md'));
   return {
     ...snapshot,
-    tickets: { ...snapshot.tickets, ...Object.fromEntries(ids.filter((id) => Object.hasOwn(read.tickets, id)).map((id) => [id, read.tickets[id]])) },
+    // D-26: a copy keeps the null prototype, so a lookup of `constructor` or `__proto__` finds no ticket.
+    tickets: Object.assign(Object.create(null) as typeof snapshot.tickets, snapshot.tickets, Object.fromEntries(ids.filter((id) => Object.hasOwn(read.tickets, id)).map((id) => [id, read.tickets[id]]))),
     errors: [...snapshot.errors, ...read.errors.filter((e) => mine.has(e.file))],
     queued: Object.fromEntries(ids.map((id) => [id, { branch: found[id].branch }])),
   };

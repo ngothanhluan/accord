@@ -20,6 +20,7 @@ import {
   isIntactRender,
   markerHash,
   mergeHooks,
+  mergeHooksWithNotes,
   mergePanel,
   normaliseText,
   panelSettings,
@@ -87,7 +88,7 @@ export function writeSkillFiles(root: string, targets: SkillFile[], out: ReportR
 export const SETTINGS = '.claude/settings.json';
 
 /** What `writeHooks` will do, decided before any file is written; `text` is absent when nothing changes. */
-export type HooksPlan = { status: 'created' | 'unchanged' | 'updated'; text?: string };
+export type HooksPlan = { status: 'created' | 'unchanged' | 'updated'; text?: string; notes?: string[] };
 
 /**
  * The pre-pass half: the link guard, then read, parse and merge `.claude/settings.json` for the claude runtime
@@ -110,9 +111,12 @@ export function hooksPlanFor(text: string | undefined, config: Pick<AccordConfig
   }
   let parsed: unknown;
   let merged: Record<string, unknown>;
+  let notes: string[];
   try {
     parsed = JSON.parse(text);
-    merged = mergePanel(mergeHooks(parsed, entries));
+    const hooked = mergeHooksWithNotes(parsed, entries);
+    notes = hooked.notes;
+    merged = mergePanel(hooked.settings);
   } catch (err) {
     const keys = JSON.stringify(panelSettings, null, 2);
     if (err instanceof RangeError) {
@@ -131,8 +135,9 @@ export function hooksPlanFor(text: string | undefined, config: Pick<AccordConfig
         keys,
     );
   }
-  if (JSON.stringify(merged) === JSON.stringify(parsed)) return { status: 'unchanged' };
-  return { status: 'updated', text: JSON.stringify(merged, null, 2) + '\n' };
+  const withNotes = notes.length > 0 ? { notes } : {};
+  if (JSON.stringify(merged) === JSON.stringify(parsed)) return { status: 'unchanged', ...withNotes };
+  return { status: 'updated', text: JSON.stringify(merged, null, 2) + '\n', ...withNotes };
 }
 
 /** The write half: applies a plan that is already known to be valid. */
@@ -253,6 +258,8 @@ export function skills(ctx: CommandContext): number {
   const stale = orphans(ctx.root, config);
 
   ctx.stdout.write(results.map((r) => r.status + ' ' + r.path + '\n').join(''));
+  // D-16: one line per accord hook the owner edited, which sync kept; printed on every run, `unchanged` included.
+  ctx.stdout.write((hooks?.notes ?? []).map((n) => n + '\n').join(''));
   // stderr, like status's advisory line: an orphan is something to tell the reader about, not part of
   // the report of what was written — and it must not change the exit code (D-113).
   ctx.stderr.write(

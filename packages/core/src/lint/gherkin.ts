@@ -103,6 +103,6 @@ export const testIdUnknown: Rule['check'] = (snapshot) => {
 /** D-72: `tests.report` is configured but the file was not in the snapshot. */
 export const reportMissing: Rule['check'] = (snapshot) => {
   const report = snapshot.config?.tests?.report;
-  if (report === undefined || normaliseKey(report) in snapshot.files) return [];
+  if (report === undefined || Object.hasOwn(snapshot.files, normaliseKey(report))) return [];
   return [{ file: CONFIG, pointer: '/tests/report', reason: `tests.report "${report}" is not in the snapshot` }];
 };

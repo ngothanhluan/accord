@@ -571,6 +571,31 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
     expect(bytes(at(repo, SETTINGS))).toBe('{ not json');
   });
 
+  it('risk:data-loss skills sync twice on edited accord hooks leaves one hook per event (8-ac-10)', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    const entries = hookEntries(pkg);
+    const edited = { matcher: 'startup', hooks: [{ type: 'command', command: 'accord hook session-start', timeout: 600 }] };
+    writeFileSync(at(repo, SETTINGS), JSON.stringify({ hooks: { ...entries, SessionStart: [edited, entries.SessionStart[1]] } }));
+    type Listed = { hooks: { command: string; if?: string }[] }[];
+    for (const round of [1, 2]) {
+      const { code, out } = await run(['skills', 'sync'], repo);
+      expect(code, 'round ' + round).toBe(0);
+      expect(out.split('\n').filter((l) => l.startsWith('kept SessionStart hook')), 'round ' + round).toHaveLength(1);
+      const hooks = JSON.parse(bytes(at(repo, SETTINGS))).hooks as Record<string, Listed>;
+      const count: Record<string, number> = {};
+      for (const [event, list] of Object.entries(hooks)) {
+        for (const h of list.flatMap((x) => x.hooks)) {
+          const id = event + '|' + (/ hook (\S+)/.exec(h.command)?.[1] ?? '?') + '|' + (h.if ?? '');
+          count[id] = (count[id] ?? 0) + 1;
+        }
+      }
+      expect(Object.values(count).filter((n) => n !== 1), 'round ' + round).toEqual([]);
+      expect(Object.keys(count).filter((id) => id.startsWith('SessionStart|session-start|'))).toHaveLength(1);
+      expect(hooks.SessionStart[0]).toEqual(edited);
+    }
+  });
+
   it('writes no settings file without the claude runtime', async () => {
     const repo = sandbox();
     setConfig(repo, /^runtimes: .*$/m, 'runtimes: [codex]');

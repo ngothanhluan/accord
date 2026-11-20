@@ -20,19 +20,19 @@ export function commitSeconds(out: string): number {
   return Number(text);
 }
 
-/** HEAD's committer time (`ct`, the test report's freshness) and author time (`at`, the executor report's), in whole seconds. */
-export interface HeadTimes { ct: number; at: number }
+/** HEAD's committer time (`ct`, the test report's freshness) and author time (`at`, the executor report's), in whole seconds, and its sha. */
+export interface HeadTimes { ct: number; at: number; sha: string }
 
 /** HeadTimes from one `git show -s`. */
 function headTimes(root: string): HeadTimes {
-  const out = execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%ct %at', 'HEAD'], {
+  const out = execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%ct %at %H', 'HEAD'], {
     cwd: root,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 64 * 1024 * 1024,
   });
-  const [ct, at] = out.trim().split(' ');
-  return { ct: commitSeconds(ct ?? ''), at: commitSeconds(at ?? '') };
+  const [ct, at, sha] = out.trim().split(' ');
+  return { ct: commitSeconds(ct ?? ''), at: commitSeconds(at ?? ''), sha: sha ?? '' };
 }
 
 /** headTimes(root) read on the first call only, so task-done asks git once however many of its checks need HEAD's times. */
@@ -65,11 +65,17 @@ function reportProblems(ctx: CommandContext, id: string, n: number, sha: string,
   if (claimPinBefore(claimed, id, TASK_REPORT_FROM)) return [];
   // ST-LN-92 D-03: the report lies where `accord brief` put it, under the task's worktree while it exists (it is cleaned only after task-done), named there by its absolute path.
   const root = workRootOf(ctx.root, claimed, id, n, `accord task-done ${id} ${n}`) ?? ctx.root;
-  const rel = root === ctx.root.replace(/\\/g, '/') ? reportRel(id, n) : reportPath(root, id, n);
+  const inTicket = root === ctx.root.replace(/\\/g, '/');
+  const rel = inTicket ? reportRel(id, n) : reportPath(root, id, n);
   const report = readReport(root, id, n);
   if (report === undefined) return [`the executor report ${rel} is missing: the executor writes it as its last step`];
-  if (Math.floor(report.mtimeMs / 1000) < times().at) {
-    return [`the executor report ${rel} was written before HEAD's commit ${sha}: the executor writes it after its last commit`];
+  // D-18: in a task worktree the report is fresh against that worktree's own HEAD (its last commit, or its base); other tasks' ledger commits move the ticket checkout's HEAD,
+  // not this one. Only then is a second HEAD read made: the plain path keeps its one `git show -s`.
+  const own = inTicket ? undefined : headTimes(root);
+  const at = own === undefined ? times().at : own.at;
+  const head = own === undefined ? sha : own.sha.slice(0, 12);
+  if (Math.floor(report.mtimeMs / 1000) < at) {
+    return [`the executor report ${rel} was written before HEAD's commit ${head}: the executor writes it after its last commit`];
   }
   return reportReasons(report.text);
 }

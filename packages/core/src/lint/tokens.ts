@@ -186,7 +186,7 @@ const tokensKey = (snapshot: RepoSnapshot) => {
 /** D-67: a configured tokens file absent from the snapshot; the allowlist check is skipped. */
 export const tokensMissing: Rule['check'] = (snapshot) => {
   const key = tokensKey(snapshot);
-  if (key === undefined || key in snapshot.files) return [];
+  if (key === undefined || Object.hasOwn(snapshot.files, key)) return [];
   const tokens = snapshot.config?.design.tokens;
   return [
     {
@@ -200,7 +200,7 @@ export const tokensMissing: Rule['check'] = (snapshot) => {
 /** D-66, D-68: every prototype against the tokens file's names, at the offending line. */
 export const tokenHardcoded: Rule['check'] = (snapshot) => {
   const key = tokensKey(snapshot);
-  if (key === undefined || !(key in snapshot.files)) return [];
+  if (key === undefined || !Object.hasOwn(snapshot.files, key)) return [];
   const known = tokenNames(snapshot.files[key]);
   return prototypes(snapshot).flatMap((file) => scanPrototype(snapshot.files[file], known).map((f) => ({ file, ...f })));
 };

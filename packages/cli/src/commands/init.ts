@@ -105,6 +105,7 @@ export function init(ctx: InitContext): number {
   // than invisible, and `run.ts` still maps the original UsageError to exit 2. The report is NOT permission
   // to keep writing before a refusal — the ordering above is what does that work, and this only makes what
   // the ordering cannot prevent auditable.
+  let hookNotes: string[] | undefined;
   try {
     for (const { path, text } of files) {
       const file = join(ctx.root, ...path.split('/'));
@@ -125,6 +126,7 @@ export function init(ctx: InitContext): number {
     const { targets, hooks } = guarded ?? { ...refusals(greenfieldAgents), hooks: greenfieldHooks };
     writeSkillFiles(ctx.root, targets, results);
     writeHooks(ctx.root, hooks, results);
+    hookNotes = hooks?.notes ?? [];
 
     // CLI-03, and the one write in this command that is not skip-if-exists: an agent instruction file
     // belongs to whoever wrote it, so the block is appended to what is there rather than written over it.
@@ -158,6 +160,8 @@ export function init(ctx: InitContext): number {
   // accord thinks belongs here, and the list is the answer — a terse "nothing to do" is not. Outside the
   // try on purpose: inside it, a throw after this line would print the report twice.
   ctx.stdout.write(rendered());
+  // D-16: an accord hook the owner edited was kept, one line each, as `accord skills sync` prints them.
+  ctx.stdout.write((hookNotes ?? []).map((n) => n + '\n').join(''));
   // ST-LN-37 37-ac-3 (D-03): accord changes no GitHub setting, so init says what a repository admin does to make the
   // accord check a merge gate. After the file list and before the proposals (the onboarding skill reads only the
   // `proposal:` lines), in one fixed order, from the same core source the README carries. A refused run threw above

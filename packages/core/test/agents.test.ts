@@ -33,6 +33,26 @@ describe('agents name what the spec requires', () => {
   }
 });
 
+// D-15: an unquoted `description:` holding ` #` or `: ` is cut there by YAML, and the host's agent list shows the stub.
+it("risk:parsing every rendered accord agent's description parses to its whole source text (8-ac-9)", () => {
+  const bad: string[] = [];
+  for (const key of Object.keys(agents) as AgentKey[]) {
+    const authored = agents[key];
+    const line = /^description: (.*)$/m.exec(authored)?.[1];
+    const route = /^route: (.*)$/m.exec(authored)?.[1] as keyof typeof AGENT_DEFAULTS | undefined;
+    if (line === undefined || route === undefined) {
+      bad.push(key + ': no description or route line in the source');
+      continue;
+    }
+    const whole = line.trim().replace(/^(["'])(.*)\1$/, '$2');
+    const rendered = frontmatter(renderAgent(key, AGENT_DEFAULTS[route])).description;
+    if (rendered !== whole) bad.push(key + ': renders ' + JSON.stringify(rendered) + ' for the source text ' + JSON.stringify(whole));
+  }
+  expect(bad).toEqual([]);
+  const planner = frontmatter(renderAgent('planner.md', AGENT_DEFAULTS.planner)).description;
+  expect(planner).toContain('## Approach');
+});
+
 const RUNTIME_LIST: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
 const roleOf = (path: string): string => path.replace('.claude/agents/accord-', '').replace('.md', '');
 

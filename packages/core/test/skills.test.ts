@@ -12,6 +12,7 @@ import type { SkillFile, SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, READY_RULES } from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
+import { readSource } from '../src/skills/render.js';
 
 const skillsDir = fileURLToPath(new URL('../skills/', import.meta.url));
 const BOM = String.fromCharCode(0xfeff);
@@ -810,4 +811,16 @@ describe('one command per action', () => {
       }
     }
   });
+});
+
+// D-17: a definition with an empty frontmatter block (`---` then `---`) parses to null and used to end in a TypeError.
+it('risk:parsing an empty frontmatter block gives a problem and no exception (8-ac-11)', () => {
+  const empty = readSource('---\n---\nbody');
+  expect(empty).toHaveProperty('problem');
+  expect((empty as { problem: string }).problem).toContain('empty');
+  const list = readSource('---\n- a\n---\nbody');
+  expect(list).toHaveProperty('problem');
+  expect((list as { problem: string }).problem).toContain('not a map');
+  expect(readSource('---\nname: x\n---\nbody')).toEqual({ yaml: { name: 'x' }, body: 'body' });
+  expect(readSource('just a body')).toEqual({ yaml: {}, body: 'just a body' });
 });

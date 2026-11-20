@@ -112,3 +112,17 @@ it('risk:complex-branching a new file no other tracked file names is an orphan a
   // the candidates the loader searches for: the same exclusions, in order
   expect(orphanCandidates(['src/b.ts', 'src/a.test.ts', 'bin/x.js', 'src/a.ts'])).toEqual(['src/a.ts', 'src/b.ts']);
 });
+
+it('risk:parsing a pyproject requirement with extras is a new dependency, single line and multi-line (WR-01)', () => {
+  const base = '[project]\ndependencies = ["requests>=2"]\n';
+  // a `]` inside a quoted requirement does not end the array
+  expect(names(newDependencies('pyproject.toml', base, '[project]\ndependencies = ["requests>=2", "rich[jupyter]>=13"]\n'))).toEqual(['rich:2']);
+  expect(names(newDependencies('pyproject.toml', '[project]\ndependencies = []\n', '[project]\ndependencies = ["httpx[http2]>=0.27", "flask"]\n'))).toEqual(['httpx:2', 'flask:2']);
+  // a multi-line array: the extras line and the lines after it are read, and the real `]` ends the array
+  const head = '[project]\ndependencies = [\n  "requests>=2",\n  "httpx[http2]>=0.27",\n  "flask",\n]\nversion = "1"\n[tool.x]\nnames = ["nope"]\n';
+  expect(names(newDependencies('pyproject.toml', base, head))).toEqual(['httpx:4', 'flask:5']);
+  // a comment after an item holds neither a requirement nor a closing bracket
+  expect(names(newDependencies('pyproject.toml', base, '[project]\ndependencies = [\n  "requests>=2",\n  "rich", # see [1] and "other"\n]\n'))).toEqual(['rich:4']);
+  // optional dependencies and groups read extras the same way
+  expect(names(newDependencies('pyproject.toml', '[project.optional-dependencies]\nx = []\n', '[project.optional-dependencies]\nx = ["a[b]>=1"]\n'))).toEqual(['a:2']);
+});

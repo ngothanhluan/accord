@@ -4,7 +4,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { renderSubject, templates } from '@accord-dev/accord-core';
+import { prTitleProblem, renderSubject, templates } from '@accord-dev/accord-core';
 import { gitDefaultRef, gitFilesAt, UsageError } from '../load/fs.js';
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
@@ -53,6 +53,14 @@ export function conventionsWrite(ctx: CommandContext, file: string, cwd: string)
   const wanted = acceptedLines(text, file);
   if (wanted.length === 0) throw new UsageError(`${shown(file)} holds no accepted line - fix: write the lines the owner said yes to, one per line${NOTHING}`);
 
+  // U-3: the skill passes this title to a quoted `gh pr create --title`, so it is judged as `accord pr` judges a title, before anything is fetched, written or pushed
+  const date = utcDate();
+  const subject = renderSubject(ctx.snapshot.config, 'conventions', date);
+  const unfit = prTitleProblem(subject);
+  if (unfit !== undefined) {
+    throw new UsageError(`${unfit.split(' - fix:')[0]} (commits.subjects.conventions renders ${shown(subject)}) - fix: change commits.subjects.conventions in accord/config.yml to a template without it (accord config set commits.subjects.conventions 'conventions: {id}')${NOTHING}`);
+  }
+
   if (!gitOk(root, ['remote', 'get-url', 'origin'])) throw new UsageError('no origin remote - accord conventions write pushes its branch there' + NOTHING);
   try {
     gitNoPrompt(root, ['fetch', '--no-prune', 'origin'], undefined, ctx.ssh);
@@ -63,7 +71,6 @@ export function conventionsWrite(ctx: CommandContext, file: string, cwd: string)
   if (ref === undefined) throw new UsageError('no origin/main in this clone - run git fetch origin, then try again' + NOTHING);
   const short = ref.replace('refs/remotes/origin/', '');
   const base = git(root, ['rev-parse', ref]).trim();
-  const date = utcDate();
   const branch = 'conventions/' + date;
   if (!gitOk(root, ['check-ref-format', '--branch', branch])) throw new UsageError(`${branch} is not a valid branch name` + NOTHING);
   let onOrigin: string;
@@ -96,7 +103,6 @@ export function conventionsWrite(ctx: CommandContext, file: string, cwd: string)
   const eol = current.includes('\r\n') ? '\r\n' : '\n';
   const body = (current === '' || /\n$/.test(current) ? current : current + eol) + added.map((l) => l + eol).join('');
 
-  const subject = renderSubject(ctx.snapshot.config, 'conventions', date);
   // the real path: git records the long form of a Windows short path, and forgetRegistration compares paths
   const folder = realpathSync.native(mkdtempSync(join(tmpdir(), 'accord-conventions-')));
   const wt = join(folder, 'wt');

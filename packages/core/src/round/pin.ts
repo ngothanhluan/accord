@@ -131,7 +131,7 @@ export const PLAN_LARGE_FROM = '0.8.0';
 /**
  * Phase 8.1 D-06, D-07 and CONTEXT Ruling "Release": the release from which `accord task-done` and `accord gate done` (gate.commit-message) refuse a ticket-branch commit that breaks
  * `commits.message`. Read only through claimPinBefore: a ticket claimed under a pin below it is not judged, so no branch that exists when the rule ships is refused. It is the next minor after
- * the newest released heading of docs/releases.md (0.8.1 when it was set); the release that ships Phase 8.1 sets it to its own version if another release came first, and PHASE8_1 in
+ * the newest released heading of docs/releases.md (at planning); the release that ships Phase 8.1 sets it to its own version if another release came first, and PHASE8_1 in
  * migration-pin.test.ts follows. `lint.commit-rule` reads config, not a ticket, and takes no cut-off.
  */
 export const COMMIT_MESSAGE_FROM = '0.9.0';
@@ -139,7 +139,7 @@ export const COMMIT_MESSAGE_FROM = '0.9.0';
 /**
  * Phase 8.1 D-17 and CONTEXT Ruling "Release": the release from which `accord gate done` refuses a slop hit of the ticket's cumulative diff that is neither fixed nor justified by a
  * `slop:<kind> <path>:<line> — <reason>` line in the last review round (gate.slop-unresolved). Read only through claimPinBefore, in the loader that reads the slop facts: a ticket claimed under a
- * pin below it is not judged and starts no slop read. It is the next minor after the newest released heading of docs/releases.md (0.8.1 when it was set); the release that ships Phase 8.1 sets it to
+ * pin below it is not judged and starts no slop read. It is the next minor after the newest released heading of docs/releases.md (at planning); the release that ships Phase 8.1 sets it to
  * its own version if another release came first, and PHASE8_1 in migration-pin.test.ts follows.
  */
 export const SLOP_FROM = '0.9.0';

@@ -43,7 +43,9 @@ it('risk:security a trusted commit-message script builds a message the pattern t
   // WR-03: the ticket file is an absolute, forward-slashed path that reads, as `accord pr` gives it, not a path relative to the root
   const written = readFileSync(named?.[1] ?? '', 'utf8').split('\n');
   expect(written[0]).toBe('ABC-12 fix cart');
-  const [ticket, ticketFile] = (written[1] ?? '').split(' ');
+  const second = written[1] ?? '';
+  const ticket = second.slice(0, second.indexOf(' '));
+  const ticketFile = second.slice(second.indexOf(' ') + 1); // the path may hold a space
   expect(ticket).toBe('T-1');
   expect(ticketFile, 'ACCORD_TICKET_FILE is absolute').toMatch(/^(?:[A-Za-z]:)?\//);
   expect(ticketFile).not.toContain('\\');

@@ -51,7 +51,7 @@ export function commitCheck(ctx: CommandContext, file: string, cwd: string): num
  * Run `commits.message.command` in this checkout with the ticket only in the environment (ACCORD_TICKET, ACCORD_TICKET_FILE, ACCORD_BASE_REF, ACCORD_ROOT), write what it printed
  * (the first line the subject, the rest the body, CRLF read as LF) to `<git-path>/accord-commit-<id>.txt`, print `message-file: <path>`, then judge it like `accord commit check`.
  * An untrusted script never runs (exit 2, the refusal names `accord trust`); a non-zero exit, a timeout, too much output or an empty first line is exit 2 quoting the stderr tail
- * and writes no file.
+ * and writes no file. ACCORD_TICKET_FILE is the ticket file's absolute path with forward slashes, as `accord pr` gives it to its script, so one helper reads it in both.
  */
 export function commitMessage(ctx: CommandContext, id: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
@@ -71,7 +71,7 @@ export function commitMessage(ctx: CommandContext, id: string): number {
       ...process.env,
       ...ctx.env,
       ACCORD_TICKET: id,
-      ACCORD_TICKET_FILE: ctx.snapshot.tickets[id].file,
+      ACCORD_TICKET_FILE: resolve(ctx.root, ctx.snapshot.tickets[id].file).replaceAll('\\', '/'),
       ACCORD_BASE_REF: gitDefaultRef(ctx.root) ?? '',
       ACCORD_ROOT: ctx.root,
     },

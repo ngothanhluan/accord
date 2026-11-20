@@ -676,7 +676,7 @@ it('risk:data-loss clean answers ancestry from one sha-keyed merged set and send
     let late: string | undefined;
     spawnLog.after = (args, options) => {
       if (late !== undefined || options?.cwd === undefined || !same(options.cwd, w)) return;
-      if (!(args[0] === 'status' && args.includes('--porcelain') && args.includes('--untracked-files=normal') && args.includes('--ignore-submodules=none'))) return;
+      if (!(args.filter((a) => a !== '--no-optional-locks')[0] === 'status' && args.includes('--porcelain') && args.includes('--untracked-files=normal') && args.includes('--ignore-submodules=none'))) return;
       writeFiles(w, { 'src/late.ts': 'export const late = 1;\n' });
       late = commitMsg(w, 'late commit during the guards');
     };

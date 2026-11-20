@@ -145,7 +145,7 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 | `accord lint [--json]` | Report every finding in the accord folder. |
 | `accord gate ready <id>` | Report whether the ticket passes the Ready gate. |
 | `accord gate plan <id>` | Report whether the ticket passes the plan gate. |
-| `accord gate done <id>` | Report whether the ticket passes the Done gate. |
+| `accord gate done <id>` | Report whether the ticket passes the Done gate. A slop hit of the ticket's diff (the `## Slop` list of `accord review-package`) must be fixed or named by a `slop:<kind> <path>:<line> — <reason>` line in the last `## Round` of `review.md`, else `gate.slop-unresolved` refuses; only for tickets claimed at or after the release that ships it. |
 | `accord status [--json] [--all]` | Print one row per ticket; `--all` includes archived tickets. |
 | `accord dashboard [--json]` | Print the ranked dashboard sections for you. |
 | `accord show <id> [--json | --approval [--short]]` | Print one ticket: its intent and each criterion with its state. `--approval` prints what the owner approves, and `--short` the shorter view the owner's yes is asked from. |

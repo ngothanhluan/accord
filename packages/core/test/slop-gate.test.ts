@@ -88,8 +88,8 @@ it('risk:security the slop gate fails closed on a refused team pattern and on un
   expect(f[0].reason).toContain('not in force');
   expect(f[0].reason).toContain('accord lint');
   expect(found(withSlopFile(build(lastRound(), undefined), SLOW))).toHaveLength(1);
-  // a line that is no pattern at all (prose) is lint's business, not the gate's
-  expect(found(withSlopFile(build(lastRound(), { hits: [], unread: 1 }), '## Patterns\n\n- just words\n'))).toEqual([]);
+  // prose that is no list line is lint's business, not the gate's
+  expect(found(withSlopFile(build(lastRound(), { hits: [], unread: 1 }), '## Patterns\n\njust words\n'))).toEqual([]);
   // a ticket the rule does not apply to (claimed before SLOP_FROM) is not refused for the file
   expect(found(withSlopFile(build(lastRound(), undefined, '0.8.0'), SLOW))).toEqual([]);
   // facts that could not be read are one finding quoting the error, and it names the way on

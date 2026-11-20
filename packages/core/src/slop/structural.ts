@@ -1,5 +1,9 @@
 // Phase 8.1 D-14: the slop kinds a regex over one added line cannot see. Pure: text in, facts out; the host reads the files from git.
-// `new-dependency` compares the names a package manifest holds at HEAD with the names it held at the base. (File growth and orphan files join this module in the next change of this group.)
+// `new-dependency` compares the names a package manifest holds at HEAD with the names it held at the base; `file-growth` and `orphan-file` judge line counts and the files that name a new file.
+import type { AccordConfig } from '../model/snapshot.js';
+import { isTestFile } from '../security/match.js';
+import { cmp, sortHits } from './match.js';
+import type { SlopHit } from './match.js';
 
 /** A dependency name and the line of the manifest that names it. */
 export interface NewDependency {
@@ -237,4 +241,75 @@ export function newDependencies(path: string, baseText: string | undefined, head
     seen.add(key);
     return true;
   });
+}
+
+// ---- file growth ----
+
+/** The default of `slop.max_file_lines`: measured on accord's own source, where 500 sits just under the 95th percentile (538 lines). */
+export const DEFAULT_MAX_FILE_LINES = 500;
+
+/** The line bound of a config: `slop.max_file_lines` when it is a digit string of one to six digits that does not start with zero, else the default. */
+export function maxFileLines(config: AccordConfig | undefined): number {
+  const v = config?.slop?.max_file_lines;
+  return typeof v === 'string' && /^[1-9][0-9]{0,5}$/.test(v) ? Number(v) : DEFAULT_MAX_FILE_LINES;
+}
+
+/**
+ * D-14: a text file that goes from at most `bound` lines to over it, or that is already over and grows by at least a tenth of the bound, is a `file-growth` hit at its last line at HEAD. A file that is
+ * merely touched, that shrinks, or that stays under the bound is never flagged. A new file has `baseLines` 0. The caller leaves out the files the slop scan skips (slopSkipped); test files count (D-20).
+ */
+export function growthHits(files: readonly { path: string; baseLines: number; headLines: number }[], bound: number): SlopHit[] {
+  const tenth = Math.ceil(bound / 10);
+  const hits: SlopHit[] = [];
+  for (const f of files) {
+    const crossed = f.baseLines <= bound && f.headLines > bound;
+    const grew = f.baseLines > bound && f.headLines - f.baseLines >= tenth;
+    if (crossed || grew) hits.push({ kind: 'file-growth', path: f.path, line: f.headLines, label: `grew from ${f.baseLines} to ${f.headLines} lines, past slop.max_file_lines (${bound})` });
+  }
+  return sortHits(hits);
+}
+
+// ---- orphan files ----
+
+const CONFIG_OR_DATA = new Set(['json', 'yml', 'yaml', 'toml', 'ini', 'cfg', 'conf', 'lock', 'xml']);
+const IMAGE_FONT_ARCHIVE = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'avif', 'svg', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'zip', 'gz', 'tgz', 'tar', 'bz2', 'xz', '7z', 'pdf']);
+const NOT_CODE_FOLDERS = ['accord/', '.github/', '.claude/', '.agents/'];
+const MARKDOWN = /\.(md|mdx|markdown)$/i;
+
+/** True when a new file is one a person finds by its place or name, not by another file naming it: an entry point, a test, a dotfile, a config or data file, an image or Markdown. */
+function isEntryPoint(path: string): boolean {
+  const parts = path.split('/');
+  const name = parts[parts.length - 1];
+  const dot = name.lastIndexOf('.');
+  const ext = dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
+  return (
+    isTestFile(path) ||
+    name.startsWith('.') ||
+    parts.slice(0, -1).includes('bin') ||
+    NOT_CODE_FOLDERS.some((f) => path.startsWith(f)) ||
+    CONFIG_OR_DATA.has(ext) ||
+    IMAGE_FONT_ARCHIVE.has(ext) ||
+    MARKDOWN.test(path)
+  );
+}
+
+/** The new files worth a search for a file that names them: `files` without the entry points, sorted and deduplicated. */
+export function orphanCandidates(files: readonly string[]): string[] {
+  return [...new Set(files.filter((p) => !isEntryPoint(p)))].sort((a, b) => cmp(a, b));
+}
+
+/**
+ * What another file must hold to name `path`: the whole repository path, and the file stem (`lonely` for `src/lonely.ts`), which is how an import, a require or a manifest names it. A stem under three
+ * characters would be found in almost every file, so the whole file name (`x.ts`) stands for it.
+ */
+export function orphanTerms(path: string): string[] {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  return [...new Set([path, stem.length < 3 ? name : stem])];
+}
+
+/** D-14: each candidate of `files` that is not in `named` (the new files some other tracked file names) is an `orphan-file` hit at line 1. */
+export function orphanHits(files: readonly string[], named: ReadonlySet<string>): SlopHit[] {
+  return sortHits(orphanCandidates(files).filter((p) => !named.has(p)).map((p) => ({ kind: 'orphan-file', path: p, line: 1, label: 'no other tracked file names it' })));
 }

@@ -100,7 +100,7 @@ function mentions(files: SkillFile[]): Mention[] {
 
 describe('the commands a skill may name (SKILL-08, D-110)', () => {
   it('reads the real paths off the commander tree the CLI runs', () => {
-    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'budget', 'commit check', 'commit message', 'config check', 'config get', 'config set', 'config unset', 'dashboard', 'deferred', 'diff-package', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'related', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'subject', 'task-done', 'tests baseline', 'tests skipped', 'trust', 'upgrade', 'waves', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync', 'worktree task clean', 'worktree task merge', 'worktree task open']);
+    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'budget', 'commit check', 'commit message', 'config check', 'config get', 'config set', 'config unset', 'dashboard', 'deferred', 'diff-package', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'pr', 'related', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'subject', 'task-done', 'tests baseline', 'tests skipped', 'trust', 'upgrade', 'waves', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync', 'worktree task clean', 'worktree task merge', 'worktree task open']);
   });
 
   it('treats a namespace with no action of its own as not a command', () => {

@@ -2289,6 +2289,38 @@ it('risk:regression verify asks which deferred items go to the backlog through t
   expect(bytes).toBeLessThanOrEqual(6000);
 });
 
+// Phase 8.2 08.2-06 (D-04, 8.2-ac-5): the owner's answer at verify is written as a mark on each deferred item's ledger line, and `accord deferred <id>` run again checks that every mark parses.
+it("risk:regression verify records the owner's answer on each deferred item's ledger line (8.2-ac-5)", () => {
+  const all = similarRender();
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
+    const ref = get('accord-verify/deferred.md');
+    if (ref === '') bad.push(dir + ' accord-verify/deferred.md is not rendered');
+    for (const phrase of [
+      "append ` → <new id>` to the end of that item's line in `accord/tickets/<id>/ledger.md`",
+      "the word of the queue's `title:` line",
+      'the part of its `branch:` line between `backlog/` and the closing `-<YYYY-MM-DD>`',
+      'the id of the existing ticket the owner chose',
+      'append ` → declined` to the end of the line of each listed item the owner did not choose',
+      'every other item stays in the ledger as a record',
+      'append the mark only',
+      'edit, move or rate no ledger line',
+      'run `accord deferred <id>` again until it prints `no Must or Should deferred items`',
+      'a line it still prints holds a mark to fix',
+      'uncommitted until step 6 of `./SKILL.md`',
+      'marked declined',
+    ])
+      if (!ref.includes(phrase)) bad.push(dir + ' deferred.md lacks: ' + phrase);
+    const skill = all.find((f) => f.path === dir + '/accord-verify/SKILL.md')?.raw ?? '';
+    if (Buffer.byteLength(skill, 'utf8') > 5980) bad.push(dir + ' verify SKILL.md is over 5980 bytes');
+    if (skill.split(String.fromCharCode(10)).length > 120) bad.push(dir + ' verify SKILL.md is over 120 lines');
+    const step6 = skill.replace(/\s+/g, ' ');
+    if (!step6.includes('a line, a lesson or a mark was written')) bad.push(dir + ' verify step 6 does not commit a mark');
+  }
+  expect(bad).toEqual([]);
+});
+
 // ST-LN-86 (D-18): only the discuss step dispatches the researcher, the session writes its reply as the record, and a session with no
 // researcher agent follows the same rules with its own tools.
 const RESEARCH_FALLBACK = 'When no `accord-researcher` agent is available to you, look the library up yourself with your own tools as `./research.md` says, and write the record the same way.';
@@ -2371,7 +2403,7 @@ it('risk:regression verify offers an epic lesson and writes it only to the story
   }
   const verify = read('.claude/skills/accord-verify/SKILL.md');
   const step6 = verify.slice(verify.indexOf('6. Run `accord gate done <id>`'), verify.indexOf('7. Report the finish'));
-  for (const phrase of ['across its epic', './ask.md', 'a line or a lesson was written', 'and the ledger']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
+  for (const phrase of ['across its epic', './ask.md', 'a line, a lesson or a mark was written', 'no line or mark was written', 'and the ledger']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
   // no shared epic file and no write into another ticket's folder is asked of any rendered skill
   for (const f of files.filter((x) => x.path.endsWith('.md'))) {
     const text = flat(f.text);

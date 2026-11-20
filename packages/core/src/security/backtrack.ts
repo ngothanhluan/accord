@@ -199,6 +199,7 @@ function parse(src: string): Tree {
           i += 3;
           look = true;
         } else if (src.startsWith('?<', i)) i = src.indexOf('>', i) + 1;
+        else if (src[i] === '?') throw new Refuse('syntax'); // a modifier group such as (?i:...) is not read here, so it is not judged: refuse it
         const inner = alt();
         i++; // )
         atom = look ? { kind: 'look', inner } : { kind: 'group', inner };
@@ -376,6 +377,8 @@ function tarjan(count: number, next: (v: number) => number[]): number[][] {
 const BACKREFERENCE_REASON =
   'a backreference (\\1..\\9 or \\k<name>) can take exponential time; rewrite it without one, writing out each choice, as "[^"]*"|\'[^\']*\' for a quoted string or <(\\w+)>.*</\\w+> for a tag pair ' +
   '(an octal escape such as \\1 with no group reads the same way: write \\x01)';
+const SYNTAX_REASON =
+  'a group with modifiers such as (?i:...) is not read by the slow-match check, so it cannot be judged; give the whole pattern the i flag, or write it without the modifier group';
 const SIZE_REASON = 'it is too large to check for slow matching; split it into smaller patterns';
 const EXPONENTIAL_REASON =
   'a repeated part can match the same text in more than one way, so a failing line can take exponential time; give each repeat one way to match (a+ for (a+)+, a* for (a|a)*, (?:ab?)* for (a?b?)*)';
@@ -395,7 +398,7 @@ export function backtrackProblem(source: string, flags: string): string | undefi
   try {
     auto = build(parse(source), flags.includes('i'));
   } catch (e) {
-    if (e instanceof Refuse) return e.message === 'backreference' ? BACKREFERENCE_REASON : SIZE_REASON;
+    if (e instanceof Refuse) return e.message === 'backreference' ? BACKREFERENCE_REASON : e.message === 'syntax' ? SYNTAX_REASON : SIZE_REASON;
     throw e;
   }
   const { sets, follow, start } = auto;

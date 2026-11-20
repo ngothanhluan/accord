@@ -174,6 +174,15 @@ const UNREMOVABLE = 'security-config';
 /** The path entries an earlier release's template gave a default that has since changed, so a security.md `accord init` wrote under that release still reads clean (the current default applies). */
 const EARLIER_ENTRIES: Record<string, string[][]> = { 'security-config': [['accord/product/security.md', 'accord/config.yml']] };
 
+/**
+ * The line sources an earlier release's template gave a default that has since changed, with the flags it carried, so a security.md `accord init` wrote under that release still reads clean (the
+ * current default applies). `built-path` had one source in 0.7.0, 0.7.1 and 0.8.0; it ran in time quadratic in the length of a line of `join(`, and 0.8.1 replaced it with a linear one (D-08).
+ * The default `agent-config` came after 0.8.0, so no released file holds an older value of it.
+ */
+const EARLIER_SOURCES: Record<string, { source: string; flags: string }[]> = {
+  'built-path': [{ source: String.raw`\b(join|resolve|normalize)\s*\(.*\b(input|argv|args?|params?|query|body|req|request)\b`, flags: '' }],
+};
+
 const sameValue = (a: SecurityPattern, b: SecurityPattern): boolean =>
   a.kind === b.kind &&
   (a.kind === 'path'
@@ -196,7 +205,11 @@ function mergeSecurity(file: SecuritySpec): SecuritySpec {
     if (d === undefined) {
       teamIds.add(p.id);
       added.push(p);
-    } else if (!sameValue(p, d) && !(EARLIER_ENTRIES[p.id] ?? []).some((e) => sameValue(p, { ...d, entries: e }))) {
+    } else if (
+      !sameValue(p, d) &&
+      !(EARLIER_ENTRIES[p.id] ?? []).some((e) => sameValue(p, { ...d, entries: e })) &&
+      !(EARLIER_SOURCES[p.id] ?? []).some((e) => sameValue(p, { ...d, source: e.source, flags: e.flags }))
+    ) {
       problems.push({ line: p.line, reason: `"${p.id}" is a default pattern with another kind or value, so the default applies; remove it with a "- Removed: ${p.id} — <reason>" line and add your own under a new id` });
     }
   }

@@ -365,6 +365,33 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(result.out).not.toContain(NOTHING_TO_GATE);
   });
 
+  // 8-ac-17 (D-23): git prints a non-ASCII path quoted and octal-escaped (`"accord/tickets/Caf\303\251.md"`) unless
+  // core.quotePath is off, and the ticket list's grep then misses it, so the ticket went ungated. The script of the
+  // emitted workflow and this repository's committed copy are both run on a branch that adds `Café.md`.
+  it('risk:security the generated CI script gates a ticket file with a non-ASCII name (8-ac-17)', () => {
+    const yml = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+    const ownScript = (
+      (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string }> } } }).jobs.accord.steps.find(
+        (s) => s.name === 'lint and gate',
+      ) as Step
+    ).run as string;
+    for (const [what, script] of [['generated', SCRIPT], ['this repository', ownScript]] as const) {
+      const { repo, base } = sandbox((r) => {
+        write(r, 'accord/tickets/Café.md', 'id: Café\n');
+        write(r, 'src/app.ts', CODE);
+      });
+      const result = runScript(repo, { base, script });
+      expect(result.code, what + ': ' + result.out + result.err).toBe(0);
+      expect(result.calls.length, what + ': ' + result.calls.join(' | ')).toBe(2);
+      expect(result.calls[1].endsWith(' gate done Café'), what + ': ' + result.calls.join(' | ')).toBe(true);
+    }
+    for (const [what, script] of [['generated', SCRIPT], ['this repository', ownScript]] as const) {
+      expect(script, what + ' lists tickets with quotePath off').toContain(
+        'git -c core.quotePath=false diff --name-only --diff-filter=d "$BASE"...HEAD',
+      );
+    }
+  });
+
   it('a deleted approved ticket not dropped at the base fails naming the ticket and accord drop', () => {
     for (const c of DELETED_APPROVED) {
       const { repo, base } = sandbox(c.change, c.seed);

@@ -31,7 +31,7 @@ export interface Trigger {
   removed?: boolean;
   pattern: string;
   label: string;
-  /** the diff text does not show the path (no `line`), or a changed line is longer than the scan cap and was scanned only up to it (with `line`). */
+  /** the diff text does not show the path (no `line`), or a changed line is longer than SCAN_LINE_LIMIT and was scanned only up to it (with `line`). */
   cannot?: boolean;
 }
 
@@ -165,11 +165,26 @@ export function diffFiles(diffText: string): DiffFile[] {
   return files;
 }
 
-const MAX_LINE = 2000;
-/** The label of the trigger a cut line gets: the cap guards the patterns against backtracking, so a line over it is never scanned whole and says so (fail closed). */
-const LONG_LINE = `line longer than ${MAX_LINE} characters, not fully scanned`;
+/**
+ * The one scan bound (D-09): a changed line is matched on its first SCAN_LINE_LIMIT characters only. The bound caps the time an allowed pattern may take per changed line, which is at most
+ * two overlapping repeats in a row and 16 routes for one text; exponential shapes, longer runs and more routes are refused at read by backtrack.ts. The total still grows with the number of
+ * changed lines, each one costing at most the sum of the patterns' cost on SCAN_LINE_LIMIT characters (08-08b states the figures); no total cap is built.
+ */
+export const SCAN_LINE_LIMIT = 1000;
+/** The label of the trigger a cut line gets: a line over the bound is never scanned whole and says so (fail closed). */
+const LONG_LINE = `line longer than ${SCAN_LINE_LIMIT} characters, not fully scanned`;
 const UNREADABLE = 'too large to read as text, so its lines were not scanned';
-const tooLong = (text: string): boolean => text.length > MAX_LINE;
+const tooLong = (text: string): boolean => text.length > SCAN_LINE_LIMIT;
+/** The label of the trigger a file git calls binary gets when it is not a known binary type (D-20): a NUL byte on a changed line makes git call a code file binary, and its lines were then never scanned. */
+const BINARY_LABEL = 'binary file, its lines were not scanned';
+/** Image, font and archive types git rightly calls binary; any other binary file with no text twin is a `cannot` trigger (fail closed). */
+const KNOWN_BINARY = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'avif', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'zip', 'gz', 'tgz', 'tar', 'bz2', 'xz', '7z', 'pdf']);
+/** The extension of a path: the text after the last `.` of its name, lower-cased; empty when the name holds none. */
+const extensionOf = (path: string): string => {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
+};
 const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const TEST_FOLDER = new Set(['test', 'tests', '__tests__']);
 
@@ -213,12 +228,21 @@ function compileLines(spec: SecuritySpec): { p: SecurityPattern; re: RegExp }[] 
   return out;
 }
 
+/** The folders an agent loads and runs code from (D-22): a skill's scripts, a sub-agent's files and the panel. Compared ignoring letter case, as path entries are. */
+const AGENT_FOLDERS = ['.claude/skills/', '.agents/skills/', '.claude/agents/', '.claude/accord-panel/'];
+const underAgentFolder = (path: string): boolean => {
+  const p = path.toLowerCase();
+  return AGENT_FOLDERS.some((f) => p.startsWith(f));
+};
+
 /**
  * Content patterns are not run over Markdown, test files, the repository's generated paths or a path in `exempt` (exactly an unmodified copy `accord skills sync`
  * writes, decided by the caller). No folder is skipped as a whole: a file accord does not write, or a copy changed by hand, is scanned.
+ * D-22: a test-named file under an agent-loaded folder (AGENT_FOLDERS) is not skipped as a test, because an agent session can run it; Markdown there stays skipped, and an
+ * exempt copy or a generated path is skipped first.
  */
 const contentSkipped = (path: string, generated: readonly string[], exempt: readonly string[]): boolean =>
-  MARKDOWN.test(path) || isTestFile(path) || exempt.includes(path) || generated.some((e) => matches(e, path));
+  exempt.includes(path) || generated.some((e) => matches(e, path)) || MARKDOWN.test(path) || (isTestFile(path) && !underAgentFolder(path));
 
 /**
  * The triggers of a package: path patterns over every changed path (both sides of a rename); content patterns over the added and removed lines of
@@ -243,11 +267,17 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
   }
   const lineRes = compileLines(spec);
   const skipped = (path: string): boolean => contentSkipped(path, options.generated, options.exempt ?? []);
+  const unreadable = new Set(options.unreadable ?? []);
   for (const f of files) {
+    // D-20: a binary file with no text section of the same path, that is not a known image, font or archive, could hide a changed code line behind a NUL byte: it is a trigger of its own.
+    // A path the host could not read at all keeps its own, more exact label (below).
+    if (f.binary && f.path !== undefined && !skipped(f.path) && !unreadable.has(f.path) && !KNOWN_BINARY.has(extensionOf(f.path)) && !files.some((g) => !g.binary && g.path === f.path)) {
+      add({ path: f.path, pattern: '', label: BINARY_LABEL, cannot: true });
+    }
     if (f.binary || f.path === undefined || skipped(f.path)) continue;
     const scanLines = (lines: DiffFile['added'], removed: boolean) => {
       for (const l of lines) {
-        const head = tooLong(l.text) ? l.text.slice(0, MAX_LINE) : l.text;
+        const head = tooLong(l.text) ? l.text.slice(0, SCAN_LINE_LIMIT) : l.text;
         if (tooLong(l.text)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: '', label: LONG_LINE, cannot: true });
         for (const { p, re } of lineRes) if (re.test(head)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: p.id, label: p.label });
       }

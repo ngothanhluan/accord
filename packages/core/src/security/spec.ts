@@ -1,9 +1,10 @@
 // ST-LN-36 D-05: the security file (`accord/product/security.md`) holds the patterns that call for a security review and the reviewer's
 // checklist. Pure text in, a spec out; the defaults are the text of templates/security.md, read from the generated record.
 import { templates } from '../generated/templates.js';
-import { scan, stripHtmlComments } from '../load/sections.js';
+import { headingKey, scan, stripHtmlComments } from '../load/sections.js';
 import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { backtrackProblem } from './backtrack.js';
 
 export interface SecurityPattern {
   id: string;
@@ -29,8 +30,8 @@ export interface SecuritySpec {
   checklist: SecurityCheck[];
   /** the ids named by `- Removed: <id> — <reason>` lines. */
   removed: { id: string; reason: string; line: number }[];
-  /** a list line that does not read; it is never a pattern, a check or a removal. */
-  problems: { line: number; reason: string }[];
+  /** a list line that does not read; it is never a pattern, a check or a removal. `pattern` marks a line of `## Patterns`: a team pattern that is not in force (D-10). */
+  problems: { line: number; reason: string; pattern?: true }[];
 }
 
 const ID = '[a-z0-9][a-z0-9-]*';
@@ -43,7 +44,11 @@ const ANY_FLAGS = /^\/(.+)\/([A-Za-z]+)$/;
 const ID_ONLY = new RegExp(`^${ID}$`);
 const LEADING_ID = /^- ([^:\s]+): /;
 const HAS_WORD = /[\p{L}\p{N}]/u;
-const MAX_LINE = 2000;
+/** The longest line of a security.md the reader takes (2000): a team's file line, a different input from a changed line (SCAN_LINE_LIMIT in match.ts). */
+const MAX_PATTERN_LINE = 2000;
+
+/** The sections of a security file the reader takes, by headingKey. */
+const SECTIONS = new Set(['patterns', 'checklist', 'removed']);
 
 const BOM = String.fromCharCode(0xfeff);
 
@@ -65,39 +70,48 @@ export function parseSecurityFile(text: string): SecuritySpec {
   const spec: SecuritySpec = { patterns: [], checklist: [], removed: [], problems: [] };
   const seen = new Set<string>();
   const problem = (line: number, reason: string) => spec.problems.push({ line, reason });
+  // a problem of a `## Patterns` line means a team pattern is not in force; the gate reads it (D-10)
+  const patternProblem = (line: number, reason: string) => spec.problems.push({ line, reason, pattern: true });
   const isListLine = (t: string) => t.startsWith('- ');
 
   for (const { line, text: raw } of sectionLines(sections, 'patterns')) {
     const t = raw.trimEnd();
     if (!isListLine(t)) continue;
-    if (t.length > MAX_LINE) {
-      problem(line, `a pattern line is longer than ${MAX_LINE} characters`);
+    if (t.length > MAX_PATTERN_LINE) {
+      patternProblem(line, `a pattern line is longer than ${MAX_PATTERN_LINE} characters`);
       continue;
     }
     const m = PATTERN.exec(t);
     if (m === null) {
       const bad = idProblem(t);
       if (bad !== undefined) {
-        problem(line, bad);
+        patternProblem(line, bad);
         continue;
       }
-      problem(line, 'not a pattern: write "- <id>: path <entry>[, <entry>…] — <what it guards>" or "- <id>: line /<regex>/[i] — <what it guards>"');
+      patternProblem(line, 'not a pattern: write "- <id>: path <entry>[, <entry>…] — <what it guards>" or "- <id>: line /<regex>/[i] — <what it guards>"');
       continue;
     }
     const [, id, kind, spec_, label] = m;
     if (seen.has(id)) {
-      problem(line, `the id "${id}" is used twice`);
+      patternProblem(line, `the id "${id}" is used twice`);
       continue;
     }
     if (kind === 'path') {
       const entries = spec_.split(',').map((e) => e.trim());
       if (entries.some((e) => e === '' || /\s/.test(e))) {
-        problem(line, `"${id}": a path entry is empty or holds a space`);
+        patternProblem(line, `"${id}": a path entry is empty or holds a space`);
         continue;
       }
       if (entries.some((e) => /[*?[]/.test(e))) {
-        problem(line, `"${id}": a path entry holds *, ? or [; there is no glob, an entry ending in / is a folder`);
+        patternProblem(line, `"${id}": a path entry holds *, ? or [; there is no glob, an entry ending in / is a folder`);
         continue;
+      }
+      // D-21, lint only: an entry that can never match is a problem naming the fix, one per entry. It is not marked `pattern` and the line does not `continue`: the pattern stays in
+      // force as 0.8.0 read it, so the gate behaves for it as before and no ticket in flight is refused for it.
+      for (const e of entries) {
+        if (e.includes('\\')) problem(line, `"${id}": the path entry "${e}" holds a backslash; write it with /, as git prints paths`);
+        else if (e.startsWith('/') || e.startsWith('./')) problem(line, `"${id}": the path entry "${e}" starts with / or ./; write it from the repository root without them`);
+        else if (e.split('/').includes('..')) problem(line, `"${id}": the path entry "${e}" holds ..; write the path from the repository root without ..`);
       }
       seen.add(id);
       spec.patterns.push({ id, kind: 'path', entries, label: label.trim(), line });
@@ -106,13 +120,18 @@ export function parseSecurityFile(text: string): SecuritySpec {
     const r = LINE_SPEC.exec(spec_.trim());
     if (r === null) {
       const f = ANY_FLAGS.exec(spec_.trim());
-      problem(line, f === null ? `"${id}": a line pattern is /<regex>/ with the optional flag i` : `"${id}": the flag "${f[2]}" is not allowed; the only flag is i`);
+      patternProblem(line, f === null ? `"${id}": a line pattern is /<regex>/ with the optional flag i` : `"${id}": the flag "${f[2]}" is not allowed; the only flag is i`);
       continue;
     }
     try {
       new RegExp(r[1], r[2]);
     } catch (e) {
-      problem(line, `"${id}": the regex does not compile: ${e instanceof Error ? e.message : String(e)}`);
+      patternProblem(line, `"${id}": the regex does not compile: ${e instanceof Error ? e.message : String(e)}`);
+      continue;
+    }
+    const slow = backtrackProblem(r[1], r[2]);
+    if (slow !== undefined) {
+      patternProblem(line, `"${id}": the regex can be very slow on some lines: ${slow}`);
       continue;
     }
     seen.add(id);
@@ -123,9 +142,9 @@ export function parseSecurityFile(text: string): SecuritySpec {
   for (const { line, text: raw } of sectionLines(sections, 'checklist')) {
     const t = raw.trimEnd();
     if (!isListLine(t)) continue;
-    const m = t.length > MAX_LINE ? null : CHECK.exec(t);
+    const m = t.length > MAX_PATTERN_LINE ? null : CHECK.exec(t);
     if (m === null) {
-      problem(line, (t.length > MAX_LINE ? undefined : idProblem(t)) ?? 'not a check: write "- <id>: <check>"');
+      problem(line, (t.length > MAX_PATTERN_LINE ? undefined : idProblem(t)) ?? 'not a check: write "- <id>: <check>"');
       continue;
     }
     if (checked.has(m[1])) {
@@ -139,7 +158,7 @@ export function parseSecurityFile(text: string): SecuritySpec {
   for (const { line, text: raw } of sectionLines(sections, 'removed')) {
     const t = raw.trimEnd();
     if (!isListLine(t)) continue;
-    const m = t.length > MAX_LINE ? null : REMOVED.exec(t);
+    const m = t.length > MAX_PATTERN_LINE ? null : REMOVED.exec(t);
     if (m === null) {
       problem(line, 'not a removal: write "- Removed: <id> — <reason>", the reason in words');
       continue;
@@ -149,6 +168,16 @@ export function parseSecurityFile(text: string): SecuritySpec {
       continue;
     }
     spec.removed.push({ id: m[1], reason: m[2].trim(), line });
+  }
+
+  // D-21, lint only: the reader takes the first section of each of the three names, so a repeated heading is ignored and a heading it does not know (a misspelling such as
+  // `## Pattern`) silently does nothing. Neither problem is marked `pattern`: the gate does not refuse for them.
+  const headings = new Set<string>();
+  for (const s of sections) {
+    const key = headingKey(s.heading);
+    if (headings.has(key)) problem(s.line, `the section "## ${s.heading}" appears twice; only the first is read, so move its lines into the first one`);
+    else if (!SECTIONS.has(key)) problem(s.line, `"## ${s.heading}" is not a section accord reads; use ## Patterns, ## Checklist or ## Removed`);
+    headings.add(key);
   }
   return spec;
 }
@@ -164,6 +193,15 @@ const UNREMOVABLE = 'security-config';
 
 /** The path entries an earlier release's template gave a default that has since changed, so a security.md `accord init` wrote under that release still reads clean (the current default applies). */
 const EARLIER_ENTRIES: Record<string, string[][]> = { 'security-config': [['accord/product/security.md', 'accord/config.yml']] };
+
+/**
+ * The line sources an earlier release's template gave a default that has since changed, with the flags it carried, so a security.md `accord init` wrote under that release still reads clean (the
+ * current default applies). `built-path` had one source in 0.7.0, 0.7.1 and 0.8.0; it ran in time quadratic in the length of a line of `join(`, and 0.8.1 replaced it with a linear one (D-08).
+ * The default `agent-config` came after 0.8.0, so no released file holds an older value of it.
+ */
+const EARLIER_SOURCES: Record<string, { source: string; flags: string }[]> = {
+  'built-path': [{ source: String.raw`\b(join|resolve|normalize)\s*\(.*\b(input|argv|args?|params?|query|body|req|request)\b`, flags: '' }],
+};
 
 const sameValue = (a: SecurityPattern, b: SecurityPattern): boolean =>
   a.kind === b.kind &&
@@ -187,7 +225,11 @@ function mergeSecurity(file: SecuritySpec): SecuritySpec {
     if (d === undefined) {
       teamIds.add(p.id);
       added.push(p);
-    } else if (!sameValue(p, d) && !(EARLIER_ENTRIES[p.id] ?? []).some((e) => sameValue(p, { ...d, entries: e }))) {
+    } else if (
+      !sameValue(p, d) &&
+      !(EARLIER_ENTRIES[p.id] ?? []).some((e) => sameValue(p, { ...d, entries: e })) &&
+      !(EARLIER_SOURCES[p.id] ?? []).some((e) => sameValue(p, { ...d, source: e.source, flags: e.flags }))
+    ) {
       problems.push({ line: p.line, reason: `"${p.id}" is a default pattern with another kind or value, so the default applies; remove it with a "- Removed: ${p.id} — <reason>" line and add your own under a new id` });
     }
   }

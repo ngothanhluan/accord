@@ -2,7 +2,7 @@
 // `Security: lens security ran`; from SECURITY_TRIGGER_FROM `accord gate done` refuses a round whose package had security triggers and no `Security: lens security ran` line,
 // and a round (a final review excepted) that records no `Security:` line at all.
 import { expect, it } from 'vitest';
-import { SECURITY_TRIGGER_FROM, gateDone, parseRounds } from '../src/index.js';
+import { SECURITY_TRIGGER_FROM, gateDone, nextRound, parseRounds } from '../src/index.js';
 import type { RepoSnapshot, SecurityFacts } from '../src/index.js';
 import { claimedUnder, facts, H, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
@@ -208,4 +208,43 @@ it('risk:security a (final review) round is exempt only when a non-final round c
 
   // a record claimed before 0.7.0 is unchanged
   expect(reasons(build({ cycles: [[lineRound([], 'final')]], triggers: [[TRIGGER]], pin: '0.6.0' }))).toEqual([]);
+});
+
+// 8-ac-5 (D-10): a team pattern line that is not in force (it does not compile or is refused as backtracking) is a gate finding, not a silent pass, for a ticket under the security rule.
+const SECURITY_FILE = 'accord/product/security.md';
+const withSecurityFile = (snap: RepoSnapshot, ...lines: string[]): RepoSnapshot => ({
+  ...snap,
+  files: { ...snap.files, [SECURITY_FILE]: ['# Security review', '', '## Patterns', '', ...lines, ''].join('\n') },
+});
+
+it('risk:security a team pattern that is not in force is a gate finding of gate done and accord round (8-ac-5)', () => {
+  const clean = build({ cycles: [[lineRound([none])]], triggers: [[]] });
+  // with no such line the findings are as before, a good team line included
+  expect(reasons(clean)).toEqual([]);
+  expect(reasons(withSecurityFile(clean, '- infra: path infra/ — infrastructure', '- word: line /\\bfoo\\b/ — a safe pattern'))).toEqual([]);
+  expect(nextRound(withSecurityFile(clean, '- infra: path infra/ — infrastructure'), 'T-1', 'review').reasons.join('\n')).not.toContain('security.md');
+
+  for (const [pattern, why] of [['/(/', 'does not compile'], ['/(a+)+$/', 'very slow']]) {
+    const snap = withSecurityFile(clean, `- team: line ${pattern} — a team pattern`);
+    const hits = found(snap);
+    expect(hits, pattern).toHaveLength(1);
+    expect(hits[0].reason, pattern).toMatch(/^accord\/product\/security\.md:5: /);
+    expect(hits[0].reason, pattern).toContain(why);
+    expect(hits[0].reason, pattern).toMatch(/fix the line, then run accord lint$/);
+    expect(hits[0], pattern).toMatchObject({ file: REVIEW, level: 'error' });
+    // accord round reads the same rule and refuses, naming the same line
+    const answer = nextRound(snap, 'T-1', 'review');
+    expect(answer.kind, pattern).toBe('refused');
+    expect(answer.reasons.join('\n'), pattern).toContain('accord/product/security.md:5: ');
+    // the pattern problem comes before the trigger facts: it holds with no fact at all
+    const noFact = { ...snap, securityFacts: undefined } as RepoSnapshot;
+    expect(found(noFact), pattern).toHaveLength(1);
+    // a ticket the security rule does not apply to (claimed before 0.7.0) answers as before
+    const old = withSecurityFile(build({ cycles: [[lineRound([none])]], triggers: [[]], pin: '0.6.0' }), `- team: line ${pattern} — a team pattern`);
+    expect(reasons(old), pattern).toEqual([]);
+  }
+
+  // another problem of the file (a checklist line) stays a lint matter and is not a gate finding
+  const checklist = { ...clean, files: { ...clean.files, [SECURITY_FILE]: '## Checklist\n\n- a check with no id\n' } } as RepoSnapshot;
+  expect(reasons(checklist)).toEqual([]);
 });

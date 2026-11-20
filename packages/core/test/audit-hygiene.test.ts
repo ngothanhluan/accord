@@ -1,8 +1,8 @@
 // Phase 8.2 group 3 (work hygiene): the pure gap builders and the open-work predicate they share with the dashboard. No git, no filesystem.
 import { expect, it } from 'vitest';
-import { branchGaps, deferredGaps, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, statusRows, ticketIdleGaps } from '../src/index.js';
+import { BASELINE_LISTED, baselineGap, branchGaps, deferredGaps, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, removableBaseline, statusRows, ticketIdleGaps } from '../src/index.js';
 import type { ClaimRefFact, StatusRow } from '../src/index.js';
-import { CONFIG, done, laneTicket, P, building } from '../../../test/helpers/lane.js';
+import { CONFIG, done, junit, LANE_BODY, laneTicket, P, building, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
 const row = (over: Partial<StatusRow>): StatusRow => ({ id: 'T-1', ui: false, errors: 0, warnings: 0, ready: 'none', ticksVerified: 0, ticksTagged: 0, ticksBinding: 'none', ...over });
@@ -197,4 +197,60 @@ it('risk:security a ticket id a shell would read gets no command in a deferred-u
     expect(gap.fix).toBe('the ticket id holds characters a command line would read, so no command is printed: rename its ticket file to a plain id first');
     expect(gap.fix).not.toContain('/accord-queue');
   }
+});
+
+// ---- 08.2-05 (D-05, D-11): the tests baseline -------------------------------------------------------------------------------------------
+
+/** A repository whose one ticket names `a.test.ts#one`, with a baseline of five ids and, when `report` is given, a report holding those cases. */
+function baselineSnapshot(report: Record<string, 'passed' | 'failed' | 'skipped'> | undefined) {
+  const files: Files = {
+    'accord/config.yml': CONFIG,
+    [P('T-1')]: laneTicket('T-1', { body: LANE_BODY.replace('export#writes-csv', 'a.test.ts#one') }),
+    'accord/tests-baseline.txt': ['# a comment', 'a.test.ts#one', 'c.test.ts#risk:parsing-x', 'a.test.ts#gone', 'b.test.ts#kept', 'a.test.ts#other', ''].join('\n'),
+  };
+  if (report !== undefined) files[REPORT] = junit(report);
+  return loadSnapshot({ files, tree: Object.keys(files) });
+}
+
+it('risk:complex-branching removable baseline ids are the named the risk ones and the ones absent while their file is in the report (8.2-ac-6)', () => {
+  const found = removableBaseline(baselineSnapshot({ 'a.test.ts#other': 'passed', 'a.test.ts#one': 'passed' }));
+  expect(found).toEqual({
+    removable: [
+      { id: 'a.test.ts#gone', why: 'absent' },
+      { id: 'a.test.ts#one', why: 'test' },
+      { id: 'c.test.ts#risk:parsing-x', why: 'risk' },
+    ],
+    // D-11: b.test.ts has no case in the report, so its id is not judged; a.test.ts#other is in the report and stays
+    notJudged: 1,
+  });
+  // a snapshot with no report, and one with no baseline, give nothing to judge
+  expect(removableBaseline(baselineSnapshot(undefined))).toBeUndefined();
+  const none = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [REPORT]: junit({ 'a.test.ts#one': 'passed' }) }, tree: [REPORT] });
+  expect(removableBaseline(none)).toBeUndefined();
+  // an id that holds no # names no file, so an absent one is not judged
+  const bare = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [REPORT]: junit({ 'a.test.ts#one': 'passed' }), 'accord/tests-baseline.txt': 'nohash\n' }, tree: [REPORT] });
+  expect(removableBaseline(bare)).toEqual({ removable: [], notJudged: 1 });
+});
+
+it('risk:parsing the baseline gap names at most ten ids with their lines and the fix names the lines (8.2-ac-6)', () => {
+  const twelve = Array.from({ length: 12 }, (_, i) => ({ id: `f.test.ts#case-${i}`, why: 'absent' as const, line: 3 + i }));
+  const gap = baselineGap(twelve, 40);
+  expect(gap?.id).toBe('baseline-removable');
+  expect(BASELINE_LISTED).toBe(10);
+  expect(gap?.text).toBe(
+    '12 of 40 ids in accord/tests-baseline.txt can be removed: ' + twelve.slice(0, 10).map((f) => `${f.id} (line ${f.line}: not in the report)`).join(', ') + ', (+2 more)',
+  );
+  expect(gap?.fix).toBe('delete lines 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 of accord/tests-baseline.txt (the baseline only shrinks, so deleting is allowed); run accord audit again for the rest');
+  // three ids, one of each reason, come out in line order with no more and no again
+  const three = baselineGap(
+    [
+      { id: 'b#risk:x', why: 'risk', line: 9 },
+      { id: 'a#one', why: 'test', line: 3 },
+      { id: 'a#gone', why: 'absent', line: 5 },
+    ],
+    5,
+  );
+  expect(three?.text).toBe('3 of 5 ids in accord/tests-baseline.txt can be removed: a#one (line 3: named by @test:), a#gone (line 5: not in the report), b#risk:x (line 9: carries risk:)');
+  expect(three?.fix).toBe('delete lines 3, 5, 9 of accord/tests-baseline.txt (the baseline only shrinks, so deleting is allowed)');
+  expect(baselineGap([], 5)).toBeUndefined();
 });

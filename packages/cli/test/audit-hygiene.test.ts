@@ -1,11 +1,11 @@
 // Phase 8.2 group 3 (D-01, D-02, D-06, D-07, D-08): `accord audit` reports claimed tickets idle past stale_days and unclaimed drafts untouched past stale_draft_days,
 // naming the person, from the branches already in the clone. It reads git and files, writes nothing and calls no model.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, utimesSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
 import { DEFERRED_MARK_FROM } from '@accord-dev/accord-core';
-import { building, CONFIG, done, gateReadyIn, junit, LANE_S_BODY, laneTicket, P, REPORT } from '../../../test/helpers/lane.js';
+import { building, CONFIG, done, gateReadyIn, junit, LANE_BODY, LANE_S_BODY, laneTicket, P, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
@@ -461,6 +461,89 @@ it('risk:data-loss accord audit with undecided deferred items writes nothing and
   expect(undecided(r.lines), r.out).toHaveLength(2);
   expect(listings(repo)).toEqual(before);
   ids.forEach((id, i) => expect(readFileSync(resolve(repo, ledgerOf(id))).equals(ledgers[i] as Buffer), id).toBe(true));
+  expect(spawnLog.calls.length).toBeGreaterThan(0);
+  expect(spawnLog.calls.filter((c) => writes(c)).map((c) => c.join(' '))).toEqual([]);
+});
+
+// ---- 08.2-05 (D-05, D-11): the tests baseline ---------------------------------------------------------------------------------------------
+
+const BASELINE = 'accord/tests-baseline.txt';
+const BASELINE_TEXT = ['# Test cases that existed before the test policy applied.', '# This file only shrinks.', 'a.test.ts#one', 'c.test.ts#risk:parsing-x', 'a.test.ts#gone', 'b.test.ts#kept', 'a.test.ts#other', ''].join('\n');
+const BASELINE_REPORT = junit({ 'a.test.ts#other': 'passed', 'a.test.ts#one': 'passed' });
+const NO_REPORT_CONFIG = CONFIG.replace(`tests:\n  report: ${REPORT}\n`, '');
+
+/** A repository whose ticket names a.test.ts#one, holding the five-id baseline, committed 30 days ago. */
+function baselineRepo(config = CONFIG, baseline: string | undefined = BASELINE_TEXT): string {
+  const files: Files = { [P('T-1')]: laneTicket('T-1', { body: LANE_BODY.replace('export#writes-csv', 'a.test.ts#one') }) };
+  if (baseline !== undefined) files[BASELINE] = baseline;
+  return sandbox(files, config, 30);
+}
+
+const baselineFact = (lines: string[]): string => lines.find((l) => l.startsWith('fact: tests-baseline:')) ?? '';
+
+it('risk:complex-branching accord audit counts the baseline and lists removable ids with a fresh report (8.2-ac-6)', async () => {
+  const repo = baselineRepo();
+  writeFiles(repo, { [REPORT]: BASELINE_REPORT }); // written after the last commit: fresh
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  expect(r.lines.filter((l) => l.startsWith('fact: tests-baseline:')), r.out).toEqual(['fact: tests-baseline: 5 ids, 1 not judged: their files have no case in the report']);
+  const gaps = gapsOf(r.lines, 'baseline-removable');
+  expect(gaps, r.out).toHaveLength(1);
+  for (const part of [
+    '3 of 5 ids in accord/tests-baseline.txt can be removed',
+    'a.test.ts#one (line 3: named by @test:)',
+    'c.test.ts#risk:parsing-x (line 4: carries risk:)',
+    'a.test.ts#gone (line 5: not in the report)',
+    'delete lines 3, 4, 5 of accord/tests-baseline.txt',
+  ]) {
+    expect(gaps[0], r.out).toContain(part);
+  }
+  expect(gaps[0]).not.toContain('b.test.ts#kept');
+  expect(gaps[0]).not.toContain('again');
+});
+
+it('risk:complex-branching the baseline check says no observation without a fresh report (8.2-ac-6)', async () => {
+  // no tests.report in the config
+  const none = await audit(baselineRepo(NO_REPORT_CONFIG));
+  expect(none.code, none.out).toBe(0);
+  expect(baselineFact(none.lines), none.out).toBe('fact: tests-baseline: 5 ids; removable ones: no observation (no tests.report in accord/config.yml)');
+  expect(gapsOf(none.lines, 'baseline-removable'), none.out).toEqual([]);
+
+  // a configured report that does not exist
+  const missing = await audit(baselineRepo());
+  expect(baselineFact(missing.lines), missing.out).toBe(`fact: tests-baseline: 5 ids; removable ones: no observation (${REPORT} was not found; run tests.full)`);
+  expect(gapsOf(missing.lines, 'baseline-removable'), missing.out).toEqual([]);
+
+  // a report written before the last commit (D-11's staleness guard)
+  const stale = baselineRepo();
+  writeFiles(stale, { [REPORT]: BASELINE_REPORT });
+  const old = new Date(Date.now() - 2 * 24 * 3600 * 1000);
+  utimesSync(resolve(stale, REPORT), old, old);
+  const s = await audit(stale);
+  expect(baselineFact(s.lines), s.out).toBe(`fact: tests-baseline: 5 ids; removable ones: no observation (${REPORT} was written before the last commit; run tests.full)`);
+  expect(gapsOf(s.lines, 'baseline-removable'), s.out).toEqual([]);
+
+  // no baseline file
+  const bare = await audit(baselineRepo(CONFIG, undefined));
+  expect(baselineFact(bare.lines), bare.out).toBe('fact: tests-baseline: no accord/tests-baseline.txt');
+  expect(gapsOf(bare.lines, 'baseline-removable'), bare.out).toEqual([]);
+});
+
+it('risk:data-loss accord audit with a baseline and a report writes nothing and leaves both files as they were (8.2-ac-8)', async () => {
+  const repo = baselineRepo();
+  writeFiles(repo, { [REPORT]: BASELINE_REPORT });
+  const before = listings(repo);
+  const baseline = readFileSync(resolve(repo, BASELINE));
+  const report = readFileSync(resolve(repo, REPORT));
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  const r = await audit(repo);
+  spawnLog.on = false;
+  expect(r.code, r.out).toBe(0);
+  expect(gapsOf(r.lines, 'baseline-removable'), r.out).toHaveLength(1);
+  expect(listings(repo)).toEqual(before);
+  expect(readFileSync(resolve(repo, BASELINE)).equals(baseline)).toBe(true);
+  expect(readFileSync(resolve(repo, REPORT)).equals(report)).toBe(true);
   expect(spawnLog.calls.length).toBeGreaterThan(0);
   expect(spawnLog.calls.filter((c) => writes(c)).map((c) => c.join(' '))).toEqual([]);
 });

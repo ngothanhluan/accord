@@ -1,7 +1,8 @@
 // Phase 8.1 G1 (D-04, D-05): the commit-message rule, judged by one pure function for every caller.
 import { expect, it } from 'vitest';
-import { commitRuleOf, commitRuleProblem } from '../src/index.js';
-import type { AccordConfig, CommitRule } from '../src/index.js';
+import { COMMIT_MESSAGE_FROM, commitRuleOf, commitRuleProblem, gateDone, lintSnapshot, loadSnapshot, OFF_TICKET_BRANCH, SUBJECT_NAMES } from '../src/index.js';
+import type { AccordConfig, CommitRule, RepoSnapshot } from '../src/index.js';
+import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 const withMessage = (message: NonNullable<AccordConfig['commits']>['message']): AccordConfig => ({ commits: { message } }) as AccordConfig;
 
@@ -43,4 +44,68 @@ it('risk:security a commit pattern the guard refuses is not in force (D-04)', ()
   expect(slow !== undefined && 'problem' in slow ? slow.problem : '').toContain('more than one way');
   const broken = commitRuleOf(withMessage({ pattern: '(', example: 'x' }));
   expect(broken !== undefined && 'problem' in broken ? broken.problem : '').toContain('does not compile');
+});
+
+// --- gate done and lint (D-06, D-07) ---
+
+const PRESET = CONFIG + 'commits:\n  message:\n    preset: conventional\n';
+const PATTERN = CONFIG + "commits:\n  message:\n    pattern: '^[A-Z]+-\\d+ '\n    example: 'ABC-1 add x'\n";
+const SHA = '0123456789abcdef0123456789abcdef01234567';
+
+const snapshotOf = (config: string, pin?: string): RepoSnapshot => {
+  const files = { 'accord/config.yml': config, 'accord/tickets/T-1.md': laneTicket('T-1') };
+  const snap = loadSnapshot({ files, tree: Object.keys(files) });
+  return pin === undefined ? snap : { ...snap, claimPins: { 'T-1': { pin } } };
+};
+const gateRows = (snap: RepoSnapshot) => gateDone(snap, 'T-1').findings.filter((f) => f.rule === 'gate.commit-message');
+const lintRows = (config: string) => lintSnapshot(snapshotOf(config)).findings.filter((f) => f.rule === 'lint.commit-rule');
+
+it('risk:complex-branching the commit rule fails closed when commits were not loaded or the pattern is not in force (D-07)', () => {
+  const miss = gateRows(snapshotOf(PRESET, COMMIT_MESSAGE_FROM));
+  expect(miss).toHaveLength(1);
+  expect(miss[0].reason).toContain('loaded no commits');
+  expect(miss[0].reason).toContain('accord gate done');
+  expect(miss[0].file).toBe('accord/config.yml');
+  const slow = gateRows(snapshotOf(CONFIG + "commits:\n  message:\n    pattern: '(a+)+$'\n    example: aaa\n", COMMIT_MESSAGE_FROM));
+  expect(slow).toHaveLength(1);
+  expect(slow[0].reason).toContain('accord lint');
+  // the cut-off: a ticket claimed before it, and a repository with no rule, are judged by neither
+  expect(gateRows(snapshotOf(PRESET, '0.8.0'))).toEqual([]);
+  expect(gateRows(snapshotOf(CONFIG, COMMIT_MESSAGE_FROM))).toEqual([]);
+  // commits loaded: a breaking one is named with its fix, a merge commit and a Revert subject pass
+  const loaded = (commits: NonNullable<RepoSnapshot['commits']>) => gateRows({ ...snapshotOf(PRESET, COMMIT_MESSAGE_FROM), commits });
+  expect(loaded([])).toEqual([]);
+  const bad = loaded([{ sha: SHA, message: 'added coupon\n' }]);
+  expect(bad).toHaveLength(1);
+  expect(bad[0].reason).toContain(SHA.slice(0, 8));
+  expect(bad[0].reason).toContain(' - fix: ');
+  expect(loaded([{ sha: SHA, message: 'Merge branch side\n', merge: true }])).toEqual([]);
+  expect(loaded([{ sha: SHA, message: 'Revert "added coupon"\n' }])).toEqual([]);
+});
+
+it('risk:parsing lint names a bookkeeping subject the commit rule breaks (8.1-ac-5)', () => {
+  const rows = lintRows(PATTERN);
+  const claim = rows.find((f) => f.pointer === '/commits/subjects/claim');
+  expect(claim?.reason).toContain('commits.subjects.claim');
+  expect(claim?.reason).toContain('accord config set commits.subjects.claim');
+  expect(claim?.level).toBe('error');
+  // the preset is shaped so every default subject passes it
+  expect(lintRows(PRESET)).toEqual([]);
+  expect(lintRows(CONFIG)).toEqual([]);
+  // an example that breaks its own pattern is reported where it is written
+  const own = lintRows(CONFIG + "commits:\n  message:\n    pattern: '^[A-Z]+-\\d+ '\n    example: 'fix cart'\n");
+  expect(own.map((f) => f.pointer)).toContain('/commits/message/example');
+  // a pattern that is not in force is reported once, at the pattern
+  expect(lintRows(CONFIG + "commits:\n  message:\n    pattern: '(a+)+$'\n    example: aaa\n").map((f) => f.pointer)).toEqual(['/commits/message/pattern']);
+});
+
+it('risk:complex-branching lint judges only the subjects committed on ticket branches (D-06)', () => {
+  const pointers = lintRows(PATTERN)
+    .map((f) => f.pointer ?? '')
+    .filter((p) => p.startsWith('/commits/subjects/'))
+    .map((p) => p.slice('/commits/subjects/'.length));
+  const judged = SUBJECT_NAMES.filter((n) => !OFF_TICKET_BRANCH.includes(n));
+  expect([...pointers].sort()).toEqual([...judged].sort());
+  expect(pointers).toContain('people');
+  for (const off of OFF_TICKET_BRANCH) expect(pointers, off).not.toContain(off);
 });

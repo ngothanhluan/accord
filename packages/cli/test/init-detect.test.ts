@@ -194,6 +194,7 @@ const SUBJECTS_PROPOSED = {
   rebind: 'chore(accord): rebind {id}',
   ruleset_backfill: 'chore(accord): ruleset {id}',
   queue: 'chore(accord): queue {id}',
+  people: 'chore(accord): people {id}',
 };
 
 describe('accord init proposes the other conventions (ST-LN-50 t2-ac-8)', () => {

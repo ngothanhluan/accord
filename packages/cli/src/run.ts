@@ -13,6 +13,7 @@ import { deferred } from './commands/deferred.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { audit } from './commands/audit.js';
 import { commitCheck, commitMessage } from './commands/commit.js';
 import { pr } from './commands/pr.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
@@ -373,6 +374,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("run as the newer accord: push a branch upgrade/<version> from origin's default branch whose one commit pins this version in config.yml, the workflow and the hooks, with the skill files skills sync writes; the checkout is not touched")
     .action(() => {
       setCode(upgrade({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} }));
+    });
+
+  // Phase 8.1 D-08, D-10: the optional audit of what a machine can see about a repository's conventions; it reads files only, calls no model, and no gate runs it.
+  program
+    .command('audit')
+    .description("report what a machine can see about this repository's conventions: fact: <name>: <value> lines (languages, layout, linter and its rules, formatter, type checking, tests, PR template, commit rule, conventions), then gap: <id>: <text> - fix: <fix> lines, then gaps: <n>; exit 0 whenever it ran, whatever it found; it reads files only, calls no model, and no gate runs it")
+    .action(() => {
+      setCode(audit(preflight(opts)));
     });
 
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');

@@ -8,7 +8,7 @@ it('risk:parsing conventions are empty with only headings comments blank and Rej
   expect(conventionsEmpty(templates['conventions.md'])).toBe(true);
 
   // CRLF, a byte order mark, a multi-line comment, a Rejected line with and without a marker, blank lines and a nested heading
-  const quiet = '﻿# Conventions\r\n\r\n<!-- a multi-line\r\ncomment about the file\r\n-->\r\n## Naming\r\n- Rejected: tabs — reason\r\nRejected: semicolons — reason\r\n   \r\n';
+  const quiet = String.fromCharCode(0xfeff) + '# Conventions\r\n\r\n<!-- a multi-line\r\ncomment about the file\r\n-->\r\n## Naming\r\n- Rejected: tabs — reason\r\nRejected: semicolons — reason\r\n   \r\n';
   expect(conventionLines(quiet)).toEqual([]);
   expect(conventionsEmpty(quiet)).toBe(true);
 

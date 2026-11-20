@@ -138,14 +138,13 @@ const GROWTH_HEAD = (): Record<string, string> => ({
   'src/a.ts': "import { used } from './used.js';\nexport const a = used;\n",
   'package-lock.json': lines(700, 'lock'),
   'web/yarn.lock': lines(150, 'y'),
-  // a name with glob characters, searched literally: src/a.ts names it, so it is no orphan
+  // a name with glob characters (a name led by a colon, such as `:(glob)x.ts`, is no file name on Windows), searched literally: src/a.ts names it, so it is no orphan
   'src/[ab].ts': 'export const odd = 1;\n',
-  ...(process.platform === 'win32' ? {} : { 'src/:(glob)x.ts': 'export const magic = 1;\n' }),
 });
 
 it('risk:regression review-package names a grown file and an orphan file (D-14)', async () => {
   const head = GROWTH_HEAD();
-  head['src/a.ts'] += "// see src/[ab].ts\n" + (process.platform === 'win32' ? '' : '// see src/:(glob)x.ts\n');
+  head['src/a.ts'] += '// see src/[ab].ts\n';
   const repo = ticketRepo(GROWTH_BASE, head);
   try {
     const out = await run(['review-package', 'T-1'], repo);

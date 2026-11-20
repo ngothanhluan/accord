@@ -2,7 +2,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as limit from '../src/commands/fetch-limit.js';
-import * as proc from '../src/load/proc.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { run } from './helpers/repo.js';
 import { copy, doneOnRemote, has, lines, ticketWorktree, useSandboxes, withAction } from './helpers/worktree.js';

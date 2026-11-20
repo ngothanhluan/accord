@@ -88,13 +88,18 @@ function onNoBranch(root: string, head: string, ref: string | undefined, merged?
  * `git worktree list --porcelain` in git's order (the first is the main worktree), after pruning records of folders deleted by hand, each named on `out`.
  * While a missing folder holds a detached HEAD on no branch nothing is pruned (git prunes every missing entry at once, and the prune would drop the only ref to that commit):
  * the whole list comes back, missing entries included, and each is named once on `out` (when `judged` is given) and added to `judged`.
+ * Phase 8.2 D-03: with `dry` the prune is not run; the lines the prune would earn are written and the list comes back without the stale entries, as after it.
  */
-export function worktrees(root: string, out: NodeJS.WritableStream, judged?: Set<string>): PrunableEntry[] {
+export function worktrees(root: string, out: NodeJS.WritableStream, judged?: Set<string>, dry = false): PrunableEntry[] {
   let list = listWorktrees(root);
   const stale = list.filter((w) => w.prunable !== undefined);
   if (stale.length === 0) return list;
   const ref = gitDefaultRef(root);
   const held = stale.filter((w) => w.branch === undefined && onNoBranch(root, w.head, ref));
+  if (held.length === 0 && dry) {
+    for (const w of stale) out.write(withNext('pruned', `pruned ${w.path}: ${w.prunable}`) + '\n');
+    return list.filter((w) => w.prunable === undefined);
+  }
   if (held.length === 0) {
     git(root, ['worktree', 'prune']);
     list = listWorktrees(root);
@@ -1200,6 +1205,11 @@ interface SeenList {
   listed?: Set<string>;
   /** The main checkout, the first entry of a list read. */
   main?: string;
+  /**
+   * Phase 8.2 D-03: set only by `accord worktree clean --dry-run` ('online': it fetches as a real clean does) and `accord audit` ('offline': it fetches
+   * nothing); every mutation of the clean is skipped and its line printed as a successful step would print it.
+   */
+  dry?: 'online' | 'offline';
 }
 
 /** ST-LN-69 D-19: one line of a clean, with its next action. */
@@ -1222,7 +1232,7 @@ function readList(ctx: CommandContext, seen?: SeenList): PrunableEntry[] {
       if (w.prunable === undefined || seen.judged?.has(norm(w.path)) === true) continue;
       folderLine(ctx, seen, w.path, `kept ${w.path}: its folder is missing (${w.prunable}); a session start never prunes its record`);
     }
-  } else list = worktrees(ctx.root, ctx.stdout, seen === undefined ? undefined : (seen.judged ??= new Set()));
+  } else list = worktrees(ctx.root, ctx.stdout, seen === undefined ? undefined : (seen.judged ??= new Set()), seen?.dry !== undefined);
   if (seen !== undefined) {
     seen.list = list;
     seen.listed ??= new Set();
@@ -1244,6 +1254,8 @@ interface GuardState {
   /** ST-LN-55 fix 5: the time (ms since the epoch) after which a hook clean starts no new unit of work. */
   until?: number;
   stopped?: boolean;
+  /** Phase 8.2 D-03: the dry mode of this clean (see SeenList.dry); every site that deletes, writes or locks checks it. */
+  dry?: 'online' | 'offline';
 }
 
 /**
@@ -1341,7 +1353,9 @@ function editHiddenFromStatus(path: string): string | undefined {
 function guardHolds(ctx: CommandContext, s: GuardState, path: string, say: (text: string) => void = (t) => cleanSay(ctx, t)): Record<string, Hold> | undefined {
   if (s.holds === undefined && s.holdsError === undefined) {
     try {
-      withHolds(ctx.root, (h) => ((s.holds = h), undefined));
+      // D-03: a dry run reads the holds file without the lock, which creates a folder and a lock file
+      if (s.dry !== undefined) s.holds = readHoldsFile(ctx.root);
+      else withHolds(ctx.root, (h) => ((s.holds = h), undefined));
     } catch (e) {
       s.holdsError = firstLine(e instanceof UsageError ? e.message : e);
     }
@@ -1379,6 +1393,11 @@ function heldElsewhere(ctx: CommandContext, path: string, skip: string | undefin
 
 /** `git worktree remove` with its three printed outcomes; the hold goes with a worktree that is gone. `failed` means the folder is still a worktree. */
 function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Hold | undefined, seen?: SeenList): { failed: boolean } {
+  // D-03: a dry run names the removal as a successful one and removes nothing; the list, the record and the hold stay as they are
+  if (seen?.dry !== undefined) {
+    folderLine(ctx, seen, w.path, `removed ${w.path}`);
+    return { failed: false };
+  }
   let failure: string | undefined;
   try {
     execFileSync('git', ['worktree', 'remove', w.path], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -1459,8 +1478,10 @@ function takeCleanLock(dir: string): { fd: number; file: string } | string {
 }
 
 /** D-05, D-16: fetch, prune stale remote refs, then (ST-LN-25 D-08) remove the worktree and delete the local branch of each ticket that is done on origin's main, then (ST-LN-34) those of dropped tickets, naming what is removed, deleted or kept. */
-export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList; until?: number } = {}): number {
+export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList; until?: number; dry?: 'online' | 'offline' } = {}): number {
   const accord = git(ctx.root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord';
+  // D-03: a dry run writes nothing, the lock file included; it reads what a real run reads
+  if (opts.dry !== undefined) return cleanLocked(ctx, opts, accord);
   const lock = takeCleanLock(accord);
   if (typeof lock === 'string') {
     cleanSay(ctx, lock);
@@ -1474,8 +1495,9 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   }
 }
 
-function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList; until?: number }, accord: string): number {
+function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList; until?: number; dry?: 'online' | 'offline' }, accord: string): number {
   const seen = opts.seen ?? {};
+  if (opts.dry !== undefined) seen.dry = opts.dry;
   readList(ctx, seen);
   const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
   // 'ok' and 'failed' come from a caller that found the origin remote; only a bare clean asks for it
@@ -1485,7 +1507,7 @@ function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'n
   try {
     if (!fetchFailed) {
       if (opts.fetched === undefined) gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], undefined, ctx.ssh);
-      pruned = pruneStale(ctx);
+      if (opts.dry === undefined) pruned = pruneStale(ctx);
     }
   } catch (e) {
     fetchFailed = true;
@@ -1493,7 +1515,7 @@ function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'n
   }
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
-  const state: GuardState = { seen, accord, until: opts.until };
+  const state: GuardState = { seen, accord, until: opts.until, dry: opts.dry };
   const merged = mergedTips(ctx.root, ref);
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
   if (halted(state)) return 0;
@@ -1882,7 +1904,8 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
           cleanSay(ctx, `kept ${b}: ${again}`);
           continue;
         }
-        execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        // D-03: a dry run names the delete as a successful one and deletes nothing
+        if (s.dry === undefined) execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
         cleanSay(ctx, `deleted ${b} (was ${L})`);
       }
       // The origin branch goes with a lease on the fetched sha; after a failed fetch it is not judged.
@@ -1894,7 +1917,8 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
         continue;
       }
       try {
-        gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], pushLimit(s), ctx.ssh);
+        // D-03: no push in a dry run; the success line is printed as a real push would print it
+        if (s.dry === undefined) gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], pushLimit(s), ctx.ssh);
       } catch (e) {
         cleanSay(ctx, `kept origin/${b}: git push failed: ${firstLine(e)}`);
         continue;

@@ -299,10 +299,12 @@ it('risk:complex-branching accord audit lists an orphan branch and an old unpush
   expect(r.code, r.out).toBe(0);
   const orphan = gapsOf(r.lines, 'branch-orphan');
   expect(orphan, r.out).toHaveLength(1);
-  for (const part of ['t/ZZ-9 (local)', 'ticket ZZ-9', 'tip by fixture@example.invalid', 'git branch -D t/ZZ-9']) expect(orphan[0], r.out).toContain(part);
+  for (const part of ['t/ZZ-9 (local)', 'ticket ZZ-9', 'tip by fixture@example.invalid', `git update-ref -d refs/heads/t/ZZ-9 ${c.git('rev-parse', 't/ZZ-9').trim()}`]) expect(orphan[0], r.out).toContain(part);
+  expect(orphan[0], r.out).not.toContain('git branch -D');
   const unpushed = gapsOf(r.lines, 'claim-unpushed');
   expect(unpushed, r.out).toHaveLength(1);
-  for (const part of ['t/T-1 (ticket T-1)', '20 days old', 'tip by fixture@example.invalid', 'git push -u origin t/T-1']) expect(unpushed[0], r.out).toContain(part);
+  for (const part of ['t/T-1 (ticket T-1)', '20 days old', 'tip by fixture@example.invalid', 'git push -u origin t/T-1', `git update-ref -d refs/heads/t/T-1 ${c.git('rev-parse', 't/T-1').trim()}`]) expect(unpushed[0], r.out).toContain(part);
+  expect(unpushed[0], r.out).not.toContain('git branch -D');
   expect(r.lines.some((l) => l.startsWith('fact: claim-unpushed:')), r.out).toBe(false);
   expect(has(c.root, 'refs/heads/t/ZZ-9')).toBe(true);
   expect(has(c.root, 'refs/heads/t/T-1')).toBe(true);

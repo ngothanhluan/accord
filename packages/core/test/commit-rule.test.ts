@@ -1,4 +1,6 @@
 // Phase 8.1 G1 (D-04, D-05): the commit-message rule, judged by one pure function for every caller.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { COMMIT_MESSAGE_FROM, commitRuleOf, commitRuleProblem, gateDone, lintSnapshot, loadSnapshot, OFF_TICKET_BRANCH, SUBJECT_NAMES } from '../src/index.js';
 import type { AccordConfig, CommitRule, RepoSnapshot } from '../src/index.js';
@@ -108,4 +110,17 @@ it('risk:complex-branching lint judges only the subjects committed on ticket bra
   expect([...pointers].sort()).toEqual([...judged].sort());
   expect(pointers).toContain('people');
   for (const off of OFF_TICKET_BRANCH) expect(pointers, off).not.toContain(off);
+});
+
+// --- the worktree skill (D-06, plan check W2): read at the session check that starts every New request, in every lane and every tool ---
+
+it('risk:regression the worktree skill tells every ticket-branch commit to pass the commit rule (D-06)', () => {
+  const source = readFileSync(fileURLToPath(new URL('../skills/accord/worktree.md', import.meta.url)), 'utf8').replace(/\s+/g, ' ');
+  const people = source.indexOf('accord subject people <email>');
+  const check = source.indexOf('## Session check');
+  expect(people, 'the people commit takes its subject from accord subject people').toBeGreaterThan(-1);
+  expect(source).not.toContain('commit -m "people: <email>"');
+  expect(check, 'the commit-rule paragraph comes before the session check').toBeGreaterThan(people);
+  const between = source.slice(people, check);
+  for (const phrase of ['commits.message', 'accord commit check', 'git commit -F']) expect(between, phrase).toContain(phrase);
 });

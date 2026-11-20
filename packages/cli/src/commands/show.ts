@@ -3,6 +3,7 @@ import { approvalShort, approvalView, ticketDetail } from '@accord-dev/accord-co
 import type { TicketDetail } from '@accord-dev/accord-core';
 import { colourApproval } from '../render/color.js';
 import { UsageError } from '../load/fs.js';
+import { whoFor } from '../load/who.js';
 import { isUnsafe } from '../render/dashboard.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
@@ -12,7 +13,7 @@ import { requireLaneTicket, requireTicket } from './lane-args.js';
 // Control, bidi and line-separator code points become one space each; nothing is cut or collapsed.
 const clean = (s: string): string => [...s].map((ch) => (isUnsafe(ch.codePointAt(0) ?? 0) ? ' ' : ch)).join('');
 
-function text(d: TicketDetail, off: string[]): string {
+function text(d: TicketDetail, off: string[], holder: string): string {
   const lines = [
     d.id + ' ' + d.title,
     'Stage: ' + d.stage,
@@ -20,7 +21,7 @@ function text(d: TicketDetail, off: string[]): string {
     ...off,
     'Tasks: ' + d.tasksDone + '/' + d.tasksTotal,
     'Branch: ' + d.branch,
-    'Holder: ' + (d.holder ?? 'none'),
+    'Holder: ' + holder,
     'Blocked by: ' + (d.blockedBy.length === 0 ? 'none' : d.blockedBy.join(' ')),
     '',
     // ST-LN-94 94-ac-5: a lane R ticket shows its question where a lane M ticket shows its Intent.
@@ -83,6 +84,12 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
   requireLaneTicket(ctx, id);
   const d = ticketDetail(ctx.snapshot, id, ctx.plain);
   if (d === undefined) throw new Error('no detail for ' + id); // unreachable after requireLaneTicket
-  ctx.stdout.write(options.json === true ? JSON.stringify(d, null, 2) + '\n' : text(d, stagesOffLines(ctx.snapshot.config, d.lane)));
+  // Phase 8.2 D-07, D-08: the Holder line shows the person through the one display function; the JSON keeps `holder` the email and adds `holderShown` beside it in initials mode only.
+  const who = whoFor(ctx.root, ctx.snapshot.config);
+  ctx.stdout.write(
+    options.json === true
+      ? JSON.stringify(who.mode === 'initials' && d.holder !== null ? { ...d, holderShown: who.show(d.holder) } : d, null, 2) + '\n'
+      : text(d, stagesOffLines(ctx.snapshot.config, d.lane), d.holder === null ? 'none' : who.show(d.holder)),
+  );
   return 0;
 }

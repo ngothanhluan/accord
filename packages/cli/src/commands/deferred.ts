@@ -1,5 +1,5 @@
-// ST-LN-12 D-12 `accord deferred <id>`: the Must and Should items under the ticket ledger's `## Deferred`, one short line each, for the owner at
-// verify. It only reads; no gate looks at its answer, and no ledger line is changed or triaged.
+// ST-LN-12 D-12 `accord deferred <id>`: the Must and Should items under the ticket ledger's `## Deferred` that carry no owner's mark (Phase 8.2 D-04: a trailing
+// ` → <id>` or ` → declined`), one short line each, for the owner at verify. It only reads; no gate looks at its answer, and no ledger line is changed or triaged.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ownerDeferred } from '@accord-dev/accord-core';

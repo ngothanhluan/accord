@@ -128,6 +128,30 @@ export const TITLE_RULE_FROM = '0.8.0';
  */
 export const PLAN_LARGE_FROM = '0.8.0';
 
+/**
+ * Phase 8.1 D-06, D-07 and CONTEXT Ruling "Release": the release from which `accord task-done` and `accord gate done` (gate.commit-message) refuse a ticket-branch commit that breaks
+ * `commits.message`. Read only through claimPinBefore: a ticket claimed under a pin below it is not judged, so no branch that exists when the rule ships is refused. It is the next minor after
+ * the newest released heading of docs/releases.md (at planning); the release that ships Phase 8.1 sets it to its own version if another release came first, and PHASE8_1 in
+ * migration-pin.test.ts follows. `lint.commit-rule` reads config, not a ticket, and takes no cut-off.
+ */
+export const COMMIT_MESSAGE_FROM = '0.9.0';
+
+/**
+ * Phase 8.1 D-17 and CONTEXT Ruling "Release": the release from which `accord gate done` refuses a slop hit of the ticket's cumulative diff that is neither fixed nor justified by a
+ * `slop:<kind> <path>:<line> — <reason>` line in the last review round (gate.slop-unresolved). Read only through claimPinBefore, in the loader that reads the slop facts: a ticket claimed under a
+ * pin below it is not judged and starts no slop read. It is the next minor after the newest released heading of docs/releases.md (at planning); the release that ships Phase 8.1 sets it to
+ * its own version if another release came first, and PHASE8_1 in migration-pin.test.ts follows.
+ */
+export const SLOP_FROM = '0.9.0';
+
+/**
+ * Phase 8.2 D-04, D-10 and CONTEXT Ruling "Cut-off value": the release from which a verify writes the owner's answer on each deferred item's ledger line (`→ <id>` or `→ declined`). `accord audit`
+ * judges only a done ticket claimed at or after it, on every lane, so no ticket finished before the marks existed is listed for ever; it is read only through claimPinBefore, in the loader that
+ * reads the deferred items. It is the next minor after the newest released heading of docs/releases.md (at planning); the release that ships Phase 8.2 sets it to its own version if another
+ * release came first, and PHASE8_2 in migration-pin.test.ts follows.
+ */
+export const DEFERRED_MARK_FROM = '0.10.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

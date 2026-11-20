@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { claimPinBefore, forbiddenLines, normaliseKey, recordTaskDone, reportReasons, stageOff, TASK_REPORT_FROM, taskVerdict, ticketTaskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
+import { claimPinBefore, COMMIT_MESSAGE_FROM, commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal, forbiddenLines, normaliseKey, recordTaskDone, reportReasons, stageOff, TASK_REPORT_FROM, taskVerdict, ticketTaskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { gitBranchCommits, UsageError } from '../load/fs.js';
 import { readReport, reportPath, reportRel } from '../load/report.js';
@@ -20,19 +20,19 @@ export function commitSeconds(out: string): number {
   return Number(text);
 }
 
-/** HEAD's committer time (`ct`, the test report's freshness) and author time (`at`, the executor report's), in whole seconds. */
-export interface HeadTimes { ct: number; at: number }
+/** HEAD's committer time (`ct`, the test report's freshness) and author time (`at`, the executor report's), in whole seconds, and its sha. */
+export interface HeadTimes { ct: number; at: number; sha: string }
 
 /** HeadTimes from one `git show -s`. */
 function headTimes(root: string): HeadTimes {
-  const out = execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%ct %at', 'HEAD'], {
+  const out = execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%ct %at %H', 'HEAD'], {
     cwd: root,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 64 * 1024 * 1024,
   });
-  const [ct, at] = out.trim().split(' ');
-  return { ct: commitSeconds(ct ?? ''), at: commitSeconds(at ?? '') };
+  const [ct, at, sha] = out.trim().split(' ');
+  return { ct: commitSeconds(ct ?? ''), at: commitSeconds(at ?? ''), sha: sha ?? '' };
 }
 
 /** headTimes(root) read on the first call only, so task-done asks git once however many of its checks need HEAD's times. */
@@ -65,11 +65,17 @@ function reportProblems(ctx: CommandContext, id: string, n: number, sha: string,
   if (claimPinBefore(claimed, id, TASK_REPORT_FROM)) return [];
   // ST-LN-92 D-03: the report lies where `accord brief` put it, under the task's worktree while it exists (it is cleaned only after task-done), named there by its absolute path.
   const root = workRootOf(ctx.root, claimed, id, n, `accord task-done ${id} ${n}`) ?? ctx.root;
-  const rel = root === ctx.root.replace(/\\/g, '/') ? reportRel(id, n) : reportPath(root, id, n);
+  const inTicket = root === ctx.root.replace(/\\/g, '/');
+  const rel = inTicket ? reportRel(id, n) : reportPath(root, id, n);
   const report = readReport(root, id, n);
   if (report === undefined) return [`the executor report ${rel} is missing: the executor writes it as its last step`];
-  if (Math.floor(report.mtimeMs / 1000) < times().at) {
-    return [`the executor report ${rel} was written before HEAD's commit ${sha}: the executor writes it after its last commit`];
+  // D-18: in a task worktree the report is fresh against that worktree's own HEAD (its last commit, or its base); other tasks' ledger commits move the ticket checkout's HEAD,
+  // not this one. Only then is a second HEAD read made: the plain path keeps its one `git show -s`.
+  const own = inTicket ? undefined : headTimes(root);
+  const at = own === undefined ? times().at : own.at;
+  const head = own === undefined ? sha : own.sha.slice(0, 12);
+  if (Math.floor(report.mtimeMs / 1000) < at) {
+    return [`the executor report ${rel} was written before HEAD's commit ${head}: the executor writes it after its last commit`];
   }
   return reportReasons(report.text);
 }
@@ -119,11 +125,26 @@ export function taskDone(ctx: CommandContext, id: string, task: string, pairs: s
   const times = headTimesOnce(ctx.root);
   const stale = next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx, times) : undefined;
   const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale]), ...(next === undefined ? [] : reportProblems(ctx, id, n, sha, times))];
-  if (next !== undefined && ctx.snapshot.config?.commits?.trailers === 'forbid') {
+  // Phase 8.1 D-06, D-07: commits.message is judged over the same range as commits.trailers (the first task reads back to the default ref, so accord's claim and planning commits are judged there too),
+  // for a ticket claimed at or after COMMIT_MESSAGE_FROM; a pattern that is not in force is one reason naming `accord lint`.
+  const trailers = ctx.snapshot.config?.commits?.trailers === 'forbid';
+  const rule =
+    next !== undefined && ctx.snapshot.config?.commits?.message !== undefined && !claimPinBefore(withClaimPins(ctx.root, ctx.snapshot, id), id, COMMIT_MESSAGE_FROM)
+      ? commitRuleOf(ctx.snapshot.config)
+      : undefined;
+  if (next !== undefined && (trailers || rule !== undefined)) {
     const done = workOf(ctx.snapshot, id)?.ledger?.done ?? {};
     const below = Object.keys(done).map(Number).filter((k) => k < n);
     const since = below.length === 0 ? undefined : done[String(Math.max(...below))];
-    for (const c of gitBranchCommits(ctx.root, since)) for (const l of forbiddenLines(c.message)) reasons.push(trailerReason(c.sha, l));
+    const commits = gitBranchCommits(ctx.root, since);
+    if (trailers) for (const c of commits) for (const l of forbiddenLines(c.message)) reasons.push(trailerReason(c.sha, l));
+    if (rule !== undefined && 'problem' in rule) reasons.push(commitRuleNotInForce(rule.problem));
+    else if (rule !== undefined) {
+      for (const c of commits) {
+        const problem = c.merge === true ? undefined : commitRuleProblem(rule, c.message);
+        if (problem !== undefined) reasons.push(commitRuleRefusal(c.sha, problem));
+      }
+    }
   }
   const refuse = (lines: string[]): number => {
     ctx.stdout.write(`task ${n} of ${id} is not done:\n` + lines.map((r) => '  ' + r + '\n').join(''));

@@ -346,7 +346,7 @@ it('risk:complex-branching a shallow clone refuses new ticket and writes nothing
   expect(listing(clone)).toEqual(before);
 });
 
-it('title round-trips on the plain path and in a new worktree, and a blank or two-line title is refused (ST-LN-83 7-ac-4)', async () => {
+it('risk:parsing title round-trips on the plain path and in a new worktree and a blank or two-line title is refused (ST-LN-83 7-ac-5)', async () => {
   const repo = sandbox();
   const quoted = 'A "quoted" word';
   const plain = await run(['new', 'ticket', 'TCK-1', '--title', quoted], repo);

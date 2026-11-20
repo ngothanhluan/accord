@@ -18,7 +18,7 @@ const RUN_NEW = "export const one = 1;\nexport const two = 2;\nspawnSync('git', 
 
 const sections = (out: string): string => out.slice(out.indexOf('## Checklist'));
 
-it('ac-3 diff-package counts the changed lines of two commits and writes nothing (ST-LN-83 7-ac-3)', async () => {
+it('risk:parsing diff-package counts the changed lines of two commits and writes nothing (ST-LN-83 7-ac-3)', async () => {
   const repo = makeEmptyRepo();
   try {
     identity(repo);
@@ -62,7 +62,7 @@ it('ac-3 diff-package counts the changed lines of two commits and writes nothing
   }
 }, 120_000);
 
-it('ac-3 diff-package --security gives the security sections of a risky path (ST-LN-83 7-ac-3)', async () => {
+it('risk:security diff-package --security gives the security sections of a risky path (ST-LN-83 7-ac-3)', async () => {
   const repo = makeEmptyRepo();
   try {
     identity(repo);
@@ -108,7 +108,7 @@ it('ac-3 diff-package --security gives the security sections of a risky path (ST
   }
 }, 120_000);
 
-it('ac-3 diff-package refuses an option-like or unknown ref (ST-LN-83 7-ac-3)', async () => {
+it('risk:security diff-package refuses an option-like or unknown ref (ST-LN-83 7-ac-3)', async () => {
   const repo = makeEmptyRepo();
   try {
     identity(repo);

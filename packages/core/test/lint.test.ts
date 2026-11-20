@@ -429,7 +429,7 @@ describe('lint.test-id-unknown and a done ticket', () => {
   const unknown = (s: RepoSnapshot): { file: string; line?: number; reason: string }[] =>
     lintSnapshot(s).findings.filter((f) => f.rule === 'lint.test-id-unknown').map((f) => ({ file: f.file, line: f.line, reason: f.reason }));
 
-  it('ac-1 lint skips the test tags of a done ticket and keeps them for a ticket not done (BUG-LN-18 18-ac-1)', () => {
+  it('risk:regression lint skips the test tags of a done ticket and keeps them for a ticket not done (BUG-LN-18 18-ac-1)', () => {
     const both = (files: Files): void => {
       done(files, 'T-1');
       building(files, 'T-2');

@@ -175,7 +175,7 @@ const write = (cwd: string, tool: string, file: string, who: Record<string, unkn
     ...who,
   });
 
-it('ac-1 in claude code only an accord-verifier subagent writes verification.md (ST-LN-39 39-ac-1)', async () => {
+it('risk:security in claude code only an accord-verifier subagent writes verification.md (ST-LN-39 39-ac-1)', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'accord-ptu-'));
   try {
     const record = RECORD(dir);

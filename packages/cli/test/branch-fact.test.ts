@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { contentHash, loadConfig, skillTargets } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
 import { CONFIG, junit, LANE_S_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { renderedFiles, renderedFilesOf } from '../src/commands/branch-fact.js';
 import { hooksPlanFor, SETTINGS } from '../src/commands/skills.js';
 import { gitBranchFact, unquoteGitPath } from '../src/load/fs.js';
 import { cleanup, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
@@ -312,3 +313,15 @@ it('risk:data-loss a deleted retired agent file is exempt from the scope gates o
     }
   }
 }, 120_000);
+
+// D-24 (T-08-21): gate done, accord round and accord review-package leave out the same copies of what `accord skills sync` writes, because all three
+// take their render list from this one helper; with no config there is nothing to compare against, so no file is exempt.
+it('risk:security with no config no file is exempt from the security scan (D-24)', () => {
+  expect(renderedFilesOf(undefined)()).toEqual([]);
+  const config = loadConfig('accord/config.yml', CONFIG).config;
+  if (config === undefined) throw new Error('config');
+  const paths = renderedFiles(config).map((f) => f.path);
+  expect(paths.length).toBeGreaterThan(0);
+  expect(paths).toContain('.claude/skills/accord/SKILL.md');
+  expect(renderedFilesOf(config)().map((f) => f.path)).toEqual(paths);
+});

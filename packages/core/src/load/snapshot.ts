@@ -17,6 +17,7 @@ import { d07Key, duplicateHeadings, headingKey, laneKey, requirementLines, scan 
 import { isResearchPath } from './research.js';
 import { parseRounds } from '../round/record.js';
 import { SECURITY_FILE } from '../security/spec.js';
+import { SLOP_FILE } from '../slop/spec.js';
 import { parseVerification } from './verification.js';
 import { parseBaseline, parseDebug, parseDiscuss, parseLedger, parsePlan, parseReview } from './work.js';
 
@@ -71,13 +72,14 @@ function parseTicket(id: string, file: string, text: string): { ticket: Ticket; 
 }
 
 export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
-  const files: Record<string, string> = {};
+  // D-26: a file name or a config value is a key of these maps; a null prototype keeps `__proto__` and `constructor` own keys like any other.
+  const files: Record<string, string> = Object.create(null);
   for (const key of Object.keys(input.files).sort()) files[normaliseKey(key)] = input.files[key];
   const tree = [...new Set(input.tree.map(normaliseKey))].sort();
   const errors: LoadFinding[] = [];
 
   let config: RepoSnapshot['config'];
-  if (CONFIG in files) {
+  if (Object.hasOwn(files, CONFIG)) {
     const r = loadConfig(CONFIG, files[CONFIG]);
     config = r.config;
     errors.push(...r.findings);
@@ -86,15 +88,15 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
   }
 
   // D-65: keep only the files rules read raw, normalised (D-38) so every encoding variant yields one golden.
-  const snapshotFiles: Record<string, string> = {};
+  const snapshotFiles: Record<string, string> = Object.create(null);
   for (const file of Object.keys(files).sort()) if (PROTOTYPE.test(file)) snapshotFiles[file] = normaliseText(files[file]);
   const tokens = config === undefined ? '' : normaliseKey(config.design.tokens);
-  if (tokens !== '' && tokens in files) snapshotFiles[tokens] = normaliseText(files[tokens]);
+  if (tokens !== '' && Object.hasOwn(files, tokens)) snapshotFiles[tokens] = normaliseText(files[tokens]);
 
   // D-72: tests is absent without a report, {} for a garbage one, so lint can tell the two apart.
   let tests: RepoSnapshot['tests'];
   const report = config?.tests === undefined ? '' : normaliseKey(config.tests.report);
-  if (report !== '' && report in files) {
+  if (report !== '' && Object.hasOwn(files, report)) {
     snapshotFiles[report] = normaliseText(files[report]);
     tests = scanJUnit(snapshotFiles[report]);
     if (!REPORT_TAG.test(snapshotFiles[report])) {
@@ -107,8 +109,8 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     }
   }
 
-  const tickets: Record<string, Ticket> = {};
-  const verifications: Record<string, Verification> = {};
+  const tickets: Record<string, Ticket> = Object.create(null);
+  const verifications: Record<string, Verification> = Object.create(null);
   const workFiles: { id: string; kind: string; file: string }[] = [];
   let testsBaseline: string[] | undefined;
   for (const file of Object.keys(files).sort()) {
@@ -146,9 +148,11 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
   }
   // ST-LN-36 D-05: the repository's security trigger list, read by securitySpec and lint.security-file; last, so a repository without one keeps its goldens.
   if (Object.hasOwn(files, SECURITY_FILE)) snapshotFiles[SECURITY_FILE] = normaliseText(files[SECURITY_FILE]);
+  // Phase 8.1 D-15: the team's slop patterns, read by slopSpec and lint.slop-file; after the security file, so a repository without one keeps its goldens.
+  if (Object.hasOwn(files, SLOP_FILE)) snapshotFiles[SLOP_FILE] = normaliseText(files[SLOP_FILE]);
 
   for (const id of Object.keys(verifications)) {
-    if (id in tickets) continue;
+    if (Object.hasOwn(tickets, id)) continue;
     errors.push({
       file: verifications[id].file,
       rule: 'load.verification-orphan',
@@ -158,7 +162,7 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
 
   // Spec §7-§10, ruling F1: records count only under a lane ticket. A 0.1.0 ticket's records are ignored
   // without a finding, so its lint, gate, and status results stay byte-identical (D-37).
-  const work: Record<string, TicketWork> = {};
+  const work: Record<string, TicketWork> = Object.create(null);
   for (const { id, kind, file } of workFiles) {
     if (!Object.hasOwn(tickets, id)) {
       errors.push({

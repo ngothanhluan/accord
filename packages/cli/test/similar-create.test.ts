@@ -40,7 +40,7 @@ function sandbox(): string {
 const listing = (repo: string): string[] => readdirSync(join(repo, 'accord', 'tickets')).sort();
 const lines = (s: string): string[] => s.split('\n').filter((l) => l !== '');
 
-it('ac-5 creating a ticket prints the similar tickets and writes nothing until they are judged (ST-LN-22 7-ac-5)', async () => {
+it('risk:complex-branching creating a ticket prints the similar tickets and writes nothing until they are judged (ST-LN-22 7-ac-5)', async () => {
   const repo = sandbox();
   const before = listing(repo);
   const r = await run(['new', 'ticket', 'N-1', '--lane', 'M', '--title', 'Export reports to CSV'], repo);
@@ -59,7 +59,7 @@ it('ac-5 creating a ticket prints the similar tickets and writes nothing until t
   expect(existsSync(join(repo, 'accord', 'tickets', 'N-1.md'))).toBe(false);
 });
 
-it('ac-5 a title that shares no word with any ticket prints none and creates the ticket (ST-LN-22 7-ac-5)', async () => {
+it('risk:complex-branching a title that shares no word with any ticket prints none and creates the ticket (ST-LN-22 7-ac-5)', async () => {
   const repo = sandbox();
   const r = await run(['new', 'ticket', 'N-1', '--lane', 'M', '--title', 'Zebra crossing paint'], repo);
   expect(r.code, r.err).toBe(0);
@@ -73,7 +73,7 @@ it('ac-5 a title that shares no word with any ticket prints none and creates the
 const NEW = ['new', 'ticket', 'N-1', '--lane', 'M', '--title', 'Export reports to CSV'];
 const draft = (repo: string, id = 'N-1'): string => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
 
-it('ac-5 a judged request is created linked or unlinked (ST-LN-22 7-ac-5)', async () => {
+it('risk:parsing a judged request is created linked or unlinked (ST-LN-22 7-ac-5)', async () => {
   // linked: the ids land in `related:`, in the order given
   const repo = sandbox();
   const linked = await run([...NEW, '--related', 'T-2,T-10'], repo);
@@ -98,7 +98,7 @@ it('ac-5 a judged request is created linked or unlinked (ST-LN-22 7-ac-5)', asyn
   }
 });
 
-it('ac-5 --queue prints the candidates and pushes nothing until they are judged, from the default branch too (ST-LN-22 7-ac-5)', async () => {
+it('risk:complex-branching --queue prints the candidates and pushes nothing until they are judged, from the default branch too (ST-LN-22 7-ac-5)', async () => {
   const c = makeClone({ tickets: ['ST-9'] });
   clones.push(c);
   // a ticket only origin's default branch holds, found because the queue path fetches before it looks
@@ -123,7 +123,7 @@ it('ac-5 --queue prints the candidates and pushes nothing until they are judged,
   expect(gitRun(c.remote, 'cat-file', 'blob', branch.replace('q-2', 'q-1') + ':accord/tickets/Q-1.md')).not.toContain('related:');
 }, 180_000);
 
-it('ac-5 the duplicate check is skipped only by an explicit flag that the output names (ST-LN-22 7-ac-5)', async () => {
+it('risk:complex-branching the duplicate check is skipped only by an explicit flag that the output names (ST-LN-22 7-ac-5)', async () => {
   const repo = sandbox();
   const skipped = await run([...NEW, '--no-dup-check'], repo);
   expect(skipped.code, skipped.err).toBe(0);
@@ -142,7 +142,7 @@ it('ac-5 the duplicate check is skipped only by an explicit flag that the output
   expect(listing(both)).toEqual(before);
 });
 
-it('ac-5 a lane S or M ticket is not created without a title (ST-LN-22 7-ac-5)', async () => {
+it('risk:regression a lane S or M ticket is not created without a title (ST-LN-22 7-ac-5)', async () => {
   const refusals: string[][] = [
     ['--lane', 'M'],
     ['--lane', 'S'],
@@ -175,7 +175,7 @@ it('ac-5 a lane S or M ticket is not created without a title (ST-LN-22 7-ac-5)',
   }
 });
 
-it('ac-5 a lane M ticket with --worktree and no title is refused before anything is fetched or pushed (ST-LN-22 7-ac-5)', async () => {
+it('risk:complex-branching a lane M ticket with --worktree and no title is refused before anything is fetched or pushed (ST-LN-22 7-ac-5)', async () => {
   const c = makeClone({ tickets: [] });
   clones.push(c);
   const branches = (): string => gitRun(c.remote, 'for-each-ref', 'refs/heads');
@@ -200,7 +200,7 @@ it('ac-5 a lane M ticket with --worktree and no title is refused before anything
   expect(existsSync(join(c.sibling('N-4'), 'accord', 'tickets', 'N-4.md'))).toBe(true);
 }, 180_000);
 
-it('ac-5 the routes the title rule does not name still create a ticket without a title (ST-LN-22 7-ac-5)', async () => {
+it('risk:regression the routes the title rule does not name still create a ticket without a title (ST-LN-22 7-ac-5)', async () => {
   for (const flags of [[], ['--lane', 'R'], ['--lane', 'L'], ['--type', 'epic', '--lane', 'P']]) {
     const repo = sandbox();
     const r = await run(['new', 'ticket', 'N-3', ...flags], repo);

@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, SECURITY_TRIGGER_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, SECURITY_TRIGGER_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { building, CONFIG } from '../../../test/helpers/lane.js';
 
@@ -267,6 +267,12 @@ const PHASE5_CUT: string[] = Object.values(PHASE5);
 // Phase 7 (ST-LN-22 D-08b, ST-LN-28 D-17): the title rule of lint and gate ready, and the plan-large warning of gate plan, cut off at the release that ships them; every Phase 7 cut-off added later joins this list.
 const PHASE7: Record<string, string> = { TITLE_RULE_FROM, PLAN_LARGE_FROM };
 const PHASE7_CUT: string[] = Object.values(PHASE7);
+// Phase 8.1 (D-06, D-07): the commit-message rule of task-done and gate done cuts off at the release that ships it; every Phase 8.1 cut-off added later joins this record (SLOP_FROM: the slop gate of 08.1-06).
+const PHASE8_1: Record<string, string> = { COMMIT_MESSAGE_FROM, SLOP_FROM };
+const PHASE8_1_CUT: string[] = Object.values(PHASE8_1);
+// Phase 8.2 (D-04): the deferred-item mark check of `accord audit` judges only tickets claimed at or after the release that ships it; every Phase 8.2 cut-off added later joins this record.
+const PHASE8_2: Record<string, string> = { DEFERRED_MARK_FROM };
+const PHASE8_2_CUT: string[] = Object.values(PHASE8_2);
 
 it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
   expect(PHASE4_CUT.length, 'the list names no constant').toBeGreaterThan(0);
@@ -279,9 +285,9 @@ const SRC_ROOTS = ['packages/core/src', 'packages/cli/src'];
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PIN_FILE = 'packages/core/src/round/pin.ts';
 // ST-LN-36 rel-ac-1: every release a cut-off names. Phase 7's value is read from its constant, so the release PR that moves the constant moves this too.
-const RELEASES = [...new Set(['0.6.0', '0.7.0', ...PHASE7_CUT])].filter((v) => typeof v === 'string');
+const RELEASES = [...new Set(['0.6.0', '0.7.0', ...PHASE7_CUT, ...PHASE8_1_CUT, ...PHASE8_2_CUT])].filter((v) => typeof v === 'string');
 const LITERAL = new RegExp('([\'"`])(?:' + RELEASES.map((v) => v.replaceAll('.', '\\.')).join('|') + ')\\1', 'g');
-const PHASE_NAMES = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7)];
+const PHASE_NAMES = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7), ...Object.keys(PHASE8_1), ...Object.keys(PHASE8_2)];
 const isComment = (line: string): boolean => /^(\/\/|\*|\/\*)/.test(line.trim());
 
 /** True when index `at` of `line` sits between the parentheses of a `<fn>(` call on the same line. */
@@ -353,6 +359,45 @@ it('risk:regression every Phase 7 cut-off is 0.8.0, the release that ships it (r
   for (const [name, v] of Object.entries(PHASE7)) expect(v, name).toBe('0.8.0');
 });
 
+// Release 0.9.0 ships Phase 8.1: its cut-offs name this release, and each is read only through claimPinBefore (the scan of the Phase 4 test above covers every name in PHASE_NAMES).
+it('risk:regression every Phase 8.1 cut-off is 0.9.0 the release that ships it and is read only through claimPinBefore (D-07)', () => {
+  expect(Object.keys(PHASE8_1).sort(), 'the list names no constant').toEqual(['COMMIT_MESSAGE_FROM', 'SLOP_FROM']);
+  for (const [name, v] of Object.entries(PHASE8_1)) expect(v, name).toBe('0.9.0');
+  expect(PHASE8_1_CUT).toContain(COMMIT_MESSAGE_FROM);
+  expect(PHASE8_1_CUT).toContain(SLOP_FROM);
+  // a bare release literal and a Phase 8.1 constant outside the claim read are caught; the claim read is not
+  expect(cutOffOffences('  if (claimPinBefore(s, id, COMMIT_MESSAGE_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
+  expect(cutOffOffences('  if (pinBefore(COMMIT_MESSAGE_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (claimPinBefore(snapshot, id, SLOP_FROM)) return snapshot;', 'packages/cli/src/x.ts')).toEqual([]);
+  expect(cutOffOffences('  if (pinBefore(SLOP_FROM, pin)) return snapshot;', 'packages/cli/src/x.ts')).toHaveLength(1);
+});
+
+// Phase 8.2 D-04: the deferred-mark cut-off is the next minor after 0.9.1, read only through claimPinBefore (the scan of the Phase 4 test above covers every name in PHASE_NAMES).
+it('risk:regression the Phase 8.2 cut-off is 0.10.0 and is read only through claimPinBefore (D-04)', () => {
+  expect(Object.keys(PHASE8_2), 'the record holds exactly one constant').toEqual(['DEFERRED_MARK_FROM']);
+  expect(DEFERRED_MARK_FROM).toBe('0.10.0');
+  expect(PHASE8_2_CUT).toEqual(['0.10.0']);
+  // a cut-off read outside the claim read is caught; the claim read is not
+  expect(cutOffOffences('  if (claimPinBefore(judged, id, DEFERRED_MARK_FROM)) skipped++;', 'packages/cli/src/x.ts')).toEqual([]);
+  expect(cutOffOffences('  if (pinBefore(DEFERRED_MARK_FROM, pin)) skipped++;', 'packages/cli/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences("  if (claimPinBefore(judged, id, '0.10.0')) skipped++;", 'packages/cli/src/x.ts')).toHaveLength(1);
+});
+
+// Release 0.9.1 is a patch of Phase 8.1: the CLI is no longer 0.9.0, so the Phase 8.1 cut-offs stay at 0.9.0, and the 0.9.1 fixes (the commit-message length bound, the unscanned slop hits, the audit and conventions-write hardening) have no cut-off of their own.
+it('risk:regression release 0.9.1 adds no cut-off constant: the Phase 8.1 ones stay at 0.9.0 and none names 0.9.1', () => {
+  const exported = [...readFileSync(join(REPO_ROOT, PIN_FILE), 'utf8').matchAll(/^export const (\w+_FROM) = '([^']+)';/gm)].map((m) => ({ name: m[1], value: m[2] }));
+  expect(exported.filter((e) => e.value === '0.9.1').map((e) => e.name), 'no cut-off names 0.9.1').toEqual([]);
+  for (const [name, v] of Object.entries(PHASE8_1)) expect(v, name).toBe('0.9.0');
+});
+
+// Release 0.8.1 ships Phase 8: the CLI is no longer 0.8.0, so a Phase 7 cut-off is compared with '0.8.0' only, and the 0.8.1 rules (the security-file refusals, D-07 and D-10) have no cut-off of their own.
+it('risk:regression release 0.8.1 adds no cut-off constant: pin.ts holds the Phase 4, 5 and 7 ones and the older ones, none at 0.8.1 (8-ac-13)', () => {
+  const exported = [...readFileSync(join(REPO_ROOT, PIN_FILE), 'utf8').matchAll(/^export const (\w+_FROM) = '([^']+)';/gm)].map((m) => ({ name: m[1], value: m[2] }));
+  const known = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7), ...Object.keys(PHASE8_1), ...Object.keys(PHASE8_2), 'RECORD_V2_FROM', 'PLAN_SIZE_FROM', 'GROUNDS_V2_FROM', 'DISCUSS_FROM', 'APPROACH_CAP_FROM', 'PLAN_FORMAT_FROM', 'PLAN_CAP_FROM', 'PLAN_GROUNDS_FROM', 'RULESET_FROM'];
+  expect(exported.map((e) => e.name).sort(), 'a new cut-off constant needs its own release test').toEqual([...known].sort());
+  expect(exported.filter((e) => e.value === '0.8.1').map((e) => e.name), 'no cut-off names 0.8.1').toEqual([]);
+});
+
 it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac-1)', () => {
   // The scan catches a literal comparison, and leaves prose holding the version inside a longer string alone.
   expect(cutOffOffences("  return pinBefore('0.6.0', pin);", 'packages/core/src/x.ts')).toEqual(["packages/core/src/x.ts:1: return pinBefore('0.6.0', pin);"]);
@@ -379,7 +424,7 @@ it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac
     .split(/\r?\n/)
     .filter((line) => !isComment(line))
     .flatMap((line) => [...line.matchAll(LITERAL)]);
-  expect(pinLiterals).toHaveLength(PHASE4_CUT.length + PHASE5_CUT.length + PHASE7_CUT.length);
+  expect(pinLiterals).toHaveLength(PHASE4_CUT.length + PHASE5_CUT.length + PHASE7_CUT.length + PHASE8_1_CUT.length + PHASE8_2_CUT.length);
   // Every use of the cut-offs in source sits inside a claimPinBefore( call: at least one per constant, so the scan is not empty.
   const uses = files.flatMap((f) => readFileSync(join(REPO_ROOT, f), 'utf8').split(/\r?\n/).filter((line) => !isComment(line) && line.includes('claimPinBefore(')));
   for (const name of PHASE_NAMES) expect(uses.some((line) => new RegExp(`\\b${name}\\b`).test(line)), name).toBe(true);
@@ -400,7 +445,7 @@ it('risk:regression the 0.7.0 cut-off constants are one release and read only th
   expect(loader.some((line) => !isComment(line) && line.includes('claimPinBefore(snapshot, id, SECURITY_TRIGGER_FROM)'))).toBe(true);
 });
 
-it('D-08b the title cut-off is read only through claimPinBefore (ST-LN-22 D-08b)', () => {
+it('risk:regression the title cut-off is read only through claimPinBefore (ST-LN-22 D-08b)', () => {
   expect(Object.keys(PHASE7), 'the list names no constant').toEqual(['TITLE_RULE_FROM', 'PLAN_LARGE_FROM']);
   // the value is a plain release, and one the running accord has not passed yet or is: never a range
   for (const v of PHASE7_CUT) expect(v).toMatch(/^\d+\.\d+\.0$/);
@@ -417,7 +462,7 @@ it('D-08b the title cut-off is read only through claimPinBefore (ST-LN-22 D-08b)
   expect(ready.some((line) => !isComment(line) && line.includes('claimPinBefore(snapshot, id, TITLE_RULE_FROM)'))).toBe(true);
 });
 
-it('D-08b the title cut-off is read only through claimPinBefore or rulesetFrom (ST-LN-22 D-08b)', () => {
+it('risk:regression the title cut-off is read only through claimPinBefore or rulesetFrom (ST-LN-22 D-08b)', () => {
   // lint has no claim fact, so it reads the ticket's own ruleset through rulesetFrom( ; a Phase 7 cut-off inside that call is allowed as inside claimPinBefore(
   expect(cutOffOffences('  .filter((t) => rulesetFrom(t, TITLE_RULE_FROM))', 'packages/core/src/lint/x.ts')).toEqual([]);
   expect(cutOffOffences('  if (rulesetFrom(t, TITLE_RULE_FROM) && titleProblem(t.title, c)) return [];', 'packages/core/src/lint/x.ts')).toEqual([]);
@@ -431,7 +476,7 @@ it('D-08b the title cut-off is read only through claimPinBefore or rulesetFrom (
   expect(lint.filter((line) => !isComment(line) && line.includes('TITLE_RULE_FROM') && !/^import\s/.test(line.trim()) && !line.includes('rulesetFrom(t, TITLE_RULE_FROM)'))).toEqual([]);
 });
 
-it('ac-9 the plan-large cut-off is read only through claimPinBefore (ST-LN-28 7-ac-9)', () => {
+it('risk:regression the plan-large cut-off is read only through claimPinBefore (ST-LN-28 7-ac-9)', () => {
   expect(typeof PLAN_LARGE_FROM).toBe('string');
   // the same release as the title rule: both ship in the one release that carries Phase 7
   expect(PLAN_LARGE_FROM).toBe(TITLE_RULE_FROM);

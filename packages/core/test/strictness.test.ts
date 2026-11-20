@@ -113,6 +113,14 @@ describe('the classification', () => {
     expect(OVERRIDABLE).toContain('gate.design-missing');
     expect(OVERRIDABLE).toContain('lint.sentinel');
   });
+
+  it('risk:security lint.slop-file is an error a team may lower, unlike the locked lint.security-file (8.1-ac-14)', () => {
+    expect(RULES.find((r) => r.id === 'lint.slop-file')?.level).toBe('error');
+    expect(OVERRIDABLE).toContain('lint.slop-file');
+    expect(LOCKED).not.toContain('lint.slop-file');
+    expect(LOCKED).toContain('lint.security-file');
+    expect(effectiveLevel('lint.slop-file', 'error', strictOf({ 'lint.slop-file': 'warning' }))).toBe('warning');
+  });
 });
 
 describe('effectiveLevel', () => {

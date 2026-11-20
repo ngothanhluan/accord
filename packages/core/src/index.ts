@@ -38,6 +38,7 @@ export type {
   HeadFact,
   RoundFacts,
   SecurityFacts,
+  SlopFacts,
   RecordPin,
   ClaimPin,
   Discuss,
@@ -49,14 +50,15 @@ export { loadSnapshot } from './load/snapshot.js';
 export { debugHeadings, debugOpen, UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from './load/unfinished.js';
 export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
-export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, RECORD_V2_FROM, RULESET_FROM, SECURITY_TRIGGER_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, pinAllowsV1, pinBefore, pinOf, rulesetFrom, rulesetOfTicket } from './round/pin.js';
-export { parseDiscuss } from './load/work.js';
+export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, RECORD_V2_FROM, RULESET_FROM, SECURITY_TRIGGER_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, pinAllowsV1, pinBefore, pinOf, rulesetFrom, rulesetOfTicket } from './round/pin.js';
+export { parseDiscuss, SLOP_OK } from './load/work.js';
 export { REPORT_CONTRACT, reportReasons } from './gate/task-report.js';
 export { groundsDeferred, groundsFrom, groundsOn, groundsProblems, groundsV2 } from './round/grounds.js';
 export { fixScopeProblems } from './round/fixscope.js';
 export { fixOn, fixProblems } from './round/fix.js';
 export type { FixProblem } from './round/fix.js';
 export { pendingAddedCode, scopeProblems, skipped as reviewSkipped } from './round/scope.js';
+export { slopOn, slopUnresolved } from './slop/gate.js';
 export { securityExemptRounds, securityOn, securityProblems, securityUnreviewed } from './round/security.js';
 export type { SecurityProblem } from './round/security.js';
 export {
@@ -86,7 +88,7 @@ export type { Strictness } from './config/strictness.js';
 export { FLOOR_STAGES, LOCKED, NO_OFF, OVERRIDABLE, STAGE_OF, SWITCHABLE_STAGES, effectiveLevel, floorProblems, levelRefusal, stageOff } from './gate/floor.js';
 export type { ConfigStage, RuleLevel, StageName } from './gate/floor.js';
 export { checkFixDispatch } from './round/dispatch.js';
-export { loadConfig } from './load/config.js';
+export { configPin, loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
@@ -106,7 +108,7 @@ export {
   spentLine,
 } from './gate/lane-r.js';
 export { parseScoutReport } from './scout/report.js';
-export { printedClaim, scoutCheck } from './scout/check.js';
+export { expandPath, printedClaim, scoutCheck } from './scout/check.js';
 export type { AbsentRow, Citation, ScoutReport } from './scout/report.js';
 export type { ScoutFacts, ScoutLane, ScoutResult } from './scout/check.js';
 export type { GateResult } from './gate/index.js';
@@ -121,15 +123,33 @@ export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from 
 export type { SecurityCheck, SecurityPattern, SecuritySpec } from './security/spec.js';
 export { diffFiles, matchedHunks, securityTriggers, triggerText } from './security/match.js';
 export type { DiffFile, DiffHunk, Trigger } from './security/match.js';
+export { DEFAULT_SLOP, parseSlop, SLOP_FILE, slopFile, slopSpec, STRUCTURAL_KINDS } from './slop/spec.js';
+export type { SlopPattern, SlopSpec } from './slop/spec.js';
+export { DEFAULT_MAX_FILE_LINES, growthHits, isManifest, maxFileLines, newDependencies, orphanCandidates, orphanHits, orphanTerms } from './slop/structural.js';
+export type { NewDependency } from './slop/structural.js';
+export { isLockfile, LOCKFILES, slopHits, slopLine, slopSkipped, sortHits } from './slop/match.js';
+export type { SlopHit } from './slop/match.js';
 export { compilePattern, DEFAULT_PATTERN, ID_PREFIX, initialsHolder, initialsOf, initialsOnRefs, nextTicketId, peopleOf, prefixOf, TRACKER_KEY, trackerKeyOk } from './lint/ids.js';
 export type { CompiledPattern, IdsConfig } from './lint/ids.js';
-export { untracedTests } from './lint/tests.js';
+export { removableBaseline, untracedTests } from './lint/tests.js';
+export type { RemovableWhy } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';
 export { recordTaskDone } from './write/ledger.js';
 export { writeTestTags } from './write/testtag.js';
 export { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE } from './status/branch.js';
-export { DEFAULT_SUBJECTS, effectiveSubject, matchesSubject, renderSubject, SUBJECT_NAMES, subjectCollisions, subjectsFor } from './commits/subjects.js';
+export { auditLines, CONVENTIONS_THIN, conventionLines, conventionsEmpty } from './audit/conventions.js';
+export type { AuditFact, AuditGap } from './audit/conventions.js';
+export { CONFIG_KEYS, newKeys, setKeysOf } from './audit/keys.js';
+export type { ConfigKeyRow } from './audit/keys.js';
+export { subjectRuleProblems } from './lint/config.js';
+export type { SubjectRuleProblem } from './lint/config.js';
+export { DEFAULT_SUBJECTS, effectiveSubject, matchesSubject, OFF_TICKET_BRANCH, renderSubject, SUBJECT_NAMES, subjectCollisions, subjectsFor } from './commits/subjects.js';
 export type { SubjectCollision, SubjectName } from './commits/subjects.js';
+export { commitRuleLine, commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal, CONVENTIONAL_EXAMPLE, CONVENTIONAL_PATTERN } from './commits/rule.js';
+export type { CommitRule, CommitRuleOf } from './commits/rule.js';
+// Phase 8.1 D-01, D-03: the pull request body from the team's template, every heading kept.
+export { epicBody, fillTemplate, findTemplate, prFacts, prTitle, prTitleProblem, templateSections, todaysBody } from './pr/template.js';
+export type { PrFacts, TemplateSection } from './pr/template.js';
 export { anchorText } from './status/anchor.js';
 export { EPIC_LESSONS, EPIC_ROLES, epicBlock } from './status/epic.js';
 export { ticketDetail } from './status/show.js';
@@ -137,9 +157,11 @@ export { approvalShort, approvalView } from './status/approval.js';
 export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/show.js';
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
-export { dashboard } from './status/dashboard.js';
-export { ownerDeferred, ratingOf } from './tickets/deferred.js';
-export type { DeferredRating, OwnerDeferred } from './tickets/deferred.js';
+export { dashboard, isOpenWork } from './status/dashboard.js';
+export { BASELINE_LISTED, baselineGap, branchGaps, deferredGaps, draftAge, draftStaleGaps, leftoverGaps, NO_COMMAND_BRANCH, SAFE_BRANCH, SAFE_ID, ticketIdleGaps } from './audit/hygiene.js';
+export type { ClaimRefFact, OldDraft } from './audit/hygiene.js';
+export { deferredMark, ownerDeferred, ratingOf } from './tickets/deferred.js';
+export type { DeferredMark, DeferredRating, OwnerDeferred } from './tickets/deferred.js';
 export { relatedIds, relatedText } from './tickets/related.js';
 export { requestWords, similarTickets, STOP_WORDS, ticketFacts } from './tickets/similar.js';
 export { DEFAULT_TITLE_RULE, TITLE_PLACEHOLDER, titleProblem, titleRuleLine, titleRuleOf } from './tickets/title.js';
@@ -178,7 +200,7 @@ export { insertTeamSections, reservedSections, TEAM_HINT, teamSectionProblems } 
 export type { TeamSection } from './scaffold/sections.js';
 export { addPersonEntry, appendConfigList, flowValue, getConfigValue, idConsequences, parseValue, resolveKeyPath, setConfigValue, unsetConfigValue } from './scaffold/configEdit.js';
 export { mergePanel, panelSettings } from './scaffold/panel.js';
-export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.js';
+export { hookEntries, isAccordHookCommand, mergeHooks, mergeHooksWithNotes, runsAccordHook } from './scaffold/hooks.js';
 export type { HookEntries } from './scaffold/hooks.js';
 export { skills } from './generated/skills.js';
 export type { SkillKey } from './generated/skills.js';

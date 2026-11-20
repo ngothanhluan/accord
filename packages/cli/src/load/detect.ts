@@ -53,7 +53,7 @@ const GIT = {
 const holds = (n: number, of: number): boolean => n * 100 >= of * MIN_SHARE_PERCENT;
 
 /** What a repository's own text can put on a terminal: printable ASCII only, so a tracked file name never carries a control sequence. */
-const printable = (text: string): string => text.replace(/[^\x20-\x7e]/g, '?');
+export const printable = (text: string): string => text.replace(/[^\x20-\x7e]/g, '?');
 
 /** Every proposal this repository supports, in the order the output contract lists the keys: git.merge, commits.subjects, branch, ids, tracker. */
 export function detectProposals(root: string): Proposal[] {
@@ -119,13 +119,13 @@ function mergeStyle(commits: Commit[], on: string): Proposal | undefined {
 }
 
 /** Tracked files under the literal `paths`, at most `MAX_FILES`, NUL-separated. */
-function trackedFiles(root: string, paths: string[]): string[] {
+export function trackedFiles(root: string, paths: string[]): string[] {
   const raw = git(root, ['ls-files', '-z', '--', ...paths.map((p) => `:(literal)${p}`)]);
   return raw === undefined ? [] : raw.split('\0').filter((p) => p !== '').slice(0, MAX_FILES);
 }
 
 /** The first `MAX_FILE_BYTES` of a regular file, or undefined for anything else (a link, a folder, a missing or unreadable file). */
-function readBounded(root: string, rel: string): string | undefined {
+export function readBounded(root: string, rel: string): string | undefined {
   const abs = join(root, ...rel.split('/'));
   try {
     const stat = lstatSync(abs);
@@ -196,6 +196,8 @@ const CONVENTIONAL_SUBJECTS: Readonly<Record<SubjectName, string>> = {
   rebind: 'chore(accord): rebind {id}',
   ruleset_backfill: 'chore(accord): ruleset {id}',
   queue: 'chore(accord): queue {id}',
+  people: 'chore(accord): people {id}',
+  conventions: 'docs(accord): conventions {id}',
 };
 
 /**

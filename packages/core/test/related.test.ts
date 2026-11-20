@@ -26,7 +26,7 @@ const sections = (vetoes: string, decisions: string): string => `\n## Vetoes\n${
 const tree = (files: Record<string, string>) => loadSnapshot({ files: { 'accord/config.yml': CONFIG, ...files }, tree: [] });
 
 describe('relatedText', () => {
-  it('ac-5 related tickets bring their vetoes and decisions (ST-LN-22 7-ac-5)', () => {
+  it('risk:parsing related tickets bring their vetoes and decisions (ST-LN-22 7-ac-5)', () => {
     const snap = tree({
       'accord/tickets/N-1.md': tk('N-1', 'Export reports to CSV', 'open', intent('Owners export csv files.'), ['R-1']),
       // linked, with no word in common with N-1: listed first because it is written in `related:`
@@ -68,7 +68,7 @@ describe('relatedText', () => {
     );
   });
 
-  it('ac-5 related tickets are the linked ones first then the search hits and at most five (ST-LN-22 7-ac-5)', () => {
+  it('risk:complex-branching related tickets are the linked ones first then the search hits and at most five (ST-LN-22 7-ac-5)', () => {
     const files: Record<string, string> = {
       // N-1 links R-9 and R-8 in that order; R-1 to R-7 all share words with it, R-1 the most
       'accord/tickets/N-1.md': tk('N-1', 'Export reports to CSV', 'open', intent('Owners export csv files.'), ['R-9', 'R-8', 'N-1', 'GONE-1']),
@@ -97,14 +97,14 @@ describe('relatedText', () => {
     expect(text).not.toContain('"Export reports to CSV" (open)'); // N-1 itself
   });
 
-  it('ac-5 a ticket with nothing related prints none and an unknown id prints nothing (ST-LN-22 7-ac-5)', () => {
+  it('risk:regression a ticket with nothing related prints none and an unknown id prints nothing (ST-LN-22 7-ac-5)', () => {
     const snap = tree({ 'accord/tickets/N-1.md': tk('N-1', 'Zebra crossing paint', 'open', intent('Stripes.')), 'accord/tickets/R-1.md': tk('R-1', 'Print the page', 'open', intent('Printer.')) });
     expect(relatedText(snap, 'N-1')).toBe('# Related tickets of N-1\n\n(none)\n\n## Rejected\n(none)\n');
     expect(relatedText(snap, 'NOPE')).toBeUndefined();
     expect(relatedIds(snap, 'NOPE')).toEqual([]);
   });
 
-  it('ac-5 a related ticket that only the default branch holds is read from there (ST-LN-22 7-ac-5)', () => {
+  it('risk:complex-branching a related ticket that only the default branch holds is read from there (ST-LN-22 7-ac-5)', () => {
     const working = tree({
       'accord/tickets/N-1.md': tk('N-1', 'Export reports to CSV', 'open', intent('Owners export csv files.'), ['D-1']),
       'accord/tickets/W-1.md': tk('W-1', 'Export csv', 'open', intent('x') + sections('- Working veto', '- D-01 Working decision')),
@@ -121,7 +121,7 @@ describe('relatedText', () => {
     expect(text.indexOf('## D-1 ')).toBeLessThan(text.indexOf('## W-1 '));
   });
 
-  it('ac-6 the text ends with the Rejected lines of the conventions file as written (ST-LN-84 7-ac-6)', () => {
+  it('risk:parsing the text ends with the Rejected lines of the conventions file as written (ST-LN-84 7-ac-6)', () => {
     const snap = tree({
       'accord/tickets/N-1.md': tk('N-1', 'Export reports to CSV', 'open', intent('Owners export csv files.')),
       'accord/tickets/R-2.md': tk('R-2', 'Export csv', 'open', intent('x') + sections('- A veto', '- D-01 A decision')),

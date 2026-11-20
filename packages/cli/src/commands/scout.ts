@@ -8,9 +8,10 @@ import { gitTracked, gitTreeAt, hasLocalChanges, lastCommitOf, readBlobs, UsageE
 import type { CommandContext } from '../run.js';
 import { renderedFiles } from './branch-fact.js';
 
-/** The printed form of a result: one `fail:` line per failure, then the verdict line. */
+/** The printed form of a result: one `expanded` line per shortened path read as a tracked file, one `fail:` line per failure, then the verdict line. */
 export function scoutLines(result: ScoutResult): string {
   let out = '';
+  for (const e of result.expanded) out += 'expanded ' + e.from + ' to ' + e.to + '\n';
   for (const f of result.failures) out += 'fail: ' + f + '\n';
   const lane = result.lane;
   if (lane !== undefined) {

@@ -1,6 +1,7 @@
 // D-28 input contract and the RepoSnapshot model (D-30 to D-32, D-42, D-46). Type-only file.
 // Plain records and arrays, never Map/Set, so JSON.stringify of a snapshot is the golden (D-54).
 import type { SubjectName } from '../commits/subjects.js';
+import type { SlopHit } from '../slop/match.js';
 import type { LoadFinding } from './finding.js';
 
 export interface SnapshotInput {
@@ -88,6 +89,12 @@ export type RoundFacts =
  * could not say.
  */
 export type SecurityFacts = { error: string } | { rounds: { head: string; triggers: string[] }[] };
+
+/**
+ * Phase 8.1 D-14, D-17, D-20: the slop hits of a ticket's cumulative diff as the host read them from git (the list `accord review-package` prints under `## Slop`), and how many lines of the team's
+ * slop file did not read; `error` when git could not say or the ticket's plan records no baseline. gate.slop-unresolved fails closed on it.
+ */
+export type SlopFacts = { hits: SlopHit[]; unread: number } | { error: string };
 
 /** Full shas, first parent first; `files` are the paths the commit changes (for a merge, the paths its remerge diff
  * shows), absent for a merge whose own changes git could not show. */
@@ -240,6 +247,7 @@ export interface Review {
   trailing?: true; // a non-blank line follows the last verdict line
   confirmed?: string[]; // paths of 'Confirmed wording-only: <path>' lines in the last '## Round'; absent when none
   notInterface?: string[]; // paths of 'Not an interface: <path> — <reason>' lines in the last '## Round'; absent when none
+  slopJustified?: { kind: string; path: string; line: number; reason: string }[]; // 'slop:<kind> <path>:<line> — <reason>' lines in the last '## Round' (Phase 8.1 D-17); absent when none
 }
 
 export type Severity = 'Must' | 'Should' | 'Nice';
@@ -328,12 +336,14 @@ export interface AccordConfig {
   models?: Partial<Record<RouteKey | 'architect', { model: string; effort?: Effort }>>; // absent entries use the default routing; architect is still accepted and has no effect (ST-LN-80)
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
   stale_days?: string; // digits; YAML numerics stay strings
+  stale_draft_days?: string; // digits, default '90': an unclaimed ticket untouched longer is an old draft in accord audit
   people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
   branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'
   setup?: string[]; // D-07: commands run in order in a new worktree
   commits?: {
     trailers?: 'allow' | 'forbid'; // ST-LN-8 D-01: absent or allow is off
+    message?: { preset?: 'conventional'; pattern?: string; example?: string; command?: string }; // Phase 8.1 D-04: the rule every ticket-branch commit's first line follows: the `conventional` preset or a team regex (source, no flags) with a passing example; command is the team script that builds the message, run behind accord trust
     subjects?: Partial<Record<SubjectName, string>>; // ST-LN-50 D-06: the subject template of each commit accord writes, one `{id}`; absent means today's text
     legacy_subjects?: Partial<Record<SubjectName, string[]>>; // ST-LN-50 D-06: earlier templates accord still reads back (claim and plan_ready)
   };
@@ -345,6 +355,9 @@ export interface AccordConfig {
   disposable?: string[]; // ST-LN-55 D-08, D-12: file and folder names an ignored path may hold at any depth and still be deleted with its worktree; absent means node_modules, dist, .DS_Store, Thumbs.db; accord's .accord-reports folder is disposable either way (ST-LN-59)
   template?: { sections?: { name: string; after?: string }[] }; // ST-LN-50 D-10: a team's own sections in every new story and bug ticket (scaffold/sections.ts); outside every hash
   titles?: { rule?: string; max_length?: string; language?: 'english' | 'any' }; // ST-LN-22 D-08b: the rule a ticket's title follows (tickets/title.ts), each key falling back on its own: rule is one line of guidance, max_length digits ('1'..'999', absent means 80, YAML numerics stay strings), language english (the default, refusing a letter outside A-Z) or any
+  pr?: { template?: string; command?: string }; // Phase 8.1 D-01: template names one tracked pull request template (a repository-relative path) when the folder holds several; command is the team script that builds the title and body instead of the template, run behind accord trust
+  slop?: { max_file_lines?: string }; // Phase 8.1 D-14: the line bound of the file-growth slop kind, a digit string of one to six digits that does not start with zero (YAML numerics stay strings); absent means 500
+  audit?: { command?: string }; // Phase 8.1 D-19: the team's own audit script, run by `accord audit` behind accord trust; its first output line is a team-audit gap when it exits non-zero
   strictness?: { rounds?: Partial<Record<'approach' | 'plan' | 'review', string>>; levels?: Record<string, 'error' | 'warning' | 'off'>; stages?: Partial<Record<'M' | 'L' | 'P' | 'S' | 'R', Partial<Record<string, 'on' | 'off'>>>> }; // ST-LN-50 D-07: the round cap of each critic record, '1'..'99'; YAML numerics stay strings. D-08: levels maps a rule id to its level; only an overridable rule takes one (gate/floor.ts). D-08: stages maps a lane to the stages a team turned off (`off`); only a stage that is not on the floor, of lane M, L or P, takes effect (gate/floor.ts). All three are read through resolveStrictness
 }
 
@@ -367,7 +380,7 @@ export interface RepoSnapshot {
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
   contentSince?: Record<string, ContentSince>; // carried through from SnapshotInput
-  commits?: { sha: string; message: string }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid
+  commits?: { sha: string; message: string; merge?: boolean }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid; Phase 8.1 D-06: or commits.message is set, with merge true for a commit of two or more parents
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput
   claimTemplate?: string; // carried through from SnapshotInput
@@ -378,6 +391,7 @@ export interface RepoSnapshot {
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
   securityFacts?: Record<string, SecurityFacts>; // ST-LN-36: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, a ticket claimed before the security record rule's cut-off)
+  slopFacts?: Record<string, SlopFacts>; // Phase 8.1 D-17: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, review skipped, a ticket claimed before the slop gate's cut-off)
   researchFacts?: Record<string, ResearchFact>; // carried through from SnapshotInput
   // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or
   // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every

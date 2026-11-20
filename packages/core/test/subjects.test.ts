@@ -1,6 +1,6 @@
 // ST-LN-50 D-06 (t2-ac-3): commit subjects are templates with one `{id}`; accord renders the current one and matches the current and the legacy ones exactly.
 import { expect, it } from 'vitest';
-import { DEFAULT_SUBJECTS, lintSnapshot, loadSnapshot, matchesSubject, renderSubject, statusRows, SUBJECT_NAMES, subjectsFor, validate } from '../src/index.js';
+import { DEFAULT_SUBJECTS, lintSnapshot, loadSnapshot, matchesSubject, OFF_TICKET_BRANCH, renderSubject, statusRows, SUBJECT_NAMES, subjectsFor, validate } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 import { approved } from './helpers/approve.js';
@@ -31,6 +31,8 @@ it('risk:complex-branching subject templates render and match exactly (ST-LN-50 
     rebind: 'verify: ST-1 rebound after rebase',
     ruleset_backfill: 'ruleset: ST-1 from its claim commit',
     queue: 'backlog: queue ST-1',
+    people: 'people: ST-1', // Phase 8.1 W2: {id} holds the email of the people entry
+    conventions: 'conventions: ST-1', // Phase 8.1 G3a: {id} holds the date of the conventions branch
   };
   expect([...SUBJECT_NAMES]).toEqual(Object.keys(today));
   for (const name of SUBJECT_NAMES) {
@@ -133,4 +135,21 @@ it('risk:complex-branching lint.subject-duplicate refuses two templates that ren
   expect(found('commits:\n  subjects:\n    scout: "same {id}"\n    intent: "same {id}"\n')).toEqual([]);
   // a template that equals its own legacy entry is not a collision
   expect(found('commits:\n  subjects:\n    claim: "claim: {id}"\n  legacy_subjects:\n    claim:\n      - "claim: {id}"\n')).toEqual([]);
+});
+
+// Phase 8.1 D-06 (plan check W3a): lint.commit-rule judges the subjects accord commits on a ticket branch; drop and queue are committed on branches cut from origin's default branch.
+it('risk:regression only drop queue and conventions are committed off ticket branches (D-06)', () => {
+  expect([...OFF_TICKET_BRANCH]).toEqual(['drop', 'queue', 'conventions']);
+  for (const name of OFF_TICKET_BRANCH) expect((SUBJECT_NAMES as readonly string[]).includes(name), name).toBe(true);
+});
+
+// Phase 8.1 G3a (D-06, plan check W3a): the conventions draft is committed on its own conventions/<date> branch, so it is a configurable subject outside the ticket-branch commit rule.
+it('risk:regression the conventions subject is configurable and outside the ticket-branch commit rule (D-06)', () => {
+  expect((SUBJECT_NAMES as readonly string[]).includes('conventions')).toBe(true);
+  expect(DEFAULT_SUBJECTS.conventions).toBe('conventions: {id}');
+  expect(at({ subjects: { conventions: 'docs: conventions {id}' }, legacy_subjects: { conventions: ['conventions: {id}'] } })).toEqual([]);
+  const pattern = CONFIG + "commits:\n  message:\n    pattern: '^[A-Z]+-\\d+ '\n    example: 'ABC-12 fix cart'\n";
+  const rows = lintSnapshot(loadSnapshot({ files: { 'accord/config.yml': pattern }, tree: [] })).findings.filter((f) => f.rule === 'lint.commit-rule');
+  expect(rows.map((f) => f.pointer)).toContain('/commits/subjects/claim');
+  expect(rows.map((f) => f.pointer)).not.toContain('/commits/subjects/conventions');
 });

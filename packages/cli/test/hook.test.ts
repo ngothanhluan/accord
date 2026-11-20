@@ -191,7 +191,7 @@ it('risk:security the prompt expansion hook lets accord upgrade and other free t
 
 const mainOf = (c: Clone): string => c.git('worktree', 'list', '--porcelain').split('\n')[0].slice('worktree '.length);
 
-it('ac-4 a ticket session refuses continue of another ticket with the line to open its session (ST-LN-83 7-ac-4)', async () => {
+it('risk:complex-branching the prompt hook of a ticket session refuses continue of another ticket with the line to open its session (ST-LN-83 7-ac-4)', async () => {
   const c = worked();
   try {
     const hook = hookOf(c);
@@ -221,7 +221,7 @@ it('ac-4 a ticket session refuses continue of another ticket with the line to op
   }
 });
 
-it('ac-4 a ticket session lets a question and a queued idea through (ST-LN-83 7-ac-4)', async () => {
+it('risk:complex-branching the prompt hook of a ticket session lets a question and a queued idea through (ST-LN-83 7-ac-4)', async () => {
   const c = worked();
   try {
     const hook = hookOf(c);
@@ -353,7 +353,7 @@ it('ac-1 a newer release is announced by the session start hook and the dashboar
   }
 });
 
-it('ac-1 the CLI messages name the new commands (ST-LN-83 7-ac-1)', async () => {
+it('risk:regression the CLI messages name the new commands in the session-start update notice (ST-LN-83 7-ac-1)', async () => {
   const c = copyClone(tpl);
   const { dir } = freshCache();
   try {

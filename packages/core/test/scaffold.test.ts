@@ -82,7 +82,7 @@ describe('initFiles — the config it plans', () => {
 
   // `toEqual` on the whole list, never `toContain`: a fourth entry appearing without a decision behind it
   // is exactly the drift this case exists to catch, and `toContain` would pass over it.
-  it('plans exactly the workflow, the config and the four product documents', () => {
+  it('risk:regression plans exactly the workflow, the config and the four product documents', () => {
     expect(output.map((f) => f.path)).toEqual([
       '.github/workflows/accord.yml',
       'accord/config.yml',
@@ -93,7 +93,7 @@ describe('initFiles — the config it plans', () => {
     ]);
   });
 
-  it('ac-4 accord init plans the security file with the default patterns and checklist (ST-LN-36 36-ac-4)', () => {
+  it('risk:security accord init plans the security file with the default patterns and checklist (ST-LN-36 36-ac-4)', () => {
     const security = output.find((f) => f.path === 'accord/product/security.md');
     expect(security?.text).toBe(templates['security.md']);
   });
@@ -469,7 +469,7 @@ it('risk:parsing the lint and gate refresh keeps every other line of a workflow 
 // ST-LN-37 37-ac-3 (D-03): the accord check's name and the steps that make it a merge gate come from one
 // source. The workflow's job line, this repository's own accord.yml, init's printed steps and the README all
 // read it, so a renamed job cannot leave a team requiring a check that never runs.
-it('ac-3 the accord check\'s name and the steps come from one source the workflow uses (ST-LN-37 37-ac-3)', () => {
+it('risk:regression the accord check\'s name and the steps come from one source the workflow uses (ST-LN-37 37-ac-3)', () => {
   expect(ACCORD_CHECK_NAME).toBe('lint and gate the tickets this pull request touches');
   const emitted = output.find((f) => f.path === '.github/workflows/accord.yml')!.text;
   expect(emitted.split('\n')).toContain(`    name: ${ACCORD_CHECK_NAME}`);

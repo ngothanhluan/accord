@@ -19,7 +19,7 @@ const flat = (p: string): string => raw(p).replace(/\s+/g, ' ');
 const dirs = skillDirs(all);
 
 describe('lane R in the accord skill', () => {
-  it('renders to both skill folders of the four tools', () => {
+  it('risk:regression renders to both skill folders of the four tools', () => {
     expect(dirs).toEqual(['.agents/skills', '.claude/skills']);
   });
 

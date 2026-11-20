@@ -5,6 +5,7 @@
 import { laneTicket, workOf } from '../gate/work.js';
 import type { GateRule } from '../gate/rules.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { SECURITY_FILE, securitySpec } from '../security/spec.js';
 import { SECURITY_TRIGGER_FROM, claimPinBefore } from './pin.js';
 import { allowancesOf } from './next.js';
 import { placedRounds, skipped, stretchOf } from './scope.js';
@@ -54,10 +55,16 @@ export function securityExemptRounds(snapshot: RepoSnapshot, id: string): Set<nu
 /**
  * The security record problems of the review record, in record line order: a round (not an exempt final review) whose package had triggers and that records no `Security: lens security ran`, a
  * `Security:` line that is neither form, and a round with no trigger that records no `Security:` line at all. None when the rule does not apply (securityOn) or the host supplied no fact.
+ * 8-ac-5, D-10: a team pattern line of the security file that is not in force (it does not compile, or the guard refuses it as slow) comes first, before the trigger facts, because every
+ * round's triggers were computed without that pattern and cannot be trusted until it is fixed; it is returned even when the host supplied no fact.
  */
 export function securityProblems(snapshot: RepoSnapshot, id: string): SecurityProblem[] {
   const rec = workOf(snapshot, id)?.rounds;
   if (rec === undefined || !securityOn(snapshot, id)) return [];
+  const inactive = securitySpec(snapshot).problems.filter((p) => p.pattern === true);
+  if (inactive.length > 0) {
+    return inactive.map((p) => ({ line: 1, reason: `${SECURITY_FILE}:${p.line}: ${p.reason}; the pattern is not in force, so fix the line, then run accord lint` }));
+  }
   const fact = Object.hasOwn(snapshot.securityFacts ?? {}, id) ? snapshot.securityFacts![id] : undefined;
   if (fact === undefined) return [];
   if ('error' in fact) return [{ line: 1, reason: `the security review cannot be checked: ${fact.error}` }];

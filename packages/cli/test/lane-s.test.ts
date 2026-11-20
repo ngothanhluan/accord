@@ -323,7 +323,7 @@ it('risk:complex-branching the review package lists the out-of-scope files and i
     const first = await run(['review-package', 'S-1'], repo);
     expect(first.code).toBe(0);
     expect(first.out).toContain(
-      '## Out-of-scope files\n\nschemas/x.json\nsrc/b.ts\n\n## Interface signs\n\nschemas/x.json: a new schema file\n\n## Security triggers\n\n(none: no pattern matched)\n\n## Stat',
+      '## Out-of-scope files\n\nschemas/x.json\nsrc/b.ts\n\n## Interface signs\n\nschemas/x.json: a new schema file\n\n## Security triggers\n\n(none: no pattern matched)\n\n## Slop\n\n- slop:orphan-file src/b.ts:1 — no other tracked file names it\n\n## Stat',
     );
     gitRun(repo, 'rm', '-q', 'src/b.ts', 'schemas/x.json');
     commitMsg(repo, 'remove');

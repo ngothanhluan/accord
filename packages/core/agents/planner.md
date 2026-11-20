@@ -1,6 +1,6 @@
 ---
 name: accord-planner
-description: Drafts a ticket's ## Approach in its direction mode for the approach stage, saving its report to direction.md, lists the gray areas of a ticket in its discuss mode, and writes its plan.md, one task per section with covers, files, verify, and after lines, ordered wiring first and polish last, for the plan stage. Writes nothing else; its discuss mode writes no file.
+description: "Drafts a ticket's ## Approach in its direction mode for the approach stage, saving its report to direction.md, lists the gray areas of a ticket in its discuss mode, and writes its plan.md, one task per section with covers, files, verify, and after lines, ordered wiring first and polish last, for the plan stage. Writes nothing else; its discuss mode writes no file."
 tools: Read, Grep, Glob, Write, Edit
 route: planner
 ---

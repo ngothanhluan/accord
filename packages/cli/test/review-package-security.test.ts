@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { fixtureTicket, PACKAGE_FIXTURES, packageFixture } from './helpers/review-package-fixtures.js';
-import { DEFAULT_SECURITY, loadSnapshot, securityTriggers, triggerText } from '@accord-dev/accord-core';
+import { DEFAULT_SECURITY, loadSnapshot, parseSecurityFile, securityTriggers, triggerText } from '@accord-dev/accord-core';
 import { defaultRefOf, loadFromFs } from '../src/load/fs.js';
 import { packageDiff, roundOneBase } from '../src/load/package-diff.js';
 import { CONFIG, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
@@ -25,7 +25,7 @@ const section = (out: string): string => {
   return at < 0 ? '' : out.slice(at, next < 0 ? undefined : next).trimEnd();
 };
 
-it('ac-1 review-package prints the security triggers of a change in lane M and lane S (ST-LN-36 36-ac-1)', async () => {
+it('risk:security review-package prints the security triggers of a change in lane M and lane S (ST-LN-36 36-ac-1)', async () => {
   const repo = makeEmptyRepo();
   try {
     identity(repo);
@@ -76,7 +76,9 @@ it('ac-1 review-package prints the security triggers of a change in lane M and l
 // The text origin/main printed for each fixture before the section existed (recorded once from its build, plan 05-04), shas replaced by <sha>.
 const BEFORE = fileURLToPath(new URL('./fixtures/review-package-before/', import.meta.url));
 const shas = (text: string): string => text.replace(/\b[0-9a-f]{7,40}\b/g, '<sha>');
-const withoutSecurity = (text: string): string => text.replace(/## Security triggers\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '');
+// Phase 8.1 G4a: the `## Slop` section that follows the security one is left out as well; review-package-slop.test.ts proves it.
+const withoutSecurity = (text: string): string =>
+  text.replace(/## Security triggers\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '').replace(/## Slop\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '');
 
 it.each(PACKAGE_FIXTURES)(
   'risk:regression review-package is byte-identical apart from the security section and runs no new git command, %s (ST-LN-36 36-ac-1)',
@@ -150,7 +152,7 @@ const OWN_FILE = [
   '',
 ].join('\n');
 
-it('ac-1 review-package matches with the repository\'s security file (ST-LN-36 36-ac-1)', async () => {
+it('risk:security review-package matches with the repository\'s security file (ST-LN-36 36-ac-1)', async () => {
   const repo = makeEmptyRepo();
   try {
     identity(repo);
@@ -217,7 +219,7 @@ function laneM(change: Record<string, string>): { repo: string; base: string } {
   return { repo, base };
 }
 
-it('ac-3 review-package --security prints the checklist, the triggers and the matched hunks (ST-LN-36 36-ac-3)', async () => {
+it('risk:security review-package --security prints the checklist, the triggers and the matched hunks (ST-LN-36 36-ac-3)', async () => {
   const hit = laneM({ 'src/run.ts': RUN_NEW, 'src/other.ts': 'export const o = 2;\n' });
   try {
     const before = gitRun(hit.repo, 'status', '--porcelain');
@@ -259,7 +261,7 @@ it('ac-3 review-package --security prints the checklist, the triggers and the ma
   expect(readme).toContain('--security');
 }, 120_000);
 
-it('ac-3 review-package --security --round prints the package of a recorded round (ST-LN-36 36-ac-3)', async () => {
+it('risk:security review-package --security --round prints the package of a recorded round (ST-LN-36 36-ac-3)', async () => {
   const m = laneM({ 'src/run.ts': RUN_NEW });
   try {
     const c1 = gitRun(m.repo, 'rev-parse', 'HEAD').trim();
@@ -353,6 +355,24 @@ it('risk:security a file a .gitattributes rule marks -diff is still scanned, and
     const hunks = await run(['review-package', 'S-1', '--security'], repo);
     expect(hunks.out).toContain('+const cp = require("child_process").execSync(x);');
     expect(hunks.out).not.toContain('logo.png');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:security a changed shell line holding a NUL byte gets a trigger, never no pattern matched (8-ac-14)', async () => {
+  // `ex`, a NUL byte, `ec evil`: git calls the file binary, the --text re-read keeps it a lone "Binary files differ" section (a NUL on a changed line)
+  const repo = laneSWith({}, { 'run.sh': Buffer.from('ex\u0000ec evil\n') });
+  try {
+    const out = await run(['review-package', 'S-1'], repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    const s = section(out.out);
+    expect(s).not.toContain('no pattern matched');
+    expect(s).toContain('(cannot tell: run.sh: binary file, its lines were not scanned)');
+    const hunks = await run(['review-package', 'S-1', '--security'], repo);
+    expect(hunks.out).toContain('(cannot tell: run.sh: binary file, its lines were not scanned)');
+    expect(hunks.out).not.toContain('no pattern matched');
   } finally {
     cleanup(repo);
   }
@@ -455,6 +475,41 @@ it('risk:resource a -diff file whose text is over the buffer is left as its bina
     // with the real buffer nothing is unread
     const whole = packageDiff(repo, { base: gitRun(repo, 'rev-parse', 'main~1').trim(), head: 'HEAD', def: defaultRefOf(repo), allowPlainLog: false });
     expect(whole.unread).toBeUndefined();
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// 8-ac-3 (D-09): a hostile line of 40 `a` then `!` and a line of 100,000 characters end `accord review-package` promptly. The two team patterns below back-track on such a line, so the
+// read refuses both (neither is in force); the line over 1000 characters is cut, listed as a trigger that says so, and its hunk is printed once.
+const SLOW_FILE = ['# Security review', '', '## Patterns', '', '- slow: line /(a+)+$/ — x', '- overlap: line /(a|a)*$/ — y', ''].join('\n');
+const HOSTILE = `${'a'.repeat(40)}!\n${'a'.repeat(100_000)}!\n`;
+
+it('risk:resource accord review-package ends promptly on 40 a then ! and on a 100,000-character line (8-ac-3)', async () => {
+  // the read refuses both patterns first, so a guard regression fails here before any slow scan can run
+  expect(parseSecurityFile(SLOW_FILE).problems.map((p) => p.line)).toEqual([5, 6]);
+  const repo = makeEmptyRepo();
+  try {
+    identity(repo);
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1'), 'accord/product/security.md': SLOW_FILE, 'src/run.ts': RUN_BASE });
+    const base = commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), 'src/hostile.ts': HOSTILE });
+    commitMsg(repo, 'hostile lines');
+    const cut = 'src/hostile.ts:2: (cannot tell: line longer than 1000 characters, not fully scanned)';
+    const started = performance.now();
+    const listed = await run(['review-package', 'T-1'], repo);
+    expect(listed.err).toBe('');
+    expect(listed.code).toBe(0);
+    expect(section(listed.out)).toContain(cut);
+    expect(section(listed.out)).toContain('2 lines not read');
+    const hunks = await run(['review-package', 'T-1', '--security'], repo);
+    expect(hunks.err).toBe('');
+    expect(hunks.code).toBe(0);
+    expect(section(hunks.out)).toContain(cut);
+    expect(hunks.out.split('diff --git a/src/hostile.ts b/src/hostile.ts')).toHaveLength(2);
+    expect(performance.now() - started).toBeLessThan(120_000);
   } finally {
     cleanup(repo);
   }

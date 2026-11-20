@@ -24,6 +24,7 @@ export interface ScoutLane {
 }
 export interface ScoutResult {
   failures: string[];
+  expanded: { from: string; to: string }[]; // each shortened path the check read as the one tracked file it ends
   lane?: ScoutLane;
   skipped?: string;
 }
@@ -73,6 +74,17 @@ function readAll(facts: ScoutFacts, paths: readonly string[]): (string | undefin
   const out: (string | undefined)[] = [];
   for (let i = 0; i < paths.length; i += SLICE) out.push(...facts.read(paths.slice(i, i + SLICE)));
   return out;
+}
+
+/**
+ * The one tracked path that ends with `/` + `path`, so a shortened path reads as the file it names; undefined when no
+ * tracked path or more than one does. The caller expands only a path git does not track as written.
+ */
+export function expandPath(path: string, tracked: readonly string[]): string | undefined {
+  if (path === '') return undefined;
+  const tail = '/' + path;
+  const hits = tracked.filter((t) => t.endsWith(tail));
+  return hits.length === 1 ? hits[0] : undefined;
 }
 
 const SAVED_REPORT = /^accord\/tickets\/([^/]+)\/scout\.md$/;
@@ -129,20 +141,32 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
   const tracked = [...facts.tracked].sort(byCodePoint);
   const trackedSet = new Set(tracked);
   const failures: string[] = [];
+  // A path git does not track as written, but exactly one tracked path ends with, is that file; every expansion is
+  // recorded so the caller can print what the check assumed. `## New files` is never expanded.
+  const expanded: { from: string; to: string }[] = [];
+  const expand = (path: string): string => {
+    if (trackedSet.has(path)) return path;
+    const to = expandPath(path, tracked);
+    if (to === undefined) return path;
+    if (!expanded.some((e) => e.from === path)) expanded.push({ from: path, to });
+    return to;
+  };
+  const files = report.files?.map(expand);
+  const citations = report.citations.map((c) => ({ ...c, path: expand(c.path) }));
   if (report.files === undefined) failures.push('the report has no ## Files section, so no lane numbers can be computed');
   failures.push(...report.faults);
-  for (const path of report.files ?? []) {
+  for (const path of files ?? []) {
     if (!trackedSet.has(path)) failures.push('## Files lists ' + path + ', which git does not track');
   }
   for (const path of report.newFiles) {
     if (trackedSet.has(path)) failures.push('## New files lists ' + path + ', which git already tracks');
   }
 
-  // Citations: a path compared exactly, never by suffix; each tracked cited path is read once.
-  const cited = [...new Set(report.citations.map((c) => c.path).filter((p) => trackedSet.has(p)))];
+  // Citations: a path compared exactly once expanded (above); each tracked cited path is read once.
+  const cited = [...new Set(citations.map((c) => c.path).filter((p) => trackedSet.has(p)))];
   const citedTexts = new Map<string, string | undefined>();
   readAll(facts, cited).forEach((text, i) => citedTexts.set(cited[i], text));
-  for (const c of report.citations) {
+  for (const c of citations) {
     const where = 'citation ' + c.text + ' does not resolve: ';
     if (!trackedSet.has(c.path)) {
       failures.push(where + 'git does not track ' + c.path);
@@ -168,7 +192,7 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
       continue;
     }
     const covers = coverage(row.folders, tracked);
-    const searched = tracked.filter((p) => covers(p) && !own.has(p));
+    const searched = tracked.filter((p) => covers(p) && !own.has(p) && !p.startsWith('.claude/') && !p.startsWith('.agents/'));
     if (searched.length === 0) {
       failures.push(where + 'its folders cover no tracked file');
       continue;
@@ -184,8 +208,8 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
     });
   }
 
-  const result: ScoutResult = { failures };
-  if (report.files !== undefined) result.lane = laneOf(facts, [...new Set([...report.files, ...report.newFiles])].sort(byCodePoint));
+  const result: ScoutResult = { failures, expanded };
+  if (files !== undefined) result.lane = laneOf(facts, [...new Set([...files, ...report.newFiles])].sort(byCodePoint));
   if (report.skipped !== undefined) result.skipped = report.skipped;
   return result;
 }

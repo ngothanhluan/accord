@@ -13,7 +13,8 @@ describe('rulesetText', () => {
     expect(text).toContain('npx --yes @x/accord@1.2.3');
     expect(text).not.toContain('{{');
   });
-  it('is under 2048 bytes', () => expect(Buffer.byteLength(text)).toBeLessThan(2048));
+  // Phase 8.1 D-06: 2048 became 2176 for the one clause of rule 8 that names `commits.message` and `accord commit check` (124 bytes), the only route of the commit rule to every agent; every session start and subagent reads this text.
+  it('risk:resource the ruleset text is under 2176 bytes (D-06)', () => expect(Buffer.byteLength(text)).toBeLessThan(2176));
   it('leaves the ledger and the report shape to each agent', () => {
     expect(text).toContain('never writes the ledger unless its own instructions say so');
     expect(text).toContain('these lines go inside that report');
@@ -24,7 +25,7 @@ describe('sessionLine', () => {
   it('says so when there is no lane row', () => {
     expect(sessionLine([])).toBe('accord: no lane tickets yet · type /accord-new <request> to start one');
   });
-  it('ac-1 the session line names /accord-new for a new request and /accord for the dashboard (ST-LN-83 7-ac-1)', () => {
+  it('risk:regression the session line names /accord-new for a new request and /accord for the dashboard (ST-LN-83 7-ac-1)', () => {
     expect(sessionLine([])).toBe('accord: no lane tickets yet · type /accord-new <request> to start one');
     expect(sessionLine([row({})])).toMatch(/ · type \/accord$/);
   });

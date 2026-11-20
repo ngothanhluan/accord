@@ -3,7 +3,7 @@
 // code. argv, cwd, and both streams are injected, so a test drives the whole CLI in-process and
 // nothing reaches `process.*` (STACK Decision 7). Exit codes follow STACK Decision 1: 0 pass,
 // 1 lint/gate failure, 2 usage or environment error.
-import { loadSnapshot } from '@accord-dev/accord-core';
+import { configPin, loadSnapshot } from '@accord-dev/accord-core';
 import type { Lane, RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
@@ -13,6 +13,10 @@ import { deferred } from './commands/deferred.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { audit } from './commands/audit.js';
+import { commitCheck, commitMessage } from './commands/commit.js';
+import { conventionsWrite } from './commands/conventions.js';
+import { pr } from './commands/pr.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
@@ -70,32 +74,44 @@ export interface CommandContext {
   ssh?: Map<string, string>;
   /** ST-LN-63: set by a light preflight (pick-up, `new ticket --worktree`); `fetchOrigin` finishes the full load from it and returns a context without it. */
   light?: LightLoad;
+  /** Phase 8.1 D-18: the pin message of a run under the `report` pin check (only `accord audit`) whose pin differs from the running version; absent when the pin matches or the check refuses. */
+  pinMismatch?: string;
+  /** Phase 8.1 D-18: the pin the `report` pin check read (from the validated config, else the raw text); absent when config.yml names none or the check refuses. */
+  pinned?: string;
 }
 
 /**
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout'): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout', options: { pinCheck?: 'refuse' | 'report' } = {}): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
   // ST-LN-63: a light load keeps the parts it read, so a command that goes on to the full load does not read them twice.
   const lit = mode === 'light' ? loadLight(root) : undefined;
   const read = parts === undefined && lit === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
-  const loaded = loadSnapshot(parts?.view ?? lit?.input ?? (read as NonNullable<typeof read>).input);
+  const input = parts?.view ?? lit?.input ?? (read as NonNullable<typeof read>).input;
+  const loaded = loadSnapshot(input);
   // ST-LN-63: the branch the load read, handed on so no command asks git for it again (none in light mode).
   const branch = parts?.branch ?? read?.branch;
   const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
-  if (loaded.config !== undefined) {
+  // D-18 (Phase 8.1): the `report` pin check is the second stated exception, beside `upgrade`: the pin is read here, before anything reads `snapshot.config`, from the validated config or, when this CLI's schema
+  // refused it (a key a newer release added), from the raw text, and the message goes back on the context instead of being thrown. Only `accord audit` asks for it.
+  let pinMismatch: string | undefined;
+  let pinned: string | undefined;
+  if (options.pinCheck === 'report') {
+    pinned = loaded.config === undefined ? configPin(input.files['accord/config.yml']) : loaded.config.accord;
+    pinMismatch = pinMessage(pinned, pkg.version, versionOnDisk());
+  } else if (loaded.config !== undefined) {
     const message = pinMessage(loaded.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
   // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
   const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs) : loaded;
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
 }
 
 /**
@@ -295,9 +311,32 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // ST-LN-50 D-06: the subject of a commit accord writes, rendered from the team's template, so skills never carry a literal one.
   program
     .command('subject <name> <id> [tail...]')
-    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill, queue) and a ticket id, from commits.subjects; a tail, such as a round count, follows after one space')
+    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill, queue, people, conventions) and a ticket id, from commits.subjects; for people the second argument is the email of the people entry, for conventions the UTC date of the conventions branch; a tail, such as a round count, follows after one space')
     .action((name: string, id: string, tail: string[]) => {
       setCode(subject(preflight(opts), name, id, tail));
+    });
+
+  // Phase 8.1 D-04, D-05: the commit-message rule a team sets in `commits.message`, checked before a commit is made.
+  const commit = program.command('commit').description("check a commit message against the team's commit rule (commits.message in accord/config.yml)");
+  commit
+    .command('check <file>')
+    .description('read the first line of a commit message file and judge it against commits.message: exit 0 when it passes or no rule is set, exit 1 naming the rule and a message that passes, exit 2 when the file cannot be read or the configured pattern is not in force; merge commits and Revert subjects are exempt at the gates, not here')
+    .action((file: string) => {
+      setCode(commitCheck(preflight(opts), file, opts.cwd));
+    });
+  commit
+    .command('message <id>')
+    .description("run the team's commits.message.command, only after accord trust allowed it, with the ticket in its environment (ACCORD_TICKET, ACCORD_TICKET_FILE, ACCORD_BASE_REF, ACCORD_ROOT): its first output line is the subject and the rest the body; write the message to a file under .git and print message-file: <path> for git commit -F, then judge it against commits.message like commit check (exit 1 naming the rule); an untrusted script is never run (exit 2 naming accord trust), and a failing, slow, oversized or empty one is exit 2 with no file")
+    .action((id: string) => {
+      setCode(commitMessage(preflight(opts), id));
+    });
+
+  // Phase 8.1 D-01, D-03: the title and the body file of a ticket's pull request, from the team's template and what the ticket knows; `gh pr create` itself stays in the skills.
+  program
+    .command('pr <id>')
+    .description("write the body file of a ticket's pull request from the repository's PR template with every heading kept and the ticket's id, title, Intent, criteria and test evidence filled in, and print title: <title>, body-file: <path>, template: <path>, and one remaining: <heading> line per section left for you to write; the skill then runs gh pr create --title <title> --body-file <path>")
+    .action((id: string) => {
+      setCode(pr(preflight(opts), id));
     });
 
   // ST-LN-50 D-11: the deterministic way to change accord/config.yml; every subcommand reads the repository, so each goes
@@ -335,7 +374,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // Owner decision (2026-11-15): a script the repository declares (`tracker.command`, `git.sync`) runs only after the person allowed it here, once, in a record inside .git.
   program
     .command('trust [script...]')
-    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, and git.sync): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest> or git.sync@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
+    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, git.sync, build.regenerate, commits.message.command, pr.command and audit.command): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest>, git.sync@<digest>, build.regenerate@<digest>, commits.message.command@<digest>, pr.command@<digest> or audit.command@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
     .option('--revoke', 'withdraw the allows of the scripts named, or every allow of this repository')
     .action((scripts: string[], o: { revoke?: boolean }) => {
       setCode(trust(preflight(opts), scripts, o));
@@ -350,12 +389,31 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(upgrade({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} }));
     });
 
+  // Phase 8.1 D-08, D-10: the optional audit of what a machine can see about a repository's conventions; it reads files only, calls no model, and no gate runs it.
+  program
+    .command('audit')
+    .description("report what a machine can see about this repository's conventions: fact: <name>: <value> lines (languages, layout, linter and its rules, formatter, type checking, tests, PR template, commit rule, conventions, work hygiene (claimed tickets idle past stale_days, unclaimed drafts past stale_draft_days)), then gap: <id>: <text> - fix: <fix> lines, then gaps: <n>; exit 0 whenever it ran, whatever it found; it reads files only, calls no model, and no gate runs it")
+    .action(async () => {
+      // D-18: the second stated exception to the pin check, beside `upgrade`: the audit reports a mismatch as a gap (pinCheck 'report'); every other command still refuses it.
+      setCode(await audit(preflight(opts, 'checkout', { pinCheck: 'report' })));
+    });
+
+  // Phase 8.1 D-09: the convention lines the owner accepted in /accord-audit, on their own branch for a pull request the owner merges; the skill opens it.
+  const conventions = program.command('conventions').description("the team's conventions file, accord/product/conventions.md");
+  conventions
+    .command('write <file>')
+    .description('read the accepted lines from <file> (each "- <convention> — enforced by: <rule id or prose>", printable, at most 300 characters, no comment marker; a line already in the file is skipped and named), append them to accord/product/conventions.md as origin\'s default branch has it, in a temporary worktree, commit them with the conventions subject, push branch conventions/<date> and print branch:, base: and title:; refused (exit 2) when a line cannot be read or origin already has that branch; the checkout is not touched and nothing is merged')
+    .action((file: string) => {
+      setCode(conventionsWrite(preflight(opts), file, opts.cwd));
+    });
+
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');
   worktree
     .command('clean')
-    .description('fetch, then remove the worktree, the local branch and the origin branch of each ticket done on the default branch, delete the worktree and branches of tickets dropped there when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept')
-    .action(() => {
-      setCode(worktreeClean(preflight(opts)));
+    .description('fetch, then remove the worktree, the local branch and the origin branch of each ticket done on the default branch, delete the worktree and branches of tickets dropped there when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept; with --dry-run it prints the same lines and removes and deletes nothing')
+    .option('--dry-run', 'print what a real clean would remove or delete, and remove or delete nothing; it still fetches, and it assumes each git step succeeds')
+    .action((o: { dryRun?: boolean }) => {
+      setCode(worktreeClean(preflight(opts), o.dryRun === true ? { dry: 'online' } : {}));
     });
   worktree
     .command('check')
@@ -448,7 +506,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('deferred <id>')
-    .description("print the ledger's Must and Should deferred items, for the owner at verify")
+    .description("print the ledger's Must and Should deferred items that carry no owner's mark (→ <id> or → declined), for the owner at verify")
     .action((id: string) => {
       setCode(deferred(preflight(opts), id));
     });
@@ -540,6 +598,8 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
       // `--version` and `--help` are answered before any action runs, so they never reach preflight
       // and D-95's exemption holds by construction. Every other commander refusal is a bad argument,
       // which STACK Decision 1 puts at exit 2 — exit 1 is reserved for a lint or gate verdict.
+      // D-26: `accord help` and `accord help <command>` throw `commander.help` with exit code 0; bare `accord` throws it with exit code 1, which stays a usage error.
+      if (err.code === 'commander.help') return err.exitCode === 0 ? 0 : 2;
       return err.code === 'commander.version' || err.code === 'commander.helpDisplayed' ? 0 : 2;
     }
     opts.stderr.write(slashed(err instanceof Error ? err.message : String(err)));

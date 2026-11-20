@@ -1,14 +1,16 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { interfaceSigns, matchedHunks, outsideScope, securityExemptRounds, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { interfaceSigns, matchedHunks, outsideScope, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
-import { securityRoundRanges } from '../load/security-facts.js';
+import { exemptCopies, securityRoundRanges } from '../load/security-facts.js';
+import { shown as printable } from '../load/script-trust.js';
+import { slopFacts } from '../load/slop-facts.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
-import { branchFactFor } from './branch-fact.js';
+import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 
 const cannot = (why: string) => `(cannot tell: ${why})`;
@@ -24,11 +26,13 @@ interface SecuritySections {
  * ST-LN-36 D-05 (4): the security sections of a package, from its own diff text and changed list so they run no git command of their own. `triggers` is the `## Security triggers`
  * text; with `full`, `checklist` (every item in force, default and team) and `hunks` (matchedHunks, or the none line) are read too.
  */
-export function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean, unreadable?: string[]): SecuritySections {
+export function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean, at: { root: string; head: string }, unreadable?: string[]): SecuritySections {
   try {
     const spec = securitySpec(s);
     const generated = s.config?.generated ?? [];
-    const found = securityTriggers(spec, diffText, changed, { generated, unreadable });
+    // BUG-LN-25 D-06, D-08: the copies left out are the ones gate done leaves out, read at this package's own head; a read that fails is `(cannot tell: …)` below.
+    const exempt = exemptCopies(at.root, at.head, changed, renderedFilesOf(s.config));
+    const found = securityTriggers(spec, diffText, changed, { generated, unreadable, exempt });
     let triggers = found.map(triggerText).join('\n') || NONE;
     // ST-LN-36 D-06: a line of the repository's file that did not read is said here too, so a reviewer is never told the list is whole when it is not.
     const unread = spec.problems.length;
@@ -37,12 +41,24 @@ export function securitySections(s: RepoSnapshot, diffText: string, changed: str
     return {
       triggers,
       checklist: spec.checklist.map((c) => `- ${c.id}: ${c.text}`).join('\n') || '(none)',
-      hunks: matchedHunks(spec, diffText, changed, { generated, unreadable }).join('\n') || NONE,
+      hunks: matchedHunks(spec, diffText, changed, { generated, unreadable, exempt }).join('\n') || NONE,
     };
   } catch (e) {
     const unread = cannot(e instanceof Error ? e.message : String(e));
     return { triggers: unread, checklist: unread, hunks: unread };
   }
+}
+
+/**
+ * Phase 8.1 D-14: the `## Slop` text of a package: one `- slop:<kind> <path>:<line> — <label>` per hit of the ticket's cumulative diff (not of this package's own range, so a final reviewer sees
+ * exactly what `accord gate done` judges), `(none: no pattern matched)` when there is none, and a note when lines of accord/product/slop.md did not read. Every printed value goes through printable().
+ */
+function slopSection(ctx: CommandContext, s: RepoSnapshot, id: string, def: string | undefined): string {
+  const facts = slopFacts(ctx.root, s, id, renderedFilesOf(s.config), { defaultRef: def });
+  if ('error' in facts) return cannot(printable(facts.error));
+  let text = facts.hits.map((h) => printable(slopLine(h))).join('\n') || NONE;
+  if (facts.unread > 0) text += `\n(accord/product/slop.md: ${facts.unread} ${facts.unread === 1 ? 'line' : 'lines'} not read; run accord lint)`;
+  return text;
 }
 
 /** The security package's layout, shared with `accord diff-package --security` (ST-LN-83 07-07). */
@@ -77,7 +93,7 @@ function securityRoundPackage(ctx: CommandContext, id: string, asked: string): n
     if (e instanceof UsageError) throw e;
     throw new UsageError(`cannot diff round ${k} (${range}): ${why(e)}`);
   }
-  ctx.stdout.write(securityText(`# Security package: ${id} (${range})\nHead: ${abbrev(at.head)}`, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, pkg.unread)));
+  ctx.stdout.write(securityText(`# Security package: ${id} (${range})\nHead: ${abbrev(at.head)}`, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, { root: ctx.root, head: at.head }, pkg.unread)));
   return 0;
 }
 
@@ -234,10 +250,11 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   if (options.security === true) {
     // The security package: the same range and diff, but only the checklist, the triggers and the hunks they match.
     const at = parts[0].indexOf('\nHead: ');
-    ctx.stdout.write(securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true, unread)));
+    ctx.stdout.write(securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true, { root: ctx.root, head: 'HEAD' }, unread)));
     return 0;
   }
-  shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false, unread).triggers);
+  shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false, { root: ctx.root, head: 'HEAD' }, unread).triggers);
+  shown.push('## Slop', slopSection(ctx, s, id, def));
   parts.splice(parts.indexOf('## Stat'), 0, ...shown);
   ctx.stdout.write(parts.join('\n\n') + '\n');
   return 0;

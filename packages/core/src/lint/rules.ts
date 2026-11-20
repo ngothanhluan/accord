@@ -2,7 +2,7 @@
 // `rule` and `level` from the row (D-58), so a level literal for a `lint.*` rule appears nowhere else.
 import type { Finding, Level } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
-import { configFloor, modelRetired, subjectDuplicate, templateSection } from './config.js';
+import { commitRule, configFloor, modelRetired, subjectDuplicate, templateSection } from './config.js';
 import { dependsCycle, dependsUnknown } from './depends.js';
 import { idConvention, initialsDuplicate } from './ids.js';
 import { dependsDropped, droppedReason } from './dropped.js';
@@ -41,6 +41,7 @@ import {
   vagueWording,
 } from './ticket.js';
 import { securityFile } from '../security/spec.js';
+import { slopFile } from '../slop/spec.js';
 import { researchReference } from './research.js';
 import { testUntraced } from './tests.js';
 import { prototypeDerivation, tokenHardcoded, tokensMissing } from './tokens.js';
@@ -99,7 +100,10 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.prototype-derivation', level: 'warning', profiles: ['build', 'maintain'], check: prototypeDerivation },
   { id: 'lint.model-retired', level: 'warning', profiles: ['build', 'maintain'], check: modelRetired },
   { id: 'lint.subject-duplicate', level: 'error', profiles: ['build', 'maintain'], check: subjectDuplicate },
+  { id: 'lint.commit-rule', level: 'error', profiles: ['build', 'maintain'], check: commitRule },
   { id: 'lint.config-floor', level: 'error', profiles: ['build', 'maintain'], check: configFloor },
   { id: 'lint.security-file', level: 'error', profiles: ['build', 'maintain'], check: securityFile },
+  // Phase 8.1 D-15: overridable (a team may lower it), and no claim cut-off: it reads the team's file, not a ticket.
+  { id: 'lint.slop-file', level: 'error', profiles: ['build', 'maintain'], check: slopFile },
   { id: 'lint.template-section', level: 'error', profiles: ['build', 'maintain'], check: templateSection },
 ];

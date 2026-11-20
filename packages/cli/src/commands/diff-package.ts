@@ -54,7 +54,7 @@ export function diffPackage(ctx: CommandContext, base: string, head: string, opt
   }
   const title = `# Diff package ${base}...${head}\nBase: ${baseSha}\nHead: ${headSha}\nChanged lines: ${lines}`;
   if (options.security === true) {
-    ctx.stdout.write(securityText(title, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, pkg.unread)));
+    ctx.stdout.write(securityText(title, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, { root: ctx.root, head: headSha }, pkg.unread)));
     return 0;
   }
   ctx.stdout.write([title, '## Stat', pkg.stat || '(no changes)', '## Diff', pkg.diff || '(no changes)'].join('\n\n') + '\n');

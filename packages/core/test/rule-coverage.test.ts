@@ -55,7 +55,7 @@ describe('rule coverage (ST-LN-70)', () => {
     expect(ruleLines(FIXTURE, true)).toEqual(numbered);
   });
 
-  it('ac-4 rewording or removing or reordering one rule line names its file and line while a non-rule line change names nothing (ST-LN-70 6-ac-4)', () => {
+  it('risk:regression rewording or removing or reordering one rule line names its file and line while a non-rule line change names nothing (ST-LN-70 6-ac-4)', () => {
     const sources = ruleSources();
     const paths = sources.map((s) => s.path);
     expect(paths).toEqual(
@@ -157,7 +157,7 @@ describe('rule coverage (ST-LN-70)', () => {
     expect(ruleDiff(`${golden}garbage\n`, sources)).toEqual([`${RULE_GOLDEN_PATH}:${count + 1}: unreadable rule golden line: garbage`]);
   });
 
-  it('ac-4 the rule golden holds every rule line of every agent and skill and the ruleset (ST-LN-70 6-ac-4)', async () => {
+  it('risk:regression the rule golden holds every rule line of every agent and skill and the ruleset (ST-LN-70 6-ac-4)', async () => {
     const sources = ruleSources();
     const current = ruleGolden(sources);
     const file = fileURLToPath(new URL('./__golden__/rule-lines.txt', import.meta.url));

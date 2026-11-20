@@ -326,6 +326,19 @@ it.skipIf(process.platform === 'win32')('risk:regression bash runs on a posix ho
   expect(noBash, `${BASH} did not run on a POSIX host; set ACCORD_BASH`).toBe(false);
 });
 
+// 8-ac-18 (D-25): a stuck accord job holds the required check of every pull request until GitHub's six-hour default stops it. Both the workflow `accord init` writes
+// and this repository's committed copy carry a job timeout, directly under the job's `runs-on:`.
+it("risk:resource the generated accord job and this repository's copy stop after 15 minutes (8-ac-18)", () => {
+  const generated = initFiles({ name: pkg.name, version: pkg.version }).find((f) => f.path === '.github/workflows/accord.yml')?.text ?? '';
+  const own = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+  const job = (yml: string): { 'runs-on': string; 'timeout-minutes'?: number } =>
+    (parse(yml) as unknown as { jobs: { accord: { 'runs-on': string; 'timeout-minutes'?: number } } }).jobs.accord;
+  for (const [what, yml] of [['generated', generated], ['this repository', own]] as const) {
+    expect(job(yml)['timeout-minutes'], what).toBe(15);
+    expect(yml, what).toContain('    runs-on: ubuntu-latest\n    timeout-minutes: 15\n');
+  }
+});
+
 // Each case spawns git twice and bash once; on Windows, under a full parallel `npm test`, that
 // overruns the 5 s default. The budget is generous on purpose — a timeout here reads as a flake, and a
 // flaky case is one someone eventually deletes.
@@ -350,6 +363,33 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(result.calls[0].endsWith(' lint')).toBe(true);
     expect(result.calls[1].endsWith(' gate done SIGNUP-1')).toBe(true);
     expect(result.out).not.toContain(NOTHING_TO_GATE);
+  });
+
+  // 8-ac-17 (D-23): git prints a non-ASCII path quoted and octal-escaped (`"accord/tickets/Caf\303\251.md"`) unless
+  // core.quotePath is off, and the ticket list's grep then misses it, so the ticket went ungated. The script of the
+  // emitted workflow and this repository's committed copy are both run on a branch that adds `Café.md`.
+  it('risk:security the generated CI script gates a ticket file with a non-ASCII name (8-ac-17)', () => {
+    const yml = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+    const ownScript = (
+      (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string }> } } }).jobs.accord.steps.find(
+        (s) => s.name === 'lint and gate',
+      ) as Step
+    ).run as string;
+    for (const [what, script] of [['generated', SCRIPT], ['this repository', ownScript]] as const) {
+      const { repo, base } = sandbox((r) => {
+        write(r, 'accord/tickets/Café.md', 'id: Café\n');
+        write(r, 'src/app.ts', CODE);
+      });
+      const result = runScript(repo, { base, script });
+      expect(result.code, what + ': ' + result.out + result.err).toBe(0);
+      expect(result.calls.length, what + ': ' + result.calls.join(' | ')).toBe(2);
+      expect(result.calls[1].endsWith(' gate done Café'), what + ': ' + result.calls.join(' | ')).toBe(true);
+    }
+    for (const [what, script] of [['generated', SCRIPT], ['this repository', ownScript]] as const) {
+      expect(script, what + ' lists tickets with quotePath off').toContain(
+        'git -c core.quotePath=false diff --name-only --diff-filter=d "$BASE"...HEAD',
+      );
+    }
   });
 
   it('a deleted approved ticket not dropped at the base fails naming the ticket and accord drop', () => {
@@ -838,7 +878,7 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
 
   // BUG-LN-18 18-ac-2 (Phase 5, D-04): the pull request moves the test the done ticket SIGNUP-1 names and leaves the ticket alone, with `lint.test-id-unknown` raised to error.
   // Before the fix the real `accord lint` exits 1 on the done ticket's tags; now the job is green and gates nothing.
-  it('ac-2 a pull request that moves a test a done ticket names passes the accord check (BUG-LN-18 18-ac-2)', () => {
+  it('risk:regression a pull request that moves a test a done ticket names passes the accord check (BUG-LN-18 18-ac-2)', () => {
     const repo = makeEmptyRepo();
     repos.push(repo);
     cpSync(example, repo, { recursive: true });

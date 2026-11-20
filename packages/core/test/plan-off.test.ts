@@ -91,7 +91,7 @@ describe('ticketTaskVerdict (ST-LN-50 t2-ac-5)', () => {
     ]);
   });
 
-  it('a @ui scenario needs no test (ST-LN-50 t2-ac-5)', () => {
+  it('risk:complex-branching a @ui scenario needs no test (ST-LN-50 t2-ac-5)', () => {
     const body = laneTicket('T-1').split('---\n')[2].replace('@ac-2 @test:export#escapes-commas', '@ac-2 @ui');
     expect(ticketTaskVerdict(withReport(PASS, body), 'T-1', [MAPS[0]])).toEqual({ verdict: 'pass', reasons: [] });
   });

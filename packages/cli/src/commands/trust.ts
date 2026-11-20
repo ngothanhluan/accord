@@ -15,14 +15,20 @@ import type { CommandContext } from '../run.js';
  * The scripts this checkout declares: `tracker.command` only under `tracker.adapter: script` (the one adapter that runs it), `git.sync`, and `build.regenerate`
  * (ST-LN-92 review round 1 finding 7: the build stage runs it only when accord worktree task merge prints it, which it does once it is allowed here).
  */
-function declared(ctx: CommandContext): Array<{ kind: ScriptKind; command: string }> {
+export function declared(ctx: CommandContext): Array<{ kind: ScriptKind; command: string }> {
   const config = ctx.snapshot.config;
   const found: Array<{ kind: ScriptKind; command: string }> = [];
   if (config?.tracker?.adapter === 'script' && config.tracker.command !== undefined) found.push({ kind: 'tracker.command', command: config.tracker.command });
   if (config?.git?.sync !== undefined) found.push({ kind: 'git.sync', command: config.git.sync });
   if (config?.build?.regenerate !== undefined) found.push({ kind: 'build.regenerate', command: config.build.regenerate });
+  if (config?.commits?.message?.command !== undefined) found.push({ kind: 'commits.message.command', command: config.commits.message.command });
+  if (config?.pr?.command !== undefined) found.push({ kind: 'pr.command', command: config.pr.command });
+  if (config?.audit?.command !== undefined) found.push({ kind: 'audit.command', command: config.audit.command });
   return found;
 }
+
+/** The script kinds as one phrase for a message, so a kind added to SCRIPT_KINDS is named without editing the text. */
+const kindList = (last: string): string => `${SCRIPT_KINDS.slice(0, -1).join(', ')}${last}${SCRIPT_KINDS[SCRIPT_KINDS.length - 1]}`;
 
 const STATE: Record<Inspection['state'], string> = {
   allowed: 'allowed here',
@@ -49,7 +55,7 @@ function namesOf(names: readonly string[]): Array<{ kind: ScriptKind; digest?: s
   for (const n of names) {
     const at = n.indexOf('@');
     const kind = at === -1 ? n : n.slice(0, at);
-    if (!(SCRIPT_KINDS as readonly string[]).includes(kind)) throw new UsageError(`accord trust takes tracker.command, git.sync or build.regenerate, not "${shown(kind)}" - nothing was changed`);
+    if (!(SCRIPT_KINDS as readonly string[]).includes(kind)) throw new UsageError(`accord trust takes ${kindList(' or ')}, not "${shown(kind)}" - nothing was changed`);
     const digest = at === -1 ? undefined : n.slice(at + 1).replace(/^sha256:/i, '').toLowerCase();
     if (digest !== undefined && !/^[0-9a-f]{16,64}$/.test(digest)) throw new UsageError(`"${shown(n)}" carries no digest accord trust shows (16 hex characters) - nothing was changed`);
     if (!out.some((o) => o.kind === kind)) out.push({ kind: kind as ScriptKind, ...(digest === undefined ? {} : { digest }) });
@@ -74,7 +80,7 @@ export function trust(ctx: CommandContext, names: readonly string[], options: { 
     }
   }
   if (scripts.length === 0) {
-    ctx.stdout.write('accord/config.yml declares no repository script (tracker.command under tracker.adapter: script, git.sync or build.regenerate) - nothing to allow\n');
+    ctx.stdout.write(`accord/config.yml declares no repository script (${SCRIPT_KINDS.map((k) => k + (k === 'tracker.command' ? ' under tracker.adapter: script' : '')).join(', ')}) - nothing to allow\n`);
     return 0;
   }
   if (kinds.length === 0) {

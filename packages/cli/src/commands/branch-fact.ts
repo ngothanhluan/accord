@@ -11,6 +11,14 @@ export function renderedFiles(config: AccordConfig): SkillFile[] {
   return [...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg)];
 }
 
+/**
+ * D-24: the lazy render list that gate done, accord round and accord review-package hand to the security scan, so the three leave out the same
+ * copies of what `accord skills sync` writes. Rendering happens only when the scan asks; with no config no file is exempt.
+ */
+export function renderedFilesOf(config: AccordConfig | undefined): () => SkillFile[] {
+  return () => (config === undefined ? [] : renderedFiles(config));
+}
+
 /** `known`: the default ref the caller already read (`review-package`), so the fact does not read it again. */
 export function branchFactFor(ctx: CommandContext, id: string, known?: { defaultRef: string | undefined }): BranchFact {
   const config = ctx.snapshot.config;

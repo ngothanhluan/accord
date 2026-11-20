@@ -57,7 +57,7 @@ const SPLIT = [
   '',
 ].join('\n');
 
-it('ac-9 an approved split creates the epic and every story in one step (ST-LN-28 7-ac-9)', async () => {
+it('risk:parsing an approved split creates the epic and every story in one step (ST-LN-28 7-ac-9)', async () => {
   const repo = sandbox();
   writeFileSync(join(repo, 'split.yml'), SPLIT);
   const branches = gitRun(repo, 'branch', '--list');
@@ -99,7 +99,7 @@ it('ac-9 an approved split creates the epic and every story in one step (ST-LN-2
   expect(existsSync(join(repo, '.git', 'accord'))).toBe(false);
 });
 
-it('ac-8 an epic decision in an approved split reaches each story anchor (ST-LN-28 7-ac-8)', async () => {
+it('risk:parsing an epic decision in an approved split reaches each story anchor (ST-LN-28 7-ac-8)', async () => {
   const repo = sandbox();
   const d1 = 'Card payments only — "only cards at launch"';
   const d2 = 'Guests can pay — "no account is needed"';
@@ -143,7 +143,7 @@ it('ac-8 an epic decision in an approved split reaches each story anchor (ST-LN-
   expect(lessons).toBeGreaterThan(b);
 });
 
-it('ac-8 a split without decisions leaves the Decisions section as the template has it (ST-LN-28 7-ac-8)', async () => {
+it('risk:regression a split without decisions leaves the Decisions section as the template has it (ST-LN-28 7-ac-8)', async () => {
   const repo = sandbox();
   writeFileSync(join(repo, 'split.yml'), SPLIT);
   const r = await run(['new', 'ticket', '--type', 'epic', '--lane', 'L', '--split', 'split.yml', '--related', 'none'], repo);
@@ -160,7 +160,7 @@ it('ac-8 a split without decisions leaves the Decisions section as the template 
 const today = (): string => new Date().toISOString().slice(0, 10);
 const FOUR = ['accord/tickets/EP-FX-1.md', 'accord/tickets/ST-FX-1.md', 'accord/tickets/ST-FX-2.md', 'accord/tickets/ST-FX-3.md'];
 
-it('ac-9 a queued split is one commit on one backlog branch and a bad split writes nothing (ST-LN-28 7-ac-9)', async () => {
+it('risk:data-loss a queued split is one commit on one backlog branch and a bad split writes nothing (ST-LN-28 7-ac-9)', async () => {
   // a bare-origin clone whose default branch assigns ids to the person fixture@example.invalid
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
   writeFiles(c.root, { 'accord/config.yml': CONFIG + 'people:\n  "fixture@example.invalid": FX\nlegacy_ids: [ST-9, ST-10]\n', 'split.yml': SPLIT });
@@ -221,7 +221,7 @@ it('ac-9 a queued split is one commit on one backlog branch and a bad split writ
   expect(c.git('for-each-ref', 'refs/heads/backlog')).toBe('');
 }, 180_000);
 
-it('ac-9 a split gives its own ids where accord assigns none and refuses one that is used (ST-LN-28 7-ac-9)', async () => {
+it('risk:complex-branching a split gives its own ids where accord assigns none and refuses one that is used (ST-LN-28 7-ac-9)', async () => {
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
   const withIds = (one: string): string =>
     SPLIT.replace('title: Checkout redesign', 'id: EP-1\ntitle: Checkout redesign')

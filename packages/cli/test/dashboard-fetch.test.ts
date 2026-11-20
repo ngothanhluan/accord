@@ -32,7 +32,7 @@ const queued = (o: string, id: string, date = '2026-11-18'): string => {
   return tip;
 };
 
-it('ac-12 the dashboard shows a teammate pushed claim without a manual fetch (ST-LN-16 7-ac-12)', async () => {
+it('risk:concurrency the dashboard shows a teammate pushed claim without a manual fetch (ST-LN-16 7-ac-12)', async () => {
   const c = copy();
   // a teammate claims ST-9 after this clone last fetched
   const o = c.otherClone();
@@ -50,7 +50,7 @@ it('ac-12 the dashboard shows a teammate pushed claim without a manual fetch (ST
   expect(text).not.toContain('fetch from origin');
 }, 120_000);
 
-it('ac-12 the dashboard shows a backlog draft and stays usable offline (ST-LN-16 7-ac-12)', async () => {
+it('risk:complex-branching the dashboard shows a backlog draft and stays usable offline (ST-LN-16 7-ac-12)', async () => {
   const c = copy();
   const base = await board(c.root);
   expect(base.upNext.rows.map((r) => r.id)).toEqual(['ST-9']);

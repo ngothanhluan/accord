@@ -31,7 +31,7 @@ export interface Trigger {
   removed?: boolean;
   pattern: string;
   label: string;
-  /** the diff text does not show the path (no `line`), or a changed line is longer than the scan cap and was scanned only up to it (with `line`). */
+  /** the diff text does not show the path (no `line`), or a changed line is longer than SCAN_LINE_LIMIT and was scanned only up to it (with `line`). */
   cannot?: boolean;
 }
 
@@ -165,25 +165,42 @@ export function diffFiles(diffText: string): DiffFile[] {
   return files;
 }
 
-const MAX_LINE = 2000;
-/** The label of the trigger a cut line gets: the cap guards the patterns against backtracking, so a line over it is never scanned whole and says so (fail closed). */
-const LONG_LINE = `line longer than ${MAX_LINE} characters, not fully scanned`;
+/**
+ * The one scan bound (D-09): a changed line is matched on its first SCAN_LINE_LIMIT characters only. The bound caps the time an allowed pattern may take per changed line, which is at most
+ * two overlapping repeats in a row and 16 routes for one text; exponential shapes, longer runs and more routes are refused at read by backtrack.ts. The total still grows with the number of
+ * changed lines, each one costing at most the sum of the patterns' cost on SCAN_LINE_LIMIT characters (08-08b states the figures); no total cap is built.
+ */
+export const SCAN_LINE_LIMIT = 1000;
+/** The label of the trigger a cut line gets: a line over the bound is never scanned whole and says so (fail closed). */
+const LONG_LINE = `line longer than ${SCAN_LINE_LIMIT} characters, not fully scanned`;
 const UNREADABLE = 'too large to read as text, so its lines were not scanned';
-const tooLong = (text: string): boolean => text.length > MAX_LINE;
+const tooLong = (text: string): boolean => text.length > SCAN_LINE_LIMIT;
+/** The label of the trigger a file git calls binary gets when it is not a known binary type (D-20): a NUL byte on a changed line makes git call a code file binary, and its lines were then never scanned. */
+const BINARY_LABEL = 'binary file, its lines were not scanned';
+/** Image, font and archive types git rightly calls binary; any other binary file with no text twin is a `cannot` trigger (fail closed). */
+export const KNOWN_BINARY = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'avif', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'zip', 'gz', 'tgz', 'tar', 'bz2', 'xz', '7z', 'pdf']);
+/** The extension of a path: the text after the last `.` of its name, lower-cased; empty when the name holds none. */
+const extensionOf = (path: string): string => {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
+};
 const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const TEST_FOLDER = new Set(['test', 'tests', '__tests__']);
-const OWN_COPIES = ['.claude/skills/', '.agents/skills/', '.claude/agents/', '.claude/accord-panel/'];
 
 /** lane.md's definition: under a folder named `test`, `tests` or `__tests__`, or a name holding `.test.` or `.spec.`. */
-const isTestFile = (path: string): boolean => {
+export const isTestFile = (path: string): boolean => {
   const parts = path.split('/');
   const name = parts[parts.length - 1];
   return parts.slice(0, -1).some((d) => TEST_FOLDER.has(d)) || name.includes('.test.') || name.includes('.spec.');
 };
 
+/** A path entry of a security pattern compares ignoring letter case: Windows and default macOS open `.MCP.json` as `.mcp.json`. The trigger still names the path as the diff spells it. */
 const pathMatches = (entry: string, path: string): boolean => {
-  if (entry.endsWith('/') || entry.includes('/')) return matches(entry, path);
-  return path === entry || path.endsWith('/' + entry);
+  const e = entry.toLowerCase();
+  const p = path.toLowerCase();
+  if (e.endsWith('/') || e.includes('/')) return matches(e, p);
+  return p === e || p.endsWith('/' + e);
 };
 
 /** Code point order, so the same input sorts the same on every runtime. */
@@ -211,16 +228,35 @@ function compileLines(spec: SecuritySpec): { p: SecurityPattern; re: RegExp }[] 
   return out;
 }
 
-/** Content patterns are not run over Markdown, test files, accord's own generated copies or the repository's generated paths. */
-const contentSkipped = (path: string, generated: readonly string[]): boolean =>
-  MARKDOWN.test(path) || isTestFile(path) || OWN_COPIES.some((e) => path.startsWith(e)) || generated.some((e) => matches(e, path));
+/** The folders an agent loads and runs code from (D-22): a skill's scripts, a sub-agent's files and the panel. Compared ignoring letter case, as path entries are. */
+const AGENT_FOLDERS = ['.claude/skills/', '.agents/skills/', '.claude/agents/', '.claude/accord-panel/'];
+const underAgentFolder = (path: string): boolean => {
+  const p = path.toLowerCase();
+  return AGENT_FOLDERS.some((f) => p.startsWith(f));
+};
+
+/**
+ * Phase 8.1 D-20: the part of the content skip every content scan shares: a path in `exempt` (exactly an unmodified copy `accord skills sync` writes, decided by the caller), a path the
+ * repository's `generated:` lists, and a Markdown file. The slop scan skips exactly these (and the package-manager files slop/match.ts lists) and judges test files; the security scan adds its test clause below.
+ */
+export const copyGeneratedOrMarkdown = (path: string, generated: readonly string[], exempt: readonly string[]): boolean =>
+  exempt.includes(path) || generated.some((e) => matches(e, path)) || MARKDOWN.test(path);
+
+/**
+ * Content patterns are not run over Markdown, test files, the repository's generated paths or a path in `exempt` (exactly an unmodified copy `accord skills sync`
+ * writes, decided by the caller). No folder is skipped as a whole: a file accord does not write, or a copy changed by hand, is scanned.
+ * D-22: a test-named file under an agent-loaded folder (AGENT_FOLDERS) is not skipped as a test, because an agent session can run it; Markdown there stays skipped, and an
+ * exempt copy or a generated path is skipped first.
+ */
+const contentSkipped = (path: string, generated: readonly string[], exempt: readonly string[]): boolean =>
+  copyGeneratedOrMarkdown(path, generated, exempt) || (isTestFile(path) && !underAgentFolder(path));
 
 /**
  * The triggers of a package: path patterns over every changed path (both sides of a rename); content patterns over the added and removed lines of
- * files that are not binary, not Markdown, not test files and not generated copies; one `cannot` trigger for each changed path the diff text does not
+ * files that are not binary, not Markdown, not test files, not generated and not an exact `exempt` path (nothing is exempt when absent); one `cannot` trigger for each changed path the diff text does not
  * show. Deduplicated and sorted by path, then line, then pattern id.
  */
-export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[] }): Trigger[] {
+export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[] }): Trigger[] {
   const files = diffFiles(diffText);
   const shown = new Set<string>();
   for (const f of files) {
@@ -237,12 +273,18 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
     for (const p of pathPatterns) if (p.entries.some((e) => pathMatches(e, path))) add({ path, pattern: p.id, label: p.label });
   }
   const lineRes = compileLines(spec);
-  const skipped = (path: string): boolean => contentSkipped(path, options.generated);
+  const skipped = (path: string): boolean => contentSkipped(path, options.generated, options.exempt ?? []);
+  const unreadable = new Set(options.unreadable ?? []);
   for (const f of files) {
+    // D-20: a binary file with no text section of the same path, that is not a known image, font or archive, could hide a changed code line behind a NUL byte: it is a trigger of its own.
+    // A path the host could not read at all keeps its own, more exact label (below).
+    if (f.binary && f.path !== undefined && !skipped(f.path) && !unreadable.has(f.path) && !KNOWN_BINARY.has(extensionOf(f.path)) && !files.some((g) => !g.binary && g.path === f.path)) {
+      add({ path: f.path, pattern: '', label: BINARY_LABEL, cannot: true });
+    }
     if (f.binary || f.path === undefined || skipped(f.path)) continue;
     const scanLines = (lines: DiffFile['added'], removed: boolean) => {
       for (const l of lines) {
-        const head = tooLong(l.text) ? l.text.slice(0, MAX_LINE) : l.text;
+        const head = tooLong(l.text) ? l.text.slice(0, SCAN_LINE_LIMIT) : l.text;
         if (tooLong(l.text)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: '', label: LONG_LINE, cannot: true });
         for (const { p, re } of lineRes) if (re.test(head)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: p.id, label: p.label });
       }
@@ -273,9 +315,9 @@ export function triggerText(t: Trigger): string {
  * `(truncated: <n> more lines in <path>)`; a hunk that holds a content match is printed whole even past the cap, so a cut never hides a match. A path the diff text does not
  * show is one block, `(cannot tell: …)`. Content matches are read from the hunks themselves, with the patterns and skips securityTriggers uses, so the two agree.
  */
-export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; cap?: number }): string[] {
+export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[]; cap?: number }): string[] {
   const cap = options.cap ?? 300;
-  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated, unreadable: options.unreadable });
+  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated, unreadable: options.unreadable, exempt: options.exempt });
   const pathHit = new Set(triggers.filter((t) => t.cannot !== true && t.line === undefined).map((t) => t.path));
   const lineRes = compileLines(spec);
   const holds = (h: DiffHunk): boolean =>
@@ -290,7 +332,7 @@ export function matchedHunks(spec: SecuritySpec, diffText: string, changed: read
     if (f.binary && f.path !== undefined && files.some((g) => !g.binary && g.path === f.path)) continue;
     const name = f.path ?? f.oldPath;
     const byPath = (f.path !== undefined && pathHit.has(f.path)) || (f.oldPath !== undefined && pathHit.has(f.oldPath));
-    const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds));
+    const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated, options.exempt ?? []) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds));
     if (!byPath && content.size === 0) continue;
     const lines = [...f.header];
     let budget = cap;

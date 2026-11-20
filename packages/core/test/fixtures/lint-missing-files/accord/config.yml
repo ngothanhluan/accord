@@ -1,4 +1,4 @@
-accord: "0.8.0"
+accord: "0.10.0"
 profile: build
 tracker:
   adapter: none

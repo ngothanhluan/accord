@@ -1996,7 +1996,8 @@ export function withQueued(root: string, snapshot: RepoSnapshot): RepoSnapshot {
   const mine = new Set(ids.map((id) => 'accord/tickets/' + id + '.md'));
   return {
     ...snapshot,
-    tickets: { ...snapshot.tickets, ...Object.fromEntries(ids.filter((id) => Object.hasOwn(read.tickets, id)).map((id) => [id, read.tickets[id]])) },
+    // D-26: a copy keeps the null prototype, so a lookup of `constructor` or `__proto__` finds no ticket.
+    tickets: Object.assign(Object.create(null) as typeof snapshot.tickets, snapshot.tickets, Object.fromEntries(ids.filter((id) => Object.hasOwn(read.tickets, id)).map((id) => [id, read.tickets[id]]))),
     errors: [...snapshot.errors, ...read.errors.filter((e) => mine.has(e.file))],
     queued: Object.fromEntries(ids.map((id) => [id, { branch: found[id].branch }])),
   };
@@ -2006,10 +2007,11 @@ export function withQueued(root: string, snapshot: RepoSnapshot): RepoSnapshot {
  * ST-LN-8 D-02: the first-parent commits of HEAD that are neither on the default ref nor reachable from `since`.
  * A `since` that does not resolve is left out, so the range falls back to the default ref alone.
  */
-export function gitBranchCommits(root: string, since?: string): { sha: string; message: string }[] {
+export function gitBranchCommits(root: string, since?: string): { sha: string; message: string; merge?: boolean }[] {
   const ref = gitDefaultRef(root);
   if (ref === undefined) {
-    throw new UsageError('commits.trailers is forbid in accord/config.yml, but none of origin/HEAD, origin/main and origin/master exists here; run `git fetch origin`');
+    // Phase 8.1 D-07: commits.message reads the same range as commits.trailers, so either key can be the one that needs the default ref
+    throw new UsageError('commits.trailers is forbid or commits.message is set in accord/config.yml, but none of origin/HEAD, origin/main and origin/master exists here; run `git fetch origin`');
   }
   const stop = ['^' + ref];
   if (since !== undefined && isSha(since)) {
@@ -2023,11 +2025,11 @@ export function gitBranchCommits(root: string, since?: string): { sha: string; m
   return logCommits(root, ['--first-parent', 'HEAD', ...stop]);
 }
 
-/** The commits `git log` prints for `args`, newest first, each with its full message. */
-function logCommits(root: string, args: string[]): { sha: string; message: string }[] {
+/** The commits `git log` prints for `args`, newest first, each with its full message; `merge` is true for a commit with two or more parents (Phase 8.1 D-06: a merge commit is outside the commit rule). */
+function logCommits(root: string, args: string[]): { sha: string; message: string; merge?: boolean }[] {
   let raw: string;
   try {
-    raw = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--format=%H%x00%B%x01', ...args], {
+    raw = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--format=%H%x00%P%x00%B%x01', ...args], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -2041,8 +2043,12 @@ function logCommits(root: string, args: string[]): { sha: string; message: strin
   return raw
     .split('\x01')
     .map((r) => r.replace(/^\n+/, ''))
-    .filter((r) => r.includes('\0'))
-    .map((r) => ({ sha: r.slice(0, r.indexOf('\0')), message: r.slice(r.indexOf('\0') + 1) }));
+    .map((r) => {
+      const first = r.indexOf('\0');
+      const second = first < 0 ? -1 : r.indexOf('\0', first + 1);
+      return second < 0 ? undefined : { sha: r.slice(0, first), message: r.slice(second + 1), merge: r.slice(first + 1, second).trim().split(/\s+/).filter((p) => p !== '').length >= 2 };
+    })
+    .filter((c): c is { sha: string; message: string; merge: boolean } => c !== undefined);
 }
 
 /**

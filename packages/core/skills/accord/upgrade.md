@@ -18,3 +18,8 @@ No session check runs first: the upgrade never touches a checkout, so it is allo
 4. It prints `branch:`, `base:` and `title:`. When `gh` is available run
    `gh pr create --head <branch> --base <base> --title "<title>" --body "Moves the version pin and regenerates the skill files."`,
    otherwise ask the owner to open the pull request from `<branch>` into `<base>`. Nothing is merged here.
+5. Ask one question that stands alone, as `./ask.md` says: whether to run `accord audit` now, which reports what a
+   machine can see about the repository's conventions and its accord setup, each gap with its fix, and changes nothing.
+   On no, run nothing, and say that `/accord-audit` runs it any time. On yes, run the command of step 3 with `upgrade`
+   replaced by `audit`, so the audit runs as the new version, and show each `gap:` line with its `- fix:`; a
+   `pin-mismatch` gap is expected until the pull request of step 4 is merged.

@@ -308,7 +308,7 @@ it('ac-4 pressing a row id opens its detail view with its button and back', asyn
   expect(h.$.process.run.mock.calls.length).toBe(calls);
 });
 
-it('ac-1 the panel buttons run the new commands (ST-LN-83 7-ac-1)', async () => {
+it('risk:regression the panel buttons run the new commands (ST-LN-83 7-ac-1)', async () => {
   const { view } = await loadView();
   const state = {
     dashboard: board({
@@ -781,4 +781,48 @@ it('ac-4 the panel shows up next while the viewer holds work', async () => {
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
+});
+
+// Phase 8.2 D-07, D-08 (8.2-ac-7): the CLI prints claimedByShown / holderShown only when the person asked for initials; the panel draws them in place of the email and falls back to the email.
+it('risk:security the panel shows claimedByShown on a TEAM row and the email without it (8.2-ac-7)', async () => {
+  const { view } = await loadView();
+  const state = {
+    dashboard: board({
+      yours: { rows: [{ id: 'T-0', title: 'Mine', claimedBy: 'me@x.io', claimedByShown: 'ME' }], more: 0 },
+      team: {
+        rows: [
+          { id: 'T-1', title: 'One', claimedBy: 'a@x.io', claimedByShown: 'AX' },
+          { id: 'T-2', title: 'Two', claimedBy: 'b@x.io' },
+          { id: 'T-3', title: 'Three', claimedBy: 'c@x.io', claimedByShown: 7 },
+          { id: 'T-4', title: 'Four', claimedBy: 'd@x.io', claimedByShown: 'D\u001b[31mX' },
+        ],
+        more: 0,
+      },
+    }),
+  };
+  const v = view(state, '');
+  const who = (heading: string, id: string): string => v.sections.find((s: any) => s.heading === heading).rows.find((r: any) => r.id === id).who;
+  expect(who('TEAM', 'T-1')).toBe('AX');
+  expect(who('TEAM', 'T-2')).toBe('b@x.io');
+  expect(who('TEAM', 'T-3')).toBe('c@x.io'); // a display field that is not a string falls back to the email
+  expect(who('TEAM', 'T-4')).toBe('D [31mX'); // an escape character is cleaned
+  expect(who('YOURS', 'T-0')).toBe(''); // the viewer's own section shows no person, by design
+});
+
+it('risk:security the detail view prints holderShown as the Holder and falls back to holder (8.2-ac-7)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'accord-panel-view-'));
+  dirs.push(dir);
+  for (const f of pluginTargets({ runtimes: ['claude'] }, PKG)) {
+    const p = join(dir, ...f.path.split('/'));
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, f.text);
+  }
+  const { detailView } = (await import(/* @vite-ignore */ pathToFileURL(join(dir, '.claude/accord-panel/plugin/hooks/view.js')).href)) as { detailView: (a: unknown) => any };
+  const holder = (over: Record<string, unknown>): string =>
+    detailView({ state: { ticket: detailOf(over) } }).facts.find((f: string) => f.startsWith('Holder:'));
+  expect(holder({ holder: 'a@x.io', holderShown: 'AX' })).toBe('Holder: AX');
+  expect(holder({ holder: 'a@x.io' })).toBe('Holder: a@x.io');
+  expect(holder({ holder: 'a@x.io', holderShown: 5 })).toBe('Holder: a@x.io');
+  expect(holder({ holder: 'a@x.io', holderShown: 'A\u202eX' })).toBe('Holder: A X');
+  expect(holder({ holder: null })).toBe('Holder: none');
 });

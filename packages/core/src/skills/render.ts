@@ -59,13 +59,33 @@ export function withoutMarker(text: string): string {
   return text.replace(MARKER, '');
 }
 
+/**
+ * D-17: the parsed frontmatter of a skill or agent source, `{}` when it has no block, or a problem when the block is
+ * empty, is not a map or does not parse. It never throws: `---` then `---` parses to null, and a property read on
+ * that used to end in a TypeError that named nothing. Shared by the skill and the agent reader.
+ */
+export function readSource(text: string): { yaml: Record<string, unknown>; body: string } | { problem: string } {
+  const split = splitFrontmatter(text);
+  if (split.yaml === null) return { yaml: {}, body: split.body };
+  let parsed: unknown;
+  try {
+    parsed = parse(split.yaml, options);
+  } catch (e) {
+    const why = e instanceof Error ? (e.message.split('\n')[0] ?? e.message) : String(e);
+    return { problem: 'the frontmatter does not parse (' + why + '); fix the YAML between the --- lines' };
+  }
+  if (parsed === null || parsed === undefined) return { problem: 'the frontmatter block is empty; give it keys such as name and description, or remove the --- lines' };
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) return { problem: 'the frontmatter is not a map of keys; write one key: value per line between the --- lines' };
+  return { yaml: parsed as Record<string, unknown>, body: split.body };
+}
+
 /** The parsed source frontmatter of a definition; `{}` when it has none. */
 function source(key: SkillKey): { yaml: Record<string, unknown>; body: string } {
   const text = skills[key];
   if (text === undefined) throw new Error('unknown skill definition: ' + key);
-  const split = splitFrontmatter(text);
-  const yaml = split.yaml === null ? {} : (parse(split.yaml, options) as Record<string, unknown>);
-  return { yaml, body: split.body };
+  const read = readSource(text);
+  if ('problem' in read) throw new Error('skill definition ' + key + ': ' + read.problem);
+  return read;
 }
 
 /**

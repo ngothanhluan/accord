@@ -103,7 +103,17 @@ describe('accord argument handling', () => {
     expect(out).toContain('lint');
   });
 
-  it('worktree sync --help names merge, rebase and the git.sync team command, and no longer assumes a merge commit', async () => {
+  it('risk:regression accord help and accord help <command> exit 0 and print usage; bare accord still exits 2 (8-ac-18)', async () => {
+    const help = await run(['help'], repo);
+    expect(help.code).toBe(0);
+    expect(help.out).toContain('lint');
+    const one = await run(['help', 'lint'], repo);
+    expect(one.code).toBe(0);
+    expect(one.out).toContain('Usage: accord lint');
+    expect((await run([], repo)).code).toBe(2);
+  });
+
+  it('risk:regression worktree sync --help names merge, rebase and the git.sync team command, and no longer assumes a merge commit', async () => {
     const { code, out } = await run(['worktree', 'sync', '--help'], repo);
     expect(code).toBe(0);
     const text = out.replace(/\s+/g, ' ');

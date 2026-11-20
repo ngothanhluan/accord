@@ -1307,7 +1307,7 @@ it('risk:data-loss accord worktree clean leaves a live task worktree and its bra
   expect(out).not.toContain('accord-task/');
 });
 
-it('ac-12 the clean removes merged non-ticket branches and keeps unmerged ones (ST-LN-87 7-ac-12)', async () => {
+it('risk:data-loss the clean removes merged non-ticket branches and keeps unmerged ones (ST-LN-87 7-ac-12)', async () => {
   const c = copy();
   // seven branches, each with one commit of its own, all pushed
   const names = ['backlog/a', 'fix/b', 'release/c', 'backlog/d', 'fix/e', 'ci/x', 'pr1'];
@@ -1356,7 +1356,7 @@ it('ac-12 the clean removes merged non-ticket branches and keeps unmerged ones (
   expect(out).not.toContain('pr1');
 }, 120_000);
 
-it('ac-12 the clean keeps a fresh branch with no commit of its own, and its worktree (ST-LN-87 7-ac-12)', async () => {
+it('risk:data-loss the clean keeps a fresh branch with no commit of its own, and its worktree (ST-LN-87 7-ac-12)', async () => {
   const c = copy();
   // cut from origin's default branch, nothing edited yet: one branch at its tip, one cut before another commit landed there
   const rel = `${c.root}/.claude/worktrees/agent-rel`;
@@ -1376,7 +1376,7 @@ it('ac-12 the clean keeps a fresh branch with no commit of its own, and its work
   expect(existsSync(fix)).toBe(true);
 }, 120_000);
 
-it('ac-12 the clean keeps a fresh branch that has no worktree, and still deletes a merged one (ST-LN-87 7-ac-12)', async () => {
+it('risk:data-loss the clean keeps a fresh branch that has no worktree, and still deletes a merged one (ST-LN-87 7-ac-12)', async () => {
   const c = copy();
   c.git('branch', 'backlog/z', 'origin/main');
   // a branch with a commit of its own that a teammate merged with a merge commit is still deleted

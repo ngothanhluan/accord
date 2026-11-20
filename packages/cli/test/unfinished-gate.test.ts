@@ -58,7 +58,7 @@ async function planned(text: string, claimPin = '0.6.0'): Promise<{ repo: string
   return { repo, baseline };
 }
 
-it('ac-1 gate plan on real git refuses a plan still being written and passes it once the marker is gone (ST-LN-72 72-ac-1)', async () => {
+it('risk:regression gate plan on real git refuses a plan still being written and passes it once the marker is gone (ST-LN-72 72-ac-1)', async () => {
   const { repo, baseline } = await planned(plan(UNFINISHED_MARKER));
   try {
     const got = await gate(repo);
@@ -162,7 +162,7 @@ const doneGate = async (repo: string): Promise<{ code: number; out: string; foun
   return { code: r.code, out: r.out, found: (JSON.parse(r.out).findings as Found[]).filter((f) => f.rule === 'gate.verification-unfinished') };
 };
 
-it('ac-1 gate done on real git refuses a verification still being written and anchor prints the resume line (ST-LN-72 72-ac-1)', async () => {
+it('risk:regression gate done on real git refuses a verification still being written and anchor prints the resume line (ST-LN-72 72-ac-1)', async () => {
   const { repo, sha } = doneRepo(UNFINISHED_MARKER);
   try {
     const got = await doneGate(repo);

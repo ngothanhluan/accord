@@ -2,7 +2,8 @@
 //   LOCKED      the floor: intent and acceptance criteria before code, independent verification before done, the security and data-loss rules, and the
 //               integrity of the ruleset, the lane and the config. No key lowers or turns off a LOCKED rule, and none raises it either: each is an error already.
 //   STAGE_OWNED belongs to discuss, approach, plan or review. It takes no level; it leaves only with its stage switch (`strictness.stages`), so `status` always
-//               names what is off.
+//               names what is off. `gate.security-unreviewed` is one of them (STAGE_OF: review), not LOCKED: it reads the review record, so switching the review
+//               stage off (`strictness.stages.<lane>.review: off`) removes the security review of a lane M, L or P ticket. Decided and documented in Phase 8 (D-24).
 //   OVERRIDABLE its level may be set to error, warning or off with `strictness.levels.<rule id>`. The three Ready-promoted hygiene rules (NO_OFF) take error or
 //               warning, never off, because Ready blocks on them.
 // A rule added to a table without a class here fails packages/core/test/strictness.test.ts, and that test names the LOCKED list as a literal, so a change to the
@@ -98,6 +99,7 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.fix-not-addressed': 'review',
   'gate.fix-outside-open': 'review',
   'gate.security-unreviewed': 'review',
+  'gate.slop-unresolved': 'review',
   'gate.review-trailing': 'review',
   'gate.review-uncommitted': 'review',
   'gate.review-commit-code': 'review',
@@ -109,6 +111,8 @@ export const OVERRIDABLE: readonly string[] = [
   'gate.design-missing',
   'gate.depends-unmerged',
   'gate.commit-trailer',
+  'gate.commit-message',
+  'lint.commit-rule',
   'gate.reference-unknown',
   'gate.author-match',
   'gate.author-skipped',
@@ -143,6 +147,7 @@ export const OVERRIDABLE: readonly string[] = [
   'lint.tokens-missing',
   'lint.prototype-derivation',
   'lint.model-retired',
+  'lint.slop-file',
 ];
 
 const OVERRIDABLE_SET: ReadonlySet<string> = new Set(OVERRIDABLE);

@@ -172,7 +172,19 @@ describe('config.schema.json', () => {
     expect(has(review({ mode: 'human', max_pr_lines: 400 }), '/review', 'schema.additionalProperties')).toBe(true);
   });
 
-  it('queue.merge is owner or at-once and the only key (ST-LN-83 D-03)', () => {
+  it('risk:security pr.template is a repository-relative path and pr.command a one-line script and no other key is allowed (D-01)', () => {
+    const pr = (p: unknown) => validate('config', { ...minimal.config, pr: p });
+    expect(pr({})).toEqual([]);
+    expect(pr({ template: '.github/PULL_REQUEST_TEMPLATE/team.md', command: 'node scripts/pr.mjs' })).toEqual([]);
+    for (const bad of ['/etc/x.md', '../x.md', 'a/../x.md', 'a\\b.md', 'C:/x.md', 'c:x.md', '', 'a\nb.md', 'a\u202Eb.md']) {
+      expect(has(pr({ template: bad }), '/pr/template', 'schema.pattern') || has(pr({ template: bad }), '/pr/template', 'schema.minLength'), JSON.stringify(bad)).toBe(true);
+    }
+    expect(has(pr({ command: '' }), '/pr/command', 'schema.minLength')).toBe(true);
+    expect(has(pr({ command: 'a\nb' }), '/pr/command', 'schema.pattern')).toBe(true);
+    expect(has(pr({ title: 'x' }), '/pr', 'schema.additionalProperties')).toBe(true);
+  });
+
+  it('risk:parsing queue.merge is owner or at-once and the only key (ST-LN-83 D-03)', () => {
     const queue = (q: unknown) => validate('config', { ...minimal.config, queue: q });
     expect(queue({})).toEqual([]);
     expect(queue({ merge: 'owner' })).toEqual([]);
@@ -181,9 +193,29 @@ describe('config.schema.json', () => {
     expect(has(queue({ merge: 'owner', extra: 1 }), '/queue', 'schema.additionalProperties')).toBe(true);
   });
 
+  it('risk:parsing commits.subjects and commits.legacy_subjects accept conventions with one {id} (D-06)', () => {
+    const commits = (c: unknown) => validate('config', { ...minimal.config, commits: c });
+    expect(commits({ subjects: { conventions: 'docs(accord): conventions {id}' }, legacy_subjects: { conventions: ['conventions: {id}'] } })).toEqual([]);
+    expect(has(commits({ subjects: { conventions: 'conventions' } }), '/commits/subjects/conventions', 'schema.pattern')).toBe(true);
+  });
+
+  it('risk:security audit.command is one non-empty line with no control or format character (D-19)', () => {
+    const audit = (command: unknown) => validate('config', { ...minimal.config, audit: { command } });
+    for (const ok of ['npm audit --audit-level=high', 'node scripts/audit.mjs']) expect(audit(ok), ok).toEqual([]);
+    for (const bad of ['', 'a\nb', 'a\tb', 'a\u200bb']) expect(audit(bad).length, JSON.stringify(bad)).toBeGreaterThan(0);
+    expect(validate('config', { ...minimal.config, audit: { command: 'x', other: 'y' } }).length).toBeGreaterThan(0);
+  });
+
+  it('risk:parsing slop.max_file_lines is a digit string of one to six digits that does not start with zero (D-14)', () => {
+    const slop = (v: unknown) => validate('config', { ...minimal.config, slop: { max_file_lines: v } });
+    for (const ok of ['500', '1', '200', '999999']) expect(slop(ok), ok).toEqual([]);
+    for (const bad of ['0', '05', 'many', '', '1000000', 500]) expect(slop(bad).length, JSON.stringify(bad)).toBeGreaterThan(0);
+    expect(validate('config', { ...minimal.config, slop: { other: '1' } }).length).toBeGreaterThan(0);
+  });
+
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'stale_draft_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr', 'audit', 'slop']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -365,6 +397,10 @@ describe('phase 2 config keys', () => {
   it('refuses a non-numeric stale_days and a tier-up outside 1..5', () => {
     expect(validate('config', { ...base, stale_days: 'soon' }).length).toBeGreaterThan(0);
     expect(validate('config', { ...base, escalation: { fix_round_tier_up: '9' } }).length).toBeGreaterThan(0);
+  });
+  it('risk:parsing stale_draft_days is a digit string like stale_days (D-02)', () => {
+    for (const ok of ['120', '1', '90', '9999']) expect(validate('config', { ...base, stale_draft_days: ok }), ok).toEqual([]);
+    for (const bad of ['soon', '0', '05', '', '10000', 120]) expect(validate('config', { ...base, stale_draft_days: bad }).length, JSON.stringify(bad)).toBeGreaterThan(0);
   });
   it('risk:parsing build.parallel is a string 1 to 99 and build.regenerate a non-empty string (ST-LN-92 92-ac-2)', () => {
     expect(validate('config', { ...base, build: { parallel: '3', regenerate: 'npm run gen' } })).toEqual([]);

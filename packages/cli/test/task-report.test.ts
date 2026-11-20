@@ -46,7 +46,7 @@ function claimed(claimPin: string, files: Record<string, string> = {}): string {
   return repo;
 }
 
-it('ac-1 brief names the report file and task-done refuses a task whose report is missing or lacks its lines (ST-LN-59 59-ac-1)', async () => {
+it('risk:regression brief names the report file and task-done refuses a task whose report is missing or lacks its lines (ST-LN-59 59-ac-1)', async () => {
   const repo = makeLaneRepo();
   try {
     commitMsg(repo, 'claim: T-1');
@@ -296,6 +296,66 @@ it('risk:regression task-done reads HEAD\'s commit and author times with one git
     // the test report's freshness (committer time) and the executor report's (author time) both ran, from one `git show -s`
     expect(spawnLog.calls.filter((a) => a.includes('show') && a.includes('-s'))).toHaveLength(1);
   } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+const REL2 = '.accord-reports/T-1/task-2.md';
+const writeReport2 = (task: string, text: string): void => {
+  mkdirSync(dirname(join(task, REL2)), { recursive: true });
+  writeFileSync(join(task, REL2), text);
+};
+
+/**
+ * A ticket checkout holding task 1's ledger commit (author time `at` + 15 s) and the worktree of task 2, cut before it, with its own HEAD at `at` and no commit of its own:
+ * the state of a wave build after another task's ledger line moved the ticket's HEAD.
+ */
+function waveRepo(): { repo: string; task: string; at: number; taskHead: string } {
+  const repo = makeLaneRepo();
+  commitMsg(repo, 'claim: T-1');
+  const at = Number(gitRun(repo, 'show', '-s', '--format=%at', 'HEAD').trim());
+  const task = repo + '-t-1+t2';
+  gitRun(repo, 'worktree', 'add', '-q', '-b', 'accord-task/T-1/2', task);
+  const taskHead = gitHead(task);
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': `## Tasks\n- task 1 done ${taskHead.slice(0, 12)}\n` });
+  commitMsg(repo, 'T-1 task 1', new Date((at + 15) * 1000));
+  // the tests ran in the ticket checkout after that commit
+  const tests = new Date((at + 60) * 1000);
+  utimesSync(join(repo, REPORT), tests, tests);
+  return { repo, task, at, taskHead };
+}
+
+it('risk:complex-branching task-done accepts a fresh report of a task that made no commit after another task\'s ledger commit (8-ac-12)', async () => {
+  const { repo, task, at } = waveRepo();
+  try {
+    writeReport2(task, FULL);
+    // written after the task worktree's HEAD, before the ticket checkout's: the ledger commit of task 1 is later than the report
+    const written = new Date((at + 10) * 1000);
+    utimesSync(join(task, REL2), written, written);
+    expect(Number(gitRun(repo, 'show', '-s', '--format=%at', 'HEAD').trim())).toBeGreaterThan(at + 10);
+    const done = await run(['task-done', 'T-1', '2'], repo);
+    expect(done.out).toMatch(/^recorded task 2 done at /);
+    expect(done.code).toBe(0);
+    expect(readFileSync(LEDGER(repo), 'utf8')).toContain('- task 2 done ');
+  } finally {
+    cleanup(task);
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching task-done still refuses a report older than the task worktree HEAD and names that HEAD (8-ac-12)', async () => {
+  const { repo, task, taskHead } = waveRepo();
+  try {
+    writeReport2(task, FULL);
+    utimesSync(join(task, REL2), OLD, OLD);
+    const stale = await run(['task-done', 'T-1', '2'], repo);
+    expect(stale.code).toBe(1);
+    expect(stale.out).toContain('was written before HEAD');
+    expect(stale.out).toContain(taskHead.slice(0, 12));
+    expect(stale.out).not.toContain(gitHead(repo).slice(0, 12));
+    expect(readFileSync(LEDGER(repo), 'utf8')).not.toContain('- task 2 done ');
+  } finally {
+    cleanup(task);
     cleanup(repo);
   }
 }, 120_000);

@@ -6,7 +6,7 @@ import type { RepoSnapshot } from '../src/index.js';
 import { CONFIG, laneTicket, pinned } from '../../../test/helpers/lane.js';
 
 describe('the title rule', () => {
-  it('D-08b the title rule refuses a placeholder a long title and a letter outside English (ST-LN-22 D-08b)', () => {
+  it('risk:parsing the title rule refuses a placeholder a long title and a letter outside English (ST-LN-22 D-08b 7-ac-5)', () => {
     expect(titleProblem('Short title in business language', undefined)).toContain('placeholder');
     expect(titleProblem('x'.repeat(81), undefined)).toContain('81 characters, more than 80');
     expect(titleProblem('Exportation des données', undefined)).toContain('a letter outside English');
@@ -21,7 +21,7 @@ describe('the title rule', () => {
 });
 
 describe('the title rule from config.yml', () => {
-  it('D-08b the title rule comes from config.yml and is printed at creation (ST-LN-22 D-08b)', () => {
+  it('risk:parsing the title rule comes from config.yml and its line is built from it (ST-LN-22 D-08b 7-ac-5)', () => {
     const config = { titles: { max_length: '100', language: 'any' as const } };
     // the 81-character title and a letter outside English are fine under this team's rule
     expect(titleProblem('x'.repeat(81), config)).toBeUndefined();
@@ -48,7 +48,7 @@ function ticketWith(title: string, claim?: { pin: string } | { error: string }, 
 const titleFindings = (snapshot: RepoSnapshot) => gateReady(snapshot, 'T-1').findings.filter((f) => f.rule === 'gate.ticket-title');
 
 describe('gate ready and the title rule', () => {
-  it('D-08b gate ready judges only titles of tickets claimed at or after the cut-off (ST-LN-22 D-08b)', () => {
+  it('risk:complex-branching gate ready judges only titles of tickets claimed at or after the cut-off (ST-LN-22 D-08b 7-ac-5)', () => {
     const LONG = 'x'.repeat(120);
     // claimed at the cut-off: a 120-character title and the placeholder are refused, with the reason and the rule line
     const found = titleFindings(ticketWith(LONG, { pin: TITLE_RULE_FROM }));
@@ -82,7 +82,7 @@ function lintTitle(title: string, ruleset?: string) {
 }
 
 describe('lint and the title rule', () => {
-  it('D-08b lint judges only titles of tickets at or after the cut-off (ST-LN-22 D-08b)', () => {
+  it('risk:complex-branching lint judges only titles of tickets at or after the cut-off (ST-LN-22 D-08b 7-ac-5)', () => {
     // a ticket whose ruleset is the cut-off: the placeholder is an error on /title, with the reason and the rule line
     const found = lintTitle('Short title in business language', TITLE_RULE_FROM);
     expect(found).toHaveLength(1);

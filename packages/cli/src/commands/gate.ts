@@ -9,8 +9,9 @@ import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitR
 import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
+import { withSlopFacts } from '../load/slop-facts.js';
 import { colourFindings } from '../render/color.js';
-import { branchFactFor } from './branch-fact.js';
+import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
 
@@ -21,8 +22,9 @@ export function gate(
   options: { json?: boolean },
 ): number {
   // ST-LN-8 D-02: under commits.trailers forbid the host loads the whole branch's commits; an unborn HEAD spawns no git log.
+  // Phase 8.1 D-07: so it does when commits.message is set, whose gate.commit-message reads the same commits.
   const withCommits =
-    which === 'done' && ctx.snapshot.config?.commits?.trailers === 'forbid' && ctx.snapshot.git !== undefined
+    which === 'done' && (ctx.snapshot.config?.commits?.trailers === 'forbid' || ctx.snapshot.config?.commits?.message !== undefined) && ctx.snapshot.git !== undefined
       ? { ...ctx.snapshot, commits: gitBranchCommits(ctx.root) }
       : ctx.snapshot;
   // ST-LN-31: a lane S ticket's Done reads review.md's commit and the commits after it, loaded here from HEAD.
@@ -64,7 +66,13 @@ export function gate(
   const hasRounds = roundRecord !== undefined && roundRecord.cycles.some((c) => c.rounds.length > 0);
   const withRefs = hasRounds && (which === 'done' || !roundRecord.versioned) ? withDefaultRef(ctx.root, forRounds) : forRounds;
   // ST-LN-36 D-05 (5): Done holds each recorded review round against the security triggers of its own package; read after the default ref, whose snapshot says a ticket done there is skipped.
-  const forGate = which === 'done' ? withSecurityFacts(ctx.root, withRefs, id) : withRefs;
+  // BUG-LN-25 D-16: the copies `accord skills sync` writes come from renderedFilesOf, so a changed copy equal to its render is the one thing the scan leaves out.
+  const config = ctx.snapshot.config;
+  // Phase 8.1 D-17: Done also holds the slop hits of the ticket's cumulative diff against the last review round's justification lines; the same rendered copies are left out.
+  const render = renderedFilesOf(config);
+  let list: ReturnType<typeof render> | undefined;
+  const rendered = (): ReturnType<typeof render> => (list ??= render()); // at most one render per command, for the two readers
+  const forGate = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
   const result =
     which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id)), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
   ctx.stdout.write(

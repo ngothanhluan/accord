@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { insertTeamSections, nextTicketId, setFrontmatterKey, templates, titleProblem, titleRuleLine, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
 import type { Lane } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
+import { conventionsNotice } from './audit.js';
 import { queueTicket, utcDate } from './queue.js';
 import { newSplit } from './split.js';
 import { checkSimilar, creatorEntry, ID, parseRelated, PLACEHOLDER, refuseBadConfig, refuseUnknown, usedIds, withDefaultBranch } from './ticket-shared.js';
@@ -167,6 +168,9 @@ export function newTicket(
   if (existsSync(file)) throw new UsageError(rel + ' already exists - nothing was written');
   // ST-LN-22 D-08b: a run given --title prints the rule its title was checked against, once, before the path or the queue lines; a run without one prints none
   if (title !== undefined) ctx.stdout.write(titleRuleLine(ctx.snapshot.config) + '\n');
+  // Phase 8.1 D-11: one line on stderr (skills read stdout) while the conventions file exists and holds no convention line; the ticket is still created and nothing is refused
+  const conventionsLine = conventionsNotice(ctx.root);
+  if (conventionsLine !== undefined) ctx.stderr.write(conventionsLine + '\n');
   if (options.queue === true) {
     // ST-LN-83 D-06: the draft goes to a backlog branch off origin's default branch, not to this checkout
     const date = utcDate();

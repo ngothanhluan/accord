@@ -12,6 +12,7 @@ import {
   authorMatch,
   authorSkipped,
   commitMissing,
+  commitMessage,
   commitTrailer,
   noScenarios,
   reportMissing,
@@ -101,6 +102,7 @@ import { fixNotAddressed, fixOutsideOpen, fixPlacesMissing } from '../round/fix.
 import { findingGrounds, fixFileUnexplained } from '../round/grounds.js';
 import { reviewScope, reviewScopeSkipped } from '../round/scope.js';
 import { securityUnreviewed } from '../round/security.js';
+import { slopUnresolved } from '../slop/gate.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
   evidenceUnresolved,
@@ -250,8 +252,12 @@ const FIX_NOT_ADDRESSED: GateRule = { id: 'gate.fix-not-addressed', level: 'erro
 const FIX_OUTSIDE_OPEN: GateRule = { id: 'gate.fix-outside-open', level: 'error', profiles: ['build', 'maintain'], check: fixOutsideOpen };
 /** ST-LN-36 36-ac-2 (D-05 (3), D-10): from SECURITY_TRIGGER_FROM a review round whose package had security triggers needs `Security: lens security ran`, and every round but a final review a `Security:` line; one row for both Done tables. */
 const SECURITY_UNREVIEWED: GateRule = { id: 'gate.security-unreviewed', level: 'error', profiles: ['build', 'maintain'], check: securityUnreviewed };
+/** Phase 8.1 D-17 (8.1-ac-13): from SLOP_FROM a slop hit of the ticket's cumulative diff is fixed or named by a `slop:<kind> <path>:<line> — <reason>` line in the last review round; one row for both Done tables, none for lane R (no review). */
+const SLOP_UNRESOLVED: GateRule = { id: 'gate.slop-unresolved', level: 'error', profiles: ['build', 'maintain'], check: slopUnresolved };
 const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
 const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer };
+/** Phase 8.1 D-06, D-07: under commits.message every ticket-branch commit passes the rule (merge commits, default-branch commits and Revert subjects excepted); a ticket claimed before COMMIT_MESSAGE_FROM is not judged; one row for all three Done tables. */
+const COMMIT_MESSAGE: GateRule = { id: 'gate.commit-message', level: 'error', profiles: ['build', 'maintain'], check: commitMessage };
 /** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, an empty diff, or in lane S a diff without the ticket file, fails closed. */
 const BRANCH_UNKNOWN: GateRule = { id: 'gate.branch-unknown', level: 'error', profiles: ['build', 'maintain'], check: branchUnknown };
 
@@ -278,6 +284,7 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.tick-stale-commit', level: 'error', profiles: ['build', 'maintain'], check: tickStaleCommit },
   { id: 'gate.stale-review', level: 'error', profiles: ['build', 'maintain'], check: staleReview },
   COMMIT_TRAILER,
+  COMMIT_MESSAGE,
   BRANCH_UNKNOWN,
   INTERFACE_SIGN,
   { id: 'gate.evidence-unresolved', level: 'error', profiles: ['build', 'maintain'], check: evidenceUnresolved },
@@ -305,6 +312,7 @@ export const DONE_RULES: readonly GateRule[] = [
   FIX_NOT_ADDRESSED,
   FIX_OUTSIDE_OPEN,
   SECURITY_UNREVIEWED,
+  SLOP_UNRESOLVED,
   SUITE_NOT_PASSED,
   { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the
@@ -361,12 +369,14 @@ export const DONE_S_RULES: readonly GateRule[] = [
   FIX_NOT_ADDRESSED,
   FIX_OUTSIDE_OPEN,
   SECURITY_UNREVIEWED,
+  SLOP_UNRESOLVED,
   { id: 'gate.review-trailing', level: 'error', profiles: ['build', 'maintain'], check: reviewTrailing },
   { id: 'gate.review-uncommitted', level: 'error', profiles: ['build', 'maintain'], check: reviewUncommitted },
   { id: 'gate.review-commit-code', level: 'error', profiles: ['build', 'maintain'], check: reviewCommitCode },
   { id: 'gate.commit-after-review', level: 'error', profiles: ['build', 'maintain'], check: commitAfterReview },
   SUITE_NOT_PASSED,
   COMMIT_TRAILER,
+  COMMIT_MESSAGE,
   BRANCH_UNKNOWN,
   { id: 'gate.out-of-scope', level: 'error', profiles: ['build', 'maintain'], check: outOfScope },
   { id: 'gate.sensitive-touched', level: 'error', profiles: ['build', 'maintain'], check: sensitiveTouched },
@@ -393,6 +403,7 @@ export const DONE_R_RULES: readonly GateRule[] = [
   { id: 'gate.research-shipped', level: 'error', profiles: ['build', 'maintain'], check: researchShipped },
   BRANCH_UNKNOWN,
   COMMIT_TRAILER,
+  COMMIT_MESSAGE,
 ];
 
 /** D-89: the three LINT-06 hygiene rules Ready promotes from warning to blocking. */

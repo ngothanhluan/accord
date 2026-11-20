@@ -164,8 +164,10 @@ export function sweepRemoved(dir: string, names: readonly string[], fenced: read
  * nothing unless the whole tree is links and folders; a disposable name never makes a file deletable here, because
  * nothing says the folder was ever a clean worktree. Returns undefined when `dir` is gone, else the first relative
  * path that keeps it (`.` when `dir` is not a folder, a link included).
+ * Phase 8.2 D-03, T-08.2-06: with `dry` it scans exactly as above and returns the path that keeps the folder, if any, but unlinks and removes nothing,
+ * whichever way the scan ends; it returns undefined when a real run would empty the folder (nothing there to keep), and the folder is left as it is.
  */
-export function sweepForgotten(dir: string, fenced: readonly string[]): string | undefined {
+export function sweepForgotten(dir: string, fenced: readonly string[], dry = false): string | undefined {
   const top = lstatSync(dir, { throwIfNoEntry: false });
   if (top === undefined) return undefined;
   if (!top.isDirectory()) return '.';
@@ -198,6 +200,8 @@ export function sweepForgotten(dir: string, fenced: readonly string[]): string |
     real ??= '.';
   }
   if (real !== undefined) return real;
+  // D-03: past the scan nothing would be kept; a dry run stops here, before the first unlink or rmdir
+  if (dry) return undefined;
   for (const r of links) {
     try {
       unlinkSync(`${dir}/${r}`);

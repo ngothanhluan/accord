@@ -25,12 +25,32 @@ const AGENT_REQUIRED: Record<string, readonly string[]> = {
 
 describe('agents name what the spec requires', () => {
   for (const [role, phrases] of Object.entries(AGENT_REQUIRED)) {
-    it(`${role} names every required phrase`, () => {
+    it(`risk:regression ${role} names every required phrase`, () => {
       const text = agentTargets(config()).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
       expect(text.length, `accord-${role}.md is missing from the render output`).toBeGreaterThan(0);
       expect(phrases.filter((p) => !text.includes(p))).toEqual([]);
     });
   }
+});
+
+// D-15: an unquoted `description:` holding ` #` or `: ` is cut there by YAML, and the host's agent list shows the stub.
+it("risk:parsing every rendered accord agent's description parses to its whole source text (8-ac-9)", () => {
+  const bad: string[] = [];
+  for (const key of Object.keys(agents) as AgentKey[]) {
+    const authored = agents[key];
+    const line = /^description: (.*)$/m.exec(authored)?.[1];
+    const route = /^route: (.*)$/m.exec(authored)?.[1] as keyof typeof AGENT_DEFAULTS | undefined;
+    if (line === undefined || route === undefined) {
+      bad.push(key + ': no description or route line in the source');
+      continue;
+    }
+    const whole = line.trim().replace(/^(["'])(.*)\1$/, '$2');
+    const rendered = frontmatter(renderAgent(key, AGENT_DEFAULTS[route])).description;
+    if (rendered !== whole) bad.push(key + ': renders ' + JSON.stringify(rendered) + ' for the source text ' + JSON.stringify(whole));
+  }
+  expect(bad).toEqual([]);
+  const planner = frontmatter(renderAgent('planner.md', AGENT_DEFAULTS.planner)).description;
+  expect(planner).toContain('## Approach');
 });
 
 const RUNTIME_LIST: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
@@ -54,7 +74,7 @@ it("risk:regression every agent file any runtime installs carries its role's req
   expect(Object.keys(AGENT_REQUIRED).filter((r) => !claude.includes(r))).toEqual([]);
 });
 
-it('ac-2 the re-reviewer answers each finding ADDRESSED or NOT ADDRESSED with path:line and defers what lies outside the fix diff, in every tool that installs accord agents (ST-LN-56 56-ac-2)', () => {
+it('risk:regression the re-reviewer answers each finding ADDRESSED or NOT ADDRESSED with path:line and defers what lies outside the fix diff, in every tool that installs accord agents (ST-LN-56 56-ac-2)', () => {
   const bad: string[] = [];
   let seen = 0;
   for (const runtime of RUNTIME_LIST) {
@@ -79,7 +99,7 @@ it('ac-2 the re-reviewer answers each finding ADDRESSED or NOT ADDRESSED with pa
   expect(seen).toBeGreaterThanOrEqual(2);
 });
 
-it('ac-2 the planner asks for a model file per new path, the parsing spellings and the untested failure modes in every tool that installs accord agents (ST-LN-10 10-ac-2)', () => {
+it('risk:regression the planner asks for a model file per new path, the parsing spellings and the untested failure modes in every tool that installs accord agents (ST-LN-10 10-ac-2)', () => {
   const flat = (s: string): string => s.replace(/\s+/g, ' ');
   const bad: string[] = [];
   for (const runtime of RUNTIME_LIST) {
@@ -106,7 +126,7 @@ it('ac-2 the planner asks for a model file per new path, the parsing spellings a
   expect(bad).toEqual([]);
 });
 
-it('ac-2 the planner, verifier and debugger write behind the unfinished marker, section by section, and remove it last, in every tool that installs accord agents (ST-LN-72 72-ac-2)', () => {
+it('risk:regression the planner, verifier and debugger write behind the unfinished marker, section by section, and remove it last, in every tool that installs accord agents (ST-LN-72 72-ac-2)', () => {
   const flat = (s: string): string => s.replace(/\s+/g, ' ');
   const bad: string[] = [];
   for (const runtime of RUNTIME_LIST) {
@@ -143,7 +163,7 @@ const reportBlock = (text: string): string[] => {
   return lines.slice(fences[fences.length - 2] + 1, fences[fences.length - 1]);
 };
 
-it('ac-2 the executor names its red reason, reads its diff against the brief and lists each warning as a concern, in every tool that installs accord agents (ST-LN-59 59-ac-2)', () => {
+it('risk:regression the executor names its red reason, reads its diff against the brief and lists each warning as a concern, in every tool that installs accord agents (ST-LN-59 59-ac-2)', () => {
   const flat = (s: string): string => s.replace(/\s+/g, ' ');
   const bad: string[] = [];
   const need = ['red reason:', 'not an error in the test', 'self-review: missing:', 'extra:', 'misread:', 'concerns:', 'Report file:', 'no `Report file:` line'];
@@ -173,7 +193,7 @@ it('ac-2 the executor names its red reason, reads its diff against the brief and
   expect(reportReasons(REPORT_CONTRACT.split('\n').map(filled).join('\n'))).toEqual([]);
 });
 
-it('ac-3 the executor fixes only what its change caused, reverts a red fix and returns a conflict, in every tool that installs accord agents (ST-LN-56 56-ac-3)', () => {
+it('risk:regression the executor fixes only what its change caused, reverts a red fix and returns a conflict, in every tool that installs accord agents (ST-LN-56 56-ac-3)', () => {
   const flat = (s: string): string => s.replace(/\s+/g, ' ');
   const bad: string[] = [];
   const need = ['only what your own change caused', 'deferred:', 'git revert', 'own fix commits', 'never a reset', 'BLOCKED: conflict', 'places checked:'];
@@ -308,7 +328,7 @@ describe('rendered agents', () => {
 // Phase 6 (cost): the shipped defaults of the executor and the auditor are high, and the executor declares its tools.
 const rendered = (c: AccordConfig, role: string): string => agentTargets(c).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
 
-it('ac-1 with no models entry the executor renders on sonnet at high and the planner stays on opus at high (ST-LN-85 6-ac-1)', () => {
+it('risk:regression with no models entry the executor renders on sonnet at high and the planner stays on opus at high (ST-LN-85 6-ac-1)', () => {
   expect(AGENT_DEFAULTS.executor).toEqual({ model: 'sonnet', effort: 'high' });
   expect(AGENT_DEFAULTS.planner).toEqual({ model: 'opus', effort: 'high' });
   expect(frontmatter(rendered(config(), 'executor'))).toMatchObject({ name: 'accord-executor', model: 'sonnet', effort: 'high' });
@@ -318,13 +338,13 @@ it('ac-1 with no models entry the executor renders on sonnet at high and the pla
   expect(frontmatter(rendered(config({ models: { executor: { model: 'sonnet', effort: 'medium' } } }), 'executor'))).toMatchObject({ model: 'sonnet', effort: 'medium' });
 });
 
-it('ac-1b with no models entry the auditor renders on opus at high (ST-LN-85 6-ac-1b)', () => {
+it('risk:regression with no models entry the auditor renders on opus at high (ST-LN-85 6-ac-1b)', () => {
   expect(AGENT_DEFAULTS.auditor).toEqual({ model: 'opus', effort: 'high' });
   expect(frontmatter(rendered(config(), 'auditor'))).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'high' });
   expect(AGENT_DEFAULTS.critic).toEqual({ model: 'opus', effort: 'high' });
 });
 
-it('ac-3 the executor declares its six tools and stops on a need outside the repository and every rendered accord agent declares a tools line (ST-LN-85 6-ac-3)', () => {
+it('risk:security the executor declares its six tools and stops on a need outside the repository and every rendered accord agent declares a tools line (ST-LN-85 6-ac-3)', () => {
   const tools = 'Read, Write, Edit, Bash, Grep, Glob';
   const toolsLine = /^tools: "Read, Write, Edit, Bash, Grep, Glob"$/m;
   const trigger =
@@ -364,7 +384,7 @@ it('ac-3 the executor declares its six tools and stops on a need outside the rep
   expect(skills['build/SKILL.md'], 'accord-build step 4 lost its NEEDS_CONTEXT route').toContain('`NEEDS_CONTEXT`: answer, and dispatch again.');
 });
 
-it('ac-2 docs/design.md gives every default model choice with one reason line and the models override (ST-LN-85 6-ac-2)', () => {
+it('risk:regression docs/design.md gives every default model choice with one reason line and the models override (ST-LN-85 6-ac-2)', () => {
   const design = readFileSync(new URL('../../../docs/design.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n').split('\n');
   const start = design.findIndex((l) => l.startsWith('**Routing.**'));
   expect(start, 'docs/design.md has no Routing paragraph').toBeGreaterThanOrEqual(0);
@@ -558,7 +578,7 @@ it('ac-3 the scout architect critic and planner read the research records and no
 const WITHHELD =
   'Edit, Write, NotebookEdit, Bash, PowerShell, Monitor, EnterWorktree, ExitWorktree, Artifact, ShareOnboardingGuide, RemoteTrigger, CronCreate, SendMessage, TaskStop, Agent, Task';
 
-it('ac-11 the researcher renders on sonnet with web tools and no write-capable tool (ST-LN-86 7-ac-11)', () => {
+it('risk:security the researcher renders on sonnet with web tools and no write-capable tool (ST-LN-86 7-ac-11)', () => {
   const text = rendered(config(), 'researcher');
   expect(text, 'accord-researcher.md is missing from the render output').not.toBe('');
   const fm = frontmatter(text);
@@ -588,7 +608,7 @@ it('ac-11 the researcher renders on sonnet with web tools and no write-capable t
   expect(agentTargets(config({ runtimes: ['claude'] })).map((f) => f.path)).toContain('.claude/agents/accord-researcher.md');
 });
 
-it('ac-11 no other agent gains web tools (ST-LN-86 7-ac-11)', () => {
+it('risk:security no other agent gains web tools (ST-LN-86 7-ac-11)', () => {
   const offenders: string[] = [];
   let seen = 0;
   for (const f of agentTargets(config({ runtimes: ['claude'] }))) {

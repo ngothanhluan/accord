@@ -868,3 +868,60 @@ it('risk:security a test-named file in an agent-loaded folder is content-scanned
   expect(run('.claude/accord-panel/x.test.js', { generated: [], exempt: ['.claude/accord-panel/x.test.js'] })).toEqual([]);
   expect(run('.claude/skills/accord/tests/a.js', { generated: ['.claude/skills/'] })).toEqual([]);
 });
+
+// D-21 (8-ac-15), lint-only (owner, 2026-11-19): a path entry that can never match and a heading accord never reads are lint.security-file problems that name the fix. None is marked
+// `pattern`, so the gate does not refuse for them, and a line with a bad path entry still reaches spec.patterns as 0.8.0 read it.
+it('risk:security a path entry that can never match is a lint problem naming the fix (8-ac-15)', () => {
+  const head = ['## Patterns', ''];
+  const tail = ['', '## Checklist', '', '## Removed', ''];
+  const make = (entry: string): string => [...head, `- x: path ${entry} — y`, ...tail].join('\n');
+  const cases: [string, string][] = [
+    ['.github\\workflows\\', 'write it with /'],
+    ['./x', 'starts with / or ./; write it from the repository root without them'],
+    ['/x', 'starts with / or ./; write it from the repository root without them'],
+    ['a/../b', 'holds ..; write the path from the repository root without ..'],
+  ];
+  for (const [entry, fix] of cases) {
+    const spec = parseSecurityFile(make(entry));
+    expect(spec.problems.map((p) => p.line), entry).toEqual([3]);
+    expect(spec.problems[0].reason, entry).toContain(`the path entry "${entry}"`);
+    expect(spec.problems[0].reason, entry).toContain(fix);
+    // lint-only: the problem is not a pattern problem, and the line is still a pattern as 0.8.0 read it
+    expect(spec.problems[0], entry).not.toHaveProperty('pattern');
+    expect(spec.patterns.map((p) => p.id), entry).toEqual(['x']);
+    expect(spec.patterns[0].entries, entry).toEqual([entry]);
+    const found = lintSnapshot(withFile(make(entry))).findings.filter((f) => f.rule === 'lint.security-file');
+    expect(found.map((f) => [f.level, f.line]), entry).toEqual([['error', 3]]);
+  }
+  // one problem per bad entry, the first check that applies; the good entry beside them reads clean
+  const two = parseSecurityFile([...head, '- x: path ok/, /abs, ../up, a\\b — y', ...tail].join('\n'));
+  expect(two.problems.map((p) => p.reason.match(/"([^"]*)" (?:holds|starts)/)?.[1])).toEqual(['/abs', '../up', 'a\\b']);
+  expect(two.patterns[0].entries).toEqual(['ok/', '/abs', '../up', 'a\\b']);
+  // a good entry, a name with two dots inside it, and a dot folder give none
+  expect(parseSecurityFile(make('.github/workflows/')).problems).toEqual([]);
+  expect(parseSecurityFile(make('a..b/c.d, .hidden/')).problems).toEqual([]);
+});
+
+it('risk:security a repeated or unknown section heading of the security file is a lint problem (8-ac-15)', () => {
+  const base = ['## Patterns', '', '- x: path x/ — y', '', '## Checklist', '', '## Removed', ''];
+  const lines = (extra: string[]): string => [...base, ...extra].join('\n');
+  // a second `## Patterns` is ignored by the reader; it is a problem at its heading line
+  const twice = parseSecurityFile(lines(['## Patterns', '', '- z: path z/ — y']));
+  expect(twice.problems.map((p) => p.line)).toEqual([9]);
+  expect(twice.problems[0].reason).toContain('the section "## Patterns" appears twice; only the first is read, so move its lines into the first one');
+  expect(twice.patterns.map((p) => p.id)).toEqual(['x']);
+  // a misspelt or unknown heading
+  for (const heading of ['Pattern', 'Notes']) {
+    const spec = parseSecurityFile(lines([`## ${heading}`, '', '- z: path z/ — y']));
+    expect(spec.problems.map((p) => p.line), heading).toEqual([9]);
+    expect(spec.problems[0].reason, heading).toContain(`"## ${heading}" is not a section accord reads; use ## Patterns, ## Checklist or ## Removed`);
+    expect(spec.problems[0], heading).not.toHaveProperty('pattern');
+    const found = lintSnapshot(withFile(lines([`## ${heading}`]))).findings.filter((f) => f.rule === 'lint.security-file');
+    expect(found.map((f) => [f.level, f.line]), heading).toEqual([['error', 9]]);
+  }
+  // letter case and spacing of a known heading do not matter, and a heading inside a fence is no heading
+  expect(parseSecurityFile(['## PATTERNS', '', '## checklist', '', '##  Removed', '', '```', '## Notes', '```', ''].join('\n')).problems).toEqual([]);
+  // the shipped template and the defaults read clean
+  expect(parseSecurityFile(templates['security.md']).problems).toEqual([]);
+  expect(DEFAULT_SECURITY.problems).toEqual([]);
+});

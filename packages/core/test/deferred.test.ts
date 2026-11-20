@@ -61,7 +61,7 @@ it('risk:parsing the deferred lister shows Must then Should items and skips Nice
 it('risk:parsing a deferred mark is the arrow and an id or declined at the end of the full line (8.2-ac-5)', () => {
   expect(deferredMark('- review 1.3: a lock (Must) → declined')).toEqual({ kind: 'declined' });
   expect(deferredMark('- review 1.2: a comma (Should) → ST-LN-101')).toEqual({ kind: 'queued', id: 'ST-LN-101' });
-  // ASCII -> is not a mark, an id holds a digit, declined is the whole last word, and the arrow sits at the end
+  // ASCII -> is not a mark, an id is a letter-led word ending in a hyphen and digits, declined is the whole last word, and the arrow sits at the end
   expect(deferredMark('- a (Must) -> ST-1')).toBeUndefined();
   expect(deferredMark('- a (Must) → foo')).toBeUndefined();
   expect(deferredMark('- a (Must) → declined but more')).toBeUndefined();

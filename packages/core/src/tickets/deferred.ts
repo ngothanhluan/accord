@@ -16,18 +16,19 @@ export interface OwnerDeferred {
 export type DeferredMark = { kind: 'queued'; id: string } | { kind: 'declined' };
 
 /**
- * A mark is the end of the full line: a space, `→` (U+2192), a space, and either `declined` or a ticket id (letters, digits, `.`, `_`, `-`, at least one digit, so `declined` never
- * collides with one). ASCII `->` is not read on purpose: a note that happens to end in `-> name` must never hide a Must item, and `→` is what the verify skill writes. Read on the
- * normalised line before the 160-character short form, so a long item keeps its mark.
+ * A mark is the end of the full line: a space, `→` (U+2192), a space, and either `declined` or a ticket id shape (Review WR-01): a letter first, then letters and digits joined by `-`,
+ * ending in `-<digits>` (ST-LN-12, BUG-LN-9, PROJ-123, T-9). A prose arrow such as `0.9 → 0.10` or `v1 → v2` is no mark, so that line stays listed and is never hidden from the owner;
+ * an id of another shape is not read as a mark either, which errs towards showing the item. ASCII `->` is not read on purpose: a note that happens to end in `-> name` must never hide
+ * a Must item, and `→` is what the verify skill writes. Read on the normalised line before the 160-character short form, so a long item keeps its mark.
  */
-const DEFERRED_MARK = / → (declined|[A-Za-z0-9][A-Za-z0-9._-]*)$/;
+const DEFERRED_MARK = / → (declined|[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*-[0-9]+)$/;
 
 /** The mark ending `line` (a bullet may lead it), or undefined; when a line ends with two marks the last counts. */
 export function deferredMark(line: string): DeferredMark | undefined {
   const m = DEFERRED_MARK.exec(line.trimEnd());
   if (m === null) return undefined;
   if (m[1] === 'declined') return { kind: 'declined' };
-  return /[0-9]/.test(m[1]) ?{ kind: 'queued', id: m[1] } : undefined;
+  return { kind: 'queued', id: m[1] };
 }
 
 /** The longest short form, the ellipsis included. */

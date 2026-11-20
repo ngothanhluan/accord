@@ -142,9 +142,9 @@ it('risk:parsing the trigger reader places every diff spelling (ST-LN-36 36-ac-1
   expect(texts(binary, ['img/x.png'])).toEqual([]);
   const mode = ['diff --git a/scripts/run.sh b/scripts/run.sh', 'old mode 100644', 'new mode 100755'].join('\n');
   expect(texts(mode, ['scripts/run.sh'])).toEqual([]);
-  // a binary file that a path pattern names is still a trigger
+  // a binary file that a path pattern names is still a trigger; a .lock file is no known binary type, so it is a cannot trigger as well (D-20)
   const lock = ['diff --git a/yarn.lock b/yarn.lock', 'index 1111111..2222222 100644', 'Binary files a/yarn.lock and b/yarn.lock differ'].join('\n');
-  expect(texts(lock, ['yarn.lock'])).toEqual(['yarn.lock: manifest (dependency manifests)']);
+  expect(texts(lock, ['yarn.lock'])).toEqual(['(cannot tell: yarn.lock: binary file, its lines were not scanned)', 'yarn.lock: manifest (dependency manifests)']);
 
   // a path with a space: git ends its header paths with a tab
   const spaced = [
@@ -488,8 +488,8 @@ it('risk:parsing a file git reports as binary and the package diff then shows as
   const blocks = matchedHunks(DEFAULT_SECURITY, [...binary, ...text].join('\n'), ['package.json'], { generated: [] });
   expect(blocks).toHaveLength(1);
   expect(blocks[0]).toContain('+  "version": "1.0.1",');
-  // a file that stays binary keeps its one block
-  expect(matchedHunks(DEFAULT_SECURITY, binary.join('\n'), ['package.json'], { generated: [] })).toEqual([binary.join('\n')]);
+  // a file that stays binary keeps its one block of header lines, and (D-20) the cannot block of a binary file with no text twin
+  expect(matchedHunks(DEFAULT_SECURITY, binary.join('\n'), ['package.json'], { generated: [] })).toEqual([binary.join('\n'), '(cannot tell: package.json: binary file, its lines were not scanned)']);
 });
 
 // post-phase review WR-02, bound lowered to 1000 by 8-ac-3 (D-09): a line over the scan limit is never scanned past character 1000, so it is a trigger of its own.
@@ -681,7 +681,8 @@ it('risk:resource a path the host could not read as text is a trigger of its own
   const binary = ['diff --git a/big.js b/big.js', 'new file mode 100644', 'index 0000000..1111111', 'Binary files /dev/null and b/big.js differ'].join('\n');
   const label = '(cannot tell: big.js: too large to read as text, so its lines were not scanned)';
   expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] }).map(triggerText)).toEqual([label]);
-  expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [] })).toEqual([]);
+  // without the unreadable list the same section is only a binary file (D-20), and with it the exact label above is the one trigger, not two
+  expect(securityTriggers(DEFAULT_SECURITY, binary, ['big.js'], { generated: [] }).map(triggerText)).toEqual(['(cannot tell: big.js: binary file, its lines were not scanned)']);
   expect(matchedHunks(DEFAULT_SECURITY, binary, ['big.js'], { generated: [], unreadable: ['big.js'] })).toEqual([label]);
 });
 

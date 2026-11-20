@@ -175,6 +175,16 @@ export const SCAN_LINE_LIMIT = 1000;
 const LONG_LINE = `line longer than ${SCAN_LINE_LIMIT} characters, not fully scanned`;
 const UNREADABLE = 'too large to read as text, so its lines were not scanned';
 const tooLong = (text: string): boolean => text.length > SCAN_LINE_LIMIT;
+/** The label of the trigger a file git calls binary gets when it is not a known binary type (D-20): a NUL byte on a changed line makes git call a code file binary, and its lines were then never scanned. */
+const BINARY_LABEL = 'binary file, its lines were not scanned';
+/** Image, font and archive types git rightly calls binary; any other binary file with no text twin is a `cannot` trigger (fail closed). */
+const KNOWN_BINARY = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'avif', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'zip', 'gz', 'tgz', 'tar', 'bz2', 'xz', '7z', 'pdf']);
+/** The extension of a path: the text after the last `.` of its name, lower-cased; empty when the name holds none. */
+const extensionOf = (path: string): string => {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
+};
 const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const TEST_FOLDER = new Set(['test', 'tests', '__tests__']);
 
@@ -248,7 +258,13 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
   }
   const lineRes = compileLines(spec);
   const skipped = (path: string): boolean => contentSkipped(path, options.generated, options.exempt ?? []);
+  const unreadable = new Set(options.unreadable ?? []);
   for (const f of files) {
+    // D-20: a binary file with no text section of the same path, that is not a known image, font or archive, could hide a changed code line behind a NUL byte: it is a trigger of its own.
+    // A path the host could not read at all keeps its own, more exact label (below).
+    if (f.binary && f.path !== undefined && !skipped(f.path) && !unreadable.has(f.path) && !KNOWN_BINARY.has(extensionOf(f.path)) && !files.some((g) => !g.binary && g.path === f.path)) {
+      add({ path: f.path, pattern: '', label: BINARY_LABEL, cannot: true });
+    }
     if (f.binary || f.path === undefined || skipped(f.path)) continue;
     const scanLines = (lines: DiffFile['added'], removed: boolean) => {
       for (const l of lines) {

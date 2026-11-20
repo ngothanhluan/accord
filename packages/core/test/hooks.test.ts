@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hookEntries, mergeHooks } from '../src/index.js';
+import { hookEntries, mergeHooks, mergeHooksWithNotes, runsAccordHook } from '../src/index.js';
 
 const e = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
 const foreign = { matcher: 'startup', hooks: [{ type: 'command', command: 'echo hi' }] };
@@ -98,4 +98,60 @@ it('risk:data-loss the hook settings carry the write entry beside the dispatch e
   expect((once.hooks as Record<string, unknown>).PreToolUse).toEqual([{ matcher: 'Write|Edit|MultiEdit', hooks: [foreignHook] }, ...entries.PreToolUse]);
   expect(mergeHooks(once, entries)).toEqual(once);
   expect(mergeHooks(mergeHooks({}, entries), entries)).toEqual({ hooks: entries });
+});
+
+// D-16: a hook the owner edited into another form of `accord hook <event>` is kept, named once and never doubled.
+type Listed = { matcher: string; hooks: { command: string; if?: string }[] };
+const identities = (settings: Record<string, unknown>): Record<string, number> => {
+  const count: Record<string, number> = {};
+  for (const [event, list] of Object.entries(settings.hooks as Record<string, Listed[]>)) {
+    for (const entry of list) {
+      for (const h of entry.hooks) {
+        const sub = runsAccordHook(h.command);
+        if (sub === undefined) continue;
+        const id = event + '|' + sub + '|' + (h.if ?? '');
+        count[id] = (count[id] ?? 0) + 1;
+      }
+    }
+  }
+  return count;
+};
+
+it('risk:data-loss mergeHooks keeps an accord hook the owner edited and adds no second one (8-ac-10)', () => {
+  const forms: [string, string, string, string][] = [
+    ['SessionStart', 'startup', 'session-start', 'accord hook session-start'],
+    ['SessionStart', 'startup', 'session-start', 'node ./packages/cli/dist/cli.js hook session-start'],
+    ['SessionStart', 'startup', 'session-start', 'npx --yes @accord-dev/accord@0.7.1 hook session-start --verbose'],
+    ['PreToolUse', 'Agent|Task', 'pre-tool-use', 'npx @accord-dev/accord hook pre-tool-use'],
+  ];
+  const expected = identities({ hooks: e });
+  for (const [event, matcher, sub, command] of forms) {
+    const owner = { matcher, hooks: [{ type: 'command', command }] };
+    const merged = mergeHooksWithNotes({ hooks: { [event]: [owner] } }, e);
+    const count = identities(merged.settings);
+    // exactly one hook per event, subcommand and `if`, the same set accord writes into an empty file
+    expect(count, command).toEqual(expected);
+    const list = (merged.settings.hooks as Record<string, Listed[]>)[event];
+    expect(list[0], command).toEqual(owner);
+    expect(list.flatMap((x) => x.hooks).filter((h) => h.command === command)).toHaveLength(1);
+    expect(merged.notes, command).toEqual([
+      `kept ${event} hook "${command}": it runs accord hook ${sub} in a form sync did not write, so sync left it; edit or remove it to get accord's`,
+    ]);
+    // every other event gets accord's hooks
+    for (const other of Object.keys(e)) if (other !== event) expect(merged.settings.hooks).toHaveProperty(other, (e as Record<string, unknown>)[other]);
+    // merging twice gives the same settings and the same note
+    const again = mergeHooksWithNotes(merged.settings, e);
+    expect(again.settings, command).toEqual(merged.settings);
+    expect(again.notes, command).toEqual(merged.notes);
+  }
+});
+
+it('risk:data-loss an accord hook in the shape sync wrote is replaced with no note, and a foreign hook is never taken for one (8-ac-10)', () => {
+  const old = { type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook session-start' };
+  const out = mergeHooksWithNotes({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [old, foreign.hooks[0]] }] } }, e);
+  expect(out.notes).toEqual([]);
+  expect((out.settings.hooks as Record<string, unknown>).SessionStart).toEqual([{ matcher: 'startup', hooks: foreign.hooks }, ...e.SessionStart]);
+  for (const c of ['echo hook session-start', 'accord status', 'node build.js hook session-start', 'accord hook unknown-event', 'accord hook']) expect(runsAccordHook(c), c).toBeUndefined();
+  expect(runsAccordHook('accord hook pre-tool-use')).toBe('pre-tool-use');
+  expect(runsAccordHook('"C:/tools/accord.cmd" hook session-resume --x')).toBe('session-resume');
 });

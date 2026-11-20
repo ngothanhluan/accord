@@ -3,7 +3,7 @@ name: accord-audit
 description: Use when the owner asks for a repository audit. Reports what a machine can see about the team's conventions, accord setup and team audit scripts, with a fix for each gap, and drafts conventions from the code only on the owner's yes.
 license: MIT
 kind: skill
-loads: [shared/ask.md]
+loads: [audit/draft.md, shared/ask.md]
 ---
 
 `/accord-audit` audits this repository. It is optional and runs only when the owner asks: no gate runs it, no gate points to it, and nothing here starts without the owner's word. The audit never edits code or linter configuration; it reports, and the owner decides.
@@ -12,7 +12,8 @@ loads: [shared/ask.md]
 
 1. Run `accord audit`. It reads files only and calls no model. It prints `fact:` lines (what it found), `gap:` lines (what is missing, each with `- fix:` and the one command or step that fixes it) and `gaps: <n>`. Exit 0 means it ran, whatever the gaps; on exit 2 show the message and stop.
 2. Tell the owner in plain words what the repository has: languages, folders, linter and the rules it turns on, formatter, type checking, tests, PR template, commit rule, conventions. Then list each gap with its fix, one short line each. Add no point the output does not make.
-3. Offer the fixes, never apply them. A gap whose fix is a command may be run on the owner's yes; a gap that asks for a linter, formatter or other code or configuration change is not made here: offer to queue it as a draft ticket with `/accord-queue`.
+3. When a `conventions-empty` or `conventions-thin` gap is listed, offer to draft the conventions from the code. Only on a yes, follow `./draft.md`; on a no, leave it.
+4. Offer the other fixes, never apply them. A gap whose fix is a command may be run on the owner's yes; a gap that asks for a linter, formatter or other code or configuration change is not made here: offer to queue it as a draft ticket with `/accord-queue`.
 
 ## Rules
 

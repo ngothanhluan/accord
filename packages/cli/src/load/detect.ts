@@ -197,6 +197,7 @@ const CONVENTIONAL_SUBJECTS: Readonly<Record<SubjectName, string>> = {
   ruleset_backfill: 'chore(accord): ruleset {id}',
   queue: 'chore(accord): queue {id}',
   people: 'chore(accord): people {id}',
+  conventions: 'docs(accord): conventions {id}',
 };
 
 /**

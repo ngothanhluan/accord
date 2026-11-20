@@ -31,7 +31,7 @@ it('risk:regression the draft flow asks line by line shows evidence and never ed
   expect(draft).not.toBe('');
   const missing = [
     '`accord audit`',
-    '`accord conventions write`',
+    '`accord conventions write <file>`',
     '10-20',
     'file:line',
     '`enforced by:`',

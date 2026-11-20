@@ -17,16 +17,17 @@ export const SUBJECT_NAMES = [
   'ruleset_backfill',
   'queue',
   'people',
+  'conventions',
 ] as const;
 export type SubjectName = (typeof SUBJECT_NAMES)[number];
 
 /**
  * Phase 8.1 D-06 (plan check W3a): the subjects accord commits on a branch that is not a ticket branch, so the commit rule (`commits.message`, judged by task-done and gate done on a ticket
- * branch alone) never reads them and `lint.commit-rule` does not judge them: `drop` on `drop/<id>` (commands/drop.ts) and `queue` on `backlog/<id>-<date>` (commands/queue.ts), both cut from
+ * branch alone) never reads them and `lint.commit-rule` does not judge them: `drop` on `drop/<id>` (commands/drop.ts), `queue` on `backlog/<id>-<date>` (commands/queue.ts) and `conventions` on `conventions/<date>` (commands/conventions.ts), all cut from
  * origin's default branch. Every other name is committed on the ticket branch and judged; a name added later is judged unless it is listed here on purpose. Like the `upgrade: accord <version>`
  * commit of a pin PR (an `upgrade/<version>` branch, no subject name), these are outside the rule.
  */
-export const OFF_TICKET_BRANCH: readonly SubjectName[] = ['drop', 'queue'];
+export const OFF_TICKET_BRANCH: readonly SubjectName[] = ['drop', 'queue', 'conventions'];
 
 /** Today's text for each kind, so with no `commits.subjects` every subject is unchanged byte for byte. */
 export const DEFAULT_SUBJECTS: Readonly<Record<SubjectName, string>> = {
@@ -43,6 +44,7 @@ export const DEFAULT_SUBJECTS: Readonly<Record<SubjectName, string>> = {
   ruleset_backfill: 'ruleset: {id} from its claim commit',
   queue: 'backlog: queue {id}', // ST-LN-83 D-03: the draft an idea is queued as; the repository convention for queue PRs
   people: 'people: {id}', // Phase 8.1 W2: {id} holds the email of the people entry the worktree skill commits to the ticket branch, as `conventions` holds a date
+  conventions: 'conventions: {id}', // Phase 8.1 G3a: {id} holds the UTC date of the conventions/<date> branch the conventions draft is committed on
 };
 
 type WithCommits = Pick<AccordConfig, 'commits'> | undefined;

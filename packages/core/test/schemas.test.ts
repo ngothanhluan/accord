@@ -172,6 +172,18 @@ describe('config.schema.json', () => {
     expect(has(review({ mode: 'human', max_pr_lines: 400 }), '/review', 'schema.additionalProperties')).toBe(true);
   });
 
+  it('risk:security pr.template is a repository-relative path and pr.command a one-line script and no other key is allowed (D-01)', () => {
+    const pr = (p: unknown) => validate('config', { ...minimal.config, pr: p });
+    expect(pr({})).toEqual([]);
+    expect(pr({ template: '.github/PULL_REQUEST_TEMPLATE/team.md', command: 'node scripts/pr.mjs' })).toEqual([]);
+    for (const bad of ['/etc/x.md', '../x.md', 'a/../x.md', 'a\\b.md', 'C:/x.md', 'c:x.md', '', 'a\nb.md', 'a\u202Eb.md']) {
+      expect(has(pr({ template: bad }), '/pr/template', 'schema.pattern') || has(pr({ template: bad }), '/pr/template', 'schema.minLength'), JSON.stringify(bad)).toBe(true);
+    }
+    expect(has(pr({ command: '' }), '/pr/command', 'schema.minLength')).toBe(true);
+    expect(has(pr({ command: 'a\nb' }), '/pr/command', 'schema.pattern')).toBe(true);
+    expect(has(pr({ title: 'x' }), '/pr', 'schema.additionalProperties')).toBe(true);
+  });
+
   it('risk:parsing queue.merge is owner or at-once and the only key (ST-LN-83 D-03)', () => {
     const queue = (q: unknown) => validate('config', { ...minimal.config, queue: q });
     expect(queue({})).toEqual([]);
@@ -183,7 +195,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);

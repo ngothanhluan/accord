@@ -14,6 +14,7 @@ import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
 import { commitCheck, commitMessage } from './commands/commit.js';
+import { pr } from './commands/pr.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
@@ -316,6 +317,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(commitMessage(preflight(opts), id));
     });
 
+  // Phase 8.1 D-01, D-03: the title and the body file of a ticket's pull request, from the team's template and what the ticket knows; `gh pr create` itself stays in the skills.
+  program
+    .command('pr <id>')
+    .description("write the body file of a ticket's pull request from the repository's PR template with every heading kept and the ticket's id, title, Intent, criteria and test evidence filled in, and print title: <title>, body-file: <path>, template: <path>, and one remaining: <heading> line per section left for you to write; the skill then runs gh pr create --title <title> --body-file <path>")
+    .action((id: string) => {
+      setCode(pr(preflight(opts), id));
+    });
+
   // ST-LN-50 D-11: the deterministic way to change accord/config.yml; every subcommand reads the repository, so each goes
   // through the same preflight and the pin check. Nothing is committed: the onboarding skill does that.
   const config = program.command('config').description('read or change accord/config.yml by dotted key; a change is validated against the schema as a whole before the file is written, and nothing is committed');
@@ -351,7 +360,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // Owner decision (2026-11-15): a script the repository declares (`tracker.command`, `git.sync`) runs only after the person allowed it here, once, in a record inside .git.
   program
     .command('trust [script...]')
-    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, git.sync, build.regenerate and commits.message.command): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest>, git.sync@<digest>, build.regenerate@<digest> or commits.message.command@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
+    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, git.sync, build.regenerate, commits.message.command and pr.command): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest>, git.sync@<digest>, build.regenerate@<digest>, commits.message.command@<digest> or pr.command@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
     .option('--revoke', 'withdraw the allows of the scripts named, or every allow of this repository')
     .action((scripts: string[], o: { revoke?: boolean }) => {
       setCode(trust(preflight(opts), scripts, o));

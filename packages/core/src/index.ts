@@ -132,6 +132,9 @@ export { DEFAULT_SUBJECTS, effectiveSubject, matchesSubject, OFF_TICKET_BRANCH, 
 export type { SubjectCollision, SubjectName } from './commits/subjects.js';
 export { commitRuleLine, commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal, CONVENTIONAL_EXAMPLE, CONVENTIONAL_PATTERN } from './commits/rule.js';
 export type { CommitRule, CommitRuleOf } from './commits/rule.js';
+// Phase 8.1 D-01, D-03: the pull request body from the team's template, every heading kept.
+export { epicBody, fillTemplate, findTemplate, prFacts, prTitle, prTitleProblem, templateSections, todaysBody } from './pr/template.js';
+export type { PrFacts, TemplateSection } from './pr/template.js';
 export { anchorText } from './status/anchor.js';
 export { EPIC_LESSONS, EPIC_ROLES, epicBlock } from './status/epic.js';
 export { ticketDetail } from './status/show.js';

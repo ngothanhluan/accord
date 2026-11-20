@@ -124,6 +124,7 @@
       "properties": { "fix_round_tier_up": { "type": "string", "pattern": "^[1-5]$" } }
     },
     "stale_days": { "type": "string", "pattern": "^[1-9][0-9]{0,3}$" },
+    "stale_draft_days": { "type": "string", "pattern": "^[1-9][0-9]{0,3}$" },
     "people": {
       "type": "object",
       "propertyNames": { "pattern": "^[^@\\s]+@[^@\\s]+$" },

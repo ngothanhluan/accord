@@ -157,7 +157,8 @@ export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/sho
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export { dashboard, isOpenWork } from './status/dashboard.js';
-export { ticketIdleGaps } from './audit/hygiene.js';
+export { draftAge, draftStaleGaps, NO_COMMAND_BRANCH, SAFE_BRANCH, SAFE_ID, ticketIdleGaps } from './audit/hygiene.js';
+export type { OldDraft } from './audit/hygiene.js';
 export { ownerDeferred, ratingOf } from './tickets/deferred.js';
 export type { DeferredRating, OwnerDeferred } from './tickets/deferred.js';
 export { relatedIds, relatedText } from './tickets/related.js';

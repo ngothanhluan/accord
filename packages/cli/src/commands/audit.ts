@@ -6,13 +6,13 @@ import { auditLines, CONVENTIONS_THIN, conventionLines, conventionsEmpty, commit
 import type { AuditFact, AuditGap } from '@accord-dev/accord-core';
 import { gitTracked } from '../load/fs.js';
 import { machineFacts } from '../load/audit-facts.js';
+import { auditHealth, NOT_CHECKED } from '../load/audit-health.js';
 import type { Found } from '../load/audit-facts.js';
 import { printable } from '../load/detect.js';
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 
 const CONVENTIONS = 'accord/product/conventions.md';
-const NOT_CHECKED = "config.yml does not pass this CLI's schema";
 
 /** The line D-11 puts on the dashboard and on `accord new ticket` while the conventions file exists and holds no convention line. */
 export const CONVENTIONS_NOTICE = `conventions: ${CONVENTIONS} has no convention line; /accord-audit drafts them from the code (optional)`;
@@ -88,6 +88,11 @@ export function audit(ctx: CommandContext): number {
   if (rule !== undefined && !('problem' in rule)) {
     for (const p of subjectRuleProblems(ctx.snapshot, rule)) gap('subject-breaks-rule', `commits.subjects.${p.name} renders "${p.subject}", which breaks the commit rule: ${p.problem}`, p.fix);
   }
+
+  // group 2 (D-08, D-18): accord's own setup, after group 1
+  const health = auditHealth(ctx);
+  for (const f of health.facts) fact(f.name, f.value);
+  for (const g of health.gaps) gap(g.id, g.text, g.fix);
 
   ctx.stdout.write(auditLines(facts, gaps));
   return 0;

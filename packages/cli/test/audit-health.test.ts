@@ -75,7 +75,7 @@ it('risk:parsing accord audit reports the pin when config.yml sets a key this CL
   expect(status(repo)).toBe(before);
 
   // a pin that is not a string gives no pin-mismatch line and no crash
-  const odd = await audit(committed({}, CONFIG.replace(/accord: "[^"]*"/, 'accord: 5')));
+  const odd = await audit(committed({}, CONFIG.replace(/accord: "[^"]*"/, 'accord: true')));
   expect(odd.code, odd.out).toBe(0);
   expect(odd.lines.some((l) => l.startsWith('gap: pin-mismatch:')), odd.out).toBe(false);
   expect(odd.lines.some((l) => l.startsWith('gap: config-invalid:')), odd.out).toBe(true);

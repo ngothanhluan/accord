@@ -86,7 +86,7 @@ export type { Strictness } from './config/strictness.js';
 export { FLOOR_STAGES, LOCKED, NO_OFF, OVERRIDABLE, STAGE_OF, SWITCHABLE_STAGES, effectiveLevel, floorProblems, levelRefusal, stageOff } from './gate/floor.js';
 export type { ConfigStage, RuleLevel, StageName } from './gate/floor.js';
 export { checkFixDispatch } from './round/dispatch.js';
-export { loadConfig } from './load/config.js';
+export { configPin, loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';

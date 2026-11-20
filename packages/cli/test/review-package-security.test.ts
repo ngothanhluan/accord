@@ -358,6 +358,24 @@ it('risk:security a file a .gitattributes rule marks -diff is still scanned, and
   }
 }, 120_000);
 
+it('risk:security a changed shell line holding a NUL byte gets a trigger, never no pattern matched (8-ac-14)', async () => {
+  // `ex`, a NUL byte, `ec evil`: git calls the file binary, the --text re-read keeps it a lone "Binary files differ" section (a NUL on a changed line)
+  const repo = laneSWith({}, { 'run.sh': Buffer.from('ex\u0000ec evil\n') });
+  try {
+    const out = await run(['review-package', 'S-1'], repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    const s = section(out.out);
+    expect(s).not.toContain('no pattern matched');
+    expect(s).toContain('(cannot tell: run.sh: binary file, its lines were not scanned)');
+    const hunks = await run(['review-package', 'S-1', '--security'], repo);
+    expect(hunks.out).toContain('(cannot tell: run.sh: binary file, its lines were not scanned)');
+    expect(hunks.out).not.toContain('no pattern matched');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
 it('risk:security a -diff file is scanned in a package that leaves out a merge from the default branch too (CR-01)', () => {
   const repo = laneSWith({ '.gitattributes': '*.js -diff\n', 'evil.js': EVIL }, { 'logo.png': PNG });
   try {

@@ -804,3 +804,27 @@ it('risk:security a backtracking team line pattern is refused at read with its l
   expect(parseSecurityFile(`## Patterns\n\n- built-path: line /${builtOld}/ — paths built from input\n`).problems).toEqual([]);
   expect(DEFAULT_SECURITY.problems).toEqual([]);
 });
+
+// D-20 (8-ac-14): a NUL byte makes git call a changed code file binary, and a binary file used to be skipped without a trace; now it is a trigger unless it is a known image, font or archive.
+it('risk:security a file git calls binary raises a cannot trigger unless it is a known image, font or archive (8-ac-14)', () => {
+  const binary = (path: string, head: string[] = ['new file mode 100644', 'index 0000000..1111111']): string =>
+    [`diff --git a/${path} b/${path}`, ...head, `Binary files /dev/null and b/${path} differ`].join('\n');
+  const label = 'binary file, its lines were not scanned';
+  // a shell file git calls binary (a NUL byte on a changed line): never "no pattern matched"
+  expect(texts(binary('scripts/run.sh'), ['scripts/run.sh'])).toEqual([`(cannot tell: scripts/run.sh: ${label})`]);
+  // a modified file, and a file with no extension
+  const modified = ['diff --git a/src/x.sh b/src/x.sh', 'index 1111111..2222222 100644', 'Binary files a/src/x.sh and b/src/x.sh differ'].join('\n');
+  expect(texts(modified, ['src/x.sh'])).toEqual([`(cannot tell: src/x.sh: ${label})`]);
+  expect(texts(binary('bin/Makefile'), ['bin/Makefile'])).toEqual([`(cannot tell: bin/Makefile: ${label})`]);
+  // a deleted file
+  const deleted = ['diff --git a/src/gone.sh b/src/gone.sh', 'deleted file mode 100644', 'index 1111111..0000000', 'Binary files a/src/gone.sh and /dev/null differ'].join('\n');
+  expect(texts(deleted, ['src/gone.sh'])).toEqual([`(cannot tell: src/gone.sh: ${label})`]);
+  // a known image, font or archive type is quiet, whatever the letter case
+  for (const path of ['img/logo.PNG', 'img/x.png', 'f/font.woff2', 'f/a.TTF', 'dist/a.tar.gz', 'dist/a.zip', 'docs/a.pdf']) expect(texts(binary(path), [path]), path).toEqual([]);
+  // a binary section whose path also has a text section (package-diff.ts adds it) gives no extra trigger
+  const twin = [binary('src/run.sh'), ...SECTION('src/run.sh', ['@@ -0,0 +1 @@', '+echo ok'], ['new file mode 100644', 'index 0000000..1111111'])].join('\n');
+  expect(texts(twin, ['src/run.sh'])).toEqual([]);
+  // Markdown stays skipped, and matchedHunks prints the cannot block once
+  expect(texts(binary('docs/a.md'), ['docs/a.md'])).toEqual([]);
+  expect(matchedHunks(DEFAULT_SECURITY, binary('scripts/run.sh'), ['scripts/run.sh'], { generated: [] })).toEqual([`(cannot tell: scripts/run.sh: ${label})`]);
+});

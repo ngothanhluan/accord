@@ -123,6 +123,60 @@ export function fillTemplate(template: string, facts: PrFacts): { body: string; 
 /** The title of a ticket's pull request: its id, then its title (Ruling "title"). */
 export const prTitle = (id: string, title: string): string => `${id}: ${title}`;
 
+/**
+ * Why a pull request title cannot go through the quoted `--title "<title>"` argument the skills write, or undefined when it can (Ruling "title"). A double quote, a backtick, `$` and a backslash
+ * mean something to bash and PowerShell inside double quotes; a control character, a line break or an invisible format character would show as one thing and be another.
+ * The text names the character and the fix.
+ */
+export function prTitleProblem(title: string): string | undefined {
+  const fix = 'fix: rename the ticket without it (accord/tickets), or have pr.command print a title without it';
+  for (const ch of title) {
+    const named =
+      ch === '"' ? 'a double quote (")'
+      : ch === '`' ? 'a backtick'
+      : ch === '$' ? 'a dollar sign ($)'
+      : ch === '\\' ? 'a backslash'
+      : ch === '\n' || ch === '\r' ? 'a line break'
+      : /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(ch) ? `a control or invisible character (<U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}>)`
+      : undefined;
+    if (named !== undefined) return `the pull request title holds ${named}, which would break the quoted gh argument - ${fix}`;
+  }
+  return undefined;
+}
+
+// GitHub's rule, as `gh` reads it: the directories in order, a name `pull_request_template` in any case with `-` for `_`, any extension; or a PULL_REQUEST_TEMPLATE folder of `.md` files.
+const TEMPLATE_DIRS = ['.github', '', 'docs'] as const;
+const SINGLE_NAME = /^pull[_-]request[_-]template(?:\.|$)/i;
+const FOLDER_NAME = /^pull_request_template$/i;
+
+/**
+ * The pull request template of a repository, from the paths git tracks (never from a directory read) (Ruling "template discovery"). `configured` (pr.template) names one tracked path and wins;
+ * else a single template in `.github/`, the root or `docs/`, the first directory that has one; else the first `.md` file by byte order of the first PULL_REQUEST_TEMPLATE folder of those
+ * directories, with `count`, the number of `.md` files it holds, so the host can say which of several it took. A single template outranks a folder. Undefined when there is none, or
+ * when `configured` is not tracked.
+ */
+export function findTemplate(tracked: readonly string[], configured?: string): { path: string; count?: number } | undefined {
+  if (configured !== undefined) return tracked.includes(configured) ? { path: configured } : undefined;
+  const sorted = [...tracked].sort();
+  const under = (dir: string, depth: number): string[][] =>
+    sorted.map((p) => p.split('/')).filter((parts) => parts.length === depth + (dir === '' ? 0 : 1) && (dir === '' || parts[0] === dir));
+  for (const dir of TEMPLATE_DIRS) {
+    const single = under(dir, 1).find((parts) => SINGLE_NAME.test(parts[parts.length - 1]));
+    if (single !== undefined) return { path: single.join('/') };
+  }
+  for (const dir of TEMPLATE_DIRS) {
+    const files = under(dir, 2).filter((parts) => FOLDER_NAME.test(parts[parts.length - 2]) && parts[parts.length - 1].endsWith('.md'));
+    if (files.length > 0) return { path: files[0].join('/'), count: files.length };
+  }
+  return undefined;
+}
+
+/** Today's body for a ticket pull request with no template and no script (Ruling "today's body"): one `- <subject>` line per commit, in the order given. */
+export const todaysBody = (subjects: readonly string[]): string => subjects.map((s) => `- ${s}\n`).join('');
+
+/** Today's body for an epic pull request: its Intent text, as the epic skill passed it to `gh pr create --body`. */
+export const epicBody = (intent: readonly string[]): string => intent.map((l) => `${l}\n`).join('');
+
 /** The lines of `## <name>` of a ticket as written, comments and blank lines dropped; empty when the section is absent. */
 const linesUnder = (ticket: Ticket, name: string): string[] => sectionLines(ticket.sections, name);
 

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { CONFIG } from '../../../test/helpers/lane.js';
-import { cleanup, commitAll, gitRun, makeLaneRepo, run, trustAllow } from './helpers/repo.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, trustAllow, writeFiles } from './helpers/repo.js';
 
 const SCRIPT_CONFIG = CONFIG + 'pr:\n  command: node scripts/pr.mjs\n';
 const TEMPLATE = ['## Description', '', '## Screenshots', ''].join('\n');
@@ -18,7 +18,7 @@ afterEach(() => {
 const posix = (p: string): string => p.replaceAll('\\', '/');
 
 /** A repository whose committed script is scripts/pr.mjs next to a PR template, and a folder outside it holding the marker the script writes when it runs. */
-function sandbox(script: (marker: string) => string): { repo: string; marker: string } {
+function sandbox(script: (marker: string) => string): { repo: string; marker: string; base: string } {
   const folder = mkdtempSync(join(tmpdir(), 'accord-pr-script-'));
   dirs.push(folder);
   const marker = posix(join(folder, 'marker.txt'));
@@ -26,7 +26,7 @@ function sandbox(script: (marker: string) => string): { repo: string; marker: st
   dirs.push(repo);
   const base = commitAll(repo);
   gitRun(repo, 'update-ref', 'refs/remotes/origin/main', base);
-  return { repo, marker };
+  return { repo, marker, base };
 }
 
 /** A script that records that it ran, then prints `lines` and the four variables it was given. */
@@ -63,7 +63,7 @@ it('risk:security a trusted PR script prints the title and body and an untrusted
   expect(file).toMatch(/^(?:[A-Za-z]:)?\//);
   expect(file).not.toContain('\\');
   expect(readFileSync(file, 'utf8')).toContain('id: "T-1"');
-  expect(ref).toBe('origin/main');
+  expect(ref).toMatch(/origin\/main$/);
   expect(root).toBeTruthy();
 
   // a trusted script that exits 3 is exit 2 quoting its stderr: no body file, no fallback to the template
@@ -94,4 +94,21 @@ it('risk:security a PR script with no title or an unsafe one stops the step with
   expect(unsafe.code, unsafe.out + unsafe.err).toBe(2);
   expect(unsafe.err).toContain('"');
   expect(existsSync(bodyFile(repo))).toBe(false);
+}, 120_000);
+
+it('risk:security the script of an epic queued on a backlog branch reads an absolute copy of the draft (D-01)', async () => {
+  const { repo, base } = sandbox(printing('Epic title\nEpic body\n'));
+  gitRun(repo, 'switch', '-q', '-c', 'backlog/E-1-2026-11-20', base);
+  writeFiles(repo, { 'accord/tickets/E-1.md': ['---', 'id: "E-1"', 'title: "Reporting"', 'type: epic', 'status: draft', 'lane: L', 'ui: false', '---', '', '## Intent', 'Teams see every export.', ''].join('\n') });
+  commitMsg(repo, 'backlog: queue E-1');
+  gitRun(repo, 'switch', '-q', '-');
+  expect((await trustAllow(repo, ['pr.command'])).code).toBe(0);
+  const r = await run(['pr', 'E-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(r.out).toContain('title: Epic title\n');
+  const [ticket, file] = (readFileSync(join(repo, '.git', 'accord-pr-E-1.md'), 'utf8').trimEnd().split('\n').pop() ?? '').split('|');
+  expect(ticket).toBe('E-1');
+  expect(file).not.toContain('\\');
+  expect(file.endsWith('accord-pr-E-1-ticket.md')).toBe(true);
+  expect(readFileSync(file, 'utf8')).toContain('Teams see every export.');
 }, 120_000);

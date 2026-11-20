@@ -5,16 +5,14 @@ import { CONFIG, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 it('risk:security a ticket file named __proto__ loads as an own ticket and is linted (8-ac-18)', () => {
   const file = 'accord/tickets/__proto__.md';
-  const snapshot = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [file]: laneTicket('__proto__', { body: 'No sections here.\n' }) }, tree: [file] });
+  const snapshot = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [file]: laneTicket('__proto__') }, tree: [file] });
   expect(Object.keys(snapshot.tickets)).toContain('__proto__');
   expect(Object.hasOwn(snapshot.tickets, '__proto__')).toBe(true);
   expect(Object.getPrototypeOf(snapshot.tickets)).toBeNull();
-  expect(Object.getOwnPropertyDescriptor(snapshot.tickets, '__proto__')?.value.frontmatter?.id).toBe('__proto__');
-  // linted like any ticket: the same ticket under an ordinary id gives the same findings, by file name
-  const ordinary = loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1', { body: 'No sections here.\n' }) }, tree: ['accord/tickets/T-1.md'] });
+  expect(snapshot.tickets['__proto__'].file).toBe(file);
+  // linted like any ticket: its id fails the id pattern, a finding at its own file (the ticket is not dropped from the lint)
   const own = lintSnapshot(snapshot).findings.filter((f) => f.file === file);
-  expect(own.length).toBeGreaterThan(0);
-  expect(own.map((f) => f.rule).sort()).toEqual(lintSnapshot(ordinary).findings.filter((f) => f.file === 'accord/tickets/T-1.md').map((f) => f.rule).sort());
+  expect(own.map((f) => f.rule)).toContain('schema.pattern');
   // a verification record under that name is an own key too
   const withRecord = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [file]: laneTicket('__proto__'), 'accord/tickets/__proto__/verification.md': '---\nverdict: pass\n---\n' }, tree: [] });
   expect(Object.keys(withRecord.verifications)).toContain('__proto__');

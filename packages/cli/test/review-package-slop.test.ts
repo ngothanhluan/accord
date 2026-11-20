@@ -15,6 +15,7 @@ const slopSection = (out: string): string => {
   const next = out.indexOf('\n## ', at + 1);
   return at < 0 ? '' : out.slice(at, next < 0 ? undefined : next).trimEnd();
 };
+const slopLines = (out: string): string[] => slopSection(out).split('\n').filter((l) => l.startsWith('- slop:'));
 
 /** A lane M ticket T-1 on its own branch, the plan's baseline the commit before the plan; `code` is committed on top of the plan. */
 function ticketRepo(base: Record<string, string>, code: Record<string, string>): string {
@@ -57,6 +58,66 @@ it('risk:complex-branching review-package prints none when no pattern matched (8
     const out = await run(['review-package', 'T-1'], repo);
     expect(out.err).toBe('');
     expect(slopSection(out.out)).toBe('## Slop\n\n(none: no pattern matched)');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+const PACKAGE_BASE = '{\n  "name": "x",\n  "dependencies": {\n    "kept": "^1.0.0"\n  }\n}\n';
+const PACKAGE_HEAD = '{\n  "name": "x",\n  "dependencies": {\n    "kept": "^1.0.0",\n    "left-pad": "^1.3.0"\n  }\n}\n';
+
+it('risk:complex-branching review-package lists one slop hit per kind in ts cs py and css files and a new package.json dependency (8.1-ac-12)', async () => {
+  const repo = ticketRepo(
+    { 'src/a.ts': 'export const a = 1;\n', 'src/A.cs': 'class A {\n', 'app/a.py': 'def f():\n', 'web/a.css': '.a {\n', 'package.json': PACKAGE_BASE },
+    {
+      'src/a.ts': 'export const a = 1;\nexport function f() {\n  try { g(); } catch {}\n}\n',
+      'src/A.cs': 'class A {\n  void F() {\n    try { G(); } catch { }\n  }\n}\n',
+      'app/a.py': 'def f():\n    try:\n        g()\n    except: pass\n',
+      'web/a.css': '.a {\n  margin: 0;\n  color: red !important;\n}\n',
+      'package.json': PACKAGE_HEAD,
+    },
+  );
+  try {
+    const out = await run(['review-package', 'T-1'], repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    const lines = slopLines(out.out);
+    expect(lines.map((l) => l.split(' — ')[0])).toEqual([
+      '- slop:empty-catch-py app/a.py:4',
+      '- slop:new-dependency package.json:5',
+      '- slop:empty-catch-cs src/A.cs:3',
+      '- slop:empty-catch src/a.ts:3',
+      '- slop:important-css web/a.css:3',
+    ]);
+    expect(lines.find((l) => l.includes('new-dependency'))).toContain('left-pad');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+const TEAM_FILE = '# Slop patterns\n\n## Patterns\n\n- panic-go: line /\\bpanic\\(/ for .go — panic in Go\n\n## Removed\n';
+
+it('risk:complex-branching a team slop pattern scoped for .go is matched on a Go file only (8.1-ac-12)', async () => {
+  const repo = ticketRepo(
+    { 'accord/product/slop.md': TEAM_FILE, 'cmd/x.go': 'package main\n', 'src/b.ts': 'export const b = 1;\n' },
+    { 'cmd/x.go': 'package main\nfunc main() { panic("x") }\n', 'src/b.ts': 'export const b = 1;\npanic("x");\n' },
+  );
+  try {
+    const out = await run(['review-package', 'T-1'], repo);
+    expect(out.err).toBe('');
+    expect(slopLines(out.out).map((l) => l.split(' — ')[0])).toEqual(['- slop:panic-go cmd/x.go:2']);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching a Removed line switches new-dependency off and a line of the team file that does not read is named (D-15)', async () => {
+  const team = '# Slop patterns\n\n## Patterns\n\n- slow: line /(a+)+$/ — slow\n\n## Removed\n\n- Removed: new-dependency — the lockfile review covers it\n';
+  const repo = ticketRepo({ 'accord/product/slop.md': team, 'package.json': PACKAGE_BASE }, { 'package.json': PACKAGE_HEAD });
+  try {
+    const out = await run(['review-package', 'T-1'], repo);
+    expect(out.err).toBe('');
+    expect(slopSection(out.out)).toBe('## Slop\n\n(none: no pattern matched)\n(accord/product/slop.md: 1 line not read; run accord lint)');
   } finally {
     cleanup(repo);
   }

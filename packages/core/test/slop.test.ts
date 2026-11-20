@@ -1,6 +1,6 @@
 // Phase 8.1 G4a (D-14, D-15, D-20): the slop patterns, their file, and the scan that matches them against a package's diff text.
 import { expect, it } from 'vitest';
-import { DEFAULT_SECURITY, isLockfile, loadSnapshot, securityTriggers, slopHits, slopLine, slopSpec, triggerText } from '../src/index.js';
+import { DEFAULT_SECURITY, DEFAULT_SLOP, isLockfile, lintSnapshot, loadSnapshot, parseSlop, securityTriggers, slopHits, slopLine, SLOP_FILE, slopSpec, templates, triggerText } from '../src/index.js';
 
 /** A snapshot with no slop file: the defaults apply. */
 const snapshot = () => loadSnapshot({ files: {}, tree: [] });
@@ -50,4 +50,113 @@ it('risk:regression the slop scan judges added lines in test files and skips onl
     'web/yarn.lock: manifest (dependency manifests)',
     'web/yarn.lock:1: spawn (process spawn)',
   ]);
+});
+
+// ---- the default sets, the team file, its guard and lint (D-15, D-16, 8.1-ac-14) ----
+
+/** Per default kind: a file name whose extension its scope must hold, lines it must match and lines it must not (prose, plain code, a commented-out line for the code kinds). */
+const SAMPLES: Record<string, { file: string; pos: string[]; neg: string[] }> = {
+  'empty-catch': { file: 'a.ts', pos: ['} catch {}', '} catch (e) { }', 'try { x(); } catch {}'], neg: ['// } catch {}', ' * catch {}', '} catch (e) { log(e); }', 'const caught = 1;'] },
+  'empty-catch-cs': { file: 'A.cs', pos: ['catch { }', 'catch (Exception) { }', '} catch (IOException ex) {}'], neg: ['catch (Exception ex) { Log(ex); }', '// catch { }', 'var c = 1;'] },
+  'empty-catch-py': { file: 'a.py', pos: ['except: pass', '    except ValueError: pass', 'except (A, B) as e: pass'], neg: ['except ValueError:', '# except: pass', 'x = 1'] },
+  'any-type': {
+    file: 'a.ts',
+    pos: ['const a: any = x;', 'const b = y as any;', 'const c = d as unknown as Foo;', 'function f(a: any) {}', 'const e = <any>q;'],
+    neg: ['const a: string = x;', '// the value may be any', 'claim: anything', 'const many = 1;'],
+  },
+  'any-type-cs': { file: 'A.cs', pos: ['dynamic x = 1;', 'public dynamic Foo()', 'var l = new List<dynamic>();', 'void F(dynamic a, int b)'], neg: ['// dynamic x = 1;', 'var dynamicRange = 1;', 'the dynamic range is large'] },
+  'any-type-py': { file: 'a.py', pos: ['def f(x: Any) -> None:', 'def g() -> Any:', 'y = cast(Any, x)', 'd: Dict[str, Any] = {}'], neg: ['# x: Any', 'many: int = 1', 'x: Anything = 2'] },
+  'commented-code': {
+    file: 'a.ts',
+    pos: ['// const x = foo(1);', '// if (a) {', '// return x;', '// import { a } from "b";', '// doThing(a, b);', '// }'],
+    neg: ['// for the SessionStart hook', '// try on purpose', 'const a = 1; // note', '// a plain sentence about the code'],
+  },
+  'commented-code-cs': {
+    file: 'A.cs',
+    pos: ['// var x = Foo(1);', '// if (a) {', '// return x;', '// Foo(a, b);', '// }', '// using (var f = File.Open(p))'],
+    neg: ['// for the hook', '/// <summary>', '// the value of x'],
+  },
+  'commented-code-py': {
+    file: 'a.py',
+    pos: ['# import os', '# from a import b', '# def f(x):', '# print(x)', '# x = foo(1)', '# return foo(x)'],
+    neg: ['# for the SessionStart hook', '# if the user is root', '# return the value', '# import is needed for typing', 'x = 1  # note'],
+  },
+  'commented-code-html': { file: 'a.html', pos: ['<!-- <div class="a"> -->', '<!--<script src="x"></script>-->'], neg: ['<!-- the header -->', '<!-- TODO: fix -->'] },
+  'commented-code-css': { file: 'a.css', pos: ['/* .a { color: red; } */', '/* #id{color:red} */'], neg: ['/* the header */', '/* colours */'] },
+  'important-css': { file: 'a.css', pos: ['color: red !important;', 'a { margin: 0 ! IMPORTANT }'], neg: ['color: red;', '/* an important note */'] },
+  'inline-style-html': { file: 'a.html', pos: ['<div style="color:red">', "<p style='x'>", '<p STYLE = "x">'], neg: ['<style>', '<div class="style">', 'lifestyle="x"'] },
+};
+
+it('risk:regression every default slop pattern parses and passes the guard with positive and negative samples (D-16)', () => {
+  expect(DEFAULT_SLOP.problems).toEqual([]);
+  expect(DEFAULT_SLOP.patterns.map((p) => p.id)).toEqual(Object.keys(SAMPLES));
+  for (const p of DEFAULT_SLOP.patterns) {
+    const s = SAMPLES[p.id];
+    const re = new RegExp(p.source, p.flags);
+    const ext = s.file.slice(s.file.lastIndexOf('.')).toLowerCase();
+    expect(p.exts, p.id).toContain(ext);
+    for (const line of s.pos) expect(re.test(line), `${p.id} must match: ${line}`).toBe(true);
+    for (const line of s.neg) expect(re.test(line), `${p.id} must not match: ${line}`).toBe(false);
+  }
+  // each language row is limited to its own files: Python's except is no hit in TypeScript, a `!important` is no hit in C#
+  expect(kinds(added('src/a.ts', ['except: pass', 'color: red !important;']))).toEqual([]);
+  expect(kinds(added('src/A.cs', ['color: red !important;']))).toEqual([]);
+  expect(kinds(added('web/a.css', ['color: red !important;']))).toEqual(['important-css web/a.css:1']);
+  expect(kinds(added('app/a.py', ['try:', 'except: pass']))).toEqual(['empty-catch-py app/a.py:2']);
+});
+
+const withTeamFile = (text: string) => loadSnapshot({ files: { [SLOP_FILE]: text }, tree: [SLOP_FILE] });
+const teamFile = (...lines: string[]) => ['# Slop patterns', '', '## Patterns', '', ...lines, '', '## Removed', ''].join('\n');
+
+it('risk:security a team slop pattern that can backtrack catastrophically is refused at read (8.1-ac-14)', () => {
+  const text = teamFile('- slow: line /(a+)+$/ — slow', '- fine: line /\\bpanic\\(/ for .go — panic in Go');
+  const parsed = parseSlop(text);
+  expect(parsed.patterns.map((p) => p.id)).toEqual(['fine']);
+  expect(parsed.problems).toHaveLength(1);
+  expect(parsed.problems[0]).toMatchObject({ line: 5, pattern: true });
+  expect(parsed.problems[0].reason).toContain('"slow"');
+  expect(parsed.problems[0].reason).toContain('very slow');
+  // not in force: the merged spec has the defaults and the sound team pattern, not the refused one
+  const merged = withTeamFile(text);
+  expect(slopSpec(merged).patterns.map((p) => p.id)).not.toContain('slow');
+  expect(slopSpec(merged).patterns.map((p) => p.id)).toContain('fine');
+  // lint.slop-file reports it with the file and line
+  const found = lintSnapshot(merged).findings.filter((f) => f.rule === 'lint.slop-file');
+  expect(found).toHaveLength(1);
+  expect(found[0]).toMatchObject({ level: 'error', file: SLOP_FILE, line: 5 });
+  expect(found[0].reason).toContain('very slow');
+  // an absent file and an untouched template give no finding
+  expect(lintSnapshot(loadSnapshot({ files: {}, tree: [] })).findings.filter((f) => f.rule === 'lint.slop-file')).toEqual([]);
+  expect(lintSnapshot(withTeamFile(templates['slop.md'])).findings.filter((f) => f.rule === 'lint.slop-file')).toEqual([]);
+});
+
+it('risk:parsing a team slop pattern is limited by its for scope, replaces a default with the same id and is read only from its own sections (D-15)', () => {
+  const go = withTeamFile(teamFile('- panic-go: line /\\bpanic\\(/ for .go — panic in Go'));
+  const hits = (path: string) => slopHits(slopSpec(go), added(path, ['x', 'panic("boom")']), { generated: [] }).map((h) => `${h.kind} ${h.path}:${h.line}`);
+  expect(hits('cmd/x.go')).toEqual(['panic-go cmd/x.go:2']);
+  expect(hits('src/b.ts')).toEqual([]);
+  // no `for`: every scanned file
+  const all = withTeamFile(teamFile('- hack-marker: line /\\bHACK\\b/ — a hack marker'));
+  expect(slopHits(slopSpec(all), added('x/y.rb', ['a', '# HACK']), { generated: [] }).map((h) => h.kind)).toEqual(['hack-marker']);
+  // a team pattern with a default's id replaces the default
+  const mine = withTeamFile(teamFile('- empty-catch: line /catch\\s*\\{\\}/ for .ts — my own wording'));
+  const rule = slopSpec(mine).patterns.filter((p) => p.id === 'empty-catch');
+  expect(rule).toHaveLength(1);
+  expect(rule[0]).toMatchObject({ label: 'my own wording', exts: ['.ts'] });
+  // problems: a path pattern, a bad scope, an upper-case extension, an id in upper case, a repeated id, an unknown heading, a repeated heading
+  const bad = parseSlop(
+    ['## Patterns', '- p1: path src/ — a path', '- p2: line /x/ for ts — no dot', '- p3: line /x/ for .TS — upper case', '- P4: line /x/ — upper id', '- p5: line /x/ — one', '- p5: line /y/ — twice', '## Checklist', '## Patterns'].join('\n'),
+  );
+  expect(bad.problems.map((p) => p.line)).toEqual([2, 3, 4, 5, 7, 8, 9]);
+  expect(bad.problems[0].reason).toContain('line pattern');
+  expect(bad.problems[1].reason).toContain('.<ext>');
+  expect(bad.problems[5].reason).toContain('not a section');
+  expect(bad.problems[6].reason).toContain('appears twice');
+  // Removed: a default, a structural kind, an unknown id, a default removed twice
+  const removed = slopSpec(
+    withTeamFile(['## Patterns', '', '## Removed', '- Removed: any-type — we write generics', '- Removed: new-dependency — a lockfile review does it', '- Removed: nothing-here — oops', '- Removed: any-type — again'].join('\n')),
+  );
+  expect(removed.patterns.map((p) => p.id)).not.toContain('any-type');
+  expect(removed.removed.map((r) => r.id)).toEqual(['any-type', 'new-dependency']);
+  expect(removed.problems.map((p) => p.line)).toEqual([6, 7]);
 });

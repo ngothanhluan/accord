@@ -44,7 +44,8 @@ const ANY_FLAGS = /^\/(.+)\/([A-Za-z]+)$/;
 const ID_ONLY = new RegExp(`^${ID}$`);
 const LEADING_ID = /^- ([^:\s]+): /;
 const HAS_WORD = /[\p{L}\p{N}]/u;
-const MAX_LINE = 2000;
+/** The longest line of a security.md the reader takes (2000): a team's file line, a different input from a changed line (SCAN_LINE_LIMIT in match.ts). */
+const MAX_PATTERN_LINE = 2000;
 
 const BOM = String.fromCharCode(0xfeff);
 
@@ -73,8 +74,8 @@ export function parseSecurityFile(text: string): SecuritySpec {
   for (const { line, text: raw } of sectionLines(sections, 'patterns')) {
     const t = raw.trimEnd();
     if (!isListLine(t)) continue;
-    if (t.length > MAX_LINE) {
-      patternProblem(line, `a pattern line is longer than ${MAX_LINE} characters`);
+    if (t.length > MAX_PATTERN_LINE) {
+      patternProblem(line, `a pattern line is longer than ${MAX_PATTERN_LINE} characters`);
       continue;
     }
     const m = PATTERN.exec(t);
@@ -131,9 +132,9 @@ export function parseSecurityFile(text: string): SecuritySpec {
   for (const { line, text: raw } of sectionLines(sections, 'checklist')) {
     const t = raw.trimEnd();
     if (!isListLine(t)) continue;
-    const m = t.length > MAX_LINE ? null : CHECK.exec(t);
+    const m = t.length > MAX_PATTERN_LINE ? null : CHECK.exec(t);
     if (m === null) {
-      problem(line, (t.length > MAX_LINE ? undefined : idProblem(t)) ?? 'not a check: write "- <id>: <check>"');
+      problem(line, (t.length > MAX_PATTERN_LINE ? undefined : idProblem(t)) ?? 'not a check: write "- <id>: <check>"');
       continue;
     }
     if (checked.has(m[1])) {
@@ -147,7 +148,7 @@ export function parseSecurityFile(text: string): SecuritySpec {
   for (const { line, text: raw } of sectionLines(sections, 'removed')) {
     const t = raw.trimEnd();
     if (!isListLine(t)) continue;
-    const m = t.length > MAX_LINE ? null : REMOVED.exec(t);
+    const m = t.length > MAX_PATTERN_LINE ? null : REMOVED.exec(t);
     if (m === null) {
       problem(line, 'not a removal: write "- Removed: <id> — <reason>", the reason in words');
       continue;

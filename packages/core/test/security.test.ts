@@ -580,7 +580,8 @@ it('risk:resource many long changed lines run each line pattern once per line on
       expect(Math.max(...scan[id]), id).toBeLessThanOrEqual(SCAN_LINE_LIMIT);
     }
     expect(triggers.filter((t) => t.cannot === true)).toHaveLength(LINES);
-    expect(triggers).toHaveLength(LINES);
+    // the other 100 are `two-dot`, which matches the `=` inside the first 1000 characters of each line; no other pattern matches
+    expect(triggers.filter((t) => t.cannot !== true).map((t) => t.pattern)).toEqual(Array.from({ length: LINES }, () => 'two-dot'));
 
     // matchedHunks adds one more pass of its own (its trigger pass) and runs nothing on a cut line itself
     for (const id of lineIds) {

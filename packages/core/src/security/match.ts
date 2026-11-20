@@ -31,7 +31,7 @@ export interface Trigger {
   removed?: boolean;
   pattern: string;
   label: string;
-  /** the diff text does not show the path (no `line`), or a changed line is longer than the scan cap and was scanned only up to it (with `line`). */
+  /** the diff text does not show the path (no `line`), or a changed line is longer than SCAN_LINE_LIMIT and was scanned only up to it (with `line`). */
   cannot?: boolean;
 }
 
@@ -165,11 +165,16 @@ export function diffFiles(diffText: string): DiffFile[] {
   return files;
 }
 
-const MAX_LINE = 2000;
-/** The label of the trigger a cut line gets: the cap guards the patterns against backtracking, so a line over it is never scanned whole and says so (fail closed). */
-const LONG_LINE = `line longer than ${MAX_LINE} characters, not fully scanned`;
+/**
+ * The one scan bound (D-09): a changed line is matched on its first SCAN_LINE_LIMIT characters only. The bound caps the time an allowed pattern may take per changed line, which is at most
+ * two overlapping repeats in a row and 16 routes for one text; exponential shapes, longer runs and more routes are refused at read by backtrack.ts. The total still grows with the number of
+ * changed lines, each one costing at most the sum of the patterns' cost on SCAN_LINE_LIMIT characters (08-08b states the figures); no total cap is built.
+ */
+export const SCAN_LINE_LIMIT = 1000;
+/** The label of the trigger a cut line gets: a line over the bound is never scanned whole and says so (fail closed). */
+const LONG_LINE = `line longer than ${SCAN_LINE_LIMIT} characters, not fully scanned`;
 const UNREADABLE = 'too large to read as text, so its lines were not scanned';
-const tooLong = (text: string): boolean => text.length > MAX_LINE;
+const tooLong = (text: string): boolean => text.length > SCAN_LINE_LIMIT;
 const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const TEST_FOLDER = new Set(['test', 'tests', '__tests__']);
 
@@ -247,7 +252,7 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
     if (f.binary || f.path === undefined || skipped(f.path)) continue;
     const scanLines = (lines: DiffFile['added'], removed: boolean) => {
       for (const l of lines) {
-        const head = tooLong(l.text) ? l.text.slice(0, MAX_LINE) : l.text;
+        const head = tooLong(l.text) ? l.text.slice(0, SCAN_LINE_LIMIT) : l.text;
         if (tooLong(l.text)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: '', label: LONG_LINE, cannot: true });
         for (const { p, re } of lineRes) if (re.test(head)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: p.id, label: p.label });
       }

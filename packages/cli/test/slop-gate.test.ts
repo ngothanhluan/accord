@@ -76,3 +76,17 @@ it('risk:regression a fixed slop hit needs no line and an old ticket is not affe
   const old = ticket({ pin: '0.8.0' });
   expect(await slop(old.repo)).toEqual([]);
 }, 180_000);
+
+it('risk:security gate done refuses while the team slop file holds a pattern the guard refused (8.1-ac-14)', async () => {
+  // no hit at all: the ticket's code is clean, the team's file holds a pattern the backtracking guard refuses
+  const t = ticket({ extra: { 'accord/product/slop.md': '## Patterns\n\n- slow: line /(a+)+$/ — slow\n' }, code: { 'src/a.ts': 'export const a = 2;\n' } });
+  const refused = await slop(t.repo);
+  expect(refused).toHaveLength(1);
+  expect(refused[0].level).toBe('error');
+  expect(refused[0].reason).toContain('accord/product/slop.md:3');
+  expect(refused[0].reason).toContain('accord lint');
+
+  // the same ticket without the file is clean
+  const clean = ticket({ code: { 'src/a.ts': 'export const a = 2;\n' } });
+  expect(await slop(clean.repo)).toEqual([]);
+}, 180_000);

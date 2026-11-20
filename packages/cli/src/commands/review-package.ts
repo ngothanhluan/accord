@@ -8,7 +8,7 @@ import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
 import { exemptCopies, securityRoundRanges } from '../load/security-facts.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
-import { branchFactFor, renderedFiles } from './branch-fact.js';
+import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 
 const cannot = (why: string) => `(cannot tell: ${why})`;
@@ -29,8 +29,7 @@ export function securitySections(s: RepoSnapshot, diffText: string, changed: str
     const spec = securitySpec(s);
     const generated = s.config?.generated ?? [];
     // BUG-LN-25 D-06, D-08: the copies left out are the ones gate done leaves out, read at this package's own head; a read that fails is `(cannot tell: …)` below.
-    const config = s.config;
-    const exempt = exemptCopies(at.root, at.head, changed, () => (config === undefined ? [] : renderedFiles(config)));
+    const exempt = exemptCopies(at.root, at.head, changed, renderedFilesOf(s.config));
     const found = securityTriggers(spec, diffText, changed, { generated, unreadable, exempt });
     let triggers = found.map(triggerText).join('\n') || NONE;
     // ST-LN-36 D-06: a line of the repository's file that did not read is said here too, so a reviewer is never told the list is whole when it is not.

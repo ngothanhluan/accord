@@ -473,9 +473,9 @@ const BASELINE_REPORT = junit({ 'a.test.ts#other': 'passed', 'a.test.ts#one': 'p
 const NO_REPORT_CONFIG = CONFIG.replace(`tests:\n  report: ${REPORT}\n`, '');
 
 /** A repository whose ticket names a.test.ts#one, holding the five-id baseline, committed 30 days ago. */
-function baselineRepo(config = CONFIG, baseline: string | undefined = BASELINE_TEXT): string {
+function baselineRepo(config = CONFIG, baseline: string | null = BASELINE_TEXT): string {
   const files: Files = { [P('T-1')]: laneTicket('T-1', { body: LANE_BODY.replace('export#writes-csv', 'a.test.ts#one') }) };
-  if (baseline !== undefined) files[BASELINE] = baseline;
+  if (baseline !== null) files[BASELINE] = baseline;
   return sandbox(files, config, 30);
 }
 
@@ -517,14 +517,14 @@ it('risk:complex-branching the baseline check says no observation without a fres
   // a report written before the last commit (D-11's staleness guard)
   const stale = baselineRepo();
   writeFiles(stale, { [REPORT]: BASELINE_REPORT });
-  const old = new Date(Date.now() - 2 * 24 * 3600 * 1000);
+  const old = new Date(Date.now() - 40 * 24 * 3600 * 1000); // older than the commit of 30 days ago
   utimesSync(resolve(stale, REPORT), old, old);
   const s = await audit(stale);
   expect(baselineFact(s.lines), s.out).toBe(`fact: tests-baseline: 5 ids; removable ones: no observation (${REPORT} was written before the last commit; run tests.full)`);
   expect(gapsOf(s.lines, 'baseline-removable'), s.out).toEqual([]);
 
   // no baseline file
-  const bare = await audit(baselineRepo(CONFIG, undefined));
+  const bare = await audit(baselineRepo(CONFIG, null));
   expect(baselineFact(bare.lines), bare.out).toBe('fact: tests-baseline: no accord/tests-baseline.txt');
   expect(gapsOf(bare.lines, 'baseline-removable'), bare.out).toEqual([]);
 });

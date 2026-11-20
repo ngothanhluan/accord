@@ -131,7 +131,8 @@ export { isLockfile, LOCKFILES, slopHits, slopLine, slopSkipped, sortHits } from
 export type { SlopHit } from './slop/match.js';
 export { compilePattern, DEFAULT_PATTERN, ID_PREFIX, initialsHolder, initialsOf, initialsOnRefs, nextTicketId, peopleOf, prefixOf, TRACKER_KEY, trackerKeyOk } from './lint/ids.js';
 export type { CompiledPattern, IdsConfig } from './lint/ids.js';
-export { untracedTests } from './lint/tests.js';
+export { removableBaseline, untracedTests } from './lint/tests.js';
+export type { RemovableWhy } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';
 export { recordTaskDone } from './write/ledger.js';
 export { writeTestTags } from './write/testtag.js';
@@ -157,7 +158,7 @@ export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/sho
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export { dashboard, isOpenWork } from './status/dashboard.js';
-export { branchGaps, deferredGaps, draftAge, draftStaleGaps, leftoverGaps, NO_COMMAND_BRANCH, SAFE_BRANCH, SAFE_ID, ticketIdleGaps } from './audit/hygiene.js';
+export { BASELINE_LISTED, baselineGap, branchGaps, deferredGaps, draftAge, draftStaleGaps, leftoverGaps, NO_COMMAND_BRANCH, SAFE_BRANCH, SAFE_ID, ticketIdleGaps } from './audit/hygiene.js';
 export type { ClaimRefFact, OldDraft } from './audit/hygiene.js';
 export { deferredMark, ownerDeferred, ratingOf } from './tickets/deferred.js';
 export type { DeferredMark, DeferredRating, OwnerDeferred } from './tickets/deferred.js';

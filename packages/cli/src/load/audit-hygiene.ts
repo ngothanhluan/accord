@@ -1,11 +1,14 @@
-// Phase 8.2 group 3 (D-01..D-08): the facts and gaps about the work in a repository: claimed tickets that went quiet and drafts nobody touched, each naming the person. It reads git and files,
+// Phase 8.2 group 3 (D-01..D-11): the facts and gaps about the work in a repository: claimed tickets that went quiet, drafts nobody touched, deferred items nobody decided and baseline ids that can go, each naming the person where one is known. It reads git and files,
 // writes nothing, fetches nothing and calls no model: the claim branches it judges are the ones already in this clone (local and origin-tracking), so the report is only as fresh as the last fetch.
 // Group 3 loads the claims view itself, as `accord dashboard` does, inside a guard: `accord audit` keeps its checkout preflight, so a claim-view failure never stops the pin report or groups 1, 2 and 6.
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Writable } from 'node:stream';
-import { branchGaps, claimPinBefore, deferredGaps, DEFERRED_MARK_FROM, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, ownerDeferred, SAFE_BRANCH, SAFE_ID, statusRows, ticketIdleGaps } from '@accord-dev/accord-core';
+import { baselineGap, branchGaps, claimPinBefore, deferredGaps, DEFERRED_MARK_FROM, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, normaliseKey, ownerDeferred, removableBaseline, SAFE_BRANCH, SAFE_ID, statusRows, ticketIdleGaps } from '@accord-dev/accord-core';
 import type { AuditFact, AuditGap, ClaimPin, ClaimRefFact, OldDraft, OwnerDeferred } from '@accord-dev/accord-core';
 import { norm } from '../commands/leftover.js';
+import { staleReport } from '../commands/task-done.js';
 import { worktreeClean } from '../commands/worktree.js';
 import type { CommandContext } from '../run.js';
 import { NOT_CHECKED } from './audit-health.js';
@@ -329,6 +332,60 @@ function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
   }
 }
 
+/** The 1-based line of each id in accord/tests-baseline.txt as written (BOM and CRLF dropped), the first line holding it. */
+function baselineLines(root: string): Map<string, number> {
+  const text = readFileSync(join(root, 'accord', 'tests-baseline.txt'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+  const lines = new Map<string, number>();
+  text.split('\n').forEach((l, i) => {
+    const id = l.trim();
+    if (id !== '' && !lines.has(id)) lines.set(id, i + 1);
+  });
+  return lines;
+}
+
+/**
+ * D-05, D-11: the size of the tests baseline and the ids of it that can be deleted now. The removable ones are judged only against a fresh report: with no `tests.report`, a missing report or one
+ * written before the last commit (the staleness guard `accord tests baseline` applies too: this repository's `tests.affected` writes the same path with a subset) the fact says `no observation`,
+ * never that none can go. Reads the baseline and the report from the checkout the audit already loaded, writes nothing and calls no model.
+ */
+function auditBaseline(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]): void {
+  const ids = ctx.snapshot.testsBaseline;
+  if (ids === undefined) {
+    facts.push({ name: 'tests-baseline', value: 'no accord/tests-baseline.txt' });
+    return;
+  }
+  const head = `${ids.length} ids`;
+  const config = ctx.snapshot.config;
+  const none = (why: string): void => void facts.push({ name: 'tests-baseline', value: `${head}; removable ones: no observation (${why})` });
+  if (config === undefined) {
+    facts.push({ name: 'tests-baseline', value: `${head}; removable ones: not checked (${NOT_CHECKED})` });
+    return;
+  }
+  const report = config.tests?.report;
+  if (report === undefined) return none('no tests.report in accord/config.yml');
+  const rel = normaliseKey(report);
+  if (ctx.snapshot.tests === undefined) return none(`${rel} was not found; run tests.full`);
+  try {
+    if (ctx.snapshot.git?.commit !== undefined && staleReport(ctx) !== undefined) return none(`${rel} was written before the last commit; run tests.full`);
+  } catch {
+    return none(`${rel} could not be compared with the last commit`);
+  }
+  const found = removableBaseline(ctx.snapshot);
+  if (found === undefined) return none(`${rel} was not found; run tests.full`);
+  facts.push({ name: 'tests-baseline', value: found.notJudged > 0 ? `${head}, ${found.notJudged} not judged: their files have no case in the report` : head });
+  try {
+    const at = baselineLines(ctx.root);
+    const listed = found.removable.flatMap((r) => {
+      const line = at.get(r.id);
+      return line === undefined ? [] : [{ id: r.id, why: r.why, line }];
+    });
+    const gap = baselineGap(listed, ids.length);
+    if (gap !== undefined) gaps.push(gap);
+  } catch (err) {
+    facts.push({ name: 'tests-baseline', value: `removable ones: not checked (accord/tests-baseline.txt could not be read: ${firstLine(err)})` });
+  }
+}
+
 /** The group 3 facts and gaps (Rulings "group 3 facts, G1", "gap wording"). Every string goes through audit.ts's `fact()` and `gap()` closures, which make it printable. */
 export async function auditHygiene(ctx: CommandContext): Promise<{ facts: AuditFact[]; gaps: AuditGap[] }> {
   const facts: AuditFact[] = [];
@@ -341,6 +398,7 @@ export async function auditHygiene(ctx: CommandContext): Promise<{ facts: AuditF
     facts.push({ name: 'work-ages', value: `not checked (${NOT_CHECKED})` });
     facts.push({ name: 'worktree-refs', value: `not checked (${NOT_CHECKED})` });
     facts.push({ name: 'deferred-marks', value: `not checked (${NOT_CHECKED})` });
+    auditBaseline(ctx, facts, gaps);
     return { facts, gaps };
   }
   const staleDays = config.stale_days ?? '14';
@@ -375,5 +433,7 @@ export async function auditHygiene(ctx: CommandContext): Promise<{ facts: AuditF
   auditBranches(ctx, who.show, staleDays, facts, gaps);
   // D-04, D-06, D-10: its own guard as well
   auditDeferred(ctx, facts, gaps);
+  // D-05, D-11: the baseline and the report are read from the checkout, so this check needs no git beyond the report's age
+  auditBaseline(ctx, facts, gaps);
   return { facts, gaps };
 }

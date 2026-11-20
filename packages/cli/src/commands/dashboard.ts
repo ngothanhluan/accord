@@ -1,6 +1,7 @@
 // ST-LN-2 `accord dashboard`: the ranked sections for the viewer (git user.email), as text or JSON.
 import { dashboard, loadSnapshot } from '@accord-dev/accord-core';
 import { gitUserEmail, loadClaimView, remoteRefs, UsageError, withDefaultRef, withQueued } from '../load/fs.js';
+import { conventionsNotice } from './audit.js';
 import { dashboardFetchLimitMs } from './fetch-limit.js';
 import { upgradeNotice } from './notice.js';
 import { fetchOrigin } from './worktree.js';
@@ -36,6 +37,9 @@ export async function dashboardCommand(first: CommandContext, options: { json?: 
   if (!options.json) {
     const line = await upgradeNotice(ctx.snapshot.config?.accord);
     if (line !== undefined) ctx.stdout.write(line + '\n');
+    // Phase 8.1 D-11: one line while the conventions file exists and holds no convention line; text only, never a refusal, and the audit is not run
+    const conventions = conventionsNotice(ctx.root);
+    if (conventions !== undefined) ctx.stdout.write(conventions + '\n');
   }
   const d = dashboard(ctx.snapshot, viewer, Math.floor(Date.now() / 1000), ctx.plain);
   ctx.stdout.write(options.json ? JSON.stringify(f.why === undefined ? d : { ...d, offline: f.why }, null, 2) + '\n' : withStagesOff(ctx, renderDashboard(d)));

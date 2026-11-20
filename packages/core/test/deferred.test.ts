@@ -61,7 +61,7 @@ it('risk:parsing the deferred lister shows Must then Should items and skips Nice
 it('risk:parsing a deferred mark is the arrow and an id or declined at the end of the full line (8.2-ac-5)', () => {
   expect(deferredMark('- review 1.3: a lock (Must) → declined')).toEqual({ kind: 'declined' });
   expect(deferredMark('- review 1.2: a comma (Should) → ST-LN-101')).toEqual({ kind: 'queued', id: 'ST-LN-101' });
-  // ASCII -> is not a mark, an id holds a digit, declined is the whole last word, and the arrow sits at the end
+  // ASCII -> is not a mark, an id is a letter-led word ending in a hyphen and digits, declined is the whole last word, and the arrow sits at the end
   expect(deferredMark('- a (Must) -> ST-1')).toBeUndefined();
   expect(deferredMark('- a (Must) → foo')).toBeUndefined();
   expect(deferredMark('- a (Must) → declined but more')).toBeUndefined();
@@ -101,4 +101,22 @@ it('risk:regression ownerDeferred lists only unmarked Must and Should items (D-0
   ]);
   // every item marked: nothing is left to ask
   expect(ownerDeferred('## Deferred\n- a (Must) → declined\n- b (Should) → T-2\n')).toEqual([]);
+});
+
+// Review WR-01: a prose arrow at the end of a line is not the owner's mark unless it names `declined` or a ticket id shape.
+it('risk:regression a deferred line ending in a version arrow stays listed and is no mark (8.2-ac-5)', () => {
+  expect(deferredMark('- review 2.3: the migration must run in order, 0.9 → 0.10')).toBeUndefined();
+  expect(deferredMark('- (Must) rename the flag v1 → v2')).toBeUndefined();
+  expect(deferredMark('- keep the old name → x2')).toBeUndefined();
+  expect(deferredMark('- a (Must) → 42')).toBeUndefined();
+  // real id shapes still read: the default pattern, a tracker key and a short team prefix
+  expect(deferredMark('- a (Must) → BUG-LN-9')).toEqual({ kind: 'queued', id: 'BUG-LN-9' });
+  expect(deferredMark('- a (Must) → PROJ-123')).toEqual({ kind: 'queued', id: 'PROJ-123' });
+  expect(deferredMark('- a (Must) → T-9')).toEqual({ kind: 'queued', id: 'T-9' });
+  // the unrated and the Must items with an arrow in their prose are still shown to the owner
+  const ledger = ['## Deferred', '- review 2.3: the migration must run in order, 0.9 → 0.10', '- (Must) rename the flag v1 → v2', ''].join('\n');
+  expect(ownerDeferred(ledger)).toEqual([
+    { rating: 'Must', text: '(Must) rename the flag v1 → v2' },
+    { rating: 'Should', text: 'review 2.3: the migration must run in order, 0.9 → 0.10' },
+  ]);
 });

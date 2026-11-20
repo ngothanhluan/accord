@@ -2,6 +2,7 @@
 import { expect, it } from 'vitest';
 import { BASELINE_LISTED, baselineGap, branchGaps, deferredGaps, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, removableBaseline, statusRows, ticketIdleGaps } from '../src/index.js';
 import type { ClaimRefFact, StatusRow } from '../src/index.js';
+import { NO_COMMAND_TIP } from '../src/audit/hygiene.js';
 import { CONFIG, done, junit, LANE_BODY, laneTicket, P, building, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
@@ -114,7 +115,8 @@ it('risk:parsing a would-be removal line becomes one worktree-leftover gap with 
 });
 
 const NOW = Date.UTC(2026, 10, 20, 12) / 1000;
-const ref = (over: Partial<ClaimRefFact>): ClaimRefFact => ({ name: 't/T-1', local: true, id: 'T-1', tip: NOW - 20 * 86400 - 3600, author: 'a@x.io', ticketAnywhere: true, origin: false, merged: false, ...over });
+const TIP = '1234567890abcdef1234567890abcdef12345678';
+const ref = (over: Partial<ClaimRefFact>): ClaimRefFact => ({ name: 't/T-1', sha: TIP, local: true, id: 'T-1', tip: NOW - 20 * 86400 - 3600, author: 'a@x.io', ticketAnywhere: true, origin: false, merged: false, ...over });
 
 it('risk:complex-branching orphan and unpushed claim branches are judged once each (8.2-ac-4)', () => {
   const orphan = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false, tip: NOW - 3 * 86400 })], new Set(), '14', NOW, same, { defaultName: 'origin/main' });
@@ -122,7 +124,7 @@ it('risk:complex-branching orphan and unpushed claim branches are judged once ea
     {
       id: 'branch-orphan',
       text: 't/ZZ-9 (local) names ticket ZZ-9, and no accord/tickets/ZZ-9.md is in the checkout, on origin/main or on the branch; tip by a@x.io',
-      fix: 'git branch -D t/ZZ-9',
+      fix: 'git update-ref -d refs/heads/t/ZZ-9 ' + TIP,
     },
   ]);
   const remote = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', local: false, ticketAnywhere: false, origin: true })], new Set(), '14', NOW, same);
@@ -134,7 +136,7 @@ it('risk:complex-branching orphan and unpushed claim branches are judged once ea
     {
       id: 'claim-unpushed',
       text: 't/T-1 (ticket T-1) has no origin/t/T-1, and its tip is 20 days old (stale_days 14); tip by a@x.io',
-      fix: 'git push -u origin t/T-1 to keep it, or git branch -D t/T-1 to delete it',
+      fix: 'git push -u origin t/T-1 to keep it, or git update-ref -d refs/heads/t/T-1 ' + TIP + ' to delete it',
     },
   ]);
 
@@ -253,4 +255,15 @@ it('risk:parsing the baseline gap names at most ten ids with their lines and the
   expect(three?.text).toBe('3 of 5 ids in accord/tests-baseline.txt can be removed: a#one (line 3: named by @test:), a#gone (line 5: not in the report), b#risk:x (line 9: carries risk:)');
   expect(three?.fix).toBe('delete lines 3, 5, 9 of accord/tests-baseline.txt (the baseline only shrinks, so deleting is allowed)');
   expect(baselineGap([], 5)).toBeUndefined();
+});
+
+// Review WR-03: a local delete is printed tip-pinned, and no command is printed for a tip git did not give as a hash.
+it('risk:data-loss a printed local branch delete is the tip-pinned update-ref and never git branch -D (8.2-ac-4)', () => {
+  const gaps = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false }), ref({})], new Set(), '14', NOW, same);
+  expect(gaps.map((g) => g.fix).join('\n')).not.toContain('git branch -D');
+  const odd = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false, tip: NOW - 3 * 86400, sha: '--force; rm' })], new Set(), '14', NOW, same);
+  expect(odd.map((g) => g.fix)).toEqual([NO_COMMAND_TIP]);
+  // an origin ref is deleted with the push, which needs no tip
+  const remote = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', local: false, ticketAnywhere: false, sha: '--force; rm' })], new Set(), '14', NOW, same);
+  expect(remote.map((g) => g.fix)).toEqual(['git push origin --delete t/ZZ-9']);
 });

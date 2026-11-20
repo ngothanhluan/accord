@@ -212,6 +212,7 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
     const ticketAnywhere = known(id) || (def !== undefined && gitOk(root, ['cat-file', '-e', `${def}:${path}`])) || (SHA.test(sha) && gitOk(root, ['cat-file', '-e', `${sha}:${path}`]));
     refs.push({
       name,
+      sha,
       local: m[1] !== undefined,
       id,
       tip: Number(when),

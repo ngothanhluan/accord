@@ -112,6 +112,8 @@ export function leftoverGaps(lines: readonly string[], authorOf: (line: string) 
 export interface ClaimRefFact {
   /** The branch name without `origin/`, as `t/ST-9`. */
   name: string;
+  /** The tip's object name as git printed it; a local delete is printed pinned to it, so a commit made after this audit makes git refuse the delete. */
+  sha: string;
   local: boolean;
   id: string;
   /** The tip's committer time, epoch seconds. */
@@ -125,6 +127,14 @@ export interface ClaimRefFact {
   /** The tip is already on the default ref. */
   merged: boolean;
 }
+
+/** What a fix says for a local branch whose tip git did not give as a hash. */
+export const NO_COMMAND_TIP = 'the branch tip could not be read as a hash, so no delete command is printed; delete it by hand';
+
+const TIP_HASH = /^[0-9a-f]{40,64}$/;
+
+/** The repository's local branch delete (conventions.md): `git update-ref -d` pinned to the tip this audit read, never `git branch -D`. */
+const deleteLocal = (r: ClaimRefFact): string | undefined => (TIP_HASH.test(r.sha) ? `git update-ref -d refs/heads/${r.name} ${r.sha}` : undefined);
 
 /**
  * D-03, D-06: `branch-orphan` for a claim ref whose ticket exists nowhere, `claim-unpushed` for a local claim branch never pushed whose tip is older than `stale_days` (strictly).
@@ -148,7 +158,7 @@ export function branchGaps(
     .map((r) => ({
       id: 'branch-orphan',
       text: `${r.name} (${r.local ? 'local' : 'origin'}) names ticket ${r.id}, and no accord/tickets/${r.id}.md is in the checkout, on ${def} or on the branch; tip by ${by(r)}`,
-      fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : r.local ? `git branch -D ${r.name}` : `git push origin --delete ${r.name}`,
+      fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : r.local ? (deleteLocal(r) ?? NO_COMMAND_TIP) : `git push origin --delete ${r.name}`,
     }));
   const unpushed =
     opts.unpushed === false
@@ -159,7 +169,7 @@ export function branchGaps(
           .map((r) => ({
             id: 'claim-unpushed',
             text: `${r.name} (ticket ${r.id}) has no origin/${r.name}, and its tip is ${Math.floor((now - r.tip) / 86400)} days old (stale_days ${staleDays}); tip by ${by(r)}`,
-            fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : `git push -u origin ${r.name} to keep it, or git branch -D ${r.name} to delete it`,
+            fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : `git push -u origin ${r.name} to keep it${deleteLocal(r) === undefined ? '' : `, or ${deleteLocal(r)} to delete it`}`,
           }));
   return [...orphans, ...unpushed];
 }

@@ -81,7 +81,27 @@ const interesting = (base: string): boolean => OTHER.has(base) || ESLINT.test(ba
 /** Quoted rule names set to error, warn, 2 or 1, alone or first in an array, in a config's text. */
 const RULE = /["']([@A-Za-z0-9][@A-Za-z0-9/._-]*)["']\s*:\s*(?:["'](?:error|warn)["']|[12]\b|\[\s*(?:["'](?:error|warn)["']|[12]\b))/g;
 const DOTNET_RULE = /dotnet_diagnostic\.([A-Za-z0-9]+)\.severity\s*=\s*(?:warning|error)\b/g;
-const SELECT = /(?:extend-)?select\s*=\s*\[([^\]]*)\]/g;
+const SELECT_OPEN = /(?:extend-)?select\s*=\s*\[/g;
+
+/**
+ * The text between `select = [` (or `extend-select = [`) and the next `]`, for each list in order (U-2). One pass: the search for a closing bracket starts where the previous list ended and stops at
+ * the first list with none, so repeated `select=[` in a hostile file costs time linear in its size, not the square of it (a `[^\]]*` group tried from every start took 20 s on 640 KB).
+ */
+function selectLists(text: string): string[] {
+  const lists: string[] = [];
+  let from = 0;
+  for (;;) {
+    SELECT_OPEN.lastIndex = from;
+    const open = SELECT_OPEN.exec(text);
+    if (open === null) break;
+    const start = open.index + open[0].length;
+    const close = text.indexOf(']', start);
+    if (close < 0) break;
+    lists.push(text.slice(start, close));
+    from = close + 1;
+  }
+  return lists;
+}
 
 function namesIn(text: string, pattern: RegExp, group = 1): string[] {
   return [...text.matchAll(pattern)].map((m) => m[group]);
@@ -150,12 +170,12 @@ export function machineFacts(root: string, tracked: readonly string[]): MachineF
     } else if (base === 'ruff.toml' || base === '.ruff.toml') {
       linter('ruff', rel);
       if (/^\[(?:format|lint\.format)\]/m.test(text)) formatter('ruff format', rel);
-      for (const list of namesIn(text, SELECT)) keep(namesIn(list, /["']([A-Za-z0-9]+)["']/g));
+      for (const list of selectLists(text)) keep(namesIn(list, /["']([A-Za-z0-9]+)["']/g));
     } else if (base === 'pyproject.toml') {
       if (text.includes('[tool.ruff')) {
         linter('ruff', rel);
         if (text.includes('[tool.ruff.format')) formatter('ruff format', rel);
-        for (const list of namesIn(text, SELECT)) keep(namesIn(list, /["']([A-Za-z0-9]+)["']/g));
+        for (const list of selectLists(text)) keep(namesIn(list, /["']([A-Za-z0-9]+)["']/g));
       }
       if (text.includes('[tool.pylint')) linter('pylint', rel);
       if (text.includes('[tool.black')) formatter('black', rel);

@@ -122,3 +122,54 @@ it('risk:complex-branching a Removed line switches new-dependency off and a line
     cleanup(repo);
   }
 }, 120_000);
+
+/** `n` lines of plain code, each line unlike the next. */
+const lines = (n: number, tag = 'n'): string => Array.from({ length: n }, (_, i) => `export const ${tag}${i} = ${i};`).join('\n') + '\n';
+
+const GROWTH_BASE = {
+  'src/big.ts': lines(495),
+  'src/a.ts': 'export const a = 1;\n',
+  'package-lock.json': lines(600, 'lock'),
+};
+const GROWTH_HEAD = (): Record<string, string> => ({
+  'src/big.ts': lines(520),
+  'src/lonely.ts': 'export const only = 1;\n',
+  'src/used.ts': 'export const used = 1;\n',
+  'src/a.ts': "import { used } from './used.js';\nexport const a = used;\n",
+  'package-lock.json': lines(700, 'lock'),
+  'web/yarn.lock': lines(150, 'y'),
+  // a name with glob characters, searched literally: src/a.ts names it, so it is no orphan
+  'src/[ab].ts': 'export const odd = 1;\n',
+  ...(process.platform === 'win32' ? {} : { 'src/:(glob)x.ts': 'export const magic = 1;\n' }),
+});
+
+it('risk:regression review-package names a grown file and an orphan file (D-14)', async () => {
+  const head = GROWTH_HEAD();
+  head['src/a.ts'] += "// see src/[ab].ts\n" + (process.platform === 'win32' ? '' : '// see src/:(glob)x.ts\n');
+  const repo = ticketRepo(GROWTH_BASE, head);
+  try {
+    const out = await run(['review-package', 'T-1'], repo);
+    expect(out.err).toBe('');
+    expect(out.code).toBe(0);
+    expect(slopLines(out.out).map((l) => l.split(' — ')[0])).toEqual(['- slop:file-growth src/big.ts:520', '- slop:orphan-file src/lonely.ts:1']);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching slop.max_file_lines moves the bound and a Removed line switches file-growth and orphan-file off (D-14)', async () => {
+  const withBound = (config: string): Record<string, string> => ({ 'accord/config.yml': config });
+  const repo = ticketRepo({ ...withBound(CONFIG + 'slop:\n  max_file_lines: "200"\n'), 'src/mid.ts': lines(190) }, { 'src/mid.ts': lines(210), 'src/lonely.ts': 'export const only = 1;\n' });
+  try {
+    const out = await run(['review-package', 'T-1'], repo);
+    expect(out.err).toBe('');
+    expect(slopLines(out.out).map((l) => l.split(' — ')[0])).toEqual(['- slop:orphan-file src/lonely.ts:1', '- slop:file-growth src/mid.ts:210']);
+    // the same ticket with both kinds removed by the team file
+    writeFiles(repo, { 'accord/product/slop.md': '# Slop patterns\n\n## Patterns\n\n## Removed\n\n- Removed: file-growth — the reviewer reads the stat\n- Removed: orphan-file — we keep scripts nobody imports\n' });
+    commitMsg(repo, 'team slop file');
+    const none = await run(['review-package', 'T-1'], repo);
+    expect(slopSection(none.out)).toBe('## Slop\n\n(none: no pattern matched)');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

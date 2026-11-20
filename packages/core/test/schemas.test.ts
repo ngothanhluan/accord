@@ -206,9 +206,16 @@ describe('config.schema.json', () => {
     expect(validate('config', { ...minimal.config, audit: { command: 'x', other: 'y' } }).length).toBeGreaterThan(0);
   });
 
+  it('risk:parsing slop.max_file_lines is a digit string of one to six digits that does not start with zero (D-14)', () => {
+    const slop = (v: unknown) => validate('config', { ...minimal.config, slop: { max_file_lines: v } });
+    for (const ok of ['500', '1', '200', '999999']) expect(slop(ok), ok).toEqual([]);
+    for (const bad of ['0', '05', 'many', '', '1000000', 500]) expect(slop(bad).length, JSON.stringify(bad)).toBeGreaterThan(0);
+    expect(validate('config', { ...minimal.config, slop: { other: '1' } }).length).toBeGreaterThan(0);
+  });
+
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr', 'audit']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr', 'audit', 'slop']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);

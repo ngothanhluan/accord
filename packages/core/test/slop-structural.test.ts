@@ -1,6 +1,7 @@
 // Phase 8.1 G4a (D-14): the slop kinds a regex cannot see. The new-dependency kind reads a manifest's text at the base and at HEAD.
 import { expect, it } from 'vitest';
-import { isManifest, newDependencies } from '../src/index.js';
+import { growthHits, isManifest, maxFileLines, newDependencies, orphanCandidates, orphanHits, orphanTerms } from '../src/index.js';
+import type { AccordConfig } from '../src/index.js';
 
 const names = (found: { name: string; line: number }[]): string[] => found.map((d) => `${d.name}:${d.line}`);
 
@@ -52,4 +53,62 @@ it('risk:parsing a version bump is not a new dependency and every listed manifes
   expect(isManifest('requirements-dev.txt')).toBe(true);
   expect(isManifest('package-lock.json')).toBe(false);
   expect(isManifest('src/package.json.ts')).toBe(false);
+});
+
+// ---- file growth and orphan files ----
+
+const grown = (path: string, baseLines: number, headLines: number, bound = 500): string[] => growthHits([{ path, baseLines, headLines }], bound).map((h) => `${h.kind} ${h.path}:${h.line}`);
+
+it('risk:complex-branching a file is flagged only when it crosses the bound or grows a tenth past it (D-14)', () => {
+  // crossing the bound, at the file's last line at HEAD
+  expect(grown('src/a.ts', 480, 520)).toEqual(['file-growth src/a.ts:520']);
+  expect(grown('src/a.ts', 500, 501)).toEqual(['file-growth src/a.ts:501']);
+  // already over: a hit from a tenth of the bound (50) of net growth
+  expect(grown('src/a.ts', 600, 650)).toEqual(['file-growth src/a.ts:650']);
+  expect(grown('src/a.ts', 600, 649)).toEqual([]);
+  // touched but not grown that far, shrunk, or small: no hit
+  expect(grown('src/a.ts', 600, 620)).toEqual([]);
+  expect(grown('src/a.ts', 520, 510)).toEqual([]);
+  expect(grown('src/a.ts', 500, 500)).toEqual([]);
+  expect(grown('src/a.ts', 0, 100)).toEqual([]);
+  // a new file over the bound crossed it from nothing
+  expect(grown('src/new.ts', 0, 700)).toEqual(['file-growth src/new.ts:700']);
+  // test files count like any other file (D-20)
+  expect(grown('src/a.test.ts', 480, 520)).toEqual(['file-growth src/a.test.ts:520']);
+  // slop.max_file_lines moves the bound, and the tenth with it
+  expect(grown('src/a.ts', 180, 220, 200)).toEqual(['file-growth src/a.ts:220']);
+  expect(grown('src/a.ts', 480, 520, 1000)).toEqual([]);
+  expect(grown('src/a.ts', 250, 270, 200)).toEqual(['file-growth src/a.ts:270']);
+  // sorted by path, and the label names the bound
+  const two = growthHits(
+    [
+      { path: 'b.ts', baseLines: 1, headLines: 600 },
+      { path: 'a.ts', baseLines: 1, headLines: 600 },
+    ],
+    500,
+  );
+  expect(two.map((h) => h.path)).toEqual(['a.ts', 'b.ts']);
+  expect(two[0].label).toContain('500');
+  // the bound comes from slop.max_file_lines, default 500, and a value that is no number of lines is the default
+  expect(maxFileLines(undefined)).toBe(500);
+  expect(maxFileLines({ slop: {} } as AccordConfig)).toBe(500);
+  expect(maxFileLines({ slop: { max_file_lines: '200' } } as AccordConfig)).toBe(200);
+  expect(maxFileLines({ slop: { max_file_lines: 'many' } } as AccordConfig)).toBe(500);
+});
+
+it('risk:complex-branching a new file no other tracked file names is an orphan and entry points are not (D-14)', () => {
+  const orphans = (files: string[], named: string[] = []): string[] => orphanHits(files, new Set(named)).map((h) => `${h.kind} ${h.path}:${h.line}`);
+  expect(orphans(['src/util/x.ts'])).toEqual(['orphan-file src/util/x.ts:1']);
+  expect(orphans(['src/util/x.ts'], ['src/util/x.ts'])).toEqual([]);
+  // entry points a tool finds by name or location, config and data files, images and Markdown are never orphans
+  const never = ['src/a.test.ts', 'src/a.spec.js', 'test/helper.ts', 'tests/x.py', '__tests__/y.js', '.eslintrc.js', 'src/.hidden.ts', 'data/x.json', 'ci/x.yml', 'a/b.toml', 'a/b.xml', 'bin/cli.js', 'tools/bin/run.js', 'accord/product/x.js', '.github/x.js', '.claude/x.js', '.agents/x.js', 'img/a.png', 'font/a.woff2', 'docs/x.md', 'yarn.lock'];
+  expect(orphans(never)).toEqual([]);
+  // a path and a name no other file holds
+  expect(orphans(['src/lonely.ts', 'src/used.ts', 'web/page.css'], ['src/used.ts'])).toEqual(['orphan-file src/lonely.ts:1', 'orphan-file web/page.css:1']);
+  // what the loader searches for: the path and the stem, or the whole name when the stem is too short to mean anything
+  expect(orphanTerms('src/lonely.ts')).toEqual(['src/lonely.ts', 'lonely']);
+  expect(orphanTerms('src/util/x.ts')).toEqual(['src/util/x.ts', 'x.ts']);
+  expect(orphanTerms('Gemfile')).toEqual(['Gemfile']);
+  // the candidates the loader searches for: the same exclusions, in order
+  expect(orphanCandidates(['src/b.ts', 'src/a.test.ts', 'bin/x.js', 'src/a.ts'])).toEqual(['src/a.ts', 'src/b.ts']);
 });

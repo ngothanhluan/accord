@@ -410,9 +410,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');
   worktree
     .command('clean')
-    .description('fetch, then remove the worktree, the local branch and the origin branch of each ticket done on the default branch, delete the worktree and branches of tickets dropped there when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept')
-    .action(() => {
-      setCode(worktreeClean(preflight(opts)));
+    .description('fetch, then remove the worktree, the local branch and the origin branch of each ticket done on the default branch, delete the worktree and branches of tickets dropped there when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept; with --dry-run it prints the same lines and removes and deletes nothing')
+    .option('--dry-run', 'print what a real clean would remove or delete, and remove or delete nothing; it still fetches, and it assumes each git step succeeds')
+    .action((o: { dryRun?: boolean }) => {
+      setCode(worktreeClean(preflight(opts), o.dryRun === true ? { dry: 'online' } : {}));
     });
   worktree
     .command('check')

@@ -193,6 +193,12 @@ describe('config.schema.json', () => {
     expect(has(queue({ merge: 'owner', extra: 1 }), '/queue', 'schema.additionalProperties')).toBe(true);
   });
 
+  it('risk:parsing commits.subjects and commits.legacy_subjects accept conventions with one {id} (D-06)', () => {
+    const commits = (c: unknown) => validate('config', { ...minimal.config, commits: c });
+    expect(commits({ subjects: { conventions: 'docs(accord): conventions {id}' }, legacy_subjects: { conventions: ['conventions: {id}'] } })).toEqual([]);
+    expect(has(commits({ subjects: { conventions: 'conventions' } }), '/commits/subjects/conventions', 'schema.pattern')).toBe(true);
+  });
+
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
     expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr']);

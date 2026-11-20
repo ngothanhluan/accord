@@ -195,6 +195,7 @@ const SUBJECTS_PROPOSED = {
   ruleset_backfill: 'chore(accord): ruleset {id}',
   queue: 'chore(accord): queue {id}',
   people: 'chore(accord): people {id}',
+  conventions: 'docs(accord): conventions {id}',
 };
 
 describe('accord init proposes the other conventions (ST-LN-50 t2-ac-8)', () => {

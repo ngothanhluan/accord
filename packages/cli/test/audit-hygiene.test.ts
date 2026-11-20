@@ -132,6 +132,8 @@ function writes(args: readonly string[]): boolean {
   if (verb === 'remote') return rest[0] !== 'get-url';
   if (verb === 'branch') return rest.some((a) => /^(-d|-D|-m|-M|-c|-C|--delete|--move|--copy|-f|--force)$/.test(a)) || rest.some((a) => !a.startsWith('-'));
   if (verb === 'config') return !args.includes('--get');
+  // Review WR-02: a bare `git status` takes index.lock to refresh the index, which a session committing in that worktree meets as a failure
+  if (verb === 'status') return !args.includes('--no-optional-locks');
   return false;
 }
 

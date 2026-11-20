@@ -116,7 +116,9 @@ export function parseScoutReport(text: string): ScoutReport {
   }
 
   const seen = new Set<string>();
-  for (const m of norm.matchAll(CITATION)) {
+  // A citation may be written with backslashes (`path\to\file.ts:12`); only this scan reads the slash form, the
+  // ## Absent cells above keep their original text because a regular expression holds backslashes of its own.
+  for (const m of norm.replace(/\\/g, '/').matchAll(CITATION)) {
     const path = m[1];
     if ((!path.includes('/') && !path.includes('.')) || seen.has(m[0])) continue;
     seen.add(m[0]);

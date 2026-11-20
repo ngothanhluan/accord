@@ -106,7 +106,7 @@ export {
   spentLine,
 } from './gate/lane-r.js';
 export { parseScoutReport } from './scout/report.js';
-export { printedClaim, scoutCheck } from './scout/check.js';
+export { expandPath, printedClaim, scoutCheck } from './scout/check.js';
 export type { AbsentRow, Citation, ScoutReport } from './scout/report.js';
 export type { ScoutFacts, ScoutLane, ScoutResult } from './scout/check.js';
 export type { GateResult } from './gate/index.js';

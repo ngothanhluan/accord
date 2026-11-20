@@ -2,10 +2,10 @@
 // model and effort filled in from `models:` in config.yml, falling back per field to AGENT_DEFAULTS, whose values and
 // reasons docs/design.md gives under Routing.
 // `route` is an authoring key and never ships. Same marker-and-hash drift rule as skills (D-111).
-import { Document, Scalar, isScalar, parse } from 'yaml';
+import { Document, Scalar, isScalar } from 'yaml';
 import { agents } from '../generated/agents.js';
-import { normaliseText, splitFrontmatter, stringNumerics } from '../load/frontmatter.js';
-import { contentHash, markerHash, stamp, withoutMarker } from './render.js';
+import { normaliseText, stringNumerics } from '../load/frontmatter.js';
+import { contentHash, markerHash, readSource, stamp, withoutMarker } from './render.js';
 import type { AgentKey } from '../generated/agents.js';
 import type { AccordConfig, Effort, RouteKey } from '../model/snapshot.js';
 import type { SkillFile } from './targets.js';
@@ -47,8 +47,9 @@ const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 function source(key: AgentKey): { yaml: Record<string, unknown>; body: string } {
   const text = agents[key];
   if (text === undefined) throw new Error('unknown agent definition: ' + key);
-  const split = splitFrontmatter(text);
-  return { yaml: (split.yaml === null ? {} : parse(split.yaml, options)) as Record<string, unknown>, body: split.body };
+  const read = readSource(text);
+  if ('problem' in read) throw new Error('agent definition ' + key + ': ' + read.problem);
+  return read;
 }
 
 /** The agent as it lands on disk: name, description, tools and disallowedTools (when authored), model, effort, marker, body. */

@@ -20,7 +20,12 @@ reported as CI not checked, with the reason.
    with git's message; skip the rest of Start. Note `<sha>`, from
    `git rev-parse HEAD`, and the time. A push that changed nothing still
    counts: the runs already on `<sha>` are used.
-4. When that list was empty, run `gh pr create --draft --fill`. A pull
+4. When that list was empty, run `accord pr <id>`; on exit 2: CI not
+   checked, with its message; skip the rest of Start. Write each section a
+   `remaining:` line names into the body file it printed, from what the
+   ticket did and nothing more. Then run
+   `gh pr create --draft --title "<title>" --body-file <body-file>`
+   with the `title:` and `body-file:` lines it printed. A pull
    request already open is left as it is. Never merge it: merging waits
    for the owner.
 

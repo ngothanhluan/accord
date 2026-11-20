@@ -708,7 +708,7 @@ it('ac-2 verify starts ci before the suite and shows the owners report only afte
   expect(a).toBeGreaterThan(-1);
   expect(a).toBeLessThan(b);
   expect(b).toBeLessThan(c);
-  for (const p of ['no GitHub remote', '`gh auth status`', '`gh pr create --draft --fill`', 'A pull request already open is left as it is', 'Never merge it',
+  for (const p of ['no GitHub remote', '`gh auth status`', '`accord pr <id>`', '`gh pr create --draft --title "<title>" --body-file <body-file>`', 'A pull request already open is left as it is', 'Never merge it',
     'A push that changed nothing still counts', 'gh run list --commit <sha> --json', '`.github/workflows/accord.yml`', 'do not wait for it here and never send it to debug', 'red by construction', 'Finish step 4 waits for it on the tick commit',
     'ten minutes', 'thirty minutes', '`cancelled` and `skipped`', 'goes to no debug', 'CI failed on `<sha>`', 'accord check on <tick>: passed'])
     expect(ci, p).toContain(p);

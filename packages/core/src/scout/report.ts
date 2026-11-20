@@ -50,7 +50,8 @@ function listEntries(lines: Line[]): string[] {
   for (const { text } of lines) {
     if (!LIST_MARKER.test(text)) continue;
     const token = text.replace(LIST_MARKER, '').trim().split(/\s+/)[0] ?? '';
-    const entry = unwrap(token).replace(/\\/g, '/').replace(/^\.\//, '').replace(/:\d+(?:[-,]\d+)*$/, '');
+    // `path:` and "`path`:" are the scout's own list form: one trailing colon goes, then a wrapping pair of backticks.
+    const entry = unwrap(unwrap(token).replace(/:$/, '')).replace(/\\/g, '/').replace(/^\.\//, '').replace(/:\d+(?:[-,]\d+)*$/, '');
     if (entry !== '') out.push(entry);
   }
   return out;

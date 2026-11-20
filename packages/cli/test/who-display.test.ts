@@ -26,7 +26,7 @@ function claimAs(repo: string, id: string, author: string, age: number): void {
     const file = join(folder, 'msg.txt');
     writeFileSync(file, `claim: ${id}\n`);
     const stamp = `@${Math.floor(ago(age).getTime() / 1000)} +0000`;
-    const env = { ...process.env, GIT_AUTHOR_DATE: stamp, GIT_COMMITTER_DATE: stamp };
+    const env: NodeJS.ProcessEnv = { ...process.env, GIT_AUTHOR_DATE: stamp, GIT_COMMITTER_DATE: stamp };
     delete env.GIT_AUTHOR_EMAIL;
     delete env.GIT_AUTHOR_NAME;
     delete env.GIT_COMMITTER_NAME;

@@ -1,12 +1,14 @@
 // ST-LN-2 `accord dashboard`: the ranked sections for the viewer (git user.email), as text or JSON.
 import { dashboard, loadSnapshot } from '@accord-dev/accord-core';
 import { gitUserEmail, loadClaimView, remoteRefs, UsageError, withDefaultRef, withQueued } from '../load/fs.js';
+import { whoFor } from '../load/who.js';
 import { conventionsNotice } from './audit.js';
 import { dashboardFetchLimitMs } from './fetch-limit.js';
 import { upgradeNotice } from './notice.js';
 import { fetchOrigin } from './worktree.js';
 import { renderDashboard } from '../render/dashboard.js';
 import { stagesOffLines } from '../render/stages-off.js';
+import { dashboardForJson, dashboardForText } from '../render/who.js';
 import type { CommandContext } from '../run.js';
 
 /** ST-LN-50 D-08: one `stages off for lane <L>: ...` line per lane with a stage off, on top of the summary line that closes the text; nothing when none is off. */
@@ -42,6 +44,11 @@ export async function dashboardCommand(first: CommandContext, options: { json?: 
     if (conventions !== undefined) ctx.stdout.write(conventions + '\n');
   }
   const d = dashboard(ctx.snapshot, viewer, Math.floor(Date.now() / 1000), ctx.plain);
-  ctx.stdout.write(options.json ? JSON.stringify(f.why === undefined ? d : { ...d, offline: f.why }, null, 2) + '\n' : withStagesOff(ctx, renderDashboard(d)));
+  // Phase 8.2 D-07, D-08: how a person is shown runs after the data is computed, so the viewer's own tickets are still matched by email; the JSON keeps `claimedBy` and adds `claimedByShown` in initials mode only.
+  const who = whoFor(ctx.root, ctx.snapshot.config);
+  const json = who.mode === 'initials' ? dashboardForJson(d, who.show) : d;
+  ctx.stdout.write(
+    options.json ? JSON.stringify(f.why === undefined ? json : { ...json, offline: f.why }, null, 2) + '\n' : withStagesOff(ctx, renderDashboard(dashboardForText(d, who.show))),
+  );
   return 0;
 }

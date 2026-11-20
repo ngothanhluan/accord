@@ -40,16 +40,20 @@ export function configLists(text: string | undefined): { generated: string[]; se
   return { generated: strings(map.generated), sensitive };
 }
 
+/** The shape of the `accord` pin in schemas/config.schema.json (U-1: keep the two the same). */
+const PIN_SHAPE = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/;
+
 /**
- * Phase 8.1 D-18: the `accord` pin of a config text, read without validating it against this CLI's schema, so a config that carries a key a newer
- * release added (the schemas refuse unknown keys) still gives the pin the audit reports. Never throws; no text, text that is not a mapping, or a pin that is not a string gives undefined.
+ * Phase 8.1 D-18: the `accord` pin of a config text, read without validating the rest of it against this CLI's schema, so a config that carries a key a newer
+ * release added (the schemas refuse unknown keys) still gives the pin the audit reports. Never throws; no text, text that is not a mapping, a pin that is not a string, or a string that is not a version gives undefined.
  */
 export function configPin(text: string | undefined): string | undefined {
   if (text === undefined) return undefined;
   try {
     const { map } = parseYamlMap('accord/config.yml', normaliseText(text), 0);
     const pin = map?.accord;
-    return typeof pin === 'string' ? pin : undefined;
+    // U-1: only a version the schema would accept; the audit prints this value into a `fix:` command, so shell text in a refused config must never reach it
+    return typeof pin === 'string' && PIN_SHAPE.test(pin) ? pin : undefined;
   } catch {
     return undefined;
   }

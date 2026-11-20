@@ -101,3 +101,21 @@ it('risk:security accord conventions write refuses a line it cannot read and cha
   expect(missing.code, missing.out + missing.err).toBe(2);
   expect(gitRun(c.remote, 'branch', '--list', 'conventions/*').trim()).toBe('');
 });
+
+it('risk:security accord conventions write refuses a conventions subject the quoted gh title cannot carry and writes nothing (U-3)', async () => {
+  const c = clone();
+  const config = join(c.root, 'accord/config.yml');
+  const original = readFileSync(config, 'utf8');
+  const before = c.git('rev-parse', 'HEAD');
+  for (const [what, template] of [['a double quote', 'conventions "x" {id}'], ['a dollar sign', 'conventions $(id) {id}'], ['a backtick', 'conventions `id` {id}'], ['a backslash', String.raw`conventions a\b {id}`]] as const) {
+    writeFileSync(config, original + `commits:\n  subjects:\n    conventions: ${JSON.stringify(template)}\n`);
+    const r = await run(['conventions', 'write', accepted(`${A}\n`)], c.root);
+    expect(r.code, `${what}: ${r.out}${r.err}`).toBe(2);
+    expect(r.out, `${what}: no title line is printed`).not.toContain('title:');
+    expect(r.err, what).toContain('commits.subjects.conventions');
+    expect(r.err, what).toContain('fix:');
+    expect(gitRun(c.remote, 'branch', '--list', 'conventions/*').trim(), `${what}: nothing is pushed`).toBe('');
+    expect(c.git('branch', '--list', 'conventions/*').trim(), what).toBe('');
+  }
+  expect(c.git('rev-parse', 'HEAD')).toBe(before);
+});

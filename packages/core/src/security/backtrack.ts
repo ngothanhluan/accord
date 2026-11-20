@@ -392,6 +392,7 @@ const CHAIN_REASON =
  * Why a line regex can backtrack catastrophically, with how to rewrite it; undefined when the guard finds nothing. `source` has already compiled, `flags` is '' or 'i'.
  * Not a proof: it refuses every shape measured exponential in V8 and every run of three overlapping repeats, and accepts every default and every pattern measured linear.
  * What it accepts is at most two overlapping repeats in a row and at most 16 routes, which the scan bounds per changed line (SCAN_LINE_LIMIT).
+ * Every caller must bound the text the same way: the commit rule fails a first line over SCAN_LINE_LIMIT before it matches (commits/rule.ts).
  */
 export function backtrackProblem(source: string, flags: string): string | undefined {
   let auto: Automaton;

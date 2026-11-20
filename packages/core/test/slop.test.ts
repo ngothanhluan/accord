@@ -160,3 +160,30 @@ it('risk:parsing a team slop pattern is limited by its for scope, replaces a def
   expect(removed.removed.map((r) => r.id)).toEqual(['any-type', 'new-dependency']);
   expect(removed.problems.map((p) => p.line)).toEqual([6, 7]);
 });
+
+// --- WR-02: a line over the scan limit and a binary code file are reported, not skipped, as the security scan reports them ---
+
+it('risk:security a changed line over the scan limit in a scanned file is an unscanned hit, so padding cannot clear the gate (WR-02)', () => {
+  const padded = ' '.repeat(1100) + 'try { x(); } catch {}';
+  const diff = added('src/a.ts', ['const a = 1;', padded]);
+  // the pattern still matches only the first 1000 characters, so the padded catch is not found, but the line is named
+  expect(kinds(diff)).toEqual(['unscanned src/a.ts:2']);
+  const hits = slopHits(slopSpec(snapshot()), diff, { generated: [] });
+  expect(slopLine(hits[0])).toBe('- slop:unscanned src/a.ts:2 — line longer than 1000 characters, only its first 1000 were scanned');
+  // a line of exactly the limit is scanned whole and names nothing
+  expect(kinds(added('src/a.ts', ['x'.repeat(1000)]))).toEqual([]);
+  // a file no pattern applies to, and a skipped file, hide nothing
+  expect(kinds(added('data/a.csv', ['x'.repeat(1100)]))).toEqual([]);
+  expect(kinds(added('docs/a.md', ['x'.repeat(1100)]))).toEqual([]);
+  expect(kinds(added('gen/a.ts', ['x'.repeat(1100)]), { generated: ['gen/'] })).toEqual([]);
+});
+
+it('risk:security a binary code file with no text section is an unscanned hit and a known binary type is not (WR-02)', () => {
+  const binary = (path: string) => ['diff --git a/' + path + ' b/' + path, 'new file mode 100644', 'index 0000000..1111111', 'Binary files /dev/null and b/' + path + ' differ'].join('\n');
+  const hits = slopHits(slopSpec(snapshot()), binary('src/a.ts'), { generated: [] });
+  expect(hits.map(slopLine)).toEqual(['- slop:unscanned src/a.ts:1 — binary file, its lines were not scanned']);
+  expect(kinds(binary('img/a.png'))).toEqual([]);
+  expect(kinds(binary('docs/a.pdf'))).toEqual([]);
+  // the same path with a text section (package-diff adds one) is scanned as text
+  expect(kinds(binary('src/a.ts') + '\n' + added('src/a.ts', THREE))).toEqual(['empty-catch src/a.ts:3']);
+});

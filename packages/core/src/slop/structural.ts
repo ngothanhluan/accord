@@ -120,6 +120,23 @@ function xmlDeps(text: string): NewDependency[] {
   return out;
 }
 
+/**
+ * The part of a TOML array line before its closing `]` and before a `#` comment, both found outside quotes (WR-01): a requirement such as `"rich[jupyter]>=13"` holds a `]` of its own.
+ * `closed` is true when the array ends on this line.
+ */
+function arrayPart(s: string): { text: string; closed: boolean } {
+  let q: string | undefined;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q !== undefined) {
+      if (c === q) q = undefined;
+    } else if (c === '"' || c === "'") q = c;
+    else if (c === '#') return { text: s.slice(0, i), closed: false };
+    else if (c === ']') return { text: s.slice(0, i), closed: true };
+  }
+  return { text: s, closed: false };
+}
+
 function pyprojectDeps(text: string): NewDependency[] {
   const out: NewDependency[] = [];
   let table = '';
@@ -134,9 +151,9 @@ function pyprojectDeps(text: string): NewDependency[] {
   for (const [i, raw] of text.split('\n').entries()) {
     const line = i + 1;
     if (inArray) {
-      const end = raw.indexOf(']');
-      fromArray(end < 0 ? raw : raw.slice(0, end), line);
-      if (end >= 0) inArray = false;
+      const part = arrayPart(raw);
+      fromArray(part.text, line);
+      if (part.closed) inArray = false;
       continue;
     }
     const header = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/.exec(raw);
@@ -146,9 +163,9 @@ function pyprojectDeps(text: string): NewDependency[] {
     }
     const arrays = table === 'project' ? /^\s*dependencies\s*=\s*\[(.*)$/.exec(raw) : table === 'project.optional-dependencies' || table === 'dependency-groups' ? /^\s*[\w."'-]+\s*=\s*\[(.*)$/.exec(raw) : null;
     if (arrays !== null) {
-      const end = arrays[1].indexOf(']');
-      fromArray(end < 0 ? arrays[1] : arrays[1].slice(0, end), line);
-      inArray = end < 0;
+      const part = arrayPart(arrays[1]);
+      fromArray(part.text, line);
+      inArray = !part.closed;
       continue;
     }
     if (/^tool\.poetry(?:\.group\.[^.]+)?\.(?:dev-)?dependencies$/.test(table)) {

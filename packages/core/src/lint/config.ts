@@ -1,5 +1,5 @@
 // ST-LN-80: models.architect still validates so an old config loads, but nothing reads it any more.
-import { commitRuleOf, commitRuleProblem } from '../commits/rule.js';
+import { commitRuleOf, commitRuleProblem, visible } from '../commits/rule.js';
 import type { CommitRule } from '../commits/rule.js';
 import { OFF_TICKET_BRANCH, renderSubject, SUBJECT_NAMES, subjectCollisions } from '../commits/subjects.js';
 import type { SubjectName } from '../commits/subjects.js';
@@ -82,7 +82,7 @@ export const commitRule: Rule['check'] = (snapshot) => {
     out.push({ file, pointer: '/commits/message/example', reason: `commits.message.example breaks its own rule: ${own} - fix: change commits.message.example to a first line that ${rule.text} accepts` });
   }
   for (const p of subjectRuleProblems(snapshot, rule)) {
-    out.push({ file, pointer: `/commits/subjects/${p.name}`, reason: `commits.subjects.${p.name} renders "${p.subject}", which breaks the commit rule: ${p.problem} - fix: ${p.fix}; \`accord commit check <file>\` checks a message first` });
+    out.push({ file, pointer: `/commits/subjects/${p.name}`, reason: `commits.subjects.${p.name} renders "${visible(p.subject)}", which breaks the commit rule: ${p.problem} - fix: ${p.fix}; \`accord commit check <file>\` checks a message first` });
   }
   return out;
 };

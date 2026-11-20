@@ -2,6 +2,7 @@
 // One function, `commitRuleProblem`, judges every message: `accord commit check`, `accord commit message`, task-done and gate done (D-05: one code path).
 import type { AccordConfig } from '../model/snapshot.js';
 import { backtrackProblem } from '../security/backtrack.js';
+import { SCAN_LINE_LIMIT } from '../security/match.js';
 
 /**
  * Conventional Commits 1.0.0 shape of a first line, rules 1, 4, 14 and 15: a type, an optional parenthesised scope, an optional `!`, a colon and a space, then a description.
@@ -43,7 +44,7 @@ export function commitRuleOf(config: Pick<AccordConfig, 'commits'> | undefined):
 const firstLine = (message: string): string => message.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split('\n')[0] ?? '';
 
 /** A commit subject on its way to a terminal: every control, invisible format and separator character written as `<U+XXXX>`, so a subject cannot hide or reorder what the reader sees (T-08.1-04). */
-const visible = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (ch) => '<U+' + (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0') + '>');
+export const visible = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (ch) => '<U+' + (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0') + '>');
 
 /**
  * Why `message` breaks `rule`, or undefined when it passes. Merge commits and commits already on the default branch are exempt by the caller (they are never offered here);
@@ -52,6 +53,11 @@ const visible = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp
 export function commitRuleProblem(rule: CommitRule, message: string): string | undefined {
   const subject = firstLine(message);
   if (subject.startsWith('Revert "')) return undefined;
+  // CR-01 (T-08.1-03): the backtracking guard accepts shapes that are polynomial, which is safe only on a bounded line (the scans cut a line at SCAN_LINE_LIMIT).
+  // A subject over the same bound is never matched; it fails the rule, so a hostile first line cannot hang a gate, and the message prints its length, not its text.
+  if (subject.length > SCAN_LINE_LIMIT) {
+    return `the first line is ${subject.length} characters, over the ${SCAN_LINE_LIMIT} accord checks against ${rule.text} - fix: shorten the first line and move detail into the message body`;
+  }
   return rule.regex.test(subject) ? undefined : `"${visible(subject)}" does not match ${rule.text}`;
 }
 

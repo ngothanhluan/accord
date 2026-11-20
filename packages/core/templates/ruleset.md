@@ -22,7 +22,6 @@ These hold for every reply here, for the main session and every accord agent.
    must know. When your instructions fix the shape of your report, these lines go inside that report, within
    its limits.
 8. Every commit, by the main session or any agent, follows `accord/product/conventions.md` when that file exists.
-   When `accord/config.yml` sets `commits.message`, the first line of every commit message also passes it:
-   check it with `accord commit check <file>` first (merge commits and `Revert "..."` subjects are exempt).
+   When `accord/config.yml` sets `commits.message`, every commit's first line also passes it: `accord commit check <file>`.
 
 Run accord as `{{invocation}}` when `accord` is not on PATH.

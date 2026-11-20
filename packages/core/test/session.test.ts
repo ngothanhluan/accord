@@ -13,7 +13,8 @@ describe('rulesetText', () => {
     expect(text).toContain('npx --yes @x/accord@1.2.3');
     expect(text).not.toContain('{{');
   });
-  it('is under 2048 bytes', () => expect(Buffer.byteLength(text)).toBeLessThan(2048));
+  // Phase 8.1 D-06: 2048 became 2176 for the one clause of rule 8 that names `commits.message` and `accord commit check` (124 bytes), the only route of the commit rule to every agent; every session start and subagent reads this text.
+  it('is under 2176 bytes', () => expect(Buffer.byteLength(text)).toBeLessThan(2176));
   it('leaves the ledger and the report shape to each agent', () => {
     expect(text).toContain('never writes the ledger unless its own instructions say so');
     expect(text).toContain('these lines go inside that report');

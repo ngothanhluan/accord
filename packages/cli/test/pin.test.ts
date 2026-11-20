@@ -1,6 +1,7 @@
 // CLI-06 / D-94: the version pin is a hard refusal — exit 2, both versions named, and no flag or
 // environment variable that bypasses it. D-95 exempts `--version` and `--help`, because `--version`
-// is the command a person types to diagnose the very mismatch being reported.
+// is the command a person types to diagnose the very mismatch being reported. D-18 (Phase 8.1) adds `audit`
+// to the commands that run under a mismatch, beside `upgrade`: it reports the mismatch as a gap and changes nothing.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -78,6 +79,17 @@ describe('the pin under runCli', () => {
     const { code, out } = await run(['--version'], repo);
     expect(code).toBe(0);
     expect(out.trim()).toBe(pkg.version);
+  });
+
+  it('risk:security audit reports a pin mismatch with exit 0 while lint refuses it with exit 2 (D-18)', async () => {
+    repo = makeRepo('valid-build');
+    pin(repo, '9.9.9');
+    const refused = await run(['lint'], repo);
+    expect(refused.code).toBe(2);
+    const audit = await run(['audit'], repo);
+    expect(audit.code, audit.out + audit.err).toBe(0);
+    expect(audit.out).toContain('gap: pin-mismatch: config.yml pins accord 9.9.9, running ' + pkg.version);
+    expect(audit.err).toBe('');
   });
 
   it('reports schema findings rather than a pin error when config.yml fails the schema', async () => {

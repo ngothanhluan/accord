@@ -192,3 +192,24 @@ it('risk:complex-branching blob reads at a commit split into bounded batches and
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:parsing accord scout check passes a Files list that writes a path with a trailing colon (8-ac-8)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      'packages/x/a.ts': 'export const a = 1;\n',
+      'packages/x/b.ts': 'export const b = 2;\n',
+    });
+    commitMsg(repo, 'fixture');
+    writeFileSync(join(repo, 'report.md'), '## Files\n- packages/x/a.ts: defines x\n- `packages/x/b.ts`: wires x\n');
+
+    const out = await run(['scout', 'check', 'report.md'], repo);
+    expect(out.out).not.toContain('which git does not track');
+    expect(out.out).toContain('expected files: 2 (packages/x/a.ts, packages/x/b.ts)');
+    expect(out.out.endsWith('scout check passed\n')).toBe(true);
+    expect(out.code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

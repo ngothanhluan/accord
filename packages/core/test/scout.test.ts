@@ -30,3 +30,10 @@ it('risk:parsing table cells unescape pipes and strip one pair of backticks and 
   expect(bad.faults).toEqual(['## Absent row at line 7 has 3 cells, not 4: escape a pipe inside a cell']);
   expect(bad.absent).toEqual([]);
 });
+
+it('risk:parsing a Files entry loses a trailing colon inside or outside backticks (8-ac-8)', () => {
+  const parsed = parseScoutReport(
+    ['## Files', '- packages/x/a.ts: defines x', '- `packages/x/b.ts`: wires x', '- `packages/x/c.ts:` colon inside', '- src/a.ts:12 a line number', ''].join('\n'),
+  );
+  expect(parsed.files).toEqual(['packages/x/a.ts', 'packages/x/b.ts', 'packages/x/c.ts', 'src/a.ts']);
+});

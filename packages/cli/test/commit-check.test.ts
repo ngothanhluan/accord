@@ -55,3 +55,12 @@ it('risk:parsing accord commit check names accord lint when the configured patte
   expect(r.code, r.out + r.err).toBe(2);
   expect(r.err).toContain('accord lint');
 });
+
+it('risk:security accord commit check fails an 80000-character first line at once under a quadratic team pattern (CR-01)', async () => {
+  const repo = sandbox(CONFIG + 'commits:\n  message:\n    pattern: ' + JSON.stringify(String.raw`\(.*\): .+`) + "\n    example: '(x): y'\n");
+  const started = Date.now();
+  const r = await run(['commit', 'check', message('('.repeat(80000) + '\n')], repo);
+  expect(Date.now() - started).toBeLessThan(5000);
+  expect(r.code, r.out + r.err).toBe(1);
+  expect(r.out + r.err).toContain('shorten the first line');
+});

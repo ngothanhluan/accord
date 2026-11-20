@@ -124,3 +124,31 @@ it('risk:regression the worktree skill tells every ticket-branch commit to pass 
   const between = source.slice(people, check);
   for (const phrase of ['commits.message', 'accord commit check', 'git commit -F']) expect(between, phrase).toContain(phrase);
 });
+
+// --- CR-01 / T-08.1-03: the subject is cut at the scan limit, so a guard-accepted quadratic pattern cannot hang a gate ---
+
+const HOSTILE = '('.repeat(80000);
+const QUADRATIC = { pattern: String.raw`\(.*\): .+`, example: '(x): y' };
+
+it('risk:security a first line over the scan limit fails the rule at once and names the fix, never hangs (CR-01)', () => {
+  const rule = inForce(withMessage(QUADRATIC));
+  const started = Date.now();
+  const problem = commitRuleProblem(rule, HOSTILE + '\n\nbody');
+  expect(Date.now() - started).toBeLessThan(500);
+  expect(problem).toContain('80000 characters');
+  expect(problem).toContain('shorten the first line');
+  // the preset is bounded the same way
+  expect(commitRuleProblem(inForce(withMessage({ preset: 'conventional' })), 'feat: ' + 'x'.repeat(2000))).toContain('shorten the first line');
+  // a subject at the limit is still judged by the pattern
+  expect(commitRuleProblem(rule, '(' + 'x'.repeat(900) + '): ok')).toBeUndefined();
+});
+
+it('risk:security gate.commit-message reports an over-long subject without hanging (CR-01)', () => {
+  const config = CONFIG + 'commits:\n  message:\n    pattern: ' + JSON.stringify(QUADRATIC.pattern) + "\n    example: '(x): y'\n";
+  const snap = { ...snapshotOf(config, COMMIT_MESSAGE_FROM), commits: [{ sha: SHA, message: HOSTILE + '\n' }] };
+  const started = Date.now();
+  const rows = gateRows(snap);
+  expect(Date.now() - started).toBeLessThan(500);
+  expect(rows).toHaveLength(1);
+  expect(rows[0].reason).toContain('shorten the first line');
+});

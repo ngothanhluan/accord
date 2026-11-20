@@ -158,6 +158,18 @@
       "additionalProperties": false,
       "properties": {
         "trailers": { "type": "string", "enum": ["allow", "forbid"] },
+        "message": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "preset": { "type": "string", "enum": ["conventional"] },
+            "pattern": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029\\p{Cf}]+$" },
+            "example": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029\\p{Cf}]+$" },
+            "command": { "type": "string", "minLength": 1, "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029\\p{Cf}]+$" }
+          },
+          "oneOf": [{ "required": ["preset"] }, { "required": ["pattern"] }],
+          "dependentRequired": { "pattern": ["example"] }
+        },
         "subjects": {
           "type": "object",
           "additionalProperties": false,

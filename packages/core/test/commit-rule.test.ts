@@ -22,7 +22,7 @@ it('risk:parsing the conventional preset passes feat(cart): add coupon field and
   // only the first line is judged: a conforming second line does not rescue a breaking first one
   expect(commitRuleProblem(rule, 'added coupon\nfeat: x')).toContain('commits.message.preset conventional');
   // a byte order mark and CRLF are dropped first
-  expect(commitRuleProblem(rule, '﻿feat: with a bom\r\n\r\nbody')).toBeUndefined();
+  expect(commitRuleProblem(rule, '\uFEFFfeat: with a bom\r\n\r\nbody')).toBeUndefined();
   expect(commitRuleProblem(rule, 'feat: crlf\r\nbody')).toBeUndefined();
   // git's own revert subject passes
   expect(commitRuleProblem(rule, 'Revert "added coupon"\n\nThis reverts commit abc.')).toBeUndefined();

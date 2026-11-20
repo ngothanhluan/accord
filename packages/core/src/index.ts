@@ -130,6 +130,8 @@ export { writeTestTags } from './write/testtag.js';
 export { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE } from './status/branch.js';
 export { DEFAULT_SUBJECTS, effectiveSubject, matchesSubject, renderSubject, SUBJECT_NAMES, subjectCollisions, subjectsFor } from './commits/subjects.js';
 export type { SubjectCollision, SubjectName } from './commits/subjects.js';
+export { commitRuleLine, commitRuleOf, commitRuleProblem, CONVENTIONAL_EXAMPLE, CONVENTIONAL_PATTERN } from './commits/rule.js';
+export type { CommitRule, CommitRuleOf } from './commits/rule.js';
 export { anchorText } from './status/anchor.js';
 export { EPIC_LESSONS, EPIC_ROLES, epicBlock } from './status/epic.js';
 export { ticketDetail } from './status/show.js';

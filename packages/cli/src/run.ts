@@ -13,6 +13,7 @@ import { deferred } from './commands/deferred.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { commitCheck } from './commands/commit.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
@@ -298,6 +299,15 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill, queue) and a ticket id, from commits.subjects; a tail, such as a round count, follows after one space')
     .action((name: string, id: string, tail: string[]) => {
       setCode(subject(preflight(opts), name, id, tail));
+    });
+
+  // Phase 8.1 D-04, D-05: the commit-message rule a team sets in `commits.message`, checked before a commit is made.
+  const commit = program.command('commit').description("check a commit message against the team's commit rule (commits.message in accord/config.yml)");
+  commit
+    .command('check <file>')
+    .description('read the first line of a commit message file and judge it against commits.message: exit 0 when it passes or no rule is set, exit 1 naming the rule and a message that passes, exit 2 when the file cannot be read or the configured pattern is not in force; merge commits and Revert subjects are exempt at the gates, not here')
+    .action((file: string) => {
+      setCode(commitCheck(preflight(opts), file, opts.cwd));
     });
 
   // ST-LN-50 D-11: the deterministic way to change accord/config.yml; every subcommand reads the repository, so each goes

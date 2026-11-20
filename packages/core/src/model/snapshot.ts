@@ -334,6 +334,7 @@ export interface AccordConfig {
   setup?: string[]; // D-07: commands run in order in a new worktree
   commits?: {
     trailers?: 'allow' | 'forbid'; // ST-LN-8 D-01: absent or allow is off
+    message?: { preset?: 'conventional'; pattern?: string; example?: string; command?: string }; // Phase 8.1 D-04: the rule every ticket-branch commit's first line follows: the `conventional` preset or a team regex (source, no flags) with a passing example; command is the team script that builds the message, run behind accord trust
     subjects?: Partial<Record<SubjectName, string>>; // ST-LN-50 D-06: the subject template of each commit accord writes, one `{id}`; absent means today's text
     legacy_subjects?: Partial<Record<SubjectName, string[]>>; // ST-LN-50 D-06: earlier templates accord still reads back (claim and plan_ready)
   };

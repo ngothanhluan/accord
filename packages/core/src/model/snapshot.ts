@@ -368,7 +368,7 @@ export interface RepoSnapshot {
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
   contentSince?: Record<string, ContentSince>; // carried through from SnapshotInput
-  commits?: { sha: string; message: string }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid
+  commits?: { sha: string; message: string; merge?: boolean }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid; Phase 8.1 D-06: or commits.message is set, with merge true for a commit of two or more parents
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput
   claimTemplate?: string; // carried through from SnapshotInput

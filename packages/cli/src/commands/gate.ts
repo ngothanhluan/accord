@@ -21,8 +21,9 @@ export function gate(
   options: { json?: boolean },
 ): number {
   // ST-LN-8 D-02: under commits.trailers forbid the host loads the whole branch's commits; an unborn HEAD spawns no git log.
+  // Phase 8.1 D-07: so it does when commits.message is set, whose gate.commit-message reads the same commits.
   const withCommits =
-    which === 'done' && ctx.snapshot.config?.commits?.trailers === 'forbid' && ctx.snapshot.git !== undefined
+    which === 'done' && (ctx.snapshot.config?.commits?.trailers === 'forbid' || ctx.snapshot.config?.commits?.message !== undefined) && ctx.snapshot.git !== undefined
       ? { ...ctx.snapshot, commits: gitBranchCommits(ctx.root) }
       : ctx.snapshot;
   // ST-LN-31: a lane S ticket's Done reads review.md's commit and the commits after it, loaded here from HEAD.

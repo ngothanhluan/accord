@@ -42,6 +42,9 @@ export function commitRuleOf(config: Pick<AccordConfig, 'commits'> | undefined):
 /** The first line of a message: a byte order mark dropped, CRLF read as LF. The body is free. */
 const firstLine = (message: string): string => message.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split('\n')[0] ?? '';
 
+/** A commit subject on its way to a terminal: every control, invisible format and separator character written as `<U+XXXX>`, so a subject cannot hide or reorder what the reader sees (T-08.1-04). */
+const visible = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (ch) => '<U+' + (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0') + '>');
+
 /**
  * Why `message` breaks `rule`, or undefined when it passes. Merge commits and commits already on the default branch are exempt by the caller (they are never offered here);
  * a subject that starts `Revert "` is git's own revert subject and passes, so the executor's `git revert` of its own fix never blocks task-done.
@@ -49,8 +52,22 @@ const firstLine = (message: string): string => message.replace(/^\uFEFF/, '').re
 export function commitRuleProblem(rule: CommitRule, message: string): string | undefined {
   const subject = firstLine(message);
   if (subject.startsWith('Revert "')) return undefined;
-  return rule.regex.test(subject) ? undefined : `"${subject}" does not match ${rule.text}`;
+  return rule.regex.test(subject) ? undefined : `"${visible(subject)}" does not match ${rule.text}`;
 }
+
+/**
+ * The one reason task-done prints and `gate.commit-message` reports for a commit that breaks the rule (D-07: every refusal names its fix). A commit accord wrote from a
+ * `commits.subjects` template is fixed at the template first, and `accord lint` names the key and one that passes; a code commit is reworded.
+ */
+export function commitRuleRefusal(sha: string, problem: string): string {
+  return (
+    `commit ${sha.slice(0, 8)} ${problem} - fix: reword it so its first line passes (check the message first with accord commit check <file>); ` +
+    'for a subject accord wrote from a commits.subjects template, set that template first (accord lint names the key and one that passes), then reword the commit to what accord subject <name> <id> prints'
+  );
+}
+
+/** The reason when `commits.message` cannot be put in force (D-04: a broken rule never passes silently): it names `accord lint`, which reports the pattern. */
+export const commitRuleNotInForce = (problem: string): string => `${problem} - fix: run accord lint, which names the pattern to change; until it is in force no commit is judged, so the gate fails closed`;
 
 /** One line naming the rule, for the brief and the anchor. */
 export function commitRuleLine(rule: CommitRule): string {

@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { claimPinBefore, forbiddenLines, normaliseKey, recordTaskDone, reportReasons, stageOff, TASK_REPORT_FROM, taskVerdict, ticketTaskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
+import { claimPinBefore, COMMIT_MESSAGE_FROM, commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal, forbiddenLines, normaliseKey, recordTaskDone, reportReasons, stageOff, TASK_REPORT_FROM, taskVerdict, ticketTaskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { gitBranchCommits, UsageError } from '../load/fs.js';
 import { readReport, reportPath, reportRel } from '../load/report.js';
@@ -125,11 +125,26 @@ export function taskDone(ctx: CommandContext, id: string, task: string, pairs: s
   const times = headTimesOnce(ctx.root);
   const stale = next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx, times) : undefined;
   const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale]), ...(next === undefined ? [] : reportProblems(ctx, id, n, sha, times))];
-  if (next !== undefined && ctx.snapshot.config?.commits?.trailers === 'forbid') {
+  // Phase 8.1 D-06, D-07: commits.message is judged over the same range as commits.trailers (the first task reads back to the default ref, so accord's claim and planning commits are judged there too),
+  // for a ticket claimed at or after COMMIT_MESSAGE_FROM; a pattern that is not in force is one reason naming `accord lint`.
+  const trailers = ctx.snapshot.config?.commits?.trailers === 'forbid';
+  const rule =
+    next !== undefined && ctx.snapshot.config?.commits?.message !== undefined && !claimPinBefore(withClaimPins(ctx.root, ctx.snapshot, id), id, COMMIT_MESSAGE_FROM)
+      ? commitRuleOf(ctx.snapshot.config)
+      : undefined;
+  if (next !== undefined && (trailers || rule !== undefined)) {
     const done = workOf(ctx.snapshot, id)?.ledger?.done ?? {};
     const below = Object.keys(done).map(Number).filter((k) => k < n);
     const since = below.length === 0 ? undefined : done[String(Math.max(...below))];
-    for (const c of gitBranchCommits(ctx.root, since)) for (const l of forbiddenLines(c.message)) reasons.push(trailerReason(c.sha, l));
+    const commits = gitBranchCommits(ctx.root, since);
+    if (trailers) for (const c of commits) for (const l of forbiddenLines(c.message)) reasons.push(trailerReason(c.sha, l));
+    if (rule !== undefined && 'problem' in rule) reasons.push(commitRuleNotInForce(rule.problem));
+    else if (rule !== undefined) {
+      for (const c of commits) {
+        const problem = c.merge === true ? undefined : commitRuleProblem(rule, c.message);
+        if (problem !== undefined) reasons.push(commitRuleRefusal(c.sha, problem));
+      }
+    }
   }
   const refuse = (lines: string[]): number => {
     ctx.stdout.write(`task ${n} of ${id} is not done:\n` + lines.map((r) => '  ' + r + '\n').join(''));

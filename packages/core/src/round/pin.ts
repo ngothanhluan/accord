@@ -128,6 +128,14 @@ export const TITLE_RULE_FROM = '0.8.0';
  */
 export const PLAN_LARGE_FROM = '0.8.0';
 
+/**
+ * Phase 8.1 D-06, D-07 and CONTEXT Ruling "Release": the release from which `accord task-done` and `accord gate done` (gate.commit-message) refuse a ticket-branch commit that breaks
+ * `commits.message`. Read only through claimPinBefore: a ticket claimed under a pin below it is not judged, so no branch that exists when the rule ships is refused. It is the next minor after
+ * the newest released heading of docs/releases.md (0.8.1 when it was set); the release that ships Phase 8.1 sets it to its own version if another release came first, and PHASE8_1 in
+ * migration-pin.test.ts follows. `lint.commit-rule` reads config, not a ticket, and takes no cut-off.
+ */
+export const COMMIT_MESSAGE_FROM = '0.9.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

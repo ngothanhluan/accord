@@ -110,6 +110,8 @@ export const OVERRIDABLE: readonly string[] = [
   'gate.design-missing',
   'gate.depends-unmerged',
   'gate.commit-trailer',
+  'gate.commit-message',
+  'lint.commit-rule',
   'gate.reference-unknown',
   'gate.author-match',
   'gate.author-skipped',

@@ -22,13 +22,17 @@ const fresh = (repo: string): void => {
   for (const n of [1, 2]) writeReport(repo, 'T-1', n); // the executor report task-done asks for from 0.6.0
 };
 
-/** A lane ticket whose default ref holds the fixture commit, claimed under `pin`: the claim commit is the first commit of the branch. */
+/**
+ * A lane ticket claimed under `pin`: the default ref holds the fixture commit with that pin (a claim that lowers the pin under its merge base is caught, so a ticket of an older release
+ * has the older pin there too), the claim commit is the first commit of the branch, and the working tree carries the running version's config.
+ */
 function claimed(config: string, pin: string): string {
-  const repo = makeLaneRepo({ 'accord/config.yml': config });
+  const repo = makeLaneRepo({ 'accord/config.yml': config.replace(/accord: "[^"]*"/, `accord: "${pin}"`) });
   repos.push(repo);
   const base = commitAll(repo);
   gitRun(repo, 'update-ref', 'refs/remotes/origin/main', base);
-  claimedUnder(repo, pin);
+  commitMsg(repo, 'claim: T-1', undefined, true);
+  writeFiles(repo, { 'accord/config.yml': config });
   return repo;
 }
 

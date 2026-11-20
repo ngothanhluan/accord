@@ -312,3 +312,24 @@ it('risk:parsing queue merge follows config: accord config edits queue.merge and
   expect((await run(['config', 'unset', 'queue.merge'], repo)).code).toBe(0);
   expect((await run(['lint'], repo)).code).toBe(0);
 });
+
+// Phase 8.1 D-04: commits.message is set, read back, refused when both a preset and a pattern are given, and unset through accord config like any dotted key.
+it('risk:parsing commits.message is set validated and unset through accord config (8.1-ac-4)', async () => {
+  const repo = sandbox();
+  const set = await run(['config', 'set', 'commits.message.preset', 'conventional'], repo);
+  expect([set.code, set.err]).toEqual([0, '']);
+  expect(text(repo)).toBe(CONFIG + 'commits:\n  message:\n    preset: conventional\n');
+  expect((await run(['config', 'get', 'commits.message.preset'], repo)).out).toBe('conventional\n');
+  expect((await run(['lint'], repo)).code).toBe(0);
+  // exactly one of preset and pattern: a pattern beside the preset is refused and the file is untouched
+  const bytes = text(repo);
+  const both = await run(['config', 'set', 'commits.message.pattern', 'x'], repo);
+  expect(both.code).toBe(2);
+  expect(both.err).toContain('accord/config.yml was not changed');
+  expect(text(repo)).toBe(bytes);
+  // a preset the schema does not know is refused too
+  expect((await run(['config', 'set', 'commits.message.preset', 'angular'], repo)).code).toBe(2);
+  const gone = await run(['config', 'unset', 'commits.message.preset'], repo);
+  expect(gone.code).toBe(0);
+  expect(text(repo)).toBe(CONFIG);
+});

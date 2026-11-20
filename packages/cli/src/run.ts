@@ -13,6 +13,7 @@ import { deferred } from './commands/deferred.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { commitCheck, commitMessage } from './commands/commit.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
@@ -295,9 +296,24 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // ST-LN-50 D-06: the subject of a commit accord writes, rendered from the team's template, so skills never carry a literal one.
   program
     .command('subject <name> <id> [tail...]')
-    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill, queue) and a ticket id, from commits.subjects; a tail, such as a round count, follows after one space')
+    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill, queue, people) and a ticket id, from commits.subjects; for people the second argument is the email of the people entry; a tail, such as a round count, follows after one space')
     .action((name: string, id: string, tail: string[]) => {
       setCode(subject(preflight(opts), name, id, tail));
+    });
+
+  // Phase 8.1 D-04, D-05: the commit-message rule a team sets in `commits.message`, checked before a commit is made.
+  const commit = program.command('commit').description("check a commit message against the team's commit rule (commits.message in accord/config.yml)");
+  commit
+    .command('check <file>')
+    .description('read the first line of a commit message file and judge it against commits.message: exit 0 when it passes or no rule is set, exit 1 naming the rule and a message that passes, exit 2 when the file cannot be read or the configured pattern is not in force; merge commits and Revert subjects are exempt at the gates, not here')
+    .action((file: string) => {
+      setCode(commitCheck(preflight(opts), file, opts.cwd));
+    });
+  commit
+    .command('message <id>')
+    .description("run the team's commits.message.command, only after accord trust allowed it, with the ticket in its environment (ACCORD_TICKET, ACCORD_TICKET_FILE, ACCORD_BASE_REF, ACCORD_ROOT): its first output line is the subject and the rest the body; write the message to a file under .git and print message-file: <path> for git commit -F, then judge it against commits.message like commit check (exit 1 naming the rule); an untrusted script is never run (exit 2 naming accord trust), and a failing, slow, oversized or empty one is exit 2 with no file")
+    .action((id: string) => {
+      setCode(commitMessage(preflight(opts), id));
     });
 
   // ST-LN-50 D-11: the deterministic way to change accord/config.yml; every subcommand reads the repository, so each goes
@@ -335,7 +351,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // Owner decision (2026-11-15): a script the repository declares (`tracker.command`, `git.sync`) runs only after the person allowed it here, once, in a record inside .git.
   program
     .command('trust [script...]')
-    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, and git.sync): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest> or git.sync@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
+    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, git.sync, build.regenerate and commits.message.command): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest>, git.sync@<digest>, build.regenerate@<digest> or commits.message.command@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
     .option('--revoke', 'withdraw the allows of the scripts named, or every allow of this repository')
     .action((scripts: string[], o: { revoke?: boolean }) => {
       setCode(trust(preflight(opts), scripts, o));

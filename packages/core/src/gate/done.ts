@@ -10,6 +10,8 @@ import type { AfterVerifyCommit, RepoSnapshot, ScenarioRef, Ticket, TicketFrontm
 import { acHash } from './hash.js';
 import type { GateRule } from './rules.js';
 import { forbiddenLines, trailerReason } from './trailers.js';
+import { commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal } from '../commits/rule.js';
+import { claimPinBefore, COMMIT_MESSAGE_FROM } from '../round/pin.js';
 
 const ticketFile = (id: string) => 'accord/tickets/' + id + '.md';
 const verificationFile = (id: string) => 'accord/tickets/' + id + '/verification.md';
@@ -303,6 +305,25 @@ export const commitTrailer: GateRule['check'] = (snapshot, id) => {
     return [{ ...at, reason: 'commits.trailers is forbid, but the host loaded no commits of this branch, so they cannot be checked' }];
   }
   return snapshot.commits.flatMap((c) => forbiddenLines(c.message).map((l) => ({ ...at, reason: trailerReason(c.sha, l) })));
+};
+/**
+ * Phase 8.1 D-06, D-07: under `commits.message` every commit the host loaded for this branch (the first-parent commits not on the default ref) is judged by the one core function
+ * `commitRuleProblem`, a merge commit and a `Revert "` subject excepted. Read through claimPinBefore: a ticket claimed before COMMIT_MESSAGE_FROM is not judged. A pattern that is not in
+ * force, and commits the host did not load, fail closed; every reason names its fix.
+ */
+export const commitMessage: GateRule['check'] = (snapshot, id) => {
+  if (ticketOf(snapshot, id) === undefined || snapshot.config?.commits?.message === undefined || claimPinBefore(snapshot, id, COMMIT_MESSAGE_FROM)) return [];
+  const at = { file: CONFIG, pointer: '/commits/message' };
+  const rule = commitRuleOf(snapshot.config);
+  if (rule === undefined) return [];
+  if ('problem' in rule) return [{ ...at, reason: commitRuleNotInForce(rule.problem) }];
+  if (snapshot.commits === undefined) {
+    return [{ ...at, reason: "commits.message is set, but the host loaded no commits of this branch, so they cannot be checked - fix: run accord gate done in the ticket's checkout, where git reads the branch" }];
+  }
+  return snapshot.commits.flatMap((c) => {
+    const problem = c.merge === true ? undefined : commitRuleProblem(rule, c.message);
+    return problem === undefined ? [] : [{ ...at, reason: commitRuleRefusal(c.sha, problem) }];
+  });
 };
 const isTest = (tag: string) => tag.startsWith('@test:');
 /** Every scenario the machine layer applies to: `@ui` leans on the human layer instead (D-90, GATE-09). */

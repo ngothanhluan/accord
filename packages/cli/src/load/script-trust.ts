@@ -18,10 +18,10 @@ import { gitTracked, UsageError } from './fs.js';
  * The repository-declared scripts, named as in accord/config.yml. ST-LN-92 review round 1 finding 7: `build.regenerate` too; the CLI never runs it (D-06 Ruling), but
  * `accord worktree task merge` prints it for the build stage to run only when it is allowed here.
  */
-export type ScriptKind = 'tracker.command' | 'git.sync' | 'build.regenerate';
+export type ScriptKind = 'tracker.command' | 'git.sync' | 'build.regenerate' | 'commits.message.command';
 
 /** Every kind, in the order accord trust shows them. */
-export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync', 'build.regenerate'];
+export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync', 'build.regenerate', 'commits.message.command'];
 
 /** One allow: a binding of a script kind, its command text and the digest of what it covers. */
 interface Allow {
@@ -88,8 +88,15 @@ export function shown(text: string): string {
  * ST-LN-92 review round 2 finding 6: the record file each kind's allows live in. 0.5.1 reads `accord-trust.json` keeping only the entries of the kinds it knows, and
  * rewrites it with those alone on its next allow or revoke (and reads a record of another version as none, then writes version 2 over it), so an allow of a newer kind
  * kept there would be erased by an older accord sharing the clone. `build.regenerate` therefore has a file of its own, which 0.5.1 never opens.
+ * Phase 8.1 (Ruling "trust record"): every kind that phase adds (`commits.message.command`, then `pr.command` and `audit.command`) records in `accord-trust-conventions.json`, for the same reason:
+ * an accord that does not know the kind rewrites the files it knows, and would erase the allow. Only this table names the file; the kinds gain no behaviour of their own (same runner, refusal, digest and revoke).
  */
-const RECORD_OF: Readonly<Record<ScriptKind, string>> = { 'tracker.command': 'accord-trust.json', 'git.sync': 'accord-trust.json', 'build.regenerate': 'accord-trust-build.json' };
+const RECORD_OF: Readonly<Record<ScriptKind, string>> = {
+  'tracker.command': 'accord-trust.json',
+  'git.sync': 'accord-trust.json',
+  'build.regenerate': 'accord-trust-build.json',
+  'commits.message.command': 'accord-trust-conventions.json',
+};
 
 /** Every record file name, in the order of the kinds. */
 const RECORDS: readonly string[] = [...new Set(SCRIPT_KINDS.map((k) => RECORD_OF[k]))];

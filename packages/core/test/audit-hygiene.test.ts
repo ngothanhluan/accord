@@ -261,7 +261,7 @@ it('risk:parsing the baseline gap names at most ten ids with their lines and the
 it('risk:data-loss a printed local branch delete is the tip-pinned update-ref and never git branch -D (8.2-ac-4)', () => {
   const gaps = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false }), ref({})], new Set(), '14', NOW, same);
   expect(gaps.map((g) => g.fix).join('\n')).not.toContain('git branch -D');
-  const odd = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false, sha: '--force; rm' })], new Set(), '14', NOW, same);
+  const odd = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false, tip: NOW - 3 * 86400, sha: '--force; rm' })], new Set(), '14', NOW, same);
   expect(odd.map((g) => g.fix)).toEqual([NO_COMMAND_TIP]);
   // an origin ref is deleted with the push, which needs no tip
   const remote = branchGaps([ref({ name: 't/ZZ-9', id: 'ZZ-9', local: false, ticketAnywhere: false, sha: '--force; rm' })], new Set(), '14', NOW, same);

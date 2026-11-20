@@ -1,11 +1,13 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { interfaceSigns, matchedHunks, outsideScope, securityExemptRounds, securitySpec, securityTriggers, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { interfaceSigns, matchedHunks, outsideScope, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
 import { exemptCopies, securityRoundRanges } from '../load/security-facts.js';
+import { shown as printable } from '../load/script-trust.js';
+import { slopFacts } from '../load/slop-facts.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
 import { branchFactFor, renderedFilesOf } from './branch-fact.js';
@@ -45,6 +47,18 @@ export function securitySections(s: RepoSnapshot, diffText: string, changed: str
     const unread = cannot(e instanceof Error ? e.message : String(e));
     return { triggers: unread, checklist: unread, hunks: unread };
   }
+}
+
+/**
+ * Phase 8.1 D-14: the `## Slop` text of a package: one `- slop:<kind> <path>:<line> — <label>` per hit of the ticket's cumulative diff (not of this package's own range, so a final reviewer sees
+ * exactly what `accord gate done` judges), `(none: no pattern matched)` when there is none, and a note when lines of accord/product/slop.md did not read. Every printed value goes through printable().
+ */
+function slopSection(ctx: CommandContext, s: RepoSnapshot, id: string, def: string | undefined): string {
+  const facts = slopFacts(ctx.root, s, id, renderedFilesOf(s.config), { defaultRef: def });
+  if ('error' in facts) return cannot(printable(facts.error));
+  let text = facts.hits.map((h) => printable(slopLine(h))).join('\n') || NONE;
+  if (facts.unread > 0) text += `\n(accord/product/slop.md: ${facts.unread} ${facts.unread === 1 ? 'line' : 'lines'} not read; run accord lint)`;
+  return text;
 }
 
 /** The security package's layout, shared with `accord diff-package --security` (ST-LN-83 07-07). */
@@ -240,6 +254,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     return 0;
   }
   shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false, { root: ctx.root, head: 'HEAD' }, unread).triggers);
+  shown.push('## Slop', slopSection(ctx, s, id, def));
   parts.splice(parts.indexOf('## Stat'), 0, ...shown);
   ctx.stdout.write(parts.join('\n\n') + '\n');
   return 0;

@@ -189,7 +189,7 @@ const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const TEST_FOLDER = new Set(['test', 'tests', '__tests__']);
 
 /** lane.md's definition: under a folder named `test`, `tests` or `__tests__`, or a name holding `.test.` or `.spec.`. */
-const isTestFile = (path: string): boolean => {
+export const isTestFile = (path: string): boolean => {
   const parts = path.split('/');
   const name = parts[parts.length - 1];
   return parts.slice(0, -1).some((d) => TEST_FOLDER.has(d)) || name.includes('.test.') || name.includes('.spec.');
@@ -236,13 +236,20 @@ const underAgentFolder = (path: string): boolean => {
 };
 
 /**
+ * Phase 8.1 D-20: the part of the content skip every content scan shares: a path in `exempt` (exactly an unmodified copy `accord skills sync` writes, decided by the caller), a path the
+ * repository's `generated:` lists, and a Markdown file. The slop scan skips exactly these (and the package-manager files slop/match.ts lists) and judges test files; the security scan adds its test clause below.
+ */
+export const copyGeneratedOrMarkdown = (path: string, generated: readonly string[], exempt: readonly string[]): boolean =>
+  exempt.includes(path) || generated.some((e) => matches(e, path)) || MARKDOWN.test(path);
+
+/**
  * Content patterns are not run over Markdown, test files, the repository's generated paths or a path in `exempt` (exactly an unmodified copy `accord skills sync`
  * writes, decided by the caller). No folder is skipped as a whole: a file accord does not write, or a copy changed by hand, is scanned.
  * D-22: a test-named file under an agent-loaded folder (AGENT_FOLDERS) is not skipped as a test, because an agent session can run it; Markdown there stays skipped, and an
  * exempt copy or a generated path is skipped first.
  */
 const contentSkipped = (path: string, generated: readonly string[], exempt: readonly string[]): boolean =>
-  exempt.includes(path) || generated.some((e) => matches(e, path)) || MARKDOWN.test(path) || (isTestFile(path) && !underAgentFolder(path));
+  copyGeneratedOrMarkdown(path, generated, exempt) || (isTestFile(path) && !underAgentFolder(path));
 
 /**
  * The triggers of a package: path patterns over every changed path (both sides of a rename); content patterns over the added and removed lines of

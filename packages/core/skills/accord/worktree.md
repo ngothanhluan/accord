@@ -20,9 +20,13 @@ Setup commands can take minutes: run these commands with the longest timeout you
 
 When `git diff HEAD -- accord/config.yml` here shows your entry under `people` as added (`./ids.md` had you add it, in this run or an earlier one) and you ran `accord new ticket --worktree`, carry it to the
 worktree before you stop or move into it: add the same entry to `<path>/accord/config.yml`, run
-`git -C "<path>" commit -m "people: <email>" -- accord/config.yml` and
+`git -C "<path>" commit -m "<subject>" -- accord/config.yml` (`<subject>` being the line `accord subject people <email>` prints) and
 `git -C "<path>" push -u origin <branch>`, then remove that entry, and only that entry, from
 `accord/config.yml` here, leaving every other line of the file as it is. When `<path>/accord/config.yml` already lists your email, only remove the entry here.
+
+When `accord/config.yml` sets `commits.message`, every commit made on a ticket branch passes it, the people subject above included (it comes from `commits.subjects.people`, which `accord lint` names
+when it breaks the rule): write the message to a file outside the worktree, run `accord commit check <file>`, which names the rule when the message breaks it, and commit with `git commit -F <file>`.
+`accord anchor` prints the rule at the start of every stage.
 
 This skill runs `accord worktree clean` itself only from `/accord` with no argument and from `/accord-upgrade`;
 `accord worktree open` and `accord new ticket --worktree` clean the same way on their own, so a ticket done on

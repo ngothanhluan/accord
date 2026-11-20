@@ -3,11 +3,12 @@
 // never a summary.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { claimPinBefore, normaliseText, planFile, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, workOf } from '@accord-dev/accord-core';
+import { claimPinBefore, commitRuleLine, commitRuleOf, normaliseText, planFile, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, workOf } from '@accord-dev/accord-core';
 import type { PlanTask, RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
 import { prepareReport, reportPath } from '../load/report.js';
+import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
 import { briefWorkRoot } from './task-tree.js';
@@ -82,6 +83,25 @@ function conventionsTail(ctx: CommandContext): string {
   return conv.trim() === '' ? '' : '\n---\n\n' + conv;
 }
 
+/**
+ * Phase 8.1 D-05: the commit rule the team set in `commits.message`, as a `---` separated block of at most five lines: the rule, one first line that passes it, the exemptions, the check
+ * to run before each commit, and (with a `command`) how to build the message. Empty when `commits.message` is unset, so the brief is then today's byte for byte; a pattern that is not in
+ * force is named with `accord lint`. The model reads the rule when it writes the message, as it reads the title rule of Phase 7 D-08b.
+ */
+function commitRuleTail(ctx: CommandContext, id: string): string {
+  const rule = commitRuleOf(ctx.snapshot.config);
+  if (rule === undefined) return '';
+  if ('problem' in rule) return `\n---\n\nCommit rule: commits.message is not in force (${shown(rule.problem)}); run accord lint.\n`;
+  const lines = [
+    `Commit rule: ${commitRuleLine(rule)}.`,
+    ...(rule.example === '' ? [] : [`Example that passes: ${shown(rule.example)}`]),
+    'Merge commits and Revert "..." subjects are exempt.',
+    'Check each message with accord commit check <file> before you commit it; accord task-done refuses a commit that breaks the rule.',
+    ...(ctx.snapshot.config?.commits?.message?.command === undefined ? [] : [`Build each message with accord commit message ${id} and commit with git commit -F <the message-file it prints> --cleanup=verbatim.`]),
+  ];
+  return '\n---\n\n' + lines.join('\n') + '\n';
+}
+
 // ST-LN-50 D-08 Ruling: with the plan stage off the whole ticket is task 1, briefed from the ticket itself; no plan.md is read, whatever it holds.
 function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: number, file: string, lane: string | undefined): number {
   if (n !== 1) {
@@ -89,7 +109,7 @@ function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: 
   }
   const text = normaliseText(readFileSync(join(ctx.root, file), 'utf8'));
   const line = `The plan stage is off for lane ${lane}: build the whole ticket as task 1; every scenario that is not @ui needs one test that proves it.`;
-  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + ticketTestBlock(ctx) + conventionsTail(ctx));
+  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + ticketTestBlock(ctx) + commitRuleTail(ctx, id) + conventionsTail(ctx));
   return 0;
 }
 
@@ -113,6 +133,6 @@ export function brief(ctx: CommandContext, id: string, task: string): number {
   while (pre.length > 0 && pre[0].trim() === '') pre.shift();
   while (pre.length > 0 && pre[pre.length - 1].trim() === '') pre.pop();
   const rules = pre.length > 0 ? pre.join('\n') + '\n\n' : '';
-  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + testBlock(ctx, t) + conventionsTail(ctx));
+  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + testBlock(ctx, t) + commitRuleTail(ctx, id) + conventionsTail(ctx));
   return 0;
 }

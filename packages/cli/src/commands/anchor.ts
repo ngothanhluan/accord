@@ -1,9 +1,10 @@
 // Spec §6 `accord anchor [id]`: the active ticket's intent, vetoes, decisions, corrections, and position,
 // for the SessionStart hook after compaction and for the first step of every stage skill. Without an id
 // the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
-import { anchorText, DEFAULT_BRANCH_TEMPLATE } from '@accord-dev/accord-core';
+import { anchorText, commitRuleLine, commitRuleOf, DEFAULT_BRANCH_TEMPLATE } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, gitVerifySince, ticketOfBranch, withDefaultRef } from '../load/fs.js';
+import { shown } from '../load/script-trust.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
@@ -17,12 +18,23 @@ export function activeTicket(root: string, snapshot: RepoSnapshot, known?: { nam
 }
 
 /**
+ * Phase 8.1 D-06 (the free-text commits): one `Commit rule:` header line when `commits.message` is set, so every stage skill, which runs `accord anchor` first, and the session-resume hook
+ * show the rule, in every tool, before the first commit of the stage; nothing when it is unset (today's anchor byte for byte). A pattern that is not in force is named with `accord lint`.
+ */
+function commitRuleHeader(ctx: CommandContext): string[] {
+  const rule = commitRuleOf(ctx.snapshot.config);
+  if (rule === undefined) return [];
+  if ('problem' in rule) return [`Commit rule: commits.message is not in force (${shown(rule.problem)}); run accord lint`];
+  return [`Commit rule: ${commitRuleLine(rule)}${rule.example === '' ? '' : ', e.g. ' + shown(rule.example)}; check each commit message with accord commit check <file> before you commit; merge commits and Revert "..." subjects pass`];
+}
+
+/**
  * The one anchor text of a ticket, for `accord anchor` and the session-resume hook alike (ST-LN-72 review round 2): ST-LN-50 D-08's `stages off for lane <L>: ...` lines close the base lines of the
  * header (Stage, Review base), before any Unfinished line and the first section (core places them: anchorText's `header`); nothing is added when nothing is off for the ticket's lane. The git fact the
  * verify resume line reads (gitVerifySince) is added here too, so both paths print the same lines.
  */
 export const anchorOf = (ctx: CommandContext, id: string): string | undefined =>
-  anchorText({ ...epicSnapshot(ctx, id), ...gitVerifySince(ctx.root, ctx.snapshot, id) }, id, stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane));
+  anchorText({ ...epicSnapshot(ctx, id), ...gitVerifySince(ctx.root, ctx.snapshot, id) }, id, [...stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane), ...commitRuleHeader(ctx)]);
 
 /**
  * ST-LN-28 D-13: the snapshot the anchor is built from. A story with `parent:` reads its epic from the default branch (a Decision added to the epic after the story branched

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { fixtureTicket, PACKAGE_FIXTURES, packageFixture } from './helpers/review-package-fixtures.js';
-import { DEFAULT_SECURITY, loadSnapshot, securityTriggers, triggerText } from '@accord-dev/accord-core';
+import { DEFAULT_SECURITY, loadSnapshot, parseSecurityFile, securityTriggers, triggerText } from '@accord-dev/accord-core';
 import { defaultRefOf, loadFromFs } from '../src/load/fs.js';
 import { packageDiff, roundOneBase } from '../src/load/package-diff.js';
 import { CONFIG, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
@@ -455,6 +455,41 @@ it('risk:resource a -diff file whose text is over the buffer is left as its bina
     // with the real buffer nothing is unread
     const whole = packageDiff(repo, { base: gitRun(repo, 'rev-parse', 'main~1').trim(), head: 'HEAD', def: defaultRefOf(repo), allowPlainLog: false });
     expect(whole.unread).toBeUndefined();
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// 8-ac-3 (D-09): a hostile line of 40 `a` then `!` and a line of 100,000 characters end `accord review-package` promptly. The two team patterns below back-track on such a line, so the
+// read refuses both (neither is in force); the line over 1000 characters is cut, listed as a trigger that says so, and its hunk is printed once.
+const SLOW_FILE = ['# Security review', '', '## Patterns', '', '- slow: line /(a+)+$/ — x', '- overlap: line /(a|a)*$/ — y', ''].join('\n');
+const HOSTILE = `${'a'.repeat(40)}!\n${'a'.repeat(100_000)}!\n`;
+
+it('risk:resource accord review-package ends promptly on 40 a then ! and on a 100,000-character line (8-ac-3)', async () => {
+  // the read refuses both patterns first, so a guard regression fails here before any slow scan can run
+  expect(parseSecurityFile(SLOW_FILE).problems.map((p) => p.line)).toEqual([5, 6]);
+  const repo = makeEmptyRepo();
+  try {
+    identity(repo);
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1'), 'accord/product/security.md': SLOW_FILE, 'src/run.ts': RUN_BASE });
+    const base = commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), 'src/hostile.ts': HOSTILE });
+    commitMsg(repo, 'hostile lines');
+    const cut = 'src/hostile.ts:2: (cannot tell: line longer than 1000 characters, not fully scanned)';
+    const started = performance.now();
+    const listed = await run(['review-package', 'T-1'], repo);
+    expect(listed.err).toBe('');
+    expect(listed.code).toBe(0);
+    expect(section(listed.out)).toContain(cut);
+    expect(section(listed.out)).toContain('2 lines not read');
+    const hunks = await run(['review-package', 'T-1', '--security'], repo);
+    expect(hunks.err).toBe('');
+    expect(hunks.code).toBe(0);
+    expect(section(hunks.out)).toContain(cut);
+    expect(hunks.out.split('diff --git a/src/hostile.ts b/src/hostile.ts')).toHaveLength(2);
+    expect(performance.now() - started).toBeLessThan(120_000);
   } finally {
     cleanup(repo);
   }

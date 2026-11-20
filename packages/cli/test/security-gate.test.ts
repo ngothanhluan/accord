@@ -343,3 +343,25 @@ it('risk:security accord gate done refuses a ticket while the security file hold
     }
   }
 }, 180_000);
+
+// 8-ac-3 (D-09): a hostile line of 40 `a` then `!` and a line of 100,000 characters end a gate done promptly. The two team patterns below back-track on such a line, so the read
+// refuses both and the gate names them; the line over 1000 characters is cut and says so.
+const SLOW_FILE = ['# Security review', '', '## Patterns', '', '- slow: line /(a+)+$/ — x', '- overlap: line /(a|a)*$/ — y', ''].join('\n');
+const HOSTILE = `${'a'.repeat(40)}!\n${'a'.repeat(100_000)}!\n`;
+
+it('risk:resource accord gate done ends promptly on 40 a then ! and on a 100,000-character line (8-ac-3)', async () => {
+  // the read refuses both patterns first, so a guard regression fails here before any slow scan can run
+  expect(parseSecurityFile(SLOW_FILE).problems.map((p) => p.line)).toEqual([5, 6]);
+  const spawned = claimed({ base: { [SECURITY_FILE]: SLOW_FILE }, code: { 'src/hostile.ts': HOSTILE }, review: (h) => record(h, 'Security: no pattern matched') });
+  try {
+    const started = performance.now();
+    const refused = await run(['gate', 'done', 'T-1', '--json'], spawned.repo);
+    expect(performance.now() - started).toBeLessThan(120_000);
+    expect(refused.code).toBe(1);
+    const reasons = (JSON.parse(refused.out).findings as Found[]).filter((f) => f.rule === RULE).map((f) => f.reason);
+    expect(reasons.some((r) => r.includes(`${SECURITY_FILE}:5: `) && r.includes('"slow"'))).toBe(true);
+    expect(reasons.some((r) => r.includes(`${SECURITY_FILE}:6: `) && r.includes('"overlap"'))).toBe(true);
+  } finally {
+    cleanup(spawned.repo);
+  }
+}, 180_000);

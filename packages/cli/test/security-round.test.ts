@@ -1,6 +1,7 @@
 // ST-LN-36 36-ac-2: `accord round` holds each recorded review round against the security triggers its own package had, as `accord gate done` does, on real git. The CLI here runs as the
 // cut-off release (0.7.0), so a repository pinned to 0.7.0 can be claimed under 0.7.0 and under 0.6.0 (the older answer).
 import { expect, it, vi } from 'vitest';
+import { parseSecurityFile } from '@accord-dev/accord-core';
 import { counted } from './helpers/runs.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, writeFiles } from './helpers/repo.js';
 import { LANE_S_BODY, laneTicket, PLAN, pinned } from '../../../test/helpers/lane.js';
@@ -18,7 +19,7 @@ const record = (head: string, ...lines: string[]): string => `Round record: 2\n\
 const packageRead = (a: string[]): boolean => a.includes('-U10') || a.some((x) => x.includes('...'));
 
 /** A ticket claimed under `claim` on its own branch: base, the claim commit, one code commit (`code`), then review.md headed by that code commit. */
-function claimed(o: { lane?: 'M' | 'S'; claim?: string; code: Record<string, string>; review: (head: string) => string }): { repo: string; head: string } {
+function claimed(o: { lane?: 'M' | 'S'; claim?: string; base?: Record<string, string>; code: Record<string, string>; review: (head: string) => string }): { repo: string; head: string } {
   const lane = o.lane ?? 'M';
   const repo = makeEmptyRepo();
   writeFiles(repo, {
@@ -26,6 +27,7 @@ function claimed(o: { lane?: 'M' | 'S'; claim?: string; code: Record<string, str
     'accord/tickets/T-1.md': lane === 'S' ? laneTicket('T-1', { lane: 'S', body: LANE_S_BODY }) : laneTicket('T-1'),
     'src/run.ts': RUN_BASE,
     'src/plain.ts': 'export const a = 0;\n',
+    ...o.base,
   });
   const base = commitMsg(repo, 'base');
   gitRun(repo, 'branch', '-M', 'main');
@@ -89,5 +91,30 @@ it('risk:security accord round keeps the older answer for a ticket claimed at 0.
     } finally {
       cleanup(old.repo);
     }
+  }
+}, 240_000);
+
+// 8-ac-3 (D-09): a hostile line of 40 `a` then `!` and a line of 100,000 characters end `accord round` promptly. The two team patterns below back-track on such a line, so the read
+// refuses both and the round reports them as not in force; the line over 1000 characters is cut and says so.
+const SECURITY_FILE = 'accord/product/security.md';
+const SLOW_FILE = ['# Security review', '', '## Patterns', '', '- slow: line /(a+)+$/ — x', '- overlap: line /(a|a)*$/ — y', ''].join('\n');
+const HOSTILE = `${'a'.repeat(40)}!\n${'a'.repeat(100_000)}!\n`;
+
+it('risk:resource accord round ends promptly on 40 a then ! and on a 100,000-character line (8-ac-3)', async () => {
+  // the read refuses both patterns first, so a guard regression fails here before any slow scan can run
+  expect(parseSecurityFile(SLOW_FILE).problems.map((p) => p.line)).toEqual([5, 6]);
+  const spawned = claimed({ base: { [SECURITY_FILE]: SLOW_FILE }, code: { 'src/hostile.ts': HOSTILE }, review: (h) => record(h, 'Security: no pattern matched') });
+  try {
+    const started = performance.now();
+    const refused = await counted(['round', 'T-1'], spawned.repo);
+    expect(performance.now() - started).toBeLessThan(120_000);
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain('refused:');
+    expect(refused.out).toContain(`${SECURITY_FILE}:5: `);
+    expect(refused.out).toContain('"slow"');
+    expect(refused.out).toContain(`${SECURITY_FILE}:6: `);
+    expect(refused.out).toContain('"overlap"');
+  } finally {
+    cleanup(spawned.repo);
   }
 }, 240_000);

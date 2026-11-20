@@ -1,6 +1,7 @@
 // ST-LN-36 (05-04): the default security patterns, the file that holds them and the reader that matches them against a package's diff text.
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { DEFAULT_SECURITY, LOCKED, lintSnapshot, loadSnapshot, matchedHunks, parseSecurityFile, securitySpec, securityTriggers, templates, triggerText } from '../src/index.js';
+import { SCAN_LINE_LIMIT } from '../src/security/match.js';
 
 const FILE = 'accord/product/security.md';
 /** A snapshot holding only the security file (or none): securitySpec reads nothing else. */
@@ -169,11 +170,11 @@ it('risk:parsing the trigger reader places every diff spelling (ST-LN-36 36-ac-1
   const context = SECTION('src/c.ts', ['@@ -5,3 +5,2 @@', ' exec(a)', '-exec(b)', ' tail']).join('\n');
   expect(texts(context, ['src/c.ts'])).toEqual(['src/c.ts:6 (removed): spawn (process spawn)']);
 
-  // a line longer than 2000 characters is matched on its first 2000, and says it was not scanned whole (WR-02)
+  // a line longer than 1000 characters is matched on its first 1000, and says it was not scanned whole (WR-02)
   const farOut = SECTION('src/long.ts', ['@@ -1 +1,2 @@', ' a', '+' + 'a'.repeat(2500) + ' spawn(x)']).join('\n');
-  expect(texts(farOut, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 2000 characters, not fully scanned)']);
+  expect(texts(farOut, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 1000 characters, not fully scanned)']);
   const nearIn = SECTION('src/long.ts', ['@@ -1 +1,2 @@', ' a', '+spawn(x) ' + 'a'.repeat(2500)]).join('\n');
-  expect(texts(nearIn, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 2000 characters, not fully scanned)', 'src/long.ts:2: spawn (process spawn)']);
+  expect(texts(nearIn, ['src/long.ts'])).toEqual(['src/long.ts:2: (cannot tell: line longer than 1000 characters, not fully scanned)', 'src/long.ts:2: spawn (process spawn)']);
 
   // the excluded-merge form: several sections of one path from `git log -p`, commit header lines between them
   const log = [
@@ -491,19 +492,25 @@ it('risk:parsing a file git reports as binary and the package diff then shows as
   expect(matchedHunks(DEFAULT_SECURITY, binary.join('\n'), ['package.json'], { generated: [] })).toEqual([binary.join('\n')]);
 });
 
-// post-phase review WR-02: a line over the scan cap is never scanned past character 2000, so it is a trigger of its own.
-it('risk:security a changed line longer than the scan cap is a trigger that says it was not fully scanned, in an added and a removed line (WR-02)', () => {
+// post-phase review WR-02, bound lowered to 1000 by 8-ac-3 (D-09): a line over the scan limit is never scanned past character 1000, so it is a trigger of its own.
+it('risk:resource a changed line over 1000 characters is matched on its first 1000 and says so, in an added and a removed line (8-ac-3)', () => {
+  expect(SCAN_LINE_LIMIT).toBe(1000);
   const tail = 'require("child_process").execSync(x);';
   const added = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + ' '.repeat(2100) + tail]).join('\n');
-  expect(texts(added, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 2000 characters, not fully scanned)']);
+  expect(texts(added, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 1000 characters, not fully scanned)']);
   const removed = SECTION('x.js', ['@@ -1 +0,0 @@', '-' + ' '.repeat(2100) + tail]).join('\n');
-  expect(texts(removed, ['x.js'])).toEqual(['x.js:1 (removed): (cannot tell: line longer than 2000 characters, not fully scanned)']);
-  // a match inside the first 2000 characters is still its own trigger, beside the long line one
+  expect(texts(removed, ['x.js'])).toEqual(['x.js:1 (removed): (cannot tell: line longer than 1000 characters, not fully scanned)']);
+  // a match inside the first 1000 characters is still its own trigger, beside the long line one
   const both = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + tail + ' '.repeat(2100)]).join('\n');
-  expect(texts(both, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 2000 characters, not fully scanned)', 'x.js:1: spawn (process spawn)']);
-  // a line of exactly the cap is scanned whole: no extra trigger
-  const exact = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + 'a'.repeat(2000 - tail.length) + tail]).join('\n');
+  expect(texts(both, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 1000 characters, not fully scanned)', 'x.js:1: spawn (process spawn)']);
+  // a line of exactly 1000 characters is scanned whole: no extra trigger; one more character adds the cut trigger, and the match inside the first 1000 stays
+  const exact = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + 'a'.repeat(1000 - tail.length) + tail]).join('\n');
   expect(texts(exact, ['x.js'])).toEqual(['x.js:1: spawn (process spawn)']);
+  const over = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + 'a'.repeat(1001 - tail.length) + tail]).join('\n');
+  expect(texts(over, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 1000 characters, not fully scanned)', 'x.js:1: spawn (process spawn)']);
+  // a line of 1500 characters (inside the old 2000 bound) is cut now
+  const middle = SECTION('x.js', ['@@ -0,0 +1 @@', '+' + ' '.repeat(1500 - tail.length) + tail]).join('\n');
+  expect(texts(middle, ['x.js'])).toEqual(['x.js:1: (cannot tell: line longer than 1000 characters, not fully scanned)']);
   // the skips hold for a long line too: Markdown, a test file and a generated path are not scanned
   for (const path of ['notes.md', 'src/x.test.ts', 'dist/x.js']) {
     const text = SECTION(path, ['@@ -0,0 +1 @@', '+' + ' '.repeat(2100) + tail]).join('\n');
@@ -513,6 +520,84 @@ it('risk:security a changed line longer than the scan cap is a trigger that says
   const blocks = matchedHunks(DEFAULT_SECURITY, added, ['x.js'], { generated: [] });
   expect(blocks).toHaveLength(1);
   expect(blocks[0]).toContain(tail);
+});
+
+// 8-ac-3 (D-09): the scan bound is per changed line, so many long lines cost one run per line and pattern, on at most SCAN_LINE_LIMIT characters.
+// The scan exposes no counter, so the test counts the work itself: a spy on RegExp.prototype.test records the input length of each line pattern's run, and
+// refuses to run on an input over the limit (a lost cut then fails an assertion instead of hanging the fork).
+const MANY_LINES = [
+  '# Security review',
+  '',
+  '## Patterns',
+  '',
+  '- two-a: line /a+a+$/ — x',
+  '- two-dot: line /.*.*=/ — y',
+  '- two-group: line /(.*a){2}$/ — z',
+  '',
+  '## Checklist',
+  '',
+  '## Removed',
+  '',
+].join('\n');
+const addedFile = (path: string, line: string, count: number): string => SECTION(path, [`@@ -0,0 +1,${count} @@`, ...Array.from({ length: count }, () => '+' + line)]).join('\n');
+
+it('risk:resource many long changed lines run each line pattern once per line on at most 1000 characters (8-ac-3)', () => {
+  const spec = securitySpec(withFile(MANY_LINES));
+  // the guard of 08-08 accepts the three shapes, and the four defaults are line patterns beside them
+  expect(spec.problems).toEqual([]);
+  const lineIds = spec.patterns.filter((p) => p.kind === 'line').map((p) => p.id).sort();
+  expect(lineIds).toEqual(['built-path', 'file-write', 'secret-name', 'spawn', 'two-a', 'two-dot', 'two-group']);
+  const idOf = new Map<string, string>();
+  for (const p of spec.patterns) if (p.kind === 'line' && p.source !== undefined) idOf.set(new RegExp(p.source, p.flags ?? '').source, p.id);
+  expect(idOf.size).toBe(7);
+
+  const LINES = 100;
+  const line = ('x'.repeat(999) + '=').repeat(100);
+  expect(line.length).toBe(100_000);
+  const diff = addedFile('src/data.js', line, LINES);
+
+  const original = RegExp.prototype.test;
+  let lengths: Record<string, number[]> = {};
+  const spy = vi.spyOn(RegExp.prototype, 'test').mockImplementation(function (this: RegExp, input: string): boolean {
+    const id = idOf.get(this.source);
+    if (id === undefined) return original.call(this, input);
+    (lengths[id] ??= []).push(input.length);
+    if (input.length > SCAN_LINE_LIMIT) return false;
+    return original.call(this, input);
+  });
+  try {
+    const triggers = securityTriggers(spec, diff, ['src/data.js'], { generated: [] });
+    const scan = { ...lengths };
+    lengths = {};
+    const hunks = matchedHunks(spec, diff, ['src/data.js'], { generated: [] });
+    const hunkRuns = { ...lengths };
+    spy.mockRestore();
+
+    // one pass: each of the seven patterns ran once per line, never on more than the limit, and every line got its cut trigger
+    expect(Object.keys(scan).sort()).toEqual(lineIds);
+    for (const id of lineIds) {
+      expect(scan[id], id).toHaveLength(LINES);
+      expect(Math.max(...scan[id]), id).toBeLessThanOrEqual(SCAN_LINE_LIMIT);
+    }
+    expect(triggers.filter((t) => t.cannot === true)).toHaveLength(LINES);
+    expect(triggers).toHaveLength(LINES);
+
+    // matchedHunks adds one more pass of its own (its trigger pass) and runs nothing on a cut line itself
+    for (const id of lineIds) {
+      expect(hunkRuns[id]?.length ?? 0, id).toBeLessThanOrEqual(LINES);
+      expect(Math.max(0, ...(hunkRuns[id] ?? [])), id).toBeLessThanOrEqual(SCAN_LINE_LIMIT);
+    }
+    expect(hunks).toHaveLength(1);
+  } finally {
+    spy.mockRestore();
+  }
+
+  // the defaults alone take no time on many 100,000-character lines (the generous bound is 5,000 ms; the regex work measures under 1 ms)
+  const joins = addedFile('src/paths.js', 'join('.repeat(20_000), LINES);
+  const started = performance.now();
+  securityTriggers(DEFAULT_SECURITY, joins, ['src/paths.js'], { generated: [] });
+  matchedHunks(DEFAULT_SECURITY, joins, ['src/paths.js'], { generated: [] });
+  expect(performance.now() - started).toBeLessThan(5000);
 });
 
 it('risk:regression a security file written by 0.7.0, with its older security-config line, still reads clean and the current default applies', () => {

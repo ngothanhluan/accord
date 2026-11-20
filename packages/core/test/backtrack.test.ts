@@ -159,3 +159,13 @@ it("risk:security the guard's realistic refusals name a rewrite it accepts (8-ac
     expect(backtrackProblem(rewrite, ''), rewrite).toBeUndefined();
   }
 });
+
+it('risk:security the guard refuses a modifier group it cannot read, so (?i:a+)+$ is not accepted unjudged (8-ac-3)', () => {
+  for (const source of [r`(?i:a+)+$`, r`(?i:a|a)*$`, r`(?-i:a*)*b`, r`(?s:.*)*x`]) {
+    expect(backtrackProblem(source, ''), source).toEqual(expect.stringContaining('modifiers'));
+  }
+  // the groups the guard does read stay accepted: non-capturing, lookahead, lookbehind, named
+  for (const source of [r`(?:ab)+`, r`(?=a)b`, r`(?!a)b`, r`(?<=a)b`, r`(?<!a)b`, r`(?<n>ab)+`]) {
+    expect(backtrackProblem(source, ''), source).toBeUndefined();
+  }
+});

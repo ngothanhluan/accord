@@ -140,7 +140,7 @@ no GitHub setting, and every `gh api` call below is a plain read.
    reason it can read, show "<t>: fix the `## Dropped` reason on the
    default branch". Then: each such line is a failure: stop, nothing is pushed.
    When no `<def>` resolves, say the deletion check was not run. Run `accord gate done <t>` for every ticket file
-   `git diff --name-only --diff-filter=d <def>...HEAD` lists as
+   `git -c core.quotePath=false diff --name-only --diff-filter=d <def>...HEAD` lists as
    `accord/tickets/<t>.md`; when none resolves, run
    `accord gate done <id>` alone. Any failure: show it and stop; nothing
    is pushed.

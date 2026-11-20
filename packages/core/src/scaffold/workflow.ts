@@ -115,7 +115,7 @@ jobs:
           # --diff-filter=d leaves deleted tickets out of the tickets to gate; the deletion check below decides
           # whether a deletion may land. [^/]+ keeps accord/tickets/<id>/verification.md out while
           # accord/tickets/<id>.md stays in. || true keeps a zero-match grep from reading as a failure.
-          tickets=$(git diff --name-only --diff-filter=d "$BASE"...HEAD | grep -E '^accord/tickets/[^/]+[.]md$' || true)
+          tickets=$(git -c core.quotePath=false diff --name-only --diff-filter=d "$BASE"...HEAD | grep -E '^accord/tickets/[^/]+[.]md$' || true)
           # A pull request that changes anything outside accord/ gates every ticket it touches. One that
           # changes only accord/ skips a ticket that is unapproved or dropped, so a backlog can land. A failing
           # diff counts as code, and so does a deletion, so every doubt is resolved toward gating. Below, the

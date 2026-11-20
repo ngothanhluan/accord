@@ -1,6 +1,6 @@
 // Phase 8.2 group 3 (work hygiene): the pure gap builders and the open-work predicate they share with the dashboard. No git, no filesystem.
 import { expect, it } from 'vitest';
-import { isOpenWork, loadSnapshot, statusRows, ticketIdleGaps } from '../src/index.js';
+import { draftAge, draftStaleGaps, isOpenWork, loadSnapshot, statusRows, ticketIdleGaps } from '../src/index.js';
 import type { StatusRow } from '../src/index.js';
 import { CONFIG, done, laneTicket, P, building } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
@@ -53,4 +53,41 @@ it('risk:regression isOpenWork is the dashboard open definition (D-01)', () => {
   const withRef = { ...snap, defaultRef: { ref: 'refs/remotes/origin/main', snapshot: loadSnapshot({ files: onRef, tree: [] }) } };
   const openOnRef = statusRows(withRef).filter(isOpenWork(withRef)).map((r) => r.id);
   expect(openOnRef.sort()).toEqual(['DON-1', 'INT-1']);
+});
+
+it('risk:complex-branching an unclaimed draft past stale_draft_days is one draft-stale gap naming its creator (8.2-ac-2)', () => {
+  const draft = { id: 'T-3', days: 100, creator: 'c@x.io' };
+  expect(draftStaleGaps([draft], '90', same)).toEqual([
+    { id: 'draft-stale', text: 'T-3 created by c@x.io has not been touched for 100 days (stale_draft_days 90)', fix: '/accord-pickup T-3, or accord drop T-3 --reason "<why>"' },
+  ]);
+  expect(draftStaleGaps([draft], '120', same)).toEqual([]);
+  expect(draftStaleGaps([{ ...draft, days: 90 }], '90', same)).toEqual([]);
+  expect(draftStaleGaps([{ ...draft, creator: undefined }], '90', same)[0].text).toBe('T-3 created by an unknown author has not been touched for 100 days (stale_draft_days 90)');
+  expect(draftStaleGaps([draft], '90', () => 'CX')[0].text).toContain('created by CX');
+  // a draft only a backlog branch holds cannot be dropped until that branch is merged
+  expect(draftStaleGaps([{ ...draft, queued: 'backlog/t-3-2026-08-12' }], '90', same)).toEqual([
+    {
+      id: 'draft-stale',
+      text: 'T-3 created by c@x.io has waited on backlog/t-3-2026-08-12, not merged, for 100 days (stale_draft_days 90)',
+      fix: 'merge backlog/t-3-2026-08-12 into the default branch first, then /accord-pickup T-3 or accord drop T-3 --reason "<why>"',
+    },
+  ]);
+  // an id or a branch a shell would read gets no command
+  for (const odd of [{ ...draft, id: 'T 3' }, { ...draft, queued: 'backlog/t;3' }]) {
+    const [gap] = draftStaleGaps([odd], '90', same);
+    expect(gap.fix).toContain('no command is printed');
+    expect(gap.fix).not.toContain('/accord-pickup');
+    expect(gap.fix).not.toContain('merge backlog');
+  }
+});
+
+it('risk:parsing a draft age comes from its last activity or its queued branch date (D-02)', () => {
+  const base = loadSnapshot({ files: { 'accord/config.yml': CONFIG }, tree: [] });
+  const now = Date.UTC(2026, 10, 20, 12) / 1000;
+  const snap = { ...base, lastActivity: { 'T-3': now - 100 * 86400 - 3600 }, queued: { 'ST-9': { branch: 'backlog/st-9-2026-08-12' }, 'ST-8': { branch: 'backlog/st-8' }, 'ST-7': { branch: 'backlog/st-7-2026-13-45' } } };
+  expect(draftAge(snap, 'T-3', now)).toBe(100);
+  expect(draftAge(snap, 'ST-9', now)).toBe(100); // from UTC midnight of 2026-08-12
+  expect(draftAge(snap, 'ST-8', now)).toBeUndefined(); // no date suffix: the loader reads the branch tip
+  expect(draftAge(snap, 'ST-7', now)).toBeUndefined(); // not a calendar date
+  expect(draftAge(snap, 'NONE', now)).toBeUndefined();
 });

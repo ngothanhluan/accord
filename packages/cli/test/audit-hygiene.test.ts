@@ -4,15 +4,20 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
-import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, done, laneTicket, P } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { makeClone } from './helpers/worktree.js';
+import type { Clone } from './helpers/worktree.js';
 
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 
 const dirs: string[] = [];
+const clones: Clone[] = [];
 afterEach(() => {
   while (dirs.length > 0) cleanup(dirs.pop() as string);
+  while (clones.length > 0) (clones.pop() as Clone).cleanupAll();
   spawnLog.on = false;
   spawnLog.after = undefined;
   spawnLog.fail = undefined;
@@ -24,11 +29,11 @@ const ago = (days: number): Date => new Date(Date.now() - (days * 24 + 1) * 3600
 const CONVENTIONS = '# Conventions\n\n<!-- One rule per line. -->\n';
 
 /** A sandbox on branch main with `a@x.io` as its git identity, holding `files` beside the config, committed `age` days ago. */
-function sandbox(files: Record<string, string>, config: string, age: number): string {
+function sandbox(files: Record<string, string>, config: string, age: number, email = 'a@x.io'): string {
   const repo = makeEmptyRepo();
   dirs.push(repo);
   gitRun(repo, 'symbolic-ref', 'HEAD', 'refs/heads/main');
-  gitRun(repo, 'config', 'user.email', 'a@x.io');
+  gitRun(repo, 'config', 'user.email', email);
   gitRun(repo, 'config', 'user.name', 'a');
   writeFiles(repo, { 'accord/config.yml': config, 'accord/product/conventions.md': CONVENTIONS, ...files });
   commitMsg(repo, 'add tickets', ago(age));
@@ -155,4 +160,69 @@ it('risk:data-loss accord audit group 3 writes nothing and calls no model (8.2-a
     expect(text, file).not.toMatch(/node:http|node:https|node:net|undici/);
     expect(text, file).not.toMatch(/\bfetch\(/);
   }
+});
+
+const draftLines = (lines: string[]): string[] => lines.filter((l) => l.startsWith('gap: draft-stale:'));
+
+it('risk:complex-branching accord audit reports a draft untouched 100 days with its creator and none when stale_draft_days is 120 (8.2-ac-2)', async () => {
+  const files = { 'accord/tickets/T-3.md': laneTicket('T-3') };
+  const repo = sandbox(files, CONFIG, 100, 'c@x.io');
+  gitRun(repo, 'config', 'user.email', 'a@x.io'); // the viewer is not the creator
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  const old = draftLines(r.lines);
+  expect(old, r.out).toHaveLength(1);
+  for (const part of ['T-3', 'c@x.io', '100 days', '/accord-pickup T-3', 'accord drop T-3 --reason']) expect(old[0], r.out).toContain(part);
+  expect(r.lines.find((l) => l.startsWith('fact: work-ages:')), r.out).toContain('stale_draft_days');
+
+  const wide = sandbox(files, CONFIG + "stale_draft_days: '120'\n", 100, 'c@x.io');
+  const w = await audit(wide);
+  expect(w.code, w.out).toBe(0);
+  expect(draftLines(w.lines), w.out).toEqual([]);
+});
+
+it('risk:regression a done ticket whose frontmatter reads status draft is never an old draft (8.2-ac-2)', async () => {
+  const files: Files = {};
+  done(files, 'D-1', { frontmatter: ['status: draft'] });
+  expect(files[P('D-1')]).toContain('status: draft');
+  const repo = sandbox(files, CONFIG, 200);
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  expect(draftLines(r.lines), r.out).toEqual([]);
+  expect(r.lines.filter((l) => l.startsWith('gap: ticket-idle:')), r.out).toEqual([]);
+});
+
+it('risk:complex-branching a draft queued on an unmerged backlog branch is aged by its branch date (D-02)', async () => {
+  const c = makeClone({ tickets: [] });
+  clones.push(c);
+  const date = ago(100).toISOString().slice(0, 10);
+  const branch = `backlog/st-9-${date}`;
+  gitRun(c.root, 'config', 'user.email', 'c@x.io');
+  gitRun(c.root, 'switch', '-q', '-c', branch);
+  writeFiles(c.root, { 'accord/tickets/ST-9.md': laneTicket('ST-9') });
+  commitMsg(c.root, 'backlog: queue ST-9', ago(100));
+  gitRun(c.root, 'switch', '-q', 'main');
+  gitRun(c.root, 'config', 'user.email', 'a@x.io');
+  const days = Math.floor((Date.now() / 1000 - Date.parse(date + 'T00:00:00Z') / 1000) / 86400);
+  const r = await audit(c.root);
+  expect(r.code, r.out).toBe(0);
+  const old = draftLines(r.lines);
+  expect(old, r.out).toHaveLength(1);
+  for (const part of ['ST-9', 'c@x.io', branch, `${days} days`, `merge ${branch} into the default branch first`]) expect(old[0], r.out).toContain(part);
+});
+
+it('risk:resource the creator is read only for drafts past the threshold (D-02)', async () => {
+  const repo = sandbox({ 'accord/tickets/OLD-1.md': laneTicket('OLD-1') }, CONFIG, 100);
+  const fresh: Record<string, string> = {};
+  for (let i = 1; i <= 10; i++) fresh[`accord/tickets/NEW-${i}.md`] = laneTicket(`NEW-${i}`);
+  writeFiles(repo, fresh);
+  commitMsg(repo, 'add ten drafts');
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  const r = await audit(repo);
+  spawnLog.on = false;
+  expect(r.code, r.out).toBe(0);
+  expect(draftLines(r.lines), r.out).toHaveLength(1);
+  const creatorReads = spawnLog.calls.filter((c) => verbOf(c).verb === 'log' && c.includes('--diff-filter=A'));
+  expect(creatorReads.map((c) => c.join(' '))).toHaveLength(1);
 });

@@ -152,3 +152,16 @@ it('risk:security gate.commit-message reports an over-long subject without hangi
   expect(rows).toHaveLength(1);
   expect(rows[0].reason).toContain('shorten the first line');
 });
+
+// --- T-08.1-04: a subject template reaches the terminal through accord lint only with control and bidi characters written out ---
+
+it('risk:security lint writes the rendered subject without a control or bidi character (T-08.1-04)', () => {
+  const claim = JSON.stringify('claim \u001b[31m\u202Ehidden {id}');
+  const config = PATTERN + '  subjects:\n    claim: ' + claim + '\n';
+  const row = lintRows(config).find((f) => f.pointer === '/commits/subjects/claim');
+  expect(row, 'the claim subject breaks the rule').toBeDefined();
+  // eslint-disable-next-line no-control-regex
+  expect(row?.reason).not.toMatch(/[\u0000-\u001f\u007f\u202a-\u202e]/);
+  expect(row?.reason).toContain('<U+001B>');
+  expect(row?.reason).toContain('<U+202E>');
+});

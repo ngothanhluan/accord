@@ -40,7 +40,15 @@ it('risk:security a trusted commit-message script builds a message the pattern t
   const named = /^message-file: (.+)$/m.exec(ok.out);
   expect(named, ok.out).not.toBeNull();
   expect(named?.[1]).not.toContain('\\');
-  expect(readFileSync(named?.[1] ?? '', 'utf8')).toBe('ABC-12 fix cart\nT-1 accord/tickets/T-1.md\n');
+  // WR-03: the ticket file is an absolute, forward-slashed path that reads, as `accord pr` gives it, not a path relative to the root
+  const written = readFileSync(named?.[1] ?? '', 'utf8').split('\n');
+  expect(written[0]).toBe('ABC-12 fix cart');
+  const [ticket, ticketFile] = (written[1] ?? '').split(' ');
+  expect(ticket).toBe('T-1');
+  expect(ticketFile, 'ACCORD_TICKET_FILE is absolute').toMatch(/^(?:[A-Za-z]:)?\//);
+  expect(ticketFile).not.toContain('\\');
+  expect(ticketFile).toMatch(/\/accord\/tickets\/T-1\.md$/);
+  expect(readFileSync(ticketFile, 'utf8')).toContain('id: "T-1"');
   expect(existsSync(marker)).toBe(true);
 
   // the final message is judged whether a script built it or not: a file holding `fix cart` fails the same pattern

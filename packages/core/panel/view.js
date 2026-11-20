@@ -63,7 +63,8 @@ const cells = (r) => {
     stageColor: typeof r.stage === 'string' && Object.hasOwn(STAGE_COLOR, r.stage) ? STAGE_COLOR[r.stage] : undefined,
     title: r.title,
     blockedBy: blocked,
-    who: typeof r.claimedBy === 'string' ? clean(r.claimedBy) : '',
+    // Phase 8.2 D-07: the CLI adds claimedByShown beside claimedBy when the person asked for initials; a string wins, anything else falls back to the email
+    who: typeof r.claimedByShown === 'string' ? clean(r.claimedByShown) : typeof r.claimedBy === 'string' ? clean(r.claimedBy) : '',
   };
 };
 const epicCells = (r) => ({ id: r.id, lane: laneOf(r), stage: clean(`${r.done}/${r.total} done`), stageColor: undefined, title: r.title, blockedBy: '', who: '' });
@@ -163,7 +164,7 @@ export function detailView({ action, state }) {
     `Lane: ${t.lane}`,
     `Tasks: ${t.tasksDone}/${t.tasksTotal}`,
     `Branch: ${orNone(t.branch)}`,
-    `Holder: ${orNone(t.holder)}`,
+    `Holder: ${orNone(str(t.holderShown) ? t.holderShown : t.holder)}`,
     `Blocked by: ${t.blockedBy.length > 0 ? t.blockedBy.join(' ') : 'none'}`,
   ].map(clean);
   const criteria = t.criteria.map((c) => ({

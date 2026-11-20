@@ -2,6 +2,13 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- `accord audit` gains a work-hygiene group (Phase 8.2): `ticket-idle` for a claimed ticket with no activity for longer than `stale_days`, naming the claimer, and `draft-stale` for an unclaimed draft untouched for longer than `stale_draft_days`, naming its creator, each with the fix; the facts are `who` and `work-ages`. It reads the claim branches already in this clone and fetches nothing, and it adds about 2 to 3 seconds to the audit in a repository with many claim branches. Like the rest of the audit it exits 0, calls no model and writes nothing.
+- New config key `stale_draft_days` (a string of digits, default `'90'`). A repository pinned to an older accord refuses it in its schema, so set it only after the pin moves.
+- New per-person setting `git config accord.who initials`: the dashboard, `accord status`, `accord next`, `accord show`, the panel and `accord audit` show a teammate as the initials the `people` map holds for their email, and the email for a person the map lacks. Unset or `email` shows the email; any other value shows the email and is named in the audit's `who` fact. It is never a key in `accord/config.yml` and never makes a command fail.
+- New JSON display fields `claimedByShown` (`accord dashboard --json`, on each row that holds `claimedBy`) and `holderShown` (`accord show --json`), present only in initials mode and read by the panel. `claimedBy` and `holder` stay the email, `accord status --json` and `accord next --json` get no new field, and with the setting unset the JSON is byte for byte what it was.
+
 ## 0.9.1 — 2026-11-20
 
 Release 0.9.1 is a patch of 0.9.0 that ships the Phase 8.1 code review and security fixes (the bullets below): the commit-message rule no longer hangs on a very long first line, the slop scan reports what it cannot scan, a `pyproject.toml` requirement with extras is read, `ACCORD_TICKET_FILE` is an absolute path in both team scripts that receive it, `accord lint` prints a rendered subject with control characters spelled out, and `accord audit` and `accord conventions write` are hardened (a hostile pin, a large ruff config, a title the quoted `gh` argument cannot carry). Tickets in flight: nothing changes for a first line of 1000 characters or fewer, and this release adds no cut-off, so `COMMIT_MESSAGE_FROM` and `SLOP_FROM` stay 0.9.0. A repository pinned to 0.9.0 keeps its 0.9.0 answers until it runs `accord upgrade`; no skill, agent or config key changes, so the upgrade moves the pin and the panel plugin version.

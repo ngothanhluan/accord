@@ -392,7 +392,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // Phase 8.1 D-08, D-10: the optional audit of what a machine can see about a repository's conventions; it reads files only, calls no model, and no gate runs it.
   program
     .command('audit')
-    .description("report what a machine can see about this repository's conventions: fact: <name>: <value> lines (languages, layout, linter and its rules, formatter, type checking, tests, PR template, commit rule, conventions), then gap: <id>: <text> - fix: <fix> lines, then gaps: <n>; exit 0 whenever it ran, whatever it found; it reads files only, calls no model, and no gate runs it")
+    .description("report what a machine can see about this repository's conventions: fact: <name>: <value> lines (languages, layout, linter and its rules, formatter, type checking, tests, PR template, commit rule, conventions, work hygiene (claimed tickets idle past stale_days, unclaimed drafts past stale_draft_days)), then gap: <id>: <text> - fix: <fix> lines, then gaps: <n>; exit 0 whenever it ran, whatever it found; it reads files only, calls no model, and no gate runs it")
     .action(async () => {
       // D-18: the second stated exception to the pin check, beside `upgrade`: the audit reports a mismatch as a gap (pinCheck 'report'); every other command still refuses it.
       setCode(await audit(preflight(opts, 'checkout', { pinCheck: 'report' })));

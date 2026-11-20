@@ -38,6 +38,18 @@ const closed = (r: StatusRow) => r.status === 'archived' || r.status === 'droppe
 const isWork = (r: StatusRow) => r.lane !== undefined && r.type !== 'epic';
 const blocked = (r: StatusRow) => (r.blockedBy ?? []).length > 0;
 
+// BUG-LN-13 D-01: with a default ref read, a row counts as done exactly when it is done there; with none, its own stage.
+const finishedIn = (snapshot: RepoSnapshot) => (r: StatusRow) => (snapshot.defaultRef === undefined ? r.stage === 'done' : isDone(snapshot.defaultRef.snapshot, r.id));
+
+/**
+ * Phase 8.2 D-01: the one definition of open work, shared by the dashboard and `accord audit`: a lane ticket that is not an epic, not archived or dropped, and not done
+ * (on the default ref when the host read one). A claimed row of it is what the dashboard lists under YOURS and TEAM.
+ */
+export function isOpenWork(snapshot: RepoSnapshot): (r: StatusRow) => boolean {
+  const finished = finishedIn(snapshot);
+  return (r) => isWork(r) && !closed(r) && !finished(r);
+}
+
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 // Digit runs by value (leading zeros stripped, shorter is smaller), anything else in code-point order.
 function cmpRun(a: string, b: string): number {
@@ -111,10 +123,8 @@ function epicsSection(snapshot: RepoSnapshot, plain: RepoSnapshot): Dashboard['e
 
 export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, plainSnapshot?: RepoSnapshot): Dashboard {
   const plain = plainSnapshot ?? snapshot;
-  const ref = snapshot.defaultRef;
-  // BUG-LN-13 D-01: with a default ref read, a row counts as done exactly when it is done there; with none, its own stage.
-  const finished = (r: StatusRow) => (ref === undefined ? r.stage === 'done' : isDone(ref.snapshot, r.id));
-  const isOpen = (r: StatusRow) => isWork(r) && !closed(r) && !finished(r);
+  const finished = finishedIn(snapshot);
+  const isOpen = isOpenWork(snapshot);
   const all = statusRows(snapshot, now, plain).map((r) =>
     isWork(r) && !closed(r) && r.stage === 'done' && !finished(r) ? { ...r, next: nextStep(snapshot.tickets[r.id], 'done') } : r,
   );

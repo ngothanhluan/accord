@@ -215,7 +215,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr', 'audit', 'slop']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'stale_draft_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr', 'audit', 'slop']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -397,6 +397,10 @@ describe('phase 2 config keys', () => {
   it('refuses a non-numeric stale_days and a tier-up outside 1..5', () => {
     expect(validate('config', { ...base, stale_days: 'soon' }).length).toBeGreaterThan(0);
     expect(validate('config', { ...base, escalation: { fix_round_tier_up: '9' } }).length).toBeGreaterThan(0);
+  });
+  it('risk:parsing stale_draft_days is a digit string like stale_days (D-02)', () => {
+    for (const ok of ['120', '1', '90', '9999']) expect(validate('config', { ...base, stale_draft_days: ok }), ok).toEqual([]);
+    for (const bad of ['soon', '0', '05', '', '10000', 120]) expect(validate('config', { ...base, stale_draft_days: bad }).length, JSON.stringify(bad)).toBeGreaterThan(0);
   });
   it('risk:parsing build.parallel is a string 1 to 99 and build.regenerate a non-empty string (ST-LN-92 92-ac-2)', () => {
     expect(validate('config', { ...base, build: { parallel: '3', regenerate: 'npm run gen' } })).toEqual([]);

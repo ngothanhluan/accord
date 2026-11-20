@@ -336,6 +336,7 @@ export interface AccordConfig {
   models?: Partial<Record<RouteKey | 'architect', { model: string; effort?: Effort }>>; // absent entries use the default routing; architect is still accepted and has no effect (ST-LN-80)
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
   stale_days?: string; // digits; YAML numerics stay strings
+  stale_draft_days?: string; // digits, default '90': an unclaimed ticket untouched longer is an old draft in accord audit
   people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
   branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'

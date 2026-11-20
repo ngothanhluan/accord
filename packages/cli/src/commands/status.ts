@@ -7,6 +7,8 @@ import { statusRows } from '@accord-dev/accord-core';
 import type { StatusRow } from '@accord-dev/accord-core';
 import { stagesOffLines } from '../render/stages-off.js';
 import { EMPTY_CELL, renderRows } from '../render/table.js';
+import { rowsForText } from '../render/who.js';
+import { whoFor } from '../load/who.js';
 import { adapterFor, issueKeyOf } from '../tracker/index.js';
 import { recordWarning, scriptRefusal } from '../load/script-trust.js';
 import { jiraUrlRefusal } from '../tracker/trust.js';
@@ -103,7 +105,7 @@ export async function status(ctx: CommandContext, options: { json?: boolean; all
   ctx.stdout.write(
     visible.length === 0
       ? 'no tickets to show' + (hidden === 0 ? ' in accord/tickets/' : '; ' + hiddenNote) + '\n' + off
-      : renderRows(visible, cells) +
+      : renderRows(rowsForText(visible, whoFor(ctx.root, ctx.snapshot.config).show), cells) +
           off +
           plural(visible.length, 'ticket') +
           ' shown, ' +

@@ -39,3 +39,18 @@ export function configLists(text: string | undefined): { generated: string[]; se
       : [];
   return { generated: strings(map.generated), sensitive };
 }
+
+/**
+ * Phase 8.1 D-18: the `accord` pin of a config text, read without validating it against this CLI's schema, so a config that carries a key a newer
+ * release added (the schemas refuse unknown keys) still gives the pin the audit reports. Never throws; no text, text that is not a mapping, or a pin that is not a string gives undefined.
+ */
+export function configPin(text: string | undefined): string | undefined {
+  if (text === undefined) return undefined;
+  try {
+    const { map } = parseYamlMap('accord/config.yml', normaliseText(text), 0);
+    const pin = map?.accord;
+    return typeof pin === 'string' ? pin : undefined;
+  } catch {
+    return undefined;
+  }
+}

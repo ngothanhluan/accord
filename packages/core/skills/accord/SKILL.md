@@ -34,7 +34,7 @@ with the whole text after `/accord`, a change loading `accord-new`: for
 
 ## Onboard: `/accord onboard`
 
-After `accord init` printed `proposal:` lines, or on `/accord onboard`, follow `./onboard.md`. It is not a New request, and the session check above runs first.
+After `accord init` printed its `proposals:` line (`proposal:` lines to go through, or `proposals: 0`), or on `/accord onboard`, follow `./onboard.md`. It is not a New request, and the session check above runs first.
 
 ## Rules
 

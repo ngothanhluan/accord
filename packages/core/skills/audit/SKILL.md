@@ -11,7 +11,7 @@ loads: [audit/draft.md, shared/ask.md]
 ## Audit: `/accord-audit`
 
 1. Run `accord audit`. It reads files only and calls no model. It prints `fact:` lines (what it found), `gap:` lines (what is missing, each with `- fix:` and the one command or step that fixes it) and `gaps: <n>`. Exit 0 means it ran, whatever the gaps; on exit 2 show the message and stop.
-2. Tell the owner in plain words what the repository has: languages, folders, linter and the rules it turns on, formatter, type checking, tests, PR template, commit rule, conventions. Then list each gap with its fix, one short line each. Add no point the output does not make.
+2. Tell the owner in plain words what the repository has: languages, folders, linter and the rules it turns on, formatter, type checking, tests, PR template, commit rule, conventions. Then what needs attention in accord's own setup: the version pin against the running accord and npm, the CI workflow, rendered skill, agent and hook files, accord's hooks in `.claude/settings.json`, config keys new since the pin, scripts not yet trusted, the security file, and the result of the team's own audit script when `audit.command` is set. Then list each gap with its fix, one short line each. Add no point the output does not make.
 3. When a `conventions-empty` or `conventions-thin` gap is listed, offer to draft the conventions from the code. Only on a yes, follow `./draft.md`; on a no, leave it.
 4. Offer the other fixes, never apply them. A gap whose fix is a command may be run on the owner's yes; a gap that asks for a linter, formatter or other code or configuration change is not made here: offer to queue it as a draft ticket with `/accord-queue`.
 

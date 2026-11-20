@@ -4,15 +4,20 @@ import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { auditLines, CONVENTIONS_THIN, conventionLines, conventionsEmpty, commitRuleOf, findTemplate, subjectRuleProblems } from '@accord-dev/accord-core';
 import type { AuditFact, AuditGap } from '@accord-dev/accord-core';
-import { gitTracked } from '../load/fs.js';
+import { gitDefaultRef, gitTracked } from '../load/fs.js';
 import { machineFacts } from '../load/audit-facts.js';
+import { auditHealth, NOT_CHECKED } from '../load/audit-health.js';
 import type { Found } from '../load/audit-facts.js';
 import { printable } from '../load/detect.js';
-import { shown } from '../load/script-trust.js';
+import { scriptRefusal, shown } from '../load/script-trust.js';
+import { runTeamCommand } from '../load/team-run.js';
 import type { CommandContext } from '../run.js';
 
 const CONVENTIONS = 'accord/product/conventions.md';
-const NOT_CHECKED = "config.yml does not pass this CLI's schema";
+/** The team audit script may run this long and print this much (Ruling "audit.command"): audit tools such as `npm audit` are slower than a pull request script. */
+const AUDIT_TIMEOUT_MS = 300_000;
+const AUDIT_MAX_BUFFER = 1024 * 1024;
+const TEAM_LINE_MAX = 200;
 
 /** The line D-11 puts on the dashboard and on `accord new ticket` while the conventions file exists and holds no convention line. */
 export const CONVENTIONS_NOTICE = `conventions: ${CONVENTIONS} has no convention line; /accord-audit drafts them from the code (optional)`;
@@ -37,7 +42,7 @@ export function conventionsNotice(root: string): string | undefined {
 const tools = (found: readonly Found[]): string => found.map((f) => `${f.tool} (${printable(f.file)})`).join(', ');
 const FIX_QUEUE = (what: string): string => `queue a draft ticket with /accord-queue to ${what}; the audit never changes code or configuration`;
 
-export function audit(ctx: CommandContext): number {
+export async function audit(ctx: CommandContext): Promise<number> {
   const config = ctx.snapshot.config;
   const tracked = gitTracked(ctx.root);
   const m = machineFacts(ctx.root, tracked);
@@ -87,6 +92,33 @@ export function audit(ctx: CommandContext): number {
   if (config !== undefined && rule === undefined) gap('commit-rule-unset', 'commits.message is not set, so no commit rule is checked', 'accord config set commits.message.preset conventional (or set commits.message.pattern and commits.message.example)');
   if (rule !== undefined && !('problem' in rule)) {
     for (const p of subjectRuleProblems(ctx.snapshot, rule)) gap('subject-breaks-rule', `commits.subjects.${p.name} renders "${p.subject}", which breaks the commit rule: ${p.problem}`, p.fix);
+  }
+
+  // group 2 (D-08, D-18): accord's own setup, after group 1
+  const health = await auditHealth(ctx);
+  for (const f of health.facts) fact(f.name, f.value);
+  for (const g of health.gaps) gap(g.id, g.text, g.fix);
+
+  // group 6 (D-08, D-19): the team's own audit script, run only when accord trust allowed exactly this command and the files it reaches; an untrusted one is left to group 2's script-untrusted gap
+  const command = config?.audit?.command;
+  if (config === undefined) fact('team-audit', `not checked (${NOT_CHECKED})`);
+  else if (command !== undefined && scriptRefusal(ctx.root, 'audit.command', command) === undefined) {
+    const r = runTeamCommand(command, {
+      cwd: ctx.root,
+      env: { ...process.env, ...ctx.env, ACCORD_ROOT: ctx.root, ACCORD_BASE_REF: gitDefaultRef(ctx.root) ?? '' },
+      timeoutMs: AUDIT_TIMEOUT_MS,
+      maxBuffer: AUDIT_MAX_BUFFER,
+    });
+    const first = (text: string): string | undefined => text.split(/\r?\n/).map((l) => l.trim()).find((l) => l !== '');
+    const fix = 'read the output of audit.command';
+    if (r.timedOut) gap('team-audit', `audit.command did not finish in ${AUDIT_TIMEOUT_MS / 1000} s and was stopped`, fix);
+    else if (r.oversize) gap('team-audit', `audit.command printed more than ${AUDIT_MAX_BUFFER / 1024 / 1024} MiB and was stopped`, fix);
+    else if (r.code === 0) fact('team-audit', 'passed');
+    else {
+      const said = first(r.stdout) ?? first(r.stderr);
+      const text = said === undefined ? (r.code === null ? `audit.command was killed${r.signal === null ? '' : ' by ' + r.signal}` : `audit.command exited ${r.code} and printed nothing`) : shown(said).slice(0, TEAM_LINE_MAX);
+      gap('team-audit', text, fix);
+    }
   }
 
   ctx.stdout.write(auditLines(facts, gaps));

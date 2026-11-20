@@ -3,7 +3,7 @@
 // code. argv, cwd, and both streams are injected, so a test drives the whole CLI in-process and
 // nothing reaches `process.*` (STACK Decision 7). Exit codes follow STACK Decision 1: 0 pass,
 // 1 lint/gate failure, 2 usage or environment error.
-import { loadSnapshot } from '@accord-dev/accord-core';
+import { configPin, loadSnapshot } from '@accord-dev/accord-core';
 import type { Lane, RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
@@ -74,32 +74,44 @@ export interface CommandContext {
   ssh?: Map<string, string>;
   /** ST-LN-63: set by a light preflight (pick-up, `new ticket --worktree`); `fetchOrigin` finishes the full load from it and returns a context without it. */
   light?: LightLoad;
+  /** Phase 8.1 D-18: the pin message of a run under the `report` pin check (only `accord audit`) whose pin differs from the running version; absent when the pin matches or the check refuses. */
+  pinMismatch?: string;
+  /** Phase 8.1 D-18: the pin the `report` pin check read (from the validated config, else the raw text); absent when config.yml names none or the check refuses. */
+  pinned?: string;
 }
 
 /**
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout'): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout', options: { pinCheck?: 'refuse' | 'report' } = {}): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
   // ST-LN-63: a light load keeps the parts it read, so a command that goes on to the full load does not read them twice.
   const lit = mode === 'light' ? loadLight(root) : undefined;
   const read = parts === undefined && lit === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
-  const loaded = loadSnapshot(parts?.view ?? lit?.input ?? (read as NonNullable<typeof read>).input);
+  const input = parts?.view ?? lit?.input ?? (read as NonNullable<typeof read>).input;
+  const loaded = loadSnapshot(input);
   // ST-LN-63: the branch the load read, handed on so no command asks git for it again (none in light mode).
   const branch = parts?.branch ?? read?.branch;
   const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
-  if (loaded.config !== undefined) {
+  // D-18 (Phase 8.1): the `report` pin check is the second stated exception, beside `upgrade`: the pin is read here, before anything reads `snapshot.config`, from the validated config or, when this CLI's schema
+  // refused it (a key a newer release added), from the raw text, and the message goes back on the context instead of being thrown. Only `accord audit` asks for it.
+  let pinMismatch: string | undefined;
+  let pinned: string | undefined;
+  if (options.pinCheck === 'report') {
+    pinned = loaded.config === undefined ? configPin(input.files['accord/config.yml']) : loaded.config.accord;
+    pinMismatch = pinMessage(pinned, pkg.version, versionOnDisk());
+  } else if (loaded.config !== undefined) {
     const message = pinMessage(loaded.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
   // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
   const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs) : loaded;
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
 }
 
 /**
@@ -362,7 +374,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // Owner decision (2026-11-15): a script the repository declares (`tracker.command`, `git.sync`) runs only after the person allowed it here, once, in a record inside .git.
   program
     .command('trust [script...]')
-    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, git.sync, build.regenerate, commits.message.command and pr.command): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest>, git.sync@<digest>, build.regenerate@<digest>, commits.message.command@<digest> or pr.command@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
+    .description('with no script named, show each script accord/config.yml declares (tracker.command under tracker.adapter: script, git.sync, build.regenerate, commits.message.command, pr.command and audit.command): the command, a digest of what it covers, the files an allow covers and the ones that changed, and allow nothing; with tracker.command@<digest>, git.sync@<digest>, build.regenerate@<digest>, commits.message.command@<digest>, pr.command@<digest> or audit.command@<digest> named, the digest as shown, allow that script to run in this repository, refused when the files changed since: a local record inside .git, never committed, bound to the command and to the files it reaches, so a change to either asks again; accord checks only the files it lists, so whoever allows a script must review the pull request that changed it; --revoke withdraws the allows of the scripts named, or every allow')
     .option('--revoke', 'withdraw the allows of the scripts named, or every allow of this repository')
     .action((scripts: string[], o: { revoke?: boolean }) => {
       setCode(trust(preflight(opts), scripts, o));
@@ -381,8 +393,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   program
     .command('audit')
     .description("report what a machine can see about this repository's conventions: fact: <name>: <value> lines (languages, layout, linter and its rules, formatter, type checking, tests, PR template, commit rule, conventions), then gap: <id>: <text> - fix: <fix> lines, then gaps: <n>; exit 0 whenever it ran, whatever it found; it reads files only, calls no model, and no gate runs it")
-    .action(() => {
-      setCode(audit(preflight(opts)));
+    .action(async () => {
+      // D-18: the second stated exception to the pin check, beside `upgrade`: the audit reports a mismatch as a gap (pinCheck 'report'); every other command still refuses it.
+      setCode(await audit(preflight(opts, 'checkout', { pinCheck: 'report' })));
     });
 
   // Phase 8.1 D-09: the convention lines the owner accepted in /accord-audit, on their own branch for a pull request the owner merges; the skill opens it.

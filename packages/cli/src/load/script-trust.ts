@@ -18,10 +18,10 @@ import { gitTracked, UsageError } from './fs.js';
  * The repository-declared scripts, named as in accord/config.yml. ST-LN-92 review round 1 finding 7: `build.regenerate` too; the CLI never runs it (D-06 Ruling), but
  * `accord worktree task merge` prints it for the build stage to run only when it is allowed here.
  */
-export type ScriptKind = 'tracker.command' | 'git.sync' | 'build.regenerate' | 'commits.message.command' | 'pr.command';
+export type ScriptKind = 'tracker.command' | 'git.sync' | 'build.regenerate' | 'commits.message.command' | 'pr.command' | 'audit.command';
 
 /** Every kind, in the order accord trust shows them. */
-export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync', 'build.regenerate', 'commits.message.command', 'pr.command'];
+export const SCRIPT_KINDS: readonly ScriptKind[] = ['tracker.command', 'git.sync', 'build.regenerate', 'commits.message.command', 'pr.command', 'audit.command'];
 
 /** One allow: a binding of a script kind, its command text and the digest of what it covers. */
 interface Allow {
@@ -97,6 +97,7 @@ const RECORD_OF: Readonly<Record<ScriptKind, string>> = {
   'build.regenerate': 'accord-trust-build.json',
   'commits.message.command': 'accord-trust-conventions.json',
   'pr.command': 'accord-trust-conventions.json',
+  'audit.command': 'accord-trust-conventions.json',
 };
 
 /** Every record file name, in the order of the kinds. */

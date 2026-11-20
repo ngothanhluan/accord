@@ -199,9 +199,16 @@ describe('config.schema.json', () => {
     expect(has(commits({ subjects: { conventions: 'conventions' } }), '/commits/subjects/conventions', 'schema.pattern')).toBe(true);
   });
 
+  it('risk:security audit.command is one non-empty line with no control or format character (D-19)', () => {
+    const audit = (command: unknown) => validate('config', { ...minimal.config, audit: { command } });
+    for (const ok of ['npm audit --audit-level=high', 'node scripts/audit.mjs']) expect(audit(ok), ok).toEqual([]);
+    for (const bad of ['', 'a\nb', 'a\tb', 'a\u200bb']) expect(audit(bad).length, JSON.stringify(bad)).toBeGreaterThan(0);
+    expect(validate('config', { ...minimal.config, audit: { command: 'x', other: 'y' } }).length).toBeGreaterThan(0);
+  });
+
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable', 'queue', 'git', 'ids', 'strictness', 'template', 'titles', 'pr', 'audit']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);

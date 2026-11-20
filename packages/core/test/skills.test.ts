@@ -87,7 +87,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('intent')).toBe('accord-intent');
     expect(installedName('designer')).toBe('accord-designer');
@@ -231,7 +231,7 @@ const MAX_SKILL_LINES = 120;
 
 /** The commands the CLI actually registers, longest path first so `gate ready` wins over a bare `gate`. */
 const COMMAND =
-  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook)\b/g;
+  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
 
 /** Spec §2: each skill targets at most 6000 bytes. */
 const MAX_SKILL_BYTES = 6000;
@@ -247,6 +247,7 @@ const FIRST_COMMAND: Record<string, string> = {
   'accord-new': 'new ticket',
   'accord-upgrade': 'dashboard',
   'accord-queue': 'new ticket',
+  'accord-audit': 'audit',
 };
 const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
 
@@ -629,6 +630,7 @@ const HINTS: Record<string, string | null> = {
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
   'accord-queue': '<idea>',
+  'accord-audit': null,
   'accord-intent': '[ticket id]',
   'accord-approach': '[ticket id]',
   'accord-plan': '[ticket id]',

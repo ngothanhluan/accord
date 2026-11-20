@@ -22,6 +22,8 @@ const EXEMPT: Readonly<Record<string, string>> = {
   'accord/upgrade.md': '   `gh pr create --head <branch> --base <base> --title "<title>" --body "Moves the version pin and regenerates the skill files."`,',
   // drop and move pull requests carry the owner's reason
   'accord/ids.md': '   `gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"` when `gh` is available,',
+  // conventions-draft PR: fixed body, CONTEXT Ruling (plan check, 2026-11-20): a team template asks for testing or screenshot sections that do not apply to a conventions.md change
+  'audit/draft.md': '7. Open the pull request when `gh` is available with `gh pr create --head <branch> --base <base> --title "<title>" --body "Convention lines the owner accepted in /accord-audit."`, using the lines it printed; otherwise show the `branch:` line and ask the owner to open it.',
 };
 
 /** Every skill source with the lines that hold `gh pr create`, keyed by its posix path under packages/core/skills/. */

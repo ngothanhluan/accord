@@ -13,7 +13,9 @@ import { deferred } from './commands/deferred.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { audit } from './commands/audit.js';
 import { commitCheck, commitMessage } from './commands/commit.js';
+import { conventionsWrite } from './commands/conventions.js';
 import { pr } from './commands/pr.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
@@ -297,7 +299,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // ST-LN-50 D-06: the subject of a commit accord writes, rendered from the team's template, so skills never carry a literal one.
   program
     .command('subject <name> <id> [tail...]')
-    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill, queue, people) and a ticket id, from commits.subjects; for people the second argument is the email of the people entry; a tail, such as a round count, follows after one space')
+    .description('print the commit subject for a kind (claim, plan_ready, plan_round, approach_round, intent, ticket_understood, ticket_question, scout, drop, rebind, ruleset_backfill, queue, people, conventions) and a ticket id, from commits.subjects; for people the second argument is the email of the people entry, for conventions the UTC date of the conventions branch; a tail, such as a round count, follows after one space')
     .action((name: string, id: string, tail: string[]) => {
       setCode(subject(preflight(opts), name, id, tail));
     });
@@ -373,6 +375,23 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("run as the newer accord: push a branch upgrade/<version> from origin's default branch whose one commit pins this version in config.yml, the workflow and the hooks, with the skill files skills sync writes; the checkout is not touched")
     .action(() => {
       setCode(upgrade({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} }));
+    });
+
+  // Phase 8.1 D-08, D-10: the optional audit of what a machine can see about a repository's conventions; it reads files only, calls no model, and no gate runs it.
+  program
+    .command('audit')
+    .description("report what a machine can see about this repository's conventions: fact: <name>: <value> lines (languages, layout, linter and its rules, formatter, type checking, tests, PR template, commit rule, conventions), then gap: <id>: <text> - fix: <fix> lines, then gaps: <n>; exit 0 whenever it ran, whatever it found; it reads files only, calls no model, and no gate runs it")
+    .action(() => {
+      setCode(audit(preflight(opts)));
+    });
+
+  // Phase 8.1 D-09: the convention lines the owner accepted in /accord-audit, on their own branch for a pull request the owner merges; the skill opens it.
+  const conventions = program.command('conventions').description("the team's conventions file, accord/product/conventions.md");
+  conventions
+    .command('write <file>')
+    .description('read the accepted lines from <file> (each "- <convention> — enforced by: <rule id or prose>", printable, at most 300 characters, no comment marker; a line already in the file is skipped and named), append them to accord/product/conventions.md as origin\'s default branch has it, in a temporary worktree, commit them with the conventions subject, push branch conventions/<date> and print branch:, base: and title:; refused (exit 2) when a line cannot be read or origin already has that branch; the checkout is not touched and nothing is merged')
+    .action((file: string) => {
+      setCode(conventionsWrite(preflight(opts), file, opts.cwd));
     });
 
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');

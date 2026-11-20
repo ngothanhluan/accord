@@ -39,6 +39,32 @@ function passingTemplate(rule: CommitRule, name: SubjectName, sampleId: string):
   return candidates.find((c): c is string => c !== undefined && commitRuleProblem(rule, renderSubject({ commits: { subjects: { [name]: c } } }, name, sampleId, SAMPLE_TAIL[name])) === undefined);
 }
 
+/** One subject accord commits on a ticket branch that the commit rule refuses as `commits.subjects` renders it: the name, the rendered subject, the rule's reason and the fix (`accord audit` reads the same list as `lint.commit-rule`). */
+export interface SubjectRuleProblem {
+  name: SubjectName;
+  subject: string;
+  problem: string;
+  fix: string;
+}
+
+/** Every subject accord commits on a ticket branch (every SUBJECT_NAMES name but OFF_TICKET_BRANCH) that breaks `rule`, in SUBJECT_NAMES order. */
+export function subjectRuleProblems(snapshot: Parameters<Rule['check']>[0], rule: CommitRule): SubjectRuleProblem[] {
+  const config = snapshot.config;
+  const ids = Object.keys(snapshot.tickets).sort();
+  const people = Object.keys(config?.people ?? {}).sort();
+  const out: SubjectRuleProblem[] = [];
+  for (const name of SUBJECT_NAMES.filter((n) => !OFF_TICKET_BRANCH.includes(n))) {
+    const sampleId = name === 'people' ? (people[0] ?? 'dev@example.com') : (ids[0] ?? 'ST-XX-1');
+    const subject = renderSubject(config, name, sampleId, SAMPLE_TAIL[name]);
+    const problem = commitRuleProblem(rule, subject);
+    if (problem === undefined) continue;
+    const template = passingTemplate(rule, name, sampleId);
+    const fix = `accord config set commits.subjects.${name} '${template ?? '<a template with {id} whose subject passes the rule>'}'` + (template === undefined ? ` (a subject that ${rule.text} accepts, such as ${rule.example === '' ? 'your example' : rule.example})` : '');
+    out.push({ name, subject, problem, fix });
+  }
+  return out;
+}
+
 /**
  * Phase 8.1 D-04, D-06 (8.1-ac-5): `commits.message` must be in force (the pattern compiles and the backtracking guard accepts it), its example must pass it, and every subject accord commits on a
  * ticket branch (every SUBJECT_NAMES name but OFF_TICKET_BRANCH) must pass it as `commits.subjects` renders it, else the ticket's own claim or planning commit would be refused by task-done.
@@ -55,16 +81,8 @@ export const commitRule: Rule['check'] = (snapshot) => {
   if (own !== undefined) {
     out.push({ file, pointer: '/commits/message/example', reason: `commits.message.example breaks its own rule: ${own} - fix: change commits.message.example to a first line that ${rule.text} accepts` });
   }
-  const ids = Object.keys(snapshot.tickets).sort();
-  const people = Object.keys(config?.people ?? {}).sort();
-  for (const name of SUBJECT_NAMES.filter((n) => !OFF_TICKET_BRANCH.includes(n))) {
-    const sampleId = name === 'people' ? (people[0] ?? 'dev@example.com') : (ids[0] ?? 'ST-XX-1');
-    const subject = renderSubject(config, name, sampleId, SAMPLE_TAIL[name]);
-    const problem = commitRuleProblem(rule, subject);
-    if (problem === undefined) continue;
-    const template = passingTemplate(rule, name, sampleId);
-    const fix = `accord config set commits.subjects.${name} '${template ?? '<a template with {id} whose subject passes the rule>'}'` + (template === undefined ? ` (a subject that ${rule.text} accepts, such as ${rule.example === '' ? 'your example' : rule.example})` : '');
-    out.push({ file, pointer: `/commits/subjects/${name}`, reason: `commits.subjects.${name} renders "${subject}", which breaks the commit rule: ${problem} - fix: ${fix}; \`accord commit check <file>\` checks a message first` });
+  for (const p of subjectRuleProblems(snapshot, rule)) {
+    out.push({ file, pointer: `/commits/subjects/${p.name}`, reason: `commits.subjects.${p.name} renders "${p.subject}", which breaks the commit rule: ${p.problem} - fix: ${p.fix}; \`accord commit check <file>\` checks a message first` });
   }
   return out;
 };

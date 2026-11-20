@@ -186,7 +186,8 @@
             "rebind": { "$ref": "#/$defs/subject" },
             "ruleset_backfill": { "$ref": "#/$defs/subject" },
             "queue": { "$ref": "#/$defs/subject" },
-            "people": { "$ref": "#/$defs/subject" }
+            "people": { "$ref": "#/$defs/subject" },
+            "conventions": { "$ref": "#/$defs/subject" }
           }
         },
         "legacy_subjects": {
@@ -205,7 +206,8 @@
             "rebind": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
             "ruleset_backfill": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
             "queue": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
-            "people": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } }
+            "people": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } },
+            "conventions": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/subject" } }
           }
         }
       }

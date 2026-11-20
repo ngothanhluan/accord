@@ -1,7 +1,7 @@
 // ST-LN-36 D-05: the security file (`accord/product/security.md`) holds the patterns that call for a security review and the reviewer's
 // checklist. Pure text in, a spec out; the defaults are the text of templates/security.md, read from the generated record.
 import { templates } from '../generated/templates.js';
-import { scan, stripHtmlComments } from '../load/sections.js';
+import { headingKey, scan, stripHtmlComments } from '../load/sections.js';
 import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { backtrackProblem } from './backtrack.js';
@@ -46,6 +46,9 @@ const LEADING_ID = /^- ([^:\s]+): /;
 const HAS_WORD = /[\p{L}\p{N}]/u;
 /** The longest line of a security.md the reader takes (2000): a team's file line, a different input from a changed line (SCAN_LINE_LIMIT in match.ts). */
 const MAX_PATTERN_LINE = 2000;
+
+/** The sections of a security file the reader takes, by headingKey. */
+const SECTIONS = new Set(['patterns', 'checklist', 'removed']);
 
 const BOM = String.fromCharCode(0xfeff);
 
@@ -103,6 +106,13 @@ export function parseSecurityFile(text: string): SecuritySpec {
         patternProblem(line, `"${id}": a path entry holds *, ? or [; there is no glob, an entry ending in / is a folder`);
         continue;
       }
+      // D-21, lint only: an entry that can never match is a problem naming the fix, one per entry. It is not marked `pattern` and the line does not `continue`: the pattern stays in
+      // force as 0.8.0 read it, so the gate behaves for it as before and no ticket in flight is refused for it.
+      for (const e of entries) {
+        if (e.includes('\\')) problem(line, `"${id}": the path entry "${e}" holds a backslash; write it with /, as git prints paths`);
+        else if (e.startsWith('/') || e.startsWith('./')) problem(line, `"${id}": the path entry "${e}" starts with / or ./; write it from the repository root without them`);
+        else if (e.split('/').includes('..')) problem(line, `"${id}": the path entry "${e}" holds ..; write the path from the repository root without ..`);
+      }
       seen.add(id);
       spec.patterns.push({ id, kind: 'path', entries, label: label.trim(), line });
       continue;
@@ -158,6 +168,16 @@ export function parseSecurityFile(text: string): SecuritySpec {
       continue;
     }
     spec.removed.push({ id: m[1], reason: m[2].trim(), line });
+  }
+
+  // D-21, lint only: the reader takes the first section of each of the three names, so a repeated heading is ignored and a heading it does not know (a misspelling such as
+  // `## Pattern`) silently does nothing. Neither problem is marked `pattern`: the gate does not refuse for them.
+  const headings = new Set<string>();
+  for (const s of sections) {
+    const key = headingKey(s.heading);
+    if (headings.has(key)) problem(s.line, `the section "## ${s.heading}" appears twice; only the first is read, so move its lines into the first one`);
+    else if (!SECTIONS.has(key)) problem(s.line, `"## ${s.heading}" is not a section accord reads; use ## Patterns, ## Checklist or ## Removed`);
+    headings.add(key);
   }
   return spec;
 }

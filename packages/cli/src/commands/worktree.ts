@@ -1306,8 +1306,8 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
     cleanSay(ctx, `kept ${w.path}: it holds the worktree ${inner.path}`);
     return undefined;
   }
-  // D-08: `git worktree remove` deletes every ignored file, so they are judged here; `matching` lists an ignored file under a folder that is not itself ignored, and the untracked mode stays explicit whatever `status.showUntrackedFiles` says
-  const status = git(w.path, ['status', '--porcelain', '-z', '--ignored=matching', '--untracked-files=normal', '--ignore-submodules=none']).split('\0').filter((e) => e !== '');
+  // D-08: `git worktree remove` deletes every ignored file, so they are judged here; `matching` lists an ignored file under a folder that is not itself ignored, and the untracked mode stays explicit whatever `status.showUntrackedFiles` says; --no-optional-locks keeps a session that is committing there from meeting index.lock (Review WR-02), and the audit runs this too
+  const status = git(w.path, ['--no-optional-locks', 'status', '--porcelain', '-z', '--ignored=matching', '--untracked-files=normal', '--ignore-submodules=none']).split('\0').filter((e) => e !== '');
   if (status.some((e) => !e.startsWith('!! '))) {
     cleanSay(ctx, `kept ${w.path}: uncommitted work`);
     return undefined;

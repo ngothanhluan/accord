@@ -232,7 +232,7 @@ describe('the onboarding skill scans the repository and merges what it finds wit
   // Review WR-06: the merged output marks where each proposal came from, and the skill reads the marker instead of guessing.
   it('risk:regression the onboarding skill reads each proposal\'s origin from its marker (D-08)', () => {
     const phrases = [
-      '`proposal: [init] <key> = <JSON value>  (evidence: <text>)`',
+      '`proposal: [init] <key> = <JSON value> (evidence: <text>)`',
       'the marker, `[init]` or `[scan]`, says where it came from',
       "as its `[init]` or `[scan]` marker says, never from its evidence text",
     ];

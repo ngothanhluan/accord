@@ -62,7 +62,7 @@ followed by the request, in place of the line it prints, and stop here.
 6. **Reply.** Before a reply says a comment was fixed in a commit, dispatch
    a fresh `accord-judge` to re-check that comment against the new code, as
    `./judge.md` says: the reproducing test now passes, or the file and line
-   it cited now differ. A comment that fails the re-check gets no fixed
+   it cited no longer show the claim. A comment that fails the re-check gets no fixed
    reply and goes back to step 5. Once every comment is fixed, declined or
    answered, draft one reply per comment: the commit that fixed it, the
    reason it was not changed, or the answer it took. A declined reply

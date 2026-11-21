@@ -15,12 +15,12 @@ repository. `accord init` only proposes: it writes nothing to `accord/config.yml
 2. **Scan.** Run `accord config areas --json`: it prints every area, each key with what it controls and its value, and `accord init`'s proposals. Scan the areas as `./scan.md` says, and
    write the scan's proposals to a file outside the working tree.
 3. **Merge.** Run `accord config areas --proposals "<file>"`. It prints each setting with `accord init`'s `proposal:` lines and the scan's merged in: on the same key, an ancestor or a
-   descendant, `accord init`'s proposal wins, since it is deterministic. Each line reads `proposal: <key> = <JSON value>  (evidence: <text>)`. Each scan proposal it refuses prints as a
+   descendant, `accord init`'s proposal wins, since it is deterministic. Each line reads `proposal: [init] <key> = <JSON value>  (evidence: <text>)`; the marker, `[init]` or `[scan]`, says where it came from. Each scan proposal it refuses prints as a
    `dropped:` line with its reason: show those lines to the owner as printed, and never walk one. On exit 2, show its message, correct the file once and run it again; when it exits 2
    again, show the owner the message, run `accord config areas` and walk only `accord init`'s proposals. When no `proposal:` line is printed, say accord has nothing to propose for
    this repository and go to step 6.
 4. Go through the proposals one proposal at a time, in the order printed. Never ask about two at once, and never skip one without asking. Say whether it came from `accord init` or
-   the scan, and walk each one as `./walk.md` says, with the proposal as the recommendation: a key that declares a script is walked the same way, and `./walk.md` says that nothing
+   the scan, as its `[init]` or `[scan]` marker says, never from its evidence text, and walk each one as `./walk.md` says, with the proposal as the recommendation: a key that declares a script is walked the same way, and `./walk.md` says that nothing
    runs until the person runs `accord trust`. A key with no proposal is not walked here: a later change of any value, or a key accord proposed nothing for, is `/accord-config`.
 5. When the last proposal is answered, finish as `./walk.md` says. This skill commits nothing.
 6. Ask one question that stands alone, as `./ask.md` says: whether to run `accord audit` now. Say what it does: it reads

@@ -2,6 +2,10 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- `/accord-review-pr` checks each de-duplicated reviewer finding with a fresh read-only judge, the new agent `accord-judge` (Read, Grep and Glob only, routed as `reviewer`, so `models.reviewer` sets its model), before the owner sees it: a finding that does not hold is dropped and its reason shown, one that names no file and line or that reading cannot settle is marked needs a manual check, and no test runs on the code under review, so a bug finding never holds there: it is dropped when a file and line show it false and otherwise marked needs a manual check; only findings that hold and those marked needs a manual check are posted, after the owner's yes. On Cursor, Codex and Copilot, which get no agent files, the session judges each finding itself, reading only, and says so. `accord upgrade` adds `.claude/agents/accord-judge.md` and `judge.md` beside the review skill; tickets in flight are unaffected and no gate changes.
+
 ## 0.11.2 — 2026-11-21
 
 Release 0.11.2 fixes how `/accord` sends free text about a ticket to Continue or Pick up (the bullet below), found by the Phase 8.3 live check in a real Claude Code session. Tickets in flight: nothing a ticket is refused for changes, and `accord gate ready` and `accord gate done` give the same answers. Only the `accord` skill's `route.md` and `continue.md` change; a repository pinned to 0.11.1 gets them with `accord upgrade`, which also moves the pin and the panel plugin.

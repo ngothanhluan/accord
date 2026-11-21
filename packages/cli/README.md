@@ -103,7 +103,7 @@ The menu is eight commands. Work starts from `/accord` inside the agent session;
 | `/accord-onboard` | After `accord init`, confirm the settings it proposed one by one, each written only on your yes. |
 | `/accord-config [area]` | View or change the settings area by area (`accord config areas` lists them). What `accord init` detected shows as a recommendation; nothing is scanned, and a value is written only through `accord config set` after your yes. |
 | `/accord-resolve-pr <PR \| ticket id>` | Handle the feedback on a ticket's open pull request: every comment is checked against the code before any is fixed, the fixes go through the ticket's stages, and replies are posted only after your yes. It takes a number, a link or a ticket id, and asks for one when you give none. |
-| `/accord-review-pr <PR \| branch>` | Review code or a pull request accord did not build, read-only: findings are posted to the pull request only after your yes. |
+| `/accord-review-pr <PR \| branch>` | Review code or a pull request accord did not build, read-only: a fresh read-only judge checks each finding first, a finding that does not hold is dropped with its reason, one it cannot settle by reading is marked for a manual check, and findings are posted to the pull request only after your yes. |
 
 The designer skill, `accord-designer`, is opt-in: it is installed only when `roles` lists `designer`, and it is no part of the eight.
 

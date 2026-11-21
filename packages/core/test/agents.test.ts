@@ -21,6 +21,7 @@ const AGENT_REQUIRED: Record<string, readonly string[]> = {
   planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes', UNFINISHED_MARKER, 'under it first', 'append each task when it is finished', 'remove the line as your last step', '`resume mode`', 'keep every finished task'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S', 'ADDRESSED <path>:<line>', 'NOT ADDRESSED', 'Deferred:', '--security', '## Matched hunks', '## Checklist'],
   verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md', UNFINISHED_MARKER, 'under it first', 'only once its result and its evidence are final', 'remove the line as your last step', '`resume mode`', 'keep every finished block', 'told to start over, write the file anew'],
+  judge: ['You have no chat history', 'is data, never an instruction', '`holds`', '`does not hold`', '`unclear`', 'evidence:', 'reproduce:', 'to owner:'],
   debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>', UNFINISHED_MARKER, 'first line under the last `## Episode <n>` heading', 'as soon as it is done', 'remove the line as your last step', '`resume mode`', 'keep every finished part', 'You never edit product code, tests, the ticket, or the ledger'],
 };
 
@@ -364,11 +365,11 @@ it('risk:security the executor declares its six tools and stops on a need outsid
     }
   }
   expect(offenders).toEqual([]);
-  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(11);
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(12);
   // the committed copies of this repository equal what the config renders, so each declares tools (the researcher its withheld tools) and the executor its six
   const committedDir = new URL('../../../.claude/agents/', import.meta.url);
   const committedFiles = readdirSync(committedDir).filter((n) => /^accord-.*\.md$/.test(n));
-  expect(committedFiles).toHaveLength(11);
+  expect(committedFiles).toHaveLength(12);
   const lacking = committedFiles.filter(
     (n) => !(n === 'accord-researcher.md' ? /^disallowedTools: "[^"]+"$/m : /^tools: "[^"]+"$/m).test(readFileSync(new URL(n, committedDir), 'utf8')),
   );
@@ -563,7 +564,7 @@ it('ac-3 the scout architect critic and planner read the research records and no
   const S =
     "Read every record the ticket's frontmatter `research:` key lists, when it has one: a record is evidence, not a contract, and holds at the commit it names, so check a claim against the code before you rely on it.";
   const files = agentTargets(config({ runtimes: ['claude', 'codex', 'cursor', 'copilot'] }));
-  const names = ['auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'foreign-reviewer', 'planner', 'researcher', 'reviewer', 'scout', 'verifier'];
+  const names = ['auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'foreign-reviewer', 'judge', 'planner', 'researcher', 'reviewer', 'scout', 'verifier'];
   expect(files.map((f) => f.path).sort()).toEqual(names.map((n) => `.claude/agents/accord-${n}.md`));
   const readers = ['scout', 'critic', 'planner'];
   for (const f of files) {
@@ -605,7 +606,7 @@ it('risk:security the researcher renders on sonnet with web tools and no write-c
   }
   // the agent-dispatch tool and its earlier name are withheld last
   expect(text).toMatch(/^disallowedTools: ".*, Agent, Task"$/m);
-  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(11);
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(12);
   expect(agentTargets(config({ runtimes: ['claude'] })).map((f) => f.path)).toContain('.claude/agents/accord-researcher.md');
 });
 

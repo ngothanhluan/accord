@@ -95,7 +95,7 @@ describe('accord hook subagent-start and the epic', () => {
     const alone = (await contextOf(repo, '')).context;
     expect(alone.startsWith('# accord rules')).toBe(true);
     expect(alone).not.toContain('## Epic');
-    for (const agent of ['accord-scout', 'accord-planner', 'accord-critic', 'accord-reviewer', 'accord-final-reviewer']) {
+    for (const agent of ['accord-scout', 'accord-planner', 'accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-judge']) {
       const { context, err } = await contextOf(repo, asked(agent, story));
       expect(err).toBe('');
       // the ruleset first, then the epic block from the default branch's copy
@@ -117,7 +117,7 @@ describe('accord hook subagent-start and the epic', () => {
   });
 });
 
-const ROLES = ['accord-scout', 'accord-planner', 'accord-critic', 'accord-reviewer', 'accord-final-reviewer'];
+const ROLES = ['accord-scout', 'accord-planner', 'accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-judge'];
 const L1 = '- Lesson: keep CSV columns stable — "keep the CSV columns stable"';
 const L3A = '- Lesson: quote every field — "always quote"';
 const L3B = '- Lesson: sort by id — "ids in order"';

@@ -231,6 +231,9 @@ it('risk:complex-branching the prompt hook of a ticket session lets a question a
       { command_name: 'accord', command_args: '' },
       { command_name: 'accord', command_args: 'continue ST-9' },
       { command_name: 'accord-upgrade', command_args: '' },
+      { command_name: 'accord', command_args: 'add a flag to status' },
+      // a stale 0.10.0 matcher in a team's settings can still send the folded name: the hook has no branch for it and allows
+      { command_name: 'accord-new', command_args: 'add a flag to status' },
     ];
     for (const o of through) {
       const r = await hook({ cwd: wt, ...o });
@@ -238,7 +241,6 @@ it('risk:complex-branching the prompt hook of a ticket session lets a question a
       expect(JSON.parse(r.out), JSON.stringify(o)).toEqual({});
     }
     const blocks: [Record<string, string>, string][] = [
-      [{ command_name: 'accord-new', command_args: 'add a flag to status' }, '/accord-new <request>'],
       [{ command_name: 'accord', command_args: 'pick-up ST-10' }, '/accord pick-up ST-10'],
     ];
     for (const [o, typed] of blocks) {

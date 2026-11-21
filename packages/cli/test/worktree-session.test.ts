@@ -359,9 +359,31 @@ it('risk:complex-branching the CLI guard of a ticket session lets a question and
   expect(pick.err.trimEnd().split('\n').at(-1)).toBe(main);
   const fresh = await run(['new', 'ticket', 'Q-2', '--lane', 'M', '--no-dup-check'], sib, envOf(A));
   expect(fresh.code).toBe(2);
-  expect(fresh.err).toContain('/accord-new <request>');
+  expect(fresh.err).toContain('/accord <request>');
   expect(fresh.err.trimEnd().split('\n').at(-1)).toBe(main);
   expect(existsSync(`${sib}/accord/tickets/Q-2.md`)).toBe(false);
+});
+
+it('risk:security a change typed after /accord in a ticket session passes the hook and is refused by the CLI guard with the line to type (D-03)', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  setTable(tableOf(A));
+  // the hook sees only /accord: free text goes to the skill
+  const hook = await run(['hook', 'prompt-expansion'], sib, {}, JSON.stringify({ session_id: A.marker, command_name: 'accord', command_args: 'add a flag to status', cwd: sib }));
+  expect(hook.code).toBe(0);
+  expect(JSON.parse(hook.out)).toEqual({});
+  // the routed change reaches `accord new ticket` and `accord split`, which refuse it (split is new ticket --split) and name the line to type in the main checkout
+  const main = `cd "${mainOf(c)}"; claude`;
+  const fresh = await run(['new', 'ticket', 'Q-3', '--lane', 'M', '--worktree', '--title', 'Add a flag', '--no-dup-check'], sib, envOf(A));
+  expect(fresh.code).toBe(2);
+  expect(fresh.err).toContain('type /accord <request> there');
+  expect(fresh.err.trimEnd().split('\n').at(-1)).toBe(main);
+  expect(existsSync(`${sib}/accord/tickets/Q-3.md`)).toBe(false);
+  const split = await run(['new', 'ticket', '--split', 'split.md', '--type', 'epic', '--lane', 'L'], sib, envOf(A));
+  expect(split.code).toBe(2);
+  expect(split.err).toContain('type /accord <request> there');
+  expect(split.err.trimEnd().split('\n').at(-1)).toBe(main);
 });
 
 it('ac-5 outside claude code pick up continue and new ticket print the stop lines and nothing is refused', async () => {

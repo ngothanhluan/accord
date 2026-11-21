@@ -153,7 +153,7 @@ describe('expected size cut-off', () => {
 });
 
 // ST-LN-28 7-ac-9 (07-25, D-17): an oversized plan is pointed at an epic of smaller stories, and a plan of 15 tasks or more gets a warning that names the same split, from a cut-off.
-const SPLIT = 'split the work into an epic of smaller stories with /accord-new (lane L)';
+const SPLIT = 'split the work into an epic of smaller stories with /accord <request> (lane L)';
 /** The lane plan's two real tasks, then n - 2 more that each follow nothing and re-run the first test: well formed under every plan format rule. */
 const many = (n: number): string => {
   const [head, one, two] = PLAN.split(/^(?=## Task )/m);

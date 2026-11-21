@@ -59,9 +59,14 @@ followed by the request, in place of the line it prints, and stop here.
    then takes the path `./failure.md` gives a failure reported after
    verify: one new review round and then verify again for lane M, the
    lane S steps for lane S.
-6. **Reply.** Once every comment is fixed, declined or answered, draft one
-   reply per comment: the commit that fixed it, the reason it was not
-   changed, or the answer it took. Show every draft to the owner together,
+6. **Reply.** Before a reply says a comment was fixed in a commit, dispatch
+   a fresh `accord-judge` to re-check that comment against the new code, as
+   `./judge.md` says: the reproducing test now passes, or the file and line
+   it cited now differ. A comment that fails the re-check gets no fixed
+   reply and goes back to step 5. Once every comment is fixed, declined or
+   answered, draft one reply per comment: the commit that fixed it, the
+   reason it was not changed, or the answer it took. A declined reply
+   carries the judge's evidence. Show every draft to the owner together,
    apply the owner's changes to any of them, and post them to their
    threads only after the owner's yes. Post no reply, comment or review to
    the pull request before that yes; the fix commits are pushed as the

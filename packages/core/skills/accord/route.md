@@ -8,7 +8,7 @@ This applies to any text after `/accord` that is not one of its typed forms. The
 
 ## Change: a feature or a bug
 
-Load `accord-new` with the whole request: it proposes lane S, M or L as its lane step says and follows that lane's route. A release or an operations request takes this route too. A bug whose cause nobody has shown goes to `accord-debug` once its ticket exists, before its approach.
+Follow `./new.md` with the whole request: it proposes lane S, M or L as its lane step says and follows that lane's route. A release or an operations request takes this route too. A bug whose cause nobody has shown goes to `accord-debug` once its ticket exists, before its approach.
 
 ## Question
 
@@ -24,7 +24,7 @@ Follow `./queue.md` with the idea. It writes a draft ticket on its own `backlog/
 
 ## Research
 
-A question to answer that ends in a research record, such as comparing X with Y: load `accord-new` and take its lane R route.
+A question to answer that ends in a research record, such as comparing X with Y: follow `./new.md` and take its lane R route.
 
 ## An existing ticket: change, drop or merge
 

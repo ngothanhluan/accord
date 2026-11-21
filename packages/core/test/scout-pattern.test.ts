@@ -30,6 +30,10 @@ it('risk:security accord scout check accepts the cheap pattern shapes a scout wr
     'foo|bar', // an alternation of literals
     '(foo|bar)\\(', // a group with an alternation, not quantified
     'colou?r', // an optional character
+    'a?b?c?d?e?f?g?h?x', // eight optional parts: 256 ways, the limit
+    '.{0,100}x', // the widest counted range: 101 ways
+    '(foo|bar|baz).*x', // three alternatives beside an unbounded quantifier
+    'a?b?.*x', // four ways beside an unbounded quantifier, the limit
     'gate plan.{0,40}again', // one bounded quantifier
     '(ab)+', // a quantified group of plain atoms
     'needle[(]', // a bracketed paren
@@ -71,12 +75,18 @@ it('risk:security accord scout check refuses a pattern that is too long or holds
   expect(failuresOf('`' + tooLong + '`')).toEqual([REFUSED + 'it is 201 characters, over the 200-character limit']);
   expect(failuresOf('`' + fine + '`')).toEqual([]);
 
+  expect(failuresOf('`a?a?a?x.*`')).toEqual([REFUSED + 'it can match in more than 4 ways beside its unbounded quantifier']);
+  expect(failuresOf('`a?a?a?a?a?a?a?a?a?x`')).toEqual([REFUSED + 'it can match in more than 256 ways']);
+
   const dear = [
     'a.*b.*c', // two unbounded quantifiers
     '.*.*x', // adjacent unbounded quantifiers
     'a+b+', // two unbounded quantifiers
     'a{2,}b*', // a counted open range and a star
-    'a?a?a?a?a?a?a?a?a?x', // nine optional parts: 512 ways to match
+    'a?a?a?a?a?a?a?a?a?x', // nine optional parts: 512 ways to match, over 256
+    'a?a?a?x.*', // three optional parts and an unbounded quantifier: 8 ways, over 4
+    '(foo|bar|baz|qux|quux).*x', // five alternatives beside an unbounded quantifier, over 4
+    '(a|b|c|d|e|f|g|h|i|j)(a|b|c|d|e|f|g|h|i|j)(a|b|c|d|e|f|g|h|i|j)x', // 1000 ways
     '.{0,100}.{0,100}x', // two wide bounded ranges
     'a{0,101}', // a bounded range over the limit of 100
     '(a|a)(a|a)(a|a)(a|a)(a|a)(a|a)(a|a)(a|a)(a|a)x', // nine overlapping alternations: 512 ways
@@ -103,12 +113,13 @@ it('risk:security accord scout check still reports a pattern that is no regular 
   ]);
 });
 
-it('risk:resource accord scout check runs a pattern with a quantifier only over a line of at most 2000 characters, and a plain pattern over any line (D-07)', () => {
+it('risk:resource accord scout check runs a pattern with an unbounded quantifier only over a line of at most 2000 characters, and any other pattern over any line (D-07)', () => {
   const deep = 'x'.repeat(3000) + ' needle ' + 'y'.repeat(100);
   const files = { 'src/a.ts': 'short\n' + deep + '\n' };
-  // no quantifier: searched at any length, so the match 3000 characters in is found
+  // no unbounded quantifier: searched at any length, so the match 3000 characters in is found, bounded range included
   expect(failuresOf('`needle`', files)).toEqual(['absent claim "the claim" (row 7): src/a.ts:2 matches its pattern outside its allowed hits']);
-  // a quantifier: the long line is not run, the short one still is
+  expect(failuresOf('`nee.{0,2}dle`', files)).toEqual(['absent claim "the claim" (row 7): src/a.ts:2 matches its pattern outside its allowed hits']);
+  // an unbounded quantifier: the long line is not run, the short one still is
   expect(failuresOf('`nee+dle`', files)).toEqual([]);
   expect(failuresOf('`sho+rt`', files)).toEqual(['absent claim "the claim" (row 7): src/a.ts:1 matches its pattern outside its allowed hits']);
   // exactly 2000 characters is still run; 2001 is not

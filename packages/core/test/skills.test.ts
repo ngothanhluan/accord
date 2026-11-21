@@ -385,7 +385,8 @@ it('risk:regression no text names the old onboard form (D-07)', () => {
 // Phase 8.3 D-01, D-05, D-07 to D-13 (08.3-25): the two docs a person reads name the eight commands with the hint each shows, the opt-in designer, and the config areas verb and data file.
 it('risk:regression README and design name the eight commands with their hints and the opt-in designer (D-01)', () => {
   const doc = Object.fromEntries(foldedSources().filter((s) => DOC_FILES.includes(s.path)).map((s) => [s.path, s.text.replace(/\s+/g, ' ')]));
-  const readme = doc['README.md'] ?? '';
+  // a pipe inside a table cell is written as backslash and pipe so the table keeps its columns
+  const readme = (doc['README.md'] ?? '').replaceAll('\\|', '|');
   const design = doc['docs/design.md'] ?? '';
   expect(readme.length, 'README.md was read').toBeGreaterThan(0);
   const commands = Object.entries(HINTS).filter(([name]) => name !== 'accord-designer');

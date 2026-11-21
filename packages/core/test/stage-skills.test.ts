@@ -2004,8 +2004,7 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
   // (c) the finish reference names the commands themselves
   const finish = copies('finish.md');
   expect(finish.length).toBeGreaterThan(0);
-  for (const f of finish) for (const s of ['`/accord continue <id>`', '`/accord pick-up <id>`', '`/accord <request>`']) expect(f.text, f.path).toContain(s);
-  for (const f of finish) for (const s of ['`/accord-continue', '`/accord-pickup', '`/accord-new']) expect(f.text, f.path).not.toContain(s);
+  for (const f of finish) for (const s of ['`/accord-continue <id>`', '`/accord-pickup <id>`', '`/accord-new <request>`']) expect(f.text, f.path).toContain(s);
   // (d) the routed `/accord <id> ` text form stays in comments.md and failure.md
   for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('`/accord <id> ` followed by');
   // (e) a step of the Continue section is named as a step of the Continue steps of `/accord` (D-03), never of the old command

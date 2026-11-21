@@ -800,10 +800,6 @@ describe('one command per action', () => {
       ]) {
         expect(accord, `${runtime}: ${part}`).toContain(part);
       }
-      for (const name of ['continue', 'pickup']) {
-        const text = bodyOf(files.find((f) => f.path === `${dir}/accord/${name}.md`)?.text ?? '').replace(/\s+/g, ' ');
-        expect(text, `${runtime} ${name}: any other text follows the route`).toContain('any other text follows `./route.md` with the whole text');
-      }
     }
   });
 

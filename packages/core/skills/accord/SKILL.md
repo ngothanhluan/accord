@@ -4,7 +4,7 @@ description: Use when starting any work in an accord repository, when seeing whe
 license: MIT
 argument-hint: "[request]"
 kind: skill
-loads: [accord/comments.md, accord/ids.md, accord/onboard.md, accord/queue.md, accord/review-foreign.md, accord/route.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/similar.md]
+loads: [accord/comments.md, accord/continue.md, accord/ids.md, accord/lane-r.md, accord/lane-s.md, accord/lane.md, accord/onboard.md, accord/pickup.md, accord/queue.md, accord/review-foreign.md, accord/review-security.md, accord/route.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
 ---
 
 First run the session check in `./worktree.md` for the dashboard and for `/accord onboard`. Any other text after `/accord` that is not a typed form below follows `./route.md`, which says where the check runs. A failure reported in a ticket that has reached verify follows `./failure.md`. A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check. A request to review code or a pull request accord did not build follows `./review-foreign.md`, without the session check.
@@ -25,8 +25,8 @@ An action applies only when the whole text after it is exactly one
 ticket id, the id of a ticket in `accord/tickets/`, an id that
 `accord status --json` lists with a `branch`, or for Continue a ticket
 `accord worktree open <id> --continue` finds; with none,
-`/accord continue ST-99` follows `./route.md` like any other text. Then load `accord-pickup` for Pick up, or `accord-continue` for
-Continue, with that id, without showing the dashboard first. Continue on a ticket nobody has claimed
+`/accord continue ST-99` follows `./route.md` like any other text. Then follow `./pickup.md` for Pick up, or `./continue.md` for
+Continue, with that id, without showing the dashboard first. `/accord continue` or `/accord pick-up` with no id asks the owner for the ticket id in one question and runs, claims, creates and edits nothing. Continue on a ticket nobody has claimed
 says so, offers Pick up, and never claims it. `/accord upgrade` loads `accord-upgrade`, and `/accord onboard` follows the Onboard section below. Any other text, but `upgrade`, `onboard` or `queue` with text after it: follow `./route.md`
 with the whole text after `/accord`, a change loading `accord-new`: for
 `/accord continue the refactor` it is `continue the refactor`, and
@@ -35,6 +35,10 @@ with the whole text after `/accord`, a change loading `accord-new`: for
 ## An idea to queue: `/accord queue <idea>`
 
 `/accord queue <idea>` follows `./queue.md` with the whole text after `queue`, when any text follows `queue`; at its step that titles the draft it follows `./similar.md`. With nothing after `queue`, ask the owner for the idea in one question and write nothing. The session check does not run for a queued idea.
+
+## A lane: `./continue.md` and the change route
+
+A lane proposal follows `./lane.md` and its scout reply is checked as `./scout.md` says. Lane S follows `./lane-s.md` and `./review-security.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says. Lane R follows `./lane-r.md`.
 
 ## Onboard: `/accord onboard`
 

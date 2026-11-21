@@ -43,7 +43,7 @@ it('risk:regression the verify skill says the verifier-only rule is not enforced
       if (missing.length > 0) bad.push(runtime + ' ' + f.path + ' lacks: ' + missing.join(' | '));
     }
     for (const f of skills) {
-      if (!flat(f.text).includes('./writer.md')) bad.push(runtime + ' ' + f.path + ': step 3 does not point to ./writer.md');
+      if (!flat(f.text).includes('./verify-writer.md')) bad.push(runtime + ' ' + f.path + ': step 3 does not point to ./verify-writer.md');
       if (bytes(f.text) > 6000) bad.push(runtime + ' ' + f.path + ': ' + bytes(f.text) + ' bytes, above 6000');
       if (lines(f.text) > 120) bad.push(runtime + ' ' + f.path + ': ' + lines(f.text) + ' lines, above 120');
     }

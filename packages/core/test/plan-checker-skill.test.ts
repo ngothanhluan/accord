@@ -1,5 +1,5 @@
 // ST-LN-91 91p-ac-4 and D-12, D-16, D-19, D-21: the plan skill dispatches one plan checker and the security critic in round 1,
-// a ticket claimed under an older accord keeps the 0.4.0 split in plan/legacy-round1.md alone, asserted over the RENDERED
+// a ticket claimed under an older accord keeps the 0.4.0 split in plan-legacy-round1.md alone, asserted over the RENDERED
 // text of every tool a runtime loads (skillTargets and agentTargets), not the source files.
 import { expect, it } from 'vitest';
 import { agentTargets, skillDirs, skillTargets, withoutMarker } from '../src/index.js';
@@ -126,13 +126,13 @@ it('risk:regression the plan skill chooses the round-1 dispatch from the line ac
     if (critique.length === 0 || skill.length === 0) bad.push(runtime + ': a plan skill file is missing');
     for (const f of critique)
       for (const p of lacks(flat(f.text), [
-        'Round 1 reads the output of `accord round <id> --plan` that the paragraph above runs before each round: when it holds `Critics: plan checker`, dispatch as below; when it holds no `Critics:` line, the ticket was claimed under an older accord: dispatch round 1 as `./legacy-round1.md` says, and every later round as below.',
+        'Round 1 reads the output of `accord round <id> --plan` that the paragraph above runs before each round: when it holds `Critics: plan checker`, dispatch as below; when it holds no `Critics:` line, the ticket was claimed under an older accord: dispatch round 1 as `./plan-legacy-round1.md` says, and every later round as below.',
       ]))
         bad.push(f.path + ' lacks ' + p);
     for (const f of skill)
-      for (const p of lacks(flat(f.text), ['round 1 of the plan critique of a ticket claimed under an older accord follows `./legacy-round1.md`, as `./critique.md` says']))
+      for (const p of lacks(flat(f.text), ['round 1 of the plan critique of a ticket claimed under an older accord follows `./plan-legacy-round1.md`, as `./plan-critique.md` says']))
         bad.push(f.path + ' lacks ' + p);
-    if (planFiles(runtime, 'legacy-round1.md').length === 0) bad.push(runtime + ': plan/legacy-round1.md is not rendered');
+    if (planFiles(runtime, 'legacy-round1.md').length === 0) bad.push(runtime + ': plan-legacy-round1.md is not rendered');
   }
   expect(bad).toEqual([]);
 });
@@ -141,7 +141,7 @@ it('risk:regression a ticket claimed under an older accord keeps the 0.4.0 round
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = planFiles(runtime, 'legacy-round1.md');
-    if (files.length === 0) bad.push(runtime + ': plan/legacy-round1.md is missing');
+    if (files.length === 0) bad.push(runtime + ': plan-legacy-round1.md is missing');
     for (const f of files) {
       const text = flat(f.text);
       for (const p of lacks(text, [
@@ -177,7 +177,7 @@ it('risk:regression the 0.4.0 split and the criteria and build lens names live o
   for (const runtime of RUNTIMES) {
     const all = [...skills(runtime), ...agents(runtime)];
     const legacy = all.filter((f) => f.path.endsWith('/' + stagePath('plan', 'legacy-round1').split('/').at(-1)) && ofStage(f.path, ['plan']));
-    if (legacy.length !== skillDirs(config(runtime)).length) bad.push(runtime + ': expected one render of plan/legacy-round1.md per skill directory, found ' + legacy.length);
+    if (legacy.length !== skillDirs(config(runtime)).length) bad.push(runtime + ': expected one render of plan-legacy-round1.md per skill directory, found ' + legacy.length);
     for (const f of all) {
       if (legacy.includes(f)) continue;
       for (const re of LENS_PATTERNS) if (re.test(f.text)) bad.push(runtime + ' ' + f.path + ' matches ' + String(re));
@@ -194,8 +194,8 @@ it('risk:security the legacy round-1 dispatch also runs the security critic on a
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const legacy = planFiles(runtime, 'legacy-round1.md');
-    if (legacy.length === 0) bad.push(runtime + ': plan/legacy-round1.md is missing');
-    if (legacy.length !== skillDirs(config(runtime)).length) bad.push(runtime + ': expected one render of plan/legacy-round1.md per skill directory, found ' + legacy.length);
+    if (legacy.length === 0) bad.push(runtime + ': plan-legacy-round1.md is missing');
+    if (legacy.length !== skillDirs(config(runtime)).length) bad.push(runtime + ': expected one render of plan-legacy-round1.md per skill directory, found ' + legacy.length);
     for (const f of legacy) {
       const lines = f.text.split('\n');
       const at = lines.findIndex((l) => /^- /.test(l) && l.includes('lens `security`'));

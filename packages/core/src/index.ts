@@ -183,7 +183,7 @@ export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
 export { pluginDir, pluginTargets } from './skills/plugin.js';
 export { AGENT_DEFAULTS, agentDir, agentTargets, isIntactRender, renderAgent, RETIRED_FILES, RETIRED_SKILL_FOLDERS } from './skills/agents.js';
-export { allSkillDirs, installedName, skillDirs, skillTargets, STAGES } from './skills/targets.js';
+export { allSkillDirs, installedName, skillDirs, skillTargets, STAGE_FILES, stageFile, STAGES } from './skills/targets.js';
 export type { SkillFile } from './skills/targets.js';
 // `ScaffoldFile` is structurally identical to `SkillFile` and deliberately separate: a scaffold file is
 // skipped when its path exists (D-130), a skill file is re-rendered against its marker and hash (D-131).

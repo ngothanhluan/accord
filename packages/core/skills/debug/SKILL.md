@@ -39,7 +39,7 @@ main session and orchestrate: debuggers investigate, executors fix.
    hypotheses and what was ruled out.
 
 4. **Fix.** The main session never edits product code: the fix goes
-   through `accord-build`'s executor path. Note the HEAD sha. Write a
+   through the executor path of the build stage of `/accord`. Note the HEAD sha. Write a
    brief file outside the working tree: copy the ticket file byte for
    byte (never retype it), then append the root cause, its evidence, and
    the reproduction test. The executor starts with that failing
@@ -47,7 +47,7 @@ main session and orchestrate: debuggers investigate, executors fix.
    the root cause once in shared code, never at each caller. Dispatch a
    fresh `accord-executor` with its path. `BLOCKED` on a test that is
    not a criterion test: ask the owner, as there is no plan task to
-   re-plan. Route every other stop as `accord-build` does.
+   re-plan. Route every other stop as the build stage of `/accord` does.
 
 5. **Check.** Run the `tests.affected` command over the files changed
    since the noted sha. Copy every Ruling in the executor's report into
@@ -79,7 +79,7 @@ main session and orchestrate: debuggers investigate, executors fix.
    cause and the fix commit, or the owner's decision. Commit it.
 
 9. Next: run `accord anchor` again and go to the stage it prints now. When that is
-   `accord-build`, start at its step 3 for the task that entered debug:
+   the build stage of `/accord`, start at its step 3 for the task that entered debug:
    run the affected tests and `accord task-done` before dispatching
    anything.
 

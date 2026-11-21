@@ -35,7 +35,7 @@ const FIXTURE = [
 ].join('\n');
 
 const EXECUTOR = 'packages/core/agents/executor.md';
-const BUILD = 'packages/core/skills/build/SKILL.md';
+const BUILD = 'packages/core/skills/accord/build.md';
 const RULESET = 'packages/core/templates/ruleset.md';
 
 describe('rule coverage (ST-LN-70)', () => {

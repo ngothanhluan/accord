@@ -4,7 +4,7 @@ Each section lists what changes for tickets in flight and for repositories pinne
 
 ## Unreleased
 
-Phase 8.3 folds commands into `/accord`. Its first group (this section) folds four commands that started work; later groups fold the six stage skills and add the commands of their own. The release ships once every group has merged, when the menu holds eight commands plus the opt-in designer role (`accord-designer`, rendered only when `roles` lists `designer`). Until then this section grows with each group.
+Phase 8.3 folds commands into `/accord`. Its first group folds four commands that started work, its second group folds the six lane M stage skills; a later group adds the commands of their own. The release ships once every group has merged, when the menu holds eight commands plus the opt-in designer role (`accord-designer`, rendered only when `roles` lists `designer`). Until then this section grows with each group.
 
 - Four commands leave the menu; each is now text `/accord` loads, reached from `/accord` with the text typed after it:
 
@@ -21,6 +21,24 @@ Phase 8.3 folds commands into `/accord`. Its first group (this section) folds fo
 - The Claude Code hook matcher is `accord` (it was `accord|accord-new|accord-continue|accord-pickup` in 0.10.0). A team's settings entry is rewritten by `accord skills sync`. In a ticket session, a typed Continue or Pick up of another ticket is stopped with the line to type in the session that opens, and a change typed as free text is refused by `accord new ticket` with `/accord <request>` to type in the main checkout.
 - Next steps print the typed forms: the dashboard's action line reads `[/accord continue <id>]  [/accord pick-up <id>]  [/accord <request>]`, the worktree lines, the session line and the fix lines of `accord audit` name the same forms, and the panel's Continue and Pick up buttons run `/accord` with the action and the ticket id; its New request button sends the search text to `/accord`.
 - Core's public API changed (a change the hub reads): `STAGES`, exported by `@accord-dev/accord-core`, lost `continue`, `new`, `pickup` and `queue`, and `RETIRED_SKILL_FOLDERS` is exported beside `RETIRED_FILES`: the files each retired skill folder rendered, by folder name.
+- Six stage commands leave the menu. No lane M stage is a command any more: each is a file of `/accord`, which reads the one for the ticket's stage. To resume a ticket, type `/accord continue <id>`, or `/accord` in the ticket's own session; `/accord` reads the file for the stage `accord anchor` prints, after `/clear` or a compaction too.
+
+  | Old command | Stage file `/accord` reads |
+  |---|---|
+  | `/accord-intent` | `intent.md` (with `intent-discuss.md` and `intent-research.md`) |
+  | `/accord-approach` | `approach.md` (with `approach-approval.md` and `approach-critique.md`) |
+  | `/accord-plan` | `plan.md` (with `plan-baseline.md`, `plan-critique.md` and `plan-legacy-round1.md`) |
+  | `/accord-build` | `build.md` (with `build-waves.md` and `build-no-plan.md`) |
+  | `/accord-review` | `review.md` (with `review-record.md` and `review-security.md`) |
+  | `/accord-verify` | `verify.md` (with `verify-ci.md`, `verify-deferred.md` and `verify-writer.md`) |
+
+  `/accord-debug`, `/accord-audit` and `/accord-upgrade` stay commands. A ticket at approach shows stage `intent` in `accord anchor`, so `/accord` takes the approach row from the ticket's `## Approach`.
+- `accord skills sync` and `accord upgrade` remove the six folders (`accord-intent`, `accord-approach`, `accord-plan`, `accord-build`, `accord-review`, `accord-verify`) the same way as the four before them: a file only while its marker shows nobody edited it, then the folder once it is empty. An edited copy stays and its folder is listed as an orphan with the command that removes it.
+- The `accord` skill has a stage section, `## A ticket at a stage`, that names the file for each lane and stage, and its description carries a stage clause (`when a lane M ticket sits at a stage (intent, approach, plan, build, review or verify)`) for the tools that pick a skill by its description. The stage files render in the `accord` folder next to the files of the first group.
+- In Claude Code, the session-resume hook prints a `stage file:` line after `/clear` or compaction: `stage file: ./<file> of the /accord skill; read it and go on at the step the anchor names`. For a ticket at approach the line names `./intent.md`, because the anchor prints `intent` for it. The other tools have no hook and rely on the stage section and the description.
+- The anchor's next step for a ticket whose intent is unwritten (no Intent text, or only the template's scenario) reads `the intent interview (intent.md)` (it named `/accord-intent`); the round, task and gate texts that named a stage command name the stage file or the stage of `/accord`.
+- The review, plan, build and verify texts name each other by file (`./review.md`, `./verify.md`, ...), and `/accord-debug` hands a fixed task back to the build stage of `/accord`. The `/accord-debug` size limit entry moved from 5450 to 5500 bytes (it renders at 5496); the plan and verify limits are unchanged, and no sentence of any text was cut.
+- Core's public API changed again (a change the hub reads): `STAGES` now holds four names (`accord`, `upgrade`, `audit`, `debug`), and `@accord-dev/accord-core` exports `STAGE_FILES` (the file of the accord folder for each stage) and `stageFile(lane, stage)` (the file for a ticket at a lane and stage, or undefined).
 
 ## 0.10.0 — 2026-11-21
 

@@ -66,17 +66,18 @@ it('ac-1 a plan edited after it passed the gate is refused with the build skill 
   expect(verdict).toEqual({
     verdict: 'fail',
     reasons: [
-      "plan.md changed since its plan_hash was recorded: show the owner the diff of plan.md; if the owner made the change, accord-plan reviews it; otherwise restore plan.md with the owner's yes",
+      "plan.md changed since its plan_hash was recorded: show the owner the diff of plan.md; if the owner made the change, the plan stage (plan.md of /accord) reviews it; otherwise restore plan.md with the owner's yes",
     ],
   });
   expect(verdict.reasons.join('\n')).not.toContain('accord gate plan');
 });
 
+// The title keeps the name BUG-LN-24's `@test:` tag traces (accord/tickets/BUG-LN-24.md); the assertion below names the plan stage file.
 it('ac-2 a plan that never passed the gate is sent back to accord-plan', () => {
   const verdict = taskVerdict(snap({ 'accord/tickets/T-1/plan.md': PLAN.replace(/^plan_hash: .*\n/m, '') }), 'T-1', 1);
   expect(verdict).toEqual({
     verdict: 'fail',
-    reasons: ['plan.md has no plan_hash: the plan stage has not finished; go back to accord-plan'],
+    reasons: ['plan.md has no plan_hash: the plan stage has not finished; go back to the plan stage (plan.md of /accord)'],
   });
   expect(verdict.reasons.join('\n')).not.toContain('accord gate plan');
 });

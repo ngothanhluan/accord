@@ -38,7 +38,7 @@ followed by the request, in place of the line it prints, and stop here.
    through `accord-debug`, in lane M only; in lane S it is fixed as the
    lane S steps say, a bug getting a failing test first, then the fix and
    another review round. Classify each other comment that holds `patch`, `plan-gap` or
-   `intent-gap` and handle them as `accord-review` handles one round's
+   `intent-gap` and handle them as `./review.md` handles one round's
    findings, the patch ones fixed together through a fresh executor in
    lane M, and by you yourself in lane S, which has no executor. The fix
    then takes the path `./failure.md` gives a failure reported after

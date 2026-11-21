@@ -8,7 +8,7 @@ import { expect, it } from 'vitest';
 const skillsDir = fileURLToPath(new URL('../skills/', import.meta.url));
 
 /** The four sites D-02 changes: they follow the team's template or script, so each holds `accord pr`, `--title` and `--body-file`. */
-const FOLLOW = ['accord/lane-s.md', 'accord/lane-r.md', 'verify/ci.md', 'accord/new-epic.md'] as const;
+const FOLLOW = ['accord/lane-s.md', 'accord/lane-r.md', 'accord/verify-ci.md', 'accord/new-epic.md'] as const;
 
 /**
  * The closed list of fixed-body sites (D-02): the one `gh pr create` line each holds, exactly as it stood at 0128bd1a. A team template asks for testing or screenshot sections that do not apply to them.

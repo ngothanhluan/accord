@@ -382,7 +382,7 @@ it('risk:security the executor declares its six tools and stops on a need outsid
     .map(([name]) => name);
   expect(missing, 'the executor stop trigger line is missing from').toEqual([]);
   // phase 6 review WR-01: the status this stop returns must have a route in accord-build step 4
-  expect(skills['build/SKILL.md'], 'accord-build step 4 lost its NEEDS_CONTEXT route').toContain('`NEEDS_CONTEXT`: answer, and dispatch again.');
+  expect(skills['accord/build.md'], 'the build stage (accord/build.md) step 4 lost its NEEDS_CONTEXT route').toContain('`NEEDS_CONTEXT`: answer, and dispatch again.');
 });
 
 it('risk:regression docs/design.md gives every default model choice with one reason line and the models override (ST-LN-85 6-ac-2)', () => {

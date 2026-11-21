@@ -568,6 +568,7 @@ it('risk:complex-branching the resume hook in the main checkout prints the enter
   const a = await resume(A, c.root);
   expect(a.out).not.toContain('# Anchor:');
   expect(a.out).not.toContain('branch-only correction');
+  expect(a.out, 'a held session names no stage file from main (D-04)').not.toContain('stage file:');
   const al = lines(a.out);
   expect(al.at(-1)).toBe(`enter: ${c.sibling('ST-9')}`);
   expect(al.at(-2)).toContain('EnterWorktree');

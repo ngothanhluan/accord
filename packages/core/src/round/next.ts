@@ -496,7 +496,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
           ? '; a new cycle starts with a ## Return from verify <sha> line'
           : kind === 'plan'
             ? '; the loop has ended: the plan skill goes on to its baseline tests and appends ## Closed when it finishes, which starts the next cycle'
-            : '; the loop has ended: accord-approach goes on to write ## Approach in full and ask the owner, and a round on another option follows a ## Closed line, which starts the next cycle';
+            : '; the loop has ended: the approach stage (approach.md) goes on to write ## Approach in full and ask the owner, and a round on another option follows a ## Closed line, which starts the next cycle';
       return { ...refuseCap(`${file} ends cycle ${k} with verdict: ${verdict.value} at line ${verdict.line}${tail}`), cycle: k, round: L, cap: st.cap };
     }
   }
@@ -591,9 +591,9 @@ export function roundText(answer: RoundAnswer): string {
     `To allow more rounds: add under ## Rulings in the ledger: Ruling: the owner allows <n> more ${noun} rounds after round ${answer.allowAfter ?? answer.round} of cycle ${answer.cycle} — "<the owner's sentence>" — <cost if wrong>`,
   );
   if (!answer.laneS && answer.record === 'approach') {
-    out.push('To change course: write that Ruling with <n> the rounds the owner gives the other option, then write that option into ## Approach and critique it through accord-approach');
+    out.push('To change course: write that Ruling with <n> the rounds the owner gives the other option, then write that option into ## Approach and critique it through the approach stage (approach.md)');
   } else if (!answer.laneS) {
-    out.push(`To change course: write that Ruling with <n> the rounds the owner gives the reworked ${answer.record === 'review' ? 'code' : 'plan'}, then re-plan through accord-plan`);
+    out.push(`To change course: write that Ruling with <n> the rounds the owner gives the reworked ${answer.record === 'review' ? 'code' : 'plan'}, then re-plan through the plan stage (plan.md)`);
   }
   if (answer.model !== undefined) {
     out.push(`Fix executor model for round ${answer.modelFor}'s findings, if the owner allows more rounds: ${answer.model}`);

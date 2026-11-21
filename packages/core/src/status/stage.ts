@@ -47,7 +47,7 @@ export function nextStep(ticket: Ticket, stage: Exclude<Stage, 'build'>): string
   const intent = ticket.sections.find((s) => headingKey(s.heading) === 'intent');
   const written = intent !== undefined && stripHtmlComments(intent.lines).some((l) => l.text.trim() !== '');
   const scenario = ticket.scenarios.some((s) => s.name !== '<observable outcome>');
-  return written && scenario ? 'the owner approves the ticket (accord approve)' : 'the intent interview (accord-intent)';
+  return written && scenario ? 'the owner approves the ticket (accord approve)' : 'the intent interview (intent.md)';
 }
 
 /** The parent of the first hand-made commit after the last recorded review round; undefined when none is unreviewed. */

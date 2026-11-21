@@ -187,6 +187,9 @@ it('risk:security in claude code only an accord-verifier subagent writes verific
     expect(mainOut).toEqual(deny(mainReason));
     expect(mainReason).toContain('accord: only the accord-verifier subagent writes accord/tickets/<id>/verification.md');
     expect(mainReason).toContain('the main session');
+    // Phase 8.3 D-04: verify is no command, so the refusal names the stage file and step, never the old command
+    expect(mainReason).toContain('verify.md step 3 of /accord');
+    expect(mainReason).not.toContain('accord-verify step 3');
 
     const other = await hook(dir, write(dir, 'Edit', record, { agent_type: 'accord-reviewer', agent_id: 'a1' }));
     expect(other.code).toBe(0);

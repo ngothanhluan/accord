@@ -36,17 +36,29 @@ const RETIRED_ACCORD_REFS = ['security', 'upgrade'];
 // here in the same commit, so `skills sync` and `accord upgrade` remove its intact files and `skills sync` the emptied folder; an edited file stays.
 // `accord-queue`: v0.8.0 to v0.10.0 (queue/SKILL.md loaded ids.md, ask.md and similar.md in each).
 // `accord-continue`, `accord-pickup`: v0.8.0 to v0.10.0 plus the branch (review-security.md, and security.md under its old name), the union of their `loads:` basenames.
+// `accord-approach`: v0.2.0 to v0.10.0 (ask.md; critique.md from v0.4.0; approval.md and scout.md from v0.4.1; the branch renders the same five).
+// `accord-intent`: v0.2.0 to v0.10.0 (ask, ids; lane.md from v0.3.0; research.md from v0.4.0; scout.md and discuss.md from v0.4.1; the branch renders the same seven).
 // `accord-new`: v0.8.0 to v0.10.0 plus the branch (queue.md and review-security.md; security.md came from `review/security.md`; epic.md from `new/epic.md`).
+// `accord-plan`: v0.2.0 to v0.10.0 (ask.md, baseline.md and critique.md from v0.2.0; legacy-round1.md from v0.4.1; resume.md from v0.6.0; the branch adds plan-baseline.md, plan-critique.md and plan-legacy-round1.md).
+// `accord-build`: v0.2.0 to v0.10.0 (ask.md from v0.2.0; scout.md from v0.4.1; no-plan.md from v0.5.0; baseline.md from v0.5.1; waves.md from v0.6.0; the branch adds build-no-plan.md, build-waves.md and plan-baseline.md).
+// `accord-review`: v0.2.0 to v0.10.0 (record.md and ask.md from v0.2.0; security.md from v0.7.0; the branch renders review-security.md for it).
+// `accord-verify`: v0.2.0 to v0.10.0 (ci.md, ids.md, worktree.md, ask.md, failure.md from v0.2.0; finish.md from v0.3.0; resume.md from v0.6.0; writer.md from v0.7.0; deferred.md from v0.8.0; the branch renders verify-ci.md, verify-deferred.md and verify-writer.md in the folder).
 export const RETIRED_SKILL_FOLDERS: Readonly<Record<string, readonly string[]>> = {
+  'accord-approach': ['SKILL.md', 'approval.md', 'ask.md', 'critique.md', 'scout.md'],
+  'accord-build': ['SKILL.md', 'ask.md', 'baseline.md', 'build-no-plan.md', 'build-waves.md', 'no-plan.md', 'plan-baseline.md', 'scout.md', 'waves.md'],
   'accord-continue': [
     'SKILL.md', 'ask.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'review-security.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
   ],
+  'accord-intent': ['SKILL.md', 'ask.md', 'discuss.md', 'ids.md', 'lane.md', 'research.md', 'scout.md'],
   'accord-new': [
     'SKILL.md', 'ask.md', 'epic.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'queue.md', 'review-foreign.md', 'review-security.md', 'route.md', 'scout.md',
     'security.md', 'similar.md', 'worktree.md',
   ],
   'accord-pickup': ['SKILL.md', 'ask.md', 'failure.md', 'ids.md', 'worktree.md'],
+  'accord-plan': ['SKILL.md', 'ask.md', 'baseline.md', 'critique.md', 'legacy-round1.md', 'plan-baseline.md', 'plan-critique.md', 'plan-legacy-round1.md', 'resume.md'],
   'accord-queue': ['SKILL.md', 'ask.md', 'ids.md', 'similar.md'],
+  'accord-review': ['SKILL.md', 'ask.md', 'record.md', 'review-security.md', 'security.md'],
+  'accord-verify': ['SKILL.md', 'ask.md', 'ci.md', 'deferred.md', 'failure.md', 'finish.md', 'ids.md', 'resume.md', 'verify-ci.md', 'verify-deferred.md', 'verify-writer.md', 'worktree.md', 'writer.md'],
 };
 
 export const RETIRED_FILES: readonly string[] = [

@@ -59,7 +59,7 @@ npx --yes @accord-dev/accord@0.10.0 init
 - `accord/config.yml`, pinned to the running version, with `runtimes: [claude, codex]` and a comment on every key.
 - `accord/product/glossary.md`, `accord/product/business-rules.md` and `accord/product/conventions.md`, from templates.
 - `.github/workflows/accord.yml`, a GitHub Actions workflow that runs `lint` and `gate done` on the tickets a pull request changes, with the same pinned version.
-- The skills: `/accord` and the stage skills `accord-intent` (which holds the discuss stage), `accord-approach`, `accord-plan`, `accord-build`, `accord-review`, `accord-verify` and `accord-debug`, plus `accord-designer` for the `designer` role in `roles:`, and the optional `/accord-audit` (see Daily use). Claude Code reads them from `.claude/skills/`, Codex from `.agents/skills/`.
+- The skills: `/accord`, whose stage files (`intent.md`, `approach.md`, `plan.md`, `build.md`, `review.md`, `verify.md`) hold the six lane M stages, and the commands a person calls on their own, `/accord-upgrade`, `/accord-audit` and `/accord-debug`, plus `accord-designer` for the `designer` role in `roles:` (see Daily use). Claude Code reads them from `.claude/skills/`, Codex from `.agents/skills/`.
 - For Claude Code only: the accord agents in `.claude/agents/`, the dashboard pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks, one that lets only the `accord-verifier` subagent write `verification.md`, and the keys that enable the pane. Existing settings are kept.
 - A short accord block appended to `AGENTS.md` and `CLAUDE.md`, or those files created.
 
@@ -84,7 +84,7 @@ accord changes no GitHub setting, so nothing yet stops a pull request from mergi
 2. Turn on "Require status checks to pass" and add the check "lint and gate the tickets this pull request touches"; it is listed once the accord workflow has run on a pull request.
 3. Turn on "Require branches to be up to date before merging", so the suite CI runs on a pull request is the suite of what the merge will hold.
 
-`accord-verify` reads these rules with `gh` and says in its report when the check is not required or branches need not be up to date.
+The verify stage of `/accord` reads these rules with `gh` and says in its report when the check is not required or branches need not be up to date.
 
 ### 5. Daily use in your coding agent
 
@@ -99,15 +99,15 @@ Work starts from `/accord` inside the agent session; the two other commands are 
 Lanes:
 
 - S, a small fix (a bug, a copy change, one flag). The session writes one line for what it understood and one for when it is done, makes the change, runs the affected tests, and runs review rounds with a fresh reviewer until no Must finding is open. Then `gate done` and a pull request.
-- M, a feature (one story). It passes through six stages, each a skill you can also call directly:
-  1. intent (`accord-intent`): an interview that writes the intent, acceptance criteria, vetoes and decisions, then the discuss stage: it asks the owner every gray area one at a time, with a recommended default and what each choice costs, and writes each answer as a Decision.
-  2. approach (`accord-approach`): the planner drafts the lightest approach that works, a critic argues against it in at most two rounds `accord round <id> --approach` counts, and the owner approves the whole ticket once, from `accord show <id> --approval --short`.
-  3. plan (`accord-plan`): a task-by-task plan that lists tasks, criteria, files, interfaces and dependencies, checked by `accord gate plan`, and one plan checker checks it in at most three rounds.
-  4. build (`accord-build`): one fresh executor per task, each recorded with `accord task-done`.
-  5. review (`accord-review`): reviewers until no Must is open and every Should is fixed.
-  6. verify (`accord-verify`): a fresh verifier checks each criterion, writes `verification.md`, and `accord gate done` runs once the owner approves.
+- M, a feature (one story). It passes through six stages. They are files of `/accord`, which reads the one for the ticket's stage from `accord anchor`, in a new session and after every `/clear` or compaction too:
+  1. intent (`intent.md`): an interview that writes the intent, acceptance criteria, vetoes and decisions, then the discuss stage: it asks the owner every gray area one at a time, with a recommended default and what each choice costs, and writes each answer as a Decision.
+  2. approach (`approach.md`): the planner drafts the lightest approach that works, a critic argues against it in at most two rounds `accord round <id> --approach` counts, and the owner approves the whole ticket once, from `accord show <id> --approval --short`.
+  3. plan (`plan.md`): a task-by-task plan that lists tasks, criteria, files, interfaces and dependencies, checked by `accord gate plan`, and one plan checker checks it in at most three rounds.
+  4. build (`build.md`): one fresh executor per task, each recorded with `accord task-done`.
+  5. review (`review.md`): reviewers until no Must is open and every Should is fixed.
+  6. verify (`verify.md`): a fresh verifier checks each criterion, writes `verification.md`, and `accord gate done` runs once the owner approves.
 
-  `accord-debug` finds a root cause before any fix when something fails for a reason nobody has shown.
+  `/accord-debug` finds a root cause before any fix when something fails for a reason nobody has shown.
 - R, research: a question accord cannot answer from the code, with no change asked. `accord new ticket <id> --lane R` writes a ticket with a question, a timebox and a token budget the owner sets, quoted under `## Decisions`. The session researches within them, checks `accord budget <id>` between steps and stops to ask the owner past either, and ends in a record under `accord/research/`, written on its branch after the claim, that the ticket lists under `research:`; an older record listed there is evidence, not the result. There is no approach, plan, critic, review or verification; `accord gate done` refuses a branch that changes the shipped packages.
 - L, an epic, proposed when a request names three or more parts that would each be a story of its own: `/accord <request>` interviews the owner once (why, for whom, the Vetoes, the Decisions), proposes a split into two to ten stories linked by `depends_on`, and on the owner's yes runs `accord new ticket --type epic --lane L --split <file> --queue`, which queues the epic and every story in one pull request. Each story then runs lane M, picked up in its own worktree. The epic itself gets no approach or plan critique.
 - P (a project) is not built yet; accord proposes an epic instead.

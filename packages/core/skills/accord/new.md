@@ -38,4 +38,4 @@ Propose a lane as `./lane.md` says, for every new request however small it looks
   ticket is a Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`.
   Read `./ask.md` before any question to the owner.
 - Never dispatch the researcher from this skill, at the lane step or on any lane's route: an outside library, API or version the
-  request names is looked up once per library at the discuss step of `accord-intent`, after the ticket exists.
+  request names is looked up once per library at the discuss step of `./intent.md`, after the ticket exists.

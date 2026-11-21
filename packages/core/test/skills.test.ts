@@ -288,6 +288,81 @@ const ROSTERS = [config({ runtimes: ALL_RUNTIMES }), config({ roles: ['ba', 'dev
 const output = skillTargets(config());
 const skillFiles = output.filter((f) => f.path.endsWith('/SKILL.md'));
 
+// Phase 8.3 D-03: a command that folded into /accord has no name any more, so no skill source, rendered file or source file names it. `FOLDED` holds the folded
+// command names; 08.3-09 adds `continue`, `pickup` and `new`, 08.3-20 the six stages (README.md and docs/design.md join the scanned files then). The pattern is
+// `accord-<name>` ended by anything but a word character or a hyphen, so a temp folder prefix (`accord-queue-`), `accord-reviewer` and `accord-review-pr` are not hits.
+const FOLDED = ['queue'];
+const foldedPattern = (list: readonly string[]): RegExp => new RegExp('\\baccord-(?:' + list.join('|') + ')(?![\\w-])');
+// The retire list is the one place that must name a folded folder: its comment lines (`// \`accord-queue\`: ...`) and its object keys (`'accord-queue': [...]`).
+const RETIRE_LIST_LINE = /^\s*(?:\/\/ `accord-[a-z]+`(?:, `accord-[a-z]+`)*:|'accord-[a-z]+': )/;
+const RETIRE_LIST_FILE = 'packages/core/src/skills/agents.ts';
+
+/** Every line of `files` (path, text) that names a folded command, as `path:line: text`. */
+function foldedHits(files: readonly { path: string; text: string }[], pattern: RegExp): string[] {
+  const found: string[] = [];
+  for (const f of files) {
+    for (const [i, line] of f.text.split('\n').entries()) {
+      if (!pattern.test(line)) continue;
+      if (f.path === RETIRE_LIST_FILE && RETIRE_LIST_LINE.test(line)) continue;
+      found.push(`${f.path}:${i + 1}: ${line.trim().slice(0, 160)}`);
+    }
+  }
+  return found;
+}
+
+/** Every `.ts` and `.js` file under the three source directories and every `.md` skill source, read as repository-relative paths. */
+function foldedSources(): { path: string; text: string }[] {
+  const repo = fileURLToPath(new URL('../../../', import.meta.url));
+  const roots: [string, RegExp][] = [
+    ['packages/core/skills', /\.md$/],
+    ['packages/core/src', /\.(?:ts|js)$/],
+    ['packages/cli/src', /\.(?:ts|js)$/],
+    ['packages/core/panel', /\.(?:ts|js)$/],
+  ];
+  const out: { path: string; text: string }[] = [];
+  for (const [root, ext] of roots) {
+    for (const e of readdirSync(join(repo, root), { recursive: true, withFileTypes: true })) {
+      if (!e.isFile() || !ext.test(e.name)) continue;
+      const full = join(e.parentPath, e.name);
+      out.push({ path: relative(repo, full).split(sep).join('/'), text: readFileSync(full, 'utf8') });
+    }
+  }
+  return out;
+}
+
+it('risk:regression no skill source names a folded command (D-03)', () => {
+  const sources = foldedSources();
+  expect(sources.length, 'nothing was scanned').toBeGreaterThan(0);
+  for (const dir of ['packages/core/skills/', 'packages/core/src/', 'packages/cli/src/', 'packages/core/panel/']) {
+    expect(sources.some((s) => s.path.startsWith(dir)), `${dir} was scanned`).toBe(true);
+  }
+  const rendered = ROSTERS.flat().map((f) => ({ path: f.path, text: f.text }));
+  expect(rendered.length, 'no rendered file was scanned').toBeGreaterThan(0);
+  expect(foldedHits([...sources, ...rendered], foldedPattern(FOLDED))).toEqual([]);
+  // Guard the guard: the pattern matches a real mention, and not a temp folder prefix or another command's name.
+  const pattern = foldedPattern(FOLDED);
+  expect(pattern.test('load `accord-queue` now')).toBe(true);
+  expect(pattern.test('type /accord-queue note it')).toBe(true);
+  for (const miss of ['accord-queue-', 'mkdtempSync(join(tmpdir(), \'accord-queue-\'))', 'accord-queued', 'accord queue']) expect(pattern.test(miss), miss).toBe(false);
+  const stages = foldedPattern(['queue', 'review', 'plan']);
+  for (const miss of ['accord-reviewer', 'accord-review-pr', 'accord-planner']) expect(stages.test(miss), miss).toBe(false);
+  for (const hit of ['`accord-review`', 'accord-plan.', '/accord-review x']) expect(stages.test(hit), hit).toBe(true);
+  // the retire list is exempt line by line, in that file only
+  const names = "'accord-queue': ['SKILL.md'],\n// `accord-queue`: v0.8.0 to v0.10.0\n// load `accord-queue` now";
+  expect(foldedHits([{ path: RETIRE_LIST_FILE, text: names }], pattern)).toEqual([`${RETIRE_LIST_FILE}:3: // load \`accord-queue\` now`]);
+  expect(foldedHits([{ path: 'packages/cli/src/x.ts', text: "'accord-queue': ['SKILL.md']," }], pattern)).toHaveLength(1);
+});
+
+it('risk:regression the accord skill names its typed forms (D-03)', () => {
+  for (const roster of ROSTERS) {
+    const accord = roster.filter((f) => f.path.endsWith('/accord/SKILL.md'));
+    expect(accord.length, 'no accord skill is rendered').toBeGreaterThan(0);
+    for (const f of accord) {
+      for (const form of ['/accord continue <id>', '/accord pick-up <id>', '/accord queue <idea>']) expect(f.text, `${f.path}: ${form}`).toContain(form);
+    }
+  }
+});
+
 describe('render output invariants', () => {
   it('has files to check', () => {
     // A silently empty render would make every assertion below vacuous.

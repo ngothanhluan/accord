@@ -4,6 +4,7 @@
 import { expect, it } from 'vitest';
 import { agentTargets, skillDirs, skillTargets, withoutMarker } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { ofStage, stagePath } from './helpers/stage-files.js';
 
 const RUNTIMES: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
 const config = (runtime: AccordConfig['runtimes'][number]): AccordConfig => ({
@@ -19,8 +20,10 @@ const flat = (text: string): string => text.replace(/\s+/g, ' ');
 const skills = (runtime: AccordConfig['runtimes'][number]) => skillTargets(config(runtime));
 const agents = (runtime: AccordConfig['runtimes'][number]) => agentTargets(config(runtime));
 /** Every render of one plan skill file under a runtime: one per skill directory the runtime loads. */
-const planFiles = (runtime: AccordConfig['runtimes'][number], file: string) =>
-  skills(runtime).filter((f) => f.path.endsWith('/accord-plan/' + file));
+const planFiles = (runtime: AccordConfig['runtimes'][number], file: string) => {
+  const wanted = new Set(skillDirs(config(runtime)).map((dir) => stagePath('plan', file === 'SKILL.md' ? undefined : file, dir)));
+  return skills(runtime).filter((f) => wanted.has(f.path));
+};
 const criticOf = (): string => flat(agents('claude').find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '');
 
 /** The phrases a text lacks, so a failing case names each one. */
@@ -30,7 +33,7 @@ it('risk:regression the plan skill dispatches one plan checker and the security 
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = planFiles(runtime, 'critique.md');
-    if (files.length === 0) bad.push(runtime + ': accord-plan/critique.md is missing');
+    if (files.length === 0) bad.push(runtime + ': ' + stagePath('plan', 'critique') + ' is missing');
     for (const f of files) {
       const text = flat(f.text);
       for (const p of lacks(text, [
@@ -50,7 +53,7 @@ it('risk:regression the criteria and build lenses are gone from the plan skill a
   const lens = [/`criteria`/, /lens:? `?build\b/i, /\bbuild`? lens\b/i, /fifth and seventh/i, /fourth and sixth/i];
   for (const runtime of RUNTIMES) {
     const named = [
-      ...skills(runtime).filter((f) => f.path.includes('/accord-plan/') && !f.path.endsWith('/legacy-round1.md')),
+      ...skills(runtime).filter((f) => ofStage(f.path, ['plan']) && !f.path.endsWith('/legacy-round1.md') && !f.path.endsWith('/plan-legacy-round1.md')),
       ...agents(runtime).filter((f) => f.path.endsWith('/accord-critic.md') || f.path.endsWith('/accord-planner.md')),
     ];
     for (const f of named) for (const re of lens) if (re.test(f.text)) bad.push(f.path + ' matches ' + String(re));
@@ -93,7 +96,7 @@ it('risk:regression the grounds rule asks the plan checker and the security crit
         'A finding of the security critic with none of the marks is never deferred silently: ask that critic once for its `rests on:` line (`risk: security` for a security finding), and name any finding it still leaves unmarked to the owner with its deferral',
       ]))
         bad.push(f.path + ' lacks ' + p);
-    for (const f of skills(runtime).filter((x) => x.path.endsWith('/accord-approach/critique.md')))
+    for (const f of skills(runtime).filter((x) => x.path === stagePath('approach', 'critique') || x.path === stagePath('approach', 'critique', '.agents/skills')))
       if (!flat(f.text).includes('From round 2 (accord 0.4.1 and later) a new Must or Should with none')) bad.push(f.path + ' no longer says round 2 (D-02)');
   }
   expect(bad).toEqual([]);
@@ -173,10 +176,10 @@ it('risk:regression the 0.4.0 split and the criteria and build lens names live o
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const all = [...skills(runtime), ...agents(runtime)];
-    const legacy = all.filter((f) => f.path.endsWith('/accord-plan/legacy-round1.md'));
+    const legacy = all.filter((f) => f.path.endsWith('/' + stagePath('plan', 'legacy-round1').split('/').at(-1)) && ofStage(f.path, ['plan']));
     if (legacy.length !== skillDirs(config(runtime)).length) bad.push(runtime + ': expected one render of plan/legacy-round1.md per skill directory, found ' + legacy.length);
     for (const f of all) {
-      if (f.path.endsWith('/accord-plan/legacy-round1.md')) continue;
+      if (legacy.includes(f)) continue;
       for (const re of LENS_PATTERNS) if (re.test(f.text)) bad.push(runtime + ' ' + f.path + ' matches ' + String(re));
     }
     for (const f of legacy) {
@@ -246,7 +249,7 @@ it('risk:regression the plan skill names the after: line (ST-LN-91 91p-ac-2)', (
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = planFiles(runtime, 'SKILL.md');
-    if (files.length === 0) bad.push(runtime + ': accord-plan/SKILL.md is missing');
+    if (files.length === 0) bad.push(runtime + ': ' + stagePath('plan') + ' is missing');
     for (const f of files) {
       if (!/`covers:` line, a `files:` line, a\s+`verify:` line, and an `after:` line/.test(f.text)) bad.push(f.path + ' does not list the after: line beside covers: and verify:');
       if (f.text.split('\n').length > 120) bad.push(f.path + ' is over 120 lines');

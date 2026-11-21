@@ -9,6 +9,7 @@ import { lintSnapshot } from '../src/lint/index.js';
 import { agentTargets, skillTargets, templates } from '../src/index.js';
 import { gateDone, gateReady } from '../src/gate/index.js';
 import { CONFIG, LANE_BODY, LANE_S_BODY, PLAN, REPORT, junit, laneTicket } from '../../../test/helpers/lane.js';
+import { besidePath, stagePath } from './helpers/stage-files.js';
 
 const S = (body = LANE_S_BODY, fm: string[] = []) => laneTicket('S-1', { lane: 'S', body, frontmatter: fm });
 const snap = (files: Record<string, string>, extra = {}) => loadSnapshot({ files: { 'accord/config.yml': CONFIG, ...files }, tree: [], ...extra });
@@ -126,22 +127,22 @@ it('ac-5 a queued lane M ticket drops to lane S only at intent on the owners yes
   const cfg = { accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'] } as never;
   const targets = skillTargets(cfg);
   const flat = (p: string) => (targets.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
-  const intent = flat('.claude/skills/accord-intent/SKILL.md');
+  const intent = flat(stagePath('intent'));
   const rule = intent.slice(intent.indexOf('**Lane S.**'));
   expect(rule.length).toBeGreaterThan(0);
   expect(intent.indexOf('**Lane S.**')).toBeGreaterThan(intent.indexOf('## Rules'));
   for (const x of ['fits lane S', '`accord status --json`', '`depends_on`', '`git status --porcelain --untracked-files=all`', "only on the owner's yes", '`## Moving to lane S` in `./ids.md`', 'From step 9 on, a lane never drops'])
     expect(rule, x).toContain(x);
-  const ids = flat('.claude/skills/accord-intent/ids.md');
+  const ids = flat(besidePath('intent', 'ids.md'));
   expect(ids.length).toBeGreaterThan(0);
   expect(ids).toBe(flat('.claude/skills/accord/ids.md'));
   const move = ids.slice(ids.indexOf('## Moving to lane S'));
   for (const x of ['`git status --porcelain --untracked-files=all`', 'commit only those records', '`git add -A`'])
     expect(move, x).toContain(x);
   expect(move).not.toContain('commit every change');
-  const accord = flat('.claude/skills/accord-new/SKILL.md');
+  const accord = flat(stagePath('new'));
   expect(accord).toContain('--lane S --worktree');
-  const plan = flat('.claude/skills/accord-plan/SKILL.md');
+  const plan = flat(stagePath('plan'));
   expect(plan).toContain('Run `git rev-parse HEAD` (lifted from lane S: the fork point in its ledger Ruling)');
   expect(plan).toContain('`baseline: <that commit>`');
   const planner = (agentTargets(cfg).find((f) => f.path === '.claude/agents/accord-planner.md')?.text ?? '').replace(/\s+/g, ' ');

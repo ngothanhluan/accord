@@ -1,8 +1,9 @@
 // ST-LN-39 39-ac-2 and D-08: the verify skill tells every tool who writes verification.md, that Claude Code enforces it with a
 // hook and that Cursor, Codex and Copilot do not, with the two known gaps, asserted over the RENDERED text of each runtime.
 import { expect, it } from 'vitest';
-import { skillTargets } from '../src/index.js';
+import { skillDirs, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { stagePath } from './helpers/stage-files.js';
 
 const RUNTIMES: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
 const config = (runtime: AccordConfig['runtimes'][number]): AccordConfig => ({
@@ -23,10 +24,11 @@ it('risk:regression the verify skill says the verifier-only rule is not enforced
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = skillTargets(config(runtime));
-    const writers = files.filter((f) => f.path.endsWith('/accord-verify/writer.md'));
-    const skills = files.filter((f) => f.path.endsWith('/accord-verify/SKILL.md'));
-    if (writers.length === 0) bad.push(runtime + ': accord-verify/writer.md is missing');
-    if (skills.length === 0) bad.push(runtime + ': accord-verify/SKILL.md is missing');
+    const dirs = skillDirs(config(runtime));
+    const writers = files.filter((f) => dirs.some((dir) => f.path === stagePath('verify', 'writer', dir)));
+    const skills = files.filter((f) => dirs.some((dir) => f.path === stagePath('verify', undefined, dir)));
+    if (writers.length === 0) bad.push(runtime + ': ' + stagePath('verify', 'writer') + ' is missing');
+    if (skills.length === 0) bad.push(runtime + ': ' + stagePath('verify') + ' is missing');
     for (const f of writers) {
       const missing = lacks(flat(f.text), [
         'accord-verifier',

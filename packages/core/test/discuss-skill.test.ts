@@ -1,8 +1,9 @@
 // ST-LN-91 91d-ac-4 (discuss part): the intent skill runs the discuss stage after the interview, asserted over the
 // RENDERED text of every tool a runtime loads, and the planner's discuss mode lists the gray areas without a file.
 import { expect, it } from 'vitest';
-import { agentTargets, installedName, skillDirs, skillTargets } from '../src/index.js';
+import { agentTargets, skillDirs, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { stagePath } from './helpers/stage-files.js';
 
 const all: AccordConfig = {
   accord: '0.1.0',
@@ -22,9 +23,9 @@ it('risk:regression the intent skill runs discuss after the interview in all fou
   expect(dirs).toEqual(['.agents/skills', '.claude/skills']);
   const bad: string[] = [];
   for (const dir of dirs) {
-    const skill = flat(rendered.get(dir + '/' + installedName('intent') + '/SKILL.md') ?? '');
+    const skill = flat(rendered.get(stagePath('intent', undefined, dir)) ?? '');
     if (!skill) {
-      bad.push(dir + ': accord-intent/SKILL.md is missing');
+      bad.push(stagePath('intent', undefined, dir) + ' is missing');
       continue;
     }
     const from = skill.indexOf('9. **Discuss.**');
@@ -38,7 +39,7 @@ it('risk:regression the intent skill runs discuss after the interview in all fou
       if (!step.includes(p)) bad.push(dir + ' step 9 lacks ' + p);
     if (step.includes('--approval')) bad.push(dir + ' step 9 still shows the approval view');
     if (step.includes('explicit yes')) bad.push(dir + ' step 9 still asks for a yes');
-    if (!(rendered.get(dir + '/' + installedName('intent') + '/discuss.md') ?? '')) bad.push(dir + ': discuss.md is not rendered');
+    if (!(rendered.get(stagePath('intent', 'discuss', dir)) ?? '')) bad.push(dir + ': discuss.md is not rendered');
   }
   expect(bad).toEqual([]);
 });
@@ -47,7 +48,7 @@ it('risk:regression the discuss stage asks every gray area one at a time and wri
   const GROUPS = ['direction options', 'behaviour and output', 'failure and data loss', 'scope edges', 'interfaces', 'measurement rules or heuristics', 'test strategy'];
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const text = flat(rendered.get(dir + '/' + installedName('intent') + '/discuss.md') ?? '');
+    const text = flat(rendered.get(stagePath('intent', 'discuss', dir)) ?? '');
     if (!text) {
       bad.push(dir + ': discuss.md is missing');
       continue;
@@ -74,7 +75,7 @@ it('risk:regression the planner lists gray areas in its discuss mode and writes 
 it('risk:regression Continue resumes a ticket whose intent is written at intent step 9 (ST-LN-91 91d-ac-4)', () => {
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const text = flat(rendered.get(dir + '/' + installedName('continue') + '/SKILL.md') ?? '');
+    const text = flat(rendered.get(stagePath('continue', undefined, dir)) ?? '');
     const from = text.indexOf('## Steps');
     const to = text.indexOf('## Rules');
     const step = text.slice(from, to);
@@ -93,9 +94,9 @@ it('risk:regression Continue resumes a ticket whose intent is written at intent 
 it('risk:regression the owner approves once from the short view in all four tools (ST-LN-91 91d-ac-4)', () => {
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const skill = flat(rendered.get(dir + '/' + installedName('approach') + '/SKILL.md') ?? '');
-    const text = flat(rendered.get(dir + '/' + installedName('approach') + '/approval.md') ?? '');
-    if (!skill) bad.push(dir + ': accord-approach/SKILL.md is missing');
+    const skill = flat(rendered.get(stagePath('approach', undefined, dir)) ?? '');
+    const text = flat(rendered.get(stagePath('approach', 'approval', dir)) ?? '');
+    if (!skill) bad.push(stagePath('approach', undefined, dir) + ' is missing');
     if (!text) {
       bad.push(dir + ': approval.md is missing');
       continue;
@@ -129,7 +130,7 @@ it('risk:regression the owner approves once from the short view in all four tool
 it('risk:regression the approach critic runs at most twice from the cut-off (ST-LN-91 91d-ac-4)', () => {
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const text = flat(rendered.get(dir + '/' + installedName('approach') + '/critique.md') ?? '');
+    const text = flat(rendered.get(stagePath('approach', 'critique', dir)) ?? '');
     if (!text) {
       bad.push(dir + ': critique.md is missing');
       continue;
@@ -157,7 +158,7 @@ it('risk:regression the planner always returns the test-strategy area, so a tick
   expect(planner).toContain('accord gate ready');
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const text = flat(rendered.get(dir + '/' + installedName('intent') + '/discuss.md') ?? '');
+    const text = flat(rendered.get(stagePath('intent', 'discuss', dir)) ?? '');
     for (const p of ['always returns at least the test-strategy gray area', 'under one `## Gray areas` heading', 'at the start of its line'])
       if (!text.includes(p)) bad.push(dir + ' discuss.md lacks ' + p);
   }
@@ -167,7 +168,7 @@ it('risk:regression the planner always returns the test-strategy area, so a tick
 it('risk:regression intent step 9 acts on the exit code of accord gate ready (ST-LN-91 IN-04)', () => {
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const skill = flat(rendered.get(dir + '/' + installedName('intent') + '/SKILL.md') ?? '');
+    const skill = flat(rendered.get(stagePath('intent', undefined, dir)) ?? '');
     const step = skill.slice(skill.indexOf('9. **Discuss.**'), skill.indexOf('10. Next'));
     for (const p of ['read its exit code', 'On exit 2', 'stop and report what it printed to the owner', 'claimed before the discuss stage'])
       if (!step.includes(p)) bad.push(dir + ' step 9 lacks ' + p);

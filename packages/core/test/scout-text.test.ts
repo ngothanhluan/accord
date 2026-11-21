@@ -2,6 +2,7 @@
 import { expect, it } from 'vitest';
 import { agentTargets, parseScoutReport, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { besidePath, stagePath } from './helpers/stage-files.js';
 
 const config = (): AccordConfig =>
   ({ accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'] }) as AccordConfig;
@@ -34,9 +35,9 @@ it('risk:parsing the scout prompt and the scout steps write the report form acco
     expect(flat(agent), phrase).toContain(phrase);
   }
 
-  for (const dir of ['accord-new', 'accord-intent']) {
-    const scoutMd = flat(skillText(`.claude/skills/${dir}/scout.md`));
-    expect(scoutMd.length, `${dir}/scout.md is missing`).toBeGreaterThan(0);
+  for (const name of ['new', 'intent']) {
+    const scoutMd = flat(skillText(besidePath(name, 'scout.md')));
+    expect(scoutMd.length, `${besidePath(name, 'scout.md')} is missing`).toBeGreaterThan(0);
     for (const phrase of [
       '## New files',
       'skipped: <reason>',
@@ -44,10 +45,11 @@ it('risk:parsing the scout prompt and the scout steps write the report form acco
       'before you follow the `enter:` or `stop:` line',
       'the reply to another question never replaces a saved report',
     ]) {
-      expect(scoutMd, `${dir}/scout.md`).toContain(phrase);
+      expect(scoutMd, besidePath(name, 'scout.md')).toContain(phrase);
     }
     for (const file of ['SKILL.md', 'lane.md']) {
-      expect(flat(skillText(`.claude/skills/${dir}/${file}`)), `${dir}/${file}`).toContain('`./scout.md`');
+      const path = file === 'SKILL.md' ? stagePath(name) : besidePath(name, file);
+      expect(flat(skillText(path)), path).toContain('`./scout.md`');
     }
   }
 
@@ -56,12 +58,12 @@ it('risk:parsing the scout prompt and the scout steps write the report form acco
 });
 
 it('risk:complex-branching the approach and build stages send an approve refusal back to the scout steps', () => {
-  const approach = flat(skillText('.claude/skills/accord-approach/SKILL.md'));
+  const approach = flat(skillText(stagePath('approach')));
   const skillStep5 = approach.slice(approach.indexOf("5. **The owner's yes.**"), approach.indexOf('6. Next'));
   expect(skillStep5.length, 'approach step 5 is missing').toBeGreaterThan(0);
   // ST-LN-91 plan 03-05: step 5 only names ./approval.md, where the scout check and the show step live, so the check is read there.
   expect(skillStep5, 'approach step 5 does not name ./approval.md').toContain('`./approval.md`');
-  const step5 = flat(skillText('.claude/skills/accord-approach/approval.md'));
+  const step5 = flat(skillText(stagePath('approach', 'approval')));
   expect(step5.length, 'approach approval.md is missing').toBeGreaterThan(0);
   const check = step5.indexOf('accord scout check "accord/tickets/<id>/scout.md"');
   expect(check, 'approach step 5 does not run the check').toBeGreaterThanOrEqual(0);
@@ -69,21 +71,21 @@ it('risk:complex-branching the approach and build stages send an approve refusal
   expect(step5).toContain('`./scout.md`');
   expect(step5).toContain('when `accord approve` exits 1');
 
-  const build = flat(skillText('.claude/skills/accord-build/SKILL.md'));
+  const build = flat(skillText(stagePath('build')));
   const step6 = build.slice(build.indexOf('6. **Change of course.**'), build.indexOf('7. **Plan changed.**'));
   expect(step6.length, 'build step 6 is missing').toBeGreaterThan(0);
   expect(step6).toContain('When `accord approve` exits 1, follow `./scout.md`.');
 
-  for (const dir of ['accord-approach', 'accord-build']) {
-    const scoutMd = flat(skillText(`.claude/skills/${dir}/scout.md`));
-    expect(scoutMd.length, `${dir}/scout.md is missing`).toBeGreaterThan(0);
+  for (const name of ['approach', 'build']) {
+    const scoutMd = flat(skillText(besidePath(name, 'scout.md')));
+    expect(scoutMd.length, `${besidePath(name, 'scout.md')} is missing`).toBeGreaterThan(0);
     for (const phrase of [
       'When `accord approve <id>` exits 1 naming `scout.md`',
       "the owner's yes still holds",
       'as of the commit that last changed it, or on the working tree while the file has uncommitted changes',
       "then `accord worktree push <id>`, all before the owner's yes",
     ]) {
-      expect(scoutMd, `${dir}/scout.md`).toContain(phrase);
+      expect(scoutMd, besidePath(name, 'scout.md')).toContain(phrase);
     }
   }
 

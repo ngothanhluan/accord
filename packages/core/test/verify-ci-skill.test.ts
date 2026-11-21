@@ -2,8 +2,9 @@
 // the accord check is required and branches must be up to date. Asserted over the RENDERED text of every tool a runtime
 // loads (skillTargets), not the source file, so a runtime that lost the section fails by name.
 import { expect, it } from 'vitest';
-import { skillTargets } from '../src/index.js';
+import { skillDirs, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { besidePath, stagePath } from './helpers/stage-files.js';
 
 const RUNTIMES: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
 const config = (runtime: AccordConfig['runtimes'][number]): AccordConfig => ({
@@ -17,8 +18,10 @@ const config = (runtime: AccordConfig['runtimes'][number]): AccordConfig => ({
 
 const flat = (text: string): string => text.replace(/\s+/g, ' ');
 /** Every render of verify's ci.md under a runtime: one per skill directory the runtime loads. */
-const ciFiles = (runtime: AccordConfig['runtimes'][number]) =>
-  skillTargets(config(runtime)).filter((f) => f.path.endsWith('/accord-verify/ci.md'));
+const ciFiles = (runtime: AccordConfig['runtimes'][number]) => {
+  const wanted = new Set(skillDirs(config(runtime)).map((dir) => stagePath('verify', 'ci', dir)));
+  return skillTargets(config(runtime)).filter((f) => wanted.has(f.path));
+};
 /** The phrases a text lacks, so a failing case names each one. */
 const lacks = (text: string, parts: readonly string[]): string[] => parts.filter((p) => !text.includes(p));
 /** The Required check section of a rendered ci.md: from its heading to the next `## ` heading. */
@@ -33,7 +36,7 @@ it('risk:regression verify reads the default branch\'s rules and reports one lin
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = ciFiles(runtime);
-    if (files.length === 0) bad.push(runtime + ': accord-verify/ci.md is missing');
+    if (files.length === 0) bad.push(runtime + ': ' + stagePath('verify', 'ci') + ' is missing');
     for (const f of files) {
       const [wait, required, finish] = ['## Wait', '## Required check', '## Finish'].map((h) => f.text.indexOf(h));
       if (!(wait > -1 && wait < required && required < finish)) bad.push(`${f.path}: ## Required check is not between ## Wait and ## Finish`);
@@ -61,14 +64,16 @@ it('risk:regression verify reads the default branch\'s rules and reports one lin
 });
 
 /** The rendered finish.md of a runtime, under accord-verify and under the accord skill (lane S). */
-const finishReports = (runtime: AccordConfig['runtimes'][number]) =>
-  skillTargets(config(runtime)).filter((f) => f.path.endsWith('/accord-verify/finish.md') || f.path.endsWith('/accord/finish.md'));
+const finishReports = (runtime: AccordConfig['runtimes'][number]) => {
+  const wanted = new Set(skillDirs(config(runtime)).flatMap((dir) => [besidePath('verify', 'finish.md', dir), dir + '/accord/finish.md']));
+  return skillTargets(config(runtime)).filter((f) => wanted.has(f.path));
+};
 
 it('risk:regression verify waits for the accord check on the tick commit and reports its verdict at finish (ST-LN-37 37-ac-1)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = ciFiles(runtime);
-    if (files.length === 0) bad.push(runtime + ': accord-verify/ci.md is missing');
+    if (files.length === 0) bad.push(runtime + ': ' + stagePath('verify', 'ci') + ' is missing');
     for (const f of files) {
       const text = flat(f.text);
       const finish = text.slice(text.indexOf('## Finish'));
@@ -104,7 +109,7 @@ it('risk:regression the wait before the report still leaves the accord workflow 
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = ciFiles(runtime);
-    if (files.length === 0) bad.push(runtime + ': accord-verify/ci.md is missing');
+    if (files.length === 0) bad.push(runtime + ': ' + stagePath('verify', 'ci') + ' is missing');
     for (const f of files) {
       const text = flat(f.text);
       const wait = text.slice(text.indexOf('## Wait'), text.indexOf('## Required check'));
@@ -124,7 +129,7 @@ it('risk:regression verify changes no GitHub setting (ST-LN-37 37-ac-2)', () => 
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const files = ciFiles(runtime);
-    if (files.length === 0) bad.push(runtime + ': accord-verify/ci.md is missing');
+    if (files.length === 0) bad.push(runtime + ': ' + stagePath('verify', 'ci') + ' is missing');
     for (const f of files) {
       const section = requiredSection(f.text);
       if (section === '') bad.push(f.path + ': no Required check section');

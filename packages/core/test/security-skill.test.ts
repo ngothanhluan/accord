@@ -3,8 +3,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { skillTargets } from '../src/index.js';
+import { skillDirs, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { besidePath, stagePath } from './helpers/stage-files.js';
 
 const RUNTIMES: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
 const config = (runtime: AccordConfig['runtimes'][number]): AccordConfig => ({
@@ -20,14 +21,20 @@ const flat = (text: string): string => text.replace(/\s+/g, ' ');
 /** Every render of one file of one skill under a runtime: one per skill directory the runtime loads. */
 const filesOf = (runtime: AccordConfig['runtimes'][number], skill: string, file: string) =>
   skillTargets(config(runtime)).filter((f) => f.path.endsWith('/' + skill + '/' + file));
+/** Every render of the file a path function names under a runtime: one per skill directory the runtime loads. */
+const rendersAt = (runtime: AccordConfig['runtimes'][number], pathIn: (dir: string) => string) => {
+  const cfg = config(runtime);
+  const wanted = new Set(skillDirs(cfg).map(pathIn));
+  return skillTargets(cfg).filter((f) => wanted.has(f.path));
+};
 /** The phrases a text lacks, so a failing case names each one. */
 const lacks = (text: string, parts: readonly string[]): string[] => parts.filter((p) => !text.includes(p));
 
 it('risk:security the review skill runs a security reviewer on the security package when the package lists a trigger, in every tool (ST-LN-36 36-ac-3)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
-    const security = filesOf(runtime, 'accord-review', 'security.md');
-    if (security.length === 0) bad.push(runtime + ': accord-review/security.md is missing');
+    const security = rendersAt(runtime, (dir) => stagePath('review', 'security', dir));
+    if (security.length === 0) bad.push(runtime + ': ' + stagePath('review', 'security') + ' is missing');
     for (const f of security) {
       for (const p of lacks(flat(f.text), [
         '# The security reviewer',
@@ -49,14 +56,14 @@ it('risk:security the review skill runs a security reviewer on the security pack
       ]))
         bad.push(f.path + ' lacks ' + p);
     }
-    const skill = filesOf(runtime, 'accord-review', 'SKILL.md');
-    if (skill.length === 0) bad.push(runtime + ': accord-review/SKILL.md is missing');
+    const skill = rendersAt(runtime, (dir) => stagePath('review', undefined, dir));
+    if (skill.length === 0) bad.push(runtime + ': ' + stagePath('review') + ' is missing');
     for (const f of skill) {
       if (!f.text.includes('./security.md')) bad.push(f.path + ' lacks the pointer ./security.md');
       if (Buffer.byteLength(f.text) > 6000) bad.push(f.path + ' is over 6000 bytes');
     }
-    const record = filesOf(runtime, 'accord-review', 'record.md');
-    if (record.length === 0) bad.push(runtime + ': accord-review/record.md is missing');
+    const record = rendersAt(runtime, (dir) => stagePath('review', 'record', dir));
+    if (record.length === 0) bad.push(runtime + ': ' + stagePath('review', 'record') + ' is missing');
     for (const f of record)
       for (const p of lacks(flat(f.text), ['Security: no pattern matched', 'Security: lens security ran', 'no `Security:` line', './security.md']))
         bad.push(f.path + ' lacks ' + p);
@@ -67,10 +74,10 @@ it('risk:security the review skill runs a security reviewer on the security pack
 it('risk:security lane S review rounds add the security reviewer as lane M does, in every tool (ST-LN-36 36-ac-2)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
-    const security = filesOf(runtime, 'accord-new', 'security.md');
-    if (security.length === 0) bad.push(runtime + ': accord-new/security.md is missing');
-    const laneS = filesOf(runtime, 'accord-new', 'lane-s.md');
-    if (laneS.length === 0) bad.push(runtime + ': accord-new/lane-s.md is missing');
+    const security = rendersAt(runtime, (dir) => besidePath('new', 'security.md', dir));
+    if (security.length === 0) bad.push(runtime + ': ' + besidePath('new', 'security.md') + ' is missing');
+    const laneS = rendersAt(runtime, (dir) => besidePath('new', 'lane-s.md', dir));
+    if (laneS.length === 0) bad.push(runtime + ': ' + besidePath('new', 'lane-s.md') + ' is missing');
     for (const f of laneS)
       for (const p of lacks(flat(f.text), [
         'when the round\'s package lists a security trigger, add a security reviewer',
@@ -113,11 +120,11 @@ it('risk:security the config skill asks the owner before it writes a Removed lin
 it('risk:regression the lane rule names migration and the plan critic\'s trigger is unchanged (ST-LN-36 D-05)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
-    const lane = filesOf(runtime, 'accord-new', 'lane.md');
-    if (lane.length === 0) bad.push(runtime + ': accord-new/lane.md is missing');
+    const lane = rendersAt(runtime, (dir) => besidePath('new', 'lane.md', dir));
+    if (lane.length === 0) bad.push(runtime + ': ' + besidePath('new', 'lane.md') + ' is missing');
     for (const f of lane) for (const p of lacks(flat(f.text), ['auth, money, migration or data deletion'])) bad.push(f.path + ' lacks ' + p);
-    const critique = filesOf(runtime, 'accord-plan', 'critique.md');
-    if (critique.length === 0) bad.push(runtime + ': accord-plan/critique.md is missing');
+    const critique = rendersAt(runtime, (dir) => stagePath('plan', 'critique', dir));
+    if (critique.length === 0) bad.push(runtime + ': ' + stagePath('plan', 'critique') + ' is missing');
     for (const f of critique)
       for (const p of lacks(flat(f.text), ['when the ticket touches auth, money, migration, or data deletion, or the plan touches a path under `sensitive:` in `accord/config.yml`']))
         bad.push(f.path + ' lacks ' + p);

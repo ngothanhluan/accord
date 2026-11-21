@@ -2,16 +2,20 @@
 // A set or unset edits the file through core's text writers, validates the WHOLE result against config.schema.json,
 // and writes once only when nothing is found; a refusal exits 2 and leaves the file byte-identical. Nothing is
 // committed or pushed here: the onboarding skill does that.
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
-import type { LoadFinding } from '@accord-dev/accord-core';
-import { detectProposals } from '../load/detect.js';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, mergeProposals, parseValue, resolveKeyPath, scoutCheck, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
+import type { ConfigProposal, LoadFinding } from '@accord-dev/accord-core';
+import { detectProposals, refusal } from '../load/detect.js';
 import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
-import { shown } from '../load/script-trust.js';
+import { SCRIPT_KINDS, shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
+import { workingFacts } from './scout.js';
 
 const FILE = 'accord/config.yml';
+/** Phase 8.4 D-08 (T-08.4-14): the scan's file is read only when it is a regular file of at most this many bytes, and holds at most MAX_SCAN_ENTRIES entries. */
+const MAX_SCAN_BYTES = 262144;
+const MAX_SCAN_ENTRIES = 100;
 const KEYS = 'the keys are in packages/core/schemas/config.schema.json (schemas/config.schema.json in the published @accord-dev/accord-core)';
 
 /** What a change brings with it beyond the key itself: the ids it keeps valid (`legacy_ids`) and the commit subjects it still reads (`commits.legacy_subjects.<name>`) (D-11). One entry per list, each added item on its own output line. */
@@ -154,13 +158,84 @@ export function configUnset(ctx: CommandContext, key: string, options: { json?: 
   return report(ctx, key, from, undefined, out.consequences, options);
 }
 
+/** The scan's proposals from `file`: a JSON array whose every entry is `{ key, value, evidence }`. Any other file is a usage error (exit 2) naming the file with `/`. */
+function readScanProposals(file: string, cwd: string): ConfigProposal[] {
+  const abs = resolve(cwd, file);
+  const name = shown(file.replace(/\\/g, '/'));
+  let raw: string;
+  try {
+    const stat = statSync(abs);
+    if (!stat.isFile()) throw new Error('not a regular file');
+    if (stat.size > MAX_SCAN_BYTES) throw new Error(`${stat.size} bytes is over the ${MAX_SCAN_BYTES} byte limit`);
+    raw = readFileSync(abs, 'utf8');
+    if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // a BOM from a Windows editor; JSON itself tolerates CRLF between tokens
+  } catch (err) {
+    throw new UsageError(shown(`cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`.replace(/\\/g, '/')));
+  }
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch (err) {
+    throw new UsageError(`${name} is not JSON: ${shown((err instanceof Error ? err.message : String(err)).split('\n')[0] ?? '')}`);
+  }
+  if (!Array.isArray(data)) throw new UsageError(`${name} is not a JSON array of { key, value, evidence } proposals`);
+  if (data.length > MAX_SCAN_ENTRIES) throw new UsageError(`${name} holds ${data.length} entries, more than the ${MAX_SCAN_ENTRIES} allowed`);
+  return data.map((entry: unknown, i): ConfigProposal => {
+    const e = entry as Record<string, unknown> | null;
+    const plain = typeof e === 'object' && e !== null && !Array.isArray(e);
+    if (!plain || typeof e.key !== 'string' || typeof e.evidence !== 'string' || !Object.hasOwn(e, 'value')) {
+      throw new UsageError(`${name}: entry ${i + 1} is not { key, value, evidence } with a string key and a string evidence`);
+    }
+    return { key: e.key, value: e.value, evidence: e.evidence };
+  });
+}
+
+/** Every dotted key a proposal sets: the key itself, or for a plain-object value the key joined with each nested key, down to a value that is no non-empty object. */
+function leafPaths(key: string, value: unknown): string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [key];
+  const entries = Object.entries(value);
+  return entries.length === 0 ? [key] : entries.flatMap(([k, v]) => leafPaths(`${key}.${k}`, v));
+}
+
+/**
+ * Phase 8.4 D-07, D-08 (Ruling 5): the refusals only the CLI can check, handed to core's `mergeProposals` as its last rule, the first reason winning: a proposal that sets one of the scripts behind
+ * `accord trust` (a leaf path equal to or under a kind of SCRIPT_KINDS, also through a parent key's object value); a value holding a control character; a value `accord config set` would refuse
+ * (`refusal`, which also refuses a parent of a script key given a value that is no object, as the schema types every such parent as one); the value the file already holds; and evidence whose
+ * `path:line` is no tracked file with that line (core's `scoutCheck`). A command for a worktree's setup or for the tests is not refused for being a command (the owner's answer of 2026-11-21).
+ */
+function scanRefusal(ctx: CommandContext, text: string): (p: ConfigProposal) => string | undefined {
+  const refuse = refusal(ctx.root);
+  let facts: ReturnType<typeof workingFacts> | undefined;
+  return (p) => {
+    for (const leaf of leafPaths(p.key, p.value)) {
+      const kind = SCRIPT_KINDS.find((k) => leaf === k || leaf.startsWith(k + '.'));
+      if (kind !== undefined) return `sets ${kind}, a script that runs only after accord trust`;
+    }
+    const json = JSON.stringify(p.value) ?? '';
+    if (shown(json) !== json) return 'the value holds a control character';
+    const why = refuse(p);
+    if (why !== undefined) return `accord config set would refuse it: ${why}`;
+    const path = resolveKeyPath(p.key);
+    if (path !== undefined && JSON.stringify(getConfigValue(text, path)) === json) return 'same as the current value';
+    facts ??= workingFacts(ctx.root);
+    const failure = scoutCheck({ text: '## Files\n\n## Facts\n- ' + p.evidence + '\n', ...facts }).failures.find((f) => f.startsWith('citation '));
+    return failure === undefined ? undefined : `evidence ${failure}`;
+  };
+}
+
 /**
  * Phase 8.3 D-08, D-13 (Ruling 9): the settings area by area for `/accord-config`. Per area in data order `area: <id> - <title>` (with ` (not walked: accord writes these)` for an area accord writes itself), then per
  * top-level key `  <key> = <YAML flow value, or unset> - <what it controls>`, then each proposal for that key as init prints it. The areas and the texts come from core's data (packages/core/schemas/config-areas.json), the
  * values from the file's text, the proposals from the detector `accord init` runs (read-only, bounded, never throws), so the skill needs no scan of its own (D-09). Writes nothing. Every string that comes from the repository
  * (a value, an evidence line) passes `shown()`.
+ *
+ * Phase 8.4 D-07, D-08: with `options.proposals`, the named file (a JSON array of `{ key, value, evidence }` the onboarding session wrote from its scan, resolved against `cwd`) is
+ * merged with init's proposals by core's `mergeProposals`: init's wins on the same key, an ancestor or a descendant, and each refused scan proposal prints as
+ * `dropped: <key> = <JSON value>  (<reason>)` after the areas, whatever area was asked, or as the `dropped` list of `--json`. Core drops a scan proposal with no config key, for a key accord writes or with
+ * evidence that is no file and line or count; `scanRefusal` then drops a script behind `accord trust`, a control character, a value `config set` refuses, the current value and a citation that does not resolve.
+ * Still writes nothing.
  */
-export function configAreas(ctx: CommandContext, area: string | undefined, options: { json?: boolean }): number {
+export function configAreas(ctx: CommandContext, area: string | undefined, options: { json?: boolean; proposals?: string }, cwd: string = ctx.root): number {
   const ids = CONFIG_AREAS.map((a) => a.id);
   if (area !== undefined && !ids.includes(area)) throw new UsageError(`no area ${shown(area)} - the areas are ${ids.join(', ')}`);
   let text: string;
@@ -169,7 +244,10 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
   } catch {
     throw new UsageError(`no ${FILE} in ${ctx.root} - run accord init`);
   }
-  const proposals = detectProposals(ctx.root);
+  const init = detectProposals(ctx.root);
+  const merged = options.proposals === undefined ? { proposals: init, dropped: [] } : mergeProposals(init, readScanProposals(options.proposals, cwd), scanRefusal(ctx, text));
+  const proposals = merged.proposals;
+  const dropped = merged.dropped.map((d) => ({ key: d.key, value: d.value, evidence: d.evidence, reason: d.reason }));
   const rows = CONFIG_AREAS.filter((a) => area === undefined || a.id === area).map((a) => ({
     id: a.id,
     title: a.title,
@@ -182,16 +260,17 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
     })),
   }));
   if (options.json === true) {
-    ctx.stdout.write(JSON.stringify({ areas: rows }, null, 2) + '\n');
+    ctx.stdout.write(JSON.stringify(options.proposals === undefined ? { areas: rows } : { areas: rows, dropped }, null, 2) + '\n');
     return 0;
   }
   for (const a of rows) {
     ctx.stdout.write(`area: ${a.id} - ${a.title}${a.walk ? '' : ' (not walked: accord writes these)'}\n`);
     for (const k of a.keys) {
       ctx.stdout.write(`  ${k.key} = ${k.value === null ? 'unset' : shown(flowValue(k.value))} - ${k.text}\n`);
-      for (const p of k.proposals) ctx.stdout.write(`  proposal: ${p.key} = ${JSON.stringify(p.value)}  (evidence: ${shown(p.evidence)})\n`);
+      for (const p of k.proposals) ctx.stdout.write(`  proposal: ${shown(p.key)} = ${shown(JSON.stringify(p.value))}  (evidence: ${shown(p.evidence)})\n`);
     }
   }
+  for (const d of dropped) ctx.stdout.write(`dropped: ${shown(d.key)} = ${shown(JSON.stringify(d.value))}  (${shown(d.reason)})\n`);
   return 0;
 }
 

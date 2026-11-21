@@ -65,6 +65,13 @@ describe('the config skill walks areas from the CLI and writes only through acco
     expect(body).toContain('scans nothing');
   });
 
+  it('risk:regression the config command and the shared walk hold no scan (D-09)', () => {
+    for (const [name, text] of [['SKILL.md', body], ['walk.md', flat(walk)]] as const) {
+      for (const word of ['accord-scout', './scan.md', '--proposals']) expect(text.includes(word), `${name} holds ${word}`).toBe(false);
+    }
+    for (const dir of ['.claude/skills', '.agents/skills']) expect(at(ALL, dir + '/accord-config/scan.md'), dir).toBe('');
+  });
+
   it('risk:regression the shared walk holds the whole per-key procedure (D-10)', () => {
     expect(walk, 'accord-config/walk.md is not rendered').not.toBe('');
     const text = flat(walk);

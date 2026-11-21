@@ -421,4 +421,193 @@ describe('accord config areas', () => {
     const json = JSON.parse((await run(['config', 'areas', '--json'], repo)).out) as { areas: { keys: { key: string; proposals: unknown[] }[] }[] };
     expect(json.areas.flatMap((a) => a.keys).find((k) => k.key === 'git')?.proposals).toEqual([{ key: 'git.merge', value: 'squash', evidence }]);
   });
+
+  /** A proposals file in a fresh folder outside the repository; the folder is removed with the sandboxes. */
+  function proposalsFile(content: string, name = 'scan.json'): string {
+    const folder = mkdtempSync(join(tmpdir(), 'accord-scan-'));
+    repos.push(folder);
+    const path = join(folder, name);
+    writeFileSync(path, content);
+    return path;
+  }
+  const SCAN = [
+    { key: 'git.merge', value: 'merge', evidence: 'the last 12 pull requests' },
+    { key: 'git', value: { merge: 'rebase' }, evidence: '3 workflow files' },
+    { key: 'stale_days', value: '21', evidence: 'the last 21 days' },
+  ];
+
+  it("risk:complex-branching config areas --proposals merges the scan's proposals and init's wins on the same key (D-08)", async () => {
+    const repo = squashed();
+    const before = gitRun(repo, 'status', '--porcelain');
+    const config = text(repo);
+    const file = proposalsFile(JSON.stringify(SCAN));
+    const out = await run(['config', 'areas', '--proposals', file], repo);
+    expect([out.code, out.err]).toEqual([0, '']);
+    const lines = out.out.split('\n');
+    const git = lines.findIndex((l) => l.startsWith('  git = '));
+    expect(lines[git + 1]).toBe('  proposal: git.merge = "squash"  (evidence: 37 of 40 recent commits on main end in (#n))');
+    const stale = lines.findIndex((l) => l.startsWith('  stale_days = unset - '));
+    expect(lines[stale + 1]).toBe('  proposal: stale_days = "21"  (evidence: the last 21 days)');
+    const dropped = [
+      'dropped: git.merge = "merge"  (accord init proposes git.merge)',
+      'dropped: git = {"merge":"rebase"}  (accord init proposes git.merge)',
+    ];
+    for (const d of dropped) expect(lines.indexOf(d), d).toBeGreaterThan(lines.map((l, i) => (l.startsWith('area: ') ? i : -1)).reduce((a, b) => Math.max(a, b), -1));
+    // a single area still prints every dropped line
+    expect((await run(['config', 'areas', 'git', '--proposals', file], repo)).out).toContain(dropped[0]);
+    // --json carries { areas, dropped }
+    const json = JSON.parse((await run(['config', 'areas', '--json', '--proposals', file], repo)).out) as { areas: unknown[]; dropped: { key: string; reason: string }[] };
+    expect(json.areas).toHaveLength(8);
+    expect(json.dropped[0]?.reason).toBe('accord init proposes git.merge');
+    expect(json.dropped.map((d) => d.key)).toEqual(['git.merge', 'git']);
+    // it writes nothing, and without --proposals the output is as before
+    expect(text(repo)).toBe(config);
+    expect(gitRun(repo, 'status', '--porcelain')).toBe(before);
+    const plain = await run(['config', 'areas', '--json'], repo);
+    expect(Object.keys(JSON.parse(plain.out) as object)).toEqual(['areas']);
+    expect(plain.out).not.toContain('dropped');
+  });
+
+  it('risk:parsing config areas --proposals refuses a file that is not a JSON array of proposals (D-08)', async () => {
+    const repo = squashed();
+    const config = text(repo);
+    const folder = mkdtempSync(join(tmpdir(), 'accord-scan-'));
+    repos.push(folder);
+    const plain = (await run(['config', 'areas'], repo)).out;
+    const bad: [string, string][] = [
+      ['a missing file', join(folder, 'missing.json')],
+      ['a folder', folder],
+      ['not json', proposalsFile('{]')],
+      ['not an array', proposalsFile('{}')],
+      ['no evidence', proposalsFile('[{ "key": "stale_days", "value": "21" }]')],
+    ];
+    for (const [what, path] of bad) {
+      const out = await run(['config', 'areas', '--proposals', path], repo);
+      expect(out.code, what).toBe(2);
+      expect(out.err, what).toContain(path.replace(/\\/g, '/'));
+      expect(out.err, what).not.toContain('\\');
+      expect(text(repo), what).toBe(config);
+    }
+    // an empty array prints exactly what the command prints with no file
+    const empty = await run(['config', 'areas', '--proposals', proposalsFile('[]')], repo);
+    expect([empty.code, empty.err, empty.out]).toEqual([0, '', plain]);
+    expect(empty.out).not.toContain('dropped:');
+  });
+
+  it('risk:security config areas --proposals reads only a regular file of at most 262144 bytes and 100 entries (D-08)', async () => {
+    const repo = squashed();
+    const config = text(repo);
+    const entry = { key: 'stale_days', value: '21', evidence: 'the last 21 days' };
+    const one = JSON.stringify([entry]);
+    const big = one + ' '.repeat(262145 - one.length);
+    expect(big.length).toBe(262145);
+    const exact = one + ' '.repeat(262144 - one.length);
+    const tooMany = proposalsFile(JSON.stringify(Array.from({ length: 101 }, () => entry)));
+    const bounded: [string, string][] = [
+      ['a file of 262145 bytes', proposalsFile(big)],
+      ['101 entries', tooMany],
+    ];
+    for (const [what, path] of bounded) {
+      const out = await run(['config', 'areas', '--proposals', path], repo);
+      expect(out.code, what).toBe(2);
+      expect(out.err, what).toContain(path.replace(/\\/g, '/'));
+      expect(text(repo), what).toBe(config);
+    }
+    // the limits themselves are allowed: 262144 bytes, and 100 entries
+    expect((await run(['config', 'areas', '--proposals', proposalsFile(exact)], repo)).code).toBe(0);
+    expect((await run(['config', 'areas', '--proposals', proposalsFile(JSON.stringify(Array.from({ length: 100 }, () => entry)))], repo)).code).toBe(0);
+    // a file a Windows editor saved, with a BOM and CRLF line ends, reads as the same file without them
+    const plain = await run(['config', 'areas', '--proposals', proposalsFile(JSON.stringify([entry], null, 2))], repo);
+    const crlf = await run(['config', 'areas', '--proposals', proposalsFile('\uFEFF' + JSON.stringify([entry], null, 2).replace(/\n/g, '\r\n'))], repo);
+    expect([crlf.code, crlf.err]).toEqual([0, '']);
+    expect(crlf.out).toBe(plain.out);
+    expect(crlf.out).toContain('  proposal: stale_days = "21"  (evidence: the last 21 days)');
+  });
+
+  /** The output lines of `config areas --proposals` over `entries` (the `dropped:` and `proposal:` lines are what the tests read). */
+  async function scanLines(repo: string, entries: unknown[]): Promise<{ lines: string[]; out: string }> {
+    const out = await run(['config', 'areas', '--proposals', proposalsFile(JSON.stringify(entries))], repo);
+    expect([out.code, out.err]).toEqual([0, '']);
+    return { lines: out.out.split('\n'), out: out.out };
+  }
+
+  it('risk:security config areas --proposals drops a scan proposal that sets a script accord trust guards (D-08)', async () => {
+    const repo = sandbox();
+    const config = text(repo);
+    const evidence = '2 files';
+    const scripts = await scanLines(repo, [
+      { key: 'git.sync', value: './sync.sh', evidence },
+      { key: 'build.regenerate', value: './regen.sh', evidence },
+      { key: 'tracker', value: { adapter: 'script', command: './x.sh' }, evidence },
+      { key: 'commits.message', value: { command: './m.sh' }, evidence },
+    ]);
+    for (const [key, value, kind] of [
+      ['git.sync', '"./sync.sh"', 'git.sync'],
+      ['build.regenerate', '"./regen.sh"', 'build.regenerate'],
+      ['tracker', '{"adapter":"script","command":"./x.sh"}', 'tracker.command'],
+      ['commits.message', '{"command":"./m.sh"}', 'commits.message.command'],
+    ]) {
+      expect(scripts.lines, key).toContain(`dropped: ${key} = ${value}  (sets ${kind}, a script that runs only after accord trust)`);
+    }
+    expect(scripts.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+
+    // a parent of a script key given a value that is no object: the schema types it as an object, so config set would refuse it
+    const parents = await scanLines(repo, [
+      { key: 'tracker', value: './x.sh', evidence },
+      { key: 'commits.message', value: './m.sh', evidence },
+    ]);
+    for (const [key, value] of [['tracker', '"./x.sh"'], ['commits.message', '"./m.sh"']]) {
+      const line = parents.lines.find((l) => l.startsWith(`dropped: ${key} = ${value}  (`));
+      expect(line, key).toBeDefined();
+      expect(line, key).toContain('(accord config set would refuse it: ');
+    }
+    expect(parents.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+
+    // a tracker that is no script, a worktree setup and a test command are proposed verbatim
+    const fine = await scanLines(repo, [
+      { key: 'tracker', value: { adapter: 'linear' }, evidence },
+      { key: 'setup', value: ['npm ci'], evidence: '2 workflow files' },
+      { key: 'tests.affected', value: 'npx vitest run', evidence: '2 workflow files' },
+    ]);
+    expect(fine.lines).toContain('  proposal: tracker = {"adapter":"linear"}  (evidence: 2 files)');
+    expect(fine.lines).toContain('  proposal: setup = ["npm ci"]  (evidence: 2 workflow files)');
+    expect(fine.lines).toContain('  proposal: tests.affected = "npx vitest run"  (evidence: 2 workflow files)');
+    expect(fine.lines.filter((l) => l.startsWith('dropped:'))).toEqual([]);
+    expect(text(repo)).toBe(config);
+  });
+
+  it('risk:regression config areas --proposals drops a value config set would refuse or the current value (D-08)', async () => {
+    const same = sandbox(CONFIG + 'git:\n  merge: squash\n');
+    const kept = await scanLines(same, [{ key: 'git.merge', value: 'squash', evidence: '12 pull requests' }]);
+    expect(kept.lines).toContain('dropped: git.merge = "squash"  (same as the current value)');
+    expect(kept.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+
+    const refused = await scanLines(sandbox(), [{ key: 'git.merge', value: 'fast', evidence: '12 pull requests' }]);
+    const line = refused.lines.find((l) => l.startsWith('dropped: git.merge = "fast"  ('));
+    expect(line).toBeDefined();
+    expect(line).toContain('(accord config set would refuse it: ');
+    expect(line).toContain('must be equal to one of the allowed values');
+    expect(refused.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+  });
+
+  it('risk:security config areas --proposals drops evidence whose citation does not resolve and a value with a control character (D-07)', async () => {
+    const repo = sandbox();
+    writeFiles(repo, { 'src/a.ts': 'one\ntwo\nthree\n' });
+    gitRun(repo, 'add', '-A');
+    gitRun(repo, ...IDENTITY, 'commit', '-q', '-m', 'fixture');
+    const out = await scanLines(repo, [
+      { key: 'git.merge', value: 'squash', evidence: 'nosuch/b.ts:4' },
+      { key: 'stale_days', value: '21', evidence: 'src/a.ts:9' },
+      { key: 'tests.affected', value: 'npx vitest run', evidence: 'src\\a.ts:2' },
+      { key: 'setup', value: ['a‮b'], evidence: 'src/a.ts:1' },
+    ]);
+    expect(out.lines.find((l) => l.startsWith('dropped: git.merge = "squash"  ('))).toContain('(evidence citation nosuch/b.ts:4 does not resolve');
+    expect(out.lines.find((l) => l.startsWith('dropped: stale_days = "21"  ('))).toContain('(evidence citation src/a.ts:9 does not resolve');
+    // a Windows path is kept and printed with `/`
+    expect(out.lines).toContain('  proposal: tests.affected = "npx vitest run"  (evidence: src/a.ts:2)');
+    expect(out.out).not.toContain('\\');
+    // an invisible character is refused, and never printed raw
+    expect(out.lines.find((l) => l.startsWith('dropped: setup = '))).toContain('(the value holds a control character)');
+    expect(out.out).not.toContain('‮');
+  });
 });

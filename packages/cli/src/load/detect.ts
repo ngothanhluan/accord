@@ -313,22 +313,33 @@ function trackerLinks(root: string, commits: Commit[]): Proposal | undefined {
 }
 
 /**
- * A filter over proposals: the ones `accord config set` would take. Each is applied to the repository's config.yml as `set` applies it, and
- * kept only when the result passes the schema, adds no floor problem, and (for subjects) collides with nothing. With no readable config.yml
- * nothing can be checked, so nothing is kept.
+ * Phase 8.4 D-08: why `accord config set` would not take a proposal's value, or `undefined` when it would. The proposal is applied to the repository's config.yml as `set` applies it,
+ * and refused when the result fails the schema, adds a floor problem, or (for subjects) collides with another kind's. With no readable config.yml nothing can be checked, so every
+ * proposal is refused. The file is read once; the returned function is the one definition of the refusal, used by `accepted` (init's own proposals) and by `accord config areas --proposals`.
  */
-function accepted(root: string): (p: Proposal) => boolean {
+export function refusal(root: string): (p: Proposal) => string | undefined {
   const text = readBounded(root, 'accord/config.yml');
   const before = text === undefined ? undefined : loadConfig('accord/config.yml', text);
   const known = new Set(floorProblems(before?.config).map((p) => p.pointer));
   return (p) => {
+    if (text === undefined) return 'there is no accord/config.yml to check it against';
     const path = resolveKeyPath(p.key);
-    if (text === undefined || path === undefined) return false;
+    if (path === undefined) return `no config key ${p.key}`;
     const after = setConfigValue(text, path, p.value);
-    if (after === undefined) return false;
+    if (after === undefined) return `the value cannot be written at ${p.key}`;
     const loaded = loadConfig('accord/config.yml', after);
-    if (loaded.findings.length > 0 || loaded.config === undefined) return false;
-    if (floorProblems(loaded.config).some((f) => !known.has(f.pointer))) return false;
-    return p.key !== 'commits.subjects' || subjectCollisions(loaded.config).length === 0;
+    const finding = loaded.findings[0];
+    if (finding !== undefined) return `${finding.pointer !== undefined && finding.pointer !== '' ? finding.pointer + ' ' : ''}${finding.reason}`;
+    if (loaded.config === undefined) return 'the file would not load';
+    const added = floorProblems(loaded.config).find((f) => !known.has(f.pointer));
+    if (added !== undefined) return `it adds a floor problem at ${added.pointer}`;
+    if (p.key === 'commits.subjects' && subjectCollisions(loaded.config).length > 0) return "its subjects collide with another kind's";
+    return undefined;
   };
+}
+
+/** A filter over proposals: the ones `accord config set` would take (see `refusal`). */
+function accepted(root: string): (p: Proposal) => boolean {
+  const refuse = refusal(root);
+  return (p) => refuse(p) === undefined;
 }

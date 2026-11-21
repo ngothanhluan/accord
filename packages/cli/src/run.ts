@@ -368,9 +368,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   config
     .command('areas [area]')
     .description("print the settings area by area: each top-level key with its value, what it controls and any proposal accord init's detection makes; writes nothing")
-    .option('--json', 'print { areas: [{ id, title, walk, keys: [{ key, text, value, proposals }] }] } instead of text')
-    .action((area: string | undefined, o: { json?: boolean }) => {
-      setCode(configAreas(preflight(opts), area, o));
+    .option('--json', 'print { areas: [{ id, title, walk, keys: [{ key, text, value, proposals }] }] } instead of text; with --proposals, { areas, dropped }')
+    .option('--proposals <file>', "merge the onboarding scan's proposals (a JSON array of { key, value, evidence }) with accord init's; init's wins on the same key; each refused one prints as a dropped: line")
+    .action((area: string | undefined, o: { json?: boolean; proposals?: string }) => {
+      setCode(configAreas(preflight(opts), area, o, opts.cwd));
     });
   config
     .command('check')

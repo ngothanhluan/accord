@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'resolve-pr', 'review-pr']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -246,6 +246,7 @@ const FIRST_COMMAND: Record<string, string> = {
   'accord-audit': 'audit',
   'accord-config': 'worktree check',
   'accord-onboard': 'worktree check',
+  'accord-resolve-pr': 'status',
   'accord-review-pr': 'diff-package',
 };
 const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
@@ -724,14 +725,15 @@ it('ac-3 each new mention names the step or event at which to read its file and 
 // The hint each installed skill shows after its name in the slash-command picker, from what its body takes:
 // `/accord` takes nothing (the dashboard), a request, or an action on a ticket id; a stage runs
 // `accord anchor`, whose id defaults to the ticket of the current branch; designer runs `accord gate ready <id>`.
-const HINTS: Record<string, string | null> = {
+const HINTS: Record<string, string> = {
   accord: '[request]',
-  // Phase 8.3 D-05 (Ruling 1): every command left carries a hint; one that takes no argument says so.
+  // Phase 8.3 D-05 (Ruling 1): every command left carries a hint; one that takes no argument says so. 08.3-25 sets the last one, so the table holds no null entry.
   'accord-upgrade': '[no arguments]',
   'accord-audit': '[no arguments]',
   'accord-debug': '[ticket id] [failure]',
   'accord-config': '[area]',
   'accord-onboard': '[no arguments]',
+  'accord-resolve-pr': '<PR | ticket id>',
   'accord-review-pr': '<PR | branch>',
   'accord-designer': '<ticket id>',
 };
@@ -752,8 +754,16 @@ describe('argument hints', () => {
     expect(new Set(skillMds.map((f) => baseOf(dirOf(f.path))))).toEqual(new Set(Object.keys(HINTS)));
   });
 
+  it('risk:regression the nine commands each carry a hint and the table holds no null entry (D-05)', () => {
+    expect(Object.keys(HINTS).sort()).toEqual(['accord', 'accord-audit', 'accord-config', 'accord-debug', 'accord-designer', 'accord-onboard', 'accord-resolve-pr', 'accord-review-pr', 'accord-upgrade']);
+    expect(Object.values(HINTS).filter((h) => typeof h !== 'string' || h === '')).toEqual([]);
+    const by = (name: string) => skillMds.filter((f) => baseOf(dirOf(f.path)) === name).map((f) => frontmatter(f.text)?.['argument-hint']);
+    expect([...new Set(by('accord-resolve-pr'))]).toEqual(['<PR | ticket id>']);
+    for (const name of Object.keys(HINTS)) expect(by(name).every((h) => typeof h === 'string' && h.length > 0), `${name} shows a hint in both directories`).toBe(true);
+  });
+
   it('risk:regression a hint is short and reads <required> [optional]', () => {
-    for (const hint of Object.values(HINTS).filter((h): h is string => h !== null)) {
+    for (const hint of Object.values(HINTS)) {
       expect(hint.length, hint).toBeLessThanOrEqual(64);
       expect(hint, hint).toMatch(/^(?:<[^<>[\]]+>|\[[^[\]]+\])(?: (?:<[^<>[\]]+>|\[[^[\]]+\]))*$/);
     }
@@ -784,6 +794,23 @@ describe('the installed skill set', () => {
     const stages = STAGES.filter((s) => Object.hasOwn(skills, s + '/SKILL.md')).map(installedName);
     expect(stages).toContain('accord');
     expect(single.map((f) => baseOf(dirOf(f.path))).sort()).toEqual([...stages, 'accord-designer'].sort());
+  });
+
+  // Phase 8.3 D-01 (Ruling 3): eight commands for every runtime, and the designer only when `roles` lists it.
+  it('risk:regression the installed skill set is exactly the eight commands plus the opt-in designer for every runtime (D-01)', () => {
+    const EIGHT = ['accord', 'accord-audit', 'accord-config', 'accord-debug', 'accord-onboard', 'accord-resolve-pr', 'accord-review-pr', 'accord-upgrade'];
+    expect([...STAGES].map(installedName).sort()).toEqual(EIGHT);
+    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'resolve-pr', 'review-pr']);
+    const folders = (cfg: AccordConfig, dir: string) =>
+      [...new Set(skillTargets(cfg).filter((f) => baseOf(f.path) === 'SKILL.md' && f.path.startsWith(dir + '/')).map((f) => baseOf(dirOf(f.path))))].sort();
+    for (const runtimes of [['claude'], ['codex'], ['cursor'], ['copilot'], ALL_RUNTIMES] as AccordConfig['runtimes'][]) {
+      const without = config({ roles: ['ba', 'dev'], runtimes });
+      const withDesigner = config({ roles: ['ba', 'dev', 'designer'], runtimes });
+      for (const dir of skillDirs(without)) {
+        expect(folders(without, dir), `${runtimes.join('+')} ${dir} without the designer role`).toEqual(EIGHT);
+        expect(folders(withDesigner, dir), `${runtimes.join('+')} ${dir} with the designer role`).toEqual([...EIGHT, 'accord-designer'].sort());
+      }
+    }
   });
 });
 
@@ -1211,6 +1238,16 @@ describe('retired skill folders', () => {
     }
     expect(RETIRED_FILES.filter((p) => p.includes('/accord-review-pr/'))).toEqual([]);
   });
+
+  // Phase 8.3 D-01, D-11 (08.3-25): the comments text left the accord folder for its own command. `accord/comments.md` rendered from v0.4.0 to v0.10.0 and under no other name in this folder.
+  it('risk:data-loss the accord folder retires comments.md and renders it nowhere (D-01)', () => {
+    for (const dir of SKILL_DIRS) expect(RETIRED_FILES, `${dir}/accord/comments.md`).toContain(`${dir}/accord/comments.md`);
+    for (const roster of ROSTERS) {
+      expect(roster.filter((f) => f.path.endsWith('/comments.md')).map((f) => f.path), 'a folder renders comments.md').toEqual([]);
+      expect(roster.some((f) => f.path.endsWith('/accord-resolve-pr/SKILL.md')), 'accord-resolve-pr renders').toBe(true);
+    }
+    expect(RETIRED_FILES.filter((p) => p.includes('/accord-resolve-pr/'))).toEqual([]);
+  });
 });
 
 // Phase 8.3 D-04: a ticket's lane and stage map to a file of the accord folder. `STAGE_FILES` is the one map (each fold adds its stage); the cases read it,
@@ -1467,7 +1504,7 @@ describe('a ticket at a stage', () => {
   it('risk:regression STAGE_FILES holds exactly the six stages and done and no stage is a command (D-04)', () => {
     expect(Object.keys(STAGE_FILES).sort()).toEqual(['approach', 'build', 'done', 'intent', 'plan', 'review', 'verify']);
     expect(STAGE_FILES).toEqual({ intent: 'intent.md', approach: 'approach.md', plan: 'plan.md', build: 'build.md', review: 'review.md', verify: 'verify.md', done: 'verify.md' });
-    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
+    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'resolve-pr', 'review-pr']);
     for (const stage of ['intent', 'approach', 'plan', 'build', 'review', 'verify']) {
       expect(Object.keys(HINTS), `HINTS holds no command for ${stage}`).not.toContain('accord-' + stage);
       expect(Object.keys(FIRST_COMMAND), `FIRST_COMMAND holds no command for ${stage}`).not.toContain('accord-' + stage);

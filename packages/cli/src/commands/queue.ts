@@ -41,7 +41,7 @@ const listsKey = (people: Record<string, string> | undefined, key: string): bool
  * branch, and push that commit. A single ticket passes one file; an epic and its stories (ST-LN-28 D-14) pass them all, `id` being the epic's.
  * The commit also holds the `creator`'s people entry, added to the default branch's accord/config.yml, when that file has a people mapping
  * that does not list the creator (G-07-2 A-1); a default branch with no people mapping gets none, so the queue never switches the id convention on.
- * Prints the branch, the base, the subject and the `queue.merge` setting, which the `/accord-queue` command acts on (D-02, D-03), then a `people:` line
+ * Prints the branch, the base, the subject and the `queue.merge` setting, which the queue route of `/accord` (`/accord queue <idea>`) acts on (D-02, D-03), then a `people:` line
  * about the creator's entry.
  */
 export function queueTicket(ctx: CommandContext, id: string, files: Record<string, string>, date: string = utcDate(), creator?: Creator): number {

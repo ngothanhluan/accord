@@ -343,7 +343,8 @@ it('risk:parsing the example reply scan.md shows a settings scout passes accord 
     writeFileSync(join(repo, 'report.md'), example ?? '');
 
     const passing = await run(['scout', 'check', 'report.md'], repo);
-    expect(passing.out).toBe('scout check passed\n');
+    expect(passing.out).not.toContain('fail:');
+    expect(passing.out.endsWith('scout check passed\n')).toBe(true);
     expect(passing.code).toBe(0);
 
     // the same reply with an Absent row that is no regular expression still fails

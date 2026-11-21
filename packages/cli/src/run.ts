@@ -20,7 +20,7 @@ import { pr } from './commands/pr.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
-import { configCheck, configGet, configSet, configUnset } from './commands/config.js';
+import { configAreas, configCheck, configGet, configSet, configUnset } from './commands/config.js';
 import { gate } from './commands/gate.js';
 import { hook, HOOK_EVENTS, preToolUseWrite } from './commands/hook.js';
 import { init } from './commands/init.js';
@@ -362,6 +362,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--json', 'print { key, from, to, consequences } instead of text')
     .action((key: string, o: { json?: boolean }) => {
       setCode(configUnset(preflight(opts), key, o));
+    });
+  // Phase 8.3 D-08, D-13: read-only; the settings area by area for /accord-config, with the proposals accord init's detection makes.
+  config
+    .command('areas [area]')
+    .description("print the settings area by area: each top-level key with its value, what it controls and any proposal accord init's detection makes; writes nothing")
+    .option('--json', 'print { areas: [{ id, title, walk, keys: [{ key, text, value, proposals }] }] } instead of text')
+    .action((area: string | undefined, o: { json?: boolean }) => {
+      setCode(configAreas(preflight(opts), area, o));
     });
   config
     .command('check')

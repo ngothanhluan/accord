@@ -24,7 +24,7 @@ const body = flat(withoutMarker(skill).replace(/^---\n[\s\S]*?\n---\n/, ''));
 describe('the config skill walks areas from the CLI and writes only through accord config set', () => {
   it('risk:regression the config skill walks areas from the CLI and writes only through accord config set (D-08)', () => {
     expect(skill, 'accord-config/SKILL.md is not rendered').not.toBe('');
-    expect(skill).toMatch(/^name: accord-config$/m);
+    expect(skill).toMatch(/^name: "?accord-config"?$/m);
     expect(skill).toMatch(/^argument-hint: ["']?\[area\]["']?$/m);
     // it opens on the session check, before any other accord command
     const firstCommand = /`accord ([^\s`]+(?: [^\s`<]+)?)/.exec(body);

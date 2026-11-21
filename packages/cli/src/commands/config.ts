@@ -4,12 +4,13 @@
 // committed or pushed here: the onboarding skill does that.
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, mergeProposals, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
+import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, mergeProposals, parseValue, resolveKeyPath, scoutCheck, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
 import type { ConfigProposal, LoadFinding } from '@accord-dev/accord-core';
-import { detectProposals } from '../load/detect.js';
+import { detectProposals, refusal } from '../load/detect.js';
 import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
-import { shown } from '../load/script-trust.js';
+import { SCRIPT_KINDS, shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
+import { workingFacts } from './scout.js';
 
 const FILE = 'accord/config.yml';
 /** Phase 8.4 D-08 (T-08.4-14): the scan's file is read only when it is a regular file of at most this many bytes, and holds at most MAX_SCAN_ENTRIES entries. */
@@ -189,6 +190,39 @@ function readScanProposals(file: string, cwd: string): ConfigProposal[] {
   });
 }
 
+/** Every dotted key a proposal sets: the key itself, or for a plain-object value the key joined with each nested key, down to a value that is no non-empty object. */
+function leafPaths(key: string, value: unknown): string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [key];
+  const entries = Object.entries(value);
+  return entries.length === 0 ? [key] : entries.flatMap(([k, v]) => leafPaths(`${key}.${k}`, v));
+}
+
+/**
+ * Phase 8.4 D-07, D-08 (Ruling 5): the refusals only the CLI can check, handed to core's `mergeProposals` as its last rule, the first reason winning: a proposal that sets one of the scripts behind
+ * `accord trust` (a leaf path equal to or under a kind of SCRIPT_KINDS, also through a parent key's object value); a value holding a control character; a value `accord config set` would refuse
+ * (`refusal`, which also refuses a parent of a script key given a value that is no object, as the schema types every such parent as one); the value the file already holds; and evidence whose
+ * `path:line` is no tracked file with that line (core's `scoutCheck`). A command for a worktree's setup or for the tests is not refused for being a command (the owner's answer of 2026-11-21).
+ */
+function scanRefusal(ctx: CommandContext, text: string): (p: ConfigProposal) => string | undefined {
+  const refuse = refusal(ctx.root);
+  let facts: ReturnType<typeof workingFacts> | undefined;
+  return (p) => {
+    for (const leaf of leafPaths(p.key, p.value)) {
+      const kind = SCRIPT_KINDS.find((k) => leaf === k || leaf.startsWith(k + '.'));
+      if (kind !== undefined) return `sets ${kind}, a script that runs only after accord trust`;
+    }
+    const json = JSON.stringify(p.value) ?? '';
+    if (shown(json) !== json) return 'the value holds a control character';
+    const why = refuse(p);
+    if (why !== undefined) return `accord config set would refuse it: ${why}`;
+    const path = resolveKeyPath(p.key);
+    if (path !== undefined && JSON.stringify(getConfigValue(text, path)) === json) return 'same as the current value';
+    facts ??= workingFacts(ctx.root);
+    const failure = scoutCheck({ text: '## Files\n\n## Facts\n- ' + p.evidence + '\n', ...facts }).failures.find((f) => f.startsWith('citation '));
+    return failure === undefined ? undefined : `evidence ${failure}`;
+  };
+}
+
 /**
  * Phase 8.3 D-08, D-13 (Ruling 9): the settings area by area for `/accord-config`. Per area in data order `area: <id> - <title>` (with ` (not walked: accord writes these)` for an area accord writes itself), then per
  * top-level key `  <key> = <YAML flow value, or unset> - <what it controls>`, then each proposal for that key as init prints it. The areas and the texts come from core's data (packages/core/schemas/config-areas.json), the
@@ -197,7 +231,9 @@ function readScanProposals(file: string, cwd: string): ConfigProposal[] {
  *
  * Phase 8.4 D-07, D-08: with `options.proposals`, the named file (a JSON array of `{ key, value, evidence }` the onboarding session wrote from its scan, resolved against `cwd`) is
  * merged with init's proposals by core's `mergeProposals`: init's wins on the same key, an ancestor or a descendant, and each refused scan proposal prints as
- * `dropped: <key> = <JSON value>  (<reason>)` after the areas, whatever area was asked, or as the `dropped` list of `--json`. Still writes nothing.
+ * `dropped: <key> = <JSON value>  (<reason>)` after the areas, whatever area was asked, or as the `dropped` list of `--json`. Core drops a scan proposal with no config key, for a key accord writes or with
+ * evidence that is no file and line or count; `scanRefusal` then drops a script behind `accord trust`, a control character, a value `config set` refuses, the current value and a citation that does not resolve.
+ * Still writes nothing.
  */
 export function configAreas(ctx: CommandContext, area: string | undefined, options: { json?: boolean; proposals?: string }, cwd: string = ctx.root): number {
   const ids = CONFIG_AREAS.map((a) => a.id);
@@ -209,7 +245,7 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
     throw new UsageError(`no ${FILE} in ${ctx.root} - run accord init`);
   }
   const init = detectProposals(ctx.root);
-  const merged = options.proposals === undefined ? { proposals: init, dropped: [] } : mergeProposals(init, readScanProposals(options.proposals, cwd));
+  const merged = options.proposals === undefined ? { proposals: init, dropped: [] } : mergeProposals(init, readScanProposals(options.proposals, cwd), scanRefusal(ctx, text));
   const proposals = merged.proposals;
   const dropped = merged.dropped.map((d) => ({ key: d.key, value: d.value, evidence: d.evidence, reason: d.reason }));
   const rows = CONFIG_AREAS.filter((a) => area === undefined || a.id === area).map((a) => ({

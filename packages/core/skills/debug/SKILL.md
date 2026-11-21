@@ -4,7 +4,7 @@ description: Use when a lane M ticket's work behaves unexpectedly, a test fails 
 license: MIT
 argument-hint: "[ticket id] [failure]"
 kind: skill
-loads: [accord/ids.md, accord/worktree.md, debug/debug-free.md, shared/ask.md, shared/failure.md, shared/resume.md]
+loads: [accord/ids.md, accord/worktree.md, debug/debug-comment.md, debug/debug-free.md, shared/ask.md, shared/failure.md, shared/resume.md]
 ---
 
 This stage finds a root cause before anything is fixed. You run it in the
@@ -14,6 +14,8 @@ main session and orchestrate: debuggers investigate, executors fix.
 
 1. Run `accord anchor`. When it prints nothing and no ticket id was given, no ticket holds the issue: follow `./debug-free.md` instead of the steps below. For a failure found after verify, read `./failure.md`.
    When `./failure.md` runs `accord worktree open`, follow `./worktree.md`.
+   A run `/accord-resolve-pr` starts for a comment on its pull request follows
+   `./debug-comment.md` at steps 3 and 4.
 
 2. **State.** Everything this stage learns lives in
    `accord/tickets/<id>/debug.md`: the symptom, the hypotheses, the

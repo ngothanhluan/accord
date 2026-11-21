@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, parseRounds, recordHeaderFaults, skillDirs, skillTargets, STAGES, UNFINISHED_MARKER } from '../src/index.js';
+import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, parseRounds, recordHeaderFaults, REPORT_CONTRACT, skillDirs, skillTargets, STAGES, UNFINISHED_MARKER } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_RULES } from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
@@ -1494,7 +1494,7 @@ it('risk:regression accord-resolve-pr is the comments procedure as its own comma
   expect(dirs).toEqual(['.agents/skills', '.claude/skills']);
   const raw = (dir: string, name: string) => all.find((f) => f.path === `${dir}/accord-resolve-pr/${name}`)?.text;
   // the command renders its four references beside it, identical in every target directory
-  for (const name of ['SKILL.md', 'worktree.md', 'ids.md', 'failure.md', 'ask.md']) {
+  for (const name of ['SKILL.md', 'worktree.md', 'ids.md', 'failure.md', 'ask.md', 'judge.md']) {
     const copies = dirs.map((d) => raw(d, name));
     for (const [i, copy] of copies.entries()) expect(copy, `${dirs[i]}/accord-resolve-pr/${name} renders`).toBeDefined();
     expect(flat(copies[0] ?? '').replace(/<!--.*?-->/g, ''), name + ' differs between the directories').toBe(flat(copies[1] ?? '').replace(/<!--.*?-->/g, ''));
@@ -1518,7 +1518,7 @@ it('risk:regression accord-resolve-pr is the comments procedure as its own comma
     'the fix commits are pushed as the stages of `/accord` already push them',
     'open and not merged', 'lane M from verify on, lane S from its step 6', 'Never read a pull request\'s comments unasked',
     "Take each review thread, each top-level comment and each review's summary as one comment, a reply inside a thread being part of that thread, by a person whoever it is, the owner included",
-    'mark it holds, does not hold, or unclear before fixing any comment',
+    'it marks each comment holds, does not hold, or unclear, with evidence',
     'a failed check follows `./failure.md` instead',
     'Only once steps 3 and 4 are clear: a comment that holds and reports a failure in the work follows `./failure.md` from its step 1, through `accord-debug`, in lane M only; in lane S it is fixed as the lane S steps say, a bug getting a failing test first, then the fix and another review round. Classify each other comment that holds',
     "the ticket whose `branch` in `accord status --json` is the pull request's branch (`gh pr view <link> --json headRefName`)",
@@ -1536,7 +1536,7 @@ it('risk:regression accord-resolve-pr is the comments procedure as its own comma
     'Post no reply, comment or review to the pull request before that yes',
   ];
   expect(parts.filter((p) => !c.includes(p))).toEqual([]);
-  const order = ['**Read.**', '**Check.**', '**Unclear first.**', '**Conflicts.**', '**Fix.**', '**Reply.**'].map((h) => c.indexOf(h));
+  const order = ['**Read.**', '**Judge.**', '**Unclear first.**', '**Conflicts.**', '**Fix.**', '**Reply.**'].map((h) => c.indexOf(h));
   expect(order.every((i, n) => i > -1 && (n === 0 || i > order[n - 1]!))).toBe(true);
   // the moved text names only files its own folder renders
   for (const gone of ['./comments.md', './review.md']) expect(c, gone).not.toContain(gone);
@@ -1961,7 +1961,7 @@ it('risk:regression the plan, verify and debug skills dispatch resume mode when 
 });
 
 it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 lines after the resume pointers (ST-LN-72 72-ac-2)', () => {
-  const budget: Record<string, number> = { plan: 5980, verify: 5980, debug: 5710 };
+  const budget: Record<string, number> = { plan: 5980, verify: 5980, debug: 5980 };
   const bad: string[] = [];
   for (const [stage, max] of Object.entries(budget)) {
     const text = files.find((f) => f.path === stageFile(stage))?.text ?? '';
@@ -2852,5 +2852,121 @@ it('risk:regression debug outside a ticket finds the root cause and fixes nothin
   const bytes = new TextEncoder().encode(text).length;
   if (bytes > 5980) bad.push('accord-debug/SKILL.md is ' + bytes + ' bytes, above 5980');
   if (text.split('\n').length > 120) bad.push('accord-debug/SKILL.md is over 120 lines');
+  expect(bad).toEqual([]);
+});
+
+// Phase 8.4 (08.4-04, D-03): /accord-resolve-pr starts accord-debug for a bug comment of a lane M ticket; its executor commits only the failing test and stops, and the judge rules before any fix.
+const TEST_ONLY_LINE = 'Test only: commit the reproduction test alone, then stop.';
+const DEBUG_RUNTIMES = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+
+it('risk:regression accord-debug started by accord-resolve-pr for a comment commits only the failing test and stops before any fix (D-03)', () => {
+  const flatT = (t: string) => t.replace(/\s+/g, ' ');
+  const all = skillTargets(DEBUG_RUNTIMES);
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const skill = flatT(all.find((f) => f.path === dir + '/accord-debug/SKILL.md')?.text ?? '');
+    const sentence = 'A run `/accord-resolve-pr` starts for a comment on its pull request follows `./debug-comment.md` at steps 3 and 4.';
+    const at = [skill.indexOf('1. Run `accord anchor`'), skill.indexOf(sentence), skill.indexOf('2. **State.**')];
+    if (at[0]! < 0 || at[1]! < at[0]! || at[2]! < at[1]!) bad.push(dir + ' accord-debug/SKILL.md does not hold the step 1 sentence between steps 1 and 2: ' + at.join(','));
+    const raw = all.find((f) => f.path === dir + '/accord-debug/debug-comment.md')?.text ?? '';
+    if (raw === '') {
+      bad.push(dir + '/accord-debug/debug-comment.md is not shipped');
+      continue;
+    }
+    if (/^---/.test(raw)) bad.push(dir + ' debug-comment.md opens a frontmatter block');
+    const ref = flatT(raw);
+    for (const p of [
+      '# A bug claimed in a pull request comment',
+      'The judge, never this stage, decides whether the comment holds, and it rules before any fix',
+      'Every other run of this stage skips this file.',
+      '**Report.**',
+      'Step 3 runs as written',
+      'A second return without evidence stops at the owner, as step 3 says: no test is written and no fix starts.',
+      '**Test only.**',
+      '`' + TEST_ONLY_LINE + '` as the last line of the brief',
+      'commits that test alone, with any fixture it reads, when it fails on the reported behaviour',
+      'commits nothing when it passes, leaving it uncommitted',
+      '**Hand back.**',
+      'any other file means a fix came before the judge: stop and ask the owner',
+      '- test only: <commit or none> <test id>',
+      'which counts no fix',
+      'Leave the episode open, run none of steps 5 to 9',
+      "the test id, the test's file and that output file",
+      '**Holds.**',
+      'skip step 3',
+      'with no `Test only:` line, naming that test and its commit',
+      'steps 5 to 9 run as written',
+    ])
+      if (!ref.includes(p)) bad.push(dir + ' debug-comment.md lacks ' + p);
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression a debug run not started for a pull request comment keeps its steps and its executor brief unchanged (D-03)', () => {
+  const flatT = (t: string) => t.replace(/\s+/g, ' ');
+  const skillFiles = skillTargets(DEBUG_RUNTIMES);
+  const bad: string[] = [];
+  const holding = skillFiles.filter((f) => f.text.includes('Test only:'));
+  if (holding.length === 0) bad.push('no rendered skill file holds Test only:');
+  for (const f of holding) if (!f.path.endsWith('/accord-debug/debug-comment.md')) bad.push(f.path + ' holds Test only:');
+  const agentFiles = agentTargets(DEBUG_RUNTIMES).filter((f) => f.text.includes('Test only:'));
+  if (agentFiles.length === 0) bad.push('no agent holds Test only:');
+  for (const f of agentFiles) if (!f.path.endsWith('/accord-executor.md')) bad.push(f.path + ' holds Test only:');
+  for (const f of skillFiles.filter((g) => g.text.includes('debug-comment.md'))) {
+    if (!f.path.endsWith('/accord-debug/SKILL.md')) bad.push(f.path + ' names debug-comment.md');
+    else if (f.text.split('debug-comment.md').length !== 2) bad.push(f.path + ' names debug-comment.md more than once');
+  }
+  for (const f of skillFiles.filter((g) => g.path.endsWith('/accord-debug/SKILL.md'))) {
+    const text = flatT(f.text);
+    const step4 = text.slice(text.indexOf('4. **Fix.**'), text.indexOf('5. **Check.**'));
+    if (step4 === '' || text.indexOf('4. **Fix.**') < 0) bad.push(f.path + ' has no step 4');
+    for (const s of [
+      'The main session never edits product code: the fix goes through the executor path of the build stage of `/accord`.',
+      'Note the HEAD sha.',
+      'copy the ticket file byte for byte (never retype it), then append the root cause, its evidence, and the reproduction test.',
+      'The executor starts with that failing reproduction test, greps every caller of what it changes, and fixes the root cause once in shared code, never at each caller.',
+      'Dispatch a fresh `accord-executor` with its path.',
+      'Route every other stop as the build stage of `/accord` does.',
+    ])
+      if (!step4.includes(s)) bad.push(f.path + ' step 4 lacks ' + s);
+    if (step4.includes('Test only') || step4.includes('debug-comment')) bad.push(f.path + ' step 4 names the comment run');
+  }
+  for (const f of skillFiles.filter((g) => /\/(failure|debug-free|resume)\.md$/.test(g.path))) if (f.text.includes('Test only') || f.text.includes('debug-comment')) bad.push(f.path + ' names the comment run');
+  if (REPORT_CONTRACT.includes('Test only')) bad.push('REPORT_CONTRACT holds Test only');
+  expect(bad).toEqual([]);
+});
+
+it('risk:complex-branching a lane M comment that ends with no fix closes its debug episode and reverts its test commit (D-02)', () => {
+  const flatT = (t: string) => t.replace(/\s+/g, ' ');
+  const all = skillTargets(DEBUG_RUNTIMES);
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const ref = flatT(all.find((f) => f.path === dir + '/accord-debug/debug-comment.md')?.text ?? '');
+    if (ref === '') {
+      bad.push(dir + '/accord-debug/debug-comment.md is not shipped');
+      continue;
+    }
+    for (const p of [
+      '**No fix.**',
+      "On `does not hold`, or when the comment ends with no fix after its author's or the owner's answer",
+      'append `## Resolved` to `debug.md` with the verdict and its reason',
+      'delete the uncommitted test file its report names',
+      'revert that one commit yourself with `git revert`, never a reset',
+      'it holds the test alone, never product code',
+      'step 4 of `./failure.md` gives a fix: its own review round, then verify again',
+      "On `unclear` the episode stays open while the comment is asked, and the next comment's run waits for it",
+      '**After a `/clear`.**',
+      'holds a `- test only:` line goes on from that line',
+      'run that test with the `tests.affected` command',
+    ])
+      if (!ref.includes(p)) bad.push(dir + ' debug-comment.md lacks ' + p);
+    const at = ['**Holds.**', '**No fix.**', '**After a `/clear`.**'].map((p) => ref.indexOf(p));
+    if (at[0]! < 0 || at[1]! < at[0]! || at[2]! < at[1]!) bad.push(dir + ' debug-comment.md paragraphs are out of order: ' + at.join(','));
+    const judge = flatT(all.find((f) => f.path === dir + '/accord-resolve-pr/judge.md')?.text ?? '');
+    const section = judge.slice(Math.max(0, judge.indexOf('## In `/accord-resolve-pr`')));
+    const holds = section.indexOf('In lane M, `holds` sends the comment to step 5');
+    const none = section.indexOf('`does not hold` or `unclear` starts no fix');
+    if (holds < 0 || none < holds) bad.push(dir + ' accord-resolve-pr/judge.md lacks the no-fix route after the holds route: ' + holds + ',' + none);
+  }
   expect(bad).toEqual([]);
 });

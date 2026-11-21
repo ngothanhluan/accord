@@ -722,6 +722,7 @@ it('ac-3 each new mention names the step or event at which to read its file and 
     ['accord/SKILL.md', './finish.md', A],
     ['accord-debug/SKILL.md', './worktree.md', B],
     ['accord-debug/SKILL.md', './ids.md', C],
+    ['accord-debug/SKILL.md', './debug-comment.md', 'at steps 3 and 4'],
     ['accord/verify.md', './worktree.md', B],
     ['accord/verify.md', './ids.md', D],
   ];

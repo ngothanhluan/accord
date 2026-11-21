@@ -1,10 +1,10 @@
 ---
 name: accord-resolve-pr
-description: Use when someone asks to handle the feedback on a pull request. It checks every comment against the code before fixing any, fixes what holds through the ticket's stages, and posts replies only after the owner's yes.
+description: Use when someone asks to handle the feedback on a pull request. A fresh read-only judge checks every comment before any fix, fixes what holds through the ticket's stages, and replies are posted only after the owner's yes.
 license: MIT
 argument-hint: "<PR | ticket id>"
 kind: skill
-loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
+loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/judge.md]
 ---
 
 # Comments on a ticket's pull request
@@ -26,19 +26,27 @@ followed by the request, in place of the line it prints, and stop here.
    review's summary as one comment, a reply inside a thread being part of
    that thread, by a person whoever it is, the owner included; a failed
    check follows `./failure.md` instead.
-2. **Check.** Check each comment against the code and mark it holds, does
-   not hold, or unclear before fixing any comment. A comment from the
+2. **Judge.** Before fixing any comment, dispatch a fresh `accord-judge` for
+   each comment, as `./judge.md` says, given the ticket file
+   `accord/tickets/<id>.md`; it marks each comment holds, does not hold, or
+   unclear, with evidence, and you route each comment by its verdict as
+   `./judge.md` says, never judging one yourself while that agent is
+   available to you. With no comment, there is nothing to judge or fix; say
+   so and stop. A bug claim holds only on a failing test, which `./judge.md`
+   says how to get. A comment from the
    owner takes the same steps, and goes under `## Corrections` only when
    it changes the intent or a criterion and the owner confirms it.
-3. **Unclear first.** When any comment is unclear, draft a question to its
+3. **Unclear first.** When any comment is unclear (its verdict is `unclear`
+   with neither a `reproduce:` nor a `to owner:` line), draft a question to its
    author for its thread, show those drafts to the owner and post them
    only after the owner's yes. Fix no comment until every unclear comment
    is answered, in its thread by its author or in the chat by the owner,
    since comments may be related.
 4. **Conflicts.** When a comment asks for something a Veto, Decision or
-   Correction of the ticket forbids or settles otherwise, stop handling
-   every comment and ask the owner about that one, naming the Veto,
-   Decision or Correction. Fix no comment until the owner answers. This
+   Correction of the ticket forbids or settles otherwise, or the judge's
+   `to owner:` line says it touches the intent, a Veto, a Decision or a
+   Correction, stop handling every comment and ask the owner about that
+   one, naming the Veto, Decision or Correction. Fix no comment until the owner answers. This
    comes before step 3: post no question while a conflict is open.
 5. **Fix.** Only once steps 3 and 4 are clear: a comment that holds and
    reports a failure in the work follows `./failure.md` from its step 1,
@@ -51,9 +59,14 @@ followed by the request, in place of the line it prints, and stop here.
    then takes the path `./failure.md` gives a failure reported after
    verify: one new review round and then verify again for lane M, the
    lane S steps for lane S.
-6. **Reply.** Once every comment is fixed, declined or answered, draft one
-   reply per comment: the commit that fixed it, the reason it was not
-   changed, or the answer it took. Show every draft to the owner together,
+6. **Reply.** Before a reply says a comment was fixed in a commit, dispatch
+   a fresh `accord-judge` to re-check that comment against the new code, as
+   `./judge.md` says: the reproducing test now passes, or the file and line
+   it cited now differ. A comment that fails the re-check gets no fixed
+   reply and goes back to step 5. Once every comment is fixed, declined or
+   answered, draft one reply per comment: the commit that fixed it, the
+   reason it was not changed, or the answer it took. A declined reply
+   carries the judge's evidence. Show every draft to the owner together,
    apply the owner's changes to any of them, and post them to their
    threads only after the owner's yes. Post no reply, comment or review to
    the pull request before that yes; the fix commits are pushed as the

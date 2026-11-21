@@ -142,6 +142,8 @@ export type { AuditFact, AuditGap } from './audit/conventions.js';
 export { CONFIG_KEYS, newKeys, setKeysOf } from './audit/keys.js';
 export type { ConfigKeyRow } from './audit/keys.js';
 export { CONFIG_AREAS } from './audit/config-areas.js';
+export { mergeProposals } from './config/proposals.js';
+export type { ConfigProposal, DroppedProposal, MergedProposals } from './config/proposals.js';
 export type { ConfigArea, ConfigAreaKey } from './audit/config-areas.js';
 export { subjectRuleProblems } from './lint/config.js';
 export type { SubjectRuleProblem } from './lint/config.js';

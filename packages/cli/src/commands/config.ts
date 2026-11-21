@@ -3,9 +3,9 @@
 // and writes once only when nothing is found; a refusal exits 2 and leaves the file byte-identical. Nothing is
 // committed or pushed here: the onboarding skill does that.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
-import type { LoadFinding } from '@accord-dev/accord-core';
+import { join, resolve } from 'node:path';
+import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, mergeProposals, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
+import type { ConfigProposal, LoadFinding } from '@accord-dev/accord-core';
 import { detectProposals } from '../load/detect.js';
 import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
 import { shown } from '../load/script-trust.js';
@@ -154,13 +154,44 @@ export function configUnset(ctx: CommandContext, key: string, options: { json?: 
   return report(ctx, key, from, undefined, out.consequences, options);
 }
 
+/** The scan's proposals from `file`: a JSON array whose every entry is `{ key, value, evidence }`. Any other file is a usage error (exit 2) naming the file with `/`. */
+function readScanProposals(file: string, cwd: string): ConfigProposal[] {
+  const abs = resolve(cwd, file);
+  const name = shown(file.replace(/\\/g, '/'));
+  let raw: string;
+  try {
+    raw = readFileSync(abs, 'utf8');
+  } catch (err) {
+    throw new UsageError(shown(`cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`.replace(/\\/g, '/')));
+  }
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch (err) {
+    throw new UsageError(`${name} is not JSON: ${shown((err instanceof Error ? err.message : String(err)).split('\n')[0] ?? '')}`);
+  }
+  if (!Array.isArray(data)) throw new UsageError(`${name} is not a JSON array of { key, value, evidence } proposals`);
+  return data.map((entry: unknown, i): ConfigProposal => {
+    const e = entry as Record<string, unknown> | null;
+    const plain = typeof e === 'object' && e !== null && !Array.isArray(e);
+    if (!plain || typeof e.key !== 'string' || typeof e.evidence !== 'string' || !Object.hasOwn(e, 'value')) {
+      throw new UsageError(`${name}: entry ${i + 1} is not { key, value, evidence } with a string key and a string evidence`);
+    }
+    return { key: e.key, value: e.value, evidence: e.evidence };
+  });
+}
+
 /**
  * Phase 8.3 D-08, D-13 (Ruling 9): the settings area by area for `/accord-config`. Per area in data order `area: <id> - <title>` (with ` (not walked: accord writes these)` for an area accord writes itself), then per
  * top-level key `  <key> = <YAML flow value, or unset> - <what it controls>`, then each proposal for that key as init prints it. The areas and the texts come from core's data (packages/core/schemas/config-areas.json), the
  * values from the file's text, the proposals from the detector `accord init` runs (read-only, bounded, never throws), so the skill needs no scan of its own (D-09). Writes nothing. Every string that comes from the repository
  * (a value, an evidence line) passes `shown()`.
+ *
+ * Phase 8.4 D-07, D-08: with `options.proposals`, the named file (a JSON array of `{ key, value, evidence }` the onboarding session wrote from its scan, resolved against `cwd`) is
+ * merged with init's proposals by core's `mergeProposals`: init's wins on the same key, an ancestor or a descendant, and each refused scan proposal prints as
+ * `dropped: <key> = <JSON value>  (<reason>)` after the areas, whatever area was asked, or as the `dropped` list of `--json`. Still writes nothing.
  */
-export function configAreas(ctx: CommandContext, area: string | undefined, options: { json?: boolean }): number {
+export function configAreas(ctx: CommandContext, area: string | undefined, options: { json?: boolean; proposals?: string }, cwd: string = ctx.root): number {
   const ids = CONFIG_AREAS.map((a) => a.id);
   if (area !== undefined && !ids.includes(area)) throw new UsageError(`no area ${shown(area)} - the areas are ${ids.join(', ')}`);
   let text: string;
@@ -169,7 +200,10 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
   } catch {
     throw new UsageError(`no ${FILE} in ${ctx.root} - run accord init`);
   }
-  const proposals = detectProposals(ctx.root);
+  const init = detectProposals(ctx.root);
+  const merged = options.proposals === undefined ? { proposals: init, dropped: [] } : mergeProposals(init, readScanProposals(options.proposals, cwd));
+  const proposals = merged.proposals;
+  const dropped = merged.dropped.map((d) => ({ key: d.key, value: d.value, evidence: d.evidence, reason: d.reason }));
   const rows = CONFIG_AREAS.filter((a) => area === undefined || a.id === area).map((a) => ({
     id: a.id,
     title: a.title,
@@ -182,16 +216,17 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
     })),
   }));
   if (options.json === true) {
-    ctx.stdout.write(JSON.stringify({ areas: rows }, null, 2) + '\n');
+    ctx.stdout.write(JSON.stringify(options.proposals === undefined ? { areas: rows } : { areas: rows, dropped }, null, 2) + '\n');
     return 0;
   }
   for (const a of rows) {
     ctx.stdout.write(`area: ${a.id} - ${a.title}${a.walk ? '' : ' (not walked: accord writes these)'}\n`);
     for (const k of a.keys) {
       ctx.stdout.write(`  ${k.key} = ${k.value === null ? 'unset' : shown(flowValue(k.value))} - ${k.text}\n`);
-      for (const p of k.proposals) ctx.stdout.write(`  proposal: ${p.key} = ${JSON.stringify(p.value)}  (evidence: ${shown(p.evidence)})\n`);
+      for (const p of k.proposals) ctx.stdout.write(`  proposal: ${shown(p.key)} = ${shown(JSON.stringify(p.value))}  (evidence: ${shown(p.evidence)})\n`);
     }
   }
+  for (const d of dropped) ctx.stdout.write(`dropped: ${shown(d.key)} = ${shown(JSON.stringify(d.value))}  (${shown(d.reason)})\n`);
   return 0;
 }
 

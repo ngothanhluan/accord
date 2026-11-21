@@ -487,11 +487,15 @@ describe('render output invariants', () => {
     // Guard the guard: a matcher that cannot match fails here before it passes below.
     expect(named('open it in ' + PRODUCTS[3])).toEqual([PRODUCTS[3]]);
     const offenders: string[] = [];
-    // The one declared parity exception (ST-LN-39 D-08, 39-ac-2): verify/writer.md says where a hook enforces the
+    // The one declared parity exception (ST-LN-39 D-08, 39-ac-2): the verify writer file says where a hook enforces the
     // verifier-only rule and that the other tools do not, so it names the tools. No other file may.
-    const PARITY_EXCEPTION = '/accord-verify/writer.md';
+    // Named by its rendered path (D-04, T-08.3-35): the exemption is for a file that renders, so a move that renames it cannot leave a stale name.
+    const PARITY_EXCEPTIONS = new Set(allSkillDirs().map((dir) => stagePath('verify', 'writer', dir)));
+    expect(PARITY_EXCEPTIONS.size, 'one exempt path per skill directory').toBeGreaterThan(0);
+    for (const p of PARITY_EXCEPTIONS) expect(output.some((f) => f.path === p), p + ' is rendered').toBe(true);
+    expect(output.some((f) => f.path.endsWith('/accord-verify/writer.md')), 'the bare writer name no longer renders (D-04)').toBe(false);
     for (const { path, text } of [...output, ...agents]) {
-      if (path.endsWith(PARITY_EXCEPTION)) continue;
+      if (PARITY_EXCEPTIONS.has(path)) continue;
       text.split('\n').forEach((line, i) => {
         for (const p of named(line)) offenders.push(`${path}:${i + 1}: ${p}`);
       });

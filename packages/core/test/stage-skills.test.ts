@@ -49,7 +49,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', './build.md', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', './plan.md', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './build-waves.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify', 're-review', 'places checked:', 'ADDRESSED', './review-record.md', './review-security.md', './plan.md', './build.md'],
-  verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
+  verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md', './verify-ci.md', './verify-deferred.md', './verify-writer.md'],
   debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
 };
 
@@ -138,6 +138,32 @@ it("risk:regression the build stage's children render under their prefixed names
   expect(bare.test('as `./waves.md` says')).toBe(true);
   expect(bare.test('follow `./no-plan.md` instead')).toBe(true);
   expect(bare.test('as `./build-waves.md` says, and `./build-no-plan.md`')).toBe(false);
+});
+
+// Phase 8.3 D-04 (children first): the verify stage's three children live in the accord source under their prefixed names, so the verify fold of 08.3-18 moves one hub file.
+it("risk:regression the verify stage's children render under their prefixed names (D-04)", () => {
+  const bare = /(?:^|[^-\w])\.\/(?:ci|deferred|writer)\.md/;
+  const prefixed = ['verify-ci.md', 'verify-deferred.md', 'verify-writer.md'];
+  const gone = ['ci.md', 'deferred.md', 'writer.md'];
+  for (const runtime of ['claude', 'codex', 'cursor', 'copilot'] as const) {
+    const cfg = { ...config, runtimes: [runtime] } as AccordConfig;
+    const out = skillTargets(cfg);
+    const paths = new Set(out.map((f) => f.path));
+    for (const dir of skillDirs(cfg)) {
+      for (const name of prefixed) expect(paths.has(besidePath('verify', name, dir)), besidePath('verify', name, dir) + ' renders').toBe(true);
+      for (const name of gone) expect(paths.has(besidePath('verify', name, dir)), besidePath('verify', name, dir) + ' no longer renders').toBe(false);
+      // D-110 for the one child that names a sibling: verify-writer.md's ./resume.md resolves in the same folder
+      const writer = out.find((f) => f.path === stagePath('verify', 'writer', dir))?.text ?? '';
+      expect(writer, stagePath('verify', 'writer', dir) + ' names ./resume.md').toContain('./resume.md');
+      expect(paths.has(besidePath('verify', 'resume.md', dir)), besidePath('verify', 'resume.md', dir) + ' renders').toBe(true);
+    }
+    expect(out.filter((f) => bare.test(f.text)).map((f) => f.path), runtime + ': no rendered text names a bare verify child').toEqual([]);
+  }
+  // guard the guard: the pattern catches a bare child and lets the prefixed names and the other stages' own files through
+  expect(bare.test('as `./ci.md` says')).toBe(true);
+  expect(bare.test('follow `./deferred.md`')).toBe(true);
+  expect(bare.test('(`./writer.md`)')).toBe(true);
+  expect(bare.test('as `./verify-ci.md` says, `./verify-writer.md`, `./plan-critique.md`')).toBe(false);
 });
 
 describe('stage skills name what the spec requires', () => {
@@ -794,11 +820,11 @@ const verifySteps = () => {
 
 it('ac-2 verify starts ci before the suite and shows the owners report only after every check finished', () => {
   const { v, s2, s4 } = verifySteps();
-  expect(s2.indexOf('Start CI as `./ci.md` says')).toBeGreaterThan(-1);
-  expect(s2.indexOf('Start CI as `./ci.md` says')).toBeLessThan(s2.indexOf('run the `tests.full` command'));
-  for (const p of ['Wait for CI as `./ci.md` says', 'a failed check goes to `./failure.md` instead of this report', "CI: each check's result, or CI not checked and why"])
+  expect(s2.indexOf('Start CI as `./verify-ci.md` says')).toBeGreaterThan(-1);
+  expect(s2.indexOf('Start CI as `./verify-ci.md` says')).toBeLessThan(s2.indexOf('run the `tests.full` command'));
+  for (const p of ['Wait for CI as `./verify-ci.md` says', 'a failed check goes to `./failure.md` instead of this report', "CI: each check's result, or CI not checked and why"])
     expect(s4, p).toContain(p);
-  expect(v.slice(v.indexOf('6. Run'))).toContain('finish CI as `./ci.md` says');
+  expect(v.slice(v.indexOf('6. Run'))).toContain('finish CI as `./verify-ci.md` says');
   expect(flatText(stagePath('verify'))).toContain(
     'A `fail` criterion, or a failure the owner names in answer, goes to `./failure.md`, never to `accord-build` directly',
   );
@@ -2405,7 +2431,7 @@ it('risk:regression verify asks which deferred items go to the backlog through t
     const getAt = (p: string) => all.find((f) => f.path === p)?.text ?? '';
     const verify = getAt(stagePath('verify', undefined, dir));
     expect(verify, dir + ' verify names the lister').toContain('`accord deferred <id>`');
-    expect(verify, dir + ' verify follows the reference').toContain('`./deferred.md`');
+    expect(verify, dir + ' verify follows the reference').toContain('`./verify-deferred.md`');
     const ref = getAt(stagePath('verify', 'deferred', dir));
     expect(ref.length, stagePath('verify', 'deferred', dir) + ' is not rendered').toBeGreaterThan(0);
     for (const phrase of [

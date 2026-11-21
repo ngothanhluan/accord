@@ -229,6 +229,15 @@ describe('the onboarding skill scans the repository and merges what it finds wit
     expect(phrases.filter((p) => !scan.includes(p))).toEqual([]);
   });
 
+  // Verification note: `accord config areas --proposals` drops a numeric value (`Tag not resolved for Number value`), so the scan has to give strings.
+  it('risk:parsing the scan says every proposed value is a string and a number is written as one (D-08)', () => {
+    const phrases = [
+      'Give every `value` as a string, so a number such as a timeout is written `"30"`',
+      'an array or object of strings stays as it is',
+    ];
+    expect(phrases.filter((p) => !scan.includes(p))).toEqual([]);
+  });
+
   // Review WR-06: the merged output marks where each proposal came from, and the skill reads the marker instead of guessing.
   it('risk:regression the onboarding skill reads each proposal\'s origin from its marker (D-08)', () => {
     const phrases = [

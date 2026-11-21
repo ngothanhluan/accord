@@ -7,7 +7,8 @@ import { upgradeNotice } from '../src/commands/notice.js';
 import { cachePath, requestLatest } from '../src/commands/registry.js';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run } from './helpers/repo.js';
 import { copyClone, makeTemplate } from './helpers/worktree.js';
-import { CONFIG, RUNNING } from '../../../test/helpers/lane.js';
+import { stageFile } from '@accord-dev/accord-core';
+import { building, CONFIG, done, LANE_S_BODY, laneTicket, RUNNING } from '../../../test/helpers/lane.js';
 import type { Clone } from './helpers/worktree.js';
 
 // Templates (H1, rule 5): built once, copied with their own origin; neither holds a linked worktree.
@@ -63,6 +64,55 @@ describe('accord hook', () => {
     } finally {
       cleanup(repo);
     }
+  });
+
+  // Phase 8.3 D-04: after /clear or compaction the resume hook names the accord file of the ticket's stage, from a fixed map and never from repository text.
+  describe('after /clear the session names the file for the ticket stage', () => {
+    const line = (file: string): string => `stage file: ./${file} of the /accord skill; read it and go on at the step the anchor names`;
+    /** A claim branch of T-1 in a sandbox holding `extra`, the hook's output on it. */
+    async function resumed(extra: Record<string, string>, branch = 't/T-1'): Promise<string> {
+      const repo = makeLaneRepo(extra);
+      try {
+        commitAll(repo);
+        gitRun(repo, 'checkout', '-b', branch);
+        const r = await run(['hook', 'session-resume'], repo);
+        expect(r.code).toBe(0);
+        return r.out;
+      } finally {
+        cleanup(repo);
+      }
+    }
+
+    it("risk:complex-branching after /clear the session names the file for the ticket's stage (D-04)", async () => {
+      // lane S and lane R: the file is fixed by the lane
+      const s = await resumed({ 'accord/tickets/T-1.md': laneTicket('T-1', { lane: 'S', body: LANE_S_BODY }) });
+      expect(s).toContain('# Anchor: T-1');
+      expect(s).toContain('Lane: S');
+      expect(s.endsWith(line('lane-s.md') + '\n'), 'the line closes the output, right after the anchor').toBe(true);
+      expect(s.indexOf('Lane: S')).toBeLessThan(s.indexOf('stage file:'));
+      const r = await resumed({ 'accord/tickets/T-1.md': laneTicket('T-1', { lane: 'R', body: '## Question\nWhich export format do teams use?\n\n## Timebox\n2 hours\n' }) });
+      expect(r).toContain('Lane: R');
+      expect(r.endsWith(line('lane-r.md') + '\n')).toBe(true);
+      // lane M: the line names the file STAGE_FILES gives the stage the anchor prints, and is absent for a stage with no entry, so each fold is covered with no edit here
+      const m: Record<string, Record<string, string>> = { intent: {}, build: {}, done: {} };
+      building(m.build, 'T-1');
+      done(m.done, 'T-1');
+      const seen = new Set<string>();
+      for (const [name, files] of Object.entries(m)) {
+        const out = await resumed(files);
+        const stage = /^Stage: (\w+)/m.exec(out)?.[1];
+        expect(stage, `${name}: the anchor prints its stage`).toBeDefined();
+        seen.add(stage as string);
+        const file = stageFile('M', stage);
+        if (file === undefined) expect(out, `${name} (${stage}) has no file yet`).not.toContain('stage file:');
+        else expect(out.endsWith(line(file) + '\n'), `${name} (${stage}) names ./${file}`).toBe(true);
+        expect(out.split('stage file:').length - 1, name).toBe(file === undefined ? 0 : 1);
+      }
+      expect([...seen].sort(), 'the three fixtures stand at three different stages').toHaveLength(3);
+      // no ticket on the branch, and no lane on the ticket: no line
+      expect(await resumed({}, 'feature/x')).not.toContain('stage file:');
+      expect(await resumed({ 'accord/tickets/T-1.md': laneTicket('T-1', { lane: '' }) })).not.toContain('stage file:');
+    }, 60_000);
   });
 
   it('subagent-start prints the ruleset as additionalContext JSON', async () => {

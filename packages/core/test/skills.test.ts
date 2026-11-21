@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { Tags } from 'yaml';
-import { agentTargets, allSkillDirs, contentHash, installedName, markerHash, renderSkill, RETIRED_FILES, RETIRED_SKILL_FOLDERS, skillDirs, skills, STAGES, skillTargets, SUBJECT_NAMES, withoutMarker } from '../src/index.js';
+import { agentTargets, allSkillDirs, contentHash, installedName, markerHash, renderSkill, RETIRED_FILES, RETIRED_SKILL_FOLDERS, skillDirs, skills, STAGE_FILES, stageFile, STAGES, skillTargets, SUBJECT_NAMES, withoutMarker } from '../src/index.js';
 import type { SkillFile, SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, READY_RULES } from '../src/gate/rules.js';
@@ -1137,6 +1137,64 @@ describe('retired skill folders', () => {
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-continue'))).toContain('accord-continue');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-pickup'))).toContain('accord-pickup');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-new'))).toContain('accord-new');
+  });
+});
+
+// Phase 8.3 D-04: a ticket's lane and stage map to a file of the accord folder. `STAGE_FILES` is the one map (each fold adds its stage); the cases read it,
+// so every fold is covered the moment its entry lands, with no edit here.
+describe('a ticket at a stage', () => {
+  const HEADING = '## A ticket at a stage';
+  /** The stage section of a rendered accord SKILL.md, whitespace collapsed: from its heading to the next heading, '' when the text has none. */
+  const stageSection = (text: string): string => {
+    const flat = text.replace(/\s+/g, ' ');
+    const from = flat.indexOf(HEADING);
+    if (from === -1) return '';
+    const next = flat.indexOf(' ## ', from + HEADING.length);
+    return flat.slice(from, next === -1 ? undefined : next);
+  };
+  const accordSkills = ROSTERS.flatMap((roster) => roster.filter((f) => f.path.endsWith('/accord/SKILL.md')));
+  const STAGE_NAMES = ['intent', 'approach', 'plan', 'build', 'review', 'verify'];
+
+  it('risk:regression every STAGE_FILES file and both lane files are named in the stage section of the accord skill (D-04)', () => {
+    expect(accordSkills.length, 'no accord skill is rendered').toBeGreaterThan(0);
+    const wanted = [...new Set([...Object.values(STAGE_FILES), 'lane-s.md', 'lane-r.md'])];
+    for (const roster of ROSTERS) {
+      const paths = new Set(roster.map((f) => f.path));
+      for (const f of roster.filter((r) => r.path.endsWith('/accord/SKILL.md'))) {
+        const dir = f.path.slice(0, -'/accord/SKILL.md'.length);
+        expect(f.text.split(HEADING).length - 1, `${f.path}: the stage section heading appears once`).toBe(1);
+        const section = stageSection(f.text);
+        for (const file of wanted) {
+          expect(section, `${f.path}: the stage section names ./${file}`).toContain('./' + file);
+          expect(paths.has(`${dir}/accord/${file}`), `${dir}/accord/${file} renders`).toBe(true);
+        }
+        expect(section, `${f.path}: the stage section says the anchor decides, after every /clear or compaction`).toMatch(/after every `\/clear` or compaction/);
+        expect(section).toContain('`accord anchor`');
+        expect(section).toContain('never from memory');
+        expect(section).toContain('a lane M stage with no row here runs its own command');
+      }
+    }
+    // the map: lane S and R name their files, a lane M stage its STAGE_FILES entry, anything else nothing
+    expect(stageFile('S', 'build')).toBe('lane-s.md');
+    expect(stageFile('R', 'research')).toBe('lane-r.md');
+    expect(stageFile(undefined, 'intent')).toBeUndefined();
+    expect(stageFile('M', 'nowhere')).toBeUndefined();
+    expect(stageFile('M', undefined)).toBeUndefined();
+    expect(stageFile('M', 'constructor'), 'a name of Object.prototype is no stage').toBeUndefined();
+    expect(stageFile('L', 'intent')).toBeUndefined();
+    for (const [stage, file] of Object.entries(STAGE_FILES)) expect(stageFile('M', stage), stage).toBe(file);
+    // guard the guard: a text with no stage heading has no section, and a section that omits a file is reported
+    expect(stageSection('## Rules\n- x')).toBe('');
+    expect(stageSection(`${HEADING}\n\nlane S: \`./lane-s.md\`.\n\n## Rules\n- \`./lane-r.md\``)).not.toContain('./lane-r.md');
+  });
+
+  it('risk:regression the accord description names every stage (D-04)', () => {
+    expect(accordSkills.length, 'no accord skill is rendered').toBeGreaterThan(0);
+    for (const f of accordSkills) {
+      const description = String(frontmatter(f.text)?.description ?? '');
+      expect(description, f.path).toContain('when a lane M ticket sits at a stage');
+      for (const stage of STAGE_NAMES) expect(description, `${f.path}: ${stage}`).toMatch(new RegExp('\\b' + stage + '\\b'));
+    }
   });
 });
 

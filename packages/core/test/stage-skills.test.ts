@@ -41,7 +41,8 @@ const REQUIRED: Record<string, readonly string[]> = {
   new: ['accord new ticket', '--lane M', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md', './new-epic.md'],
   upgrade: ['accord dashboard', './upgrade.md'],
   // ST-LN-83 7-ac-1: the Continue steps moved out of /accord, with the phrases that only they carried.
-  continue: ['accord status --json', 'accord worktree open <id> --continue', 'accord anchor', 'accord-debug', '## Resolved', 'accord-approach', 'no `## Resolved` follows its last `## Episode`', '`done` → `accord-verify` at step 6', './worktree.md', './lane-s.md', './lane-r.md', 'accord gate ready <id>'],
+  // Phase 8.3 D-04: step 4 reads the file the stage section of /accord names; a stage with no row there runs its own command.
+  continue: ['accord status --json', 'accord worktree open <id> --continue', 'accord anchor', 'accord-debug', '## Resolved', '## A ticket at a stage', 'the row `approach` at step 5', 'no `## Resolved` follows its last `## Episode`', '`done` takes the row `verify` at step 6', './worktree.md', './lane-s.md', './lane-r.md', 'accord gate ready <id>'],
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
@@ -780,7 +781,7 @@ it('ac-2 verify starts ci before the suite and shows the owners report only afte
   expect(fin.indexOf('## Resolved')).toBeGreaterThan(-1);
   expect(fin.indexOf('## Resolved')).toBeLessThan(fin.indexOf('`accord lint`'));
   const acc = flatText(stagePath('continue'));
-  expect(acc).toContain('`done` → `accord-verify` at step 6.');
+  expect(acc).toContain('`done` takes the row `verify` at step 6.');
   expect(acc).not.toContain('on the ticket file or its');
   expect(flatText('.claude/skills/accord/SKILL.md')).not.toContain('on the ticket file or its');
   expect(files.find((f) => f.path === besidePath('verify', 'failure.md'))?.text.length).toBeGreaterThan(0);
@@ -1304,8 +1305,35 @@ it('risk:regression a lane M ticket that gate ready refuses is never planned fro
   expect(step4).toContain(G);
   expect(at('`./lane-s.md`')).toBeGreaterThanOrEqual(0);
   expect(at('`./lane-s.md`')).toBeLessThan(at(G));
-  for (const route of ['`plan` → `accord-plan`', '`build` → `accord-build`', '`review` → `accord-review`', '`verify` → `accord-verify`', '`done` → `accord-verify` at step 6']) {
+  // Phase 8.3 D-04: after the gate, one rule names the stage section, with the step of the approach stage and of `done`.
+  for (const route of ['`## A ticket at a stage` section of `/accord`', 'the row `approach` at step 5', '`done` takes the row `verify` at step 6']) {
     expect(at(route)).toBeGreaterThan(at(G));
+  }
+});
+
+it('risk:regression Continue reads the stage file from the stage section (D-04)', () => {
+  const flat = (files.find((f) => f.path === stagePath('continue'))?.text ?? '').replace(/\s+/g, ' ');
+  const step4 = flat.slice(flat.indexOf('4. Otherwise'), flat.indexOf('## Rules'));
+  expect(step4.length, 'step 4 of Continue is missing').toBeGreaterThan(0);
+  // the stage comes from the anchor, through the stage section of /accord
+  for (const p of [
+    'Then read the file the `## A ticket at a stage` section of `/accord` names for the stage it prints',
+    'from the anchor and never from memory',
+    // the approach stage keeps its two step numbers: step 5 for the owner's yes, step 3 when only the draft of step 2 exists
+    'takes the row `approach` at step 5, the owner\'s yes, when the ticket\'s `## Approach` holds a `- Rejected:` line, at step 3 when it holds only the draft of its step 2',
+    'at step 9 when the anchor\'s next step is the owner\'s approval',
+    // done goes to the verify step 6
+    '`done` takes the row `verify` at step 6',
+    // an unfolded stage runs its own command, so the branch works at every commit
+    'A lane M stage with no row there runs its own command',
+    'Resume at the step the anchor names. Never re-run a task the ledger records.',
+  ]) expect(step4, p).toContain(p);
+  // no per-stage command list is left in the step, so a later fold edits no word of Continue
+  for (const gone of ['`plan` → `accord-plan`', '`build` → `accord-build`', '`review` → `accord-review`', '`verify` → `accord-verify`']) expect(step4, gone).not.toContain(gone);
+  // every render of Continue holds the same step
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const other = (skillTargets({ ...config, runtimes: ['claude', 'codex'] }).find((f) => f.path === stagePath('continue', undefined, dir))?.text ?? '').replace(/\s+/g, ' ');
+    expect(other.slice(other.indexOf('4. Otherwise'), other.indexOf('## Rules')), dir).toBe(step4);
   }
 });
 

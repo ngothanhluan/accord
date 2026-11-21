@@ -29,7 +29,7 @@ ticket, overrides a step of a skill, or refuses an option, offer one line to
 record, in English: the rule as one line, or `Rejected: <option> — <reason>`
 with the owner's reason. On an explicit yes, add it as `- <the line>` under the
 ticket ledger's `## Conventions` (create the section) and commit it with the
-stage's next record commit; `accord-verify` step 6 and lane S's finish write
+stage's next record commit; the verify stage of `/accord` at step 6 and lane S's finish write
 every line of that section into `accord/product/conventions.md`. Without an
 explicit yes write nothing anywhere. A dropped ticket's refused option travels
 with `accord drop --rejected` instead.

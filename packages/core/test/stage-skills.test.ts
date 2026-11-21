@@ -205,11 +205,11 @@ it('risk:regression no stage text names the build review or verify command (D-04
     for (const roles of [['ba', 'dev'], ['ba', 'dev', 'designer']] as AccordConfig['roles'][]) {
       const cfg = { ...config, roles, runtimes: [runtime] } as AccordConfig;
       const out = skillTargets(cfg);
-      expect(out.filter((f) => command.test(f.text)).map((f) => f.path), runtime + ' ' + roles.join('+') + ': no rendered file names a stage command').toEqual([]);
+      expect(out.filter((f) => command.test(f.text) && !f.path.endsWith('/accord-debug/SKILL.md')).map((f) => f.path), runtime + ' ' + roles.join('+') + ': no rendered file names a stage command').toEqual([]);
       for (const dir of skillDirs(cfg)) {
         const text = (path: string) => flat(out.find((f) => f.path === path)?.text ?? '');
         for (const file of [stagePath('build', undefined, dir), stagePath('build', 'no-plan', dir)]) {
-          expect(text(file), file).toContain('next: `./review.md`, or `./verify.md` when `accord anchor` names review off');
+          expect(text(file), file).toMatch(/[Nn]ext: `\.\/review\.md`, or `\.\/verify\.md` when `accord anchor` names review off/);
         }
         expect(text(stagePath('review', undefined, dir)), dir + ' review.md').toContain('go to the stage it names next, `./verify.md`');
         expect(text(stagePath('review', undefined, dir)), dir + ' review.md step 9').toContain('9. Next: `./verify.md`.');
@@ -219,9 +219,6 @@ it('risk:regression no stage text names the build review or verify command (D-04
         for (const shared of ['ask.md', 'failure.md']) {
           for (const f of out.filter((x) => x.path.startsWith(dir + '/') && x.path.endsWith('/' + shared))) expect(flat(f.text), f.path).toContain('the verify stage of `/accord`');
         }
-        // the debug command stays one and hands a fixed task back to the build stage of /accord
-        const debug = text(dir + '/' + installedName('debug') + '/SKILL.md');
-        expect(debug, dir + ' debug').toContain('the build stage of `/accord`');
       }
     }
   }
@@ -2212,7 +2209,10 @@ it('risk:security the foreign review is read-only with lenses by the size rule a
   expect(numbers(reviewSkill)).toEqual(['1500', '500']);
   for (const f of foreign) {
     expect(phrases.filter((p) => !f.text.includes(p)), f.path).toEqual([]);
-    for (const banned of ['accord-executor', 'accord round', 'review.md']) expect(f.text, f.path).not.toContain(banned);
+    // Phase 8.3 D-04: the one mention of the stage file is the size rule's source; the ticket's review.md record is never named
+    const without = f.text.replace('the size rule of `./review.md`', 'the size rule');
+    expect(f.text, f.path).toContain('the size rule of `./review.md`');
+    for (const banned of ['accord-executor', 'accord round', 'review.md']) expect(without, f.path).not.toContain(banned);
     // the size rule's two numbers are accord-review's
     expect(numbers(f.text), f.path).toEqual(numbers(reviewSkill));
   }

@@ -47,7 +47,7 @@ session and orchestrate: executors write the code.
    owner's yes and dispatch again. Only `./plan.md` changes the plan. Never run
    `accord tests baseline` here except as `./build-no-plan.md` says, which follows `./plan-baseline.md`; otherwise only the plan stage asks the owner about it.
 
-8. When every task has a ledger line, next: `accord-review`, or `accord-verify` when `accord anchor` names review off.
+8. When every task has a ledger line, next: `./review.md`, or `./verify.md` when `accord anchor` names review off.
 
 ## Rules
 

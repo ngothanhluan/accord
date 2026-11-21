@@ -9,7 +9,7 @@ fix.
 ## Steps
 
 1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming review, do not run this stage: tell the
-   owner so in one line and go to the stage it names next, `accord-verify`.
+   owner so in one line and go to the stage it names next, `./verify.md`.
 
 2. **Package.** Run `accord review-package <id>` into a file outside the working tree. After a round with a head in
    `review.md`, it holds the commits, the stat, and the diff after that head, without what a merge brought in from
@@ -63,7 +63,7 @@ fix.
    when the owner accepts any stop with findings still open, `verdict: accepted-by-owner` followed by the owner's sentence
    quoted. Commit it.
 
-9. Next: `accord-verify`.
+9. Next: `./verify.md`.
 
 ## Rules
 

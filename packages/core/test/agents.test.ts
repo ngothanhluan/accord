@@ -627,3 +627,14 @@ it('risk:security no other agent gains web tools (ST-LN-86 7-ac-11)', () => {
   // no rendered agent text names a web tool: the researcher inherits them and describes them by function
   for (const f of agentTargets(config({ runtimes: ['claude'] }))) expect(f.text, f.path).not.toMatch(/WebSearch|WebFetch/);
 });
+
+// Phase 8.3 D-06: outside a ticket the debugger is given the state file's path in place of the ticket file and debug.md, and writes only that file.
+it('risk:regression the debugger takes the state file path outside a ticket and still writes one file (D-06)', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const text = flat(agentTargets(config()).find((f) => f.path === '.claude/agents/accord-debugger.md')?.text ?? '');
+  const bad: string[] = [];
+  for (const p of ['outside a ticket', 'the path of the state file in place of the ticket file', 'the state file whose path you are given', 'You write one file']) if (!text.includes(p)) bad.push('lacks: ' + p);
+  // every phrase the rest of this file pins is still there
+  for (const p of AGENT_REQUIRED.debugger) if (!text.includes(p)) bad.push('lacks: ' + p);
+  expect(bad).toEqual([]);
+});

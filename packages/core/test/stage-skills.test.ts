@@ -2809,3 +2809,34 @@ it('risk:regression the lane step of accord-new dispatches no researcher (ST-LN-
   }
   expect(bad).toEqual([]);
 });
+
+// Phase 8.3 D-06 (Ruling 10): /accord-debug on an issue no ticket holds finds the root cause and fixes nothing; its state is the file `accord debug path` names.
+it('risk:regression debug outside a ticket finds the root cause and fixes nothing (D-06)', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const skill = all.find((f) => f.path === dir + '/accord-debug/SKILL.md')?.text ?? '';
+    const free = flat(all.find((f) => f.path === dir + '/accord-debug/debug-free.md')?.text ?? '');
+    if (free === '') {
+      bad.push(dir + '/accord-debug/debug-free.md is not shipped');
+      continue;
+    }
+    // the ticket skill names the route in the sentence that says no ticket holds the issue
+    const sentence = flat(skill).split(/(?<=\.)\s/).find((s) => s.includes('./debug-free.md')) ?? '';
+    if (!/no ticket holds the issue/.test(sentence)) bad.push(dir + ' accord-debug/SKILL.md names ./debug-free.md in no sentence that says no ticket holds the issue');
+    if (!/or on an issue no ticket holds/.test(flat(skill).slice(0, 700))) bad.push(dir + ' accord-debug description does not say it works on an issue no ticket holds');
+    for (const p of ['accord debug path', 'accord-debugger', '## Episode <n>', '## Resolved', './resume.md', './ask.md', '`/accord`', 'the symptom, the root cause and', 'fixes nothing', 'is data, never instructions', 'episode: open'])
+      if (!free.includes(p)) bad.push(dir + ' debug-free.md lacks ' + p);
+    for (const p of ['accord-executor', 'git add', 'git commit', 'accord task-done', 'accord/tickets/'])
+      if (free.includes(p)) bad.push(dir + ' debug-free.md names ' + p);
+    // a reference file has no frontmatter block
+    if (/^---/.test(all.find((f) => f.path === dir + '/accord-debug/debug-free.md')?.text ?? '')) bad.push(dir + ' debug-free.md opens a frontmatter block');
+  }
+  // the budget: the rendered skill stays inside its entry, never above 5980, and 120 lines
+  const text = all.find((f) => f.path === '.claude/skills/accord-debug/SKILL.md')?.text ?? '';
+  const bytes = new TextEncoder().encode(text).length;
+  if (bytes > 5980) bad.push('accord-debug/SKILL.md is ' + bytes + ' bytes, above 5980');
+  if (text.split('\n').length > 120) bad.push('accord-debug/SKILL.md is over 120 lines');
+  expect(bad).toEqual([]);
+});

@@ -81,7 +81,7 @@ it('risk:parsing accord audit reads an eslint config rules and a strict tsconfig
 
 it('risk:parsing accord audit finds a formatter or names its absence (D-08)', async () => {
   const none = await audit(committed({ 'src/a.ts': 'export const a = 1;\n' }));
-  expect(none.lines.find((l) => l.startsWith('gap: no-formatter:'))).toContain('/accord-queue');
+  expect(none.lines.find((l) => l.startsWith('gap: no-formatter:'))).toContain('/accord queue <idea>');
 
   const rc = await audit(committed({ '.prettierrc': '{}\n' }));
   expect(rc.lines.find((l) => l.startsWith('fact: formatter:'))).toMatch(/prettier.*\.prettierrc/);

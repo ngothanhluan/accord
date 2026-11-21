@@ -87,7 +87,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('intent')).toBe('accord-intent');
     expect(installedName('designer')).toBe('accord-designer');
@@ -237,12 +237,10 @@ const COMMAND =
 const MAX_SKILL_BYTES = 6000;
 
 /** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. The command
- *  skills open on what their moved rule names first: New request
- *  on its lane routes, Upgrade on the dashboard line it reads the command from (ST-LN-83 7-ac-1). */
+ *  skills open on what their moved rule names first: Upgrade on the dashboard line it reads the command from (ST-LN-83 7-ac-1). */
 const FIRST_COMMAND: Record<string, string> = {
   accord: 'dashboard',
   'accord-designer': 'gate ready',
-  'accord-new': 'new ticket',
   'accord-upgrade': 'dashboard',
   'accord-audit': 'audit',
 };
@@ -625,7 +623,7 @@ it('ac-1 every reference file of a rendered skill is named in its own SKILL.md',
     expect(files.length).toBeGreaterThan(0);
     const paths = files.map((f) => f.path);
     for (const dir of ['.claude/skills', '.agents/skills']) {
-      for (const p of ['accord-new/finish.md', 'accord-debug/worktree.md', 'accord-debug/ids.md', 'accord-verify/worktree.md', 'accord-verify/ids.md']) {
+      for (const p of ['accord/finish.md', 'accord/lane-s.md', 'accord/new.md', 'accord-debug/worktree.md', 'accord-debug/ids.md', 'accord-verify/worktree.md', 'accord-verify/ids.md']) {
         expect(paths, `${dir}/${p} is not rendered`).toContain(`${dir}/${p}`);
       }
     }
@@ -666,7 +664,7 @@ it('ac-3 each new mention names the step or event at which to read its file and 
   const D = 'at step 5';
   const vague = /\b(?:when|if|as) (?:needed|necessary|required)\b/i;
   const expectations: [string, string, string][] = [
-    ['accord-new', './finish.md', A],
+    ['accord', './finish.md', A],
     ['accord-debug', './worktree.md', B],
     ['accord-debug', './ids.md', C],
     ['accord-verify', './worktree.md', B],
@@ -696,7 +694,6 @@ it('ac-3 each new mention names the step or event at which to read its file and 
 // `accord anchor`, whose id defaults to the ticket of the current branch; designer runs `accord gate ready <id>`.
 const HINTS: Record<string, string | null> = {
   accord: '[request]',
-  'accord-new': '<request>',
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
   'accord-audit': null,
@@ -916,7 +913,7 @@ describe('one command per action', () => {
   });
 
   it('risk:regression every action of the old accord skill is its own command for every runtime (ST-LN-83 7-ac-1)', () => {
-    const needle: Record<string, string> = { 'accord-new': 'accord new ticket', 'accord-upgrade': './upgrade.md' };
+    const needle: Record<string, string> = { 'accord-upgrade': './upgrade.md' };
     for (const runtime of ALL_RUNTIMES) {
       for (const [name, text] of Object.entries(needle)) {
         const { dirs, texts } = copiesOf(name, runtime);
@@ -931,7 +928,7 @@ describe('one command per action', () => {
       const { dirs } = copiesOf('accord', runtime);
       const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
       expect(accord, runtime).toContain('## Dashboard');
-      for (const name of ['accord-new', 'accord-upgrade']) expect(accord, `${runtime} ${name}`).toContain(name);
+      for (const name of ['accord-upgrade']) expect(accord, `${runtime} ${name}`).toContain(name);
       for (const heading of ['## Pick up', '## New request: ', '## Upgrade: ']) expect(accord, `${runtime} ${heading}`).not.toContain(heading);
     }
   });
@@ -976,14 +973,76 @@ describe('one command per action', () => {
     }
   });
 
-  it('risk:regression a command that needs an argument asks for it and runs nothing without it (ST-LN-83 7-ac-1)', () => {
-    const ASKS = /With no argument, ask the owner for [^.]+ in one question and run, claim, create and edit nothing\./;
+  // Phase 8.3 D-01, D-03: new stopped being a command; its steps and the epic flow are reference files of /accord, reached by the change and research routes of ./route.md.
+  it('risk:regression accord/new.md and accord/new-epic.md render from one definition for every runtime (D-03)', () => {
     for (const runtime of ALL_RUNTIMES) {
-      for (const name of ['accord-new']) {
-        const { texts } = copiesOf(name, runtime);
-        expect(texts[0].length, `${runtime} ${name} is missing`).toBeGreaterThan(0);
-        expect(bodyOf(texts[0]).replace(/\s+/g, ' '), `${runtime} ${name}`).toMatch(ASKS);
+      const cfg = config({ runtimes: [runtime] });
+      const files = skillTargets(cfg);
+      const dirs = skillDirs(cfg);
+      expect(dirs.length, runtime).toBeGreaterThan(0);
+      expect(files.filter((f) => f.path.includes('/accord-new/')).map((f) => f.path), `${runtime}: no accord-new folder is rendered`).toEqual([]);
+      const bodies: Record<string, string> = {};
+      for (const name of ['new', 'new-epic']) {
+        const texts = dirs.map((dir) => files.find((f) => f.path === `${dir}/accord/${name}.md`)?.text ?? '');
+        for (const [i, text] of texts.entries()) {
+          expect(text.length, `${runtime}: ${dirs[i]}/accord/${name}.md is missing`).toBeGreaterThan(0);
+          expect(text, `${runtime}: ${dirs[i]} differs from ${dirs[0]}`).toBe(texts[0]);
+          expect(frontmatter(text), `${runtime}: a reference carries no frontmatter block`).toBeNull();
+        }
+        bodies[name] = bodyOf(texts[0]).replace(/\s+/g, ' ');
       }
+      for (const part of ['accord new ticket', '--lane M', 'accord new ticket --type', '--lane S --worktree', './lane-s.md', './scout.md', './new-epic.md', 'Never dispatch the researcher from this skill']) {
+        expect(bodies.new, `${runtime} new.md ${part}`).toContain(part);
+      }
+      expect(bodies.new, `${runtime}: the epic file is named as ./new-epic.md only`).not.toContain('./epic.md');
+      expect(bodies.new, `${runtime}: no old command`).not.toMatch(/accord-new\b/);
+      expect(bodies['new-epic'], runtime).toContain('accord new ticket --type epic --lane L --split <file> --queue');
+      const accord = bodyOf(files.find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '').replace(/\s+/g, ' ');
+      expect(accord.length, runtime).toBeGreaterThan(0);
+      expect(accord, `${runtime}: the typed-forms paragraph names ./new.md`).toContain('./new.md');
+      expect(accord, `${runtime}: the typed-forms paragraph names ./new-epic.md`).toContain('./new-epic.md');
+      expect(accord, `${runtime}: no old command`).not.toMatch(/accord-new\b/);
+    }
+  });
+
+  // D-02: the change and research routes follow ./new.md and nothing refuses text; the other routes stay.
+  it('risk:complex-branching the change and research routes follow ./new.md and no route refuses text (D-02)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const cfg = config({ runtimes: [runtime] });
+      const files = skillTargets(cfg);
+      const dir = skillDirs(cfg)[0];
+      const flat = (path: string): string => bodyOf(files.find((f) => f.path === `${dir}/${path}`)?.text ?? '').replace(/\s+/g, ' ');
+      const route = flat('accord/route.md');
+      expect(route.length, runtime).toBeGreaterThan(0);
+      const section = (head: string): string => route.split(' ## ').find((s) => s.replace(/^## /, '').toLowerCase().startsWith(head)) ?? '';
+      expect(section('change'), `${runtime}: the change route`).toContain('Follow `./new.md` with the whole request');
+      expect(section('research'), `${runtime}: the research route`).toContain('follow `./new.md` and take its lane R route');
+      for (const head of ['question', 'brainstorm', 'queue an idea', 'an existing ticket', 'review code or a pull request accord did not build']) {
+        expect(section(head).length, `${runtime}: the ${head} route is present`).toBeGreaterThan(0);
+      }
+      expect(section('brainstorm'), runtime).toContain('build now (`/accord <request>`), queue (`/accord queue <idea>`)');
+      expect(route, `${runtime}: route.md names no old command`).not.toMatch(/accord-new\b/);
+      // no sentence of the route or of /accord refuses text: the session check refuses only what would touch another ticket, and names no text
+      const REFUSES_TEXT = /\btext\b[^.]*\brefus/i;
+      for (const [name, body] of [['route.md', route], ['SKILL.md', flat('accord/SKILL.md')]]) {
+        for (const sentence of body.split('. ')) expect(sentence, `${runtime} ${name}: a sentence refuses text`).not.toMatch(REFUSES_TEXT);
+      }
+      // guard the guard: the matcher does catch a refusal of text
+      expect(REFUSES_TEXT.test('Free text after /accord is refused')).toBe(true);
+    }
+  });
+
+  // The Ruling of 08.3-07: the no-argument point lives once, in the accord skill (no text after /accord shows the dashboard); new.md does not ask for a request again.
+  it('risk:regression no text after /accord shows the dashboard and new.md carries no second no-argument point (D-02)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const cfg = config({ runtimes: [runtime] });
+      const files = skillTargets(cfg);
+      const dir = skillDirs(cfg)[0];
+      const accord = bodyOf(files.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '').replace(/\s+/g, ' ');
+      const text = bodyOf(files.find((f) => f.path === `${dir}/accord/new.md`)?.text ?? '').replace(/\s+/g, ' ');
+      expect(accord, runtime).toContain('## Dashboard: `/accord` with no argument');
+      expect(text.length, `${runtime}: new.md is missing`).toBeGreaterThan(0);
+      expect(text, runtime).not.toMatch(/With no argument/);
     }
   });
 });
@@ -1041,10 +1100,15 @@ describe('retired skill folders', () => {
       'SKILL.md', 'ask.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'review-security.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
     ]);
     expect(RETIRED_SKILL_FOLDERS['accord-pickup']).toEqual(['SKILL.md', 'ask.md', 'failure.md', 'ids.md', 'worktree.md']);
+    // new exists from v0.8.0: SKILL.md plus the `loads:` basenames over the tags (security.md came from review/security.md), plus what the branch rendered (queue.md, review-security.md).
+    expect(RETIRED_SKILL_FOLDERS['accord-new']).toEqual([
+      'SKILL.md', 'ask.md', 'epic.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'queue.md', 'review-foreign.md', 'review-security.md', 'route.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
+    ]);
     // Guard the guard: the same lists without the `accord-continue` entry report it, and without `accord-pickup` report it.
     const without = (folder: string): Record<string, readonly string[]> => Object.fromEntries(Object.entries(RETIRED_SKILL_FOLDERS).filter(([name]) => name !== folder));
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-continue'))).toContain('accord-continue');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-pickup'))).toContain('accord-pickup');
+    expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-new'))).toContain('accord-new');
   });
 });
 

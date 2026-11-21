@@ -38,7 +38,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   accord: ['accord status --json', 'accord dashboard', 'user.email', './ids.md'],
   // ST-LN-83 7-ac-1: Pick up, New request and Upgrade moved out of /accord with the phrases that only they carried.
   pickup: ['accord status --json', 'accord worktree open <id>', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', './worktree.md'],
-  new: ['accord new ticket', '--lane M', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
+  new: ['accord new ticket', '--lane M', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md', './new-epic.md'],
   upgrade: ['accord dashboard', './upgrade.md'],
   // ST-LN-83 7-ac-1: the Continue steps moved out of /accord, with the phrases that only they carried.
   continue: ['accord status --json', 'accord worktree open <id> --continue', 'accord anchor', 'accord-debug', '## Resolved', 'accord-approach', 'no `## Resolved` follows its last `## Episode`', '`done` → `accord-verify` at step 6', './worktree.md', './lane-s.md', './lane-r.md', 'accord gate ready <id>'],
@@ -134,7 +134,7 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
   const DIALOG = "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -151,7 +151,7 @@ it('ac-2 the shared ask rule says when to ask multiple choice and when to ask an
   const KIND = "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -168,7 +168,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
   const PLAIN = 'Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss.';
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -185,7 +185,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
 it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
   const bad: string[] = [];
@@ -205,7 +205,7 @@ it('ac-4 the intent skill takes the kind of question from the shared ask rule', 
 it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -231,7 +231,7 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -257,7 +257,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -542,7 +542,7 @@ it('risk:regression the accord skill takes an id that accord status lists with a
 function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
   for (const dir of skillDirs(all)) {
@@ -2069,8 +2069,8 @@ it('risk:regression the routing text maps each intent to its route and says it o
   const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
   const dir = (p: string) => p.slice(0, p.lastIndexOf('/'));
   const routes = all.filter((f) => base(f.path) === 'route.md');
-  // beside every rendered accord/SKILL.md and accord-new/SKILL.md, which both name it
-  const skills = all.filter((f) => /(^|\/)skills\/accord(-new)?\/SKILL\.md$/.test(f.path));
+  // beside every rendered accord/SKILL.md, which names it (the new-request command folded into /accord in Phase 8.3)
+  const skills = all.filter((f) => /(^|\/)skills\/accord\/SKILL\.md$/.test(f.path));
   expect(routes.length).toBeGreaterThan(0);
   expect(skills.length).toBe(routes.length);
   for (const s of skills) expect(all.some((f) => f.path === dir(s.path) + '/route.md'), s.path).toBe(true);
@@ -2079,7 +2079,10 @@ it('risk:regression the routing text maps each intent to its route and says it o
     const section = (head: string): string => f.text.split(' ## ').find((s) => s.toLowerCase().startsWith(head)) ?? '';
     const [change, question, brainstorm, queue, research, existing, review] = ['change', 'question', 'brainstorm', 'queue', 'research', 'an existing ticket', 'review'].map(section);
     for (const [name, s] of Object.entries({ change, question, brainstorm, queue, research, existing, review })) expect(s.length, `${f.path}: ${name} section`).toBeGreaterThan(0);
-    for (const p of ['`accord-new`', '`accord-debug`']) expect(change, f.path).toContain(p);
+    // Phase 8.3 D-02: the change and research routes follow ./new.md; the command that stays is accord-debug
+    for (const p of ['`./new.md`', '`accord-debug`']) expect(change, f.path).toContain(p);
+    expect(research, f.path).toContain('`./new.md`');
+    expect(change + research, f.path).not.toContain('accord-new');
     expect(question, f.path).toContain('from the code');
     for (const banned of ['accord new ticket', 'accord-scout', 'scout', 'lane']) expect(question.toLowerCase(), `${f.path}: question holds ${banned}`).not.toContain(banned);
     const end = brainstorm.slice(brainstorm.indexOf('End by proposing'));
@@ -2491,7 +2494,7 @@ it('risk:regression accord-new runs an epic interview and creates the approved s
     const epic = get('epic.md');
     if (epic.length === 0) { bad.push(stagePath('new', 'epic', dir) + ' is not rendered'); continue; }
     const route = skill.slice(skill.indexOf('- **L and P.**'), skill.indexOf('## Rules'));
-    for (const p of ['`./epic.md`', 'P is not built yet', 'propose an epic instead']) if (!route.includes(p)) bad.push(dir + ' accord-new lane L and P route lacks ' + p);
+    for (const p of ['`./new-epic.md`', 'P is not built yet', 'propose an epic instead']) if (!route.includes(p)) bad.push(dir + ' accord-new lane L and P route lacks ' + p);
     for (const p of [
       'why',
       'for whom',

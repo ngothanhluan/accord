@@ -124,7 +124,7 @@ it('risk:stale-file sync removes the retired accord reference copies and never r
     expect(out, p).not.toContain('removed ' + p);
     expect(readFileSync(at(repo, p), 'utf8'), p).not.toBe(old);
   }
-  expect(existsSync(at(repo, '.claude/skills/accord-new/lane.md'))).toBe(true);
+  expect(existsSync(at(repo, '.claude/skills/accord-new'))).toBe(false);
   expect(existsSync(at(repo, '.claude/skills/accord/SKILL.md'))).toBe(true);
 
   const second = await run(['skills', 'sync'], repo);

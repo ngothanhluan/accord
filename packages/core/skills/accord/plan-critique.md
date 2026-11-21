@@ -26,7 +26,7 @@ line.
    the paragraph above runs before each round: when it holds
    `Critics: plan checker`, dispatch as below; when it holds no `Critics:`
    line, the ticket was claimed under an older accord: dispatch round 1 as
-   `./legacy-round1.md` says, and every later round as below. Round 1 is
+   `./plan-legacy-round1.md` says, and every later round as below. Round 1 is
    `whole`. Judge from the ticket and the plan
    whether the ticket touches auth, money, migration, or data deletion,
    or the plan touches a path under `sensitive:` in `accord/config.yml`.

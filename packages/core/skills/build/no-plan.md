@@ -8,7 +8,7 @@ kind: reference
 task 1.
 
 Before step 1, when `tests.report` is set and `accord/tests-baseline.txt` is absent, take the tests baseline, before any
-executor is dispatched, as `./baseline.md` says: nothing else asks for it with the plan stage off, and
+executor is dispatched, as `./plan-baseline.md` says: nothing else asks for it with the plan stage off, and
 without it every test case already in the suite counts as untraced. Run `tests.full` only while `git status --porcelain`
 (staged, unstaged and untracked paths) lists no path outside `accord/` and `git diff --stat <fork point>` (the fork
 point is `git merge-base HEAD <default branch>`; it covers commits and the working tree) shows none either; otherwise ask

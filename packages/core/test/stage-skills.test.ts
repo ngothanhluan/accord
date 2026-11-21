@@ -57,26 +57,22 @@ const files = skillTargets(config);
 
 // Phase 8.3 D-03, D-04: the render path of a folded name, before and after its fold, comes from one helper.
 it('risk:regression stagePath and besidePath give the render path of a folded name before and after its fold (D-04)', () => {
-  // the folder a name rendered into before its fold, built apart from the helper's own rule
-  const inOwnFolder = (name: string, file: string, dir = '.claude/skills') => `${dir}/${['accord', name].join('-')}/${file}`;
+  // 08.3-21: the helper keeps the folded mapping only. Keys that still render a name's own SKILL.md (a pre-fold render) make it throw, so a stale caller fails loudly instead of reading an old path.
   const before = new Set(['accord/SKILL.md', 'intent/SKILL.md', 'intent/discuss.md', 'plan/SKILL.md', 'plan/critique.md']);
-  expect(stagePathIn(before, 'intent')).toBe(inOwnFolder('intent', 'SKILL.md'));
-  expect(stagePathIn(before, 'intent', 'discuss')).toBe(inOwnFolder('intent', 'discuss.md'));
-  expect(stagePathIn(before, 'intent', 'discuss', '.agents/skills')).toBe(inOwnFolder('intent', 'discuss.md', '.agents/skills'));
-  // a child moved early: the stage's folder renders the prefixed name while its own SKILL.md still renders
-  const early = new Set(['accord/SKILL.md', 'plan/SKILL.md', 'accord/plan-critique.md']);
-  expect(stagePathIn(early, 'plan', 'critique')).toBe(inOwnFolder('plan', 'plan-critique.md'));
-  expect(stagePathIn(early, 'plan')).toBe(inOwnFolder('plan', 'SKILL.md'));
+  expect(() => stagePathIn(before, 'intent')).toThrow(/folded/);
+  expect(() => stagePathIn(before, 'plan', 'critique')).toThrow(/folded/);
+  // a name that is still one of STAGES (it keeps its own folder) is no folded name
+  for (const kept of STAGES) expect(() => stagePathIn(new Set(), kept), kept).toThrow(/STAGES/);
   // after the fold: the stage is a file of the accord folder, its children carry its prefix
   const after = new Set(['accord/SKILL.md', 'accord/intent.md', 'accord/intent-discuss.md']);
   expect(stagePathIn(after, 'intent')).toBe('.claude/skills/accord/intent.md');
   expect(stagePathIn(after, 'intent', 'discuss')).toBe('.claude/skills/accord/intent-discuss.md');
   expect(stagePathIn(after, 'intent', 'discuss.md')).toBe('.claude/skills/accord/intent-discuss.md');
   expect(stagePathIn(after, 'intent', undefined, '.agents/skills')).toBe('.agents/skills/accord/intent.md');
-  // the real keys: a name that has not folded yet renders in its own folder, a folded one in accord
+  // the real keys: every one of the ten names is a file of the accord folder
   expect(besidePath('new', 'lane-s.md')).toBe(stagePath('new').replace(/[^/]+$/, 'lane-s.md'));
   expect(besidePath('queue', 'ask.md', '.agents/skills')).toBe('.agents/skills/accord/ask.md');
-  // ofStage follows a stage's files through the fold: its own folder before, accord/<name>*.md after
+  // ofStage follows a stage's files: accord/<name>.md and accord/<name>-*.md
   expect(ofStage(stagePath('plan', 'critique'), ['plan'])).toBe(true);
   expect(ofStage(stagePath('plan'), ['plan', 'build'])).toBe(true);
   expect(ofStage(stagePath('plan'), ['review', 'verify'])).toBe(false);

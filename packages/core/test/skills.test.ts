@@ -288,11 +288,9 @@ const output = skillTargets(config());
 const skillFiles = output.filter((f) => f.path.endsWith('/SKILL.md'));
 
 // Phase 8.3 D-03: a command that folded into /accord has no name any more, so no skill source, rendered file or source file names it. `FOLDED` holds the folded
-// command names; 08.3-09 added `continue`, `pickup` and `new` and put README.md and docs/design.md under the scan; 08.3-20 adds the six stages. The pattern is
+// command names; 08.3-09 added `continue`, `pickup` and `new` and put README.md and docs/design.md under the scan; 08.3-20 adds the six stages, and 08.3-21 scans the two docs for all ten. The pattern is
 // `accord-<name>` ended by anything but a word character or a hyphen, so a temp folder prefix (`accord-queue-`), `accord-reviewer` and `accord-review-pr` are not hits.
 const FOLDED = ['queue', 'continue', 'pickup', 'new', 'intent', 'approach', 'plan', 'build', 'review', 'verify'];
-// Until 08.3-21 rewrites the lines of README.md and docs/design.md that name the six stage commands, those two files are scanned for the first four names only; 08.3-21 removes this split.
-const DOC_FOLDED = ['queue', 'continue', 'pickup', 'new'];
 const DOC_FILES = ['README.md', 'docs/design.md'];
 const foldedPattern = (list: readonly string[]): RegExp => new RegExp('\\baccord-(?:' + list.join('|') + ')(?![\\w-])');
 // The retire list is the one place that must name a folded folder: its comment lines (`// \`accord-queue\`: ...`) and its object keys (`'accord-queue': [...]`).
@@ -300,12 +298,11 @@ const RETIRE_LIST_LINE = /^\s*(?:\/\/ `accord-[a-z]+`(?:, `accord-[a-z]+`)*:|'ac
 const RETIRE_LIST_FILE = 'packages/core/src/skills/agents.ts';
 
 /** Every line of `files` (path, text) that names a folded command, as `path:line: text`. */
-function foldedHits(files: readonly { path: string; text: string }[], pattern: RegExp, docPattern: RegExp = pattern): string[] {
+function foldedHits(files: readonly { path: string; text: string }[], pattern: RegExp): string[] {
   const found: string[] = [];
   for (const f of files) {
-    const own = DOC_FILES.includes(f.path) ? docPattern : pattern;
     for (const [i, line] of f.text.split('\n').entries()) {
-      if (!own.test(line)) continue;
+      if (!pattern.test(line)) continue;
       if (f.path === RETIRE_LIST_FILE && RETIRE_LIST_LINE.test(line)) continue;
       found.push(`${f.path}:${i + 1}: ${line.trim().slice(0, 160)}`);
     }
@@ -343,7 +340,7 @@ it('risk:regression no skill source names a folded command (D-03)', () => {
   }
   const rendered = ROSTERS.flat().map((f) => ({ path: f.path, text: f.text }));
   expect(rendered.length, 'no rendered file was scanned').toBeGreaterThan(0);
-  expect(foldedHits([...sources, ...rendered], foldedPattern(FOLDED), foldedPattern(DOC_FOLDED))).toEqual([]);
+  expect(foldedHits([...sources, ...rendered], foldedPattern(FOLDED))).toEqual([]);
   // Guard the guard: the pattern matches a real mention, and not a temp folder prefix or another command's name.
   const pattern = foldedPattern(FOLDED);
   expect(pattern.test('load `accord-queue` now')).toBe(true);
@@ -352,11 +349,10 @@ it('risk:regression no skill source names a folded command (D-03)', () => {
   const stages = foldedPattern(FOLDED);
   for (const miss of ['accord-reviewer', 'accord-review-pr', 'accord-final-reviewer', 'accord-planner', 'accord-verifier', 'accord-plan-critic', 'accord-builder']) expect(stages.test(miss), miss).toBe(false);
   for (const hit of ['`accord-review`', 'accord-plan.', '/accord-review x', 'accord-intent', 'accord-approach ', 'through `accord-build`', '`accord-verify`']) expect(stages.test(hit), hit).toBe(true);
-  // until 08.3-21 the two docs may still name the six stage commands, never the first four
-  const docs = foldedPattern(DOC_FOLDED);
-  expect(foldedHits([{ path: 'README.md', text: 'load `accord-build` then `accord-verify`' }], stages, docs)).toEqual([]);
-  expect(foldedHits([{ path: 'docs/design.md', text: 'load `accord-queue`' }], stages, docs)).toHaveLength(1);
-  expect(foldedHits([{ path: 'packages/core/src/x.ts', text: 'load `accord-build`' }], stages, docs)).toHaveLength(1);
+  // the two docs are scanned for all ten names, the six stage commands included (08.3-21)
+  expect(foldedHits([{ path: 'README.md', text: 'load `accord-build` then `accord-verify`' }], stages)).toHaveLength(1);
+  expect(foldedHits([{ path: 'docs/design.md', text: 'load `accord-queue`' }], stages)).toHaveLength(1);
+  expect(foldedHits([{ path: 'packages/core/src/x.ts', text: 'load `accord-build`' }], stages)).toHaveLength(1);
   // the retire list is exempt line by line, in that file only
   const names = "'accord-queue': ['SKILL.md'],\n// `accord-queue`: v0.8.0 to v0.10.0\n// load `accord-queue` now";
   expect(foldedHits([{ path: RETIRE_LIST_FILE, text: names }], pattern)).toEqual([`${RETIRE_LIST_FILE}:3: // load \`accord-queue\` now`]);

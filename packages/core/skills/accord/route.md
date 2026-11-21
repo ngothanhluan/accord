@@ -16,11 +16,11 @@ Answer it from the code: read the files yourself and reply in the chat. Create n
 
 ## Brainstorm: an idea to explore
 
-This covers a raw idea to interview too. Go back and forth in a Socratic way, one question at a time, each built on the last answer, with nothing written meanwhile. End by proposing build now (`/accord-new`), queue (`/accord-queue`), research or nothing, and take the owner's choice.
+This covers a raw idea to interview too. Go back and forth in a Socratic way, one question at a time, each built on the last answer, with nothing written meanwhile. End by proposing build now (`/accord-new`), queue (`/accord queue <idea>`), research or nothing, and take the owner's choice.
 
 ## Queue an idea
 
-Load `accord-queue` with the idea. It writes a draft ticket on its own `backlog/<topic>-<date>` branch cut from origin's default branch and never touches this session's ticket, so it runs in a ticket session too.
+Follow `./queue.md` with the idea. It writes a draft ticket on its own `backlog/<topic>-<date>` branch cut from origin's default branch and never touches this session's ticket, so it runs in a ticket session too.
 
 ## Research
 

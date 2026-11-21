@@ -4,12 +4,12 @@ description: Use when starting new work from a request. Proposes a lane for it, 
 license: MIT
 argument-hint: "<request>"
 kind: skill
-loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/review-foreign.md, accord/route.md, accord/worktree.md, new/epic.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
+loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/queue.md, accord/review-foreign.md, accord/route.md, accord/worktree.md, new/epic.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
 ---
 
 `/accord-new <request>` starts a New request, and `/accord <request>` loads this skill with the whole text once `./route.md` reads it as a change. With no argument, ask the owner for the request in one question and run, claim, create and edit nothing.
 
-First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`. When the request reads as another route of `./route.md` (a question, a brainstorm, a queued idea, a review of code accord did not build as `./review-foreign.md` says), say so and follow that route instead of proposing a lane.
+First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`. When the request reads as another route of `./route.md` (a question, a brainstorm, a queued idea as `./queue.md` says, a review of code accord did not build as `./review-foreign.md` says), say so and follow that route instead of proposing a lane.
 
 ## New request: `/accord-new <request>`
 

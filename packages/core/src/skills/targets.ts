@@ -56,8 +56,8 @@ export function allSkillDirs(): string[] {
   return [...new Set(Object.values(DIRS).flat())].sort(cmp);
 }
 
-/** Spec §6: `/accord`, one command skill per action (continue, new, pickup, upgrade, queue, audit) and the seven stage skills, by source directory. Installed whatever `roles:` says. */
-export const STAGES: readonly string[] = ['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug'];
+/** Spec §6: `/accord`, the command skills a person calls on their own (continue, new, pickup, upgrade, audit) and the seven stage skills, by source directory. Queue is no command: its text is the file `accord/queue.md` that `/accord` loads (Phase 8.3 D-03). Installed whatever `roles:` says. */
+export const STAGES: readonly string[] = ['accord', 'continue', 'new', 'pickup', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug'];
 
 /** The installed directory name: `accord` is invoked as `/accord`, every other source directory X as `accord-X`. */
 export function installedName(dir: string): string {

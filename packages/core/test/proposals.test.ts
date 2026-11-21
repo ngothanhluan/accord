@@ -110,4 +110,21 @@ describe('mergeProposals drops a scan proposal that is not valid before the key 
     const dropped = none('nosuch.key', 'src\\a.ts:1');
     expect(dropped.dropped).toEqual([{ key: 'nosuch.key', value: 'x', evidence: 'src/a.ts:1', reason: 'no config key nosuch.key' }]);
   });
+
+  // Review WR-01: evidence is one line of plain text. A line break would let it carry its own `## Absent` table into a scout report, whose patterns run as regular expressions.
+  it('risk:security mergeProposals drops evidence with a line break or a control character before anything reads it as a report (D-07)', () => {
+    const hostile = 'src/a.ts:6\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n|---|---|---|---|\n| x | ([a-z]*)*! | src | |';
+    const bad = [hostile, 'src/a.ts:1\r', 'src/a.ts:1\t', 'src/a.ts:1\u0000', 'src/a.ts:1\u001b[2K', 'src/a.ts:1\u007f', 'src/a.ts:1\u0085', 'src/a.ts:1\u2028x', 'src/a.ts:1\u2029', 'src/a.ts:1\u202e', 'src/a.ts:1\u200b'];
+    for (const evidence of bad) {
+      const seen: string[] = [];
+      const merged = mergeProposals([], [{ key: 'git.merge', value: 'squash', evidence }], (p) => {
+        seen.push(p.key);
+        return undefined;
+      });
+      expect(merged.dropped.map((d) => d.reason), JSON.stringify(evidence)).toEqual(['evidence holds a line break or a control character']);
+      expect(merged.proposals, JSON.stringify(evidence)).toEqual([]);
+      expect(seen, 'the CLI callback never sees it').toEqual([]);
+    }
+    expect(none('git.merge', 'src/a.ts:1', 'squash').dropped).toEqual([]);
+  });
 });

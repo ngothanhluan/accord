@@ -4,7 +4,7 @@ description: Use when starting new work from a request. Proposes a lane for it, 
 license: MIT
 argument-hint: "<request>"
 kind: skill
-loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/queue.md, accord/review-foreign.md, accord/route.md, accord/worktree.md, new/epic.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
+loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/queue.md, accord/review-foreign.md, accord/route.md, accord/worktree.md, new/epic.md, accord/review-security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
 ---
 
 `/accord-new <request>` starts a New request, and `/accord <request>` loads this skill with the whole text once `./route.md` reads it as a change. With no argument, ask the owner for the request in one question and run, claim, create and edit nothing.
@@ -25,7 +25,7 @@ Propose a lane as `./lane.md` says, for every new request however small it looks
 
 - **S.** Run `accord new ticket <id> --lane S --worktree --title "<title>"` as `./similar.md` says; when config.yml has
   `people`, follow `./ids.md` and run it with `--type <story|bug>` and no id
-  instead. Then follow `./lane-s.md` and `./security.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says.
+  instead. Then follow `./lane-s.md` and `./review-security.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says.
 - **M.** Run `accord new ticket <id> --lane M --worktree --title "<title>"` as `./similar.md` says; when config.yml has
   `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
   --lane M --worktree --title "<title>"` with no id instead. It writes the ticket on its

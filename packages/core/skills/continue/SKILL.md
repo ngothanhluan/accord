@@ -4,7 +4,7 @@ description: Use when continuing a ticket by its id. Resumes the ticket in its o
 license: MIT
 argument-hint: "<ticket id>"
 kind: skill
-loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/worktree.md, review/security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
+loads: [accord/ids.md, accord/lane.md, accord/lane-r.md, accord/lane-s.md, accord/worktree.md, accord/review-security.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
 ---
 
 `/accord-continue <id>` resumes one ticket, and the accord skill loads this skill with that id when a person types the older form of the command. With no argument, ask the owner for the ticket id in one question and run, claim, create and edit nothing.
@@ -42,4 +42,4 @@ says so, offers `/accord-pickup <id>`, and never claims it.
   interface stops the run and asks the owner. Every other decision on a
   ticket is a Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`.
   Read `./ask.md` before any question to the owner.
-- A failure reported in a ticket that has reached verify follows `./failure.md`. `./ids.md` says how a ticket is named, moved to lane S or dropped; a lane proposal follows `./lane.md` and `./scout.md`; a lane S ticket is finished as `./finish.md` says and checked with `./security.md`.
+- A failure reported in a ticket that has reached verify follows `./failure.md`. `./ids.md` says how a ticket is named, moved to lane S or dropped; a lane proposal follows `./lane.md` and `./scout.md`; a lane S ticket is finished as `./finish.md` says and checked with `./review-security.md`.

@@ -4,7 +4,7 @@ description: Use when starting any work in an accord repository, when seeing whe
 license: MIT
 argument-hint: "[request]"
 kind: skill
-loads: [accord/comments.md, accord/continue.md, accord/ids.md, accord/lane-r.md, accord/lane-s.md, accord/lane.md, accord/new-epic.md, accord/new.md, accord/onboard.md, accord/pickup.md, accord/queue.md, accord/review-foreign.md, accord/review-security.md, accord/route.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
+loads: [accord/comments.md, accord/continue.md, accord/ids.md, accord/intent-discuss.md, accord/intent-research.md, accord/intent.md, accord/lane-r.md, accord/lane-s.md, accord/lane.md, accord/new-epic.md, accord/new.md, accord/onboard.md, accord/pickup.md, accord/queue.md, accord/review-foreign.md, accord/review-security.md, accord/route.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/scout.md, shared/similar.md]
 ---
 
 First run the session check in `./worktree.md` for the dashboard and for `/accord onboard`. Any other text after `/accord` that is not a typed form below follows `./route.md`, which says where the check runs. A failure reported in a ticket that has reached verify follows `./failure.md` by this route. A request to handle the comments on a ticket's pull request follows `./comments.md` by this route, without the session check. A request to review code or a pull request accord did not build follows `./review-foreign.md` by this route, without the session check.
@@ -42,6 +42,7 @@ After `accord anchor` prints a ticket's lane and stage, read the file for them a
 
 - lane S: `./lane-s.md`.
 - lane R: `./lane-r.md`.
+- lane M, row `intent`: `./intent.md`, which names `./intent-discuss.md` at its step 9 and `./intent-research.md` at its steps 2 and 6.
 
 A lane M stage with no row here runs its own command.
 

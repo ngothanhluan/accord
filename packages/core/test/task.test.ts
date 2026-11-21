@@ -60,17 +60,25 @@ describe('taskVerdict', () => {
   });
 });
 
-describe('taskVerdict plan hash', () => {
-  const hashLine = /^plan_hash: .*\n/m;
-  it('fails without a plan_hash:, and with a different one', () => {
-    expect(taskVerdict(snap({ 'accord/tickets/T-1/plan.md': PLAN.replace(hashLine, '') }), 'T-1', 1).reasons).toEqual([
-      'plan.md has no plan_hash:; run accord gate plan T-1',
-    ]);
-    const other = PLAN.replace(/plan_hash: .*/, 'plan_hash: "fnv1a64:0000000000000000"');
-    expect(taskVerdict(snap({ 'accord/tickets/T-1/plan.md': other }), 'T-1', 1).reasons).toEqual([
-      'plan.md changed after accord gate plan last passed; run accord gate plan T-1 again',
-    ]);
+it('ac-1 a plan edited after it passed the gate is refused with the build skill way out', () => {
+  const other = PLAN.replace(/plan_hash: .*/, 'plan_hash: "fnv1a64:0000000000000000"');
+  const verdict = taskVerdict(snap({ 'accord/tickets/T-1/plan.md': other }), 'T-1', 1);
+  expect(verdict).toEqual({
+    verdict: 'fail',
+    reasons: [
+      "plan.md changed since its plan_hash was recorded: show the owner the diff of plan.md; if the owner made the change, accord-plan reviews it; otherwise restore plan.md with the owner's yes",
+    ],
   });
+  expect(verdict.reasons.join('\n')).not.toContain('accord gate plan');
+});
+
+it('ac-2 a plan that never passed the gate is sent back to accord-plan', () => {
+  const verdict = taskVerdict(snap({ 'accord/tickets/T-1/plan.md': PLAN.replace(/^plan_hash: .*\n/m, '') }), 'T-1', 1);
+  expect(verdict).toEqual({
+    verdict: 'fail',
+    reasons: ['plan.md has no plan_hash: the plan stage has not finished; go back to accord-plan'],
+  });
+  expect(verdict.reasons.join('\n')).not.toContain('accord gate plan');
 });
 
 describe('recordTaskDone', () => {

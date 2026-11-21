@@ -1,0 +1,14 @@
+# Ledger: BUG-LN-24
+
+## Rulings
+Ruling: lane M although the lane scout found no lift condition (2 files, 2 code areas, no sensitive area, one reading) — the owner asked for a ticket that exercises the verify stage ("Create a ticket yourself and test it for me", translated, for Phase 5 UAT test 1), and lane S has no verify — cost if wrong: a small change takes the full lane M route
+Ruling: created as a new ticket related to BUG-LN-23 rather than continuing that draft — BUG-LN-23 also holds two review-round mismatches that need the owner's decisions; this ticket takes only its first bullet, and BUG-LN-23 stays a draft — cost if wrong: BUG-LN-23's first bullet is done twice unless its interview drops it
+Ruling: the ticket stays lane M at the intent stage's lane S check, for the same reason as the first Ruling — cost if wrong: as the first Ruling
+Ruling: the approach ladder is 1. Rewrite in place: the two refusal sentences become the decided sentences word for word, proved by two core tests and the renamed existing command-line test; 2. Command-line proof: the same sentences, with the first two criteria proved by new command-line tests on a real git repository; Rewrite in place is Recommended because it is the lightest change that meets every criterion and keeps the test layers the owner decided — kept so a resumed or revised round critiques the option ## Approach names and nobody picks again — a ruled-out option comes back
+Ruling: the two core tests are top-level `it(...)`, with no `describe` around them — the approach only says the block "is replaced by two tests", and top-level keeps the ids short, as in the BASE-1 plan — cost if wrong: the two ac-1/ac-2 ids gain a prefix and the `verify:` line has to be edited
+Ruling: the ac-3 test asserts only the start of the new sentence — the approach says so, and asserting the full sentence again would repeat the ac-1 test at another layer — cost if wrong: the command-line path could print a shortened sentence and no test would catch it
+Ruling: the re-verify after merging 200 commits of origin/main (2026-11-21) runs the ticket's two test files locally (94 passed, junit report at 8cc44e48) and leaves the full suite to CI on the pull request, Ubuntu and Windows — the owner replaced the 25-30 minute local tests.full with CI (ST-LN-17, ST-LN-75) — cost if wrong: a local-only failure outside the two files is seen only through CI, which runs the same suite
+
+## Tasks
+- task 1 done 6c3cb2e9186b
+Ruling: the command-line ac-3 test needed npm run build before the test run, since it runs the built packages — reported by the task 1 executor — cost if wrong: none

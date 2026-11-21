@@ -1105,6 +1105,7 @@ it('risk:data-loss the drop steps carry the research records the default branch 
         besidePath('intent', 'ids.md'),
         besidePath('new', 'ids.md'),
         besidePath('pickup', 'ids.md'),
+        '.claude/skills/accord-resolve-pr/ids.md',
         '.claude/skills/accord-upgrade/ids.md',
         besidePath('verify', 'ids.md'),
         '.claude/skills/accord/ids.md',
@@ -1485,7 +1486,7 @@ it('risk:regression accord-resolve-pr is the comments procedure as its own comma
     expect(flat(copies[0] ?? '').replace(/<!--.*?-->/g, ''), name + ' differs between the directories').toBe(flat(copies[1] ?? '').replace(/<!--.*?-->/g, ''));
   }
   for (const dir of dirs) {
-    expect(raw(dir, 'SKILL.md'), dir).toMatch(/^name: accord-resolve-pr$/m);
+    expect(raw(dir, 'SKILL.md'), dir).toMatch(/^name: "?accord-resolve-pr"?$/m);
     expect(raw(dir, 'SKILL.md'), dir).toMatch(/^argument-hint: "?<PR \| ticket id>"?$/m);
   }
   const get = (p: string) => flat(all.find((f) => f.path === p)?.text ?? '');

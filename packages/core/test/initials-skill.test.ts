@@ -18,8 +18,8 @@ const rendered = (suffix: string): { path: string; text: string }[] => files.fil
 
 it('risk:regression 7-ac-4 G-07-2 every rendered ids.md says the queue commits the entry and where new ticket reads initials', () => {
   const ids = rendered('/ids.md');
-  // 08.3-21: the six stage folders are gone, so the copies are the folders left that render it (accord, debug, upgrade)
-  expect(ids.map((f) => f.path).sort()).toEqual(['.claude/skills/accord-debug/ids.md', '.claude/skills/accord-upgrade/ids.md', '.claude/skills/accord/ids.md']);
+  // 08.3-21: the six stage folders are gone, so the copies are the folders left that render it (accord, debug, resolve-pr, upgrade; 08.3-25 added resolve-pr)
+  expect(ids.map((f) => f.path).sort()).toEqual(['.claude/skills/accord-debug/ids.md', '.claude/skills/accord-resolve-pr/ids.md', '.claude/skills/accord-upgrade/ids.md', '.claude/skills/accord/ids.md']);
   const missing = ids.flatMap(({ path, text }) =>
     [
       "then from origin's default branch, then from any fetched branch whose entries agree",
@@ -34,7 +34,7 @@ it('risk:regression 7-ac-4 G-07-2 every rendered ids.md says the queue commits t
 
 it('risk:regression 7-ac-4 G-07-2 every rendered worktree.md carries an entry an earlier run left uncommitted', () => {
   const worktree = rendered('/worktree.md');
-  expect(worktree.map((f) => f.path).sort()).toEqual(['.claude/skills/accord-debug/worktree.md', '.claude/skills/accord-upgrade/worktree.md', '.claude/skills/accord/worktree.md']);
+  expect(worktree.map((f) => f.path).sort()).toEqual(['.claude/skills/accord-debug/worktree.md', '.claude/skills/accord-resolve-pr/worktree.md', '.claude/skills/accord-upgrade/worktree.md', '.claude/skills/accord/worktree.md']);
   const missing = worktree.flatMap(({ path, text }) =>
     [
       '`git diff HEAD -- accord/config.yml` here shows your entry under `people` as added',

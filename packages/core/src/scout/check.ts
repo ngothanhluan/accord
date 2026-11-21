@@ -5,6 +5,7 @@ import { configLists } from '../load/config.js';
 import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { isResearchRecord } from '../load/research.js';
 import { parseYamlMap } from '../load/yaml.js';
+import { LINE_CAP, patternShape } from './pattern.js';
 import { parseScoutReport } from './report.js';
 import type { Citation } from './report.js';
 
@@ -203,6 +204,12 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
   const own = report.absent.length > 0 ? ownFiles(facts, tracked) : new Set<string>();
   for (const row of report.absent) {
     const where = 'absent claim "' + printedClaim(row.claim) + '" (row ' + row.line + '): ';
+    // T-08.4-27: the pattern is read, not run, until its text proves it cheap; a pattern that is not fails its row and is never run
+    const shape = patternShape(row.pattern);
+    if (shape.problem !== undefined) {
+      failures.push(where + 'its pattern is refused: ' + shape.problem);
+      continue;
+    }
     let pattern: RegExp;
     try {
       pattern = new RegExp(row.pattern);
@@ -222,7 +229,7 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
     unallowed.forEach((path, i) => {
       const text = texts[i];
       if (text === undefined) return;
-      const n = linesOf(text).findIndex((l) => pattern.test(l));
+      const n = linesOf(text).findIndex((l) => (!shape.unbounded || l.length <= LINE_CAP) && pattern.test(l));
       if (n >= 0) failures.push(where + path + ':' + (n + 1) + ' matches its pattern outside its allowed hits');
     });
   }

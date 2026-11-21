@@ -1,6 +1,8 @@
 // ST-LN-81: `accord scout check <file>` judges a scout report against the files git tracks.
+import { execFile } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseScoutReport, renderSkill } from '@accord-dev/accord-core';
 import type { SkillKey } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
@@ -352,6 +354,60 @@ it('risk:parsing the example reply scan.md shows a settings scout passes accord 
     const failing = await run(['scout', 'check', 'report.md'], repo);
     expect(failing.code).toBe(1);
     expect(failing.out).toContain('its pattern is not a valid JavaScript regular expression');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.4 security T-08.4-27: a scout reply's `## Absent` pattern was compiled and run over every tracked line with no bound, so
+// `([a-z]*)*!` over one 60-letter line hung the command (killed at 20 s). A pattern that is not provably cheap is now refused as a
+// failure that names the row, and never run.
+it('risk:security a catastrophic Absent pattern over a long tracked line is refused at once with the row named, not run (D-07)', { timeout: 30_000 }, async () => {
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'src/a.ts': 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh\n' });
+    commitMsg(repo, 'fixture');
+    writeFileSync(
+      join(repo, 'report.md'),
+      '## Files\n- src/a.ts\n\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n|---|---|---|---|\n| no bang anywhere | `([a-z]*)*!` | `src/` | |\n| no needle anywhere | `needle` | `src/` | |\n',
+    );
+    // a child process with a time limit: a catastrophic pattern would freeze this test's own process and never return
+    const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+    const started = Date.now();
+    const out = await new Promise<{ code: number | null; stdout: string; killed: boolean }>((resolve) => {
+      execFile(process.execPath, [cli, 'scout', 'check', 'report.md'], { cwd: repo, timeout: 10_000, encoding: 'utf8' }, (err, stdout) => {
+        resolve({ code: err === null ? 0 : ((err as { code?: number }).code ?? null), stdout, killed: err !== null && (err as { killed?: boolean }).killed === true });
+      });
+    });
+    expect(out.killed, 'the command was killed at the time limit: the pattern ran').toBe(false);
+    expect(Date.now() - started).toBeLessThan(8000);
+    expect(out.code).toBe(1);
+    expect(out.stdout).toContain('absent claim "no bang anywhere"');
+    expect(out.stdout).toContain('its pattern is refused: a quantifier sits inside a quantified group');
+    // the refusal is that row's alone: the next row still ran and found nothing
+    expect(out.stdout).not.toContain('no needle anywhere');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:security a nested quantifier, an overlapping alternation and a backreference in an Absent row each fail the command with the row named (D-07)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'src/a.ts': 'one line\n' });
+    commitMsg(repo, 'fixture');
+    const rows = [
+      ['nested', '(a+)+'],
+      ['overlap', '(a|aa)+'],
+      ['backref', String.raw`(a)\1`],
+    ];
+    const head = '## Files\n- src/a.ts\n\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n|---|---|---|---|\n';
+    writeFileSync(join(repo, 'report.md'), head + rows.map(([name, pattern]) => '| ' + name + ' | `' + pattern.replace(/\|/g, '\\|') + '` | `src/` | |').join('\n') + '\n');
+    const result = await run(['scout', 'check', 'report.md'], repo);
+    expect(result.code).toBe(1);
+    for (const [name] of rows) expect(result.out).toContain('absent claim "' + name + '"');
+    expect(result.out.split('its pattern is refused: ').length - 1).toBe(rows.length);
+    expect(result.out).not.toContain('scout check passed');
   } finally {
     cleanup(repo);
   }

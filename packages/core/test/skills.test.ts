@@ -287,7 +287,7 @@ const output = skillTargets(config());
 const skillFiles = output.filter((f) => f.path.endsWith('/SKILL.md'));
 
 // Phase 8.3 D-03: a command that folded into /accord has no name any more, so no skill source, rendered file or source file names it. `FOLDED` holds the folded
-// command names; 08.3-09 added `continue`, `pickup` and `new`, 08.3-20 adds the six stages (README.md and docs/design.md join the scanned files in 08.3-09 Task 2). The pattern is
+// command names; 08.3-09 added `continue`, `pickup` and `new` and put README.md and docs/design.md under the scan; 08.3-20 adds the six stages. The pattern is
 // `accord-<name>` ended by anything but a word character or a hyphen, so a temp folder prefix (`accord-queue-`), `accord-reviewer` and `accord-review-pr` are not hits.
 const FOLDED = ['queue', 'continue', 'pickup', 'new'];
 const foldedPattern = (list: readonly string[]): RegExp => new RegExp('\\baccord-(?:' + list.join('|') + ')(?![\\w-])');
@@ -325,6 +325,8 @@ function foldedSources(): { path: string; text: string }[] {
       out.push({ path: relative(repo, full).split(sep).join('/'), text: readFileSync(full, 'utf8') });
     }
   }
+  // 08.3-09: the two docs a person reads. docs/releases.md is never scanned: its `## Unreleased` table names the old commands on purpose.
+  for (const doc of ['README.md', 'docs/design.md']) out.push({ path: doc, text: readFileSync(join(repo, doc), 'utf8') });
   return out;
 }
 

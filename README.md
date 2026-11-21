@@ -88,15 +88,11 @@ accord changes no GitHub setting, so nothing yet stops a pull request from mergi
 
 ### 5. Daily use in your coding agent
 
-Work starts from `/accord` or one of its own commands inside the agent session:
+Work starts from `/accord` inside the agent session; the two other commands are for upkeep:
 
 | Command | What it does |
 |---|---|
-| `/accord` | The dashboard: your tickets, the team's, and what is ready to pick up, with the actions that apply. |
-| `/accord-new <request>` | New work. Accord proposes a lane with its reason; you may override it. |
-| `/accord-continue <id>` | Resume a ticket at the stage and step it reached. |
-| `/accord-pickup <id>` | Claim an unclaimed ticket and start it. |
-| `/accord-queue <idea>` | Note an idea as a draft ticket for later, from any session, without starting it or leaving the ticket you are on. |
+| `/accord [request]` | With no text, the dashboard: your tickets, the team's, and what is ready to pick up, with the actions that apply. With text, accord routes it by intent: a change starts work (accord proposes a lane with its reason; you may override it), a question is answered, an idea is queued. Three typed forms skip the routing: `/accord continue <id>` resumes a ticket at the stage and step it reached, `/accord pick-up <id>` claims an unclaimed ticket and starts it, and `/accord queue <idea>` notes an idea as a draft ticket for later, from any session, without starting it or leaving the ticket you are on. |
 | `/accord-audit` | Optional. Report what a machine can see about your conventions (linter and its rules, formatter, type checking, tests, languages, folders, PR template, commit rule), each gap with its fix, and draft conventions from the code, line by line, only on your yes. Nothing runs it for you. |
 | `/accord-upgrade` | Move the repository to a newer accord release (see [Version pin](#8-version-pin-and-upgrading)). |
 
@@ -113,12 +109,12 @@ Lanes:
 
   `accord-debug` finds a root cause before any fix when something fails for a reason nobody has shown.
 - R, research: a question accord cannot answer from the code, with no change asked. `accord new ticket <id> --lane R` writes a ticket with a question, a timebox and a token budget the owner sets, quoted under `## Decisions`. The session researches within them, checks `accord budget <id>` between steps and stops to ask the owner past either, and ends in a record under `accord/research/`, written on its branch after the claim, that the ticket lists under `research:`; an older record listed there is evidence, not the result. There is no approach, plan, critic, review or verification; `accord gate done` refuses a branch that changes the shipped packages.
-- L, an epic, proposed when a request names three or more parts that would each be a story of its own: `/accord-new` interviews the owner once (why, for whom, the Vetoes, the Decisions), proposes a split into two to ten stories linked by `depends_on`, and on the owner's yes runs `accord new ticket --type epic --lane L --split <file> --queue`, which queues the epic and every story in one pull request. Each story then runs lane M, picked up in its own worktree. The epic itself gets no approach or plan critique.
+- L, an epic, proposed when a request names three or more parts that would each be a story of its own: `/accord <request>` interviews the owner once (why, for whom, the Vetoes, the Decisions), proposes a split into two to ten stories linked by `depends_on`, and on the owner's yes runs `accord new ticket --type epic --lane L --split <file> --queue`, which queues the epic and every story in one pull request. Each story then runs lane M, picked up in its own worktree. The epic itself gets no approach or plan critique.
 - P (a project) is not built yet; accord proposes an epic instead.
 
 A request moves from S to M when it changes a public interface or schema, touches a listed sensitive area or auth, money, migration or data deletion, has more than one plausible reading that one question cannot settle, or is expected to touch more than 5 files or more than 3 code areas, tests and generated copies not counted. A scout reads the code before any lane is proposed; `accord scout check` checks the citations and logged searches of its report and prints the lane numbers, and the report is saved as `accord/tickets/<id>/scout.md`, which `accord approve` requires of a lane M ticket, judged by the same check at the commit that last changed it, unless the file holds a `skipped: <reason>` line. A lane S ticket records the files it expects to touch, and `accord gate done` fails it when it touches others. A lane only rises, except that a lane M ticket whose intent is not yet approved may move to lane S in place, keeping its id, branch and worktree.
 
-Each ticket is worked in its own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands listed in `config.yml`. `accord worktree open <id>` prints the folder and the `/accord-continue <id>` line to type in a session opened there. Tickets done on the remote main branch have their worktree and branches removed by `accord worktree clean`, which `/accord` runs.
+Each ticket is worked in its own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands listed in `config.yml`. `accord worktree open <id>` prints the folder and the `/accord continue <id>` line to type in a session opened there. Tickets done on the remote main branch have their worktree and branches removed by `accord worktree clean`, which `/accord` runs.
 
 In Claude Code, the pane shows the dashboard beside the chat.
 
@@ -132,7 +128,7 @@ After you change `runtimes:`, write the copies again and commit what it prints:
 npx --yes @accord-dev/accord@0.10.0 skills sync
 ```
 
-`skills sync` deletes no copy you may still use. When you remove a runtime, it lists the copies it no longer writes, and you delete them yourself. The one file it deletes is `.claude/agents/accord-architect.md`, an agent accord no longer has, and only while its marker shows nobody edited it: it prints `removed` for it, and lists an edited copy with the others.
+`skills sync` and `accord upgrade` delete only files accord once rendered and no longer renders (a skill folder of an older release, such as the four old command folders, or `.claude/agents/accord-architect.md`), and only while the file's marker shows nobody edited it. Each deleted file prints as `removed`, and a skill folder that emptied is removed with it. An edited copy stays: it is listed as an orphan with the command that removes it, and so is the folder that holds it. A file you wrote yourself is never touched. When you remove a runtime, `skills sync` lists the copies it no longer writes, and you delete them yourself.
 
 ### 7. CLI commands for people and CI
 

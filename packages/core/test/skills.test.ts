@@ -803,6 +803,21 @@ describe('one command per action', () => {
     }
   });
 
+  // The two moved texts say that any text which is not one ticket id is routed as text, and name no old command.
+  it('risk:complex-branching continue.md and pickup.md send other text to the route and name no old command (D-02)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const cfg = config({ runtimes: [runtime] });
+      const files = skillTargets(cfg);
+      const dir = skillDirs(cfg)[0];
+      for (const name of ['continue', 'pickup']) {
+        const text = bodyOf(files.find((f) => f.path === `${dir}/accord/${name}.md`)?.text ?? '').replace(/\s+/g, ' ');
+        expect(text.length, `${runtime} ${name} is missing`).toBeGreaterThan(0);
+        expect(text, `${runtime} ${name}: any other text follows the route`).toContain('any other text follows `./route.md` with the whole text');
+        expect(text, `${runtime} ${name}: no old command`).not.toMatch(/accord-(new|continue|pickup)\b/);
+      }
+    }
+  });
+
   // Phase 8.3 D-01 (Pitfall 1): the accord folder renders the lane, finish and scout files again, so none of them may stay on the retire list.
   it('risk:data-loss the lane finish and scout files render in the accord folder and are not retired (D-01)', () => {
     const rendered = ['lane', 'lane-r', 'lane-s', 'finish', 'scout', 'review-security'];

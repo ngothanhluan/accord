@@ -2004,7 +2004,8 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
   // (c) the finish reference names the commands themselves
   const finish = copies('finish.md');
   expect(finish.length).toBeGreaterThan(0);
-  for (const f of finish) for (const s of ['`/accord-continue <id>`', '`/accord-pickup <id>`', '`/accord-new <request>`']) expect(f.text, f.path).toContain(s);
+  for (const f of finish) for (const s of ['`/accord continue <id>`', '`/accord pick-up <id>`', '`/accord <request>`']) expect(f.text, f.path).toContain(s);
+  for (const f of finish) for (const s of ['`/accord-continue', '`/accord-pickup', '`/accord-new']) expect(f.text, f.path).not.toContain(s);
   // (d) the routed `/accord <id> ` text form stays in comments.md and failure.md
   for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('`/accord <id> ` followed by');
   // (e) a step of the Continue section is named as a step of the Continue steps of `/accord` (D-03), never of the old command
@@ -2084,6 +2085,9 @@ it('risk:regression the routing text maps each intent to its route and says it o
     const end = brainstorm.slice(brainstorm.indexOf('End by proposing'));
     expect(brainstorm, f.path).toContain('one question at a time');
     for (const p of ['End by proposing', 'build now', 'queue', 'research', 'nothing']) expect(end, f.path).toContain(p);
+    // Phase 8.3 D-03: build now is `/accord <request>`, queue is `/accord queue <idea>`; no old command is proposed
+    expect(end, f.path).toContain('build now (`/accord <request>`), queue (`/accord queue <idea>`)');
+    expect(end, f.path).not.toContain('accord-new');
     expect(queue, f.path).toContain('`./queue.md`');
     expect(research, f.path).toContain('lane R');
     expect(existing, f.path).toContain('`accord drop <id> --reason');

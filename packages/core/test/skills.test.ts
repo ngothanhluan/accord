@@ -361,6 +361,23 @@ it('risk:regression no skill source names a folded command (D-03)', () => {
   expect(foldedHits([{ path: 'packages/cli/src/x.ts', text: "'accord-queue': ['SKILL.md']," }], pattern)).toHaveLength(1);
 });
 
+// Phase 8.3 D-07 (08.3-23): onboarding is the command `/accord-onboard`, so no skill source, rendered file or source file names the typed form `/accord onboard`. README.md and
+// docs/design.md join the scan in 08.3-25 (they hold the old form until then), so the two docs are left out of this one. The pattern ends at a word boundary, and `/accord-onboard` has a hyphen where the space is.
+const OLD_ONBOARD = /\/accord onboard\b/;
+it('risk:regression no text names the old onboard form (D-07)', () => {
+  const sources = foldedSources().filter((s) => !DOC_FILES.includes(s.path));
+  for (const dir of ['packages/core/skills/', 'packages/core/src/', 'packages/cli/src/', 'packages/core/panel/']) {
+    expect(sources.some((s) => s.path.startsWith(dir)), `${dir} was scanned`).toBe(true);
+  }
+  const rendered = ROSTERS.flat().map((f) => ({ path: f.path, text: f.text }));
+  expect(rendered.length, 'no rendered file was scanned').toBeGreaterThan(0);
+  expect(foldedHits([...sources, ...rendered], OLD_ONBOARD)).toEqual([]);
+  // Guard the guard: the pattern matches the old typed form, and not the command's own name or the word elsewhere.
+  for (const hit of ['type `/accord onboard` now', 'or on /accord onboard.']) expect(OLD_ONBOARD.test(hit), hit).toBe(true);
+  for (const miss of ['type /accord-onboard to confirm them one by one', '`accord-onboard`', 'accord onboard', '/accord onboarding']) expect(OLD_ONBOARD.test(miss), miss).toBe(false);
+  expect(foldedHits([{ path: 'packages/cli/src/commands/init.ts', text: 'type /accord onboard to confirm' }], OLD_ONBOARD)).toHaveLength(1);
+});
+
 it('risk:regression the accord skill names its typed forms (D-03)', () => {
   for (const roster of ROSTERS) {
     const accord = roster.filter((f) => f.path.endsWith('/accord/SKILL.md'));

@@ -65,7 +65,7 @@ function lastStep(path: string): string {
 it('risk:regression the init and upgrade flows end by asking whether to audit (8.1-ac-11)', () => {
   const common = ['`accord audit`', 'one question', 'On no, run nothing', '`/accord-audit` runs it any time', 'On yes, run', 'each `gap:` line with its `- fix:`'];
   const onboard = lastStep('onboard/SKILL.md');
-  expect(onboard).toMatch(/^5\. /);
+  expect(onboard).toMatch(/^6\. /);
   expect(common.filter((p) => !onboard.includes(p))).toEqual([]);
   expect(onboard).toContain('conventions draft');
   const upgrade = lastStep('accord/upgrade.md');

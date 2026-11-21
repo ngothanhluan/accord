@@ -27,8 +27,7 @@ repository. `accord init` only proposes: it writes nothing to `accord/config.yml
    the repository's files and reports what a machine can see about its conventions and its accord setup, each gap with
    its fix, and it changes nothing. On no, run nothing, and say that `/accord-audit` runs it any time. On yes, run
    `accord audit` and show each `gap:` line with its `- fix:`; when a `conventions-empty` or `conventions-thin` gap is
-   listed, offer the conventions draft that `/accord-audit` makes, and run nothing else unasked.
-7. Then say that the first ticket starts with `/accord <request>`.
+   listed, offer the conventions draft that `/accord-audit` makes, and run nothing else unasked. Then say that the first ticket starts with `/accord <request>`.
 
 ## Rules
 

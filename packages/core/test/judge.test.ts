@@ -257,12 +257,14 @@ it('risk:regression a fixed comment gets its reply only after a fresh judge re-c
     const text = flat(bodyOf(files.find((f) => f.path === dir + '/SKILL.md')?.text ?? ''));
     for (const phrase of [
       'Before a reply says a comment was fixed in a commit, dispatch a fresh `accord-judge` to re-check that comment against the new code',
-      'the reproducing test now passes, or the file and line it cited now differ',
+      'the reproducing test now passes, or the file and line it cited no longer show the claim',
       'gets no fixed reply and goes back to step 5',
       "A declined reply carries the judge's evidence",
       'one new review round and then verify again for lane M, the lane S steps for lane S',
       'Post no reply, comment or review to the pull request before that yes',
     ]) expect(text, dir + ' lacks: ' + phrase).toContain(phrase);
+    // review IN-02: a line that moved while the claim still holds is no fix, so the skill never says a changed line passes the re-check
+    expect(text, dir).not.toContain('cited now differ');
     const recheck = text.indexOf('re-check that comment');
     expect(recheck, dir).toBeGreaterThan(text.indexOf('5. **Fix.**'));
     expect(recheck, dir).toBeLessThan(text.indexOf('draft one reply per comment: the commit that fixed it, the reason it was not changed, or the answer it took'));

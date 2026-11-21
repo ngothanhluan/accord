@@ -4,15 +4,16 @@
 // committed or pushed here: the onboarding skill does that.
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, mergeProposals, parseValue, resolveKeyPath, scoutCheck, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
+import { appendConfigList, CONFIG_AREAS, citationFailures, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, mergeProposals, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
 import type { ConfigProposal, LoadFinding } from '@accord-dev/accord-core';
+import { CONFIG_FILE, describeFinding as describe, editRefusal } from '../load/config-edit.js';
 import { detectProposals, refusal } from '../load/detect.js';
 import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
 import { SCRIPT_KINDS, shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { workingFacts } from './scout.js';
 
-const FILE = 'accord/config.yml';
+const FILE = CONFIG_FILE;
 /** Phase 8.4 D-08 (T-08.4-14): the scan's file is read only when it is a regular file of at most this many bytes, and holds at most MAX_SCAN_ENTRIES entries. */
 const MAX_SCAN_BYTES = 262144;
 const MAX_SCAN_ENTRIES = 100;
@@ -87,31 +88,13 @@ function withConsequences(ctx: CommandContext, path: string[], before: string, e
   return withSubjectConsequences(before, ids.text);
 }
 
-const describe = (f: LoadFinding): string => `${f.pointer !== undefined && f.pointer !== '' ? f.pointer + ' ' : ''}${f.reason}`;
-
-/** `/strictness/levels/gate.design-missing` as the dotted key a person types. */
-const dotted = (pointer: string): string => pointer.slice(1).split('/').join('.');
-
-/**
- * ST-LN-50 D-08, D-09, D-10: the `strictness.levels` keys the engines would ignore (a floor rule, a stage's rule, an unknown rule, a Ready-promoted rule turned off).
- * An edit is refused when one stands at the key it edits or is new; one already in the file and not touched by this edit does not stop the edit, so a file
- * holding two of them can be cleaned up one `unset` at a time. `accord config check` and `accord lint` still name every one.
- */
-function refusedByFloor(path: string[], before: string, after: string): { pointer: string; reason: string }[] {
-  const edited = '/' + path.join('/');
-  const known = new Set(floorProblems(loadConfig(FILE, before).config).map((p) => p.pointer));
-  return floorProblems(loadConfig(FILE, after).config).filter((p) => p.pointer === edited || p.pointer.startsWith(edited + '/') || !known.has(p.pointer));
-}
-
-/** Validate the edited text as a whole and write it once; any finding, or a text the writers could not edit, writes nothing. */
+/** Validate the edited text as a whole and write it once; any finding, or a text the writers could not edit, writes nothing. The refusal itself is `editRefusal`, shared with the proposals check. */
 function commit(key: string, path: string[], file: string, before: string, after: string | undefined): void {
   if (after === undefined) {
     throw new UsageError(`${key}: ${FILE} is not a YAML mapping, or a parent of ${key} is not one - ${FILE} was not changed`);
   }
-  const found = loadConfig(FILE, after).findings;
-  if (found.length > 0) throw new UsageError(`${key}: ${found.map(describe).join('; ')} - ${FILE} was not changed`);
-  const floor = after === before ? [] : refusedByFloor(path, before, after);
-  if (floor.length > 0) throw new UsageError(`${floor.map((p) => `${dotted(p.pointer)}: ${p.reason}`).join('; ')} - ${FILE} was not changed`);
+  const refused = editRefusal(path, before, after);
+  if (refused !== undefined) throw new UsageError(`${refused.kind === 'schema' ? key + ': ' : ''}${refused.text} - ${FILE} was not changed`);
   if (after !== before) writeFileSync(file, after);
 }
 
@@ -158,7 +141,59 @@ export function configUnset(ctx: CommandContext, key: string, options: { json?: 
   return report(ctx, key, from, undefined, out.consequences, options);
 }
 
-/** The scan's proposals from `file`: a JSON array whose every entry is `{ key, value, evidence }`. Any other file is a usage error (exit 2) naming the file with `/`. */
+/** The scan's file as text: UTF-8 with or without a BOM, or UTF-16 with a BOM (what Windows PowerShell 5 writes with `>`), as a Windows editor or shell may save it. */
+function decodeScanFile(bytes: Buffer): string {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return bytes.subarray(2).toString('utf16le');
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+    const body = bytes.subarray(2);
+    if (body.length % 2 !== 0) throw new Error('a UTF-16 file of an odd number of bytes');
+    return Buffer.from(body).swap16().toString('utf16le');
+  }
+  const text = bytes.toString('utf8');
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
+/** Review WR-04: a value nested deeper than this many levels of object or array is dropped, never walked; a config value is at most 3 or 4 levels deep. */
+const MAX_DEPTH = 8;
+/** Review IN-04: the longest value (as JSON text) a scan proposal may hold, and the most characters of a printed key, value, evidence or reason. */
+const MAX_VALUE = 1000;
+/** Stands for a value nested over MAX_DEPTH levels, which is never kept: its identity marks the proposal for `scanRefusal`. */
+const TOO_DEEP: unknown = Object.freeze({});
+
+/** Whether `value` holds a container nested over MAX_DEPTH levels deep; an iterative walk, so no depth can overflow the stack. */
+function nestedTooDeep(value: unknown): boolean {
+  const stack: [unknown, number][] = [[value, 0]];
+  for (let item = stack.pop(); item !== undefined; item = stack.pop()) {
+    const [node, depth] = item;
+    if (typeof node !== 'object' || node === null) continue;
+    if (depth + 1 > MAX_DEPTH) return true;
+    for (const child of Object.values(node)) stack.push([child, depth + 1]);
+  }
+  return false;
+}
+
+/** Whether any string of `value`, or any key of an object in it, holds a control, format or separator character. The value is tested itself, not its JSON text, which escapes the C0 ones. */
+function holdsControl(value: unknown): boolean {
+  const bad = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+  const stack: unknown[] = [value];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (typeof node === 'string' && bad.test(node)) return true;
+    if (typeof node !== 'object' || node === null) continue;
+    if (!Array.isArray(node) && Object.keys(node).some((k) => bad.test(k))) return true;
+    for (const child of Object.values(node)) stack.push(child);
+  }
+  return false;
+}
+
+const capped = (text: string): string => (text.length > MAX_VALUE ? text.slice(0, MAX_VALUE) + '...' : text);
+/** A value as printed on a `proposal:` or `dropped:` line: JSON through `shown`, cut at MAX_VALUE characters. */
+const printedValue = (value: unknown): string => (value === TOO_DEEP ? '<nested too deeply>' : capped(shown(JSON.stringify(value) ?? '')));
+
+/**
+ * The scan's proposals from `file`: a JSON array whose every entry is `{ key, value, evidence }`. Any other file is a usage error (exit 2) naming the file with `/`, and the error never quotes the
+ * file's text. A value nested over MAX_DEPTH levels is replaced by TOO_DEEP, so that one entry drops and the rest of the file is read.
+ */
 function readScanProposals(file: string, cwd: string): ConfigProposal[] {
   const abs = resolve(cwd, file);
   const name = shown(file.replace(/\\/g, '/'));
@@ -167,16 +202,15 @@ function readScanProposals(file: string, cwd: string): ConfigProposal[] {
     const stat = statSync(abs);
     if (!stat.isFile()) throw new Error('not a regular file');
     if (stat.size > MAX_SCAN_BYTES) throw new Error(`${stat.size} bytes is over the ${MAX_SCAN_BYTES} byte limit`);
-    raw = readFileSync(abs, 'utf8');
-    if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // a BOM from a Windows editor; JSON itself tolerates CRLF between tokens
+    raw = decodeScanFile(readFileSync(abs));
   } catch (err) {
     throw new UsageError(shown(`cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`.replace(/\\/g, '/')));
   }
   let data: unknown;
   try {
     data = JSON.parse(raw);
-  } catch (err) {
-    throw new UsageError(`${name} is not JSON: ${shown((err instanceof Error ? err.message : String(err)).split('\n')[0] ?? '')}`);
+  } catch {
+    throw new UsageError(`${name} is not JSON: write it as UTF-8 text holding an array of { key, value, evidence } proposals`);
   }
   if (!Array.isArray(data)) throw new UsageError(`${name} is not a JSON array of { key, value, evidence } proposals`);
   if (data.length > MAX_SCAN_ENTRIES) throw new UsageError(`${name} holds ${data.length} entries, more than the ${MAX_SCAN_ENTRIES} allowed`);
@@ -186,11 +220,11 @@ function readScanProposals(file: string, cwd: string): ConfigProposal[] {
     if (!plain || typeof e.key !== 'string' || typeof e.evidence !== 'string' || !Object.hasOwn(e, 'value')) {
       throw new UsageError(`${name}: entry ${i + 1} is not { key, value, evidence } with a string key and a string evidence`);
     }
-    return { key: e.key, value: e.value, evidence: e.evidence };
+    return { key: e.key, value: nestedTooDeep(e.value) ? TOO_DEEP : e.value, evidence: e.evidence };
   });
 }
 
-/** Every dotted key a proposal sets: the key itself, or for a plain-object value the key joined with each nested key, down to a value that is no non-empty object. */
+/** Every dotted key a proposal sets: the key itself, or for a plain-object value the key joined with each nested key, down to a value that is no non-empty object. The value is at most MAX_DEPTH levels deep. */
 function leafPaths(key: string, value: unknown): string[] {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return [key];
   const entries = Object.entries(value);
@@ -198,28 +232,36 @@ function leafPaths(key: string, value: unknown): string[] {
 }
 
 /**
- * Phase 8.4 D-07, D-08 (Ruling 5): the refusals only the CLI can check, handed to core's `mergeProposals` as its last rule, the first reason winning: a proposal that sets one of the scripts behind
- * `accord trust` (a leaf path equal to or under a kind of SCRIPT_KINDS, also through a parent key's object value); a value holding a control character; a value `accord config set` would refuse
- * (`refusal`, which also refuses a parent of a script key given a value that is no object, as the schema types every such parent as one); the value the file already holds; and evidence whose
- * `path:line` is no tracked file with that line (core's `scoutCheck`). A command for a worktree's setup or for the tests is not refused for being a command (the owner's answer of 2026-11-21).
+ * Phase 8.4 D-07, D-08 (Ruling 5): the refusals only the CLI can check, handed to core's `mergeProposals` as its last rule, the first reason winning: a value nested over MAX_DEPTH levels or over MAX_VALUE
+ * characters of JSON (WR-04, IN-04); a proposal that sets one of the scripts behind `accord trust` (a leaf path equal to or under a kind of SCRIPT_KINDS, also through a parent key's object value); a value
+ * holding a control, format or separator character in any string or key (WR-02); a value `accord config set` would refuse (`refusal`, the one definition `config set` shares: the schema, a floor problem at the
+ * edited key or a new one, and the ids and subjects the edit keeps valid; it also refuses a parent of a script key given a value that is no object, as the schema types every such parent as one);
+ * the value the file already holds; and evidence whose `path:line` is no tracked file with that line (`citationFailures`, which reads the evidence as one citation line and runs no pattern, WR-01).
+ * A command for a worktree's setup or for the tests is not refused for being a command (the owner's answer of 2026-11-21). A check that throws drops its proposal, never the run (WR-04).
  */
 function scanRefusal(ctx: CommandContext, text: string): (p: ConfigProposal) => string | undefined {
-  const refuse = refusal(ctx.root);
+  const refuse = refusal(ctx.root, (path, before, edited) => withConsequences(ctx, path, before, edited).text);
   let facts: ReturnType<typeof workingFacts> | undefined;
   return (p) => {
-    for (const leaf of leafPaths(p.key, p.value)) {
-      const kind = SCRIPT_KINDS.find((k) => leaf === k || leaf.startsWith(k + '.'));
-      if (kind !== undefined) return `sets ${kind}, a script that runs only after accord trust`;
+    try {
+      if (p.value === TOO_DEEP) return `the value is nested more than ${MAX_DEPTH} levels deep`;
+      const json = JSON.stringify(p.value) ?? '';
+      if (json.length > MAX_VALUE) return `value over ${MAX_VALUE} characters`;
+      for (const leaf of leafPaths(p.key, p.value)) {
+        const kind = SCRIPT_KINDS.find((k) => leaf === k || leaf.startsWith(k + '.'));
+        if (kind !== undefined) return `sets ${kind}, a script that runs only after accord trust`;
+      }
+      if (holdsControl(p.value)) return 'the value holds a control character';
+      const why = refuse(p);
+      if (why !== undefined) return `accord config set would refuse it: ${why}`;
+      const path = resolveKeyPath(p.key);
+      if (path !== undefined && JSON.stringify(getConfigValue(text, path)) === json) return 'same as the current value';
+      facts ??= workingFacts(ctx.root);
+      const failure = citationFailures(p.evidence, facts).find((f) => f.startsWith('citation '));
+      return failure === undefined ? undefined : `evidence ${failure}`;
+    } catch (err) {
+      return `checking it failed: ${err instanceof Error ? err.message : String(err)}`;
     }
-    const json = JSON.stringify(p.value) ?? '';
-    if (shown(json) !== json) return 'the value holds a control character';
-    const why = refuse(p);
-    if (why !== undefined) return `accord config set would refuse it: ${why}`;
-    const path = resolveKeyPath(p.key);
-    if (path !== undefined && JSON.stringify(getConfigValue(text, path)) === json) return 'same as the current value';
-    facts ??= workingFacts(ctx.root);
-    const failure = scoutCheck({ text: '## Files\n\n## Facts\n- ' + p.evidence + '\n', ...facts }).failures.find((f) => f.startsWith('citation '));
-    return failure === undefined ? undefined : `evidence ${failure}`;
   };
 }
 
@@ -247,7 +289,10 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
   const init = detectProposals(ctx.root);
   const merged = options.proposals === undefined ? { proposals: init, dropped: [] } : mergeProposals(init, readScanProposals(options.proposals, cwd), scanRefusal(ctx, text));
   const proposals = merged.proposals;
-  const dropped = merged.dropped.map((d) => ({ key: d.key, value: d.value, evidence: d.evidence, reason: d.reason }));
+  const fromInit = new Set<ConfigProposal>(init); // mergeProposals returns init's own objects, so identity tells the two origins apart
+  const marked = options.proposals !== undefined;
+  const droppedValue = (v: unknown): unknown => (v === TOO_DEEP ? '<nested too deeply>' : (JSON.stringify(v) ?? '').length > MAX_VALUE ? printedValue(v) : v);
+  const dropped = merged.dropped.map((d) => ({ key: capped(d.key), value: droppedValue(d.value), evidence: capped(d.evidence), reason: capped(d.reason) }));
   const rows = CONFIG_AREAS.filter((a) => area === undefined || a.id === area).map((a) => ({
     id: a.id,
     title: a.title,
@@ -256,7 +301,9 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
       key: k.key,
       text: k.text,
       value: getConfigValue(text, [k.key]) ?? null,
-      proposals: proposals.filter((p) => p.key.split('.')[0] === k.key).map((p) => ({ key: p.key, value: p.value, evidence: p.evidence })),
+      proposals: proposals
+        .filter((p) => p.key.split('.')[0] === k.key)
+        .map((p) => ({ key: p.key, value: p.value, evidence: p.evidence, ...(marked ? { source: fromInit.has(p) ? 'init' : 'scan' } : {}) })),
     })),
   }));
   if (options.json === true) {
@@ -267,10 +314,10 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
     ctx.stdout.write(`area: ${a.id} - ${a.title}${a.walk ? '' : ' (not walked: accord writes these)'}\n`);
     for (const k of a.keys) {
       ctx.stdout.write(`  ${k.key} = ${k.value === null ? 'unset' : shown(flowValue(k.value))} - ${k.text}\n`);
-      for (const p of k.proposals) ctx.stdout.write(`  proposal: ${shown(p.key)} = ${shown(JSON.stringify(p.value))}  (evidence: ${shown(p.evidence)})\n`);
+      for (const p of k.proposals) ctx.stdout.write(`  proposal: ${marked ? `[${p.source}] ` : ''}${shown(p.key)} = ${printedValue(p.value)}  (evidence: ${capped(shown(p.evidence))})\n`);
     }
   }
-  for (const d of dropped) ctx.stdout.write(`dropped: ${shown(d.key)} = ${shown(JSON.stringify(d.value))}  (${shown(d.reason)})\n`);
+  for (const d of merged.dropped) ctx.stdout.write(`dropped: ${capped(shown(d.key))} = ${printedValue(d.value)}  (${capped(shown(d.reason))})\n`);
   return 0;
 }
 

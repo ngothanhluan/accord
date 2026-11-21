@@ -84,7 +84,7 @@ function unfinishedLine(root: string): string {
 }
 
 /**
- * ST-LN-28 D-13: for a scout, planner, critic or reviewer dispatched in a story's worktree (`agent_type` and `cwd` on stdin), a blank line and the epic block of the story's
+ * ST-LN-28 D-13: for a scout, planner, critic, reviewer, final reviewer or judge (EPIC_ROLES, never the foreign reviewer, which has no ticket) dispatched in a story's worktree (`agent_type` and `cwd` on stdin), a blank line and the epic block of the story's
  * `parent:`, built by the CLI from the default branch's copy of the epic and added after the ruleset; the agent is never told to go and read the epic. '' for any other
  * agent, for a ticket without `parent:`, for a folder on no ticket branch and for input this hook cannot read. Fails open: any error is one stderr line and the ruleset alone.
  */

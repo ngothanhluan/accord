@@ -1,8 +1,11 @@
 // ST-LN-50 D-11 (t2-ac-9, command half): `accord config get|set|unset|check` on real files. Every case runs in its
 // own sandbox repository through runCli; a refusal must leave accord/config.yml byte-identical.
+import { execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { CONFIG_AREAS } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commitAll, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
@@ -423,7 +426,7 @@ describe('accord config areas', () => {
   });
 
   /** A proposals file in a fresh folder outside the repository; the folder is removed with the sandboxes. */
-  function proposalsFile(content: string, name = 'scan.json'): string {
+  function proposalsFile(content: string | Uint8Array, name = 'scan.json'): string {
     const folder = mkdtempSync(join(tmpdir(), 'accord-scan-'));
     repos.push(folder);
     const path = join(folder, name);
@@ -445,9 +448,9 @@ describe('accord config areas', () => {
     expect([out.code, out.err]).toEqual([0, '']);
     const lines = out.out.split('\n');
     const git = lines.findIndex((l) => l.startsWith('  git = '));
-    expect(lines[git + 1]).toBe('  proposal: git.merge = "squash"  (evidence: 37 of 40 recent commits on main end in (#n))');
+    expect(lines[git + 1]).toBe('  proposal: [init] git.merge = "squash"  (evidence: 37 of 40 recent commits on main end in (#n))');
     const stale = lines.findIndex((l) => l.startsWith('  stale_days = unset - '));
-    expect(lines[stale + 1]).toBe('  proposal: stale_days = "21"  (evidence: the last 21 days)');
+    expect(lines[stale + 1]).toBe('  proposal: [scan] stale_days = "21"  (evidence: the last 21 days)');
     const dropped = [
       'dropped: git.merge = "merge"  (accord init proposes git.merge)',
       'dropped: git = {"merge":"rebase"}  (accord init proposes git.merge)',
@@ -488,9 +491,9 @@ describe('accord config areas', () => {
       expect(out.err, what).not.toContain('\\');
       expect(text(repo), what).toBe(config);
     }
-    // an empty array prints exactly what the command prints with no file
+    // an empty array prints what the command prints with no file, each of init's proposals marked [init]
     const empty = await run(['config', 'areas', '--proposals', proposalsFile('[]')], repo);
-    expect([empty.code, empty.err, empty.out]).toEqual([0, '', plain]);
+    expect([empty.code, empty.err, empty.out.replaceAll('proposal: [init] ', 'proposal: ')]).toEqual([0, '', plain]);
     expect(empty.out).not.toContain('dropped:');
   });
 
@@ -521,7 +524,7 @@ describe('accord config areas', () => {
     const crlf = await run(['config', 'areas', '--proposals', proposalsFile('\uFEFF' + JSON.stringify([entry], null, 2).replace(/\n/g, '\r\n'))], repo);
     expect([crlf.code, crlf.err]).toEqual([0, '']);
     expect(crlf.out).toBe(plain.out);
-    expect(crlf.out).toContain('  proposal: stale_days = "21"  (evidence: the last 21 days)');
+    expect(crlf.out).toContain('  proposal: [scan] stale_days = "21"  (evidence: the last 21 days)');
   });
 
   /** The output lines of `config areas --proposals` over `entries` (the `dropped:` and `proposal:` lines are what the tests read). */
@@ -569,9 +572,9 @@ describe('accord config areas', () => {
       { key: 'setup', value: ['npm ci'], evidence: '2 workflow files' },
       { key: 'tests.affected', value: 'npx vitest run', evidence: '2 workflow files' },
     ]);
-    expect(fine.lines).toContain('  proposal: tracker = {"adapter":"linear"}  (evidence: 2 files)');
-    expect(fine.lines).toContain('  proposal: setup = ["npm ci"]  (evidence: 2 workflow files)');
-    expect(fine.lines).toContain('  proposal: tests.affected = "npx vitest run"  (evidence: 2 workflow files)');
+    expect(fine.lines).toContain('  proposal: [scan] tracker = {"adapter":"linear"}  (evidence: 2 files)');
+    expect(fine.lines).toContain('  proposal: [scan] setup = ["npm ci"]  (evidence: 2 workflow files)');
+    expect(fine.lines).toContain('  proposal: [scan] tests.affected = "npx vitest run"  (evidence: 2 workflow files)');
     expect(fine.lines.filter((l) => l.startsWith('dropped:'))).toEqual([]);
     expect(text(repo)).toBe(config);
   });
@@ -604,10 +607,162 @@ describe('accord config areas', () => {
     expect(out.lines.find((l) => l.startsWith('dropped: git.merge = "squash"  ('))).toContain('(evidence citation nosuch/b.ts:4 does not resolve');
     expect(out.lines.find((l) => l.startsWith('dropped: stale_days = "21"  ('))).toContain('(evidence citation src/a.ts:9 does not resolve');
     // a Windows path is kept and printed with `/`
-    expect(out.lines).toContain('  proposal: tests.affected = "npx vitest run"  (evidence: src/a.ts:2)');
+    expect(out.lines).toContain('  proposal: [scan] tests.affected = "npx vitest run"  (evidence: src/a.ts:2)');
     expect(out.out).not.toContain('\\');
     // an invisible character is refused, and never printed raw
     expect(out.lines.find((l) => l.startsWith('dropped: setup = '))).toContain('(the value holds a control character)');
     expect(out.out).not.toContain('‮');
+  });
+
+  // Phase 8.4 review round (WR-01 to WR-04, WR-06, IN-03, IN-04): the file the scan writes is the one thing a prompt-injected scan can shape, so every check on it holds for any bytes.
+  const CLI = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+  const execFileP = promisify(execFile);
+
+  /** A sandbox whose tracked `src/a.ts` holds a 50-letter line and a second line, so `src/a.ts:1` and `src/a.ts:2` resolve. */
+  function scanRepo(config: string = CONFIG): string {
+    const repo = sandbox(config);
+    writeFiles(repo, { 'src/a.ts': 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx\none\n' });
+    gitRun(repo, 'add', '-A');
+    gitRun(repo, ...IDENTITY, 'commit', '-q', '-m', 'fixture');
+    return repo;
+  }
+
+  it('risk:security config areas --proposals drops evidence that carries its own report rows before any pattern runs (D-07)', { timeout: 30000 }, async () => {
+    const repo = scanRepo();
+    const hostile = 'src/a.ts:1\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n|---|---|---|---|\n| x | ([a-z]*)*! | src | |';
+    const file = proposalsFile(
+      JSON.stringify([
+        { key: 'git.merge', value: 'squash', evidence: hostile },
+        { key: 'stale_days', value: '21', evidence: 'src/a.ts:2' },
+      ]),
+    );
+    // a child process with a time limit: a catastrophic pattern would freeze this test's own process and never return
+    const started = Date.now();
+    const out = await execFileP(process.execPath, [CLI, 'config', 'areas', '--proposals', file], { cwd: repo, timeout: 8000, encoding: 'utf8' });
+    expect(Date.now() - started).toBeLessThan(8000);
+    const lines = out.stdout.split('\n');
+    expect(lines).toContain('dropped: git.merge = "squash"  (evidence holds a line break or a control character)');
+    expect(lines).toContain('  proposal: [scan] stale_days = "21"  (evidence: src/a.ts:2)');
+  });
+
+  it('risk:security config areas --proposals drops a value with any control character in a string or a key (D-07)', async () => {
+    const repo = scanRepo();
+    const config = text(repo);
+    const evidence = 'src/a.ts:1';
+    const values: [string, unknown][] = [
+      ['an ESC sequence', ['npm ci\u001b[2K\u001b[1Aecho ok']],
+      ['a newline', ['a\nb']],
+      ['a tab', ['a\tb']],
+      ['a NUL', ['a\u0000b']],
+      ['a DEL', ['a\u007fb']],
+      ['a C1 control', ['a\u0085b']],
+      ['a bidi mark', ['npm t‮ gnp']],
+      ['a zero-width mark', ['a​b']],
+    ];
+    const out = await scanLines(repo, values.map(([, value]) => ({ key: 'setup', value, evidence })));
+    const dropped = out.lines.filter((l) => l.startsWith('dropped: setup = '));
+    expect(dropped.map((l) => l.slice(l.lastIndexOf('  ('))), values.map(([what]) => what).join(', ')).toEqual(values.map(() => '  (the value holds a control character)'));
+    expect(out.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+    // a control character in a nested key counts too
+    const keyed = await scanLines(repo, [{ key: 'tracker', value: { adapter: 'linear', 'a\nb': 1 }, evidence }]);
+    expect(keyed.lines.find((l) => l.startsWith('dropped: tracker = '))).toContain('(the value holds a control character)');
+    // plain text stays proposed
+    expect((await scanLines(repo, [{ key: 'setup', value: ['npm ci'], evidence }])).lines).toContain('  proposal: [scan] setup = ["npm ci"]  (evidence: src/a.ts:1)');
+    expect(text(repo)).toBe(config);
+  });
+
+  it('risk:regression config areas --proposals drops what config set would refuse, a floor problem already at the proposed key included (D-08)', async () => {
+    const config = CONFIG + 'strictness:\n  levels:\n    lint.bogus: off\n';
+    const repo = scanRepo(config);
+    // config set refuses an edit at the key that holds the floor problem, and an edit elsewhere is not stopped by it
+    const set = await run(['config', 'set', 'strictness.levels.lint.bogus', 'warning'], repo);
+    expect(set.code).toBe(2);
+    expect(set.err).toContain('lint.bogus');
+    expect((await run(['config', 'set', 'stale_days', '21'], repo)).code).toBe(0);
+    writeFileSync(file(repo), config);
+    const out = await scanLines(repo, [
+      { key: 'strictness.levels.lint.bogus', value: 'warning', evidence: 'src/a.ts:1' },
+      { key: 'stale_days', value: '21', evidence: 'src/a.ts:1' },
+    ]);
+    const line = out.lines.find((l) => l.startsWith('dropped: strictness.levels.lint.bogus = '));
+    expect(line).toContain('(accord config set would refuse it: ');
+    expect(line).toContain('lint.bogus');
+    expect(out.lines).toContain('  proposal: [scan] stale_days = "21"  (evidence: src/a.ts:1)');
+    expect(text(repo)).toBe(config);
+  });
+
+  it('risk:resource config areas --proposals drops one value nested too deeply and still reads the rest of the file (D-08)', async () => {
+    const repo = scanRepo();
+    const deep = '{"a":'.repeat(40000) + '1' + '}'.repeat(40000);
+    const raw = `[{"key":"git.merge","value":${deep},"evidence":"src/a.ts:1"},{"key":"stale_days","value":"21","evidence":"src/a.ts:1"}]`;
+    expect(raw.length).toBeLessThan(262144);
+    const out = await run(['config', 'areas', '--proposals', proposalsFile(raw)], repo);
+    expect([out.code, out.err]).toEqual([0, '']);
+    const lines = out.out.split('\n');
+    expect(lines.find((l) => l.startsWith('dropped: git.merge = '))).toContain('(the value is nested more than 8 levels deep)');
+    expect(lines).toContain('  proposal: [scan] stale_days = "21"  (evidence: src/a.ts:1)');
+    // 9 levels is over the limit and 8 is not: the 8-level one reaches the schema's refusal instead
+    const nest = (n: number): unknown => (n === 0 ? 'x' : { a: nest(n - 1) });
+    const edge = await scanLines(repo, [
+      { key: 'git.merge', value: nest(9), evidence: 'src/a.ts:1' },
+      { key: 'stale_days', value: nest(8), evidence: 'src/a.ts:1' },
+    ]);
+    expect(edge.lines.find((l) => l.startsWith('dropped: git.merge = '))).toContain('nested more than 8 levels');
+    expect(edge.lines.find((l) => l.startsWith('dropped: stale_days = '))).toContain('accord config set would refuse it');
+  });
+
+  it('risk:regression config areas --proposals marks each proposal as from accord init or from the scan (D-08)', async () => {
+    const repo = squashed();
+    const file = proposalsFile(JSON.stringify(SCAN));
+    const out = await run(['config', 'areas', '--proposals', file], repo);
+    const proposals = out.out.split('\n').filter((l) => l.startsWith('  proposal: '));
+    expect(proposals).toEqual([
+      '  proposal: [init] git.merge = "squash"  (evidence: 37 of 40 recent commits on main end in (#n))',
+      '  proposal: [scan] stale_days = "21"  (evidence: the last 21 days)',
+    ]);
+    const json = JSON.parse((await run(['config', 'areas', '--json', '--proposals', file], repo)).out) as { areas: { keys: { key: string; proposals: { key: string; source?: string }[] }[] }[] };
+    const rows = json.areas.flatMap((a) => a.keys).flatMap((k) => k.proposals);
+    expect(rows.map((r) => [r.key, r.source])).toEqual([['git.merge', 'init'], ['stale_days', 'scan']]);
+    // without --proposals nothing is marked: the lines are the ones accord init prints
+    const plain = await run(['config', 'areas', '--json'], repo);
+    expect(plain.out).not.toContain('"source"');
+    expect((await run(['config', 'areas'], repo)).out).not.toContain('[init]');
+  });
+
+  it('risk:parsing config areas --proposals reads a UTF-16 file and never echoes the file in its error (D-08)', async () => {
+    const repo = scanRepo();
+    const json = JSON.stringify([{ key: 'stale_days', value: '21', evidence: 'src/a.ts:1' }]);
+    const le = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(json, 'utf16le')]);
+    const be = Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(Buffer.from(json, 'utf16le')).swap16()]);
+    const utf8 = await run(['config', 'areas', '--proposals', proposalsFile(json)], repo);
+    for (const [what, bytes] of [['UTF-16 LE', le], ['UTF-16 BE', be]] as const) {
+      const out = await run(['config', 'areas', '--proposals', proposalsFile(bytes)], repo);
+      expect([out.code, out.err], what).toEqual([0, '']);
+      expect(out.out, what).toBe(utf8.out);
+    }
+    // a file that is no JSON is named, never quoted
+    const secret = await run(['config', 'areas', '--proposals', proposalsFile('API_KEY=sk-live-123456\n')], repo);
+    expect(secret.code).toBe(2);
+    expect(secret.err).toContain('is not JSON');
+    expect(secret.err).not.toContain('API_KEY');
+    expect(secret.err).not.toContain('sk-live');
+  });
+
+  it('risk:resource config areas --proposals prints at most 1000 characters of a key a value or a reason (D-08)', async () => {
+    const repo = scanRepo();
+    const evidence = 'src/a.ts:1';
+    const out = await scanLines(repo, [
+      { key: 'stale_days', value: 'x'.repeat(150000), evidence },
+      { key: 'k'.repeat(5000), value: '1', evidence },
+      { key: 'setup', value: ['\u001b'.repeat(10000)], evidence },
+      { key: 'tests.affected', value: 'y'.repeat(900), evidence },
+    ]);
+    const dropped = out.lines.filter((l) => l.startsWith('dropped: '));
+    expect(dropped).toHaveLength(3);
+    for (const l of dropped) expect(l.length, l.slice(0, 40)).toBeLessThan(2300);
+    expect(dropped[0]).toContain('(value over 1000 characters)');
+    // a value of at most 1000 characters is kept and printed whole
+    expect(out.lines).toContain(`  proposal: [scan] tests.affected = "${'y'.repeat(900)}"  (evidence: src/a.ts:1)`);
+    expect(out.out).not.toContain('\u001b');
   });
 });

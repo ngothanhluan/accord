@@ -6,6 +6,7 @@ import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { isResearchRecord } from '../load/research.js';
 import { parseYamlMap } from '../load/yaml.js';
 import { parseScoutReport } from './report.js';
+import type { Citation } from './report.js';
 
 export interface ScoutFacts {
   path?: string; // the report's repository path, when it lies inside the repository
@@ -70,7 +71,7 @@ function coverage(entries: readonly string[], tracked: readonly string[]): (path
 }
 
 /** The text of each path, read in slices of at most 100; undefined where a file cannot be read. */
-function readAll(facts: ScoutFacts, paths: readonly string[]): (string | undefined)[] {
+function readAll(facts: Pick<ScoutFacts, 'read'>, paths: readonly string[]): (string | undefined)[] {
   const out: (string | undefined)[] = [];
   for (let i = 0; i < paths.length; i += SLICE) out.push(...facts.read(paths.slice(i, i + SLICE)));
   return out;
@@ -136,6 +137,41 @@ function laneOf(facts: ScoutFacts, listed: readonly string[]): ScoutLane {
   return { expected, areas, sensitive, lifts };
 }
 
+/** The failures of citations whose path is already expanded: a path git does not track, one that cannot be read, a line beyond the file. Each tracked cited path is read once. */
+function citationProblems(citations: readonly Citation[], trackedSet: ReadonlySet<string>, facts: Pick<ScoutFacts, 'read'>): string[] {
+  const failures: string[] = [];
+  const cited = [...new Set(citations.map((c) => c.path).filter((p) => trackedSet.has(p)))];
+  const citedTexts = new Map<string, string | undefined>();
+  readAll(facts, cited).forEach((text, i) => citedTexts.set(cited[i], text));
+  for (const c of citations) {
+    const where = 'citation ' + c.text + ' does not resolve: ';
+    if (!trackedSet.has(c.path)) {
+      failures.push(where + 'git does not track ' + c.path);
+      continue;
+    }
+    const text = citedTexts.get(c.path);
+    if (text === undefined) {
+      failures.push(where + c.path + ' cannot be read');
+      continue;
+    }
+    const count = linesOf(text).length;
+    if (c.numbers.some((n) => n < 1 || n > count)) failures.push(where + c.path + ' has ' + count + ' lines');
+  }
+  return failures;
+}
+
+/**
+ * The failures of the `path:line` citations in `evidence`, one line of text, and of nothing else: no section is read, so no `## Absent` row can exist and no pattern is ever run.
+ * A path git does not track as written, but exactly one tracked path ends with, is that file, as in `scoutCheck`. A line break in `evidence` reads as a space.
+ */
+export function citationFailures(evidence: string, facts: Pick<ScoutFacts, 'tracked' | 'read'>): string[] {
+  const tracked = [...facts.tracked].sort(byCodePoint);
+  const trackedSet = new Set(tracked);
+  const flat = evidence.replace(/[\r\n]/g, ' ');
+  const citations = parseScoutReport('## Facts\n- ' + flat + '\n').citations.map((c) => ({ ...c, path: trackedSet.has(c.path) ? c.path : (expandPath(c.path, tracked) ?? c.path) }));
+  return citationProblems(citations, trackedSet, facts);
+}
+
 export function scoutCheck(facts: ScoutFacts): ScoutResult {
   const report = parseScoutReport(facts.text);
   const tracked = [...facts.tracked].sort(byCodePoint);
@@ -162,24 +198,7 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
     if (trackedSet.has(path)) failures.push('## New files lists ' + path + ', which git already tracks');
   }
 
-  // Citations: a path compared exactly once expanded (above); each tracked cited path is read once.
-  const cited = [...new Set(citations.map((c) => c.path).filter((p) => trackedSet.has(p)))];
-  const citedTexts = new Map<string, string | undefined>();
-  readAll(facts, cited).forEach((text, i) => citedTexts.set(cited[i], text));
-  for (const c of citations) {
-    const where = 'citation ' + c.text + ' does not resolve: ';
-    if (!trackedSet.has(c.path)) {
-      failures.push(where + 'git does not track ' + c.path);
-      continue;
-    }
-    const text = citedTexts.get(c.path);
-    if (text === undefined) {
-      failures.push(where + c.path + ' cannot be read');
-      continue;
-    }
-    const count = linesOf(text).length;
-    if (c.numbers.some((n) => n < 1 || n > count)) failures.push(where + c.path + ' has ' + count + ' lines');
-  }
+  failures.push(...citationProblems(citations, trackedSet, facts));
 
   const own = report.absent.length > 0 ? ownFiles(facts, tracked) : new Set<string>();
   for (const row of report.absent) {

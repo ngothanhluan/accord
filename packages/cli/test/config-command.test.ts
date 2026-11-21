@@ -491,9 +491,9 @@ describe('accord config areas', () => {
       expect(out.err, what).not.toContain('\\');
       expect(text(repo), what).toBe(config);
     }
-    // an empty array prints exactly what the command prints with no file
+    // an empty array prints what the command prints with no file, each of init's proposals marked [init]
     const empty = await run(['config', 'areas', '--proposals', proposalsFile('[]')], repo);
-    expect([empty.code, empty.err, empty.out]).toEqual([0, '', plain]);
+    expect([empty.code, empty.err, empty.out.replaceAll('proposal: [init] ', 'proposal: ')]).toEqual([0, '', plain]);
     expect(empty.out).not.toContain('dropped:');
   });
 
@@ -679,7 +679,7 @@ describe('accord config areas', () => {
     expect(set.code).toBe(2);
     expect(set.err).toContain('lint.bogus');
     expect((await run(['config', 'set', 'stale_days', '21'], repo)).code).toBe(0);
-    gitRun(repo, 'checkout', '--', 'accord/config.yml');
+    writeFileSync(file(repo), config);
     const out = await scanLines(repo, [
       { key: 'strictness.levels.lint.bogus', value: 'warning', evidence: 'src/a.ts:1' },
       { key: 'stale_days', value: '21', evidence: 'src/a.ts:1' },
@@ -702,7 +702,7 @@ describe('accord config areas', () => {
     expect(lines.find((l) => l.startsWith('dropped: git.merge = '))).toContain('(the value is nested more than 8 levels deep)');
     expect(lines).toContain('  proposal: [scan] stale_days = "21"  (evidence: src/a.ts:1)');
     // 9 levels is over the limit and 8 is not: the 8-level one reaches the schema's refusal instead
-    const nest = (n: number): unknown => (n === 0 ? 1 : { a: nest(n - 1) });
+    const nest = (n: number): unknown => (n === 0 ? 'x' : { a: nest(n - 1) });
     const edge = await scanLines(repo, [
       { key: 'git.merge', value: nest(9), evidence: 'src/a.ts:1' },
       { key: 'stale_days', value: nest(8), evidence: 'src/a.ts:1' },

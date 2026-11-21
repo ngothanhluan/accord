@@ -24,8 +24,9 @@
 import { execFileSync } from 'node:child_process';
 import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
 import { join } from 'node:path';
-import { floorProblems, loadConfig, resolveKeyPath, setConfigValue, SUBJECT_NAMES, subjectCollisions } from '@accord-dev/accord-core';
+import { loadConfig, resolveKeyPath, setConfigValue, SUBJECT_NAMES, subjectCollisions } from '@accord-dev/accord-core';
 import type { SubjectName } from '@accord-dev/accord-core';
+import { editRefusal } from './config-edit.js';
 import { defaultRefOf } from './fs.js';
 
 /** One detected value: a dotted config key, its JSON value, and the evidence for it in numbers. */
@@ -313,26 +314,28 @@ function trackerLinks(root: string, commits: Commit[]): Proposal | undefined {
 }
 
 /**
- * Phase 8.4 D-08: why `accord config set` would not take a proposal's value, or `undefined` when it would. The proposal is applied to the repository's config.yml as `set` applies it,
- * and refused when the result fails the schema, adds a floor problem, or (for subjects) collides with another kind's. With no readable config.yml nothing can be checked, so every
- * proposal is refused. The file is read once; the returned function is the one definition of the refusal, used by `accepted` (init's own proposals) and by `accord config areas --proposals`.
+ * Phase 8.4 D-08: why `accord config set` would not take a proposal's value, or `undefined` when it would. The proposal is applied to the repository's config.yml as `set` applies it (`apply`
+ * is the step between the text edit and the check: `accord config set` adds the ids and commit subjects the edit keeps valid there, and a caller with no ticket data leaves it out), and refused
+ * by `editRefusal`, the one definition `accord config set` itself uses: a result that fails the schema, or a floor problem at the edited key or a new one (review WR-03); and, for subjects,
+ * one that collides with another kind's. With no readable config.yml nothing can be checked, so every proposal is refused. The file is read once; the returned function is the one
+ * definition of the refusal, used by `accepted` (init's own proposals) and by `accord config areas --proposals`.
  */
-export function refusal(root: string): (p: Proposal) => string | undefined {
+export function refusal(
+  root: string,
+  apply: (path: string[], before: string, edited: string) => string | undefined = (_path, _before, edited) => edited,
+): (p: Proposal) => string | undefined {
   const text = readBounded(root, 'accord/config.yml');
-  const before = text === undefined ? undefined : loadConfig('accord/config.yml', text);
-  const known = new Set(floorProblems(before?.config).map((p) => p.pointer));
   return (p) => {
     if (text === undefined) return 'there is no accord/config.yml to check it against';
     const path = resolveKeyPath(p.key);
     if (path === undefined) return `no config key ${p.key}`;
-    const after = setConfigValue(text, path, p.value);
+    const edited = setConfigValue(text, path, p.value);
+    const after = edited === undefined ? undefined : apply(path, text, edited);
     if (after === undefined) return `the value cannot be written at ${p.key}`;
+    const refused = editRefusal(path, text, after);
+    if (refused !== undefined) return refused.text;
     const loaded = loadConfig('accord/config.yml', after);
-    const finding = loaded.findings[0];
-    if (finding !== undefined) return `${finding.pointer !== undefined && finding.pointer !== '' ? finding.pointer + ' ' : ''}${finding.reason}`;
     if (loaded.config === undefined) return 'the file would not load';
-    const added = floorProblems(loaded.config).find((f) => !known.has(f.pointer));
-    if (added !== undefined) return `it adds a floor problem at ${added.pointer}`;
     if (p.key === 'commits.subjects' && subjectCollisions(loaded.config).length > 0) return "its subjects collide with another kind's";
     return undefined;
   };

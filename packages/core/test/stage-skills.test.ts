@@ -47,7 +47,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./approach-critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './approach-critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
-  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './waves.md'],
+  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './build-waves.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify', 're-review', 'places checked:', 'ADDRESSED'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
   debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
@@ -119,6 +119,27 @@ it('risk:regression the plan stage children render under their prefixed names wh
   expect(bare.test('as `./critique.md` says')).toBe(true);
   expect(bare.test('follow `./baseline.md`')).toBe(true);
   expect(bare.test('as `./plan-critique.md` says, and `./approach-critique.md`')).toBe(false);
+});
+
+// Phase 8.3 D-04 (children first): the build stage's two children live in the accord source under their prefixed names, so the build fold of 08.3-15 moves two hub files.
+it("risk:regression the build stage's children render under their prefixed names (D-04)", () => {
+  const bare = /(?:^|[^-\w])\.\/(?:waves|no-plan)\.md/;
+  for (const runtime of ['claude', 'codex', 'cursor', 'copilot'] as const) {
+    const cfg = { ...config, runtimes: [runtime] } as AccordConfig;
+    const out = skillTargets(cfg);
+    const paths = new Set(out.map((f) => f.path));
+    for (const dir of skillDirs(cfg)) {
+      for (const name of ['build-waves.md', 'build-no-plan.md']) expect(paths.has(`${dir}/accord-build/${name}`), `${dir}/accord-build/${name} renders`).toBe(true);
+      for (const name of ['waves.md', 'no-plan.md']) expect(paths.has(`${dir}/accord-build/${name}`), `${dir}/accord-build/${name} no longer renders`).toBe(false);
+      const waves = out.find((f) => f.path === `${dir}/accord-build/build-waves.md`)?.text ?? '';
+      for (const c of ['accord waves', 'accord worktree task', 'accord task-done', 'accord brief']) expect(waves.includes(c), `${dir} build-waves.md names ${c}`).toBe(true);
+    }
+    expect(out.filter((f) => bare.test(f.text)).map((f) => f.path), `${runtime}: no rendered text names a bare build child`).toEqual([]);
+  }
+  // guard the guard: the pattern catches a bare child and lets the prefixed names through
+  expect(bare.test('as `./waves.md` says')).toBe(true);
+  expect(bare.test('follow `./no-plan.md` instead')).toBe(true);
+  expect(bare.test('as `./build-waves.md` says, and `./build-no-plan.md`')).toBe(false);
 });
 
 describe('stage skills name what the spec requires', () => {
@@ -1685,7 +1706,7 @@ it('risk:regression the build skill takes the tests baseline before its single t
   expect(missing).toEqual([]);
   expect(noPlan.indexOf('Before step 1')).toBeLessThan(noPlan.indexOf('1. Run `accord brief'));
   // the build rule and the baseline rule name the one exception, so neither forbids what no-plan.md asks
-  expect(read(stagePath('build'))).toContain('except as `./no-plan.md` says');
+  expect(read(stagePath('build'))).toContain('except as `./build-no-plan.md` says');
   expect(read(stagePath('plan', 'baseline'))).toContain('except `accord-build` with the plan stage off, as its `no-plan.md` says');
 });
 
@@ -1762,7 +1783,7 @@ it('risk:regression each stage skill skips its stage when the team turned it off
   for (const p of ['only the approval', './approach-approval.md', 'skip steps 2 to 4']) if (!approach.includes(p)) missing.push('approach: ' + p);
   // build: the plan-off line names no-plan.md, which the skill loads and the render ships beside it.
   const build = read(stagePath('build'));
-  if (!build.includes('./no-plan.md')) missing.push('build: ./no-plan.md');
+  if (!build.includes('./build-no-plan.md')) missing.push('build: ./build-no-plan.md');
   const noPlan = read(stagePath('build', 'no-plan'));
   if (noPlan.length === 0) missing.push('no-plan.md is missing from the render output');
   for (const p of ['accord brief <id> 1', 'accord task-done <id> 1 --test', 'ac-<n>=<test id>', '@ui', 'tests.affected', 'tests.full']) if (!noPlan.includes(p)) missing.push('no-plan: ' + p);
@@ -1894,7 +1915,7 @@ it('risk:concurrency the build skill dispatches a wave in batches up to the cap,
       continue;
     }
     const step2 = skill.slice(skill.indexOf('2. **Dispatch.**'), skill.indexOf('3. **Record.**'));
-    bad.push(...lacking(dir + ' SKILL.md step 2', step2, ['./waves.md', '`Parallel: 1`', 'in order, one at a time']));
+    bad.push(...lacking(dir + ' SKILL.md step 2', step2, ['./build-waves.md', '`Parallel: 1`', 'in order, one at a time']));
     // the intro line and step 2 give one reading: the stage builds in waves, and one at a time only where waves.md builds in this worktree
     if (skill.includes('This stage builds the plan one task at a time')) bad.push(dir + ' SKILL.md intro still builds one task at a time');
     bad.push(

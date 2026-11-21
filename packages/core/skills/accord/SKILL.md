@@ -4,10 +4,10 @@ description: Use when starting any work in an accord repository, when seeing whe
 license: MIT
 argument-hint: "[request]"
 kind: skill
-loads: [accord/approach-approval.md, accord/approach-critique.md, accord/approach.md, accord/build-no-plan.md, accord/build-waves.md, accord/build.md, accord/comments.md, accord/continue.md, accord/ids.md, accord/intent-discuss.md, accord/intent-research.md, accord/intent.md, accord/lane-r.md, accord/lane-s.md, accord/lane.md, accord/new-epic.md, accord/new.md, accord/onboard.md, accord/pickup.md, accord/plan-baseline.md, accord/plan-critique.md, accord/plan-legacy-round1.md, accord/plan.md, accord/queue.md, accord/review-foreign.md, accord/review-record.md, accord/review-security.md, accord/review.md, accord/route.md, accord/verify-ci.md, accord/verify-deferred.md, accord/verify-writer.md, accord/verify.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/resume.md, shared/scout.md, shared/similar.md]
+loads: [accord/approach-approval.md, accord/approach-critique.md, accord/approach.md, accord/build-no-plan.md, accord/build-waves.md, accord/build.md, accord/comments.md, accord/continue.md, accord/ids.md, accord/intent-discuss.md, accord/intent-research.md, accord/intent.md, accord/lane-r.md, accord/lane-s.md, accord/lane.md, accord/new-epic.md, accord/new.md, accord/pickup.md, accord/plan-baseline.md, accord/plan-critique.md, accord/plan-legacy-round1.md, accord/plan.md, accord/queue.md, accord/review-foreign.md, accord/review-record.md, accord/review-security.md, accord/review.md, accord/route.md, accord/verify-ci.md, accord/verify-deferred.md, accord/verify-writer.md, accord/verify.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/resume.md, shared/scout.md, shared/similar.md]
 ---
 
-First run the session check in `./worktree.md` for the dashboard and for `/accord onboard`. `./route.md` says where the check runs for any other text. A failure reported in a ticket that has reached verify follows `./failure.md` by this route. A request to handle the comments on a ticket's pull request follows `./comments.md` by this route, without the session check. A request to review code or a pull request accord did not build follows `./review-foreign.md` by this route.
+First run the session check in `./worktree.md` before the dashboard. `./route.md` says where the check runs for any other text. A failure reported in a ticket that has reached verify follows `./failure.md` by this route. A request to handle the comments on a ticket's pull request follows `./comments.md` by this route, without the session check. A request to review code or a pull request accord did not build follows `./review-foreign.md` by this route.
 
 ## Dashboard: `/accord` with no argument
 
@@ -27,7 +27,7 @@ ticket id, the id of a ticket in `accord/tickets/`, an id that
 `accord worktree open <id> --continue` finds; with none,
 `/accord continue ST-99` follows `./route.md` like any other text. At either typed form, follow `./pickup.md` for Pick up, or `./continue.md` for
 Continue, with that id, without showing the dashboard first. `/accord continue` or `/accord pick-up` with no id asks the owner for the ticket id in one question and runs, claims, creates and edits nothing. Continue on a ticket nobody has claimed
-says so, offers Pick up, and never claims it. `/accord upgrade` loads `accord-upgrade`, and `/accord onboard` follows the Onboard section below. Any other text, but `upgrade`, `onboard` or `queue` with text after it: follow `./route.md`
+says so, offers Pick up, and never claims it. `/accord upgrade` loads `accord-upgrade`; `onboard` after `/accord` loads `accord-onboard`, and an `accord init` run that printed its `proposals:` line loads `accord-onboard` too. Any other text, but `upgrade`, `onboard` or `queue` with text after it: follow `./route.md`
 with the whole text after `/accord` (for
 `/accord continue the refactor` it is `continue the refactor`, and
 `/accord continue ST-2 now` is routed as text too); a change follows `./new.md`, and an epic, lane L, follows `./new-epic.md`.
@@ -54,10 +54,6 @@ An `Unfinished:` line at the plan or verify stage follows `./resume.md`, as `./p
 ## A lane: `./continue.md` and the change route
 
 A lane proposal follows `./lane.md` and its scout reply is checked as `./scout.md` says. Lane S follows `./lane-s.md` and `./review-security.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says. Lane R follows `./lane-r.md`.
-
-## Onboard: `/accord onboard`
-
-After `accord init` printed its `proposals:` line (`proposal:` lines to go through, or `proposals: 0`), or on `/accord onboard`, follow `./onboard.md`. It is not a New request, and the session check above runs first.
 
 ## Rules
 

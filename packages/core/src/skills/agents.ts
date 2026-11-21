@@ -29,7 +29,8 @@ export const AGENT_DEFAULTS: Record<RouteKey, { model: string; effort: Effort }>
 // marker is intact; an edited copy stays.
 // Phase 7 (07-01): the accord skill stopped loading these reference files; the stage skills still render their own.
 // Phase 8.3 (08.3-05): the accord folder renders finish, lane, lane-r, lane-s and scout again, so they leave this list in that commit; `security` and `upgrade` stay.
-const RETIRED_ACCORD_REFS = ['security', 'upgrade'];
+// Phase 8.3 (08.3-23): `onboard` joins them. The onboarding text became the command `accord-onboard`; `accord/onboard.md` rendered from v0.5.0 to v0.10.0 and under no other name.
+const RETIRED_ACCORD_REFS = ['onboard', 'security', 'upgrade'];
 
 // Phase 8.3 D-01: command folders accord rendered and no longer renders, by installed folder name. Each list is every file the folder rendered in any
 // release (SKILL.md plus the basename of each `loads:` entry, over the tags that held it), sorted by code point. A command that stops rendering is added

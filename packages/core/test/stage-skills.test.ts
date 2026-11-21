@@ -507,7 +507,7 @@ it('risk:complex-branching the accord skill pushes then enters the worktree on e
   expect(ref).toContain('carry it to the worktree before you stop or move into it');
   expect(ref).toContain('Any other exit 2: show the message and stop');
   expect(ref).not.toContain('EnterWorktree');
-  const i = text.indexOf('First run the session check in `./worktree.md` for the dashboard.');
+  const i = text.indexOf('First run the session check in `./worktree.md` before the dashboard.');
   expect(i).toBeGreaterThan(-1);
   expect(i).toBeLessThan(text.indexOf('## Dashboard'));
   expect(ref.indexOf('## Session check')).toBeGreaterThan(-1);

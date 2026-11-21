@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CONFIG_AREAS, renderSkill, skillTargets, withoutMarker } from '../src/index.js';
+import { CONFIG_AREAS, parseScoutReport, renderSkill, scoutCheck, skillTargets, withoutMarker } from '../src/index.js';
 import type { AccordConfig, SkillFile, SkillKey } from '../src/index.js';
 
 const skillsDir = fileURLToPath(new URL('../skills/', import.meta.url));
@@ -236,6 +236,63 @@ describe('the onboarding skill scans the repository and merges what it finds wit
       'an array or object of strings stays as it is',
     ];
     expect(phrases.filter((p) => !scan.includes(p))).toEqual([]);
+  });
+
+  // Phase 08.4 UAT gap 2: 'every value a string' sat next to 'an array stays as it is' and read as a string even for `setup`; `config set` refuses a string for `setup` (must be array)
+  // and a `*` glob in a `sensitive` path (must match pattern), so two good proposals died as `dropped:`. The keys and the rule come from config.schema.json and gate/scope.ts.
+  it('risk:parsing the scan names the keys whose value is an array and says sensitive takes plain paths without a glob (D-08)', () => {
+    const phrases = [
+      'These keys hold an array of strings, never one string: `setup`, `generated`, `disposable`, `roles` and `runtimes`',
+      '`setup` is one command per item, `["npm ci"]`, never `"npm ci"`',
+      '`disposable` is names without a `/`, `["node_modules"]`',
+      '`sensitive` is an object of area name to an array of paths, `{"auth": ["src/auth/"]}`',
+      'a path there is a file or a folder ending in `/`, and never holds `*`',
+      'An entry matches a path when it ends in `/` and the path starts with it, or when the two are equal. No globs.',
+      'every other scalar is a string, so a number is written `"30"`',
+    ];
+    expect(phrases.filter((p) => !scan.includes(p))).toEqual([]);
+    // the existing sentence keeps its intent: the three words that said it stay, now followed by the exceptions
+    expect(scan.indexOf('an array or object of strings stays as it is')).toBeLessThan(scan.indexOf('These keys hold an array of strings'));
+  });
+
+  // Phase 08.4 UAT gap 1: 7 of 7 first scout replies failed `accord scout check` (3 of 7 again after the retry) because the dispatch prompt named no reply form. The check stays strict for the
+  // other scouts; the prompt for a settings scan states the form it accepts, and the example it shows passes the real check.
+  it('risk:parsing the scan tells the scout the reply form accord scout check accepts and the example it shows passes the check (D-07)', () => {
+    const phrases = [
+      'exactly these sections',
+      '`## Files` with no entry',
+      'no `## Absent` section',
+      'a file git tracks',
+      'at least as many lines as the line it cites',
+      'a valid JavaScript regular expression',
+      'the allowed hits list every file the pattern matches',
+    ];
+    expect(phrases.filter((p) => !scan.includes(p))).toEqual([]);
+
+    const raw = at(ALL, '.claude/skills/accord-onboard/scan.md');
+    const example = /```markdown\n([\s\S]*?)\n```/.exec(raw)?.[1];
+    expect(example, 'scan.md shows no example reply in a markdown fence').toBeDefined();
+    const report = parseScoutReport(example ?? '');
+    expect(report.faults).toEqual([]);
+    expect(report.files).toEqual([]);
+    expect(report.absent).toEqual([]);
+    expect(report.citations.length).toBeGreaterThan(0);
+
+    // host facts built from the example's own citations: every cited path is tracked and holds as many lines as its highest cited line
+    const lines = new Map<string, number>();
+    for (const c of report.citations) lines.set(c.path, Math.max(lines.get(c.path) ?? 0, ...c.numbers));
+    const facts = {
+      tracked: [...lines.keys()].sort(),
+      read: (paths: readonly string[]): (string | undefined)[] => paths.map((p) => 'line\n'.repeat(lines.get(p) ?? 0)),
+    };
+    expect(scoutCheck({ ...facts, text: example ?? '' }).failures).toEqual([]);
+
+    // the check itself is not loosened: the same reply with an Absent row whose pattern is no regular expression, or a citation past the file's end, still fails
+    const bad = (example ?? '') + '\n\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n|---|---|---|---|\n| no caller | `run(` | . | |\n';
+    expect(scoutCheck({ ...facts, text: bad }).failures.join('\n')).toContain('not a valid JavaScript regular expression');
+    const first = report.citations[0];
+    const past = (example ?? '') + '\n- one more, ' + first.path + ':' + String((lines.get(first.path) ?? 0) + 1) + '\n';
+    expect(scoutCheck({ ...facts, text: past }).failures.join('\n')).toContain('does not resolve');
   });
 
   // Review WR-06: the merged output marks where each proposal came from, and the skill reads the marker instead of guessing.

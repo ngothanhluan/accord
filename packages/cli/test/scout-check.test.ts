@@ -1,6 +1,8 @@
 // ST-LN-81: `accord scout check <file>` judges a scout report against the files git tracks.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseScoutReport, renderSkill } from '@accord-dev/accord-core';
+import type { SkillKey } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
 import { CONFIG, LANE_BODY, laneTicket } from '../../../test/helpers/lane.js';
 import { blobBatches, gitTreeAt, hasLocalChanges, lastCommitOf, readBlobs } from '../src/load/fs.js';
@@ -319,6 +321,36 @@ it('risk:complex-branching absence claims do not search .claude/ or .agents/ (8-
     expect(found.code).toBe(1);
     expect(found.out).toContain('src/b.ts:1 matches its pattern outside its allowed hits');
     expect(found.out).not.toContain('.claude/');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.4 UAT gap 1: the reply form `/accord-onboard`'s scan.md tells a settings scout to write must pass the real command, and the command stays strict for every other scout.
+it('risk:parsing the example reply scan.md shows a settings scout passes accord scout check on a repository (D-07)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    const example = /```markdown\n([\s\S]*?)\n```/.exec(renderSkill('onboard/scan.md' as SkillKey))?.[1];
+    expect(example, 'scan.md shows no example reply in a markdown fence').toBeDefined();
+    const cited = parseScoutReport(example ?? '').citations;
+    expect(cited.length).toBeGreaterThan(0);
+    const longest = new Map<string, number>();
+    for (const c of cited) longest.set(c.path, Math.max(longest.get(c.path) ?? 0, ...c.numbers));
+    const files: Record<string, string> = { 'accord/config.yml': CONFIG };
+    for (const [path, n] of longest) files[path] = 'line\n'.repeat(n);
+    writeFiles(repo, files);
+    commitMsg(repo, 'fixture');
+    writeFileSync(join(repo, 'report.md'), example ?? '');
+
+    const passing = await run(['scout', 'check', 'report.md'], repo);
+    expect(passing.out).toBe('scout check passed\n');
+    expect(passing.code).toBe(0);
+
+    // the same reply with an Absent row that is no regular expression still fails
+    writeFileSync(join(repo, 'report.md'), (example ?? '') + '\n\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n|---|---|---|---|\n| no caller | `run(` | . | |\n');
+    const failing = await run(['scout', 'check', 'report.md'], repo);
+    expect(failing.code).toBe(1);
+    expect(failing.out).toContain('its pattern is not a valid JavaScript regular expression');
   } finally {
     cleanup(repo);
   }

@@ -32,7 +32,7 @@ Run the session check, then edit that ticket, putting the owner's words under it
 
 ## Work on a ticket: continue or pick up
 
-Text that asks to work on a ticket, in any words or language ("go on with ST-12", "resume the export ticket", "take ST-5"), names it by its id or by what it is about. Take the id from the text, or else the one ticket of `accord status --json` whose title matches what the text describes; when none or more than one matches, ask the owner which ticket in one question. A claimed ticket follows `./continue.md` with that id and an unclaimed one follows `./pickup.md`, as the typed forms do, without showing the dashboard first. Text that asks to change, drop or merge the ticket takes the existing-ticket route instead.
+Text that asks to work on a ticket, in any words or language ("go on with ST-12", "resume the export ticket", "take ST-5"), names it by its id or by what it is about. Take the id from the text, or else the one ticket of `accord status --json` whose title matches what the text describes; when none or more than one matches, ask the owner which ticket in one question. A ticket is claimed when its row of `accord status --json` has `claimedBy`; every lane ticket's row has a `branch`, claimed or not, so `branch` tells nothing here. A claimed ticket follows `./continue.md` with that id and an unclaimed one follows `./pickup.md`, as the typed forms do, without showing the dashboard first. Text that asks to change, drop or merge the ticket takes the existing-ticket route instead.
 
 ## Accord itself: upgrade, audit, onboard, a setting or pull request feedback
 

@@ -2,7 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.11.2 — 2026-11-21
+
+Release 0.11.2 fixes how `/accord` sends free text about a ticket to Continue or Pick up (the bullet below), found by the Phase 8.3 live check in a real Claude Code session. Tickets in flight: nothing a ticket is refused for changes, and `accord gate ready` and `accord gate done` give the same answers. Only the `accord` skill's `route.md` and `continue.md` change; a repository pinned to 0.11.1 gets them with `accord upgrade`, which also moves the pin and the panel plugin.
 
 - `/accord` tells a claimed ticket from an unclaimed one by the `claimedBy` field of `accord status --json`, not by `branch`, which every lane ticket's row carries. In 0.11.1, text such as "go on with the export ticket" on a ticket nobody had claimed went to Continue, was refused with `not claimed:`, and the session then told the owner to type `/accord pick-up <id>`. It now goes to Pick up. When Continue does meet a ticket nobody has claimed, it offers in plain words to pick it up and, on a yes, picks it up, with no command for the owner to type. Only the `accord` skill's `route.md` and `continue.md` change; gates and tickets in flight are unaffected.
 

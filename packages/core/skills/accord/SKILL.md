@@ -1,6 +1,6 @@
 ---
 name: accord
-description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and routes a request by intent, whether a change, a question, a brainstorm, an idea to queue, research, an existing ticket or a review.
+description: Use when starting any work in an accord repository, when seeing where work stands, when continuing a ticket, or when a lane M ticket sits at a stage (intent, approach, plan, build, review or verify). Shows the dashboard, continues or picks up a ticket, and routes a request by intent, whether a change, a question, a brainstorm, an idea to queue, research, an existing ticket or a review.
 license: MIT
 argument-hint: "[request]"
 kind: skill
@@ -35,6 +35,15 @@ with the whole text after `/accord` (for
 ## An idea to queue: `/accord queue <idea>`
 
 `/accord queue <idea>` follows `./queue.md` with the whole text after `queue`, when any text follows `queue`; at its step that titles the draft it follows `./similar.md`. With nothing after `queue`, ask the owner for the idea in one question and write nothing. The session check does not run for a queued idea.
+
+## A ticket at a stage
+
+After `accord anchor` prints a ticket's lane and stage, read the file for them and go on at the step the anchor names. Read it again after every `/clear` or compaction, from `accord anchor` and never from memory:
+
+- lane S: `./lane-s.md`.
+- lane R: `./lane-r.md`.
+
+A lane M stage with no row here runs its own command.
 
 ## A lane: `./continue.md` and the change route
 

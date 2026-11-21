@@ -2,7 +2,7 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
-import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
+import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, loadSnapshot, rulesetText, sessionLine, stageFile, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
@@ -26,7 +26,8 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
     ctx.stdout.write(JSON.stringify(out) + '\n');
     return 0;
   }
-  const line = sessionLine(statusRows(ctx.snapshot));
+  const rows = statusRows(ctx.snapshot);
+  const line = sessionLine(rows);
   let body = line + '\n';
   let note = '';
   if (event === 'session-resume') {
@@ -42,7 +43,8 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
         body = `this session works ${held.id}: call EnterWorktree with the path on the next line, then run accord anchor there and go on at the stage it prints\nenter: ${held.path}\n`;
       } else {
         const id = activeTicket(root, ctx.snapshot, branchFor(root, ctx));
-        body = (id === undefined ? undefined : anchorOf(ctx, id)) ?? body;
+        const anchored = id === undefined ? undefined : anchorOf(ctx, id);
+        body = anchored === undefined ? body : anchored + stageLine(rows.find((r) => r.id === id));
       }
     } catch (e) {
       ctx.stderr.write((e as Error).message + '\n');
@@ -52,6 +54,16 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   if (event === 'session-start') startHold(ctx);
   sessionClean(ctx, event);
   return 0;
+}
+
+/**
+ * Phase 8.3 D-04: after the anchor of an active lane ticket, the one line that names the file of the /accord skill for the ticket's lane and stage, so a session cleared or compacted
+ * reads it without recalling the stage. The name comes from core's fixed map (`stageFile`), never from repository text, and no directory is named, so the line holds in every checkout.
+ * '' for a ticket with no lane and for a lane M stage the map has no entry for yet.
+ */
+function stageLine(row: { lane?: string; stage?: string } | undefined): string {
+  const file = stageFile(row?.lane, row?.stage);
+  return file === undefined ? '' : `stage file: ./${file} of the /accord skill; read it and go on at the step the anchor names\n`;
 }
 
 /**

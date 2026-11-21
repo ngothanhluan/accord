@@ -1171,7 +1171,7 @@ describe('a ticket at a stage', () => {
         expect(section, `${f.path}: the stage section says the anchor decides, after every /clear or compaction`).toMatch(/after every `\/clear` or compaction/);
         expect(section).toContain('`accord anchor`');
         expect(section).toContain('never from memory');
-        expect(section).toContain('a lane M stage with no row here runs its own command');
+        expect(section).toContain('A lane M stage with no row here runs its own command');
       }
     }
     // the map: lane S and R name their files, a lane M stage its STAGE_FILES entry, anything else nothing

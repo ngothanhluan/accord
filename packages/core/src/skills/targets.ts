@@ -59,6 +59,24 @@ export function allSkillDirs(): string[] {
 /** Spec §6: `/accord`, the command skills a person calls on their own (upgrade, audit) and the seven stage skills, by source directory. Queue, continue, pick up and new are no commands: their texts are the files `accord/queue.md`, `accord/continue.md`, `accord/pickup.md` and `accord/new.md` (with `accord/new-epic.md`) that `/accord` loads (Phase 8.3 D-03). Installed whatever `roles:` says. */
 export const STAGES: readonly string[] = ['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug'];
 
+/**
+ * Phase 8.3 D-04: the file of the accord skill folder `/accord` reads for a lane M stage, keyed by the stage the anchor prints (`intent`, `plan`, `build`, `review`, `verify`, `done`)
+ * or by the approach stage (`approach`, which the anchor shows as `intent`). Each fold of a stage skill into the accord folder adds its entry, so a stage with no entry is one whose
+ * command still runs. The stage section of the accord SKILL.md names every file here, and a test ties the two.
+ */
+export const STAGE_FILES: Readonly<Record<string, string>> = {};
+
+/**
+ * Phase 8.3 D-04: the file of the accord skill folder to read for a ticket at `lane` and `stage`, as `accord anchor` prints them: `lane-s.md` for lane S, `lane-r.md` for lane R,
+ * `STAGE_FILES[stage]` for lane M, otherwise undefined. The result comes from this fixed map and never from repository text, so a hook may print it as it is.
+ */
+export function stageFile(lane: string | undefined, stage: string | undefined): string | undefined {
+  if (lane === 'S') return 'lane-s.md';
+  if (lane === 'R') return 'lane-r.md';
+  if (lane !== 'M' || stage === undefined || !Object.hasOwn(STAGE_FILES, stage)) return undefined;
+  return STAGE_FILES[stage];
+}
+
 /** The installed directory name: `accord` is invoked as `/accord`, every other source directory X as `accord-X`. */
 export function installedName(dir: string): string {
   return dir === 'accord' ? 'accord' : 'accord-' + dir;

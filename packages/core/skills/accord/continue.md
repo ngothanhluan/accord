@@ -21,13 +21,12 @@ says so, offers `/accord pick-up <id>`, and never claims it.
 4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md` (a title it still needs is made as `./similar.md` says); when it prints `Lane: R`, follow `./lane-r.md`. Else, at any stage
    but `intent`, first run `accord gate ready <id>`; when it fails, show the
    owner what it prints and stop; when it changes the ticket, commit the ticket.
-   Then load the stage skill for the stage it prints: `intent` →
-   `accord-approach` at step 5, the owner's yes, when the ticket's
+   Then read the file the `## A ticket at a stage` section of `/accord` names for the stage it prints, from the anchor and never from memory. The row is the stage it prints, except that `intent`
+   takes the row `approach` at step 5, the owner's yes, when the ticket's
    `## Approach` holds a `- Rejected:` line, at step 3 when it holds only
-   the draft of its step 2, otherwise `accord-intent`, at step 9 when the anchor's next
-   step is the owner's approval; `plan` →
-   `accord-plan`, `build` → `accord-build`, `review` → `accord-review`,
-   `verify` → `accord-verify`; `done` → `accord-verify` at step 6.
+   the draft of its step 2, otherwise the row `intent`, at step 9 when the anchor's next
+   step is the owner's approval, and `done` takes the row `verify` at step 6.
+   A lane M stage with no row there runs its own command, `accord-<row>`.
    Resume at the step the anchor names. Never re-run a task
    the ledger records.
 

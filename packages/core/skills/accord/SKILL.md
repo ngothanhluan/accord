@@ -30,7 +30,7 @@ Continue, with that id, without showing the dashboard first. `/accord continue` 
 says so, offers Pick up, and never claims it. Any other text, but `queue` with text after it: follow `./route.md`
 with the whole text after `/accord` (for
 `/accord continue the refactor` it is `continue the refactor`, and
-`/accord continue ST-2 now` is routed as text too); a change follows `./new.md`, and an epic, lane L, follows `./new-epic.md`.
+`/accord continue ST-2 now` is routed as text too); text in any words that asks to work on a ticket reaches Continue or Pick up through its route there; a change follows `./new.md`, and an epic, lane L, follows `./new-epic.md`.
 
 ## An idea to queue: `/accord queue <idea>`
 

@@ -2,7 +2,7 @@
 // A set or unset edits the file through core's text writers, validates the WHOLE result against config.schema.json,
 // and writes once only when nothing is found; a refusal exits 2 and leaves the file byte-identical. Nothing is
 // committed or pushed here: the onboarding skill does that.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, mergeProposals, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
 import type { ConfigProposal, LoadFinding } from '@accord-dev/accord-core';
@@ -12,6 +12,9 @@ import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 
 const FILE = 'accord/config.yml';
+/** Phase 8.4 D-08 (T-08.4-14): the scan's file is read only when it is a regular file of at most this many bytes, and holds at most MAX_SCAN_ENTRIES entries. */
+const MAX_SCAN_BYTES = 262144;
+const MAX_SCAN_ENTRIES = 100;
 const KEYS = 'the keys are in packages/core/schemas/config.schema.json (schemas/config.schema.json in the published @accord-dev/accord-core)';
 
 /** What a change brings with it beyond the key itself: the ids it keeps valid (`legacy_ids`) and the commit subjects it still reads (`commits.legacy_subjects.<name>`) (D-11). One entry per list, each added item on its own output line. */
@@ -160,7 +163,11 @@ function readScanProposals(file: string, cwd: string): ConfigProposal[] {
   const name = shown(file.replace(/\\/g, '/'));
   let raw: string;
   try {
+    const stat = statSync(abs);
+    if (!stat.isFile()) throw new Error('not a regular file');
+    if (stat.size > MAX_SCAN_BYTES) throw new Error(`${stat.size} bytes is over the ${MAX_SCAN_BYTES} byte limit`);
     raw = readFileSync(abs, 'utf8');
+    if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // a BOM from a Windows editor; JSON itself tolerates CRLF between tokens
   } catch (err) {
     throw new UsageError(shown(`cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`.replace(/\\/g, '/')));
   }
@@ -171,6 +178,7 @@ function readScanProposals(file: string, cwd: string): ConfigProposal[] {
     throw new UsageError(`${name} is not JSON: ${shown((err instanceof Error ? err.message : String(err)).split('\n')[0] ?? '')}`);
   }
   if (!Array.isArray(data)) throw new UsageError(`${name} is not a JSON array of { key, value, evidence } proposals`);
+  if (data.length > MAX_SCAN_ENTRIES) throw new UsageError(`${name} holds ${data.length} entries, more than the ${MAX_SCAN_ENTRIES} allowed`);
   return data.map((entry: unknown, i): ConfigProposal => {
     const e = entry as Record<string, unknown> | null;
     const plain = typeof e === 'object' && e !== null && !Array.isArray(e);

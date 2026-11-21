@@ -98,7 +98,7 @@ it('risk:regression the judge reference renders beside accord-review-pr in every
   expect(copies.map((f) => f.path).sort()).toEqual(['.agents/skills/accord-review-pr/judge.md', '.claude/skills/accord-review-pr/judge.md']);
   const source = renderSkill('shared/judge.md' as SkillKey);
   for (const copy of copies) expect(copy.text, copy.path).toBe(source);
-  const text = flat(bodyOf(source));
+  const text = flat(withoutMarker(source));
   for (const phrase of [
     'a fresh `accord-judge`',
     'never judge an item yourself while that agent is available to you',

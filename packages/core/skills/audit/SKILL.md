@@ -2,6 +2,7 @@
 name: accord-audit
 description: Use when the owner asks for a repository audit. Reports what a machine can see about the team's conventions, accord setup and team audit scripts, with a fix for each gap, and drafts conventions from the code only on the owner's yes.
 license: MIT
+argument-hint: "[no arguments]"
 kind: skill
 loads: [audit/draft.md, shared/ask.md]
 ---

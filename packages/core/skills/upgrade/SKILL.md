@@ -2,11 +2,12 @@
 name: accord-upgrade
 description: Use when the owner asks to upgrade accord or the dashboard says a newer version is out. Moves the repository's version pin to the latest release in a pull request.
 license: MIT
+argument-hint: "[no arguments]"
 kind: skill
 loads: [accord/ids.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
-`/accord-upgrade` upgrades accord, and the accord skill loads this skill when a person types the older form of the command. Follow `./upgrade.md`: it takes the command from the first line of a fresh `accord dashboard` run, and the lines `accord worktree clean` prints are read as `./worktree.md` says.
+`/accord-upgrade` upgrades accord, and `/accord` loads it for a request to upgrade accord. Follow `./upgrade.md`: it takes the command from the first line of a fresh `accord dashboard` run, and the lines `accord worktree clean` prints are read as `./worktree.md` says.
 
 ## Rules
 

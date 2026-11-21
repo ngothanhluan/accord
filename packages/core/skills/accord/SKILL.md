@@ -27,7 +27,7 @@ ticket id, the id of a ticket in `accord/tickets/`, an id that
 `accord worktree open <id> --continue` finds; with none,
 `/accord continue ST-99` follows `./route.md` like any other text. At either typed form, follow `./pickup.md` for Pick up, or `./continue.md` for
 Continue, with that id, without showing the dashboard first. `/accord continue` or `/accord pick-up` with no id asks the owner for the ticket id in one question and runs, claims, creates and edits nothing. Continue on a ticket nobody has claimed
-says so, offers Pick up, and never claims it. `/accord upgrade` loads `accord-upgrade`; `onboard` after `/accord` loads `accord-onboard`, and an `accord init` run that printed its `proposals:` line loads `accord-onboard` too. Any other text, but `upgrade`, `onboard` or `queue` with text after it: follow `./route.md`
+says so, offers Pick up, and never claims it. Any other text, but `queue` with text after it: follow `./route.md`
 with the whole text after `/accord` (for
 `/accord continue the refactor` it is `continue the refactor`, and
 `/accord continue ST-2 now` is routed as text too); a change follows `./new.md`, and an epic, lane L, follows `./new-epic.md`.

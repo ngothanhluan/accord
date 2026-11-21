@@ -983,8 +983,9 @@ describe('the actions of the old accord skill', () => {
       }
       expect(frontmatter(texts[0])?.name, runtime).toBe('accord-upgrade');
       expect(bodyOf(texts[0]), runtime).toContain('./upgrade.md');
-      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
-      expect(accord, runtime).toContain('accord-upgrade');
+      // Phase 8.3 D-02 (08.3-24): the accord folder names the command in route.md, which holds the route for a request about accord itself
+      const route = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/route.md`)?.text ?? '';
+      expect(route, runtime).toContain('accord-upgrade');
     }
   });
 

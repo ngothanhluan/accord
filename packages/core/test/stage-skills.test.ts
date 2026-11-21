@@ -50,7 +50,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', './plan.md', './review.md', './verify.md', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './build-waves.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', './verify.md', 're-review', 'places checked:', 'ADDRESSED', './review-record.md', './review-security.md', './plan.md', './build.md'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md', './verify-ci.md', './verify-deferred.md', './verify-writer.md', './build.md'],
-  debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
+  debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', 'the build stage of `/accord`', './resume.md'],
 };
 
 const files = skillTargets(config);
@@ -205,7 +205,7 @@ it('risk:regression no stage text names the build review or verify command (D-04
     for (const roles of [['ba', 'dev'], ['ba', 'dev', 'designer']] as AccordConfig['roles'][]) {
       const cfg = { ...config, roles, runtimes: [runtime] } as AccordConfig;
       const out = skillTargets(cfg);
-      expect(out.filter((f) => command.test(f.text) && !f.path.endsWith('/accord-debug/SKILL.md')).map((f) => f.path), runtime + ' ' + roles.join('+') + ': no rendered file names a stage command').toEqual([]);
+      expect(out.filter((f) => command.test(f.text)).map((f) => f.path), runtime + ' ' + roles.join('+') + ': no rendered file names a stage command').toEqual([]);
       for (const dir of skillDirs(cfg)) {
         const text = (path: string) => flat(out.find((f) => f.path === path)?.text ?? '');
         for (const file of [stagePath('build', undefined, dir), stagePath('build', 'no-plan', dir)]) {

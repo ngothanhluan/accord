@@ -56,15 +56,15 @@ export function allSkillDirs(): string[] {
   return [...new Set(Object.values(DIRS).flat())].sort(cmp);
 }
 
-/** Spec §6: `/accord`, the command skills a person calls on their own (upgrade, audit) and the stage skills not yet folded, by source directory. Queue, continue, pick up and new are no commands: their texts are the files `accord/queue.md`, `accord/continue.md`, `accord/pickup.md` and `accord/new.md` (with `accord/new-epic.md`) that `/accord` loads (Phase 8.3 D-03), the intent stage is the file `accord/intent.md` with `accord/intent-discuss.md` and `accord/intent-research.md`, and the approach stage is `accord/approach.md` with `accord/approach-approval.md` and `accord/approach-critique.md` (D-04). Installed whatever `roles:` says. */
-export const STAGES: readonly string[] = ['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug'];
+/** Spec §6: `/accord`, the command skills a person calls on their own (upgrade, audit) and the stage skills not yet folded, by source directory. Queue, continue, pick up and new are no commands: their texts are the files `accord/queue.md`, `accord/continue.md`, `accord/pickup.md` and `accord/new.md` (with `accord/new-epic.md`) that `/accord` loads (Phase 8.3 D-03), the intent stage is the file `accord/intent.md` with `accord/intent-discuss.md` and `accord/intent-research.md`, the approach stage is `accord/approach.md` with `accord/approach-approval.md` and `accord/approach-critique.md`, the plan stage is `accord/plan.md` with `accord/plan-baseline.md`, `accord/plan-critique.md` and `accord/plan-legacy-round1.md`, and the build stage is `accord/build.md` with `accord/build-waves.md` and `accord/build-no-plan.md` (D-04). Installed whatever `roles:` says. */
+export const STAGES: readonly string[] = ['accord', 'upgrade', 'audit', 'review', 'verify', 'debug'];
 
 /**
  * Phase 8.3 D-04: the file of the accord skill folder `/accord` reads for a lane M stage, keyed by the stage the anchor prints (`intent`, `plan`, `build`, `review`, `verify`, `done`)
  * or by the approach stage (`approach`, which the anchor shows as `intent`). Each fold of a stage skill into the accord folder adds its entry, so a stage with no entry is one whose
  * command still runs. The stage section of the accord SKILL.md names every file here, and a test ties the two.
  */
-export const STAGE_FILES: Readonly<Record<string, string>> = { intent: 'intent.md', approach: 'approach.md' };
+export const STAGE_FILES: Readonly<Record<string, string>> = { intent: 'intent.md', approach: 'approach.md', plan: 'plan.md', build: 'build.md' };
 
 /**
  * Phase 8.3 D-04: the file of the accord skill folder to read for a ticket at `lane` and `stage`, as `accord anchor` prints them: `lane-s.md` for lane S, `lane-r.md` for lane R,

@@ -1371,9 +1371,8 @@ describe('a ticket at a stage', () => {
         expect(plan, `${runtime}: plan.md names ./resume.md`).toContain('./resume.md');
       }
     }
-    const raw = skills['accord/SKILL.md'] ?? '';
-    expect(readSource(raw) as { yaml: Record<string, unknown> }).toHaveProperty('yaml.loads');
-    expect(String((readSource(raw) as { yaml: { loads: unknown } }).yaml.loads)).toContain('shared/resume.md');
+    const source = readSource(skills['accord/SKILL.md'] ?? '');
+    expect('yaml' in source ? String(source.yaml.loads) : '', 'the accord SKILL.md loads shared/resume.md').toContain('shared/resume.md');
     for (const f of accordSkills) {
       const sentences = sentencesNaming(f.text, 'resume.md');
       expect(sentences.some((s) => s.includes('plan') && s.includes('Unfinished')), `${f.path}: a sentence names ./resume.md with plan and Unfinished`).toBe(true);

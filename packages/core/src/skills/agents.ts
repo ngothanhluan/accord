@@ -42,6 +42,7 @@ const RETIRED_ACCORD_REFS = ['security', 'upgrade'];
 // `accord-plan`: v0.2.0 to v0.10.0 (ask.md, baseline.md and critique.md from v0.2.0; legacy-round1.md from v0.4.1; resume.md from v0.6.0; the branch adds plan-baseline.md, plan-critique.md and plan-legacy-round1.md).
 // `accord-build`: v0.2.0 to v0.10.0 (ask.md from v0.2.0; scout.md from v0.4.1; no-plan.md from v0.5.0; baseline.md from v0.5.1; waves.md from v0.6.0; the branch adds build-no-plan.md, build-waves.md and plan-baseline.md).
 // `accord-review`: v0.2.0 to v0.10.0 (record.md and ask.md from v0.2.0; security.md from v0.7.0; the branch renders review-security.md for it).
+// `accord-verify`: v0.2.0 to v0.10.0 (ci.md, ids.md, worktree.md, ask.md, failure.md from v0.2.0; finish.md from v0.3.0; resume.md from v0.6.0; writer.md from v0.7.0; deferred.md from v0.8.0; the branch renders verify-ci.md, verify-deferred.md and verify-writer.md in the folder).
 export const RETIRED_SKILL_FOLDERS: Readonly<Record<string, readonly string[]>> = {
   'accord-approach': ['SKILL.md', 'approval.md', 'ask.md', 'critique.md', 'scout.md'],
   'accord-build': ['SKILL.md', 'ask.md', 'baseline.md', 'build-no-plan.md', 'build-waves.md', 'no-plan.md', 'plan-baseline.md', 'scout.md', 'waves.md'],
@@ -57,6 +58,7 @@ export const RETIRED_SKILL_FOLDERS: Readonly<Record<string, readonly string[]>> 
   'accord-plan': ['SKILL.md', 'ask.md', 'baseline.md', 'critique.md', 'legacy-round1.md', 'plan-baseline.md', 'plan-critique.md', 'plan-legacy-round1.md', 'resume.md'],
   'accord-queue': ['SKILL.md', 'ask.md', 'ids.md', 'similar.md'],
   'accord-review': ['SKILL.md', 'ask.md', 'record.md', 'review-security.md', 'security.md'],
+  'accord-verify': ['SKILL.md', 'ask.md', 'ci.md', 'deferred.md', 'failure.md', 'finish.md', 'ids.md', 'resume.md', 'verify-ci.md', 'verify-deferred.md', 'verify-writer.md', 'worktree.md', 'writer.md'],
 };
 
 export const RETIRED_FILES: readonly string[] = [

@@ -320,7 +320,7 @@ export function preToolUseWrite(io: { stdin?: string; stdout: NodeJS.WritableStr
     if (type === 'accord-verifier') return allow();
     const from = typeof type === 'string' && type !== '' ? `agent "${type}"` : 'the main session';
     const reason =
-      'accord: only the accord-verifier subagent writes accord/tickets/<id>/verification.md (accord-verify step 3): ' +
+      'accord: only the accord-verifier subagent writes accord/tickets/<id>/verification.md (verify.md step 3 of /accord): ' +
       "dispatch accord-verifier in a fresh context with the ticket file's path. " +
       `This ${tool} came from ${from}. If it did come from accord-verifier, this Claude Code does not name subagents to hooks: update Claude Code.`;
     io.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }) + '\n');

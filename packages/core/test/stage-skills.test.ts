@@ -826,7 +826,7 @@ it('ac-2 verify starts ci before the suite and shows the owners report only afte
     expect(s4, p).toContain(p);
   expect(v.slice(v.indexOf('6. Run'))).toContain('finish CI as `./verify-ci.md` says');
   expect(flatText(stagePath('verify'))).toContain(
-    'A `fail` criterion, or a failure the owner names in answer, goes to `./failure.md`, never to `accord-build` directly',
+    'A `fail` criterion, or a failure the owner names in answer, goes to `./failure.md`, never to `./build.md` directly',
   );
   const ci = flatText(stagePath('verify', 'ci'));
   const [a, b, c] = ['## Start', '## Wait', '## Finish'].map((h) => ci.indexOf(h));
@@ -1310,7 +1310,7 @@ it('ac-4 a lane M ticket moved to lane S at intent is changed in place and no sk
   const offenders: string[] = [];
   for (const render of renders) {
     const ids = render.filter((f) => f.path.endsWith('/ids.md'));
-    expect(ids.length, 'ids.md is rendered in accord, accord-intent, accord-debug and accord-verify for each skill folder').toBeGreaterThanOrEqual(8);
+    expect(ids.length, 'ids.md is rendered in accord, accord-debug and accord-upgrade for each skill folder').toBeGreaterThanOrEqual(6);
     for (const f of ids) {
       const at = f.text.indexOf('\n## Moving to lane S\n');
       if (at < 0) {
@@ -1576,7 +1576,7 @@ it('risk:data-loss a listed research record the branch adds counts as the ticket
   const bad: string[] = [];
   for (const render of renders) {
     const ids = render.filter((f) => f.path.endsWith('/ids.md'));
-    expect(ids.length, 'ids.md is rendered in accord, accord-intent, accord-debug and accord-verify for each skill folder').toBeGreaterThanOrEqual(8);
+    expect(ids.length, 'ids.md is rendered in accord, accord-debug and accord-upgrade for each skill folder').toBeGreaterThanOrEqual(6);
     for (const f of ids) {
       const at = f.text.indexOf('\n## Moving to lane S\n');
       if (at < 0) {

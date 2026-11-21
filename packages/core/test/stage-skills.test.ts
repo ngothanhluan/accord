@@ -705,10 +705,10 @@ it('ac-1 a failure reported after verify goes to the debug stage before any fix'
     'the debugger finds them itself', '`gh run view <run-id> --log-failed`', 'keeps its count of failed fixes',
     'a new bug ticket', "the failing check's log as the failing output",
     'say the reproduction test is skipped on this operating system',
-    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then step 2 of `accord-continue` only (`accord anchor`)",
+    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then step 2 of the Continue steps of `/accord` only (`accord anchor`)",
     'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, in place of the line it prints, and stop here',
     'When it printed `enter:`, or this session is already in that worktree,',
-    "in place of steps 3 and 4 of `accord-continue`",
+    "in place of steps 3 and 4 of the Continue steps of `/accord`",
     '(`done`: `accord-verify` at step 6, whose Finish closes the episode)',
   ]) expect(a, p).toContain(p);
   expect(a).not.toContain("first run the accord skill's Continue on it");
@@ -2007,11 +2007,12 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
   for (const f of finish) for (const s of ['`/accord-continue <id>`', '`/accord-pickup <id>`', '`/accord-new <request>`']) expect(f.text, f.path).toContain(s);
   // (d) the routed `/accord <id> ` text form stays in comments.md and failure.md
   for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('`/accord <id> ` followed by');
-  // (e) a step of the old Continue section is named as a step of accord-continue
-  const bad = all.filter((f) => /Continue('s)? steps?/.test(f.text)).map((f) => f.path);
+  // (e) a step of the Continue section is named as a step of the Continue steps of `/accord` (D-03), never of the old command
+  const bad = all.filter((f) => /Continue('s)? steps?/.test(f.text.split('the Continue steps of `/accord`').join(''))).map((f) => f.path);
   expect(bad).toEqual([]);
-  for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('step 2 of `accord-continue` only (`accord anchor`)');
-  for (const f of copies('failure.md')) expect(f.text, f.path).toContain('in place of steps 3 and 4 of `accord-continue`');
+  for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('step 2 of the Continue steps of `/accord` only (`accord anchor`)');
+  for (const f of copies('failure.md')) expect(f.text, f.path).toContain('in place of steps 3 and 4 of the Continue steps of `/accord`');
+  for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).not.toContain('accord-continue');
   expect(copies('ids.md').length).toBeGreaterThan(0);
   for (const f of copies('ids.md')) expect(f.text, f.path).toContain('follow `/accord continue <id>` and go on at its step 2');
 });

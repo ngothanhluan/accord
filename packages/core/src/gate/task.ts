@@ -16,10 +16,10 @@ export function taskVerdict(snapshot: RepoSnapshot, id: string, n: number): Task
   const plan = workOf(snapshot, id)?.plan;
   if (plan === undefined) return fail('no plan at ' + planFile(id));
   const task = plan.tasks.find((t) => t.n === n);
-  if (plan.planHash === undefined) return fail('plan.md has no plan_hash: the plan stage has not finished; go back to accord-plan');
+  if (plan.planHash === undefined) return fail('plan.md has no plan_hash: the plan stage has not finished; go back to the plan stage (plan.md of /accord)');
   if (plan.planHash !== plan.bodyHash) {
     return fail(
-      "plan.md changed since its plan_hash was recorded: show the owner the diff of plan.md; if the owner made the change, accord-plan reviews it; otherwise restore plan.md with the owner's yes",
+      "plan.md changed since its plan_hash was recorded: show the owner the diff of plan.md; if the owner made the change, the plan stage (plan.md of /accord) reviews it; otherwise restore plan.md with the owner's yes",
     );
   }
   if (task === undefined) return fail(`the plan has no "## Task ${n}"`);

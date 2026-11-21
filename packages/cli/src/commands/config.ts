@@ -4,9 +4,11 @@
 // committed or pushed here: the onboarding skill does that.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { appendConfigList, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
+import { appendConfigList, CONFIG_AREAS, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
 import type { LoadFinding } from '@accord-dev/accord-core';
+import { detectProposals } from '../load/detect.js';
 import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
+import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 
 const FILE = 'accord/config.yml';
@@ -150,6 +152,47 @@ export function configUnset(ctx: CommandContext, key: string, options: { json?: 
   const out = withConsequences(ctx, path, text, from === undefined ? text : unsetConfigValue(text, path));
   commit(key, path, file, text, out.text);
   return report(ctx, key, from, undefined, out.consequences, options);
+}
+
+/**
+ * Phase 8.3 D-08, D-13 (Ruling 9): the settings area by area for `/accord-config`. Per area in data order `area: <id> - <title>` (with ` (not walked: accord writes these)` for an area accord writes itself), then per
+ * top-level key `  <key> = <YAML flow value, or unset> - <what it controls>`, then each proposal for that key as init prints it. The areas and the texts come from core's data (packages/core/schemas/config-areas.json), the
+ * values from the file's text, the proposals from the detector `accord init` runs (read-only, bounded, never throws), so the skill needs no scan of its own (D-09). Writes nothing. Every string that comes from the repository
+ * (a value, an evidence line) passes `shown()`.
+ */
+export function configAreas(ctx: CommandContext, area: string | undefined, options: { json?: boolean }): number {
+  const ids = CONFIG_AREAS.map((a) => a.id);
+  if (area !== undefined && !ids.includes(area)) throw new UsageError(`no area ${shown(area)} - the areas are ${ids.join(', ')}`);
+  let text: string;
+  try {
+    text = readFileSync(join(ctx.root, 'accord', 'config.yml'), 'utf8');
+  } catch {
+    throw new UsageError(`no ${FILE} in ${ctx.root} - run accord init`);
+  }
+  const proposals = detectProposals(ctx.root);
+  const rows = CONFIG_AREAS.filter((a) => area === undefined || a.id === area).map((a) => ({
+    id: a.id,
+    title: a.title,
+    walk: a.walk !== false,
+    keys: a.keys.map((k) => ({
+      key: k.key,
+      text: k.text,
+      value: getConfigValue(text, [k.key]) ?? null,
+      proposals: proposals.filter((p) => p.key.split('.')[0] === k.key).map((p) => ({ key: p.key, value: p.value, evidence: p.evidence })),
+    })),
+  }));
+  if (options.json === true) {
+    ctx.stdout.write(JSON.stringify({ areas: rows }, null, 2) + '\n');
+    return 0;
+  }
+  for (const a of rows) {
+    ctx.stdout.write(`area: ${a.id} - ${a.title}${a.walk ? '' : ' (not walked: accord writes these)'}\n`);
+    for (const k of a.keys) {
+      ctx.stdout.write(`  ${k.key} = ${k.value === null ? 'unset' : shown(flowValue(k.value))} - ${k.text}\n`);
+      for (const p of k.proposals) ctx.stdout.write(`  proposal: ${p.key} = ${JSON.stringify(p.value)}  (evidence: ${shown(p.evidence)})\n`);
+    }
+  }
+  return 0;
 }
 
 export function configCheck(ctx: CommandContext, options: { json?: boolean }): number {

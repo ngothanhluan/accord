@@ -74,13 +74,13 @@ describe('accord init proposes values and writes none of them', () => {
     expect(first.code).toBe(0);
     expect(first.err).toBe('');
     // After its file list: the proposal with its evidence in numbers, then the count and that none was written.
-    expect(tail(first.out)).toEqual([SQUASH_LINE, 'proposals: 1, none written to accord/config.yml; type /accord onboard to confirm them one by one']);
+    expect(tail(first.out)).toEqual([SQUASH_LINE, 'proposals: 1, none written to accord/config.yml; type /accord-onboard to confirm them one by one']);
     // Nothing written: the new config.yml is the scaffold, byte for byte.
     expect(readFileSync(join(repo, CONFIG), 'utf8')).toBe(SCAFFOLD_CONFIG);
     // A second run prints the same proposal and leaves the config byte-identical.
     const second = await run(['init'], repo);
     expect(second.code).toBe(0);
-    expect(tail(second.out)).toEqual([SQUASH_LINE, 'proposals: 1, none written to accord/config.yml; type /accord onboard to confirm them one by one']);
+    expect(tail(second.out)).toEqual([SQUASH_LINE, 'proposals: 1, none written to accord/config.yml; type /accord-onboard to confirm them one by one']);
     expect(readFileSync(join(repo, CONFIG), 'utf8')).toBe(SCAFFOLD_CONFIG);
   });
 
@@ -105,7 +105,7 @@ describe('accord init proposes values and writes none of them', () => {
     expect(code).toBe(0);
     expect(tail(out)).toEqual([
       'proposal: git.merge = "merge"  (evidence: 30 of 40 recent commits on main are merge commits)',
-      'proposals: 1, none written to accord/config.yml; type /accord onboard to confirm them one by one',
+      'proposals: 1, none written to accord/config.yml; type /accord-onboard to confirm them one by one',
     ]);
     expect(readFileSync(join(repo, CONFIG), 'utf8')).toBe(SCAFFOLD_CONFIG);
   });
@@ -122,14 +122,14 @@ describe('accord init proposes values and writes none of them', () => {
     expect(readFileSync(join(repo, CONFIG), 'utf8')).toContain('squash');
   });
 
-  // CR-02 (round 2): the command the onboard skill's step 4 instructs for the proposal init printed is run exactly as the skill writes it (shell single quotes
+  // CR-02 (round 2): the command the shared walk (which the onboard skill follows) instructs for the proposal init printed is run exactly as the skill writes it (shell single quotes
   // removed, nothing else), and it stores the value the proposal proposed. The skill, not `config set`, turns a printed JSON string into the bare value.
   it('risk:regression the command the onboard skill instructs for a printed string proposal stores that proposal (CR-02)', async () => {
     const repo = squashHistory();
     const { out } = await run(['init'], repo);
     const printed = /^proposal: (git\.merge) = (.*?) {2}\(evidence: /m.exec(out);
     expect(printed?.[2]).toBe('"squash"');
-    const skill = readFileSync(fileURLToPath(new URL('../../core/skills/accord/onboard.md', import.meta.url)), 'utf8').replace(/\s+/g, ' ');
+    const skill = readFileSync(fileURLToPath(new URL('../../core/skills/shared/walk.md', import.meta.url)), 'utf8').replace(/\s+/g, ' ');
     const example = /the printed `proposal: git\.merge = "squash"` is run as `(accord config set git\.merge '[^']*')`/.exec(skill)?.[1];
     expect(example, 'the skill names the exact command for the printed git.merge proposal').toBeDefined();
     const args = (example as string).replace(/'/g, '').split(' ').slice(1);
@@ -178,7 +178,7 @@ function build({ subjects, bodies = {}, files = {}, branches = [] }: Build): str
 
 /** Every line init printed that belongs to the proposal contract. */
 const proposalLines = (out: string): string[] => out.split('\n').filter((l) => l.startsWith('proposal: ') || l.startsWith('proposals: '));
-const CLOSING = 'proposals: 1, none written to accord/config.yml; type /accord onboard to confirm them one by one';
+const CLOSING = 'proposals: 1, none written to accord/config.yml; type /accord-onboard to confirm them one by one';
 const plain = (n: number): string[] => Array.from({ length: n }, (_, i) => `change ${i + 1}`);
 
 const SUBJECTS_PROPOSED = {
@@ -220,7 +220,7 @@ describe('accord init proposes the other conventions (ST-LN-50 t2-ac-8)', () => 
       'proposal: branch = "feature/{id}"  (evidence: 8 of 8 branches other than main are named feature/<ticket key>)',
       'proposal: ids = {"mode":"tracker","projects":["ENG"]}  (evidence: 38 of 40 recent commits and 8 of 8 branches carry a ticket key (ENG))',
       'proposal: tracker = {"adapter":"linear"}  (evidence: 1 linear.app link in README.md)',
-      'proposals: 5, none written to accord/config.yml; type /accord onboard to confirm them one by one',
+      'proposals: 5, none written to accord/config.yml; type /accord-onboard to confirm them one by one',
     ]);
     // Nothing written: the config is the scaffold, byte for byte.
     expect(readFileSync(join(repo, CONFIG), 'utf8')).toBe(SCAFFOLD_CONFIG);

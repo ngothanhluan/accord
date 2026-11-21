@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'resolve-pr', 'review-pr']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -232,7 +232,7 @@ const MAX_SKILL_LINES = 120;
 
 /** The commands the CLI actually registers, longest path first so `gate ready` wins over a bare `gate`. */
 const COMMAND =
-  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
+  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|worktree check|config areas|config get|config set|diff-package|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
 
 /** Spec §2: each skill targets at most 6000 bytes. */
 const MAX_SKILL_BYTES = 6000;
@@ -244,6 +244,10 @@ const FIRST_COMMAND: Record<string, string> = {
   'accord-designer': 'gate ready',
   'accord-upgrade': 'dashboard',
   'accord-audit': 'audit',
+  'accord-config': 'worktree check',
+  'accord-onboard': 'worktree check',
+  'accord-resolve-pr': 'status',
+  'accord-review-pr': 'diff-package',
 };
 const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
 
@@ -357,6 +361,45 @@ it('risk:regression no skill source names a folded command (D-03)', () => {
   const names = "'accord-queue': ['SKILL.md'],\n// `accord-queue`: v0.8.0 to v0.10.0\n// load `accord-queue` now";
   expect(foldedHits([{ path: RETIRE_LIST_FILE, text: names }], pattern)).toEqual([`${RETIRE_LIST_FILE}:3: // load \`accord-queue\` now`]);
   expect(foldedHits([{ path: 'packages/cli/src/x.ts', text: "'accord-queue': ['SKILL.md']," }], pattern)).toHaveLength(1);
+});
+
+// Phase 8.3 D-07 (08.3-23, 08.3-25): onboarding is the command `/accord-onboard`, so no skill source, rendered file, source file or doc names the typed form `/accord onboard`. README.md and
+// docs/design.md joined the scan in 08.3-25. The pattern ends at a word boundary, and `/accord-onboard` has a hyphen where the space is.
+const OLD_ONBOARD = /\/accord onboard\b/;
+it('risk:regression no text names the old onboard form (D-07)', () => {
+  const sources = foldedSources();
+  for (const doc of DOC_FILES) expect(sources.some((s) => s.path === doc), `${doc} was scanned`).toBe(true);
+  for (const dir of ['packages/core/skills/', 'packages/core/src/', 'packages/cli/src/', 'packages/core/panel/']) {
+    expect(sources.some((s) => s.path.startsWith(dir)), `${dir} was scanned`).toBe(true);
+  }
+  const rendered = ROSTERS.flat().map((f) => ({ path: f.path, text: f.text }));
+  expect(rendered.length, 'no rendered file was scanned').toBeGreaterThan(0);
+  expect(foldedHits([...sources, ...rendered], OLD_ONBOARD)).toEqual([]);
+  // Guard the guard: the pattern matches the old typed form, and not the command's own name or the word elsewhere.
+  for (const hit of ['type `/accord onboard` now', 'or on /accord onboard.']) expect(OLD_ONBOARD.test(hit), hit).toBe(true);
+  for (const miss of ['type /accord-onboard to confirm them one by one', '`accord-onboard`', 'accord onboard', '/accord onboarding']) expect(OLD_ONBOARD.test(miss), miss).toBe(false);
+  expect(foldedHits([{ path: 'packages/cli/src/commands/init.ts', text: 'type /accord onboard to confirm' }], OLD_ONBOARD)).toHaveLength(1);
+  for (const doc of DOC_FILES) expect(foldedHits([{ path: doc, text: 'type /accord onboard to confirm' }], OLD_ONBOARD), doc).toHaveLength(1);
+});
+
+// Phase 8.3 D-01, D-05, D-07 to D-13 (08.3-25): the two docs a person reads name the eight commands with the hint each shows, the opt-in designer, and the config areas verb and data file.
+it('risk:regression README and design name the eight commands with their hints and the opt-in designer (D-01)', () => {
+  const doc = Object.fromEntries(foldedSources().filter((s) => DOC_FILES.includes(s.path)).map((s) => [s.path, s.text.replace(/\s+/g, ' ')]));
+  // a pipe inside a table cell is written as backslash and pipe so the table keeps its columns
+  const readme = (doc['README.md'] ?? '').replaceAll('\\|', '|');
+  const design = doc['docs/design.md'] ?? '';
+  expect(readme.length, 'README.md was read').toBeGreaterThan(0);
+  const commands = Object.entries(HINTS).filter(([name]) => name !== 'accord-designer');
+  expect(commands.map(([name]) => name).sort()).toEqual(['accord', 'accord-audit', 'accord-config', 'accord-debug', 'accord-onboard', 'accord-resolve-pr', 'accord-review-pr', 'accord-upgrade']);
+  for (const [name, hint] of commands) {
+    // a command that takes no argument is listed by its name alone, the others with their hint, in the command table
+    const cell = hint === '[no arguments]' ? '`/' + name + '`' : '`/' + name + ' ' + hint + '`';
+    expect(readme, `README.md command table lists ${cell}`).toContain('| ' + cell + ' |');
+  }
+  expect(readme, 'README.md says accord-designer is opt-in through roles').toMatch(/`accord-designer`[^.|]*`roles`[^.|]*`designer`|`designer`[^.|]*`roles`[^.|]*`accord-designer`/);
+  expect(readme, 'README.md says init names the onboard command').toContain('ends by naming `/accord-onboard`');
+  expect(readme, 'README.md lists the config areas verb').toContain('`accord config areas [<area>]`');
+  for (const phrase of ['accord config areas', 'schemas/config-areas.json', '/accord-config', '/accord-onboard', '/accord-resolve-pr', '/accord-review-pr']) expect(design, `docs/design.md names ${phrase}`).toContain(phrase);
 });
 
 it('risk:regression the accord skill names its typed forms (D-03)', () => {
@@ -704,12 +747,16 @@ it('ac-3 each new mention names the step or event at which to read its file and 
 // The hint each installed skill shows after its name in the slash-command picker, from what its body takes:
 // `/accord` takes nothing (the dashboard), a request, or an action on a ticket id; a stage runs
 // `accord anchor`, whose id defaults to the ticket of the current branch; designer runs `accord gate ready <id>`.
-const HINTS: Record<string, string | null> = {
+const HINTS: Record<string, string> = {
   accord: '[request]',
-  // A command that takes no argument shows no hint.
-  'accord-upgrade': null,
-  'accord-audit': null,
+  // Phase 8.3 D-05 (Ruling 1): every command left carries a hint; one that takes no argument says so. 08.3-25 sets the last one, so the table holds no null entry.
+  'accord-upgrade': '[no arguments]',
+  'accord-audit': '[no arguments]',
   'accord-debug': '[ticket id] [failure]',
+  'accord-config': '[area]',
+  'accord-onboard': '[no arguments]',
+  'accord-resolve-pr': '<PR | ticket id>',
+  'accord-review-pr': '<PR | branch>',
   'accord-designer': '<ticket id>',
 };
 
@@ -729,8 +776,16 @@ describe('argument hints', () => {
     expect(new Set(skillMds.map((f) => baseOf(dirOf(f.path))))).toEqual(new Set(Object.keys(HINTS)));
   });
 
+  it('risk:regression the nine commands each carry a hint and the table holds no null entry (D-05)', () => {
+    expect(Object.keys(HINTS).sort()).toEqual(['accord', 'accord-audit', 'accord-config', 'accord-debug', 'accord-designer', 'accord-onboard', 'accord-resolve-pr', 'accord-review-pr', 'accord-upgrade']);
+    expect(Object.values(HINTS).filter((h) => typeof h !== 'string' || h === '')).toEqual([]);
+    const by = (name: string) => skillMds.filter((f) => baseOf(dirOf(f.path)) === name).map((f) => frontmatter(f.text)?.['argument-hint']);
+    expect([...new Set(by('accord-resolve-pr'))]).toEqual(['<PR | ticket id>']);
+    for (const name of Object.keys(HINTS)) expect(by(name).every((h) => typeof h === 'string' && h.length > 0), `${name} shows a hint in both directories`).toBe(true);
+  });
+
   it('risk:regression a hint is short and reads <required> [optional]', () => {
-    for (const hint of Object.values(HINTS).filter((h): h is string => h !== null)) {
+    for (const hint of Object.values(HINTS)) {
       expect(hint.length, hint).toBeLessThanOrEqual(64);
       expect(hint, hint).toMatch(/^(?:<[^<>[\]]+>|\[[^[\]]+\])(?: (?:<[^<>[\]]+>|\[[^[\]]+\]))*$/);
     }
@@ -761,6 +816,23 @@ describe('the installed skill set', () => {
     const stages = STAGES.filter((s) => Object.hasOwn(skills, s + '/SKILL.md')).map(installedName);
     expect(stages).toContain('accord');
     expect(single.map((f) => baseOf(dirOf(f.path))).sort()).toEqual([...stages, 'accord-designer'].sort());
+  });
+
+  // Phase 8.3 D-01 (Ruling 3): eight commands for every runtime, and the designer only when `roles` lists it.
+  it('risk:regression the installed skill set is exactly the eight commands plus the opt-in designer for every runtime (D-01)', () => {
+    const EIGHT = ['accord', 'accord-audit', 'accord-config', 'accord-debug', 'accord-onboard', 'accord-resolve-pr', 'accord-review-pr', 'accord-upgrade'];
+    expect([...STAGES].map(installedName).sort()).toEqual(EIGHT);
+    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'resolve-pr', 'review-pr']);
+    const folders = (cfg: AccordConfig, dir: string) =>
+      [...new Set(skillTargets(cfg).filter((f) => baseOf(f.path) === 'SKILL.md' && f.path.startsWith(dir + '/')).map((f) => baseOf(dirOf(f.path))))].sort();
+    for (const runtimes of [['claude'], ['codex'], ['cursor'], ['copilot'], ALL_RUNTIMES] as AccordConfig['runtimes'][]) {
+      const without = config({ roles: ['ba', 'dev'], runtimes });
+      const withDesigner = config({ roles: ['ba', 'dev', 'designer'], runtimes });
+      for (const dir of skillDirs(without)) {
+        expect(folders(without, dir), `${runtimes.join('+')} ${dir} without the designer role`).toEqual(EIGHT);
+        expect(folders(withDesigner, dir), `${runtimes.join('+')} ${dir} with the designer role`).toEqual([...EIGHT, 'accord-designer'].sort());
+      }
+    }
   });
 });
 
@@ -960,8 +1032,9 @@ describe('the actions of the old accord skill', () => {
       }
       expect(frontmatter(texts[0])?.name, runtime).toBe('accord-upgrade');
       expect(bodyOf(texts[0]), runtime).toContain('./upgrade.md');
-      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
-      expect(accord, runtime).toContain('accord-upgrade');
+      // Phase 8.3 D-02 (08.3-24): the accord folder names the command in route.md, which holds the route for a request about accord itself
+      const route = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/route.md`)?.text ?? '';
+      expect(route, runtime).toContain('accord-upgrade');
     }
   });
 
@@ -1163,6 +1236,39 @@ describe('retired skill folders', () => {
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-build'))).toContain('accord-build');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-review'))).toContain('accord-review');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-verify'))).toContain('accord-verify');
+  });
+
+  // Phase 8.3 D-01, D-07 (08.3-23): the onboarding text left the accord folder for its own command, so the old rendered file is retired in both skill directories and not rendered.
+  // It rendered as `accord/onboard.md` from v0.5.0 to v0.10.0 and under no other name, so the one path is the whole list.
+  it('risk:data-loss the accord folder retires onboard.md and renders it nowhere (D-01)', () => {
+    for (const dir of SKILL_DIRS) expect(RETIRED_FILES, `${dir}/accord/onboard.md`).toContain(`${dir}/accord/onboard.md`);
+    for (const roster of ROSTERS) {
+      expect(roster.filter((f) => f.path.endsWith('/accord/onboard.md')).map((f) => f.path), 'the accord folder renders onboard.md').toEqual([]);
+      expect(roster.some((f) => f.path.endsWith('/accord-onboard/SKILL.md')), 'accord-onboard renders').toBe(true);
+    }
+    // the new command's folder is no retired path
+    expect(RETIRED_FILES.filter((p) => p.includes('/accord-onboard/'))).toEqual([]);
+  });
+
+  // Phase 8.3 D-01, D-12 (08.3-24): the foreign review text left the accord folder for its own command. `accord/review-foreign.md` rendered from v0.8.0 to v0.10.0 and under no other name
+  // in the accord folder (`accord-new/review-foreign.md` is already retired), so the one path is the whole list.
+  it('risk:data-loss the accord folder retires review-foreign.md and renders it nowhere (D-01)', () => {
+    for (const dir of SKILL_DIRS) expect(RETIRED_FILES, `${dir}/accord/review-foreign.md`).toContain(`${dir}/accord/review-foreign.md`);
+    for (const roster of ROSTERS) {
+      expect(roster.filter((f) => f.path.endsWith('/review-foreign.md')).map((f) => f.path), 'a folder renders review-foreign.md').toEqual([]);
+      expect(roster.some((f) => f.path.endsWith('/accord-review-pr/SKILL.md')), 'accord-review-pr renders').toBe(true);
+    }
+    expect(RETIRED_FILES.filter((p) => p.includes('/accord-review-pr/'))).toEqual([]);
+  });
+
+  // Phase 8.3 D-01, D-11 (08.3-25): the comments text left the accord folder for its own command. `accord/comments.md` rendered from v0.4.0 to v0.10.0 and under no other name in this folder.
+  it('risk:data-loss the accord folder retires comments.md and renders it nowhere (D-01)', () => {
+    for (const dir of SKILL_DIRS) expect(RETIRED_FILES, `${dir}/accord/comments.md`).toContain(`${dir}/accord/comments.md`);
+    for (const roster of ROSTERS) {
+      expect(roster.filter((f) => f.path.endsWith('/comments.md')).map((f) => f.path), 'a folder renders comments.md').toEqual([]);
+      expect(roster.some((f) => f.path.endsWith('/accord-resolve-pr/SKILL.md')), 'accord-resolve-pr renders').toBe(true);
+    }
+    expect(RETIRED_FILES.filter((p) => p.includes('/accord-resolve-pr/'))).toEqual([]);
   });
 });
 
@@ -1420,7 +1526,7 @@ describe('a ticket at a stage', () => {
   it('risk:regression STAGE_FILES holds exactly the six stages and done and no stage is a command (D-04)', () => {
     expect(Object.keys(STAGE_FILES).sort()).toEqual(['approach', 'build', 'done', 'intent', 'plan', 'review', 'verify']);
     expect(STAGE_FILES).toEqual({ intent: 'intent.md', approach: 'approach.md', plan: 'plan.md', build: 'build.md', review: 'review.md', verify: 'verify.md', done: 'verify.md' });
-    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug']);
+    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'resolve-pr', 'review-pr']);
     for (const stage of ['intent', 'approach', 'plan', 'build', 'review', 'verify']) {
       expect(Object.keys(HINTS), `HINTS holds no command for ${stage}`).not.toContain('accord-' + stage);
       expect(Object.keys(FIRST_COMMAND), `FIRST_COMMAND holds no command for ${stage}`).not.toContain('accord-' + stage);

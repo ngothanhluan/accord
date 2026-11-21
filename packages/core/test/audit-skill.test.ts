@@ -64,16 +64,17 @@ function lastStep(path: string): string {
 
 it('risk:regression the init and upgrade flows end by asking whether to audit (8.1-ac-11)', () => {
   const common = ['`accord audit`', 'one question', 'On no, run nothing', '`/accord-audit` runs it any time', 'On yes, run', 'each `gap:` line with its `- fix:`'];
-  const onboard = lastStep('accord/onboard.md');
-  expect(onboard).toMatch(/^6\. /);
+  const onboard = lastStep('onboard/SKILL.md');
+  expect(onboard).toMatch(/^5\. /);
   expect(common.filter((p) => !onboard.includes(p))).toEqual([]);
   expect(onboard).toContain('conventions draft');
   const upgrade = lastStep('accord/upgrade.md');
   expect(upgrade).toMatch(/^5\. /);
   expect(common.filter((p) => !upgrade.includes(p))).toEqual([]);
   expect(upgrade).toContain('`upgrade` replaced by `audit`');
-  // the init flow is reached after the proposals line, whatever it says (D-10 reading)
-  expect(flat(skills['accord/SKILL.md' as SkillKey] ?? '')).toContain('its `proposals:` line');
+  // the init flow is reached after the proposals line, whatever it says (D-10 reading); since 08.3-23 the onboard command says so, and `/accord` loads it for that line (route.md since 08.3-24)
+  expect(flat(skills['onboard/SKILL.md' as SkillKey] ?? '')).toContain('its `proposals:` line');
+  expect(flat(skills['accord/route.md' as SkillKey] ?? '')).toContain('an `accord init` run that printed its `proposals:` line loads `accord-onboard`');
 });
 
 it('risk:regression no gate source names the audit (D-10)', () => {

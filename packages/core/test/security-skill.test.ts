@@ -128,11 +128,13 @@ it('risk:data-loss the security checklist renders as review-security.md wherever
 it('risk:security the config skill asks the owner before it writes a Removed line for a default pattern (ST-LN-36 36-ac-4)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
-    const onboard = filesOf(runtime, 'accord', 'onboard.md');
-    if (onboard.length === 0) bad.push(runtime + ': accord/onboard.md is missing');
-    for (const f of onboard) {
+    // 08.3-23: the security-trigger paragraph lives once, in the shared walk that `/accord-config` and `/accord-onboard` each render beside their SKILL.md
+    const walks = [...filesOf(runtime, 'accord-onboard', 'walk.md'), ...filesOf(runtime, 'accord-config', 'walk.md')];
+    if (walks.length === 0) bad.push(runtime + ': accord-onboard/walk.md is missing');
+    if (filesOf(runtime, 'accord', 'onboard.md').length > 0) bad.push(runtime + ': accord/onboard.md is still rendered');
+    for (const f of walks) {
       const text = flat(f.text);
-      const section = text.slice(text.indexOf('## Changing a value later'));
+      const section = text.slice(text.indexOf('A request to add or remove a security trigger'));
       for (const p of lacks(section, [
         '`accord/product/security.md`',
         '`- Removed: <id> — <reason>`',

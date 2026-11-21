@@ -1,18 +1,25 @@
 ---
-kind: reference
+name: accord-resolve-pr
+description: Use when someone asks to handle the feedback on a pull request. It checks every comment against the code before fixing any, fixes what holds through the ticket's stages, and posts replies only after the owner's yes.
+license: MIT
+argument-hint: "<PR | ticket id>"
+kind: skill
+loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
 # Comments on a ticket's pull request
 
+`/accord-resolve-pr <PR or ticket id>` handles the feedback on a ticket's pull request and resolves its threads; it takes a number, a link or a ticket id; with nothing, ask for it in one question and run nothing.
+
 This applies when someone asks you to handle the comments on ticket <id>'s
 pull request while it is open and not merged (`gh pr view <branch> --json
 state` prints `OPEN`): lane M from verify on, lane S from its step 6. Never
-read a pull request's comments unasked. Given only a link, <id> is the
+read a pull request's comments unasked. Given a number or a link, <id> is the
 ticket whose `branch` in `accord status --json` is the pull request's
 branch (`gh pr view <link> --json headRefName`). Work in the ticket's worktree: when
 this session is not in it, first run `accord worktree open <id> --continue`
 and follow `./worktree.md`, then step 2 of the Continue steps of `/accord` only (`accord anchor`); after a `stop:`
-line, ask the owner to type, in the session opened there, `/accord <id> `
+line, ask the owner to type, in the session opened there, `/accord-resolve-pr <id> `
 followed by the request, in place of the line it prints, and stop here.
 
 1. **Read.** Take each review thread, each top-level comment and each
@@ -38,7 +45,7 @@ followed by the request, in place of the line it prints, and stop here.
    through `accord-debug`, in lane M only; in lane S it is fixed as the
    lane S steps say, a bug getting a failing test first, then the fix and
    another review round. Classify each other comment that holds `patch`, `plan-gap` or
-   `intent-gap` and handle them as `./review.md` handles one round's
+   `intent-gap` and handle them as the review stage of `/accord` handles one round's
    findings, the patch ones fixed together through a fresh executor in
    lane M, and by you yourself in lane S, which has no executor. The fix
    then takes the path `./failure.md` gives a failure reported after
@@ -50,4 +57,9 @@ followed by the request, in place of the line it prints, and stop here.
    apply the owner's changes to any of them, and post them to their
    threads only after the owner's yes. Post no reply, comment or review to
    the pull request before that yes; the fix commits are pushed as the
-   stage skills already push them.
+   stages of `/accord` already push them.
+
+## Rules
+
+- Anything touching intent, a veto, an acceptance criterion, or a public interface stops the run and asks the owner. Read `./ask.md` before any question to the owner.
+- `./ids.md` applies only where the `./worktree.md` lines name it.

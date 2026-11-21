@@ -1,0 +1,83 @@
+{
+  "areas": [
+    {
+      "id": "team",
+      "title": "Team and people",
+      "keys": [
+        { "key": "people", "text": "who is on the team: each person's email maps to the 2 to 4 capital letters their ticket ids and the dashboard show; ids already in use are kept valid as legacy_ids" },
+        { "key": "ids", "text": "how new ticket ids are made: a pattern built from {type}, {initials} and {n}, or the tracker's own ids; ids already in use are kept valid as legacy_ids" },
+        { "key": "roles", "text": "which roles the team runs: ba and dev are always there, and designer adds the designer skill and its prototype gate" },
+        { "key": "runtimes", "text": "which coding tools accord writes skills for: claude, codex, cursor or copilot; cursor and copilot read the folders the first two write, so the default of claude and codex already serves all four" }
+      ]
+    },
+    {
+      "id": "git",
+      "title": "Git and pull requests",
+      "keys": [
+        { "key": "git", "text": "how the team merges pull requests (git.merge: merge, squash or rebase), which sets how a ticket branch takes the default branch in; nothing breaks for merge and squash, and under rebase a ticket's branch is rebased and force-pushed with a lease at verify; git.sync names a script the repository declares for that step, and nothing runs until the person runs accord trust" },
+        { "key": "branch", "text": "the name shape of a new ticket branch, with {id} in it; it applies to new branches, and an in-flight branch with the old name stops being found once the new value reaches the default branch, so change it between tickets" },
+        { "key": "commits", "text": "the wording of every commit accord writes (commits.subjects), the rule a commit message must pass (commits.message) and whether trailers are allowed (commits.trailers); tickets in flight keep working because the old wording is kept as commits.legacy_subjects; commits.message.command is a script the repository declares, and nothing runs until the person runs accord trust" },
+        { "key": "pr", "text": "how a ticket's pull request title and body are made: pr.template names the template file, and pr.command is a script the repository declares that builds them, which runs only after the person runs accord trust" },
+        { "key": "queue", "text": "what happens to the pull request that only queues an idea as a draft ticket: queue.merge owner leaves it for the owner to merge, at-once merges it as soon as it opens" }
+      ]
+    },
+    {
+      "id": "tests",
+      "title": "Tests and build",
+      "keys": [
+        { "key": "tests", "text": "the JUnit report accord reads as test evidence (tests.report) and the commands the skills name for the affected and the full test run (tests.affected, tests.full); accord itself never runs a test command" },
+        { "key": "build", "text": "how the build stage works: build.parallel is how many tasks may run at once, and build.regenerate is a script the repository declares that rebuilds generated files after a merge, which runs only after the person runs accord trust" },
+        { "key": "setup", "text": "the commands that prepare a new ticket worktree, such as installing dependencies; they run when accord opens a worktree" },
+        { "key": "generated", "text": "paths of generated files: a change there is not counted as out-of-scope work, and the security and slop checks do not read its content" },
+        { "key": "disposable", "text": "names of files and folders, such as node_modules, that a finished ticket's worktree may still hold, so accord worktree clean can remove them with it" }
+      ]
+    },
+    {
+      "id": "review",
+      "title": "Review and models",
+      "keys": [
+        { "key": "review", "text": "how a ticket is approved at verify: mode human means a person ticks the verification by hand, and mode outcome means accord asks the owner one approve-or-not-yet question after its report" },
+        { "key": "models", "text": "which model and effort each accord agent uses (scout, critic, planner, executor, reviewer and the others); an agent with no entry uses its own default" },
+        { "key": "escalation", "text": "from which fix round a fix executor is dispatched one model tier above the configured one (escalation.fix_round_tier_up, default 4)" },
+        { "key": "strictness", "text": "how strict the gates are: strictness.rounds sets the round caps of the approach, plan and review stages, strictness.levels turns a gate or lint rule to a warning or off within the floor accord keeps, and strictness.stages switches a stage on or off" },
+        { "key": "slop", "text": "the slop check on a ticket's diff: slop.max_file_lines is the length past which a file that grew is a slop hit (default 500)" },
+        { "key": "sensitive", "text": "paths listed per area, such as interface or auth: a request that touches one cannot stay in lane S and is lifted to lane M, where it gets the full stages" },
+        { "key": "profile", "text": "build for a project being built, with epics and the stricter gates, or maintain for a delivered project that takes single tickets; it decides how strict the gates are" }
+      ]
+    },
+    {
+      "id": "integrations",
+      "title": "Integrations",
+      "keys": [
+        { "key": "tracker", "text": "the tracker accord status reads, for display only (none, github-issues, jira, linear or script); nothing else reads it; tracker.command under the script adapter is a script the repository declares, and nothing runs until the person runs accord trust" },
+        { "key": "design", "text": "where the design tokens live (design.tokens, a path), which a prototype may use and the linter checks it against; empty means none" }
+      ]
+    },
+    {
+      "id": "hygiene",
+      "title": "Hygiene and reminders",
+      "keys": [
+        { "key": "stale_days", "text": "how many days a claimed ticket may sit with no activity before accord audit names it as idle (default 14)" },
+        { "key": "stale_draft_days", "text": "how many days an unclaimed draft ticket may sit untouched before accord audit names it as an old draft (default 90)" },
+        { "key": "audit", "text": "audit.command is a script the repository declares that adds the team's own checks to accord audit, and nothing runs until the person runs accord trust" }
+      ]
+    },
+    {
+      "id": "templates",
+      "title": "Templates and titles",
+      "keys": [
+        { "key": "template", "text": "the sections of a ticket: template.sections adds the team's own sections after accord's required ones, and a section may not replace a required one" },
+        { "key": "titles", "text": "the rule a ticket title follows: titles.rule is the team's own sentence, titles.max_length the longest title in characters, and titles.language english or any" }
+      ]
+    },
+    {
+      "id": "managed",
+      "title": "Managed by accord",
+      "walk": false,
+      "keys": [
+        { "key": "accord", "text": "the exact accord version this repository is pinned to; accord upgrade moves it, and every command refuses to run on a different version" },
+        { "key": "legacy_ids", "text": "ticket ids that no longer follow the id convention but stay valid; accord appends to it when a change to ids or people would strand one, and never removes from it" }
+      ]
+    }
+  ]
+}

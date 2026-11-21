@@ -30,9 +30,13 @@ A question to answer that ends in a research record, such as comparing X with Y:
 
 Run the session check, then edit that ticket, putting the owner's words under its `## Corrections`, or drop it: offer the owner, as `./ask.md` says, the line `Rejected: <the ticket's title> — <the reason>`, then run `accord drop <id> --reason "<why>"`, adding `--rejected` only on an explicit yes. A merge is an edit of the ticket kept and a drop of the other. In a session that works a ticket, an edit of another ticket needs a session of its own: the session check says so and prints the line that opens it, and no skill moves this session to that ticket.
 
+## Accord itself: upgrade, audit, onboard, a setting or pull request feedback
+
+A request about accord itself names its command: upgrading accord is `/accord-upgrade`, auditing the repository is `/accord-audit`, onboarding is `/accord-onboard`, viewing or changing a setting is `/accord-config`, and handling the feedback on a pull request is `/accord-resolve-pr`. Load that skill with the request and create no ticket, without the session check; the command says what it checks first. `upgrade` after `/accord` loads `accord-upgrade`, `onboard` after `/accord` loads `accord-onboard`, and an `accord init` run that printed its `proposals:` line loads `accord-onboard` too.
+
 ## Review code or a pull request accord did not build
 
-Follow `./review-foreign.md`, without the session check.
+Load `accord-review-pr` with the request (a pull request number or link, or a branch), without the session check.
 
 ## Where the session check runs
 

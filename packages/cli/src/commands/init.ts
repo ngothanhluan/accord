@@ -169,9 +169,10 @@ export function init(ctx: InitContext): number {
   ctx.stdout.write('required check: accord changes no GitHub setting; to make the accord check a merge gate, a repository admin does this once on GitHub:\n');
   for (const [i, step] of requiredCheckSteps().entries()) ctx.stdout.write(`  ${i + 1}. ${step}\n`);
   // ST-LN-50 D-11: detected values are proposals, printed after the file list and never written here. The line
-  // format is a contract the onboarding skill reads: `proposal: <dotted key> = <JSON value>  (evidence: <text>)`.
+  // format is a contract the onboarding skill reads: `proposal: <dotted key> = <JSON value>  (evidence: <text>)`. With none, the closing line starts `proposals: 0` (the skill matches
+  // that prefix) and names the scan, which finds values init's five detectors cannot (Phase 8.4 ruling 12).
   const proposals = detectProposals(ctx.root);
   for (const p of proposals) ctx.stdout.write(`proposal: ${p.key} = ${JSON.stringify(p.value)}  (evidence: ${p.evidence})\n`);
-  ctx.stdout.write(proposals.length === 0 ? 'proposals: 0\n' : `proposals: ${proposals.length}, none written to accord/config.yml; type /accord-onboard to confirm them one by one\n`);
+  ctx.stdout.write(proposals.length === 0 ? 'proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings\n' : `proposals: ${proposals.length}, none written to accord/config.yml; type /accord-onboard to confirm them one by one\n`);
   return 0;
 }

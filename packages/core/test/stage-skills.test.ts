@@ -94,6 +94,33 @@ it('risk:regression stagePath and besidePath give the render path of a folded na
   }
 });
 
+// Phase 8.3 D-04 (children first): the plan stage's three children live in the accord source under their prefixed names, so the plan fold of 08.3-15 moves two hub files.
+it('risk:regression the plan stage children render under their prefixed names wherever they are read (D-04)', () => {
+  const bare = /(?:^|[^-\w])\.\/(?:baseline|critique|legacy-round1)\.md/;
+  const wanted: Record<string, string[]> = {
+    'accord-plan': ['plan-baseline.md', 'plan-critique.md', 'plan-legacy-round1.md'],
+    'accord-build': ['plan-baseline.md'],
+  };
+  const unwanted: Record<string, string[]> = {
+    'accord-plan': ['baseline.md', 'critique.md', 'legacy-round1.md'],
+    'accord-build': ['baseline.md'],
+  };
+  for (const runtime of ['claude', 'codex', 'cursor', 'copilot'] as const) {
+    const cfg = { ...config, runtimes: [runtime] } as AccordConfig;
+    const out = skillTargets(cfg);
+    const paths = new Set(out.map((f) => f.path));
+    for (const dir of skillDirs(cfg)) {
+      for (const [folder, names] of Object.entries(wanted)) for (const name of names) expect(paths.has(`${dir}/${folder}/${name}`), `${dir}/${folder}/${name} renders`).toBe(true);
+      for (const [folder, names] of Object.entries(unwanted)) for (const name of names) expect(paths.has(`${dir}/${folder}/${name}`), `${dir}/${folder}/${name} no longer renders`).toBe(false);
+    }
+    expect(out.filter((f) => bare.test(f.text)).map((f) => f.path), `${runtime}: no rendered text names a bare plan child`).toEqual([]);
+  }
+  // guard the guard: the pattern catches a bare child and lets the prefixed names and the approach critique through
+  expect(bare.test('as `./critique.md` says')).toBe(true);
+  expect(bare.test('follow `./baseline.md`')).toBe(true);
+  expect(bare.test('as `./plan-critique.md` says, and `./approach-critique.md`')).toBe(false);
+});
+
 describe('stage skills name what the spec requires', () => {
   for (const [stage, phrases] of Object.entries(REQUIRED)) {
     it(`risk:regression ${stage} names every required phrase`, () => {
@@ -117,7 +144,7 @@ it('ac-4 the plan skill asks the owner before it creates the tests baseline', ()
   expect(from).toBeGreaterThanOrEqual(0);
   expect(to).toBeGreaterThan(from);
   const step7 = skill.slice(from, to);
-  expect(step7).toContain('./baseline.md');
+  expect(step7).toContain('./plan-baseline.md');
   expect(step7).toContain('`accord/tests-baseline.txt`');
   const ask = 'ask the owner before running `accord tests baseline`';
   const decided = 'after the owner has decided every failing case';
@@ -400,7 +427,7 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   expect(critic.length, 'accord-critic.md is missing').toBeGreaterThan(0);
   const step5 = skill.slice(skill.indexOf('5. **Critique.**'), skill.indexOf('6. **Rounds.**'));
   expect(step5.length).toBeGreaterThan(0);
-  expect(['`./critique.md`', '`accord-critic`'].filter((p) => !step5.includes(p))).toEqual([]);
+  expect(['`./plan-critique.md`', '`accord-critic`'].filter((p) => !step5.includes(p))).toEqual([]);
   expect(['`accord round <id> --plan`', 'stop and tell the owner', '`accord gate plan <id>` still fails'].filter((p) => !skill.includes(p))).toEqual([]);
   expect(skill).not.toContain('have the planner fix every Must and every Should');
   const loopPhrases = [
@@ -1651,7 +1678,7 @@ it('risk:regression the build skill takes the tests baseline before its single t
     'Before step 1',
     '`accord/tests-baseline.txt` is absent',
     '`tests.report` is set',
-    './baseline.md',
+    './plan-baseline.md',
     'before any executor is dispatched',
     'lists no path outside `accord/`',
   ].filter((p) => !noPlan.includes(p));

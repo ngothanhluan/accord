@@ -1280,7 +1280,7 @@ it('risk:regression the lane S and approach skills wait for a prerequisite merge
 
 it('risk:regression a lane M ticket that gate ready refuses is never planned from approach or continue', () => {
   const G = "Else, at any stage but `intent`, first run `accord gate ready <id>`; when it fails, show the owner what it prints and stop; when it changes the ticket, commit the ticket.";
-  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord-continue <id>` plans the ticket once the gate passes.";
+  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord continue <id>` plans the ticket once the gate passes.";
   const tickets: Files = { 'accord/config.yml': CONFIG, [P('A')]: laneTicket('A'), [P('B')]: laneTicket('B', { frontmatter: ['depends_on: ["A"]'] }) };
   approve(tickets, 'B');
   const snap = loadSnapshot({ files: tickets, tree: Object.keys(tickets) });
@@ -1988,14 +1988,15 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
     .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
   const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
   const copies = (name: string) => all.filter((f) => base(f.path) === name);
-  const OLD = /\/accord (continue|pick-up|upgrade)/;
+  // Phase 8.3 D-03: `/accord continue <id>` and `/accord pick-up <id>` are the forms a skill text names for those actions, so only `/accord upgrade` stays kept to the accord skill's own SKILL.md
+  const OLD = /\/accord upgrade/;
   const SHORT = /\/accord (<[a-z ]*id>|<ticket>|[A-Z]+-[A-Z0-9-]*[0-9])(?![ A-Za-z0-9-])/;
   // the guard can neither pass vacuously nor flag the routed text form D-02 keeps
   for (const s of ['`/accord <id>`', '`/accord ST-9`', 'type `/accord <ticket id>` now', 'ends /accord T-1']) expect(SHORT.test(s), s).toBe(true);
   for (const s of ['`/accord <id> ` followed by the report', '`/accord <request>`', '`/accord onboard`', '`/accord continue ST-99` is', '`/accord-continue <id>`', '`/accord`']) expect(SHORT.test(s), s).toBe(false);
   expect(all.length).toBeGreaterThan(100);
   expect(new Set(all.map((f) => f.path.split('/')[0])).size).toBe(2); // .claude and .agents
-  // (a) only the accord skill's own SKILL.md keeps the legacy typed forms
+  // (a) only the accord skill's own SKILL.md keeps the legacy typed form
   expect(all.filter((f) => OLD.test(f.text) && !/(^|\/)skills\/accord\/SKILL\.md$/.test(f.path)).map((f) => f.path)).toEqual([]);
   expect(all.filter((f) => /(^|\/)skills\/accord\/SKILL\.md$/.test(f.path) && OLD.test(f.text)).length).toBe(2);
   // (b) no short Continue or Pick up form anywhere
@@ -2012,7 +2013,7 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
   for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('step 2 of `accord-continue` only (`accord anchor`)');
   for (const f of copies('failure.md')) expect(f.text, f.path).toContain('in place of steps 3 and 4 of `accord-continue`');
   expect(copies('ids.md').length).toBeGreaterThan(0);
-  for (const f of copies('ids.md')) expect(f.text, f.path).toContain('load `accord-continue` and go on at its step 2');
+  for (const f of copies('ids.md')) expect(f.text, f.path).toContain('follow `/accord continue <id>` and go on at its step 2');
 });
 
 // ST-LN-83 7-ac-3 (07-07, D-05): a review of code or a pull request accord did not build is read-only, takes its reviewers from accord-review's size rule, and posts only on the owner's yes.
@@ -2333,7 +2334,7 @@ it('risk:regression verify asks which deferred items go to the backlog through t
       'ask the owner one question as `./ask.md` says',
       'which become backlog draft tickets',
       '`accord new ticket --queue --type <story|bug> --lane M --title "<title>" --note "<item>"`',
-      'as `accord-queue` does',
+      'as `/accord queue <idea>` does',
       'every other item stays in the ledger as a record',
       'A Nice item is never shown',
       'nothing here blocks `accord gate done`',
@@ -2499,7 +2500,7 @@ it('risk:regression accord-new runs an epic interview and creates the approved s
       'what the owner has already settled for every story (the Decisions)',
       'is a Decision, never a line of Intent',
       'the command numbers them D-01, D-02 in order',
-      '`/accord-pickup <id>`',
+      '`/accord pick-up <id>`',
       'its own worktree',
       'in parallel',
       'The epic itself gets no approach and no plan critique',

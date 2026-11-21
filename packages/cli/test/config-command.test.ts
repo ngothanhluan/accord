@@ -493,4 +493,34 @@ describe('accord config areas', () => {
     expect([empty.code, empty.err, empty.out]).toEqual([0, '', plain]);
     expect(empty.out).not.toContain('dropped:');
   });
+
+  it('risk:security config areas --proposals reads only a regular file of at most 262144 bytes and 100 entries (D-08)', async () => {
+    const repo = squashed();
+    const config = text(repo);
+    const entry = { key: 'stale_days', value: '21', evidence: 'the last 21 days' };
+    const one = JSON.stringify([entry]);
+    const big = one + ' '.repeat(262145 - one.length);
+    expect(big.length).toBe(262145);
+    const exact = one + ' '.repeat(262144 - one.length);
+    const tooMany = proposalsFile(JSON.stringify(Array.from({ length: 101 }, () => entry)));
+    const bounded: [string, string][] = [
+      ['a file of 262145 bytes', proposalsFile(big)],
+      ['101 entries', tooMany],
+    ];
+    for (const [what, path] of bounded) {
+      const out = await run(['config', 'areas', '--proposals', path], repo);
+      expect(out.code, what).toBe(2);
+      expect(out.err, what).toContain(path.replace(/\\/g, '/'));
+      expect(text(repo), what).toBe(config);
+    }
+    // the limits themselves are allowed: 262144 bytes, and 100 entries
+    expect((await run(['config', 'areas', '--proposals', proposalsFile(exact)], repo)).code).toBe(0);
+    expect((await run(['config', 'areas', '--proposals', proposalsFile(JSON.stringify(Array.from({ length: 100 }, () => entry)))], repo)).code).toBe(0);
+    // a file a Windows editor saved, with a BOM and CRLF line ends, reads as the same file without them
+    const plain = await run(['config', 'areas', '--proposals', proposalsFile(JSON.stringify([entry], null, 2))], repo);
+    const crlf = await run(['config', 'areas', '--proposals', proposalsFile('\uFEFF' + JSON.stringify([entry], null, 2).replace(/\n/g, '\r\n'))], repo);
+    expect([crlf.code, crlf.err]).toEqual([0, '']);
+    expect(crlf.out).toBe(plain.out);
+    expect(crlf.out).toContain('  proposal: stale_days = "21"  (evidence: the last 21 days)');
+  });
 });

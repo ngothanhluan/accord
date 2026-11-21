@@ -326,18 +326,18 @@ it('risk:complex-branching worktree open --continue in a ticket session refuses 
   const sib = c.sibling('ST-9');
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
   setTable(tableOf(A));
-  // B has no worktree: the main checkout, where /accord-continue ST-10 makes or finds it
+  // B has no worktree: the main checkout, where /accord continue ST-10 makes or finds it
   const none = await run(['worktree', 'open', 'ST-10', '--continue'], sib, envOf(A));
   expect(none.code).toBe(2);
   expect(none.err.startsWith('this session works ST-9')).toBe(true);
-  expect(none.err).toContain('/accord-continue ST-10');
+  expect(none.err).toContain('/accord continue ST-10');
   expect(none.err.trimEnd().split('\n').at(-1)).toBe(`cd "${mainOf(c)}"; claude`);
   // B claimed in its own worktree: a session there
   c.git('worktree', 'add', '-q', '-b', 't/ST-10', c.sibling('ST-10'), 'origin/main');
   const there = await run(['worktree', 'open', 'ST-10', '--continue'], sib, envOf(A));
   expect(there.code).toBe(2);
   expect(there.err.startsWith('this session works ST-9')).toBe(true);
-  expect(there.err).toContain('/accord-continue ST-10');
+  expect(there.err).toContain('/accord continue ST-10');
   expect(there.err.trimEnd().split('\n').at(-1)).toBe(`cd "${c.sibling('ST-10')}"; claude`);
   expect(existsSync(holdsFile(c))).toBe(false);
 });
@@ -355,7 +355,7 @@ it('risk:complex-branching the CLI guard of a ticket session lets a question and
   expect(check.err.trimEnd().split('\n').at(-1)).toBe(main);
   const pick = await run(['worktree', 'open', 'ST-10'], sib, envOf(A));
   expect(pick.code).toBe(2);
-  expect(pick.err).toContain('/accord-pickup ST-10');
+  expect(pick.err).toContain('/accord pick-up ST-10');
   expect(pick.err.trimEnd().split('\n').at(-1)).toBe(main);
   const fresh = await run(['new', 'ticket', 'Q-2', '--lane', 'M', '--no-dup-check'], sib, envOf(A));
   expect(fresh.code).toBe(2);

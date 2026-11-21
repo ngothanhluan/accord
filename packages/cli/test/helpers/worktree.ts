@@ -185,7 +185,7 @@ export const entries = (c: Clone) => c.git('worktree', 'list', '--porcelain').sp
 export const stopLines = (path: string, id: string) => [
   'stop: open a session in this folder and type the line below it',
   path,
-  `/accord-continue ${id}`,
+  `/accord continue ${id}`,
 ];
 
 /** What a worktree open that cannot enter prints: a `next:` line, then the three `stop:` lines. */

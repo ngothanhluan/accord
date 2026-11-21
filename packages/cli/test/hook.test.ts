@@ -203,19 +203,17 @@ it('risk:complex-branching the prompt hook of a ticket session refuses continue 
       expect(j.decision).toBe('block');
       return j.reason as string;
     };
-    // B has no worktree yet: the line opens a session in the main checkout, where /accord-continue makes or finds it
-    const noWorktree = await reasonOf({ command_name: 'accord-continue', command_args: 'ST-10' });
+    // B has no worktree yet: the line opens a session in the main checkout, where /accord continue makes or finds it
+    const noWorktree = await reasonOf({ command_name: 'accord', command_args: 'continue ST-10' });
     expect(noWorktree.startsWith('this session works ST-9')).toBe(true);
-    expect(noWorktree).toContain('/accord-continue ST-10');
+    expect(noWorktree).toContain('/accord continue ST-10');
     expect(noWorktree.split('\n').at(-1)).toBe(`cd "${mainOf(c)}"; claude`);
     // B claimed in its own worktree: the line opens a session there
     c.git('worktree', 'add', '-q', '-b', 't/ST-10', c.sibling('ST-10'), 'origin/main');
-    const typed = await reasonOf({ command_name: 'accord-continue', command_args: 'ST-10' });
+    const typed = await reasonOf({ command_name: 'accord', command_args: 'continue ST-10' });
     expect(typed.startsWith('this session works ST-9')).toBe(true);
-    expect(typed).toContain('/accord-continue ST-10');
+    expect(typed).toContain('/accord continue ST-10');
     expect(typed.split('\n').at(-1)).toBe(`cd "${c.sibling('ST-10')}"; claude`);
-    // the legacy typed form gives the same reason
-    expect(await reasonOf({ command_name: 'accord', command_args: 'continue ST-10' })).toBe(typed);
   } finally {
     c.cleanupAll();
   }
@@ -228,10 +226,11 @@ it('risk:complex-branching the prompt hook of a ticket session lets a question a
     const wt = c.sibling('ST-9');
     const through: Record<string, string>[] = [
       { command_name: 'accord', command_args: 'what does gate plan check?' },
-      { command_name: 'accord-queue', command_args: 'note the idea for later' },
-      { command_name: 'accord-queue', command_args: '' },
+      { command_name: 'accord', command_args: 'queue note the idea for later' },
+      { command_name: 'accord', command_args: 'queue' },
+      { command_name: 'accord', command_args: '' },
+      { command_name: 'accord', command_args: 'continue ST-9' },
       { command_name: 'accord-upgrade', command_args: '' },
-      { command_name: 'accord-continue', command_args: 'ST-9' },
     ];
     for (const o of through) {
       const r = await hook({ cwd: wt, ...o });
@@ -240,7 +239,7 @@ it('risk:complex-branching the prompt hook of a ticket session lets a question a
     }
     const blocks: [Record<string, string>, string][] = [
       [{ command_name: 'accord-new', command_args: 'add a flag to status' }, '/accord-new <request>'],
-      [{ command_name: 'accord-pickup', command_args: 'ST-10' }, '/accord-pickup ST-10'],
+      [{ command_name: 'accord', command_args: 'pick-up ST-10' }, '/accord pick-up ST-10'],
     ];
     for (const [o, typed] of blocks) {
       const r = await hook({ cwd: wt, ...o });
@@ -250,6 +249,36 @@ it('risk:complex-branching the prompt hook of a ticket session lets a question a
       expect(j.reason.startsWith('this session works ST-9')).toBe(true);
       expect(j.reason).toContain(typed);
       expect(j.reason.split('\n').at(-1)).toBe(`cd "${mainOf(c)}"; claude`);
+    }
+  } finally {
+    c.cleanupAll();
+  }
+});
+
+it('risk:security a typed Continue or Pick up of another ticket is blocked with the typed form to use (D-03)', async () => {
+  const c = worked();
+  try {
+    const hook = hookOf(c);
+    const wt = c.sibling('ST-9');
+    const reasonOf = async (args: string): Promise<string> => {
+      const r = await hook({ cwd: wt, command_name: 'accord', command_args: args });
+      expect(r.code).toBe(0);
+      const j = JSON.parse(r.out);
+      expect(j.decision, args).toBe('block');
+      return j.reason as string;
+    };
+    const cont = await reasonOf('continue ST-10');
+    expect(cont.split('\n')[0]).toContain('type /accord continue ST-10 there - nothing was changed');
+    expect(cont.split('\n').at(-1)).toBe(`cd "${mainOf(c)}"; claude`);
+    const pick = await reasonOf('pick-up ST-10');
+    expect(pick.split('\n')[0]).toContain('type /accord pick-up ST-10 there - nothing was changed');
+    // an id a shell would read prints <id> in place of the id
+    expect(await reasonOf('pick-up a;b')).toContain('/accord pick-up <id> there');
+    expect(await reasonOf('continue a;b')).toContain('/accord continue <id> there');
+    // the worked ticket, no argument and free text go through
+    for (const a of ['continue ST-9', '', 'fix the login page']) {
+      const r = await hook({ cwd: wt, command_name: 'accord', command_args: a });
+      expect(JSON.parse(r.out), a).toEqual({});
     }
   } finally {
     c.cleanupAll();

@@ -763,7 +763,7 @@ it('risk:complex-branching pick-up and new ticket worktree reuse the worktree li
     const r = await counted(['worktree', 'open', 'A-1'], copy.root);
     expect(r.code).toBe(0);
     expect(slashes(r.out)).toContain(`${withAction(`removed ${slashes(w)}`)}\n`);
-    expect(slashes(r.out)).toContain(`stop: open a session in this folder and type the line below it\n${slashes(copy.root)}-a-1\n/accord-continue A-1\n`);
+    expect(slashes(r.out)).toContain(`stop: open a session in this folder and type the line below it\n${slashes(copy.root)}-a-1\n/accord continue A-1\n`);
     const removed = r.argv.findIndex((a) => a[0] === 'worktree' && a[1] === 'remove');
     const lists = r.argv.map((a, i) => (isListRead(a) ? i : -1)).filter((i) => i >= 0);
     expect(removed, 'clean removed the worktree').toBeGreaterThanOrEqual(0);
@@ -809,7 +809,7 @@ it('risk:complex-branching a command that proved the origin remote asks for it o
     gitRun(local.root, 'config', '--remove-section', 'remote.origin');
     const r = await counted(['worktree', 'open', 'A-1'], local.root);
     expect(r.code).toBe(0);
-    expect(slashes(r.out)).toContain(`${slashes(local.root)}-a-1\n/accord-continue A-1\n`);
+    expect(slashes(r.out)).toContain(`${slashes(local.root)}-a-1\n/accord continue A-1\n`);
     expect(r.argv.some((a) => a.includes('fetch'))).toBe(false);
   } finally {
     local.cleanup();

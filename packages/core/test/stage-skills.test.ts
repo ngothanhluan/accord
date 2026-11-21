@@ -210,7 +210,7 @@ it('risk:regression no stage text names the build review or verify command (D-04
         expect(text(stagePath('review', undefined, dir)), dir + ' review.md').toContain('go to the stage it names next, `./verify.md`');
         expect(text(stagePath('review', undefined, dir)), dir + ' review.md step 9').toContain('9. Next: `./verify.md`.');
         expect(text(besidePath('review', 'comments.md', dir)), dir + ' comments.md').toContain("handle them as `./review.md` handles one round's findings");
-        expect(text(besidePath('review', 'review-foreign.md', dir)), dir + ' review-foreign.md').toContain("It uses the size rule of `./review.md` and none of its fix rounds");
+        expect(text(dir + '/accord-review-pr/SKILL.md'), dir + ' accord-review-pr').toContain("It uses the size rule of accord's own review stage, step 4 below, and none of its fix rounds");
         // ask.md and failure.md render in several folders; where one is rendered it names the stage of /accord
         for (const shared of ['ask.md', 'failure.md']) {
           for (const f of out.filter((x) => x.path.startsWith(dir + '/') && x.path.endsWith('/' + shared))) expect(flat(f.text), f.path).toContain('the verify stage of `/accord`');
@@ -265,7 +265,7 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
   const DIALOG = "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -282,7 +282,7 @@ it('ac-2 the shared ask rule says when to ask multiple choice and when to ask an
   const KIND = "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -299,7 +299,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
   const PLAIN = 'Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss.';
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -316,7 +316,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
 it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
   const bad: string[] = [];
@@ -336,7 +336,7 @@ it('ac-4 the intent skill takes the kind of question from the shared ask rule', 
 it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -362,7 +362,7 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -388,7 +388,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -673,7 +673,7 @@ it('risk:regression the accord skill takes an id that accord status lists with a
 function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
   for (const dir of skillDirs(all)) {
@@ -2185,15 +2185,12 @@ it('risk:security the foreign review is read-only with lenses by the size rule a
     .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
   const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
   const dir = (p: string) => p.slice(0, p.lastIndexOf('/'));
-  const foreign = all.filter((f) => base(f.path) === 'review-foreign.md');
-  expect(foreign.length).toBeGreaterThan(0);
-  // beside every rendered accord/SKILL.md, which names it
-  for (const f of foreign) {
-    const skill = all.find((s) => s.path === dir(f.path) + '/SKILL.md');
-    expect(skill?.text, f.path).toContain('./review-foreign.md');
-  }
-  // 07-08: accord-new loads it too, for a request it reads as a review
-  expect(all.filter((s) => /(^|\/)skills\/accord(-new)?\/SKILL\.md$/.test(s.path)).length).toBe(foreign.length);
+  // Phase 8.3 D-12 (08.3-24): the method is the SKILL.md of its own command, rendered once per skill directory with ask.md beside it; no accord folder renders review-foreign.md and the accord SKILL.md names none
+  const foreign = all.filter((f) => /(^|\/)skills\/accord-review-pr\/SKILL\.md$/.test(f.path));
+  expect(foreign.length).toBe(2);
+  for (const f of foreign) expect(all.some((s) => s.path === dir(f.path) + '/ask.md'), f.path).toBe(true);
+  expect(all.filter((f) => base(f.path) === 'review-foreign.md').map((f) => f.path)).toEqual([]);
+  for (const f of all.filter((s) => /(^|\/)skills\/accord\/(SKILL|route)\.md$/.test(s.path))) expect(f.text, f.path).not.toContain('./review-foreign.md');
   const phrases = [
     'accord diff-package', 'Changed lines:', 'accord-foreign-reviewer', '`both`', '`intent`', '`quality`', '`integration`', '`security`', 'about 500', 'about 1500',
     '## Security triggers', 'gh pr view', 'gh pr review', '--comment',
@@ -2207,10 +2204,9 @@ it('risk:security the foreign review is read-only with lenses by the size rule a
   expect(numbers(reviewSkill)).toEqual(['1500', '500']);
   for (const f of foreign) {
     expect(phrases.filter((p) => !f.text.includes(p)), f.path).toEqual([]);
-    // Phase 8.3 D-04: the one mention of the stage file is the size rule's source; the ticket's review.md record is never named
-    const without = f.text.replace('the size rule of `./review.md`', 'the size rule');
-    expect(f.text, f.path).toContain('the size rule of `./review.md`');
-    for (const banned of ['accord-executor', 'accord round', 'review.md']) expect(without, f.path).not.toContain(banned);
+    // D-12: the size rule's source is named as accord's own review stage, never as a file, and no stage-review agent, record or command is named
+    expect(f.text, f.path).toContain("the size rule of accord's own review stage, step 4 below");
+    for (const banned of ['accord-executor', 'accord round', 'review.md', 'accord-reviewer', 'accord-final-reviewer', 'accord review-package', 'review-record', 'accord task-done']) expect(f.text, f.path).not.toContain(banned);
     // the size rule's two numbers are accord-review's
     expect(numbers(f.text), f.path).toEqual(numbers(reviewSkill));
   }
@@ -2257,7 +2253,10 @@ it('risk:regression the routing text maps each intent to its route and says it o
     expect(queue, f.path).toContain('`./queue.md`');
     expect(research, f.path).toContain('lane R');
     expect(existing, f.path).toContain('`accord drop <id> --reason');
-    expect(review, f.path).toContain('`./review-foreign.md`');
+    // Phase 8.3 D-02, D-12 (08.3-24): the foreign review route loads its own command, still without the session check
+    expect(review, f.path).toContain('Load `accord-review-pr` with the request');
+    expect(review, f.path).toContain('without the session check');
+    expect(review, f.path).not.toContain('./review-foreign.md');
     for (const p of ['I read this as', 'say so if not', 'one short question', 'never default silently', '`./ask.md`']) expect(f.text, f.path).toContain(p);
     expect(f.text, f.path).not.toMatch(/haiku|sonnet|opus|effort/i);
     expect(f.text, f.path).toContain('runs only on the change, research and existing-ticket routes, and at Pick up and Continue');
@@ -2272,6 +2271,23 @@ it('risk:regression the routing text maps each intent to its route and says it o
       'the question, brainstorm, review and queue routes and the dashboard never stop on it',
     ])
       expect(para, f.path).toContain(p);
+  }
+});
+
+// Phase 8.3 D-02 (08.3-24): a request about accord itself goes to its command, and a foreign review to accord-review-pr; no ticket is created.
+it('risk:complex-branching foreign review routes to its command (D-02)', () => {
+  const all = routedRender();
+  const routes = all.filter((f) => /(^|\/)skills\/accord\/route\.md$/.test(f.path));
+  expect(routes.length).toBe(2);
+  for (const f of routes) {
+    const section = f.text.split(' ## ').find((s) => s.toLowerCase().startsWith('review')) ?? '';
+    expect(section.length, f.path).toBeGreaterThan(0);
+    expect(section, f.path).toContain('Load `accord-review-pr` with the request');
+    expect(section, f.path).toContain('without the session check');
+  }
+  for (const f of all.filter((s) => /(^|\/)skills\/accord\/SKILL\.md$/.test(s.path))) {
+    expect(f.text, f.path).not.toContain('review-foreign');
+    expect(f.text, f.path).not.toContain('accord-review-pr');
   }
 });
 

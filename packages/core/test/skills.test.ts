@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -232,7 +232,7 @@ const MAX_SKILL_LINES = 120;
 
 /** The commands the CLI actually registers, longest path first so `gate ready` wins over a bare `gate`. */
 const COMMAND =
-  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|worktree check|config areas|config get|config set|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
+  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|worktree check|config areas|config get|config set|diff-package|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
 
 /** Spec §2: each skill targets at most 6000 bytes. */
 const MAX_SKILL_BYTES = 6000;
@@ -246,6 +246,7 @@ const FIRST_COMMAND: Record<string, string> = {
   'accord-audit': 'audit',
   'accord-config': 'worktree check',
   'accord-onboard': 'worktree check',
+  'accord-review-pr': 'diff-package',
 };
 const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
 
@@ -731,6 +732,7 @@ const HINTS: Record<string, string | null> = {
   'accord-debug': '[ticket id] [failure]',
   'accord-config': '[area]',
   'accord-onboard': '[no arguments]',
+  'accord-review-pr': '<PR | branch>',
   'accord-designer': '<ticket id>',
 };
 
@@ -1197,6 +1199,17 @@ describe('retired skill folders', () => {
     // the new command's folder is no retired path
     expect(RETIRED_FILES.filter((p) => p.includes('/accord-onboard/'))).toEqual([]);
   });
+
+  // Phase 8.3 D-01, D-12 (08.3-24): the foreign review text left the accord folder for its own command. `accord/review-foreign.md` rendered from v0.8.0 to v0.10.0 and under no other name
+  // in the accord folder (`accord-new/review-foreign.md` is already retired), so the one path is the whole list.
+  it('risk:data-loss the accord folder retires review-foreign.md and renders it nowhere (D-01)', () => {
+    for (const dir of SKILL_DIRS) expect(RETIRED_FILES, `${dir}/accord/review-foreign.md`).toContain(`${dir}/accord/review-foreign.md`);
+    for (const roster of ROSTERS) {
+      expect(roster.filter((f) => f.path.endsWith('/review-foreign.md')).map((f) => f.path), 'a folder renders review-foreign.md').toEqual([]);
+      expect(roster.some((f) => f.path.endsWith('/accord-review-pr/SKILL.md')), 'accord-review-pr renders').toBe(true);
+    }
+    expect(RETIRED_FILES.filter((p) => p.includes('/accord-review-pr/'))).toEqual([]);
+  });
 });
 
 // Phase 8.3 D-04: a ticket's lane and stage map to a file of the accord folder. `STAGE_FILES` is the one map (each fold adds its stage); the cases read it,
@@ -1453,7 +1466,7 @@ describe('a ticket at a stage', () => {
   it('risk:regression STAGE_FILES holds exactly the six stages and done and no stage is a command (D-04)', () => {
     expect(Object.keys(STAGE_FILES).sort()).toEqual(['approach', 'build', 'done', 'intent', 'plan', 'review', 'verify']);
     expect(STAGE_FILES).toEqual({ intent: 'intent.md', approach: 'approach.md', plan: 'plan.md', build: 'build.md', review: 'review.md', verify: 'verify.md', done: 'verify.md' });
-    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
+    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config', 'review-pr']);
     for (const stage of ['intent', 'approach', 'plan', 'build', 'review', 'verify']) {
       expect(Object.keys(HINTS), `HINTS holds no command for ${stage}`).not.toContain('accord-' + stage);
       expect(Object.keys(FIRST_COMMAND), `FIRST_COMMAND holds no command for ${stage}`).not.toContain('accord-' + stage);

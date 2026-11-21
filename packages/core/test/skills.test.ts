@@ -726,9 +726,9 @@ it('ac-3 each new mention names the step or event at which to read its file and 
 // `accord anchor`, whose id defaults to the ticket of the current branch; designer runs `accord gate ready <id>`.
 const HINTS: Record<string, string | null> = {
   accord: '[request]',
-  // A command that takes no argument shows no hint.
-  'accord-upgrade': null,
-  'accord-audit': null,
+  // Phase 8.3 D-05 (Ruling 1): every command left carries a hint; one that takes no argument says so.
+  'accord-upgrade': '[no arguments]',
+  'accord-audit': '[no arguments]',
   'accord-debug': '[ticket id] [failure]',
   'accord-config': '[area]',
   'accord-onboard': '[no arguments]',

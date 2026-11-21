@@ -1214,11 +1214,13 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
 
 it('risk:regression the accord skill routes upgrade to its reference and the worktree reference names the continue merge and the automatic clean', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  for (const s of ['`/accord upgrade` loads `accord-upgrade`', 'Any other text, but `upgrade`, `onboard` or `queue` with text after it: follow `./route.md`']) expect(acc).toContain(s);
+  // Phase 8.3 D-02 (08.3-24): the upgrade and onboard clauses left the accord SKILL.md; route.md names the commands of accord itself, so only `queue` is excluded from the route here
+  expect(acc).toContain('Any other text, but `queue` with text after it: follow `./route.md`');
+  for (const s of ['`upgrade` after `/accord` loads `accord-upgrade`', '`onboard` after `/accord` loads `accord-onboard`']) expect(flatS('.claude/skills/accord/route.md'), s).toContain(s);
+  expect(acc).not.toContain('`/accord upgrade` loads');
   expect(flatS('.claude/skills/accord-upgrade/SKILL.md')).toContain('`./upgrade.md`');
   // WR-09: onboard is excluded from the New-request rule; since 08.3-23 it loads its own command, which runs its own session check first
   expect(acc).not.toContain('Any other text, but `upgrade`, starts');
-  expect(acc).toContain('`onboard` after `/accord` loads `accord-onboard`');
   expect(acc).not.toContain('## Onboard');
   expect(flatS('.claude/skills/accord-onboard/SKILL.md')).toContain('Run `accord worktree check`');
   const up = flatS('.claude/skills/accord-upgrade/upgrade.md');
@@ -2148,7 +2150,7 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
     .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
   const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
   const copies = (name: string) => all.filter((f) => base(f.path) === name);
-  // Phase 8.3 D-03: `/accord continue <id>` and `/accord pick-up <id>` are the forms a skill text names for those actions, so only `/accord upgrade` stays kept to the accord skill's own SKILL.md
+  // Phase 8.3 D-03: `/accord continue <id>` and `/accord pick-up <id>` are the forms a skill text names for those actions, and since 08.3-24 no rendered file holds the old `/accord upgrade` form
   const OLD = /\/accord upgrade/;
   const SHORT = /\/accord (<[a-z ]*id>|<ticket>|[A-Z]+-[A-Z0-9-]*[0-9])(?![ A-Za-z0-9-])/;
   // the guard can neither pass vacuously nor flag the routed text form D-02 keeps
@@ -2156,9 +2158,8 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
   for (const s of ['`/accord <id> ` followed by the report', '`/accord <request>`', '`/accord onboard`', '`/accord continue ST-99` is', '`/accord-continue <id>`', '`/accord`']) expect(SHORT.test(s), s).toBe(false);
   expect(all.length).toBeGreaterThan(100);
   expect(new Set(all.map((f) => f.path.split('/')[0])).size).toBe(2); // .claude and .agents
-  // (a) only the accord skill's own SKILL.md keeps the legacy typed form
-  expect(all.filter((f) => OLD.test(f.text) && !/(^|\/)skills\/accord\/SKILL\.md$/.test(f.path)).map((f) => f.path)).toEqual([]);
-  expect(all.filter((f) => /(^|\/)skills\/accord\/SKILL\.md$/.test(f.path) && OLD.test(f.text)).length).toBe(2);
+  // (a) Phase 8.3 D-02 (08.3-24): the old typed form of the upgrade command is in no rendered file; route.md says `upgrade` after `/accord` loads the command
+  expect(all.filter((f) => OLD.test(f.text)).map((f) => f.path)).toEqual([]);
   // (b) no short Continue or Pick up form anywhere
   expect(all.filter((f) => SHORT.test(f.text)).map((f) => f.path)).toEqual([]);
   // (c) the finish reference names the commands themselves
@@ -2289,6 +2290,30 @@ it('risk:complex-branching foreign review routes to its command (D-02)', () => {
     expect(f.text, f.path).not.toContain('review-foreign');
     expect(f.text, f.path).not.toContain('accord-review-pr');
   }
+});
+
+it('risk:complex-branching a request about accord itself goes to its command and creates no ticket (D-02)', () => {
+  const all = routedRender();
+  const routes = all.filter((f) => /(^|\/)skills\/accord\/route\.md$/.test(f.path));
+  expect(routes.length).toBe(2);
+  for (const f of routes) {
+    const section = f.text.split(' ## ').find((s) => s.toLowerCase().startsWith('accord itself')) ?? '';
+    expect(section.length, f.path + ': accord itself section').toBeGreaterThan(0);
+    for (const c of ['`/accord-upgrade`', '`/accord-audit`', '`/accord-onboard`', '`/accord-config`']) expect(section, f.path).toContain(c);
+    expect(section, f.path).toContain('Load that skill with the request');
+    expect(section, f.path).toContain('create no ticket');
+    expect(section, f.path).toContain('`upgrade` after `/accord` loads `accord-upgrade`');
+    expect(section, f.path).toContain('`onboard` after `/accord` loads `accord-onboard`');
+    expect(section, f.path).toContain('an `accord init` run that printed its `proposals:` line loads `accord-onboard`');
+  }
+  // the accord SKILL.md holds no upgrade or onboard clause: route.md covers them, and the skill stays one routing sentence shorter
+  for (const f of all.filter((s) => /(^|\/)skills\/accord\/SKILL\.md$/.test(s.path))) {
+    expect(f.text, f.path).not.toContain('loads `accord-upgrade`');
+    expect(f.text, f.path).not.toContain('loads `accord-onboard`');
+    expect(f.text, f.path).not.toContain('/accord upgrade');
+  }
+  // upgrade says who loads it
+  for (const f of all.filter((s) => /(^|\/)skills\/accord-upgrade\/SKILL\.md$/.test(s.path))) expect(f.text, f.path).toContain('`/accord` loads it for a request to upgrade accord');
 });
 
 it('risk:regression no skill switches a session between tickets (ST-LN-83 7-ac-2)', () => {

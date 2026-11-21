@@ -72,9 +72,9 @@ it('risk:regression the init and upgrade flows end by asking whether to audit (8
   expect(upgrade).toMatch(/^5\. /);
   expect(common.filter((p) => !upgrade.includes(p))).toEqual([]);
   expect(upgrade).toContain('`upgrade` replaced by `audit`');
-  // the init flow is reached after the proposals line, whatever it says (D-10 reading); since 08.3-23 the onboard command says so, and `/accord` loads it for that line
+  // the init flow is reached after the proposals line, whatever it says (D-10 reading); since 08.3-23 the onboard command says so, and `/accord` loads it for that line (route.md since 08.3-24)
   expect(flat(skills['onboard/SKILL.md' as SkillKey] ?? '')).toContain('its `proposals:` line');
-  expect(flat(skills['accord/SKILL.md' as SkillKey] ?? '')).toContain('an `accord init` run that printed its `proposals:` line loads `accord-onboard`');
+  expect(flat(skills['accord/route.md' as SkillKey] ?? '')).toContain('an `accord init` run that printed its `proposals:` line loads `accord-onboard`');
 });
 
 it('risk:regression no gate source names the audit (D-10)', () => {

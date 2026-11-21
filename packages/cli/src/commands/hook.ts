@@ -223,11 +223,12 @@ export function hookInput(ctx: CommandContext): { session_id?: string; command_n
 }
 
 /**
- * ST-LN-83 D-06, 08.3 D-03: the commands this hook sees are accord and accord-new (the UserPromptExpansion matcher). In a session that works
- * a ticket it blocks only what would touch another ticket: /accord-new, a typed Continue of any ticket but this one ("/accord continue <id>") and a typed
+ * ST-LN-83 D-06, 08.3 D-02, D-03: the one command this hook sees is accord (the UserPromptExpansion matcher). In a session that works
+ * a ticket it blocks only what would touch another ticket: a typed Continue of any ticket but this one ("/accord continue <id>") and a typed
  * Pick up of any ticket ("/accord pick-up <id>"). The dashboard and any other "/accord <text>", "/accord queue <idea>" included, go through: the skill routes the text (a question
- * is answered there) and the CLI guard behind this hook (`accord worktree check`, `accord new ticket`) refuses a change, because a hook sees the typed command and
- * not the intent, and accord never calls a model. A block reason is the CLI guard's own text and ends with the line that opens the right session; this hook never
+ * is answered there) and the CLI guard behind this hook (`accord worktree check`, `accord new ticket`) refuses a change and names "/accord <request>" as the line to type in the
+ * main checkout, because a hook sees the typed command and not the intent, and accord never calls a model. Any other command name (a stale 0.10.0 matcher in a team's
+ * settings can still send one) has no branch here and is allowed. A block reason is the CLI guard's own text and ends with the line that opens the right session; this hook never
  * switches a session to another ticket (D-07). Any error of its own allows, with one stderr line.
  */
 function promptExpansion(ctx: CommandContext): number {
@@ -242,19 +243,13 @@ function promptExpansion(ctx: CommandContext): number {
     const name = i.command_name;
     const args = (i.command_args ?? '').trim();
     const word = (re: RegExp) => re.exec(args)?.[1];
-    let cont: string | undefined; // the ticket a Continue asks for
-    let typed: string | undefined; // the command to type in the session that opens
-    if (name === 'accord') {
-      // empty, upgrade and free text are for the skill to route; only the typed forms name another ticket
-      cont = word(/^continue\s+(\S+)$/);
-      const pick = word(/^pick-up\s+(\S+)$/);
-      if (cont === undefined && pick === undefined) return allow();
-      typed = cont !== undefined ? undefined : `/accord pick-up ${ID.test(pick as string) ? pick : '<id>'}`;
-    } else if (name === 'accord-new') {
-      typed = '/accord-new <request>';
-    } else {
-      return allow(); // every other command, `/accord queue <idea>` and accord-upgrade included, never touches the ticket's branch
-    }
+    // every other command, accord-upgrade included, never touches the ticket's branch
+    if (name !== 'accord') return allow();
+    // empty, `queue <idea>` and free text are for the skill to route; only the typed forms name another ticket
+    const cont = word(/^continue\s+(\S+)$/); // the ticket a Continue asks for
+    const pick = word(/^pick-up\s+(\S+)$/);
+    if (cont === undefined && pick === undefined) return allow();
+    const typed = cont !== undefined ? undefined : `/accord pick-up ${ID.test(pick as string) ? pick : '<id>'}`; // the command to type in the session that opens
     const w = worksTicket(i.cwd ?? ctx.root, i.session_id, ctx.snapshot);
     if (w === undefined) return allow();
     const mainPath = listWorktrees(w.top)[0].path;

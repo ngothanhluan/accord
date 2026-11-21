@@ -55,7 +55,7 @@ export function newTicket(
   }
   const related = parseRelated(options.related);
   // ST-LN-83 D-06: the queue path writes on another branch in a temporary worktree and touches nothing of this session's ticket, so it runs no session guard
-  if (options.queue !== true) guardTicketSession(ctx, undefined, '/accord-new <request>');
+  if (options.queue !== true) guardTicketSession(ctx, undefined, '/accord <request>');
   // ST-LN-22 D-08 (7-ac-5): the similar check reads the title, so a lane S or M story or bug cannot skip it by leaving the title out;
   // the session refusal above runs first, and this runs before the --worktree fetch, so nothing is fetched, written or pushed
   if (options.type !== 'epic' && (options.lane === 'S' || options.lane === 'M') && title === undefined && dupCheck) {

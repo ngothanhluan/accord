@@ -287,9 +287,9 @@ const output = skillTargets(config());
 const skillFiles = output.filter((f) => f.path.endsWith('/SKILL.md'));
 
 // Phase 8.3 D-03: a command that folded into /accord has no name any more, so no skill source, rendered file or source file names it. `FOLDED` holds the folded
-// command names; 08.3-09 adds `continue`, `pickup` and `new`, 08.3-20 the six stages (README.md and docs/design.md join the scanned files then). The pattern is
+// command names; 08.3-09 added `continue`, `pickup` and `new`, 08.3-20 adds the six stages (README.md and docs/design.md join the scanned files in 08.3-09 Task 2). The pattern is
 // `accord-<name>` ended by anything but a word character or a hyphen, so a temp folder prefix (`accord-queue-`), `accord-reviewer` and `accord-review-pr` are not hits.
-const FOLDED = ['queue'];
+const FOLDED = ['queue', 'continue', 'pickup', 'new'];
 const foldedPattern = (list: readonly string[]): RegExp => new RegExp('\\baccord-(?:' + list.join('|') + ')(?![\\w-])');
 // The retire list is the one place that must name a folded folder: its comment lines (`// \`accord-queue\`: ...`) and its object keys (`'accord-queue': [...]`).
 const RETIRE_LIST_LINE = /^\s*(?:\/\/ `accord-[a-z]+`(?:, `accord-[a-z]+`)*:|'accord-[a-z]+': )/;

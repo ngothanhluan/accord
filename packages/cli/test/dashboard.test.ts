@@ -223,7 +223,7 @@ it('ac-1 up next lists the backlog and the blocked tickets while the viewer hold
   const block = lines.slice(u, u + lines.slice(u).indexOf(''));
   expect(block.some((l) => l.startsWith('  ST-AN-1'))).toBe(true);
   expect(block.some((l) => l.startsWith('  ST-AN-2'))).toBe(true);
-  expect(lastLine).toBe('-> [/accord-continue ST-AN-9]  [/accord-pickup ST-AN-1]  [/accord-new <request>]');
+  expect(lastLine).toBe('-> [/accord continue ST-AN-9]  [/accord pick-up ST-AN-1]  [/accord <request>]');
 });
 
 it('risk:regression up next leaves out the ready tickets and lists all the rest', () => {
@@ -238,7 +238,7 @@ it('risk:regression up next leaves out the ready tickets and lists all the rest'
   expect(j.upNext.rows.map((r: StatusRow) => r.id)).not.toContain('ST-AN-50');
   expect(u).toBeGreaterThanOrEqual(0);
   expect(lines.some((l) => l.includes(' more'))).toBe(false);
-  expect(lastLine).toContain('[/accord-pickup ST-AN-50]');
+  expect(lastLine).toContain('[/accord pick-up ST-AN-50]');
 });
 
 it('ac-3 up next is present when nothing is left to pick up', () => {
@@ -250,7 +250,7 @@ it('ac-3 up next is present when nothing is left to pick up', () => {
   expect(j.upNext).toEqual({ rows: [], more: 0 });
   expect(u).toBeGreaterThanOrEqual(0);
   expect(lines[u + 1]).toBe('  none');
-  expect(text).not.toContain('[/accord-pickup');
+  expect(text).not.toContain('[/accord pick-up');
 });
 
 it('risk:complex-branching every ready ticket is in ready and none in up next', () => {
@@ -283,9 +283,9 @@ it('risk:regression the dashboard action line names the new commands in a fixed 
   const empty = { rows: [], more: 0 };
   const summary = { inProgress: 1, ready: 1, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0 };
   const text = renderDashboard({ epics: empty, yours: { rows: [row('T-1')], more: 0 }, team: empty, ready: { rows: [row('T-2')], more: 0 }, upNext: empty, summary });
-  expect(text.endsWith('1 in progress, 1 ready, 0 blocked, 0 backlog, 0 done\n-> [/accord-continue T-1]  [/accord-pickup T-2]  [/accord-new <request>]\n')).toBe(true);
+  expect(text.endsWith('1 in progress, 1 ready, 0 blocked, 0 backlog, 0 done\n-> [/accord continue T-1]  [/accord pick-up T-2]  [/accord <request>]\n')).toBe(true);
   const none = renderDashboard({ epics: empty, yours: empty, team: empty, ready: empty, upNext: empty, summary });
-  expect(none.endsWith('\n-> [/accord-new <request>]\n')).toBe(true);
+  expect(none.endsWith('\n-> [/accord <request>]\n')).toBe(true);
 });
 
 it('risk:complex-branching the action line names only the actions that apply', () => {
@@ -300,13 +300,13 @@ it('risk:complex-branching the action line names only the actions that apply', (
     return [lines[lines.length - 2], lines[lines.length - 1]];
   };
   const a = lastTwo({ epics: empty, yours: { rows: [row('ST-AN-1')], more: 0 }, team: empty, ready: { rows: [row('ST-AN-2')], more: 0 }, upNext: empty, summary });
-  expect(a[1]).toBe('-> [/accord-continue ST-AN-1]  [/accord-pickup ST-AN-2]  [/accord-new <request>]');
+  expect(a[1]).toBe('-> [/accord continue ST-AN-1]  [/accord pick-up ST-AN-2]  [/accord <request>]');
   expect(a[0]).toContain(' in progress, ');
   const b = lastTwo({ epics: empty, yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0, suggest: { action: 'pick-up', id: 'ST-AN-3' } }, summary });
-  expect(b[1]).toBe('-> [/accord-pickup ST-AN-3]  [/accord-new <request>]');
+  expect(b[1]).toBe('-> [/accord pick-up ST-AN-3]  [/accord <request>]');
   expect(b[0]).toContain(' in progress, ');
   const c = lastTwo({ epics: empty, yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0 }, summary });
-  expect(c[1]).toBe('-> [/accord-new <request>]');
+  expect(c[1]).toBe('-> [/accord <request>]');
   expect(c[0]).toContain(' in progress, ');
 });
 
@@ -454,7 +454,7 @@ it('risk:complex-branching the dashboard lists lane R tickets with their stage (
     expect(at('TEAM', 'R-2')).toContain('bo@example.com');
     expect(res.out).not.toMatch(/build \d/);
     expect(summaryLine(res.out)).toBe('1 in progress, 1 ready, 0 blocked, 0 backlog, 0 done');
-    expect(lines[lines.length - 2]).toBe('-> [/accord-pickup R-1]  [/accord-new <request>]');
+    expect(lines[lines.length - 2]).toBe('-> [/accord pick-up R-1]  [/accord <request>]');
     const j = JSON.parse((await run(['dashboard', '--json'], repo)).out) as Dashboard;
     expect(j.ready.rows.map((r) => [r.id, r.lane, r.stage])).toEqual([['R-1', 'R', 'research']]);
     expect(j.team.rows.map((r) => [r.id, r.lane, r.stage])).toEqual([['R-2', 'R', 'intent']]);

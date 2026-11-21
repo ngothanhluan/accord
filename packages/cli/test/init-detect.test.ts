@@ -89,14 +89,14 @@ describe('accord init proposes values and writes none of them', () => {
     const { code, out } = await run(['init'], repo);
     expect(code).toBe(0);
     expect(out).not.toContain('proposal: git.merge');
-    expect(tail(out).at(-1)).toBe('proposals: 0');
+    expect(tail(out).at(-1)).toBe('proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings');
   });
 
   it('risk:boundary a mixed history with no shape at 60 percent gets no merge-style proposal (ST-LN-50 t2-ac-8)', async () => {
     const repo = history([...repeat('plain', 20), ...repeat('squash', 20)]);
     const { out } = await run(['init'], repo);
     expect(out).not.toContain('proposal: git.merge');
-    expect(tail(out).at(-1)).toBe('proposals: 0');
+    expect(tail(out).at(-1)).toBe('proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings');
   });
 
   it('risk:complex-branching merge commits on the first-parent line propose merge (ST-LN-50 t2-ac-8)', async () => {
@@ -257,7 +257,7 @@ describe('accord init proposes the other conventions (ST-LN-50 t2-ac-8)', () => 
   it('risk:boundary a repository with 3 branches gets no branch or ids proposal (ST-LN-50 t2-ac-8)', async () => {
     const repo = build({ subjects: plain(12), branches: ['feature/ENG-1', 'feature/ENG-2', 'feature/ENG-3'] });
     const { out } = await run(['init'], repo);
-    expect(proposalLines(out)).toEqual(['proposals: 0']);
+    expect(proposalLines(out)).toEqual(['proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings']);
   });
 
   it('risk:boundary conventional subjects below 60 percent, with no commitlint, give no subjects proposal (ST-LN-50 t2-ac-8)', async () => {
@@ -265,7 +265,7 @@ describe('accord init proposes the other conventions (ST-LN-50 t2-ac-8)', () => 
     const subjects = [...Array.from({ length: 20 }, (_, i) => `fix: change ${i + 1}`), ...plain(19), 'change \u001b[2J'];
     const repo = build({ subjects });
     const { out } = await run(['init'], repo);
-    expect(proposalLines(out)).toEqual(['proposals: 0']);
+    expect(proposalLines(out)).toEqual(['proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings']);
     expect(out).not.toContain('\u001b');
   });
 
@@ -293,7 +293,7 @@ describe('accord init proposes the other conventions (ST-LN-50 t2-ac-8)', () => 
   it('risk:boundary a file is read only up to 1 MiB (ST-LN-50 t2-ac-8)', async () => {
     const link = '\nhttps://acme.atlassian.net/browse/OPS-2\n';
     const past = build({ subjects: plain(3), files: { 'README.md': 'x'.repeat(1024 * 1024) + link } });
-    expect(proposalLines((await run(['init'], past)).out)).toEqual(['proposals: 0']);
+    expect(proposalLines((await run(['init'], past)).out)).toEqual(['proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings']);
     const within = build({ subjects: plain(3), files: { 'README.md': 'x'.repeat(1024 * 1024 - 100) + link } });
     expect(proposalLines((await run(['init'], within)).out)).toHaveLength(2);
   });

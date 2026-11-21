@@ -31,7 +31,7 @@ const lines = (out: string): string[] => out.split('\n').filter((l) => l !== '')
 /** The exact stdout a list of report lines produces, for the two whole-report assertions (D-133). */
 const report = (rows: string[]): string => rows.map((r) => r + '\n').join('');
 /** ST-LN-50 D-11: a repository with no history to read ends the report with this line (init-detect.test.ts covers the proposals). */
-const NO_PROPOSALS = 'proposals: 0';
+const NO_PROPOSALS = 'proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings';
 /** ST-LN-37 37-ac-3 (D-03): the block init prints after its file list and before its proposal lines. Literal on purpose: a wording change in core is a decision, so it fails here too. */
 const REQUIRED_CHECK = [
   'required check: accord changes no GitHub setting; to make the accord check a merge gate, a repository admin does this once on GitHub:',

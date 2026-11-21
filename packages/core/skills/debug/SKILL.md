@@ -1,10 +1,10 @@
 ---
 name: accord-debug
-description: Use when a lane M ticket's work behaves unexpectedly, a test fails for a reason nobody has shown, or a fix did not work. Finds the root cause with a debugger before any fix, fixes it once through a fresh executor test first, and keeps its state in debug.md.
+description: Use when a lane M ticket's work behaves unexpectedly, a test fails for a reason nobody has shown, or a fix did not work, or on an issue no ticket holds, where it finds the root cause and fixes nothing. Finds the root cause with a debugger before any fix, fixes it once through a fresh executor test first, and keeps its state in debug.md.
 license: MIT
 argument-hint: "[ticket id] [failure]"
 kind: skill
-loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/resume.md]
+loads: [accord/ids.md, accord/worktree.md, debug/debug-free.md, shared/ask.md, shared/failure.md, shared/resume.md]
 ---
 
 This stage finds a root cause before anything is fixed. You run it in the
@@ -12,7 +12,7 @@ main session and orchestrate: debuggers investigate, executors fix.
 
 ## Steps
 
-1. Run `accord anchor`. For a failure found after verify, read `./failure.md`.
+1. Run `accord anchor`. When it prints nothing and no ticket id was given, no ticket holds the issue: follow `./debug-free.md` instead of the steps below. For a failure found after verify, read `./failure.md`.
    When `./failure.md` runs `accord worktree open`, follow `./worktree.md`.
 
 2. **State.** Everything this stage learns lives in

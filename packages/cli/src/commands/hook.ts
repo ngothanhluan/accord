@@ -9,6 +9,7 @@ import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
 import { pinMessage, versionOnDisk } from '../pin.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
+import { debugStatePath, readDebugState } from './debug.js';
 import { cleanBudgetMs } from './fetch-limit.js';
 import { activeTicket, anchorOf, epicSnapshot } from './anchor.js';
 import { withNext } from './next-action.js';
@@ -45,6 +46,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
         const id = activeTicket(root, ctx.snapshot, branchFor(root, ctx));
         const anchored = id === undefined ? undefined : anchorOf(ctx, id);
         body = anchored === undefined ? body : anchored + stageLine(rows.find((r) => r.id === id));
+        if (id === undefined) body += unfinishedLine(root);
       }
     } catch (e) {
       ctx.stderr.write((e as Error).message + '\n');
@@ -64,6 +66,21 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
 function stageLine(row: { lane?: string; stage?: string } | undefined): string {
   const file = stageFile(row?.lane, row?.stage);
   return file === undefined ? '' : `stage file: ./${file} of the /accord skill; read it and go on at the step the anchor names\n`;
+}
+
+/**
+ * Phase 8.3 D-06 (Ruling 10): in a checkout with no active ticket, the one line that names an open outside-ticket investigation, so a session cleared in the middle of one
+ * finds its state file. Read-only: the path comes from `debugStatePath`, the file is read through `readDebugState` (a link or a non-file reads as absent) and judged by core's
+ * `debugOpen`; nothing is created and the file's text is never printed (it is data). '' when there is no file, no open episode, or any error (a git failure included).
+ */
+function unfinishedLine(root: string): string {
+  try {
+    const file = debugStatePath(root);
+    const text = readDebugState(file);
+    return text !== undefined && debugOpen(text) ? `Unfinished: ${file}: resume the debugger with /accord-debug\n` : '';
+  } catch {
+    return '';
+  }
 }
 
 /**

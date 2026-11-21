@@ -1,8 +1,9 @@
 // `accord hook <event>` end to end, in-process through runCli, on a lane repo.
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { debugStatePath } from '../src/commands/debug.js';
 import { upgradeNotice } from '../src/commands/notice.js';
 import { cachePath, requestLatest } from '../src/commands/registry.js';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run } from './helpers/repo.js';
@@ -65,6 +66,61 @@ describe('accord hook', () => {
       cleanup(repo);
     }
   });
+
+  // Phase 8.3 D-06 (Ruling 10): with no ticket active, a resumed session names an open outside-ticket investigation. The state file lives in the system temp directory,
+  // so the case runs under a temp parent of its own (tmpdir() reads TMPDIR, TEMP and TMP when called) and never touches the real one.
+  it('risk:complex-branching after /clear with no ticket the session names an open outside-ticket investigation (D-06)', async () => {
+    const own = mkdtempSync(join(tmpdir(), 'p83-hook-tmp-'));
+    try {
+      vi.stubEnv('TMPDIR', own);
+      vi.stubEnv('TEMP', own);
+      vi.stubEnv('TMP', own);
+      const repo = makeLaneRepo();
+      commitAll(repo);
+      const file = debugStatePath(repo);
+      const folder = file.slice(0, file.lastIndexOf('/'));
+      const unfinished = `Unfinished: ${file}: resume the debugger with /accord-debug\n`;
+      const resume = async (): Promise<string> => {
+        const r = await run(['hook', 'session-resume'], repo);
+        expect(r.code, r.err).toBe(0);
+        return r.out;
+      };
+
+      // no state file: no line, and the hook creates no folder and no file
+      const before = readdirSync(own);
+      const none = await resume();
+      expect(none).toMatch(SESSION_LINE);
+      expect(none).not.toContain('Unfinished:');
+      expect(existsSync(folder), 'the hook never creates the state folder').toBe(false);
+      expect(existsSync(file), 'the hook never creates the state file').toBe(false);
+      expect(readdirSync(own)).toEqual(before);
+
+      // an open episode: the line follows the session line, names the file and holds none of its text
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
+      const open = await resume();
+      expect(open.endsWith(unfinished), 'the line closes the output').toBe(true);
+      expect(open.slice(0, open.length - unfinished.length)).toMatch(SESSION_LINE);
+      expect(open).not.toContain('export drops');
+      expect(open.split('Unfinished:').length - 1).toBe(1);
+
+      // a resolved episode, or an empty file: no line
+      writeFileSync(file, '## Episode 1\n\nthe export drops a row\n\n## Resolved\n\nroot cause named, no fix made\n');
+      expect(await resume()).not.toContain('Unfinished:');
+      writeFileSync(file, '');
+      expect(await resume()).not.toContain('Unfinished:');
+
+      // on a ticket branch the anchor output holds no such line, even with an open episode in the file
+      writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
+      gitRun(repo, 'checkout', '-b', 't/T-1');
+      const ticket = await resume();
+      expect(ticket).toContain('Owners can export their report as CSV.');
+      expect(ticket).not.toContain('Unfinished:');
+    } finally {
+      vi.unstubAllEnvs();
+      cleanup(own);
+    }
+  }, 60_000);
 
   // Phase 8.3 D-04: after /clear or compaction the resume hook names the accord file of the ticket's stage, from a fixed map and never from repository text.
   describe('after /clear the session names the file for the ticket stage', () => {

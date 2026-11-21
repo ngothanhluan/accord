@@ -47,8 +47,8 @@ const REQUIRED: Record<string, readonly string[]> = {
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./approach-critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', './plan.md', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './approach-critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', './build.md', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
-  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', './plan.md', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './build-waves.md'],
-  review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify', 're-review', 'places checked:', 'ADDRESSED', './review-record.md', './review-security.md', './plan.md', './build.md'],
+  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', './plan.md', './review.md', './verify.md', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './build-waves.md'],
+  review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', './verify.md', 're-review', 'places checked:', 'ADDRESSED', './review-record.md', './review-security.md', './plan.md', './build.md'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md', './verify-ci.md', './verify-deferred.md', './verify-writer.md', './build.md'],
   debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
 };
@@ -196,6 +196,39 @@ it('risk:regression no stage text names the intent approach or plan command (D-0
   expect(command.test('dispatch `accord-planner`')).toBe(false);
   expect(command.test('the accord-plan-critic')).toBe(false);
   expect(command.test('Next: `./approach.md`, then `./plan.md`')).toBe(false);
+});
+
+it('risk:regression no stage text names the build review or verify command (D-04)', () => {
+  const command = /\baccord-(?:build|review|verify)(?![\w-])/;
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  for (const runtime of ['claude', 'codex', 'cursor', 'copilot'] as const) {
+    for (const roles of [['ba', 'dev'], ['ba', 'dev', 'designer']] as AccordConfig['roles'][]) {
+      const cfg = { ...config, roles, runtimes: [runtime] } as AccordConfig;
+      const out = skillTargets(cfg);
+      expect(out.filter((f) => command.test(f.text)).map((f) => f.path), runtime + ' ' + roles.join('+') + ': no rendered file names a stage command').toEqual([]);
+      for (const dir of skillDirs(cfg)) {
+        const text = (path: string) => flat(out.find((f) => f.path === path)?.text ?? '');
+        for (const file of [stagePath('build', undefined, dir), stagePath('build', 'no-plan', dir)]) {
+          expect(text(file), file).toContain('next: `./review.md`, or `./verify.md` when `accord anchor` names review off');
+        }
+        expect(text(stagePath('review', undefined, dir)), dir + ' review.md').toContain('go to the stage it names next, `./verify.md`');
+        expect(text(stagePath('review', undefined, dir)), dir + ' review.md step 9').toContain('9. Next: `./verify.md`.');
+        expect(text(besidePath('review', 'comments.md', dir)), dir + ' comments.md').toContain("handle them as `./review.md` handles one round's findings");
+        expect(text(besidePath('review', 'review-foreign.md', dir)), dir + ' review-foreign.md').toContain("It uses the size rule of `./review.md` and none of its fix rounds");
+        // ask.md and failure.md render in several folders; where one is rendered it names the stage of /accord
+        for (const shared of ['ask.md', 'failure.md']) {
+          for (const f of out.filter((x) => x.path.startsWith(dir + '/') && x.path.endsWith('/' + shared))) expect(flat(f.text), f.path).toContain('the verify stage of `/accord`');
+        }
+        // the debug command stays one and hands a fixed task back to the build stage of /accord
+        const debug = text(dir + '/' + installedName('debug') + '/SKILL.md');
+        expect(debug, dir + ' debug').toContain('the build stage of `/accord`');
+      }
+    }
+  }
+  // guard the guard: the pattern catches a command and lets the reviewers, the verifier, the PR reviewer and the stage files through
+  expect(command.test('Next: `accord-review`, or `accord-verify`')).toBe(true);
+  expect(command.test('through accord-build.')).toBe(true);
+  for (const miss of ['accord-reviewer', 'accord-final-reviewer', 'accord-review-pr', 'accord-verifier', 'Next: `./review.md`, then `./verify.md`']) expect(command.test(miss), miss).toBe(false);
 });
 
 describe('stage skills name what the spec requires', () => {
@@ -814,7 +847,7 @@ it('ac-1 a failure reported after verify goes to the debug stage before any fix'
     'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, in place of the line it prints, and stop here',
     'When it printed `enter:`, or this session is already in that worktree,',
     "in place of steps 3 and 4 of the Continue steps of `/accord`",
-    '(`done`: `accord-verify` at step 6, whose Finish closes the episode)',
+    '(`done`: the verify stage of `/accord` at step 6, whose Finish closes the episode)',
   ]) expect(a, p).toContain(p);
   expect(a).not.toContain("first run the accord skill's Continue on it");
   const dbg = get('.claude/skills/accord-debug/SKILL.md');
@@ -1464,7 +1497,7 @@ it('risk:regression the accord skill routes pull request comments to comments.md
     'stop handling every comment and ask the owner about that one, naming the Veto, Decision or Correction',
     'Fix no comment until the owner answers',
     'This comes before step 3: post no question while a conflict is open',
-    "handle them as `accord-review` handles one round's findings, the patch ones fixed together through a fresh executor in lane M, and by you yourself in lane S, which has no executor",
+    "handle them as `./review.md` handles one round's findings, the patch ones fixed together through a fresh executor in lane M, and by you yourself in lane S, which has no executor",
     'after a `stop:` line, ask the owner to type, in the session opened there, `/accord <id> ` followed by the request',
     'one new review round and then verify again for lane M, the lane S steps for lane S',
     'draft one reply per comment: the commit that fixed it, the reason it was not changed, or the answer it took',

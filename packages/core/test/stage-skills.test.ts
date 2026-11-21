@@ -440,6 +440,20 @@ it('risk:regression the accord skill picks up then continues a named ticket and 
     expect(named).toContain(p);
 });
 
+// Phase 8.3 UAT (2026-11-21): a real session took an unclaimed ticket's `branch` for a claim, went to Continue, was refused, then told the owner to type `/accord pick-up <id>`.
+it('risk:regression the work-on-a-ticket route reads a claim from claimedBy and Continue offers Pick up with no command to type', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const route = get('.claude/skills/accord/route.md');
+  const work = route.slice(route.indexOf('## Work on a ticket'), route.indexOf('##', route.indexOf('## Work on a ticket') + 3));
+  expect(work).toContain('has `claimedBy`');
+  expect(work).toContain('`branch` tells nothing here');
+  const cont = get('.claude/skills/accord/continue.md');
+  const head = cont.slice(0, cont.indexOf('## Steps'));
+  expect(head).toContain('offers in plain words to pick it up, with no command for the owner to type');
+  expect(head).toContain('follows `./pickup.md` with that id');
+  expect(head).not.toContain('offers `/accord pick-up');
+});
+
 it('risk:regression the accord skill opens each ticket in its own worktree and cleans only from the bare dashboard', () => {
   const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const text = get('.claude/skills/accord/SKILL.md');

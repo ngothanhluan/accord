@@ -1240,7 +1240,7 @@ describe('a ticket at a stage', () => {
     expect(mentionProblem('Read `./x.md` when needed.')).toBe('a vague phrase');
     expect(mentionProblem('Read `./x.md` as required at step 3.')).toBe('a vague phrase');
     expect(mentionProblem('See `./x.md`.')).not.toBe('');
-    for (const ok of ['At step 6 of `./x.md`, report it.', 'Any other text follows `./x.md`.', '`/accord queue <idea>` follows `./x.md`.', 'Lane R follows `./x.md`.']) expect(mentionProblem(ok), ok).toBe('');
+    for (const ok of ['At step 6 of `./x.md`, report it.', 'Any other text follows `./x.md` by this route.', '`/accord queue <idea>` follows `./x.md`.', 'Lane R follows `./x.md`.']) expect(mentionProblem(ok), ok).toBe('');
     expect(sentencesNaming('First. See `./x.md` now. Then `./x.md` again.', 'x.md')).toEqual(['See `./x.md` now.', 'Then `./x.md` again.']);
     expect(sentencesNaming('See `./new.md`.', 'new-epic.md')).toEqual([]);
   });

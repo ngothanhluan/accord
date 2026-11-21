@@ -691,7 +691,7 @@ it('ac-1 a failure reported after verify goes to the debug stage before any fix'
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const get = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
   const text = get('.claude/skills/accord/SKILL.md');
-  const i = text.indexOf('A failure reported in a ticket that has reached verify follows `./failure.md`.');
+  const i = text.indexOf('A failure reported in a ticket that has reached verify follows `./failure.md` by this route.');
   expect(i).toBeGreaterThan(-1);
   expect(i).toBeLessThan(text.indexOf('## Dashboard'));
   const a = get('.claude/skills/accord/failure.md');
@@ -1342,7 +1342,7 @@ it('risk:regression the accord skill routes pull request comments to comments.md
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const get = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
   const skill = get('.claude/skills/accord/SKILL.md');
-  const route = skill.indexOf("A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check.");
+  const route = skill.indexOf("A request to handle the comments on a ticket's pull request follows `./comments.md` by this route, without the session check.");
   expect(route).toBeGreaterThan(-1);
   expect(route).toBeLessThan(skill.indexOf('## Dashboard'));
   const c = get('.claude/skills/accord/comments.md');

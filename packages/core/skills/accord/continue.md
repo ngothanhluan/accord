@@ -7,7 +7,7 @@ kind: reference
 Continue applies only when the whole text after it is exactly one
 ticket id, the id of a ticket in `accord/tickets/`, an id that
 `accord status --json` lists with a `branch`, or a ticket
-`accord worktree open <id> --continue` finds. Any other text is a new request: load `accord-new` with the whole text. Continue on a ticket nobody has claimed
+`accord worktree open <id> --continue` finds; any other text follows `./route.md` with the whole text. Continue on a ticket nobody has claimed
 says so, offers `/accord pick-up <id>`, and never claims it.
 
 ## Steps

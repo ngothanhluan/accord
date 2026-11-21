@@ -6,7 +6,7 @@ kind: reference
 
 Pick up applies only when the whole text after it is exactly one
 ticket id, the id of a ticket in `accord/tickets/`, or an id that
-`accord status --json` lists with a `branch`. Any other text is a new request: load `accord-new` with the whole text.
+`accord status --json` lists with a `branch`; any other text follows `./route.md` with the whole text.
 
 ## Pick up
 

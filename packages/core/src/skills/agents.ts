@@ -28,10 +28,33 @@ export const AGENT_DEFAULTS: Record<RouteKey, { model: string; effort: Effort }>
 // ST-LN-80: files accord rendered before and no longer renders. `skills sync` and `accord upgrade` remove one when its
 // marker is intact; an edited copy stays.
 // Phase 7 (07-01): the accord skill stopped loading these reference files; the stage skills still render their own.
-const RETIRED_ACCORD_REFS = ['finish', 'lane', 'lane-r', 'lane-s', 'scout', 'security', 'upgrade'];
+// Phase 8.3 (08.3-05): the accord folder renders finish, lane, lane-r, lane-s and scout again, so they leave this list in that commit; `security` and `upgrade` stay.
+const RETIRED_ACCORD_REFS = ['security', 'upgrade'];
+
+// Phase 8.3 D-01: command folders accord rendered and no longer renders, by installed folder name. Each list is every file the folder rendered in any
+// release (SKILL.md plus the basename of each `loads:` entry, over the tags that held it), sorted by code point. A command that stops rendering is added
+// here in the same commit, so `skills sync` and `accord upgrade` remove its intact files and `skills sync` the emptied folder; an edited file stays.
+// `accord-queue`: v0.8.0 to v0.10.0 (queue/SKILL.md loaded ids.md, ask.md and similar.md in each).
+// `accord-continue`, `accord-pickup`: v0.8.0 to v0.10.0 plus the branch (review-security.md, and security.md under its old name), the union of their `loads:` basenames.
+// `accord-new`: v0.8.0 to v0.10.0 plus the branch (queue.md and review-security.md; security.md came from `review/security.md`; epic.md from `new/epic.md`).
+export const RETIRED_SKILL_FOLDERS: Readonly<Record<string, readonly string[]>> = {
+  'accord-continue': [
+    'SKILL.md', 'ask.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'review-security.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
+  ],
+  'accord-new': [
+    'SKILL.md', 'ask.md', 'epic.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'queue.md', 'review-foreign.md', 'review-security.md', 'route.md', 'scout.md',
+    'security.md', 'similar.md', 'worktree.md',
+  ],
+  'accord-pickup': ['SKILL.md', 'ask.md', 'failure.md', 'ids.md', 'worktree.md'],
+  'accord-queue': ['SKILL.md', 'ask.md', 'ids.md', 'similar.md'],
+};
+
 export const RETIRED_FILES: readonly string[] = [
   agentDir + '/accord-architect.md',
   ...['.claude/skills', '.agents/skills'].flatMap((dir) => RETIRED_ACCORD_REFS.map((name) => dir + '/accord/' + name + '.md')),
+  ...['.claude/skills', '.agents/skills'].flatMap((dir) =>
+    Object.entries(RETIRED_SKILL_FOLDERS).flatMap(([folder, held]) => held.map((file) => dir + '/' + folder + '/' + file)),
+  ),
 ];
 
 /** True for a copy accord rendered that nobody edited: its marker hash equals the hash of the text around it. */

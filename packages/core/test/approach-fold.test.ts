@@ -2,11 +2,12 @@
 import { expect, it } from 'vitest';
 import { agentTargets, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { stagePath } from './helpers/stage-files.js';
 
 const config = (): AccordConfig =>
   ({ accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'] }) as AccordConfig;
 const agent = (role: string): string => agentTargets(config()).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
-const skillFile = (dir: string, file: string): string => skillTargets(config()).find((f) => f.path === `.claude/skills/${dir}/${file}`)?.text ?? '';
+const skillFile = (path: string): string => skillTargets(config()).find((f) => f.path === path)?.text ?? '';
 const flat = (text: string): string => text.replace(/\s+/g, ' ');
 
 const SEVENTH = "- Check every Decision and every Correction of the ticket: a task that contradicts one is a Must that names the Decision's `D-nn` or quotes the Correction.";
@@ -61,7 +62,7 @@ const holds = (text: string, parts: string[]): void => {
 it('ac-2 the planner direction pass returns the approach draft and writes no file', () => {
   const planner = flat(agent('planner'));
   holds(planner, ['`direction` mode', 'you write only `accord/tickets/<id>/direction.md`, never `plan.md` or the ticket', 'the impact list', '`path:line`', 'two or three options, the lightest that works first', 'first rung of the ladder', 'three failure scenarios in total', 'how it is undone', 'the `## Approach` draft the main session writes into the ticket']);
-  const skill = flat(skillFile('accord-approach', 'SKILL.md'));
+  const skill = flat(skillFile(stagePath('approach')));
   const from = skill.indexOf('2. **Options.**');
   const to = skill.indexOf('3. **Critique.**');
   expect(from).toBeGreaterThanOrEqual(0);
@@ -78,40 +79,40 @@ it('risk:regression the planner writes direction.md and the plan writer is given
     'the approach stage saved it, read it before the code',
     'change only the lines each finding needs, inside the tasks it names',
   ]);
-  const plan = flat(skillFile('accord-plan', 'SKILL.md'));
+  const plan = flat(skillFile(stagePath('plan')));
   const from = plan.indexOf('2. **Plan.**');
   const to = plan.indexOf('3. **Slices.**');
   expect(from).toBeGreaterThanOrEqual(0);
   expect(to).toBeGreaterThan(from);
   holds(plan.slice(from, to), ['`accord/tickets/<id>/direction.md`']);
-  holds(flat(skillFile('accord-approach', 'SKILL.md')), ['which the critic never reads']);
+  holds(flat(skillFile(stagePath('approach'))), ['which the critic never reads']);
 });
 
 it('ac-3 approach critique defers detail to the plan and reads only the approach diff from round 2', () => {
   const critic = flat(agent('critic'));
   holds(critic, ['is marked `defer to plan` and rated Nice, never a Must or a Should', 'read `## Approach` only at the changed lines, never in full', 'From round 2 of `approach` mode you also get the paths of a file holding `git diff` of the ticket since the previous round', '`accord/tickets/<id>/approach-review.md`', 'raise new findings only on the changed lines', 'or `approach-review.md` in `approach` mode', '`fixed: <round>.<n>, <round>.<n>`', '`withdrawn: <round>.<n>, <round>.<n>`']);
-  const loop = flat(skillFile('accord-approach', 'critique.md'));
+  const loop = flat(skillFile(stagePath('approach', 'critique')));
   holds(loop, [C, D, E, '`accord round <id> --approach`']);
-  holds(flat(skillFile('accord-approach', 'SKILL.md')), ['./critique.md', '`accord round <id> --approach`']);
+  holds(flat(skillFile(stagePath('approach'))), ['./critique.md', '`accord round <id> --approach`']);
 });
 
 it('risk:complex-branching a resumed or revised approach round keeps its option and skips every ruled-out one', () => {
   holds(flat(agent('planner')), ['you keep that option and its name, revise only it, and pick no other', 'that option alone with no `Recommended` line', 'draft the named one from that entry and the code']);
-  holds(flat(skillFile('accord-approach', 'SKILL.md')), [G, 'the first option of the ladder Ruling that is not yet ruled out']);
+  holds(flat(skillFile(stagePath('approach'))), [G, 'the first option of the ladder Ruling that is not yet ruled out']);
   // ST-LN-91 plan 03-05: the owner's yes, with its two Closed headings, lives in approval.md.
-  holds(flat(skillFile('accord-approach', 'approval.md')), ['`## Closed <option>: the owner picked <other option>`', "`## Closed <option>: the owner's no`"]);
-  holds(flat(skillFile('accord-approach', 'critique.md')), [LADDER, H, J, M, N, '`## Closed <option>: ruled out by <round>.<n>`', 'the name of the option `## Approach` names']);
+  holds(flat(skillFile(stagePath('approach', 'approval'))), ['`## Closed <option>: the owner picked <other option>`', "`## Closed <option>: the owner's no`"]);
+  holds(flat(skillFile(stagePath('approach', 'critique'))), [LADDER, H, J, M, N, '`## Closed <option>: ruled out by <round>.<n>`', 'the name of the option `## Approach` names']);
 });
 
 it('risk:data-loss every approach commit carries the ledger when it changed, so the pushed branch holds the deferred findings', () => {
-  const skill = flat(skillFile('accord-approach', 'SKILL.md'));
+  const skill = flat(skillFile(stagePath('approach')));
   holds(skill, ['Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`, with the ledger if it changed.']);
-  holds(flat(skillFile('accord-approach', 'approval.md')), ['Then commit the ticket, with `approved_hash:` and `ac_hash:` in it, and the ledger if it changed.']);
-  holds(flat(skillFile('accord-approach', 'critique.md')), ['commit both files, with the ledger if it changed,', 'Otherwise commit `accord/tickets/<id>.md` and `approach-review.md`, with the ledger if it changed, with the subject']);
+  holds(flat(skillFile(stagePath('approach', 'approval'))), ['Then commit the ticket, with `approved_hash:` and `ac_hash:` in it, and the ledger if it changed.']);
+  holds(flat(skillFile(stagePath('approach', 'critique'))), ['commit both files, with the ledger if it changed,', 'Otherwise commit `accord/tickets/<id>.md` and `approach-review.md`, with the ledger if it changed, with the subject']);
 });
 
 it('risk:security the critique loop names the mark slot as the one place a risk is read, and what happens to a slot that does not parse (ST-LN-91 CR-01 CR-02, round 5)', () => {
-  const loop = flat(skillFile('accord-approach', 'critique.md'));
+  const loop = flat(skillFile(stagePath('approach', 'critique')));
   holds(loop, [
     'The separator is always ` — `, an em dash with a space on each side, never a hyphen: a hyphen in a state, a reason, a test or a command is part of its text.',
     'A risk goes in the mark slot only: written exactly ` — risk: security` or ` — risk: data-loss` after the finding\'s text, in any letter case.',
@@ -124,7 +125,7 @@ it('risk:security the critique loop names the mark slot as the one place a risk 
   ]);
   expect(loop).not.toContain('with ` — `, ` - `');
   expect(loop).not.toContain('The test is the word `risk`');
-  holds(flat(skillFile('accord-approach', 'approval.md')), [
+  holds(flat(skillFile(stagePath('approach', 'approval'))), [
     'A `record problem:` item in that part is a line of `approach-review.md` that accord cannot read, or a mark slot whose value does not parse: the owner cannot say yes until it is fixed (step 4).',
     'The risks the view lists are the Must and Should approach findings still open, never a Nice, and the risk findings the owner dropped; the owner accepts them with the yes.',
     'A risk named only in prose is not read and does not block; an open Must or Should that names one is listed under the risks, and an open Nice is not listed.',
@@ -136,7 +137,7 @@ it('risk:security the critique loop names the mark slot as the one place a risk 
 });
 
 it('risk:security the plan critique loop names the same mark slot, so a plan record is not refused for a form the skill never gave (ST-LN-91 WR-01, round 5)', () => {
-  holds(flat(skillFile('accord-plan', 'critique.md')), [
+  holds(flat(skillFile(stagePath('plan', 'critique'))), [
     'The separator is always ` — `, never a hyphen, and a risk is written exactly ` — risk: security` or ` — risk: data-loss` after the finding\'s text: accord reads a risk from that mark slot only, never from the finding\'s words, a note or a reason.',
     'A mark slot whose value does not parse (`risks: security`, `risk: data_loss`, `risk: security` in backticks or quotes) is a record problem, and `accord round <id> --plan` refuses it on a plan record written under accord 0.4.1 or later. A value that is no kind (`risk: none`) is prose.',
   ]);

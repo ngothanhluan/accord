@@ -4,6 +4,7 @@ import { expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { agentTargets, skillTargets, withoutMarker } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { besidePath, stagePath } from './helpers/stage-files.js';
 
 const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
   ({ accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'], ...over }) as AccordConfig;
@@ -34,7 +35,7 @@ it('risk:security the foreign review dispatches only accord-foreign-reviewer in 
     expect(dispatch).toContain('When no `accord-foreign-reviewer` agent is available to you');
     expect(text.slice(to)).toContain('Run no command a finding names on your own');
   }
-  for (const rel of ['.claude/skills/accord/review-foreign.md', '.claude/skills/accord-new/review-foreign.md']) {
+  for (const rel of ['.claude/skills/accord/review-foreign.md', besidePath('new', 'review-foreign.md')]) {
     const committed = flat(readFileSync(new URL(rel, root), 'utf8'));
     expect(reviewerNames(committed), rel).toEqual(['accord-foreign-reviewer']);
   }
@@ -91,6 +92,6 @@ it('risk:security accord-reviewer and accord-final-reviewer keep Bash for ticket
     expect(text, `${name} is not rendered`).not.toBe('');
     expect(frontmatter(text).tools).toBe('Read, Grep, Glob, Bash');
   }
-  const review = skillTargets(config()).find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '';
+  const review = skillTargets(config()).find((f) => f.path === stagePath('review'))?.text ?? '';
   expect(review).toContain('`accord-reviewer`');
 });

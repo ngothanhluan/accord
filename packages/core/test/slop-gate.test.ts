@@ -5,6 +5,7 @@ import { agentTargets, gateDone, LOCKED, OVERRIDABLE, SLOP_FILE, SLOP_FROM, SLOP
 import type { AccordConfig, RepoSnapshot, SlopHit } from '../src/index.js';
 import { claimedUnder, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
+import { stagePath } from './helpers/stage-files.js';
 
 const RULE = 'gate.slop-unresolved';
 const HIT: SlopHit = { kind: 'empty-catch', path: 'src/a.ts', line: 3, label: 'an empty catch block' };
@@ -118,7 +119,7 @@ it('risk:regression the reviewer reports or justifies each slop line and checks 
     expect(quality, name).toContain('an export nothing imports');
   }
   // the review record copies the line verbatim into the round, and only the last round is read
-  const record = flat(skillTargets(config).find((f) => f.path === '.claude/skills/accord-review/record.md')?.text ?? '');
+  const record = flat(skillTargets(config).find((f) => f.path === stagePath('review', 'record'))?.text ?? '');
   expect(record).toContain('`slop:<kind> <path>:<line> — <reason>`');
   expect(record).toContain('copied verbatim');
 });

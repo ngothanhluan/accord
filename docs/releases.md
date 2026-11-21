@@ -2,6 +2,26 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+Phase 8.3 folds commands into `/accord`. Its first group (this section) folds four commands that started work; later groups fold the six stage skills and add the commands of their own. The release ships once every group has merged, when the menu holds eight commands plus the opt-in designer role (`accord-designer`, rendered only when `roles` lists `designer`). Until then this section grows with each group.
+
+- Four commands leave the menu; each is now text `/accord` loads, reached from `/accord` with the text typed after it:
+
+  | Old command | Type instead |
+  |---|---|
+  | `/accord-new <request>` | `/accord <request>` |
+  | `/accord-continue <id>` | `/accord continue <id>` |
+  | `/accord-pickup <id>` | `/accord pick-up <id>` |
+  | `/accord-queue <idea>` | `/accord queue <idea>` |
+
+  Free text after `/accord` is still routed by intent: a change starts work, a question is answered, an idea is queued. The typed forms skip the routing.
+- `accord skills sync` and `accord upgrade` remove the four folders (`accord-new`, `accord-continue`, `accord-pickup`, `accord-queue`) from a repository: each file only while its marker shows nobody edited it, then the folder once it is empty. An edited copy stays, and its folder is listed as an orphan with the command that removes it. `skills sync` prints one `removed <path>` row for each file and each folder it removes. A file a team wrote is never touched.
+- The `accord` skill folder renders more files: `queue.md`, `continue.md`, `pickup.md`, `new.md`, `new-epic.md`, and `lane.md`, `lane-r.md`, `lane-s.md`, `finish.md` and `scout.md` again (they were retired names in 0.10.0 and are rendered now), and the security checklist as `review-security.md`. A repository upgrading from 0.10.0 gets them with `accord upgrade`.
+- The Claude Code hook matcher is `accord` (it was `accord|accord-new|accord-continue|accord-pickup` in 0.10.0). A team's settings entry is rewritten by `accord skills sync`. In a ticket session, a typed Continue or Pick up of another ticket is stopped with the line to type in the session that opens, and a change typed as free text is refused by `accord new ticket` with `/accord <request>` to type in the main checkout.
+- Next steps print the typed forms: the dashboard's action line reads `[/accord continue <id>]  [/accord pick-up <id>]  [/accord <request>]`, the worktree lines, the session line and the fix lines of `accord audit` name the same forms, and the panel's Continue and Pick up buttons run `/accord` with the action and the ticket id; its New request button sends the search text to `/accord`.
+- Core's public API changed (a change the hub reads): `STAGES`, exported by `@accord-dev/accord-core`, lost `continue`, `new`, `pickup` and `queue`, and `RETIRED_SKILL_FOLDERS` is exported beside `RETIRED_FILES`: the files each retired skill folder rendered, by folder name.
+
 ## 0.10.0 — 2026-11-21
 
 Release 0.10.0 ships Phase 8.2, audit work hygiene (the bullets below): `accord audit` lists work that has gone stale (a claimed ticket with no activity, an old draft, leftover worktrees, orphan and unpushed claim branches, deferred items nobody decided, test baseline ids that can be deleted), `accord worktree clean --dry-run` previews a clean, a per-person `git config accord.who initials` shows teammates as initials, and the ledger mark that records the owner's answer for a deferred item has a fixed format. Tickets in flight: nothing a ticket is refused for changes, and `accord gate ready` and `accord gate done` give the same answers. `DEFERRED_MARK_FROM` is 0.10.0, so the new `deferred-undecided` gap judges only a ticket claimed at or after 0.10.0; a ticket claimed earlier is not judged for deferred marks, and its items are counted in the `deferred-marks` fact. The new audit groups, gaps and facts and the ledger mark start at 0.10.0. A repository pinned to an older accord keeps that accord's answers until it runs `accord upgrade`, and the new config key `stale_draft_days` is refused by an older pin's schema, so set it only after the pin moves; a repository that sets nothing gets the default of 90 days. `accord upgrade` moves the pin, the panel plugin (its version and its view, which reads the new display fields) and re-renders the changed skills (verify and audit). `accord audit` is slower in a repository with many claim branches (the first bullet gives the measured figure).

@@ -389,8 +389,8 @@ export function checkPin(ctx: CommandContext, id: string, path: string, branch: 
   }
   throw new UsageError(
     defPin === pinned
-      ? `${file} pins accord ${pinned} as ${def} does, but the main checkout ${mainPath} runs ${pkg.version} - update the main checkout to ${def} (git pull there), then type /accord-continue ${id}; this session did not move`
-      : `${file} pins accord ${pinned}, running ${pkg.version} - merge ${def} into ${branch}, then type /accord-continue ${id}; this session did not move`,
+      ? `${file} pins accord ${pinned} as ${def} does, but the main checkout ${mainPath} runs ${pkg.version} - update the main checkout to ${def} (git pull there), then type /accord continue ${id}; this session did not move`
+      : `${file} pins accord ${pinned}, running ${pkg.version} - merge ${def} into ${branch}, then type /accord continue ${id}; this session did not move`,
   );
 }
 
@@ -403,7 +403,7 @@ export function enterOrStop(ctx: CommandContext, id: string, path: string, branc
 
 /** D-11, D-12: exactly three lines, naming no tool. */
 export function printStop(ctx: CommandContext, path: string, id: string): void {
-  ctx.stdout.write(`${nextLine('stop')}\nstop: open a session in this folder and type the line below it\n${path}\n/accord-continue ${id}\n`);
+  ctx.stdout.write(`${nextLine('stop')}\nstop: open a session in this folder and type the line below it\n${path}\n/accord continue ${id}\n`);
 }
 
 /** Pick up reuses an existing branch only when its claim is the user's own (same email); otherwise exit 2, nothing created. */
@@ -426,7 +426,7 @@ function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
   const me = gitUserEmail(ctx.root);
   if (me === '') throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>');
   if (claimant.trim().toLowerCase() !== me.trim().toLowerCase()) {
-    throw new UsageError(withNext('claimed', `claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord-continue ${id}`));
+    throw new UsageError(withNext('claimed', `claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord continue ${id}`));
   }
 }
 
@@ -492,7 +492,7 @@ function openLine(path: string): string {
 
 /**
  * ST-LN-83 D-06: where a refused `command` is opened: for a Continue of `cont`, that ticket's existing worktree (the entry on its branch), else the main checkout,
- * where /accord-continue makes or finds it; for any other command the main checkout.
+ * where /accord continue makes or finds it; for any other command the main checkout.
  */
 export function sessionNext(root: string, snapshot: RepoSnapshot, mainPath: string, command: string, cont?: string): SessionNext {
   if (cont === undefined || !ID.test(cont)) return { command, path: mainPath };
@@ -518,7 +518,7 @@ export function guardTicketSession(ctx: CommandContext, cont?: string, command?:
   if (w === undefined) return;
   const mainPath = listWorktrees(ctx.root)[0].path;
   if (cont !== undefined && guardAllowsContinue(w, mainPath, cont)) return;
-  const typed = cont !== undefined ? `/accord-continue ${cont}` : command;
+  const typed = cont !== undefined ? `/accord continue ${cont}` : command;
   throw new UsageError(worksMessage(w, mainPath, typed === undefined ? undefined : sessionNext(ctx.root, ctx.snapshot, mainPath, typed, cont)));
 }
 
@@ -534,7 +534,7 @@ export function worktreeCheck(ctx: CommandContext): number {
 
 export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
-  guardTicketSession(ctx, opts.continue === true ? id : undefined, `/accord-pickup ${id}`);
+  guardTicketSession(ctx, opts.continue === true ? id : undefined, `/accord pick-up ${id}`);
   const f = fetchOrigin(ctx);
   ctx = f.ctx;
   const seen = cleanQuietly(ctx, f.fetched, id);
@@ -991,9 +991,9 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
       {
         conflict:
           strategy === 'rebase'
-            ? `rebase it by hand with git -C "${path}" rebase ${def}, resolve the conflicts and finish with git rebase --continue, then type /accord-continue ${id}`
-            : `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord-continue ${id}`,
-        clash: `move it, then type /accord-continue ${id}`,
+            ? `rebase it by hand with git -C "${path}" rebase ${def}, resolve the conflicts and finish with git rebase --continue, then type /accord continue ${id}`
+            : `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
+        clash: `move it, then type /accord continue ${id}`,
       },
       sync === undefined ? undefined : { command: sync, ticket: id },
     );

@@ -11,6 +11,19 @@ import { RULES } from '../src/lint/rules.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
 import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
+import { besidePath, ofStage, stagePath, stagePathIn } from './helpers/stage-files.js';
+
+// Phase 8.3 D-04: a stage loop also visits the names that never fold (accord, upgrade, audit, debug); those keep their own folder.
+const FOLDED = new Set(['queue', 'continue', 'pickup', 'new', 'intent', 'approach', 'plan', 'build', 'review', 'verify']);
+/** The own file of `stage` in the render of `dir`, whether or not the stage has folded. */
+const stageFile = (stage: string, dir = '.claude/skills'): string => (FOLDED.has(stage) ? stagePath(stage, undefined, dir) : dir + '/' + installedName(stage) + '/SKILL.md');
+/** A file rendered beside the own file of `stage`. */
+const sideFile = (stage: string, file: string, dir = '.claude/skills'): string => (FOLDED.has(stage) ? besidePath(stage, file, dir) : dir + '/' + installedName(stage) + '/' + file);
+/** `file` in a folder named as the 0.10.0 render named it (`accord-verify`): a name that has folded is followed to its fold. */
+const inFolder = (folder: string, file: string, dir = '.claude/skills'): string => {
+  const name = folder.replace(/^accord-/, '');
+  return folder !== name && FOLDED.has(name) ? besidePath(name, file, dir) : dir + '/' + folder + '/' + file;
+};
 
 const config: AccordConfig = {
   accord: '0.1.0',
@@ -25,7 +38,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   accord: ['accord status --json', 'accord dashboard', 'user.email', './ids.md'],
   // ST-LN-83 7-ac-1: Pick up, New request and Upgrade moved out of /accord with the phrases that only they carried.
   pickup: ['accord status --json', 'accord worktree open <id>', 'push it (the pushed branch is the claim)', 'with the subject of `commits.subjects.claim`', './worktree.md'],
-  new: ['accord new ticket', '--lane M', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md'],
+  new: ['accord new ticket', '--lane M', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree', './scout.md', './new-epic.md'],
   upgrade: ['accord dashboard', './upgrade.md'],
   // ST-LN-83 7-ac-1: the Continue steps moved out of /accord, with the phrases that only they carried.
   continue: ['accord status --json', 'accord worktree open <id> --continue', 'accord anchor', 'accord-debug', '## Resolved', 'accord-approach', 'no `## Resolved` follows its last `## Episode`', '`done` → `accord-verify` at step 6', './worktree.md', './lane-s.md', './lane-r.md', 'accord gate ready <id>'],
@@ -41,13 +54,52 @@ const REQUIRED: Record<string, readonly string[]> = {
 
 const files = skillTargets(config);
 
+// Phase 8.3 D-03, D-04: the render path of a folded name, before and after its fold, comes from one helper.
+it('risk:regression stagePath and besidePath give the render path of a folded name before and after its fold (D-04)', () => {
+  // the folder a name rendered into before its fold, built apart from the helper's own rule
+  const inOwnFolder = (name: string, file: string, dir = '.claude/skills') => `${dir}/${['accord', name].join('-')}/${file}`;
+  const before = new Set(['accord/SKILL.md', 'intent/SKILL.md', 'intent/discuss.md', 'plan/SKILL.md', 'plan/critique.md']);
+  expect(stagePathIn(before, 'intent')).toBe(inOwnFolder('intent', 'SKILL.md'));
+  expect(stagePathIn(before, 'intent', 'discuss')).toBe(inOwnFolder('intent', 'discuss.md'));
+  expect(stagePathIn(before, 'intent', 'discuss', '.agents/skills')).toBe(inOwnFolder('intent', 'discuss.md', '.agents/skills'));
+  // a child moved early: the stage's folder renders the prefixed name while its own SKILL.md still renders
+  const early = new Set(['accord/SKILL.md', 'plan/SKILL.md', 'accord/plan-critique.md']);
+  expect(stagePathIn(early, 'plan', 'critique')).toBe(inOwnFolder('plan', 'plan-critique.md'));
+  expect(stagePathIn(early, 'plan')).toBe(inOwnFolder('plan', 'SKILL.md'));
+  // after the fold: the stage is a file of the accord folder, its children carry its prefix
+  const after = new Set(['accord/SKILL.md', 'accord/intent.md', 'accord/intent-discuss.md']);
+  expect(stagePathIn(after, 'intent')).toBe('.claude/skills/accord/intent.md');
+  expect(stagePathIn(after, 'intent', 'discuss')).toBe('.claude/skills/accord/intent-discuss.md');
+  expect(stagePathIn(after, 'intent', 'discuss.md')).toBe('.claude/skills/accord/intent-discuss.md');
+  expect(stagePathIn(after, 'intent', undefined, '.agents/skills')).toBe('.agents/skills/accord/intent.md');
+  // the real keys: a name that has not folded yet renders in its own folder, a folded one in accord
+  expect(besidePath('new', 'lane-s.md')).toBe(stagePath('new').replace(/[^/]+$/, 'lane-s.md'));
+  expect(besidePath('queue', 'ask.md', '.agents/skills')).toBe('.agents/skills/accord/ask.md');
+  // ofStage follows a stage's files through the fold: its own folder before, accord/<name>*.md after
+  expect(ofStage(stagePath('plan', 'critique'), ['plan'])).toBe(true);
+  expect(ofStage(stagePath('plan'), ['plan', 'build'])).toBe(true);
+  expect(ofStage(stagePath('plan'), ['review', 'verify'])).toBe(false);
+  expect(ofStage('.agents/skills/accord/ask.md', ['plan', 'review'])).toBe(false);
+  // a name outside the ten throws, so a typo cannot read an empty path
+  for (const bad of ['accord', 'debug', 'upgrade', 'audit', 'nope']) {
+    expect(() => stagePathIn(before, bad), bad).toThrow();
+    expect(() => stagePath(bad), bad).toThrow();
+    expect(() => besidePath(bad, 'ids.md'), bad).toThrow();
+  }
+  // every accepted name resolves, with the real keys, to a path the render produces
+  const rendered = new Set(files.map((f) => f.path));
+  for (const name of ['queue', 'continue', 'pickup', 'new', 'intent', 'approach', 'plan', 'build', 'review', 'verify']) {
+    expect(rendered.has(stagePath(name)), name + ': ' + stagePath(name)).toBe(true);
+  }
+});
+
 describe('stage skills name what the spec requires', () => {
   for (const [stage, phrases] of Object.entries(REQUIRED)) {
     it(`risk:regression ${stage} names every required phrase`, () => {
-      const skill = files.find((f) => f.path === '.claude/skills/' + installedName(stage) + '/SKILL.md')?.text ?? '';
+      const skill = files.find((f) => f.path === stageFile(stage))?.text ?? '';
       expect(skill.length, stage + '/SKILL.md is missing from the render output').toBeGreaterThan(0);
       // ST-LN-91 plan 03-05: the owner's yes of the approach stage lives in its approval.md, so its phrases are read there too.
-      const text = stage === 'approach' ? skill + (files.find((f) => f.path === '.claude/skills/accord-approach/approval.md')?.text ?? '') : skill;
+      const text = stage === 'approach' ? skill + (files.find((f) => f.path === stagePath('approach', 'approval'))?.text ?? '') : skill;
       expect(phrases.filter((p) => !text.includes(p))).toEqual([]);
     });
   }
@@ -55,10 +107,10 @@ describe('stage skills name what the spec requires', () => {
 
 it('ac-4 the plan skill asks the owner before it creates the tests baseline', () => {
   const read = (p: string) => files.find((f) => f.path === p)?.text ?? '';
-  const skill = read('.claude/skills/accord-plan/SKILL.md');
-  const ref = read('.claude/skills/accord-plan/baseline.md');
-  expect(skill.length, 'accord-plan/SKILL.md is missing').toBeGreaterThan(0);
-  expect(ref.length, 'accord-plan/baseline.md is missing').toBeGreaterThan(0);
+  const skill = read(stagePath('plan'));
+  const ref = read(stagePath('plan', 'baseline'));
+  expect(skill.length, stagePath('plan') + ' is missing').toBeGreaterThan(0);
+  expect(ref.length, stagePath('plan', 'baseline') + ' is missing').toBeGreaterThan(0);
   const from = skill.indexOf('7. **Baseline tests.**');
   const to = skill.indexOf('8. **Finish.**');
   expect(from).toBeGreaterThanOrEqual(0);
@@ -82,12 +134,12 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
   const DIALOG = "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
     for (const stage of STAGES) {
-      const path = dir + '/' + installedName(stage) + '/ask.md';
+      const path = sideFile(stage, 'ask.md', dir);
       const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
       if (!text.includes(CONTEXT) || !text.includes(DIALOG)) bad.push(path);
     }
@@ -99,12 +151,12 @@ it('ac-2 the shared ask rule says when to ask multiple choice and when to ask an
   const KIND = "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
     for (const stage of STAGES) {
-      const path = dir + '/' + installedName(stage) + '/ask.md';
+      const path = sideFile(stage, 'ask.md', dir);
       const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
       if (!text.includes(KIND)) bad.push(path);
     }
@@ -116,12 +168,12 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
   const PLAIN = 'Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss.';
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
     for (const stage of STAGES) {
-      const path = dir + '/' + installedName(stage) + '/ask.md';
+      const path = sideFile(stage, 'ask.md', dir);
       const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
       if (!text.includes(PLAIN)) bad.push(path + ' lacks plain words');
       if (text.toLowerCase().includes('may see only the question and its options')) bad.push(path + ' holds the old sentence');
@@ -133,12 +185,12 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
 it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const path = dir + '/' + installedName('intent') + '/SKILL.md';
+    const path = stagePath('intent', undefined, dir);
     const raw = everyFile.get(path) ?? '';
     if (!raw) { bad.push(path + ' missing'); continue; }
     const steps = raw.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => flat(c).replace(/\*\*/g, ''));
@@ -153,12 +205,12 @@ it('ac-4 the intent skill takes the kind of question from the shared ask rule', 
 it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
     for (const stage of STAGES) {
-      const path = dir + '/' + installedName(stage) + '/SKILL.md';
+      const path = stageFile(stage, dir);
       const text = everyFile.get(path) ?? '';
       if (!text) { bad.push(path + ' missing'); continue; }
       const blocks: string[][] = [];
@@ -179,11 +231,11 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const path = dir + '/' + installedName('intent') + '/SKILL.md';
+    const path = stagePath('intent', undefined, dir);
     const text = everyFile.get(path) ?? '';
     if (!text) { bad.push(path + ' missing'); continue; }
     const steps = text.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => c.replace(/[ \t]*\n[ \t]*/g, ' '));
@@ -205,11 +257,11 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const path = dir + '/' + installedName('approach') + '/SKILL.md';
+    const path = stagePath('approach', undefined, dir);
     const raw = everyFile.get(path) ?? '';
     if (!raw) { bad.push(path + ' missing'); continue; }
     const text = raw.replace(/[ \t]*\n[ \t]*/g, ' ');
@@ -220,11 +272,11 @@ it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
 
 it('ac-5 the accord skill takes the claim branch from the CLI in Continue Pick up and New request', () => {
   const flatOf = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
-  const continueText = flatOf('.claude/skills/accord-continue/SKILL.md');
+  const continueText = flatOf(stagePath('continue'));
   const cont = continueText.slice(continueText.indexOf('## Steps'), continueText.indexOf('## Rules'));
-  const pickText = flatOf('.claude/skills/accord-pickup/SKILL.md');
+  const pickText = flatOf(stagePath('pickup'));
   const pick = pickText.slice(pickText.indexOf('## Pick up'), pickText.indexOf('## Rules'));
-  const newText = flatOf('.claude/skills/accord-new/SKILL.md');
+  const newText = flatOf(stagePath('new'));
   const m = newText.slice(newText.indexOf('- **M.**'), newText.indexOf('- **L and P.**'));
   expect([cont, pick, m].map((s) => s.length > 0)).toEqual([true, true, true]);
   for (const p of ['`branch`', '`accord status --json`']) expect(cont).toContain(p);
@@ -265,11 +317,11 @@ it('risk:regression the accord skill opens each ticket in its own worktree and c
   const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
   const dash = slice(text, '## Dashboard', '## A ticket named');
   const named = slice(text, '## A ticket named', '## Onboard');
-  const continueText = get('.claude/skills/accord-continue/SKILL.md');
+  const continueText = get(stagePath('continue'));
   const cont = slice(continueText, '## Steps', '## Rules');
-  const pickText = get('.claude/skills/accord-pickup/SKILL.md');
+  const pickText = get(stagePath('pickup'));
   const pick = slice(pickText, '## Pick up', '## Rules');
-  const newText = get('.claude/skills/accord-new/SKILL.md');
+  const newText = get(stagePath('new'));
   const m = slice(newText, '- **M.**', '- **L and P.**');
   expect(dash.indexOf('`accord worktree clean`')).toBeGreaterThanOrEqual(0);
   expect(dash.indexOf('`accord dashboard`')).toBeGreaterThan(dash.indexOf('`accord worktree clean`'));
@@ -301,7 +353,7 @@ it('risk:data-loss the move to lane S carries Vetoes Decisions and Corrections i
   const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const ids = get('.claude/skills/accord/ids.md');
   const move = ids.slice(ids.indexOf('## Moving to lane S'));
-  const lane = get('.claude/skills/accord-new/lane-s.md');
+  const lane = get(besidePath('new', 'lane-s.md'));
   for (const h of ['## Vetoes', '## Decisions', '## Corrections']) {
     expect(move, h).toContain(h);
     expect(lane, h).toContain(h);
@@ -339,11 +391,11 @@ it('risk:complex-branching the accord skill pushes then enters the worktree on e
 
 it('ac-1 the first plan critique is sized by the plan and a should only round reads the fix diff', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
-  const skill = flat(files.find((f) => f.path === '.claude/skills/accord-plan/SKILL.md')?.text ?? '');
-  const loop = flat(files.find((f) => f.path === '.claude/skills/accord-plan/critique.md')?.text ?? '');
+  const skill = flat(files.find((f) => f.path === stagePath('plan'))?.text ?? '');
+  const loop = flat(files.find((f) => f.path === stagePath('plan', 'critique'))?.text ?? '');
   const critic = flat(agentTargets(config).find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '');
-  expect(skill.length, 'accord-plan/SKILL.md is missing').toBeGreaterThan(0);
-  expect(loop.length, 'accord-plan/critique.md is missing').toBeGreaterThan(0);
+  expect(skill.length, stagePath('plan') + ' is missing').toBeGreaterThan(0);
+  expect(loop.length, stagePath('plan', 'critique') + ' is missing').toBeGreaterThan(0);
   expect(critic.length, 'accord-critic.md is missing').toBeGreaterThan(0);
   const step5 = skill.slice(skill.indexOf('5. **Critique.**'), skill.indexOf('6. **Rounds.**'));
   expect(step5.length).toBeGreaterThan(0);
@@ -391,12 +443,12 @@ it('risk:regression every fix round, a Should-only one included, gets a re-revie
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text.replace(/\s+/g, ' ')]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const skillPath = dir + '/accord-review/SKILL.md';
+    const skillPath = stagePath('review', undefined, dir);
     const skill = everyFile.get(skillPath) ?? '';
-    const record = everyFile.get(dir + '/accord-review/record.md') ?? '';
-    const lane = everyFile.get(dir + '/accord-new/lane-s.md') ?? '';
+    const record = everyFile.get(stagePath('review', 'record', dir)) ?? '';
+    const lane = everyFile.get(besidePath('new', 'lane-s.md', dir)) ?? '';
     if (skill === '' || record === '' || lane === '') {
-      bad.push(dir + ': accord-review/SKILL.md, accord-review/record.md or accord-new/lane-s.md is missing');
+      bad.push(dir + ': the review skill, its record.md or the lane-s.md beside new is missing');
       continue;
     }
     const step4 = skill.slice(skill.indexOf('4. **Classify.**'), skill.indexOf('5. **Converged**'));
@@ -422,11 +474,11 @@ it('risk:regression every fix round, a Should-only one included, gets a re-revie
       'no Must or Should is open, every fixed finding is answered `addressed:`, and the test command passes',
       'or `tests.full` when `tests.affected` is not configured or finds no test file',
     ]) {
-      if (!record.includes(p)) bad.push(dir + '/accord-review/record.md lacks: ' + p);
+      if (!record.includes(p)) bad.push(stagePath('review', 'record', dir) + ' lacks: ' + p);
     }
-    if (record.includes('every Should is fixed with that command passing')) bad.push(dir + '/accord-review/record.md still holds the old verdict');
-    if (!lane.includes('a fix no reviewer has seen never ships')) bad.push(dir + '/accord-new/lane-s.md lacks: a fix no reviewer has seen never ships');
-    if (!lane.includes('a finding closes on its `addressed:` answer')) bad.push(dir + '/accord-new/lane-s.md lacks: a finding closes on its `addressed:` answer');
+    if (record.includes('every Should is fixed with that command passing')) bad.push(stagePath('review', 'record', dir) + ' still holds the old verdict');
+    if (!lane.includes('a fix no reviewer has seen never ships')) bad.push(besidePath('new', 'lane-s.md', dir) + ' lacks: a fix no reviewer has seen never ships');
+    if (!lane.includes('a finding closes on its `addressed:` answer')) bad.push(besidePath('new', 'lane-s.md', dir) + ' lacks: a finding closes on its `addressed:` answer');
   }
   expect(bad).toEqual([]);
 });
@@ -447,7 +499,7 @@ it('risk:regression record.md and lane S step 4 name the places-checked and re-r
     'from accord 0.6.0',
   ];
   for (const dir of skillDirs(all)) {
-    for (const path of [dir + '/accord-review/record.md', dir + '/accord-new/lane-s.md']) {
+    for (const path of [stagePath('review', 'record', dir), besidePath('new', 'lane-s.md', dir)]) {
       const text = everyFile.get(path) ?? '';
       if (text === '') {
         bad.push(path + ' is missing');
@@ -456,16 +508,16 @@ it('risk:regression record.md and lane S step 4 name the places-checked and re-r
       const low = text.toLowerCase();
       for (const p of marks) if (!low.includes(p.toLowerCase())) bad.push(path + ' lacks: ' + p);
     }
-    const rec = everyFile.get(dir + '/accord-review/record.md') ?? '';
-    if (!rec.includes('`places checked: <n>:')) bad.push(dir + '/accord-review/record.md lacks the places checked: line it copies from');
+    const rec = everyFile.get(stagePath('review', 'record', dir)) ?? '';
+    if (!rec.includes('`places checked: <n>:')) bad.push(stagePath('review', 'record', dir) + ' lacks the places checked: line it copies from');
     // D-18: the asks that make the executor and the re-reviewer write what the marks need ride in skills every tool renders
-    const skill = everyFile.get(dir + '/accord-review/SKILL.md') ?? '';
+    const skill = everyFile.get(stagePath('review', undefined, dir)) ?? '';
     const step4 = skill.slice(skill.indexOf('4. **Classify.**'), skill.indexOf('5. **Converged**'));
     for (const p of ['ask for one `places checked: <n>: <path>[:<line>], …` line per finding', '<r>.<n>: ADDRESSED <path>:<line>']) {
-      if (!step4.includes(p)) bad.push(dir + '/accord-review/SKILL.md step 4 lacks: ' + p);
+      if (!step4.includes(p)) bad.push(stagePath('review', undefined, dir) + ' step 4 lacks: ' + p);
     }
-    const lane = everyFile.get(dir + '/accord-new/lane-s.md') ?? '';
-    if (!lane.includes('<r>.<n>: ADDRESSED <path>:<line>')) bad.push(dir + '/accord-new/lane-s.md reviewer dispatch lacks the ADDRESSED answer line');
+    const lane = everyFile.get(besidePath('new', 'lane-s.md', dir)) ?? '';
+    if (!lane.includes('<r>.<n>: ADDRESSED <path>:<line>')) bad.push(besidePath('new', 'lane-s.md', dir) + ' reviewer dispatch lacks the ADDRESSED answer line');
   }
   expect(bad).toEqual([]);
   // the mark keys the skills tell the session to write are the keys core's record reader reads
@@ -490,19 +542,19 @@ it('risk:regression the accord skill takes an id that accord status lists with a
 function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'queue', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
   for (const dir of skillDirs(all)) {
     // ST-LN-91 plan 03-04: accord-intent step 9 is the discuss stage and asks no yes; the owner's one yes is approach step 5.
     for (const stage of ['approach']) {
-      const text = everyFile.get(dir + '/' + installedName(stage) + '/SKILL.md') ?? '';
+      const text = everyFile.get(stageFile(stage, dir)) ?? '';
       if (!text) { out.push({ dir, stage, step: '', bad: 'missing' }); continue; }
       const hits = text.split(/^(?=\d+\. |#)/m).filter((c) => /^\d+\. \*\*The owner's yes/.test(c));
       if (hits.length !== 1) { out.push({ dir, stage, step: '', bad: 'found ' + hits.length + ' steps' }); continue; }
       // ST-LN-91 plan 03-05: SKILL.md step 5 only names ./approval.md; the yes steps are in approval.md, read here whole.
       if (!hits[0].includes('./approval.md')) { out.push({ dir, stage, step: '', bad: 'step 5 does not name ./approval.md' }); continue; }
-      const approval = everyFile.get(dir + '/' + installedName(stage) + '/approval.md') ?? '';
+      const approval = everyFile.get(stagePath(stage, 'approval', dir)) ?? '';
       if (!approval) { out.push({ dir, stage, step: '', bad: 'approval.md missing' }); continue; }
       out.push({ dir, stage, step: approval.replace(/[ \t]*\n[ \t]*/g, ' ') });
     }
@@ -516,7 +568,7 @@ function intentStep9(): string[] {
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const text = (everyFile.get(dir + '/' + installedName('intent') + '/SKILL.md') ?? '').replace(/\s+/g, ' ');
+    const text = (everyFile.get(stagePath('intent', undefined, dir)) ?? '').replace(/\s+/g, ' ');
     const step = text.slice(text.indexOf('9. **Discuss.**'), text.indexOf('10. Next'));
     if (!step) { bad.push(dir + ' intent step 9 is not the discuss step'); continue; }
     if (!step.includes('./discuss.md')) bad.push(dir + ' intent step 9 lacks ./discuss.md');
@@ -562,7 +614,7 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
 
 it('risk:regression the verify skill syncs the remote main after the review commit and before the full suite', () => {
   const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
-  const text = get('.claude/skills/accord-verify/SKILL.md');
+  const text = get(stagePath('verify'));
   const ref = get('.claude/skills/accord/worktree.md');
   const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
   const step = slice(text, '2. **Sync and suite.**', '3. **Verifier.**');
@@ -582,7 +634,7 @@ it('risk:regression the verify skill syncs the remote main after the review comm
 });
 
 it('risk:data-loss the verify skill local check stops on a deleted approved ticket not dropped on the default branch', () => {
-  const text = flatText('.claude/skills/accord-verify/ci.md');
+  const text = flatText(stagePath('verify', 'ci'));
   const fin = text.slice(text.indexOf('## Finish'));
   expect(fin.length).toBeGreaterThan(0);
   for (const p of [
@@ -653,10 +705,10 @@ it('ac-1 a failure reported after verify goes to the debug stage before any fix'
     'the debugger finds them itself', '`gh run view <run-id> --log-failed`', 'keeps its count of failed fixes',
     'a new bug ticket', "the failing check's log as the failing output",
     'say the reproduction test is skipped on this operating system',
-    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then step 2 of `accord-continue` only (`accord anchor`)",
+    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then step 2 of the Continue steps of `/accord` only (`accord anchor`)",
     'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, in place of the line it prints, and stop here',
     'When it printed `enter:`, or this session is already in that worktree,',
-    "in place of steps 3 and 4 of `accord-continue`",
+    "in place of steps 3 and 4 of the Continue steps of `/accord`",
     '(`done`: `accord-verify` at step 6, whose Finish closes the episode)',
   ]) expect(a, p).toContain(p);
   expect(a).not.toContain("first run the accord skill's Continue on it");
@@ -676,7 +728,7 @@ it('ac-1 a failure reported after verify goes to the debug stage before any fix'
 });
 
 it('risk:complex-branching the fix review after verify reads only the changes after the review base and counts its own five rounds', () => {
-  const rv = (files.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const rv = (files.find((f) => f.path === stagePath('review'))?.text ?? '').replace(/\s+/g, ' ');
   const step2 = rv.slice(rv.indexOf('2. **Package.**'), rv.indexOf('3. **Reviewers.**'));
   expect(step2).toContain('after that head');
   expect(step2).not.toContain('`Review base: <sha>`');
@@ -685,7 +737,7 @@ it('risk:complex-branching the fix review after verify reads only the changes af
 
 const flatText = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
 const verifySteps = () => {
-  const v = flatText('.claude/skills/accord-verify/SKILL.md');
+  const v = flatText(stagePath('verify'));
   return {
     v,
     s2: v.slice(v.indexOf('2. **Sync and suite.**'), v.indexOf('3. **Verifier.**')),
@@ -700,10 +752,10 @@ it('ac-2 verify starts ci before the suite and shows the owners report only afte
   for (const p of ['Wait for CI as `./ci.md` says', 'a failed check goes to `./failure.md` instead of this report', "CI: each check's result, or CI not checked and why"])
     expect(s4, p).toContain(p);
   expect(v.slice(v.indexOf('6. Run'))).toContain('finish CI as `./ci.md` says');
-  expect(flatText('.claude/skills/accord-verify/SKILL.md')).toContain(
+  expect(flatText(stagePath('verify'))).toContain(
     'A `fail` criterion, or a failure the owner names in answer, goes to `./failure.md`, never to `accord-build` directly',
   );
-  const ci = flatText('.claude/skills/accord-verify/ci.md');
+  const ci = flatText(stagePath('verify', 'ci'));
   const [a, b, c] = ['## Start', '## Wait', '## Finish'].map((h) => ci.indexOf(h));
   expect(a).toBeGreaterThan(-1);
   expect(a).toBeLessThan(b);
@@ -727,11 +779,11 @@ it('ac-2 verify starts ci before the suite and shows the owners report only afte
     expect(fin, p).toContain(p);
   expect(fin.indexOf('## Resolved')).toBeGreaterThan(-1);
   expect(fin.indexOf('## Resolved')).toBeLessThan(fin.indexOf('`accord lint`'));
-  const acc = flatText('.claude/skills/accord-continue/SKILL.md');
+  const acc = flatText(stagePath('continue'));
   expect(acc).toContain('`done` → `accord-verify` at step 6.');
   expect(acc).not.toContain('on the ticket file or its');
   expect(flatText('.claude/skills/accord/SKILL.md')).not.toContain('on the ticket file or its');
-  expect(files.find((f) => f.path === '.claude/skills/accord-verify/failure.md')?.text.length).toBeGreaterThan(0);
+  expect(files.find((f) => f.path === besidePath('verify', 'failure.md'))?.text.length).toBeGreaterThan(0);
 });
 
 it('risk:regression the owners report lists every test the verify run skipped by name with its operating system', () => {
@@ -741,7 +793,7 @@ it('risk:regression the owners report lists every test the verify run skipped by
 });
 
 it('ac-5 the verify skill offers to promote a ruling or correction into the conventions', () => {
-  const text = (files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const text = (files.find((f) => f.path === stagePath('verify'))?.text ?? '').replace(/\s+/g, ' ');
   expect(text.length).toBeGreaterThan(0);
   const from = text.indexOf('6. Run `accord gate done <id>`');
   const to = text.indexOf('7. Report the finish');
@@ -762,12 +814,12 @@ it('ac-5 the verify skill offers to promote a ruling or correction into the conv
   expect(c).toBeGreaterThan(w);
   expect(step.slice(c)).toContain('accord/tickets/<id>/verification.md');
   expect(step.slice(c)).toContain('accord/product/conventions.md');
-  const ask = (files.find((f) => f.path === '.claude/skills/accord-verify/ask.md')?.text ?? '').replace(/\s+/g, ' ');
+  const ask = (files.find((f) => f.path === besidePath('verify', 'ask.md'))?.text ?? '').replace(/\s+/g, ' ');
   expect(ask).toContain('Without an explicit yes write nothing anywhere.');
 });
 
 it('risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line', () => {
-  const raw = files.find((f) => f.path === '.claude/skills/accord-build/SKILL.md')?.text ?? '';
+  const raw = files.find((f) => f.path === stagePath('build'))?.text ?? '';
   expect(raw).not.toBe('');
   const text = raw.replace(/\s+/g, ' ');
   const from = text.indexOf('3. **Record.**');
@@ -798,7 +850,7 @@ it('risk:regression the build skill re-briefs a task refused for its report, in 
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const path = dir + '/accord-build/SKILL.md';
+    const path = stagePath('build', undefined, dir);
     const text = (everyFile.get(path) ?? '').replace(/\s+/g, ' ');
     if (text === '') {
       bad.push(path + ' is missing');
@@ -820,7 +872,7 @@ it('risk:regression the build skill tells a missing or old executor report from 
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
-    const text = (everyFile.get(dir + '/accord-build/SKILL.md') ?? '').replace(/\s+/g, ' ');
+    const text = (everyFile.get(stagePath('build', undefined, dir)) ?? '').replace(/\s+/g, ' ');
     const step3 = text.slice(text.indexOf('3. **Record.**'), text.indexOf('4. **Blocked.**'));
     const bullets = step3.split('- It refuses because ').slice(1);
     // the owner bullet's condition (before its colon) names only the tests.report file, so task-done's executor report refusals never match it
@@ -830,7 +882,7 @@ it('risk:regression the build skill tells a missing or old executor report from 
     // the re-brief bullet names every executor report refusal of task-done: missing, written before HEAD's commit, lacking its lines
     const exec = bullets.find((b) => b.includes('Report file')) ?? '';
     for (const p of ['is missing', "written before HEAD's commit", 'lacks its lines', 'run `accord brief <id> <n>` again']) if (!exec.includes(p)) bad.push(dir + ' executor bullet lacks ' + p);
-    const noPlan = (everyFile.get(dir + '/accord-build/no-plan.md') ?? '').replace(/\s+/g, ' ');
+    const noPlan = (everyFile.get(stagePath('build', 'no-plan', dir)) ?? '').replace(/\s+/g, ' ');
     const step4 = noPlan.slice(noPlan.indexOf('4. When it refuses'), noPlan.indexOf('5. With the plan stage off'));
     for (const p of ['`tests.report` file', 'executor report']) if (!step4.includes(p)) bad.push(dir + ' no-plan step 4 lacks ' + p);
     if (/a missing or old report,/.test(step4)) bad.push(dir + ' no-plan step 4 still says "a missing or old report"');
@@ -841,7 +893,7 @@ it('risk:regression the build skill tells a missing or old executor report from 
 it('risk:regression from 0.6.0 the evidence rule text lets only a risk: mark keep an outside-diff finding open, in lane M and lane S (ST-LN-56 56-ac-2, D-10)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const bad: string[] = [];
-  for (const path of ['.claude/skills/accord-review/record.md', '.claude/skills/accord-new/lane-s.md']) {
+  for (const path of [stagePath('review', 'record'), besidePath('new', 'lane-s.md')]) {
     const text = read(path);
     const at = text.indexOf('blocks only with `test:`, `command:` or a `risk:` mark');
     if (at < 0) {
@@ -857,9 +909,9 @@ it('risk:regression from 0.6.0 the evidence rule text lets only a risk: mark kee
 
 it('risk:regression the re-review rule is stated once: added-code rounds, the next cycle\'s round 1, the Re-review: line, in lane M and lane S (ST-LN-56 56-ac-2, D-17)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
-  const record = read('.claude/skills/accord-review/record.md');
-  const lane = read('.claude/skills/accord-new/lane-s.md');
-  const skill = read('.claude/skills/accord-review/SKILL.md');
+  const record = read(stagePath('review', 'record'));
+  const lane = read(besidePath('new', 'lane-s.md'));
+  const skill = read(stagePath('review'));
   const bad: string[] = [];
   // the old sentences that said the next round, whatever it is, answers a fix
   for (const [name, text] of [['record.md', record], ['lane-s.md', lane]] as const) {
@@ -907,23 +959,27 @@ it('ac-5 the ids reference drops a ticket with accord drop', () => {
   expect(drop).toContain('run step 1 there');
   expect(drop).not.toContain('commit step 1');
   expect(flat('.claude/skills/accord-debug/ids.md')).toBe(ids);
-  expect(flat('.claude/skills/accord-verify/ids.md')).toBe(ids);
+  expect(flat(besidePath('verify', 'ids.md'))).toBe(ids);
   expect(flat('.claude/skills/accord/SKILL.md')).not.toContain('accord drop');
 });
 
 it('risk:data-loss the drop steps carry the research records the default branch lacks and copy the research key into the new ticket', () => {
   const idsFiles = files.filter((f) => f.path.endsWith('/ids.md'));
-  expect(idsFiles.map((f) => f.path).sort()).toEqual([
-    '.claude/skills/accord-continue/ids.md',
-    '.claude/skills/accord-debug/ids.md',
-    '.claude/skills/accord-intent/ids.md',
-    '.claude/skills/accord-new/ids.md',
-    '.claude/skills/accord-pickup/ids.md',
-    '.claude/skills/accord-queue/ids.md',
-    '.claude/skills/accord-upgrade/ids.md',
-    '.claude/skills/accord-verify/ids.md',
-    '.claude/skills/accord/ids.md',
-  ]);
+  // one entry per folder that renders ids.md; a folded name's folder is the accord folder, so the list is a set
+  expect(idsFiles.map((f) => f.path).sort()).toEqual(
+    [
+      ...new Set([
+        besidePath('continue', 'ids.md'),
+        '.claude/skills/accord-debug/ids.md',
+        besidePath('intent', 'ids.md'),
+        besidePath('new', 'ids.md'),
+        besidePath('pickup', 'ids.md'),
+        '.claude/skills/accord-upgrade/ids.md',
+        besidePath('verify', 'ids.md'),
+        '.claude/skills/accord/ids.md',
+      ]),
+    ].sort(),
+  );
   for (const f of idsFiles) {
     const text = f.text.replace(/\s+/g, ' ');
     const drop = text.slice(text.indexOf('## Dropping instead of renaming'));
@@ -942,9 +998,9 @@ const LIFT =
   "Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or auth, money, migration or data deletion, is touched; more than one plausible reading, where a reading one question settles stays lane S; the expected files, not counting test files and the copies accord itself generates, number more than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.";
 
 it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its scope', () => {
-  const ln = flatS('.claude/skills/accord-new/lane.md');
+  const ln = flatS(besidePath('new', 'lane.md'));
   expect(ln).not.toBe('');
-  expect(ln).toBe(flatS('.claude/skills/accord-intent/lane.md'));
+  expect(ln).toBe(flatS(besidePath('intent', 'lane.md')));
   const at = (s: string) => ln.indexOf(s);
   expect(at('dispatch `accord-scout`')).toBeGreaterThanOrEqual(0);
   expect(at('dispatch `accord-scout`')).toBeLessThan(at('you form the one question that settles the reading'));
@@ -966,42 +1022,42 @@ it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its
   expect(ln).toContain(
     'counted over the files the scout reports plus the new files you name, minus test files and the copies accord generates: a request that creates 7 new files is lane M.',
   );
-  const acc = flatS('.claude/skills/accord-new/SKILL.md');
+  const acc = flatS(stagePath('new'));
   const nr = acc.slice(acc.indexOf('## New request'), acc.indexOf('## Rules'));
   expect(nr).toContain('`./lane.md`');
   expect(nr).toContain('however small it looks');
-  const ls = flatS('.claude/skills/accord-new/lane-s.md');
+  const ls = flatS(besidePath('new', 'lane-s.md'));
   expect(ls.slice(ls.indexOf('## Start'), ls.indexOf('## Steps'))).toContain('`## Scope`');
   const step1 = ls.slice(ls.indexOf('1. **Understood.**'), ls.indexOf('2. **Change.**'));
   expect(step1).toContain('When `## Scope` holds no path');
   expect(step1.indexOf('When `## Scope` holds no path')).toBeLessThan(step1.indexOf('`accord gate ready <id>`'));
-  expect(flatS('.claude/skills/accord-intent/SKILL.md')).toContain('four lift conditions in `./lane.md`');
+  expect(flatS(stagePath('intent'))).toContain('four lift conditions in `./lane.md`');
 });
 
 it('ac-1 the accord skill lifts lane S to M only by the four conditions left', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  const ln = flatS('.claude/skills/accord-new/lane.md');
+  const ln = flatS(besidePath('new', 'lane.md'));
   expect(ln.split(LIFT).length - 1).toBe(1);
   expect(ln.split('lifts S to M').length - 1).toBe(1);
   expect(acc).not.toContain('lifts S to M');
   expect(acc).not.toContain('user-visible');
   expect(acc).not.toContain('about three files');
-  const ls = flatS('.claude/skills/accord-new/lane-s.md');
+  const ls = flatS(besidePath('new', 'lane-s.md'));
   expect(ls).not.toBe('');
   expect(ls).not.toContain('user-visible');
   expect(ls).not.toContain('lifts S to M');
 });
 
 it('ac-4 every lane S change is worked from its own lane S ticket in its worktree', () => {
-  const acc = flatS('.claude/skills/accord-new/SKILL.md');
+  const acc = flatS(stagePath('new'));
   const s = acc.slice(acc.indexOf('- **S.**'), acc.indexOf('- **M.**'));
   expect(s).toContain('`accord new ticket <id> --lane S --worktree --title "<title>"`');
   expect(s).toContain('`./lane-s.md`');
-  const continueSkill = flatS('.claude/skills/accord-continue/SKILL.md');
+  const continueSkill = flatS(stagePath('continue'));
   const cont = continueSkill.slice(continueSkill.indexOf('## Steps'), continueSkill.indexOf('## Rules'));
   expect(cont).toContain('`Lane: S`');
   expect(cont).toContain('`./lane-s.md`');
-  const ls = flatS('.claude/skills/accord-new/lane-s.md');
+  const ls = flatS(besidePath('new', 'lane-s.md'));
   const phrases = [
     'never in the main checkout', '`accord worktree open <id>`', '`## Understood`', '`## Done when`', '`accord gate ready <id>`',
     'Make no other change before that', 'Never run `accord approve`', 'you make the change yourself', '`tests.affected`',
@@ -1017,7 +1073,7 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
   expect(ls.indexOf('`accord gate ready <id>`')).toBeLessThan(ls.indexOf('**Change.**'));
   expect(ls.indexOf('reproduces it')).toBeLessThan(ls.indexOf('then fix it'));
   expect(ls.indexOf('`## Round <n>`')).toBeLessThan(ls.indexOf('**Verdict.**'));
-  expect(flatS('.claude/skills/accord-new/lane-s.md')).toContain('run `tests.full` first');
+  expect(flatS(besidePath('new', 'lane-s.md'))).toContain('run `tests.full` first');
   expect(flatS('.claude/skills/accord/SKILL.md')).toContain('A lane never drops once its intent is approved');
   const rev = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
   expect(rev).toContain('`## Understood` and `## Done when`');
@@ -1027,7 +1083,7 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
 
 it('risk:regression the accord skill routes upgrade to its reference and the worktree reference names the continue merge and the automatic clean', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  for (const s of ['`/accord upgrade` loads `accord-upgrade`', 'Any other text, but `upgrade` or `onboard`: follow `./route.md`']) expect(acc).toContain(s);
+  for (const s of ['`/accord upgrade` loads `accord-upgrade`', 'Any other text, but `upgrade`, `onboard` or `queue` with text after it: follow `./route.md`']) expect(acc).toContain(s);
   expect(flatS('.claude/skills/accord-upgrade/SKILL.md')).toContain('`./upgrade.md`');
   // WR-09: onboard is excluded from the New-request rule, and the session check still runs before it
   expect(acc).not.toContain('Any other text, but `upgrade`, starts');
@@ -1060,10 +1116,10 @@ it('risk:regression the accord skill routes upgrade to its reference and the wor
 
 it('risk:regression a finished ticket reports a verdict, never a merge, then dashboard next steps', () => {
   const text = (path: string) => (files.find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
-  expect(text('.claude/skills/accord-verify/SKILL.md')).toContain('7. Report the finish as `./finish.md` says.');
-  expect(text('.claude/skills/accord-new/lane-s.md')).toContain("It waits for the owner's merge. Report the finish as `./finish.md` says.");
-  for (const dir of ['accord-verify', 'accord-new']) {
-    const finish = text(`.claude/skills/${dir}/finish.md`);
+  expect(text(stagePath('verify'))).toContain('7. Report the finish as `./finish.md` says.');
+  expect(text(besidePath('new', 'lane-s.md'))).toContain("It waits for the owner's merge. Report the finish as `./finish.md` says.");
+  for (const name of ['verify', 'new']) {
+    const finish = text(besidePath(name, 'finish.md'));
     for (const s of [
       '`✅ <id> DONE — PR #<n> ready, waiting for your merge: <url>`',
       'never write that it is merged',
@@ -1074,7 +1130,7 @@ it('risk:regression a finished ticket reports a verdict, never a merge, then das
       'Leave out an action on the ticket just finished.',
       '`(recommended)`',
     ])
-      expect(finish, dir).toContain(s);
+      expect(finish, name).toContain(s);
   }
 });
 
@@ -1097,7 +1153,7 @@ it('risk:regression the stage skills run accord worktree push after each stage c
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
     for (const [stage, from, to, commit, go, file] of ROWS) {
-      const text = flat(dir + '/' + installedName(stage) + '/' + (file ?? 'SKILL.md'));
+      const text = flat(stagePath(stage, file, dir));
       const a = text.indexOf(from);
       const b = text.indexOf(to, a);
       if (a < 0 || b < 0) {
@@ -1112,11 +1168,11 @@ it('risk:regression the stage skills run accord worktree push after each stage c
       if (go && (p < 0 || step.indexOf(GO) < p)) bad.push(`${dir} ${stage}: go-on clause not after the push`);
     }
     // ST-LN-91 plan 03-04: the intent yes step is gone; the discuss stage pushes after each answer's commit instead.
-    const discuss = flat(dir + '/' + installedName('intent') + '/discuss.md');
+    const discuss = flat(stagePath('intent', 'discuss', dir));
     const dc = discuss.indexOf('Commit both files');
     const dp = discuss.indexOf(PUSH, dc);
     if (dc < 0 || dp < 0 || discuss.indexOf(GO, dp) < 0) bad.push(`${dir} intent discuss.md: ${PUSH} not after the commit with a go-on clause`);
-    if (flat(dir + '/' + installedName('review') + '/SKILL.md').includes('worktree push')) bad.push(`${dir} review: pushes`);
+    if (flat(stagePath('review', undefined, dir)).includes('worktree push')) bad.push(`${dir} review: pushes`);
   }
   const refs = every.filter((f) => f.path.endsWith('/worktree.md')).map((f) => f.path);
   for (const dir of skillDirs(all)) {
@@ -1133,8 +1189,8 @@ it('risk:regression the stage skills run accord worktree push after each stage c
 
 it('risk:parsing the declaration lines the lane S steps the reviewer and the review record write match what gate done parses', () => {
   const rev = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
-  const ls = flatS('.claude/skills/accord-new/lane-s.md');
-  const rec = flatS('.claude/skills/accord-review/record.md');
+  const ls = flatS(besidePath('new', 'lane-s.md'));
+  const rec = flatS(stagePath('review', 'record'));
   const wording = '`Wording-only: <path> — <reason>`';
   const confirmed = '`Confirmed wording-only: <path>`';
   const notInterface = '`Not an interface: <path> — <reason>`';
@@ -1205,11 +1261,11 @@ it('ac-4 a lane M ticket moved to lane S at intent is changed in place and no sk
     const get = (p: string) => flat(render.find((f) => f.path === p)?.text ?? '');
     const acc = get('.claude/skills/accord/SKILL.md');
     for (const n of ['A lane never drops once its intent is approved', 'to lane S in place, as `./ids.md` says']) if (!acc.includes(n)) bad.push('accord/SKILL.md lacks ' + n);
-    const intent = get('.claude/skills/accord-intent/SKILL.md');
-    for (const n of ['propose moving it to lane S', "Move it only on the owner's yes, as `## Moving to lane S` in `./ids.md` says"]) if (!intent.includes(n)) bad.push('accord-intent/SKILL.md lacks ' + n);
-    if (intent.includes('Drop it')) bad.push('accord-intent/SKILL.md still holds Drop it');
-    const ls = get('.claude/skills/accord-new/lane-s.md');
-    if (!ls.includes('When `## Understood` and `## Done when` in `accord/tickets/<id>.md` each hold a line, keep them')) bad.push('accord-new/lane-s.md lost the keep rule');
+    const intent = get(stagePath('intent'));
+    for (const n of ['propose moving it to lane S', "Move it only on the owner's yes, as `## Moving to lane S` in `./ids.md` says"]) if (!intent.includes(n)) bad.push(stagePath('intent') + ' lacks ' + n);
+    if (intent.includes('Drop it')) bad.push(stagePath('intent') + ' still holds Drop it');
+    const ls = get(besidePath('new', 'lane-s.md'));
+    if (!ls.includes('When `## Understood` and `## Done when` in `accord/tickets/<id>.md` each hold a line, keep them')) bad.push(besidePath('new', 'lane-s.md') + ' lost the keep rule');
   }
   expect(bad).toEqual([]);
   expect(offenders).toEqual([]);
@@ -1219,12 +1275,12 @@ it('risk:regression the lane S and approach skills wait for a prerequisite merge
   const wait =
     "When it says a `depends_on` ticket is not done on the default branch, never remove that entry from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and `accord gate ready <id>` again.";
   // ST-LN-91 plan 03-05: the approach wait text lives in approval.md, which SKILL.md step 5 names.
-  for (const p of ['.claude/skills/accord-new/lane-s.md', '.claude/skills/accord-approach/approval.md']) expect(flatS(p)).toContain(wait);
+  for (const p of [besidePath('new', 'lane-s.md'), stagePath('approach', 'approval')]) expect(flatS(p)).toContain(wait);
 });
 
 it('risk:regression a lane M ticket that gate ready refuses is never planned from approach or continue', () => {
   const G = "Else, at any stage but `intent`, first run `accord gate ready <id>`; when it fails, show the owner what it prints and stop; when it changes the ticket, commit the ticket.";
-  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord-continue <id>` plans the ticket once the gate passes.";
+  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord continue <id>` plans the ticket once the gate passes.";
   const tickets: Files = { 'accord/config.yml': CONFIG, [P('A')]: laneTicket('A'), [P('B')]: laneTicket('B', { frontmatter: ['depends_on: ["A"]'] }) };
   approve(tickets, 'B');
   const snap = loadSnapshot({ files: tickets, tree: Object.keys(tickets) });
@@ -1233,16 +1289,16 @@ it('risk:regression a lane M ticket that gate ready refuses is never planned fro
   expect(r.findings.some((f) => f.rule === 'gate.depends-unmerged')).toBe(true);
   expect(anchorText(snap, 'B')).toContain('Stage: plan, next: ');
 
-  const app = flatS('.claude/skills/accord-approach/SKILL.md');
+  const app = flatS(stagePath('approach'));
   expect(app).toContain(H);
   // ST-LN-91 plan 03-05: step 5 names ./approval.md, which holds the depends_on wait, before step 6.
-  expect(flatS('.claude/skills/accord-approach/approval.md')).toContain("never remove that entry from `depends_on`");
+  expect(flatS(stagePath('approach', 'approval'))).toContain("never remove that entry from `depends_on`");
   const mid = app.indexOf('./approval.md');
   expect(mid).toBeGreaterThanOrEqual(0);
   expect(mid).toBeLessThan(app.indexOf(H));
   expect(app.indexOf(H)).toBeLessThan(app.indexOf('## Rules'));
 
-  const continueSkill = flatS('.claude/skills/accord-continue/SKILL.md');
+  const continueSkill = flatS(stagePath('continue'));
   const step4 = continueSkill.slice(continueSkill.indexOf('4. Otherwise'), continueSkill.indexOf('## Rules'));
   const at = (x: string) => step4.indexOf(x);
   expect(step4).toContain(G);
@@ -1290,14 +1346,14 @@ it('risk:regression the accord skill routes pull request comments to comments.md
 
 it('risk:regression the review skills write version 2 records with heads marks and fix file rulings', () => {
   const missing = (path: string, phrases: readonly string[]) => phrases.filter((p) => !flatText(path).includes(p)).map((p) => path + ' lacks: ' + p);
-  const rv = flatText('.claude/skills/accord-review/SKILL.md');
+  const rv = flatText(stagePath('review'));
   const step = (from: string, to: string) => rv.slice(rv.indexOf(from), rv.indexOf(to));
   const step2 = step('2. **Package.**', '3. **Reviewers.**');
   const step4 = step('4. **Classify.**', '5. **Converged**');
   const step7 = step('7. **Final review.**', '8. **Record.**');
   const reviewer = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
   const problems = [
-    ...missing('.claude/skills/accord-review/record.md', [
+    ...missing(stagePath('review', 'record'), [
       'Round record: 2',
       '`## Round <n> head <sha>`',
       '(added code round 1)',
@@ -1316,7 +1372,7 @@ it('risk:regression the review skills write version 2 records with heads marks a
     ...(step4.includes('re-review only the fix diff: `accord review-package <id>` into') ? [] : ['review step 4 lacks the package without --base']),
     ...(step4.includes('--base <the noted sha>') ? ['review step 4 still holds --base <the noted sha>'] : []),
     ...["--base <the plan's baseline:>", '(final review)'].filter((p) => !step7.includes(p)).map((p) => 'review step 7 lacks: ' + p),
-    ...missing('.claude/skills/accord-new/lane-s.md', [
+    ...missing(besidePath('new', 'lane-s.md'), [
       'Round record: 2',
       '`rests on: Understood "<quote>"`',
       '`rests on: Done when "<quote>"`',
@@ -1324,13 +1380,13 @@ it('risk:regression the review skills write version 2 records with heads marks a
       'bind a `Round record: 2` record only',
       'run that round first, headed `(added code round 1)`, before the verdict',
     ]),
-    ...missing('.claude/skills/accord-review/record.md', [
+    ...missing(stagePath('review', 'record'), [
       'bind a `Round record: 2` record only',
       'run that round first, headed `(added code round 1)`, before the verdict',
       'does not block it',
       'the count restarts at that round, per finding file',
     ]),
-    ...missing('.claude/skills/accord-review/SKILL.md', ['does not block it']),
+    ...missing(stagePath('review'), ['does not block it']),
     ...[
       '`command: <command>`',
       '`risk: security`',
@@ -1349,7 +1405,7 @@ it('risk:regression the record rules defer an ungrounded later finding with its 
   const missing = (path: string, phrases: readonly string[]) => phrases.filter((p) => !flatText(path).includes(p)).map((p) => path + ' lacks: ' + p);
   const reviewer = (role: string): string => (agentTargets(config).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '').replace(/\s+/g, ' ');
   const problems = [
-    ...missing('.claude/skills/accord-plan/critique.md', [
+    ...missing(stagePath('plan', 'critique'), [
       '- plan <r>.<n>',
       'failing case:',
       'risk:',
@@ -1358,8 +1414,8 @@ it('risk:regression the record rules defer an ungrounded later finding with its 
       'the tasks it names',
       'Ruling: the owner allows the plan fix after round <r> of cycle <k> to change',
     ]),
-    ...missing('.claude/skills/accord-approach/critique.md', ['- approach <r>.<n>', 'failing case:', 'never given to the critic']),
-    ...missing('.claude/skills/accord-review/record.md', ['failing case:', 'from round 2']),
+    ...missing(stagePath('approach', 'critique'), ['- approach <r>.<n>', 'failing case:', 'never given to the critic']),
+    ...missing(stagePath('review', 'record'), ['failing case:', 'from round 2']),
     ...['reviewer', 'final-reviewer'].flatMap((role) =>
       ['from round 2', 'deferred with its failing case'].filter((p) => !reviewer(role).includes(p)).map((p) => `accord-${role} lacks: ${p}`),
     ),
@@ -1378,11 +1434,11 @@ it('ac-4 the intent interview moves the evidence it replaces into a dated record
   const bad: string[] = [];
   for (const render of renders) {
     for (const dir of ['.claude/skills', '.agents/skills']) {
-      const raw = (n: string) => render.find((f) => f.path === dir + '/accord-intent/' + n)?.text ?? '';
-      const skillRaw = raw('SKILL.md');
-      const refRaw = raw('research.md');
-      if (skillRaw.length === 0) bad.push(dir + ': accord-intent/SKILL.md is empty');
-      if (refRaw.length === 0) bad.push(dir + ': accord-intent/research.md is empty');
+      const raw = (child?: string) => render.find((f) => f.path === stagePath('intent', child, dir))?.text ?? '';
+      const skillRaw = raw();
+      const refRaw = raw('research');
+      if (skillRaw.length === 0) bad.push(stagePath('intent', undefined, dir) + ' is empty');
+      if (refRaw.length === 0) bad.push(stagePath('intent', 'research', dir) + ' is empty');
       const skill = flat(skillRaw);
       const step2 = skill.slice(skill.indexOf('2. **Look before asking.**'), skill.indexOf('3. **Confirm the parts.**'));
       if (!step2.includes('Before any question, read `./research.md`.')) bad.push(dir + ': step 2 lacks the pointer');
@@ -1441,18 +1497,18 @@ it('risk:data-loss a listed research record the branch adds counts as the ticket
       if (!(evidence > -1 && evidence < move.indexOf('replace the `lane:` line'))) bad.push(f.path + ': evidence is moved after the lane line is replaced');
     }
     for (const dir of ['.claude/skills', '.agents/skills']) {
-      const get = (p: string) => flat(render.find((f) => f.path === dir + '/' + p)?.text ?? '');
+      const get = (p: string) => flat(render.find((f) => f.path === p)?.text ?? '');
       const own = ['`.md` record under `accord/research/` that the ticket lists', "is the ticket's own file", 'needs no `## Scope` line'];
       const checks: [string, string[]][] = [
-        ['accord-new/lane.md', own],
-        ['accord-intent/lane.md', own],
-        ['accord-new/lane-s.md', own],
-        ['accord-intent/research.md', ['`.md` record under `accord/research/` that the ticket lists', "one of the ticket's own files", 'already holds does not count']],
+        [besidePath('new', 'lane.md', dir), own],
+        [besidePath('intent', 'lane.md', dir), own],
+        [besidePath('new', 'lane-s.md', dir), own],
+        [stagePath('intent', 'research', dir), ['`.md` record under `accord/research/` that the ticket lists', "one of the ticket's own files", 'already holds does not count']],
       ];
       for (const [p, needles] of checks) {
         const text = get(p);
-        if (text.length === 0) bad.push(dir + '/' + p + ' is empty');
-        for (const n of needles) if (!text.includes(n)) bad.push(dir + '/' + p + ' lacks ' + n);
+        if (text.length === 0) bad.push(p + ' is empty');
+        for (const n of needles) if (!text.includes(n)) bad.push(p + ' lacks ' + n);
       }
     }
   }
@@ -1461,11 +1517,11 @@ it('risk:data-loss a listed research record the branch adds counts as the ticket
 
 it('risk:regression the review lane S and plan critique skills ask accord round and write the round record version line', () => {
   const missing = (path: string, phrases: readonly string[]) => phrases.filter((p) => !flatText(path).includes(p)).map((p) => path + ' lacks: ' + p);
-  const review = '.claude/skills/accord-review/SKILL.md';
+  const review = stagePath('review');
   const reviewFlat = flatText(review);
   const step6 = reviewFlat.slice(reviewFlat.indexOf('6. **Cap.**'), reviewFlat.indexOf('7. **Final review.**'));
-  const record = '.claude/skills/accord-review/record.md';
-  const planSkill = '.claude/skills/accord-plan/SKILL.md';
+  const record = stagePath('review', 'record');
+  const planSkill = stagePath('plan');
   const problems = [
     ...missing(review, ['`accord round <id>`', 'Fix executor model', "with its path and step 6's `model`"]),
     ...['stop: report to owner', 'before each round and before the verdict'].filter((p) => !step6.includes(p)).map((p) => 'review step 6 lacks: ' + p),
@@ -1481,8 +1537,8 @@ it('risk:regression the review lane S and plan critique skills ask accord round 
       'Before writing the verdict, run `accord round <id>`',
       'git log -1 --format=%H -- accord/tickets/<id>/review.md',
     ]),
-    ...missing('.claude/skills/accord-new/lane-s.md', ['`accord round <id>`', 'Round record: 2', 'stop: report to owner', "before appending step 5's verdict", '## Return from verify <sha>']),
-    ...missing('.claude/skills/accord-plan/critique.md', [
+    ...missing(besidePath('new', 'lane-s.md'), ['`accord round <id>`', 'Round record: 2', 'stop: report to owner', "before appending step 5's verdict", '## Return from verify <sha>']),
+    ...missing(stagePath('plan', 'critique'), [
       '`accord round <id> --plan`',
       'Round record: 1',
       'stop: report to owner',
@@ -1501,7 +1557,7 @@ it('risk:regression the review lane S and plan critique skills ask accord round 
 
 it('risk:regression the worktree reference and the finish report say a session start cleans a merged ticket and nobody removes it by hand', () => {
   for (const dir of ['accord', 'accord-debug', 'accord-verify']) {
-    const wt = flatS(`.claude/skills/${dir}/worktree.md`);
+    const wt = flatS(inFolder(dir, 'worktree.md'));
     // ST-LN-69 7-ac-12: what each clean line asks of the agent (a `kept` line's reason, a research record, a `note`) is in the next action that line prints
     for (const s of [
       'every session start, resume or /clear runs the same clean',
@@ -1511,9 +1567,9 @@ it('risk:regression the worktree reference and the finish report say a session s
     ])
       expect(wt, dir).toContain(s);
   }
-  for (const dir of ['accord-new', 'accord-verify']) {
-    expect(flatS(`.claude/skills/${dir}/finish.md`), dir).toContain("Never wait for the merge, and never remove the ticket's worktree or branches by hand");
-    expect(flatS(`.claude/skills/${dir}/finish.md`), dir).toContain(
+  for (const name of ['new', 'verify']) {
+    expect(flatS(besidePath(name, 'finish.md')), name).toContain("Never wait for the merge, and never remove the ticket's worktree or branches by hand");
+    expect(flatS(besidePath(name, 'finish.md')), name).toContain(
       "A /clear in this finishing session keeps its worktree (`kept <path>: this session's worktree`): the folder goes only after this session has ended, at a session started in another folder, so tell the owner to close this session once the pull request is merged.",
     );
   }
@@ -1521,7 +1577,7 @@ it('risk:regression the worktree reference and the finish report say a session s
 
 it('risk:regression worktree.md tells the agent to do what the line says (ST-LN-69 7-ac-12)', () => {
   for (const dir of ['accord', 'accord-debug', 'accord-verify']) {
-    const wt = flatS(`.claude/skills/${dir}/worktree.md`);
+    const wt = flatS(inFolder(dir, 'worktree.md'));
     expect(wt.length, dir).toBeGreaterThan(0);
     // what stays: the lead, the one sentence about the next action, and what the commands cannot say
     for (const s of [
@@ -1548,11 +1604,11 @@ it('risk:regression worktree.md tells the agent to do what the line says (ST-LN-
 });
 
 it('risk:regression the plan skill and the planner run a measurement one arm on one sample first and the intent skill asks the expected size (ST-LN-93 ac-4)', () => {
-  const plan = flatText('.claude/skills/accord-plan/SKILL.md');
-  const intent = flatText('.claude/skills/accord-intent/SKILL.md');
+  const plan = flatText(stagePath('plan'));
+  const intent = flatText(stagePath('intent'));
   const planner = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-planner.md')?.text ?? '').replace(/\s+/g, ' ');
-  expect(plan.length, 'accord-plan/SKILL.md is missing').toBeGreaterThan(0);
-  expect(intent.length, 'accord-intent/SKILL.md is missing').toBeGreaterThan(0);
+  expect(plan.length, stagePath('plan') + ' is missing').toBeGreaterThan(0);
+  expect(intent.length, stagePath('intent') + ' is missing').toBeGreaterThan(0);
   expect(planner.length, 'accord-planner.md is missing').toBeGreaterThan(0);
   for (const p of ['one arm on one sample', 'before widening', 'gate.plan-size']) expect(plan, p).toContain(p);
   for (const p of ['one arm on one sample', 'Expected size']) expect(planner, p).toContain(p);
@@ -1562,7 +1618,7 @@ it('risk:regression the plan skill and the planner run a measurement one arm on 
 // WR-10: with the plan stage off nothing else asks for accord/tests-baseline.txt, and the locked gate.test-untraced fails every existing test at Done without it.
 it('risk:regression the build skill takes the tests baseline before its single task when the plan stage is off (WR-10)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
-  const noPlan = read('.claude/skills/accord-build/no-plan.md');
+  const noPlan = read(stagePath('build', 'no-plan'));
   const missing = [
     'Before step 1',
     '`accord/tests-baseline.txt` is absent',
@@ -1574,21 +1630,21 @@ it('risk:regression the build skill takes the tests baseline before its single t
   expect(missing).toEqual([]);
   expect(noPlan.indexOf('Before step 1')).toBeLessThan(noPlan.indexOf('1. Run `accord brief'));
   // the build rule and the baseline rule name the one exception, so neither forbids what no-plan.md asks
-  expect(read('.claude/skills/accord-build/SKILL.md')).toContain('except as `./no-plan.md` says');
-  expect(read('.claude/skills/accord-plan/baseline.md')).toContain('except `accord-build` with the plan stage off, as its `no-plan.md` says');
+  expect(read(stagePath('build'))).toContain('except as `./no-plan.md` says');
+  expect(read(stagePath('plan', 'baseline'))).toContain('except `accord-build` with the plan stage off, as its `no-plan.md` says');
 });
 
 // WR-10 (round 2): an executor leaves its work uncommitted until the step 4 ledger commit, so a resumed run (anchor still at build, no ledger line, no baseline) must not take the
 // baseline on a dirty tree: the guard counts the working tree and untracked files as well as the commits. The loaded baseline.md names accord-plan's steps, not accord-build's.
 it('risk:regression the no-plan baseline guard counts uncommitted and untracked work, and baseline.md names accord-plan for its steps (WR-10)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
-  const noPlan = read('.claude/skills/accord-build/no-plan.md');
+  const noPlan = read(stagePath('build', 'no-plan'));
   for (const p of ['`git status --porcelain`', 'untracked', 'lists no path outside `accord/`']) expect(noPlan, p).toContain(p);
-  const baseline = read('.claude/skills/accord-plan/baseline.md');
+  const baseline = read(stagePath('plan', 'baseline'));
   expect(baseline).not.toMatch(/step [78](?! of `accord-plan`)/);
   for (const p of ['step 7 of `accord-plan`', 'step 8 of `accord-plan`']) expect(baseline, p).toContain(p);
   // the plan skill's own step 7 and 8 are the ones named
-  const plan = read('.claude/skills/accord-plan/SKILL.md');
+  const plan = read(stagePath('plan'));
   expect(plan).toMatch(/\b7\. /);
   expect(plan).toMatch(/\b8\. /);
 });
@@ -1597,7 +1653,7 @@ it('risk:regression the no-plan baseline guard counts uncommitted and untracked 
 // and the planner and the critic must know what to plan from and what not to check.
 it('risk:regression the approach-off path re-runs only the approval on a no, and the planner and critic cope with an empty Approach (WR-11)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
-  const approval = read('.claude/skills/accord-approach/approval.md');
+  const approval = read(stagePath('approach', 'approval'));
   const missing = [
     'When `accord anchor` names approach off',
     'there is no option and no `approach-review.md`',
@@ -1617,7 +1673,7 @@ it('risk:regression the approach-off path re-runs only the approval on a no, and
 // WR-12: after a rebase sync the verify skill retypes the review heads the pairs name, shows every sync line, and is routed to when the review stage is off.
 it('risk:regression the verify skill retypes review heads after a rebase, shows every sync line and covers review off (WR-12)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
-  const verify = read('.claude/skills/accord-verify/SKILL.md');
+  const verify = read(stagePath('verify'));
   const missing = [
     'its `synced:`, `pushed:`, `rebased:`, `rebound:` and `verify again:` lines verbatim',
     'retype in `review.md` every round head that is the left side of a pair to its right side',
@@ -1635,10 +1691,10 @@ it('risk:regression the verify skill retypes review heads after a rebase, shows 
 it('risk:regression each stage skill skips its stage when the team turned it off and build goes without a plan (ST-LN-50 t2-ac-5)', () => {
   const read = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const stages: Record<string, string> = {
-    discuss: '.claude/skills/accord-intent/discuss.md',
-    approach: '.claude/skills/accord-approach/SKILL.md',
-    plan: '.claude/skills/accord-plan/SKILL.md',
-    review: '.claude/skills/accord-review/SKILL.md',
+    discuss: stagePath('intent', 'discuss'),
+    approach: stagePath('approach'),
+    plan: stagePath('plan'),
+    review: stagePath('review'),
   };
   const missing: string[] = [];
   for (const [stage, path] of Object.entries(stages)) {
@@ -1650,9 +1706,9 @@ it('risk:regression each stage skill skips its stage when the team turned it off
   const approach = read(stages.approach);
   for (const p of ['only the approval', './approval.md', 'skip steps 2 to 4']) if (!approach.includes(p)) missing.push('approach: ' + p);
   // build: the plan-off line names no-plan.md, which the skill loads and the render ships beside it.
-  const build = read('.claude/skills/accord-build/SKILL.md');
+  const build = read(stagePath('build'));
   if (!build.includes('./no-plan.md')) missing.push('build: ./no-plan.md');
-  const noPlan = read('.claude/skills/accord-build/no-plan.md');
+  const noPlan = read(stagePath('build', 'no-plan'));
   if (noPlan.length === 0) missing.push('no-plan.md is missing from the render output');
   for (const p of ['accord brief <id> 1', 'accord task-done <id> 1 --test', 'ac-<n>=<test id>', '@ui', 'tests.affected', 'tests.full']) if (!noPlan.includes(p)) missing.push('no-plan: ' + p);
   // review: the plan baseline does not exist with the plan stage off, so the package and the final review read from the default branch.
@@ -1669,15 +1725,16 @@ it('risk:regression the plan, verify and debug skills dispatch resume mode when 
     const everyFile = new Map(skillTargets(cfg).map((f) => [f.path, f.text]));
     for (const dir of skillDirs(cfg)) {
       for (const stage of ['plan', 'verify', 'debug']) {
-        const base = dir + '/' + installedName(stage);
-        const skill = everyFile.get(base + '/SKILL.md') ?? '';
-        const resume = everyFile.get(base + '/resume.md') ?? '';
-        if (!skill.includes('./resume.md')) bad.push(base + '/SKILL.md names no ./resume.md');
-        if (resume === '') bad.push(base + '/resume.md is not shipped');
+        const own = stageFile(stage, dir);
+        const resumePath = sideFile(stage, 'resume.md', dir);
+        const skill = everyFile.get(own) ?? '';
+        const resume = everyFile.get(resumePath) ?? '';
+        if (!skill.includes('./resume.md')) bad.push(own + ' names no ./resume.md');
+        if (resume === '') bad.push(resumePath + ' is not shipped');
         for (const p of ['Unfinished:', 'resume mode', 'start the verifier over', 'resume the debugger', UNFINISHED_MARKER, 'accord-planner', 'accord-verifier', 'accord-debugger'])
-          if (resume !== '' && !resume.includes(p)) bad.push(base + '/resume.md lacks: ' + p);
-        if (resume.includes('./critique.md')) bad.push(base + '/resume.md names ./critique.md');
-        if (resume.includes('\\') || resume.includes('packages/')) bad.push(base + '/resume.md holds a backslash or packages/');
+          if (resume !== '' && !resume.includes(p)) bad.push(resumePath + ' lacks: ' + p);
+        if (resume.includes('./critique.md')) bad.push(resumePath + ' names ./critique.md');
+        if (resume.includes('\\') || resume.includes('packages/')) bad.push(resumePath + ' holds a backslash or packages/');
       }
     }
   }
@@ -1688,7 +1745,7 @@ it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 line
   const budget: Record<string, number> = { plan: 5980, verify: 5980, debug: 5450 };
   const bad: string[] = [];
   for (const [stage, max] of Object.entries(budget)) {
-    const text = files.find((f) => f.path === '.claude/skills/' + installedName(stage) + '/SKILL.md')?.text ?? '';
+    const text = files.find((f) => f.path === stageFile(stage))?.text ?? '';
     const bytes = new TextEncoder().encode(text).length;
     if (text === '' || bytes > max) bad.push(stage + ': ' + bytes + ' bytes, budget ' + max);
     if (text.split('\n').length > 120) bad.push(stage + ' is over 120 lines');
@@ -1697,7 +1754,8 @@ it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 line
 });
 
 it('risk:regression the verify stage reads the Unfinished line from an anchor run after the sync, and commits the verification it may resume before the sync (ST-LN-72 review rounds 1 and 2)', () => {
-  for (const f of files.filter((x) => x.path.endsWith('/' + installedName('verify') + '/SKILL.md'))) {
+  expect(files.filter((x) => x.path === stagePath('verify')), stagePath('verify') + ' is rendered').toHaveLength(1);
+  for (const f of files.filter((x) => x.path === stagePath('verify'))) {
     const text = f.text.replace(/\s+/g, ' ');
     const sync = text.indexOf('accord worktree sync');
     const again = text.indexOf('`accord anchor` again');
@@ -1723,9 +1781,11 @@ it('risk:regression every skill text defines an open debug episode the way the c
   expect(files.filter((f) => f.path.endsWith('.md') && f.text.replace(/\s+/g, ' ').includes('last `## ` heading')).map((f) => f.path)).toEqual([]);
   for (const [path, text] of flat('/' + installedName('debug') + '/SKILL.md')) expect(text, path).toContain('no `## Resolved` heading follows its `## Episode <n>` heading');
   for (const [path, text] of flat('/resume.md')) expect(text, path).toContain('no `## Resolved` heading follows its `## Episode <n>` heading');
-  for (const [path, text] of flat('/' + installedName('continue') + '/SKILL.md')) expect(text, path).toContain('no `## Resolved` follows its last `## Episode`');
+  expect(flat(stagePath('continue')), 'continue is rendered').toHaveLength(1);
+  for (const [path, text] of flat(stagePath('continue'))) expect(text, path).toContain('no `## Resolved` follows its last `## Episode`');
   for (const [path, text] of flat('/failure.md')) expect(text, path).toContain('no `## Resolved` follows the last `## Episode`');
-  for (const [path, text] of flat('/ci.md')) expect(text, path).toContain('no `## Resolved` follows its last `## Episode`');
+  expect(flat(stagePath('verify', 'ci')), 'verify ci is rendered').toHaveLength(1);
+  for (const [path, text] of flat(stagePath('verify', 'ci'))) expect(text, path).toContain('no `## Resolved` follows its last `## Episode`');
 });
 
 it('risk:regression the debug stage resumes on an Unfinished line or else dispatches a fresh debugger, never both (ST-LN-72 review round 2)', () => {
@@ -1764,9 +1824,9 @@ const ALL_RUNTIMES = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copil
 const wavesRosters = (): { dir: string; skill: string; waves: string; steps: string[] }[] => {
   const every = new Map(skillTargets(ALL_RUNTIMES).map((f) => [f.path, f.text]));
   return skillDirs(ALL_RUNTIMES).map((dir) => {
-    const raw = every.get(dir + '/accord-build/waves.md') ?? '';
+    const raw = every.get(stagePath('build', 'waves', dir)) ?? '';
     const steps = raw.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => c.replace(/\s+/g, ' '));
-    return { dir, skill: (every.get(dir + '/accord-build/SKILL.md') ?? '').replace(/\s+/g, ' '), waves: raw.replace(/\s+/g, ' '), steps };
+    return { dir, skill: (every.get(stagePath('build', undefined, dir)) ?? '').replace(/\s+/g, ' '), waves: raw.replace(/\s+/g, ' '), steps };
   });
 };
 const lacking = (where: string, text: string, phrases: readonly string[]): string[] => phrases.filter((p) => !text.includes(p)).map((p) => where + ' lacks ' + p);
@@ -1775,7 +1835,7 @@ it('risk:concurrency the build skill dispatches a wave in batches up to the cap,
   const bad: string[] = [];
   for (const { dir, skill, waves, steps } of wavesRosters()) {
     if (waves === '') {
-      bad.push(dir + '/accord-build/waves.md is missing');
+      bad.push(stagePath('build', 'waves', dir) + ' is missing');
       continue;
     }
     const step2 = skill.slice(skill.indexOf('2. **Dispatch.**'), skill.indexOf('3. **Record.**'));
@@ -1928,14 +1988,15 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
     .map((f) => ({ path: f.path, text: f.text.replace(/\s+/g, ' ') }));
   const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
   const copies = (name: string) => all.filter((f) => base(f.path) === name);
-  const OLD = /\/accord (continue|pick-up|upgrade)/;
+  // Phase 8.3 D-03: `/accord continue <id>` and `/accord pick-up <id>` are the forms a skill text names for those actions, so only `/accord upgrade` stays kept to the accord skill's own SKILL.md
+  const OLD = /\/accord upgrade/;
   const SHORT = /\/accord (<[a-z ]*id>|<ticket>|[A-Z]+-[A-Z0-9-]*[0-9])(?![ A-Za-z0-9-])/;
   // the guard can neither pass vacuously nor flag the routed text form D-02 keeps
   for (const s of ['`/accord <id>`', '`/accord ST-9`', 'type `/accord <ticket id>` now', 'ends /accord T-1']) expect(SHORT.test(s), s).toBe(true);
   for (const s of ['`/accord <id> ` followed by the report', '`/accord <request>`', '`/accord onboard`', '`/accord continue ST-99` is', '`/accord-continue <id>`', '`/accord`']) expect(SHORT.test(s), s).toBe(false);
   expect(all.length).toBeGreaterThan(100);
   expect(new Set(all.map((f) => f.path.split('/')[0])).size).toBe(2); // .claude and .agents
-  // (a) only the accord skill's own SKILL.md keeps the legacy typed forms
+  // (a) only the accord skill's own SKILL.md keeps the legacy typed form
   expect(all.filter((f) => OLD.test(f.text) && !/(^|\/)skills\/accord\/SKILL\.md$/.test(f.path)).map((f) => f.path)).toEqual([]);
   expect(all.filter((f) => /(^|\/)skills\/accord\/SKILL\.md$/.test(f.path) && OLD.test(f.text)).length).toBe(2);
   // (b) no short Continue or Pick up form anywhere
@@ -1943,16 +2004,18 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
   // (c) the finish reference names the commands themselves
   const finish = copies('finish.md');
   expect(finish.length).toBeGreaterThan(0);
-  for (const f of finish) for (const s of ['`/accord-continue <id>`', '`/accord-pickup <id>`', '`/accord-new <request>`']) expect(f.text, f.path).toContain(s);
+  for (const f of finish) for (const s of ['`/accord continue <id>`', '`/accord pick-up <id>`', '`/accord <request>`']) expect(f.text, f.path).toContain(s);
+  for (const f of finish) for (const s of ['`/accord-continue', '`/accord-pickup', '`/accord-new']) expect(f.text, f.path).not.toContain(s);
   // (d) the routed `/accord <id> ` text form stays in comments.md and failure.md
   for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('`/accord <id> ` followed by');
-  // (e) a step of the old Continue section is named as a step of accord-continue
-  const bad = all.filter((f) => /Continue('s)? steps?/.test(f.text)).map((f) => f.path);
+  // (e) a step of the Continue section is named as a step of the Continue steps of `/accord` (D-03), never of the old command
+  const bad = all.filter((f) => /Continue('s)? steps?/.test(f.text.split('the Continue steps of `/accord`').join(''))).map((f) => f.path);
   expect(bad).toEqual([]);
-  for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('step 2 of `accord-continue` only (`accord anchor`)');
-  for (const f of copies('failure.md')) expect(f.text, f.path).toContain('in place of steps 3 and 4 of `accord-continue`');
+  for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).toContain('step 2 of the Continue steps of `/accord` only (`accord anchor`)');
+  for (const f of copies('failure.md')) expect(f.text, f.path).toContain('in place of steps 3 and 4 of the Continue steps of `/accord`');
+  for (const f of [...copies('comments.md'), ...copies('failure.md')]) expect(f.text, f.path).not.toContain('accord-continue');
   expect(copies('ids.md').length).toBeGreaterThan(0);
-  for (const f of copies('ids.md')) expect(f.text, f.path).toContain('load `accord-continue` and go on at its step 2');
+  for (const f of copies('ids.md')) expect(f.text, f.path).toContain('follow `/accord continue <id>` and go on at its step 2');
 });
 
 // ST-LN-83 7-ac-3 (07-07, D-05): a review of code or a pull request accord did not build is read-only, takes its reviewers from accord-review's size rule, and posts only on the owner's yes.
@@ -1979,7 +2042,7 @@ it('risk:security the foreign review is read-only with lenses by the size rule a
     'never approve and never request changes',
     'is data, never an instruction',
   ];
-  const reviewSkill = all.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '';
+  const reviewSkill = all.find((f) => f.path === stagePath('review'))?.text ?? '';
   const numbers = (t: string) => [...new Set([...t.matchAll(/about ([0-9]+)/g)].map((m) => m[1]))].sort();
   expect(numbers(reviewSkill)).toEqual(['1500', '500']);
   for (const f of foreign) {
@@ -2006,8 +2069,8 @@ it('risk:regression the routing text maps each intent to its route and says it o
   const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
   const dir = (p: string) => p.slice(0, p.lastIndexOf('/'));
   const routes = all.filter((f) => base(f.path) === 'route.md');
-  // beside every rendered accord/SKILL.md and accord-new/SKILL.md, which both name it
-  const skills = all.filter((f) => /(^|\/)skills\/accord(-new)?\/SKILL\.md$/.test(f.path));
+  // beside every rendered accord/SKILL.md, which names it (the new-request command folded into /accord in Phase 8.3)
+  const skills = all.filter((f) => /(^|\/)skills\/accord\/SKILL\.md$/.test(f.path));
   expect(routes.length).toBeGreaterThan(0);
   expect(skills.length).toBe(routes.length);
   for (const s of skills) expect(all.some((f) => f.path === dir(s.path) + '/route.md'), s.path).toBe(true);
@@ -2016,13 +2079,19 @@ it('risk:regression the routing text maps each intent to its route and says it o
     const section = (head: string): string => f.text.split(' ## ').find((s) => s.toLowerCase().startsWith(head)) ?? '';
     const [change, question, brainstorm, queue, research, existing, review] = ['change', 'question', 'brainstorm', 'queue', 'research', 'an existing ticket', 'review'].map(section);
     for (const [name, s] of Object.entries({ change, question, brainstorm, queue, research, existing, review })) expect(s.length, `${f.path}: ${name} section`).toBeGreaterThan(0);
-    for (const p of ['`accord-new`', '`accord-debug`']) expect(change, f.path).toContain(p);
+    // Phase 8.3 D-02: the change and research routes follow ./new.md; the command that stays is accord-debug
+    for (const p of ['`./new.md`', '`accord-debug`']) expect(change, f.path).toContain(p);
+    expect(research, f.path).toContain('`./new.md`');
+    expect(change + research, f.path).not.toContain('accord-new');
     expect(question, f.path).toContain('from the code');
     for (const banned of ['accord new ticket', 'accord-scout', 'scout', 'lane']) expect(question.toLowerCase(), `${f.path}: question holds ${banned}`).not.toContain(banned);
     const end = brainstorm.slice(brainstorm.indexOf('End by proposing'));
     expect(brainstorm, f.path).toContain('one question at a time');
     for (const p of ['End by proposing', 'build now', 'queue', 'research', 'nothing']) expect(end, f.path).toContain(p);
-    expect(queue, f.path).toContain('`accord-queue`');
+    // Phase 8.3 D-03: build now is `/accord <request>`, queue is `/accord queue <idea>`; no old command is proposed
+    expect(end, f.path).toContain('build now (`/accord <request>`), queue (`/accord queue <idea>`)');
+    expect(end, f.path).not.toContain('accord-new');
+    expect(queue, f.path).toContain('`./queue.md`');
     expect(research, f.path).toContain('lane R');
     expect(existing, f.path).toContain('`accord drop <id> --reason');
     expect(review, f.path).toContain('`./review-foreign.md`');
@@ -2062,7 +2131,7 @@ const similarRender = () =>
 
 it('risk:regression the new skill judges the candidates and asks one question on a match (ST-LN-22 7-ac-5)', () => {
   const all = similarRender();
-  const skills = all.filter((f) => f.path.endsWith('/accord-new/SKILL.md'));
+  const skills = all.filter((f) => f.path === stagePath('new') || f.path === stagePath('new', undefined, '.agents/skills'));
   expect(skills.length).toBe(2);
   for (const s of skills) {
     const dir = s.path.slice(0, s.path.lastIndexOf('/'));
@@ -2113,14 +2182,15 @@ it('risk:regression every skill line that creates a ticket passes a title and ju
   expect(all.length).toBeGreaterThan(100);
   expect(all.flatMap((f) => withoutTitle(f.text).map((c) => f.path + ': ' + c))).toEqual([]);
   const checked = new Set(all.filter((f) => (f.text.match(CREATING) ?? []).some(onCheckedRoute)).map((f) => f.path));
-  for (const p of ['.claude/skills/accord-new/SKILL.md', '.claude/skills/accord-new/lane-s.md', '.claude/skills/accord-queue/SKILL.md', '.claude/skills/accord/ids.md'])
+  for (const p of [stagePath('new'), besidePath('new', 'lane-s.md'), '.claude/skills/accord/queue.md', '.claude/skills/accord/ids.md'])
     expect(checked.has(p), p + ' holds no checked creating line').toBe(true);
   expect(all.filter((f) => f.text.includes('--no-dup-check')).map((f) => f.path)).toEqual([]);
 
   for (const dir of ['.claude/skills', '.agents/skills']) {
     const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
-    const queue = get('accord-queue/SKILL.md');
-    expect(get('accord-queue/similar.md').length, dir + '/accord-queue/similar.md is not rendered').toBeGreaterThan(0);
+    const getAt = (p: string) => all.find((f) => f.path === p)?.text ?? '';
+    const queue = get('accord/queue.md');
+    expect(get('accord/similar.md').length, dir + '/accord/similar.md is not rendered').toBeGreaterThan(0);
     expect(queue, dir + ' queue follows similar.md').toContain('as `./similar.md` says');
     expect(queue, dir + ' queue judges the candidates').toContain('On exit 2 with `similar:` lines, judge them as `./similar.md` says; on any other exit 2');
     expect(queue, dir + ' queue passes a title').toContain('--title "<title>"');
@@ -2133,7 +2203,7 @@ it('risk:regression every skill line that creates a ticket passes a title and ju
     expect(step2.length, dir + ' ids.md step 2').toBeGreaterThan(0);
     expect(step2, dir + ' ids.md step 2 title').toContain('--title "<the dropped ticket\'s title>"');
     expect(step2, dir + ' ids.md step 2 link').toContain("--related <the dropped ticket's id>");
-    const laneS = get('accord-new/lane-s.md');
+    const laneS = getAt(besidePath('new', 'lane-s.md', dir));
     expect(laneS, dir + ' lane-s.md').toContain('./similar.md');
     expect(laneS, dir + ' lane-s.md keeps no title hint of its own').not.toContain('a few words naming the change');
   }
@@ -2157,15 +2227,15 @@ it('risk:regression the scout and the critic receive the related tickets decisio
 
   const all = similarRender();
   for (const dir of ['.claude/skills', '.agents/skills']) {
-    const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
-    const intent = get('accord-intent/SKILL.md');
+    const getAt = (p: string) => all.find((f) => f.path === p)?.text ?? '';
+    const intent = getAt(stagePath('intent', undefined, dir));
     const step2 = intent.slice(intent.indexOf('2. **Look before asking.**'), intent.indexOf('3. **Confirm the parts.**'));
     expect(step2.length, dir + ' intent step 2').toBeGreaterThan(0);
     expect(step2, dir + ' intent step 2 runs the command').toContain(RELATED);
     expect(step2, dir + ' intent step 2 dispatches the scout with it').toContain('Dispatch `accord-scout`');
     expect(step2, dir + ' intent step 2 pastes it').toContain(PASTED);
 
-    const critique = get('accord-approach/critique.md');
+    const critique = getAt(stagePath('approach', 'critique', dir));
     const round1 = critique.slice(critique.indexOf('1. **Read.** Round 1 is `whole`'), critique.indexOf('2. **Record.**'));
     expect(round1.length, dir + ' critique round 1').toBeGreaterThan(0);
     const wholeRead = round1.slice(0, round1.indexOf('From round 2'));
@@ -2180,8 +2250,8 @@ it('risk:regression the scout and the critic receive the related tickets decisio
   // the input reaches no other stage: build, review, verify and lane S name no `accord related`
   const named = all.filter((f) => f.text.includes('accord related')).map((f) => f.path);
   expect(named.length).toBeGreaterThan(0);
-  expect(named.filter((p) => /\/accord-(?:build|review|verify)\//.test(p) || p.endsWith('/lane-s.md'))).toEqual([]);
-  expect(named.filter((p) => !/\/accord-(?:intent|approach)\//.test(p))).toEqual([]);
+  expect(named.filter((p) => ofStage(p, ['build', 'review', 'verify']) || p.endsWith('/lane-s.md'))).toEqual([]);
+  expect(named.filter((p) => !ofStage(p, ['intent', 'approach']))).toEqual([]);
   // and no rendered skill text tells an agent to open other tickets' files for their decisions
   expect(all.flatMap((f) => opensOthers(f.text).map((m) => f.path + ': ' + m))).toEqual([]);
 });
@@ -2189,17 +2259,17 @@ it('risk:regression the scout and the critic receive the related tickets decisio
 it('risk:regression the drop steps offer the Rejected line first and pass the flag only on a yes (ST-LN-84 7-ac-6)', () => {
   const OFFER = "`Rejected: <the ticket's title> — <the reason>`";
   for (const dir of ['.claude/skills']) {
-    for (const name of ['accord/ids.md', 'accord/route.md', 'accord-new/ids.md', 'accord-new/route.md']) {
-      const text = (files.find((f) => f.path === dir + '/' + name)?.text ?? '').replace(/\s+/g, ' ');
-      expect(text, dir + '/' + name).not.toBe('');
+    for (const name of [dir + '/accord/ids.md', dir + '/accord/route.md', besidePath('new', 'ids.md', dir), besidePath('new', 'route.md', dir)]) {
+      const text = (files.find((f) => f.path === name)?.text ?? '').replace(/\s+/g, ' ');
+      expect(text, name).not.toBe('');
       const drop = text.indexOf('`accord drop <id>');
-      expect(drop, dir + '/' + name + ' names the drop').toBeGreaterThanOrEqual(0);
+      expect(drop, name + ' names the drop').toBeGreaterThanOrEqual(0);
       const offer = text.indexOf(OFFER);
-      expect(offer, dir + '/' + name + ' offers the line').toBeGreaterThanOrEqual(0);
-      expect(offer, dir + '/' + name + ' offers it before the drop').toBeLessThan(drop);
+      expect(offer, name + ' offers the line').toBeGreaterThanOrEqual(0);
+      expect(offer, name + ' offers it before the drop').toBeLessThan(drop);
       const flag = text.slice(offer);
-      expect(flag, dir + '/' + name + ' passes the flag only on a yes').toContain('--rejected');
-      expect(flag, dir + '/' + name).toContain('explicit yes');
+      expect(flag, name + ' passes the flag only on a yes').toContain('--rejected');
+      expect(flag, name).toContain('explicit yes');
     }
   }
 });
@@ -2209,7 +2279,7 @@ it('risk:regression every stage offers a rule or Rejected line and records it on
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const read = (p: string) => files.find((f) => f.path === p)?.text ?? '';
   for (const stage of STAGES) {
-    const ask = flat(read('.claude/skills/' + installedName(stage) + '/ask.md'));
+    const ask = flat(read(sideFile(stage, 'ask.md')));
     expect(ask, stage + ' renders ask.md').not.toBe('');
     const at = ask.indexOf('## Recording a rule or a refused option');
     expect(at, stage + ' ask.md holds the offer procedure').toBeGreaterThanOrEqual(0);
@@ -2217,13 +2287,13 @@ it('risk:regression every stage offers a rule or Rejected line and records it on
     for (const phrase of ['states a rule meant to last beyond this ticket', 'overrides a step of a skill', 'refuses an option', '`Rejected: <option> — <reason>`', 'explicit yes', "the ticket ledger's `## Conventions`", 'write nothing anywhere', 'accord/product/conventions.md', '`accord drop --rejected`'])
       expect(section, stage + ' ask.md names ' + phrase).toContain(phrase);
   }
-  const verify = flat(read('.claude/skills/accord-verify/SKILL.md'));
+  const verify = flat(read(stagePath('verify')));
   const step6 = verify.slice(verify.indexOf('6. Run `accord gate done <id>`'), verify.indexOf('7. Report the finish'));
   expect(step6.length, 'verify step 6').toBeGreaterThan(0);
   for (const phrase of ['./ask.md', "ledger's `## Conventions`", 'accord/product/conventions.md']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
   // the sentences that moved to ask.md are gone from step 6, so the rendered file shrank (it was 5975 bytes)
   expect(step6).not.toContain('Without the owner\'s yes');
-  const bytes = Buffer.byteLength(read('.claude/skills/accord-verify/SKILL.md'), 'utf8');
+  const bytes = Buffer.byteLength(read(stagePath('verify')), 'utf8');
   expect(bytes).toBeLessThanOrEqual(6000);
   expect(bytes).toBeLessThan(5975);
   // D-11: no lint or gate rule reads conventions.md
@@ -2237,18 +2307,18 @@ it('risk:regression intent and approach name a matching Rejected line before pro
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const read = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
   for (const stage of ['intent', 'approach']) {
-    const text = read('.claude/skills/' + installedName(stage) + '/SKILL.md');
+    const text = read(stageFile(stage));
     expect(text, stage).not.toBe('');
     for (const phrase of ['compare it with the `## Rejected` lines `accord related <id>` printed', 'name a matching line to the owner first'])
       expect(text, stage + ' names ' + phrase).toContain(phrase);
   }
-  for (const dir of ['accord-new', 'accord-continue']) {
-    const lane = read('.claude/skills/' + dir + '/lane-s.md');
+  for (const name of ['new', 'continue']) {
+    const lane = read(besidePath(name, 'lane-s.md'));
     const finish = lane.slice(lane.indexOf('6. **Pull request.**'));
-    expect(finish.length, dir + ' lane-s.md finish').toBeGreaterThan(0);
+    expect(finish.length, name + ' lane-s.md finish').toBeGreaterThan(0);
     const write = finish.indexOf("every line under the ledger's `## Conventions` into `accord/product/conventions.md`");
-    expect(write, dir + ' lane S writes the ledger lines').toBeGreaterThanOrEqual(0);
-    expect(write, dir + ' lane S writes them before the gate').toBeLessThan(finish.indexOf('`accord gate done <id>`'));
+    expect(write, name + ' lane S writes the ledger lines').toBeGreaterThanOrEqual(0);
+    expect(write, name + ' lane S writes them before the gate').toBeLessThan(finish.indexOf('`accord gate done <id>`'));
   }
   const big = files.filter((f) => f.path.endsWith('/SKILL.md') && (Buffer.byteLength(f.text, 'utf8') > 6000 || f.text.split('\n').length > 120)).map((f) => f.path);
   expect(big).toEqual([]);
@@ -2258,12 +2328,12 @@ it('risk:regression intent and approach name a matching Rejected line before pro
 it('risk:regression verify asks which deferred items go to the backlog through the queue route (ST-LN-12 7-ac-7)', () => {
   const all = similarRender();
   for (const dir of ['.claude/skills', '.agents/skills']) {
-    const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
-    const verify = get('accord-verify/SKILL.md');
+    const getAt = (p: string) => all.find((f) => f.path === p)?.text ?? '';
+    const verify = getAt(stagePath('verify', undefined, dir));
     expect(verify, dir + ' verify names the lister').toContain('`accord deferred <id>`');
     expect(verify, dir + ' verify follows the reference').toContain('`./deferred.md`');
-    const ref = get('accord-verify/deferred.md');
-    expect(ref.length, dir + ' accord-verify/deferred.md is not rendered').toBeGreaterThan(0);
+    const ref = getAt(stagePath('verify', 'deferred', dir));
+    expect(ref.length, stagePath('verify', 'deferred', dir) + ' is not rendered').toBeGreaterThan(0);
     for (const phrase of [
       '`accord deferred <id>`',
       '`Must: <text>`',
@@ -2272,7 +2342,7 @@ it('risk:regression verify asks which deferred items go to the backlog through t
       'ask the owner one question as `./ask.md` says',
       'which become backlog draft tickets',
       '`accord new ticket --queue --type <story|bug> --lane M --title "<title>" --note "<item>"`',
-      'as `accord-queue` does',
+      'as `/accord queue <idea>` does',
       'every other item stays in the ledger as a record',
       'A Nice item is never shown',
       'nothing here blocks `accord gate done`',
@@ -2283,9 +2353,9 @@ it('risk:regression verify asks which deferred items go to the backlog through t
     // the queue route names a title, as the creating-command rule of 07-11 requires
     expect(ref.match(/`accord new ticket[^`]*`/g) ?? [], dir).toEqual(['`accord new ticket --queue --type <story|bug> --lane M --title "<title>" --note "<item>"`']);
     // the reference is loaded by verify, so it renders beside it and its relative references resolve there
-    for (const rel of ref.match(/`\.\/[a-z-]+\.md`/g) ?? []) expect(get('accord-verify/' + rel.slice(3, -1)).length, dir + ' ' + rel).toBeGreaterThan(0);
+    for (const rel of ref.match(/`\.\/[a-z-]+\.md`/g) ?? []) expect(getAt(besidePath('verify', rel.slice(3, -1), dir)).length, dir + ' ' + rel).toBeGreaterThan(0);
   }
-  const bytes = Buffer.byteLength(files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '', 'utf8');
+  const bytes = Buffer.byteLength(files.find((f) => f.path === stagePath('verify'))?.text ?? '', 'utf8');
   expect(bytes).toBeLessThanOrEqual(6000);
 });
 
@@ -2294,9 +2364,9 @@ it("risk:regression verify records the owner's answer on each deferred item's le
   const all = similarRender();
   const bad: string[] = [];
   for (const dir of ['.claude/skills', '.agents/skills']) {
-    const get = (p: string) => all.find((f) => f.path === dir + '/' + p)?.text ?? '';
-    const ref = get('accord-verify/deferred.md');
-    if (ref === '') bad.push(dir + ' accord-verify/deferred.md is not rendered');
+    const getAt = (p: string) => all.find((f) => f.path === p)?.text ?? '';
+    const ref = getAt(stagePath('verify', 'deferred', dir));
+    if (ref === '') bad.push(stagePath('verify', 'deferred', dir) + ' is not rendered');
     for (const phrase of [
       "append ` → <new id>` to the end of that item's line in `accord/tickets/<id>/ledger.md`",
       "the word of the queue's `title:` line",
@@ -2312,7 +2382,7 @@ it("risk:regression verify records the owner's answer on each deferred item's le
       'marked declined',
     ])
       if (!ref.includes(phrase)) bad.push(dir + ' deferred.md lacks: ' + phrase);
-    const skill = all.find((f) => f.path === dir + '/accord-verify/SKILL.md')?.raw ?? '';
+    const skill = all.find((f) => f.path === stagePath('verify', undefined, dir))?.raw ?? '';
     if (Buffer.byteLength(skill, 'utf8') > 5980) bad.push(dir + ' verify SKILL.md is over 5980 bytes');
     if (skill.split(String.fromCharCode(10)).length > 120) bad.push(dir + ' verify SKILL.md is over 120 lines');
     const step6 = skill.replace(/\s+/g, ' ');
@@ -2330,11 +2400,11 @@ it('risk:regression only the discuss step dispatches the researcher and the sess
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig);
   const bad: string[] = [];
   for (const dir of ['.claude/skills', '.agents/skills']) {
-    const get = (n: string) => all.find((f) => f.path === dir + '/accord-intent/' + n)?.text ?? '';
+    const get = (n: string) => all.find((f) => f.path === stagePath('intent', n, dir))?.text ?? '';
     const discussRaw = get('discuss.md');
     const researchRaw = get('research.md');
-    if (discussRaw.length === 0) bad.push(dir + ': accord-intent/discuss.md is empty');
-    if (researchRaw.length === 0) bad.push(dir + ': accord-intent/research.md is empty');
+    if (discussRaw.length === 0) bad.push(stagePath('intent', 'discuss', dir) + ' is empty');
+    if (researchRaw.length === 0) bad.push(stagePath('intent', 'research', dir) + ' is empty');
     const discuss = flat(discussRaw);
     for (const p of [
       'dispatch `accord-researcher` once per library',
@@ -2366,7 +2436,7 @@ it('risk:regression only the discuss step dispatches the researcher and the sess
     // no other rendered file names the researcher
     for (const f of all) {
       if (!f.path.startsWith(dir + '/')) continue;
-      if (f.path === dir + '/accord-intent/discuss.md') continue;
+      if (f.path === stagePath('intent', 'discuss', dir)) continue;
       if (f.text.includes('accord-researcher')) bad.push(f.path + ' names accord-researcher');
     }
   }
@@ -2379,14 +2449,14 @@ it('risk:regression a session without the researcher agent follows the same rule
   for (const runtimes of [['codex'], ['cursor'], ['copilot'], ['codex', 'cursor', 'copilot']] as AccordConfig['runtimes'][]) {
     const cfg = { ...config, runtimes } as AccordConfig;
     expect(agentTargets(cfg), runtimes.join(',') + ' renders no agent file').toEqual([]);
-    const text = flat(skillTargets(cfg).find((f) => f.path === '.agents/skills/accord-intent/discuss.md')?.text ?? '');
+    const text = flat(skillTargets(cfg).find((f) => f.path === stagePath('intent', 'discuss', '.agents/skills'))?.text ?? '');
     expect(text.length, runtimes.join(',') + ' renders no .agents/skills discuss.md').toBeGreaterThan(0);
     expect(text, runtimes.join(',')).toContain(RESEARCH_FALLBACK);
   }
   // with every runtime both copies carry it
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig);
   for (const dir of ['.agents/skills', '.claude/skills']) {
-    expect(flat(all.find((f) => f.path === dir + '/accord-intent/discuss.md')?.text ?? ''), dir).toContain(RESEARCH_FALLBACK);
+    expect(flat(all.find((f) => f.path === stagePath('intent', 'discuss', dir))?.text ?? ''), dir).toContain(RESEARCH_FALLBACK);
   }
 });
 
@@ -2395,13 +2465,13 @@ it('risk:regression verify offers an epic lesson and writes it only to the story
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const read = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
   for (const stage of STAGES) {
-    const ask = read('.claude/skills/' + installedName(stage) + '/ask.md');
+    const ask = read(sideFile(stage, 'ask.md'));
     const section = ask.slice(ask.indexOf('## Recording a rule or a refused option'));
     expect(section.length, stage + ' ask.md holds the recording section').toBeGreaterThan(0);
     for (const phrase of ['a story with `parent:`', 'holds for the whole epic', '`- Lesson: <lesson> — "<the owner\'s words, in English>"`', 'under `## Epic lessons`', "that story's own ledger", 'nowhere else', 'once this story is on the default branch'])
       expect(section, stage + ' ask.md names ' + phrase).toContain(phrase);
   }
-  const verify = read('.claude/skills/accord-verify/SKILL.md');
+  const verify = read(stagePath('verify'));
   const step6 = verify.slice(verify.indexOf('6. Run `accord gate done <id>`'), verify.indexOf('7. Report the finish'));
   for (const phrase of ['across its epic', './ask.md', 'a line, a lesson or a mark was written', 'no line or mark was written', 'and the ledger']) expect(step6, 'verify step 6 names ' + phrase).toContain(phrase);
   // no shared epic file and no write into another ticket's folder is asked of any rendered skill
@@ -2410,7 +2480,7 @@ it('risk:regression verify offers an epic lesson and writes it only to the story
     expect(text, f.path).not.toMatch(/accord\/tickets\/<(?:parent|epic|sibling)[^>]*>/);
     expect(text, f.path).not.toMatch(/epic[- ]wide (?:state )?file|STATE\.md/i);
   }
-  expect(Buffer.byteLength(files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '', 'utf8')).toBeLessThanOrEqual(6000);
+  expect(Buffer.byteLength(files.find((f) => f.path === stagePath('verify'))?.text ?? '', 'utf8')).toBeLessThanOrEqual(6000);
 });
 
 // ST-LN-28 7-ac-9 (07-25, D-14 and D-16): lane L of accord-new runs one epic interview, shows the split, takes the owner's yes and runs the one split command; no critic is dispatched for the epic.
@@ -2419,12 +2489,12 @@ it('risk:regression accord-new runs an epic interview and creates the approved s
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
   const bad: string[] = [];
   for (const dir of ['.claude/skills', '.agents/skills']) {
-    const get = (p: string) => flat(all.find((f) => f.path === dir + '/accord-new/' + p)?.text ?? '');
+    const get = (p: string) => flat(all.find((f) => f.path === stagePath('new', p === 'SKILL.md' ? undefined : p, dir))?.text ?? '');
     const skill = get('SKILL.md');
     const epic = get('epic.md');
-    if (epic.length === 0) { bad.push(dir + '/accord-new/epic.md is not rendered'); continue; }
+    if (epic.length === 0) { bad.push(stagePath('new', 'epic', dir) + ' is not rendered'); continue; }
     const route = skill.slice(skill.indexOf('- **L and P.**'), skill.indexOf('## Rules'));
-    for (const p of ['`./epic.md`', 'P is not built yet', 'propose an epic instead']) if (!route.includes(p)) bad.push(dir + ' accord-new lane L and P route lacks ' + p);
+    for (const p of ['`./new-epic.md`', 'P is not built yet', 'propose an epic instead']) if (!route.includes(p)) bad.push(dir + ' accord-new lane L and P route lacks ' + p);
     for (const p of [
       'why',
       'for whom',
@@ -2438,7 +2508,7 @@ it('risk:regression accord-new runs an epic interview and creates the approved s
       'what the owner has already settled for every story (the Decisions)',
       'is a Decision, never a line of Intent',
       'the command numbers them D-01, D-02 in order',
-      '`/accord-pickup <id>`',
+      '`/accord pick-up <id>`',
       'its own worktree',
       'in parallel',
       'The epic itself gets no approach and no plan critique',
@@ -2462,14 +2532,14 @@ it('risk:regression accord-new proposes lane L for a request of three or more st
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
   const bad: string[] = [];
   for (const dir of ['.claude/skills', '.agents/skills']) {
-    const get = (p: string) => flat(all.find((f) => f.path === dir + '/' + p)?.text ?? '');
-    const lane = get('accord-new/lane.md');
+    const get = (p: string) => flat(all.find((f) => f.path === p)?.text ?? '');
+    const lane = get(besidePath('new', 'lane.md', dir));
     for (const p of [
       'is lane L, an epic, when it names three or more parts that would each be a story of its own',
       'Count only the parts the request names',
       'a request of one or two such parts stays lane S or M',
     ]) if (!lane.includes(p)) bad.push(dir + ' accord-new/lane.md lacks ' + p);
-    if (!get('accord-new/route.md').includes('it proposes lane S, M or L')) bad.push(dir + ' accord-new/route.md does not say lane S, M or L');
+    if (!get(besidePath('new', 'route.md', dir)).includes('it proposes lane S, M or L')) bad.push(dir + ' accord-new/route.md does not say lane S, M or L');
     if (lane.split('lifts S to M').length !== 2) bad.push(dir + ' accord-new/lane.md does not hold the lift paragraph exactly once');
   }
   expect(bad).toEqual([]);
@@ -2481,10 +2551,10 @@ it('risk:regression the lane step of accord-new dispatches no researcher (ST-LN-
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
   const bad: string[] = [];
   for (const dir of ['.claude/skills', '.agents/skills']) {
-    const get = (p: string) => flat(all.find((f) => f.path === dir + '/' + p)?.text ?? '');
-    const lane = get('accord-new/lane.md');
+    const get = (p: string) => flat(all.find((f) => f.path === p)?.text ?? '');
+    const lane = get(besidePath('new', 'lane.md', dir));
     for (const p of ['Dispatch only the scout at this step, and never the researcher', 'at the discuss step of the intent stage']) if (!lane.includes(p)) bad.push(dir + ' accord-new/lane.md lacks ' + p);
-    const skill = get('accord-new/SKILL.md');
+    const skill = get(stagePath('new', undefined, dir));
     for (const p of ['Never dispatch the researcher from this skill', 'at the discuss step of `accord-intent`']) if (!skill.includes(p)) bad.push(dir + ' accord-new/SKILL.md lacks ' + p);
   }
   expect(bad).toEqual([]);

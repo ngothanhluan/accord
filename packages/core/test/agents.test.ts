@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { AGENT_DEFAULTS, agents, agentTargets, contentHash, markerHash, renderAgent, REPORT_CONTRACT, reportReasons, rulesetText, skills, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
+import { stagePath } from './helpers/stage-files.js';
 
 const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
 const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
@@ -444,7 +445,7 @@ it('ac-5 an api a finding relies on carries a citation the planner confirms', ()
   const flat = (s: string): string => s.replace(/\s+/g, ' ');
   const criticRaw = agent('.claude/agents/accord-critic.md');
   const plannerRaw = agent('.claude/agents/accord-planner.md');
-  const loopPath = '.claude/skills/accord-plan/critique.md';
+  const loopPath = stagePath('plan', 'critique');
   const loopRaw = skillTargets(cfg).find((f) => f.path === loopPath)?.text ?? '';
   expect(criticRaw, 'critic is empty').not.toBe('');
   expect(plannerRaw, 'planner is empty').not.toBe('');

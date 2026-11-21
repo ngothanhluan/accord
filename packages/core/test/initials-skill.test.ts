@@ -1,4 +1,4 @@
-// G-07-2: the rendered ids.md, worktree.md and accord-queue say where the people entry goes: the queue command commits it with the draft,
+// G-07-2: the rendered ids.md, worktree.md and accord/queue.md say where the people entry goes: the queue command commits it with the draft,
 // new ticket reads initials from other branches, and the carry rule covers an entry an earlier run left uncommitted.
 import { expect, it } from 'vitest';
 import { skillTargets } from '../src/index.js';
@@ -18,7 +18,7 @@ const rendered = (suffix: string): { path: string; text: string }[] => files.fil
 
 it('risk:regression 7-ac-4 G-07-2 every rendered ids.md says the queue commits the entry and where new ticket reads initials', () => {
   const ids = rendered('/ids.md');
-  expect(ids.length).toBe(9);
+  expect(ids.length).toBe(5);
   const missing = ids.flatMap(({ path, text }) =>
     [
       "then from origin's default branch, then from any fetched branch whose entries agree",
@@ -33,7 +33,7 @@ it('risk:regression 7-ac-4 G-07-2 every rendered ids.md says the queue commits t
 
 it('risk:regression 7-ac-4 G-07-2 every rendered worktree.md carries an entry an earlier run left uncommitted', () => {
   const worktree = rendered('/worktree.md');
-  expect(worktree.length).toBe(7);
+  expect(worktree.length).toBe(4);
   const missing = worktree.flatMap(({ path, text }) =>
     [
       '`git diff HEAD -- accord/config.yml` here shows your entry under `people` as added',
@@ -47,8 +47,8 @@ it('risk:regression 7-ac-4 G-07-2 every rendered worktree.md carries an entry an
   expect(missing).toEqual([]);
 });
 
-it('risk:regression 7-ac-4 G-07-2 the rendered accord-queue says what its commit holds and follows the people line', () => {
-  const queue = flat(files.find((f) => f.path === '.claude/skills/accord-queue/SKILL.md')?.text ?? '');
+it('risk:regression 7-ac-4 G-07-2 the rendered accord/queue.md says what its commit holds and follows the people line', () => {
+  const queue = flat(files.find((f) => f.path === '.claude/skills/accord/queue.md')?.text ?? '');
   expect(queue).not.toBe('');
   expect(queue).toContain('then a `people:` line when it committed your entry; do what that line says');
   expect(queue).toContain('except the `people` entry `./ids.md` has you add and a `people:` line has you remove');

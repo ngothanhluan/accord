@@ -96,7 +96,7 @@ function expectedSize(t: Ticket): number | undefined {
 }
 
 /** ST-LN-28 D-17: the words both the size refusal and the plan-large warning use to point at an epic. */
-const SPLIT_HINT = 'split the work into an epic of smaller stories with /accord-new (lane L)';
+const SPLIT_HINT = 'split the work into an epic of smaller stories with /accord <request> (lane L)';
 
 /** The reason a plan of `tasks` tasks is too large for `expected`, or undefined when it fits or an owner Ruling of `rulings` allows it. */
 export function sizeRefusal(tasks: number, expected: number, rulings: readonly string[]): string | undefined {

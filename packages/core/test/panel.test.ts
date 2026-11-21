@@ -297,7 +297,7 @@ it('ac-4 pressing a row id opens its detail view with its button and back', asyn
   expect(h.input()).toBeUndefined();
   press(h, 'continue:ST-1');
   expect(h.$.command.run).toHaveBeenCalledTimes(1);
-  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord-continue', args: 'ST-1' });
+  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'continue ST-1' });
   const calls = h.$.process.run.mock.calls.length;
   press(h, 'back');
   await vi.waitFor(() => {
@@ -308,22 +308,24 @@ it('ac-4 pressing a row id opens its detail view with its button and back', asyn
   expect(h.$.process.run.mock.calls.length).toBe(calls);
 });
 
-it('risk:regression the panel buttons run the new commands (ST-LN-83 7-ac-1)', async () => {
+it('risk:security the panel buttons run /accord with the action and a safe id (D-03)', async () => {
   const { view } = await loadView();
   const state = {
     dashboard: board({
       yours: { rows: [{ id: 'T-1', title: 'One' }], more: 0 },
-      ready: { rows: [{ id: 'T-2', title: 'Two' }, { id: 'T 5', title: 'Spaced' }], more: 0 },
+      ready: { rows: [{ id: 'T-2', title: 'Two' }, { id: 'T 5', title: 'Spaced' }, { id: 'T-6;x', title: 'Shell' }], more: 0 },
       upNext: { rows: [{ id: 'T-3', title: 'Three' }], more: 0 },
     }),
   };
   const v = view(state, '');
   const rowOf = (heading: string, id: string) => v.sections.find((s: any) => s.heading === heading).rows.find((r: any) => r.id === id);
-  expect(rowOf('YOURS', 'T-1').open.action).toMatchObject({ key: 'continue:T-1', label: 'Continue', command: 'accord-continue', args: 'T-1' });
-  expect(rowOf('READY', 'T-2').open.action).toMatchObject({ key: 'pick-up:T-2', label: 'Pick up', command: 'accord-pickup', args: 'T-2' });
-  expect(rowOf('UP NEXT', 'T-3').open.action).toMatchObject({ command: 'accord-pickup', args: 'T-3' });
+  expect(rowOf('YOURS', 'T-1').open.action).toMatchObject({ key: 'continue:T-1', label: 'Continue', command: 'accord', args: 'continue T-1' });
+  expect(rowOf('READY', 'T-2').open.action).toMatchObject({ key: 'pick-up:T-2', label: 'Pick up', command: 'accord', args: 'pick-up T-2' });
+  expect(rowOf('UP NEXT', 'T-3').open.action).toMatchObject({ command: 'accord', args: 'pick-up T-3' });
   expect(rowOf('READY', 'T 5').open).toBeUndefined();
-  expect(view(state, 'zzz').newRequest).toMatchObject({ key: 'new-request', label: 'New request', command: 'accord-new', args: 'zzz' });
+  expect(rowOf('READY', 'T-6;x').open).toBeUndefined();
+  expect(view(state, 'zzz').noMatch).toContain('/accord.');
+  expect(view(state, 'zzz').newRequest).toMatchObject({ key: 'new-request', label: 'New request', command: 'accord', args: 'zzz' });
   expect(view(state, '').newRequest).toBeUndefined();
   const h = await host(await loadPanel());
   await h.fire('session.start', start);
@@ -333,7 +335,7 @@ it('risk:regression the panel buttons run the new commands (ST-LN-83 7-ac-1)', a
   h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2' })) });
   await vi.waitFor(() => expect(h.buttons().some((b) => b.key === 'pick-up:ST-2')).toBe(true));
   press(h, 'pick-up:ST-2');
-  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord-pickup', args: 'ST-2' });
+  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'pick-up ST-2' });
 });
 
 it('ac-2 search narrows the rows and each button runs its accord command', async () => {
@@ -342,7 +344,7 @@ it('ac-2 search narrows the rows and each button runs its accord command', async
   h.settle({ stdout: twoRows });
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-2'))).toBe(true));
   expect(h.buttons().some((b) => b.label === 'New request')).toBe(false);
-  for (const [id, key, command, args] of [['ST-1', 'continue:ST-1', 'accord-continue', 'ST-1'], ['ST-2', 'pick-up:ST-2', 'accord-pickup', 'ST-2']]) {
+  for (const [id, key, command, args] of [['ST-1', 'continue:ST-1', 'accord', 'continue ST-1'], ['ST-2', 'pick-up:ST-2', 'accord', 'pick-up ST-2']]) {
     press(h, `show:${id}`);
     h.settle({ stdout: JSON.stringify(detailOf({ id })) });
     await vi.waitFor(() => expect(h.buttons().some((b) => b.key === key)).toBe(true));
@@ -359,7 +361,7 @@ it('ac-2 search narrows the rows and each button runs its accord command', async
   });
   press(h, 'new-request');
   expect(h.$.command.run).toHaveBeenCalledTimes(1);
-  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord-new', args: 'login' });
+  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'login' });
   h.input()?.onSubmit('login', {});
   expect(h.$.command.run).toHaveBeenCalledTimes(1);
   h.type('st-2');
@@ -444,7 +446,7 @@ it('ac-3 the search field is the one control marked to take focus on every draw 
 });
 
 it('ac-2 text that matches no ticket shows the no-match line and New request', async () => {
-  const LINE = 'No ticket shown here matches. Press New request to send this text to /accord-new.';
+  const LINE = 'No ticket shown here matches. Press New request to send this text to /accord.';
   const HEADINGS = ['YOURS', 'TEAM', 'READY', 'UP NEXT', 'EPICS'];
   const h = await host(await loadPanel());
   await h.fire('session.start', start);

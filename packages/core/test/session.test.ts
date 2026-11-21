@@ -23,10 +23,10 @@ describe('rulesetText', () => {
 
 describe('sessionLine', () => {
   it('says so when there is no lane row', () => {
-    expect(sessionLine([])).toBe('accord: no lane tickets yet · type /accord-new <request> to start one');
+    expect(sessionLine([])).toBe('accord: no lane tickets yet · type /accord <request> to start one');
   });
-  it('risk:regression the session line names /accord-new for a new request and /accord for the dashboard (ST-LN-83 7-ac-1)', () => {
-    expect(sessionLine([])).toBe('accord: no lane tickets yet · type /accord-new <request> to start one');
+  it('risk:regression the session line names /accord <request> for a new request and /accord for the dashboard (ST-LN-83 7-ac-1)', () => {
+    expect(sessionLine([])).toBe('accord: no lane tickets yet · type /accord <request> to start one');
     expect(sessionLine([row({})])).toMatch(/ · type \/accord$/);
   });
   it('counts a readied plan-stage row as ready', () => {
@@ -43,7 +43,7 @@ describe('sessionLine', () => {
   });
   it('counts a dropped row nowhere', () => {
     expect(sessionLine([row({ status: 'dropped' })])).toBe(
-      'accord: no lane tickets yet · type /accord-new <request> to start one',
+      'accord: no lane tickets yet · type /accord <request> to start one',
     );
   });
 });

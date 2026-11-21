@@ -45,20 +45,40 @@ describe('mergeHooks', () => {
 
 it('risk:regression the session line and the hook matcher name the new commands (ST-LN-83 7-ac-1)', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
-  expect(entries.UserPromptExpansion.map((x) => x.matcher)).toEqual(['accord|accord-new|accord-continue|accord-pickup']);
+  expect(entries.UserPromptExpansion.map((x) => x.matcher)).toEqual(['accord']);
   // letters, digits, hyphen and a bar make an exact-name list in Claude Code, so no other name can match by substring
   const names = entries.UserPromptExpansion[0].matcher.split('|');
-  expect(names).toEqual(['accord', 'accord-new', 'accord-continue', 'accord-pickup']);
-  for (const other of ['accord-queue', 'accord-upgrade']) expect(names).not.toContain(other);
+  expect(names).toEqual(['accord']);
+  for (const other of ['accord-new', 'accord-continue', 'accord-pickup', 'accord-queue', 'accord-upgrade']) expect(names).not.toContain(other);
 });
 
 it('risk:data-loss a re-sync replaces an older prompt expansion hook and keeps a foreign one', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
-  const fresh = { matcher: 'accord|accord-new|accord-continue|accord-pickup', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.2.0 hook prompt-expansion' }] };
+  const fresh = { matcher: 'accord', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.2.0 hook prompt-expansion' }] };
   expect(entries.UserPromptExpansion).toEqual([fresh]);
   const old = { hooks: { UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook prompt-expansion' }, { type: 'command', command: 'echo hi' }] }] } };
   const once = mergeHooks(old, entries);
   expect((once.hooks as Record<string, unknown>).UserPromptExpansion).toEqual([{ matcher: 'accord', hooks: [{ type: 'command', command: 'echo hi' }] }, fresh]);
+  expect(mergeHooks(once, entries)).toEqual(once);
+});
+
+it('risk:data-loss a sync replaces the 0.10.0 prompt expansion matcher and keeps no second prompt expansion hook (D-03)', () => {
+  const entries = hookEntries({ name: '@accord-dev/accord', version: '0.11.0' });
+  const foreign = { type: 'command', command: 'echo hi' };
+  const old = {
+    hooks: {
+      UserPromptExpansion: [
+        { matcher: 'accord|accord-new|accord-continue|accord-pickup', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.10.0 hook prompt-expansion' }, foreign] },
+      ],
+    },
+  };
+  const once = mergeHooks(old, entries);
+  const list = (once.hooks as Record<string, { matcher: string; hooks: { command: string }[] }[]>).UserPromptExpansion;
+  // the owner's own hook keeps its entry; the one accord wrote leaves it, and the new entry carries the new matcher
+  expect(list).toEqual([{ matcher: 'accord|accord-new|accord-continue|accord-pickup', hooks: [foreign] }, ...entries.UserPromptExpansion]);
+  expect(entries.UserPromptExpansion.map((x) => x.matcher)).toEqual(['accord']);
+  const ours = list.flatMap((x) => x.hooks.map((h) => h.command)).filter((c) => c.endsWith('hook prompt-expansion'));
+  expect(ours).toEqual(['npx --yes @accord-dev/accord@0.11.0 hook prompt-expansion']);
   expect(mergeHooks(once, entries)).toEqual(once);
 });
 

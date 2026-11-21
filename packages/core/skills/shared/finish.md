@@ -13,8 +13,8 @@ The last message of a finished ticket has three parts, in this order, and nothin
 2. At most four status lines: the facts the owner needs about this finish, such as the tests, CI, the accord check's verdict
    on the tick commit when verify gave one, the review's verdict, and what was skipped or not checked. The closing lines on what was skipped go here, within this limit.
 3. `Next:`, then one to three suggestions. Run `accord dashboard` now and read its last line: each suggestion,
-   one per line, is a command it names inside one bracket: `/accord-continue <id>`,
-   `/accord-pickup <id>` or `/accord-new <request>`. Leave out an action on the
+   one per line, is a command it names inside one bracket: `/accord continue <id>`,
+   `/accord pick-up <id>` or `/accord <request>`. Leave out an action on the
    ticket just finished. The first ends with `(recommended)`. Never suggest an action the dashboard does not print.
 
 After this message, end the turn. Never wait for the merge, and never remove the ticket's worktree or branches by

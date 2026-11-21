@@ -60,6 +60,6 @@ export function renderDashboard(d: Dashboard): string {
     (m.withSchemaErrors > 0 ? `, ${m.withSchemaErrors} with schema errors, run accord lint` : '');
   const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready), block('UP NEXT', d.upNext), ...(d.epics.rows.length ? [epicBlock(d.epics)] : [])];
   const pick = d.ready.rows[0]?.id ?? d.upNext.suggest?.id;
-  const actions = [d.yours.rows[0] ? `[/accord-continue ${d.yours.rows[0].id}]` : '', pick ? `[/accord-pickup ${pick}]` : '', '[/accord-new <request>]'].filter(Boolean);
+  const actions = [d.yours.rows[0] ? `[/accord continue ${d.yours.rows[0].id}]` : '', pick ? `[/accord pick-up ${pick}]` : '', '[/accord <request>]'].filter(Boolean);
   return [...sections.map((s) => s.join('\n')), summary + '\n-> ' + actions.join('  ')].join('\n\n') + '\n';
 }

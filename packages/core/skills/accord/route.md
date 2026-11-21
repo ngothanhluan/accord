@@ -8,7 +8,7 @@ This applies to any text after `/accord` that is not one of its typed forms. The
 
 ## Change: a feature or a bug
 
-Load `accord-new` with the whole request: it proposes lane S, M or L as its lane step says and follows that lane's route. A release or an operations request takes this route too. A bug whose cause nobody has shown goes to `accord-debug` once its ticket exists, before its approach.
+Follow `./new.md` with the whole request: it proposes lane S, M or L as its lane step says and follows that lane's route. A release or an operations request takes this route too. A bug whose cause nobody has shown goes to `accord-debug` once its ticket exists, before its approach.
 
 ## Question
 
@@ -16,15 +16,15 @@ Answer it from the code: read the files yourself and reply in the chat. Create n
 
 ## Brainstorm: an idea to explore
 
-This covers a raw idea to interview too. Go back and forth in a Socratic way, one question at a time, each built on the last answer, with nothing written meanwhile. End by proposing build now (`/accord-new`), queue (`/accord-queue`), research or nothing, and take the owner's choice.
+This covers a raw idea to interview too. Go back and forth in a Socratic way, one question at a time, each built on the last answer, with nothing written meanwhile. End by proposing build now (`/accord <request>`), queue (`/accord queue <idea>`), research or nothing, and take the owner's choice.
 
 ## Queue an idea
 
-Load `accord-queue` with the idea. It writes a draft ticket on its own `backlog/<topic>-<date>` branch cut from origin's default branch and never touches this session's ticket, so it runs in a ticket session too.
+Follow `./queue.md` with the idea. It writes a draft ticket on its own `backlog/<topic>-<date>` branch cut from origin's default branch and never touches this session's ticket, so it runs in a ticket session too.
 
 ## Research
 
-A question to answer that ends in a research record, such as comparing X with Y: load `accord-new` and take its lane R route.
+A question to answer that ends in a research record, such as comparing X with Y: follow `./new.md` and take its lane R route.
 
 ## An existing ticket: change, drop or merge
 

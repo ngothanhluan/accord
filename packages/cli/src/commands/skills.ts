@@ -7,9 +7,10 @@
 // point — overwriting is the contract the file itself states, and git is a hard precondition of the CLI, so
 // nothing is unrecoverable; losing someone's work *without saying so* is what this report prevents.
 //
-// ST-LN-80, the one exception to "sync deletes nothing": a file accord once rendered and no longer renders
-// (`RETIRED_FILES`) is removed, and reported `removed`, only while its marker shows nobody edited it.
-import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// ST-LN-80 and Phase 8.3 D-01, the exception to "sync deletes nothing": a file accord once rendered and no longer renders
+// (`RETIRED_FILES`) is removed, and reported `removed`, only while its marker shows nobody edited it; then a skill folder
+// that removal emptied is removed too. A file nobody listed, or one someone edited, is never touched.
+import { lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   agentDir,
@@ -160,16 +161,38 @@ export function writeHooks(root: string, plan: HooksPlan | undefined, out: Repor
  * `.claude/agents` makes it a skip and nothing outside the repository is touched. A read or delete that fails
  * (a read-only folder, EBUSY, EPERM) leaves the file where it is and adds no row: sync goes on and the orphan
  * scan then lists it. An edited copy stays and is listed as an orphan.
+ *
+ * Phase 8.3 D-01: after the files, each skill folder (`<skill dir>/accord-<name>`, never a skill directory itself) that a
+ * removal emptied, that this render does not produce, and that is a real folder under real folders, is removed with a
+ * non-recursive `rmdirSync` and reported `removed` after the file rows. A folder that still holds a file (an edited copy, or
+ * a file of the team's own) stays, whatever the reason, and the orphan scan then lists it; a failure adds no row.
  */
-function removeRetired(root: string, out: ReportRow[]): void {
+function removeRetired(root: string, out: ReportRow[], config: AccordConfig): void {
+  const emptied = new Set<string>();
   for (const path of RETIRED_FILES) {
-    if (!scannable(root, path.slice(0, path.lastIndexOf('/')))) continue;
+    const parent = path.slice(0, path.lastIndexOf('/'));
+    if (!scannable(root, parent)) continue;
     const file = join(root, ...path.split('/'));
     try {
       if (lstatSync(file, { throwIfNoEntry: false })?.isFile() !== true) continue;
       if (!isIntactRender(readFileSync(file, 'utf8'))) continue;
       rmSync(file);
       out.push({ status: 'removed', path });
+      emptied.add(parent);
+    } catch {
+      // left where it is; the orphan scan reports it
+    }
+  }
+  const rendered = new Set(skillTargets(config).map((t) => t.path.slice(0, t.path.lastIndexOf('/'))));
+  const skillDirs = allSkillDirs();
+  for (const folder of [...emptied].sort()) {
+    const dir = skillDirs.find((d) => folder.startsWith(d + '/accord-') && !folder.slice(d.length + 1).includes('/'));
+    if (dir === undefined || rendered.has(folder) || !scannable(root, folder)) continue;
+    try {
+      const abs = join(root, ...folder.split('/'));
+      if (readdirSync(abs).length > 0) continue;
+      rmdirSync(abs);
+      out.push({ status: 'removed', path: folder });
     } catch {
       // left where it is; the orphan scan reports it
     }
@@ -365,7 +388,7 @@ export function skills(ctx: CommandContext): number {
   // Computed once, then rendered — so a `--json` mode added later cannot disagree with the text.
   const results = writeSkillFiles(ctx.root, targets);
   writeHooks(ctx.root, hooks, results);
-  removeRetired(ctx.root, results);
+  removeRetired(ctx.root, results, config);
 
   // Scanned after the writes, so a directory this run created is already on disk when it is judged.
   const stale = orphans(ctx.root, config);

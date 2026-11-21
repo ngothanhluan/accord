@@ -4,7 +4,7 @@ description: Use when every task of a lane M ticket has a ledger line and the wo
 license: MIT
 argument-hint: "[ticket id]"
 kind: skill
-loads: [review/record.md, review/security.md, shared/ask.md]
+loads: [review/record.md, accord/review-security.md, shared/ask.md]
 ---
 
 This stage reviews the built work against the ticket until it converges.
@@ -27,7 +27,7 @@ fix.
    - about 500 to 1500: an `intent` and a `quality` reviewer, in parallel;
    - over about 1500: split by area times lens, plus one `integration` reviewer reading only the
      interfaces and links between areas;
-   - a security trigger in the package: add a `security` reviewer, as `./security.md` says.
+   - a security trigger in the package: add a `security` reviewer, as `./review-security.md` says.
 
    Name the lens in each dispatch. Every reviewer gets the paths of the ticket file, the review
    package, and `accord/tickets/<id>/ledger.md`. The executor's report is context, never evidence.

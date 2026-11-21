@@ -41,7 +41,7 @@ export function conventionsNotice(root: string): string | undefined {
 }
 
 const tools = (found: readonly Found[]): string => found.map((f) => `${f.tool} (${printable(f.file)})`).join(', ');
-const FIX_QUEUE = (what: string): string => `queue a draft ticket with /accord-queue to ${what}; the audit never changes code or configuration`;
+const FIX_QUEUE = (what: string): string => `queue a draft ticket with /accord queue <idea> to ${what}; the audit never changes code or configuration`;
 
 export async function audit(ctx: CommandContext): Promise<number> {
   const config = ctx.snapshot.config;

@@ -42,7 +42,7 @@ export function newSplit(ctx: CommandContext, givenId: string | undefined, optio
   if (options.dupCheck === false) throw new UsageError('--split and --no-dup-check cannot go together: a split always runs the similar check, so the flag would be ignored unseen' + NOTHING);
   if (givenId !== undefined) throw new UsageError('--split takes no ticket id: accord assigns them, or the split file gives them (an id line on the epic and on every story)' + NOTHING);
   // ST-LN-83 D-06: the queue path writes on another branch in a temporary worktree and touches nothing of this session's ticket, so it runs no session guard
-  if (options.queue !== true) guardTicketSession(ctx, undefined, '/accord-new <request>');
+  if (options.queue !== true) guardTicketSession(ctx, undefined, '/accord <request>');
   const path = resolve(cwd, options.split);
   let source: string;
   try {

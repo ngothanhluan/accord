@@ -30,7 +30,7 @@ export function ticketIdleGaps(open: readonly StatusRow[], staleDays: string, wh
     .map((r) => ({
       id: 'ticket-idle',
       text: `${r.id} claimed by ${who(r.claimedBy as string)} has had no activity for ${r.idleDays} days (stale_days ${staleDays})`,
-      fix: SAFE_ID.test(r.id) ? `/accord-continue ${r.id}, or accord drop ${r.id} --reason "<why>"` : NO_COMMAND,
+      fix: SAFE_ID.test(r.id) ? `/accord continue ${r.id}, or accord drop ${r.id} --reason "<why>"` : NO_COMMAND,
     }));
 }
 
@@ -73,13 +73,13 @@ export function draftStaleGaps(drafts: readonly OldDraft[], staleDraftDays: stri
         return {
           id: 'draft-stale',
           text: `${d.id} created by ${by} has not been touched for ${d.days} days ${limit}`,
-          fix: SAFE_ID.test(d.id) ? `/accord-pickup ${d.id}, or accord drop ${d.id} --reason "<why>"` : NO_COMMAND,
+          fix: SAFE_ID.test(d.id) ? `/accord pick-up ${d.id}, or accord drop ${d.id} --reason "<why>"` : NO_COMMAND,
         };
       }
       return {
         id: 'draft-stale',
         text: `${d.id} created by ${by} has waited on ${d.queued}, not merged, for ${d.days} days ${limit}`,
-        fix: !SAFE_ID.test(d.id) ? NO_COMMAND : !SAFE_BRANCH.test(d.queued) ? NO_COMMAND_BRANCH : `merge ${d.queued} into the default branch first, then /accord-pickup ${d.id} or accord drop ${d.id} --reason "<why>"`,
+        fix: !SAFE_ID.test(d.id) ? NO_COMMAND : !SAFE_BRANCH.test(d.queued) ? NO_COMMAND_BRANCH : `merge ${d.queued} into the default branch first, then /accord pick-up ${d.id} or accord drop ${d.id} --reason "<why>"`,
       };
     });
 }
@@ -186,7 +186,7 @@ export function deferredGaps(tickets: readonly { id: string; items: readonly Own
         id: 'deferred-undecided',
         text: `${t.id} has an undecided ${i.rating} item: ${i.text}`,
         fix: SAFE_ID.test(t.id)
-          ? `queue it with /accord-queue and append " → <new id>" to its line in accord/tickets/${t.id}/ledger.md, or append " → declined" there; a pull request that changes only that ledger`
+          ? `queue it with /accord queue <idea> and append " → <new id>" to its line in accord/tickets/${t.id}/ledger.md, or append " → declined" there; a pull request that changes only that ledger`
           : NO_COMMAND,
       })),
     );

@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { skillDirs, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { besidePath, stagePath } from './helpers/stage-files.js';
 
 const all: AccordConfig = {
   accord: '0.1.0',
@@ -25,34 +26,34 @@ describe('lane R in the accord skill', () => {
 
   it('risk:regression the lane skill routes a question-only request to lane R in all four tools (ST-LN-94 94-ac-5)', () => {
     for (const dir of dirs) {
-      const lane = flat(dir + '/accord-new/lane.md');
-      expect(lane.length, dir + '/accord-new/lane.md').toBeGreaterThan(0);
+      const lane = flat(besidePath('new', 'lane.md', dir));
+      expect(lane.length, besidePath('new', 'lane.md', dir)).toBeGreaterThan(0);
       const r = lane.slice(0, lane.indexOf('1. For every new request'));
       for (const x of ['only asks a question', 'asks for no change to code, docs or configuration', 'is lane R', 'propose lane R with that reason', 'without the scout of step 1', '`lane-r.md`', 'The owner may override'])
-        expect(r, dir + '/accord-new/lane.md: ' + x).toContain(x);
+        expect(r, besidePath('new', 'lane.md', dir) + ': ' + x).toContain(x);
 
-      const acc = flat(dir + '/accord-new/SKILL.md');
+      const acc = flat(stagePath('new', undefined, dir));
       const table = acc.slice(acc.indexOf('| Lane | Example |'), acc.indexOf('- **S.**'));
       expect(table).toContain('| R: research | a question to answer, ending in a research record |');
       const rLine = acc.slice(acc.indexOf('- **R.**'), acc.indexOf('- **L and P.**'));
       expect(acc.indexOf('- **R.**'), dir + ': no R line').toBeGreaterThan(acc.indexOf('- **M.**'));
       for (const x of ['`accord new ticket <id> --lane R --worktree --title "<title>"`', '`people`', '`--type <story|bug>`', '`./lane-r.md`']) expect(rLine, x).toContain(x);
-      const continueSkill = flat(dir + '/accord-continue/SKILL.md');
-      expect(continueSkill.length, dir + '/accord-continue/SKILL.md').toBeGreaterThan(0);
+      const continueSkill = flat(stagePath('continue', undefined, dir));
+      expect(continueSkill.length, stagePath('continue', undefined, dir)).toBeGreaterThan(0);
       const cont = continueSkill.slice(continueSkill.indexOf('4. Otherwise'), continueSkill.indexOf('## Rules'));
       expect(cont).toContain('when it prints `Lane: R`, follow `./lane-r.md`');
       expect(cont.indexOf('`./lane-r.md`')).toBeLessThan(cont.indexOf('first run `accord gate ready <id>`'));
 
-      expect(raw(dir + '/accord-new/lane-r.md').length, dir + '/accord-new/lane-r.md is not rendered').toBeGreaterThan(0);
+      expect(raw(besidePath('new', 'lane-r.md', dir)).length, besidePath('new', 'lane-r.md', dir) + ' is not rendered').toBeGreaterThan(0);
       // the lane proposal is shared with accord-intent, whose folder holds no lane-r.md: no dead ./ reference there (D-110)
-      expect(flat(dir + '/accord-intent/lane.md')).not.toContain('./lane-r.md');
+      expect(flat(besidePath('intent', 'lane.md', dir))).not.toContain('./lane-r.md');
     }
   });
 
   it('risk:regression lane-r.md works a question to a research record within its budget (ST-LN-94 94-ac-5)', () => {
     for (const dir of dirs) {
-      const r = flat(dir + '/accord-new/lane-r.md');
-      expect(r.length, dir + '/accord-new/lane-r.md').toBeGreaterThan(0);
+      const r = flat(besidePath('new', 'lane-r.md', dir));
+      expect(r.length, besidePath('new', 'lane-r.md', dir)).toBeGreaterThan(0);
       for (const x of [
         '# Lane R: a question',
         '`## Question`',
@@ -99,9 +100,9 @@ describe('lane R in the accord skill', () => {
         '`accord worktree open <id>`',
         '`Lane: R`',
       ])
-        expect(r, dir + '/accord-new/lane-r.md: ' + x).toContain(x);
+        expect(r, besidePath('new', 'lane-r.md', dir) + ': ' + x).toContain(x);
       for (const x of ['accord-approach', 'accord-plan', 'accord-critic', 'accord-review', 'accord-verify', 'accord approve', 'accord worktree merge'])
-        expect(r, dir + '/accord-new/lane-r.md names ' + x).not.toContain(x);
+        expect(r, besidePath('new', 'lane-r.md', dir) + ' names ' + x).not.toContain(x);
       // D-13: the owner sets the allowance; the step that asks for it recommends nothing
       const ask = r.slice(r.indexOf('**Allowance.**'), r.indexOf('**Research.**'));
       expect(ask.length).toBeGreaterThan(0);
@@ -115,13 +116,13 @@ describe('lane R in the accord skill', () => {
 
   it('risk:regression accord/SKILL.md stays within 120 lines and 6000 bytes in all four tools with lane R (ST-LN-94 94-ac-5)', () => {
     for (const dir of dirs) {
-      for (const skill of ['accord', 'accord-new']) {
-        const text = raw(dir + '/' + skill + '/SKILL.md');
+      for (const skill of ['accord', 'new']) {
+        const text = raw(skill === 'accord' ? dir + '/accord/SKILL.md' : stagePath(skill, undefined, dir));
         expect(text.length).toBeGreaterThan(0);
         expect(new TextEncoder().encode(text).length, dir + ' ' + skill).toBeLessThanOrEqual(6000);
         expect(text.split('\n').length, dir + ' ' + skill).toBeLessThanOrEqual(120);
       }
-      expect(raw(dir + '/accord-new/SKILL.md')).toContain('./lane-r.md');
+      expect(raw(stagePath('new', undefined, dir))).toContain('./lane-r.md');
     }
   });
 });

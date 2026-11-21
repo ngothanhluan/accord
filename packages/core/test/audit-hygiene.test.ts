@@ -12,7 +12,7 @@ const same = (email: string): string => email;
 it('risk:complex-branching a claimed ticket idle past stale_days is one ticket-idle gap naming its claimer and days (8.2-ac-1)', () => {
   const gaps = ticketIdleGaps([row({ id: 'T-1', claimedBy: 'a@x.io', idleDays: 20 })], '14', same);
   expect(gaps).toEqual([
-    { id: 'ticket-idle', text: 'T-1 claimed by a@x.io has had no activity for 20 days (stale_days 14)', fix: '/accord-continue T-1, or accord drop T-1 --reason "<why>"' },
+    { id: 'ticket-idle', text: 'T-1 claimed by a@x.io has had no activity for 20 days (stale_days 14)', fix: '/accord continue T-1, or accord drop T-1 --reason "<why>"' },
   ]);
   // a claimed row with no idleDays, and an unclaimed row with idleDays, are not idle claims
   expect(ticketIdleGaps([row({ claimedBy: 'a@x.io' }), row({ id: 'T-2', idleDays: 40 })], '14', same)).toEqual([]);
@@ -30,7 +30,7 @@ it('risk:security a ticket id a shell would read gets no command in its fix (D-0
     const [gap] = ticketIdleGaps([row({ id, claimedBy: 'a@x.io', idleDays: 20 })], '14', same);
     expect(gap.id).toBe('ticket-idle');
     expect(gap.fix).toBe('the ticket id holds characters a command line would read, so no command is printed: rename its ticket file to a plain id first');
-    expect(gap.fix).not.toContain('/accord-continue');
+    expect(gap.fix).not.toContain('/accord continue');
     expect(gap.fix).not.toContain('accord drop');
   }
 });
@@ -59,7 +59,7 @@ it('risk:regression isOpenWork is the dashboard open definition (D-01)', () => {
 it('risk:complex-branching an unclaimed draft past stale_draft_days is one draft-stale gap naming its creator (8.2-ac-2)', () => {
   const draft = { id: 'T-3', days: 100, creator: 'c@x.io' };
   expect(draftStaleGaps([draft], '90', same)).toEqual([
-    { id: 'draft-stale', text: 'T-3 created by c@x.io has not been touched for 100 days (stale_draft_days 90)', fix: '/accord-pickup T-3, or accord drop T-3 --reason "<why>"' },
+    { id: 'draft-stale', text: 'T-3 created by c@x.io has not been touched for 100 days (stale_draft_days 90)', fix: '/accord pick-up T-3, or accord drop T-3 --reason "<why>"' },
   ]);
   expect(draftStaleGaps([draft], '120', same)).toEqual([]);
   expect(draftStaleGaps([{ ...draft, days: 90 }], '90', same)).toEqual([]);
@@ -70,14 +70,14 @@ it('risk:complex-branching an unclaimed draft past stale_draft_days is one draft
     {
       id: 'draft-stale',
       text: 'T-3 created by c@x.io has waited on backlog/t-3-2026-08-12, not merged, for 100 days (stale_draft_days 90)',
-      fix: 'merge backlog/t-3-2026-08-12 into the default branch first, then /accord-pickup T-3 or accord drop T-3 --reason "<why>"',
+      fix: 'merge backlog/t-3-2026-08-12 into the default branch first, then /accord pick-up T-3 or accord drop T-3 --reason "<why>"',
     },
   ]);
   // an id or a branch a shell would read gets no command
   for (const odd of [{ ...draft, id: 'T 3' }, { ...draft, queued: 'backlog/t;3' }]) {
     const [gap] = draftStaleGaps([odd], '90', same);
     expect(gap.fix).toContain('no command is printed');
-    expect(gap.fix).not.toContain('/accord-pickup');
+    expect(gap.fix).not.toContain('/accord pick-up');
     expect(gap.fix).not.toContain('merge backlog');
   }
 });
@@ -177,7 +177,7 @@ it('risk:complex-branching each undecided Must or Should item of a judged ticket
     {
       id: 'deferred-undecided',
       text: 'D-1 has an undecided Must item: review 1.3: a lock (Must)',
-      fix: 'queue it with /accord-queue and append " → <new id>" to its line in accord/tickets/D-1/ledger.md, or append " → declined" there; a pull request that changes only that ledger',
+      fix: 'queue it with /accord queue <idea> and append " → <new id>" to its line in accord/tickets/D-1/ledger.md, or append " → declined" there; a pull request that changes only that ledger',
     },
   ]);
   // D-10: no lane is read, so neither the text nor the fix holds one
@@ -197,7 +197,7 @@ it('risk:security a ticket id a shell would read gets no command in a deferred-u
     const [gap] = deferredGaps([{ id, items: [{ rating: 'Must', text: 'a (Must)' }] }]);
     expect(gap.id).toBe('deferred-undecided');
     expect(gap.fix).toBe('the ticket id holds characters a command line would read, so no command is printed: rename its ticket file to a plain id first');
-    expect(gap.fix).not.toContain('/accord-queue');
+    expect(gap.fix).not.toContain('/accord queue');
   }
 });
 

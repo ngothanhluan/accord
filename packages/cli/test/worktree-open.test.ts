@@ -94,7 +94,7 @@ it('ac-2 a failing setup command exits 2 naming it and keeps the worktree', asyn
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\nfail\n');
   for (const s of [out, err]) {
     expect(s).not.toContain(c.sibling('ST-9'));
-    expect(s).not.toContain('/accord-continue');
+    expect(s).not.toContain('/accord continue');
   }
 });
 
@@ -314,7 +314,7 @@ it('risk:parsing an invalid config in the new worktree stops setup, writes no do
   const { code, out, err } = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(code).toBe(2);
   expect(err).toContain('accord/config.yml');
-  expect(out + err).not.toContain('/accord-continue');
+  expect(out + err).not.toContain('/accord continue');
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
   const dir = gitRun(c.sibling('ST-9'), 'rev-parse', '--path-format=absolute', '--git-dir').trim();
   expect(existsSync(`${dir}/accord-setup-done`)).toBe(false);
@@ -329,7 +329,7 @@ it('risk:regression the CLI messages name the new commands in the worktree open 
   c.git('fetch', '-q', 'origin');
   const r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
-  expect(r.err).toContain('to work on it with them, type /accord-continue ST-9');
+  expect(r.err).toContain('to work on it with them, type /accord continue ST-9');
 });
 
 it('risk:complex-branching pick up refuses a branch another person claimed', async () => {
@@ -343,7 +343,7 @@ it('risk:complex-branching pick up refuses a branch another person claimed', asy
   const r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
   expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
-  expect(r.err).toContain('/accord-continue ST-9');
+  expect(r.err).toContain('/accord continue ST-9');
   expect(r.out).not.toContain('stop:');
   expect(entries(c)).toHaveLength(1);
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();

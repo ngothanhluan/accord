@@ -45,10 +45,10 @@ it('risk:complex-branching accord gate plan names the epic split on a plan over 
     expect(json.code).toBe(1);
     const size = (JSON.parse(json.out).findings as Found[]).filter((f) => f.rule === 'gate.plan-size');
     expect(size).toHaveLength(1);
-    expect(size[0].reason).toContain('split the work into an epic of smaller stories with /accord-new (lane L)');
+    expect(size[0].reason).toContain('split the work into an epic of smaller stories with /accord <request> (lane L)');
     // the printed text carries the same reason
     const text = await run(['gate', 'plan', 'T-1'], repo);
-    expect(text.out.replace(/\s+/g, ' ')).toContain('split the work into an epic of smaller stories with /accord-new (lane L)');
+    expect(text.out.replace(/\s+/g, ' ')).toContain('split the work into an epic of smaller stories with /accord <request> (lane L)');
   } finally {
     cleanup(repo);
   }

@@ -31,7 +31,7 @@ approved_hash: "fnv1a64:e06e31811dc19f6d"
 ac_hash: "fnv1a64:3d39081e7d77ffac"
 verified: [ac-1, ac-2, ac-3]
 verified_hash: "fnv1a64:3d39081e7d77ffac"
-verified_commit: "3cf45078b27811c51cab420ed0b8b26517797aca"
+verified_commit: "8cc44e4839e546b1438758e1d78854cdd50fb0f8"
 ---
 
 ## Intent

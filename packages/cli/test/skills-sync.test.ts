@@ -625,7 +625,7 @@ it('risk:regression the committed /accord copy shows accord dashboard and builds
 });
 
 it('risk:drift the committed plan and build copies carry the marker wording', () => {
-  for (const p of ['.claude/agents/accord-planner.md', '.claude/skills/accord-plan/SKILL.md', '.claude/skills/accord-build/SKILL.md']) {
+  for (const p of ['.claude/agents/accord-planner.md', '.claude/skills/accord/plan.md', '.claude/skills/accord/build.md']) {
     expect(readFileSync(new URL(`../../../${p}`, import.meta.url), 'utf8'), p).toContain('(@ac-');
   }
 });

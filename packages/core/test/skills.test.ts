@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -700,8 +700,6 @@ const HINTS: Record<string, string | null> = {
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
   'accord-audit': null,
-  'accord-plan': '[ticket id]',
-  'accord-build': '[ticket id]',
   'accord-review': '[ticket id]',
   'accord-verify': '[ticket id]',
   'accord-debug': '[ticket id] [failure]',
@@ -1135,11 +1133,21 @@ describe('retired skill folders', () => {
     expect(RETIRED_SKILL_FOLDERS['accord-new']).toEqual([
       'SKILL.md', 'ask.md', 'epic.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'queue.md', 'review-foreign.md', 'review-security.md', 'route.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
     ]);
+    // plan and build exist from v0.2.0. plan: SKILL.md, ask.md, baseline.md, critique.md (v0.2.0), legacy-round1.md (v0.4.1), resume.md (v0.6.0), plus what the branch rendered (plan-baseline.md, plan-critique.md, plan-legacy-round1.md).
+    // build: SKILL.md, ask.md (v0.2.0), scout.md (v0.4.1), no-plan.md (v0.5.0), baseline.md (v0.5.1), waves.md (v0.6.0), plus what the branch rendered (build-no-plan.md, build-waves.md, plan-baseline.md).
+    expect(RETIRED_SKILL_FOLDERS['accord-plan']).toEqual([
+      'SKILL.md', 'ask.md', 'baseline.md', 'critique.md', 'legacy-round1.md', 'plan-baseline.md', 'plan-critique.md', 'plan-legacy-round1.md', 'resume.md',
+    ]);
+    expect(RETIRED_SKILL_FOLDERS['accord-build']).toEqual([
+      'SKILL.md', 'ask.md', 'baseline.md', 'build-no-plan.md', 'build-waves.md', 'no-plan.md', 'plan-baseline.md', 'scout.md', 'waves.md',
+    ]);
     // Guard the guard: the same lists without the `accord-continue` entry report it, and without `accord-pickup` report it.
     const without = (folder: string): Record<string, readonly string[]> => Object.fromEntries(Object.entries(RETIRED_SKILL_FOLDERS).filter(([name]) => name !== folder));
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-continue'))).toContain('accord-continue');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-pickup'))).toContain('accord-pickup');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-new'))).toContain('accord-new');
+    expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-plan'))).toContain('accord-plan');
+    expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-build'))).toContain('accord-build');
   });
 });
 
@@ -1330,6 +1338,57 @@ describe('a ticket at a stage', () => {
     // guard the guard: a bare name is caught by the pattern
     expect('.claude/skills/accord/critique.md').toMatch(/\/accord\/critique\.md$/);
     expect('.claude/skills/accord/approach-critique.md').not.toMatch(/\/accord\/critique\.md$/);
+  });
+
+  it('risk:regression the plan and build stages render as accord/plan.md and accord/build.md with their children, named in the stage section (D-04)', () => {
+    expect(STAGE_FILES.plan).toBe('plan.md');
+    expect(STAGE_FILES.build).toBe('build.md');
+    const CHILDREN = ['plan.md', 'plan-baseline.md', 'plan-critique.md', 'plan-legacy-round1.md', 'build.md', 'build-waves.md', 'build-no-plan.md'];
+    const BARE = ['baseline.md', 'critique.md', 'legacy-round1.md', 'waves.md', 'no-plan.md'];
+    for (const roster of everyRoster()) {
+      const files = skillTargets(roster);
+      for (const folder of ['/accord-plan/', '/accord-build/']) expect(files.filter((f) => f.path.includes(folder)).map((f) => f.path), `no rendered path holds ${folder}`).toEqual([]);
+      for (const dir of skillDirs(roster)) {
+        const copies = CHILDREN.map((name) => files.find((f) => f.path === `${dir}/accord/${name}`));
+        copies.forEach((copy, i) => expect(copy, `${dir}/accord/${CHILDREN[i]} renders`).toBeDefined());
+        for (const copy of copies) expect(FRONTMATTER.test(withoutMarker(copy?.text ?? '')), `${copy?.path} has no frontmatter block`).toBe(false);
+        for (const name of BARE) expect(files.some((f) => f.path === `${dir}/accord/${name}`), `${dir}/accord/${name} is no bare child of the accord folder`).toBe(false);
+        const section = stageSection(files.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '');
+        for (const name of CHILDREN) expect(section, `${dir}: the stage section names ./${name}`).toContain('./' + name);
+      }
+    }
+  });
+
+  it("risk:regression the accord folder renders resume.md for the plan stage's Unfinished step in every tool (D-04)", () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const cfg = config({ runtimes: [runtime] });
+      const files = skillTargets(cfg);
+      for (const dir of skillDirs(cfg)) {
+        const resume = files.find((f) => f.path === `${dir}/accord/resume.md`);
+        expect(resume, `${runtime}: ${dir}/accord/resume.md renders`).toBeDefined();
+        expect(resume?.text ?? '', `${runtime}: resume.md holds the plan resume step`).toContain('resume the planner');
+        const plan = files.find((f) => f.path === `${dir}/accord/plan.md`)?.text ?? '';
+        expect(plan, `${runtime}: plan.md names ./resume.md`).toContain('./resume.md');
+      }
+    }
+    const raw = skills['accord/SKILL.md'] ?? '';
+    expect(readSource(raw) as { yaml: Record<string, unknown> }).toHaveProperty('yaml.loads');
+    expect(String((readSource(raw) as { yaml: { loads: unknown } }).yaml.loads)).toContain('shared/resume.md');
+    for (const f of accordSkills) {
+      const sentences = sentencesNaming(f.text, 'resume.md');
+      expect(sentences.some((s) => s.includes('plan') && s.includes('Unfinished')), `${f.path}: a sentence names ./resume.md with plan and Unfinished`).toBe(true);
+    }
+  });
+
+  it('risk:regression no text rendered into the accord folder names ./SKILL.md, which is the accord skill there and no stage (D-04)', () => {
+    const SELF = /(?:^|[^-\w/])\.\/SKILL\.md/;
+    for (const roster of ROSTERS) {
+      const bad = roster.filter((f) => /\/accord\/[^/]+\.md$/.test(f.path) && SELF.test(f.text)).map((f) => f.path);
+      expect(bad, 'a file moved from a stage folder still points to the SKILL.md that folder held').toEqual([]);
+    }
+    // guard the guard: the pattern catches a bare self reference and lets a path through
+    expect(SELF.test('as step 3 of `./SKILL.md` says')).toBe(true);
+    expect(SELF.test('see `../shared/SKILL.md`')).toBe(false);
   });
 
   it('risk:regression the accord description names every stage (D-04)', () => {

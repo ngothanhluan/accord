@@ -46,8 +46,8 @@ const REQUIRED: Record<string, readonly string[]> = {
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md', './intent-discuss.md', './intent-research.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./approach-critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './approach-critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
-  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
-  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './build-waves.md'],
+  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', './build.md', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
+  build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', './plan.md', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './build-waves.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify', 're-review', 'places checked:', 'ADDRESSED'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done', './resume.md'],
   debug: ['accord anchor', 'accord-debugger', 'debug.md', 'hypothes', 'measurement', 'cheapest probe', 'parallel', 'reproduction', 'three', '## Resolved', '## Episode <n>', 'no `## Resolved` heading follows its `## Episode <n>` heading', 'its step 3 for the task that entered debug', './resume.md'],
@@ -94,16 +94,14 @@ it('risk:regression stagePath and besidePath give the render path of a folded na
   }
 });
 
-// Phase 8.3 D-04 (children first): the plan stage's three children live in the accord source under their prefixed names, so the plan fold of 08.3-15 moves two hub files.
+// Phase 8.3 D-04 (children first, then folded by 08.3-15): the plan stage's three children live in the accord source under their prefixed names; the plan and build folds put them in the accord folder.
 it('risk:regression the plan stage children render under their prefixed names wherever they are read (D-04)', () => {
   const bare = /(?:^|[^-\w])\.\/(?:baseline|critique|legacy-round1)\.md/;
   const wanted: Record<string, string[]> = {
-    'accord-plan': ['plan-baseline.md', 'plan-critique.md', 'plan-legacy-round1.md'],
-    'accord-build': ['plan-baseline.md'],
+    accord: ['plan-baseline.md', 'plan-critique.md', 'plan-legacy-round1.md'],
   };
   const unwanted: Record<string, string[]> = {
-    'accord-plan': ['baseline.md', 'critique.md', 'legacy-round1.md'],
-    'accord-build': ['baseline.md'],
+    accord: ['baseline.md', 'critique.md', 'legacy-round1.md'],
   };
   for (const runtime of ['claude', 'codex', 'cursor', 'copilot'] as const) {
     const cfg = { ...config, runtimes: [runtime] } as AccordConfig;
@@ -121,7 +119,7 @@ it('risk:regression the plan stage children render under their prefixed names wh
   expect(bare.test('as `./plan-critique.md` says, and `./approach-critique.md`')).toBe(false);
 });
 
-// Phase 8.3 D-04 (children first): the build stage's two children live in the accord source under their prefixed names, so the build fold of 08.3-15 moves two hub files.
+// Phase 8.3 D-04 (children first, then folded by 08.3-15): the build stage's two children live in the accord source under their prefixed names; the build fold puts them in the accord folder.
 it("risk:regression the build stage's children render under their prefixed names (D-04)", () => {
   const bare = /(?:^|[^-\w])\.\/(?:waves|no-plan)\.md/;
   for (const runtime of ['claude', 'codex', 'cursor', 'copilot'] as const) {
@@ -129,9 +127,9 @@ it("risk:regression the build stage's children render under their prefixed names
     const out = skillTargets(cfg);
     const paths = new Set(out.map((f) => f.path));
     for (const dir of skillDirs(cfg)) {
-      for (const name of ['build-waves.md', 'build-no-plan.md']) expect(paths.has(`${dir}/accord-build/${name}`), `${dir}/accord-build/${name} renders`).toBe(true);
-      for (const name of ['waves.md', 'no-plan.md']) expect(paths.has(`${dir}/accord-build/${name}`), `${dir}/accord-build/${name} no longer renders`).toBe(false);
-      const waves = out.find((f) => f.path === `${dir}/accord-build/build-waves.md`)?.text ?? '';
+      for (const name of ['build-waves.md', 'build-no-plan.md']) expect(paths.has(`${dir}/accord/${name}`), `${dir}/accord/${name} renders`).toBe(true);
+      for (const name of ['waves.md', 'no-plan.md']) expect(paths.has(`${dir}/accord/${name}`), `${dir}/accord/${name} no longer renders`).toBe(false);
+      const waves = out.find((f) => f.path === `${dir}/accord/build-waves.md`)?.text ?? '';
       for (const c of ['accord waves', 'accord worktree task', 'accord task-done', 'accord brief']) expect(waves.includes(c), `${dir} build-waves.md names ${c}`).toBe(true);
     }
     expect(out.filter((f) => bare.test(f.text)).map((f) => f.path), `${runtime}: no rendered text names a bare build child`).toEqual([]);
@@ -183,7 +181,7 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
   const DIALOG = "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -200,7 +198,7 @@ it('ac-2 the shared ask rule says when to ask multiple choice and when to ask an
   const KIND = "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -217,7 +215,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
   const PLAIN = 'Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss.';
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -234,7 +232,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
 it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
   const bad: string[] = [];
@@ -254,7 +252,7 @@ it('ac-4 the intent skill takes the kind of question from the shared ask rule', 
 it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -280,7 +278,7 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -306,7 +304,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -591,7 +589,7 @@ it('risk:regression the accord skill takes an id that accord status lists with a
 function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
   for (const dir of skillDirs(all)) {
@@ -1707,7 +1705,7 @@ it('risk:regression the build skill takes the tests baseline before its single t
   expect(noPlan.indexOf('Before step 1')).toBeLessThan(noPlan.indexOf('1. Run `accord brief'));
   // the build rule and the baseline rule name the one exception, so neither forbids what no-plan.md asks
   expect(read(stagePath('build'))).toContain('except as `./build-no-plan.md` says');
-  expect(read(stagePath('plan', 'baseline'))).toContain('except `accord-build` with the plan stage off, as its `no-plan.md` says');
+  expect(read(stagePath('plan', 'baseline'))).toContain('except `./build.md` with the plan stage off, as `./build-no-plan.md` says');
 });
 
 // WR-10 (round 2): an executor leaves its work uncommitted until the step 4 ledger commit, so a resumed run (anchor still at build, no ledger line, no baseline) must not take the
@@ -1717,8 +1715,8 @@ it('risk:regression the no-plan baseline guard counts uncommitted and untracked 
   const noPlan = read(stagePath('build', 'no-plan'));
   for (const p of ['`git status --porcelain`', 'untracked', 'lists no path outside `accord/`']) expect(noPlan, p).toContain(p);
   const baseline = read(stagePath('plan', 'baseline'));
-  expect(baseline).not.toMatch(/step [78](?! of `accord-plan`)/);
-  for (const p of ['step 7 of `accord-plan`', 'step 8 of `accord-plan`']) expect(baseline, p).toContain(p);
+  expect(baseline).not.toMatch(/step [78](?! of `\.\/plan\.md`)/);
+  for (const p of ['step 7 of `./plan.md`', 'step 8 of `./plan.md`']) expect(baseline, p).toContain(p);
   // the plan skill's own step 7 and 8 are the ones named
   const plan = read(stagePath('plan'));
   expect(plan).toMatch(/\b7\. /);

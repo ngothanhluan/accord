@@ -13,6 +13,7 @@ import type { AccordConfig } from '../src/index.js';
 import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, READY_RULES } from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
 import { readSource } from '../src/skills/render.js';
+import { stagePath } from './helpers/stage-files.js';
 
 const skillsDir = fileURLToPath(new URL('../skills/', import.meta.url));
 const BOM = String.fromCharCode(0xfeff);
@@ -87,9 +88,9 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
-    expect(installedName('intent')).toBe('accord-intent');
+    expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
   });
 
@@ -575,11 +576,11 @@ describe('render output invariants', () => {
     // The subjects the READY_PROMOTE rules read. Each is legitimate on its own — the offence is naming
     // one in the same paragraph as the command that checks it.
     const PROMOTED = ['## Open questions', 'assumptions:', 'status: draft', 'TODO'];
-    // ST-LN-91 D-12: accord-intent names the two discuss rules because the answer of `accord gate ready` to them is the
+    // ST-LN-91 D-12: the intent stage (a file of the accord folder since Phase 8.3 D-04) names the two discuss rules because the answer of `accord gate ready` to them is the
     // signal that the ticket still needs the discuss stage (the skill reads the tool, never the pin). That is the only
     // place a rule id is named, and only these two ids.
     const DISCUSS_SIGNAL = ['gate.discuss-missing', 'gate.discuss-unmapped'];
-    const DISCUSS_FILES = /\/accord-intent\/(SKILL|discuss)\.md$/;
+    const DISCUSS_FILES = new Set(['.claude/skills', '.agents/skills'].flatMap((dir) => [stagePath('intent', undefined, dir), stagePath('intent', 'discuss', dir)]));
 
     const offenders: { path: string; line: number; text: string }[] = [];
     let commands = 0;
@@ -587,7 +588,7 @@ describe('render output invariants', () => {
       const body = bodyOf(text);
       body.split('\n').forEach((line, i) => {
         const hit = (ban: string) => offenders.push({ path, line: i + 1, text: `${ban}: ${line.trim()}` });
-        for (const id of ruleIds) if (line.includes(id) && !(DISCUSS_SIGNAL.includes(id) && DISCUSS_FILES.test(path))) hit('rule id');
+        for (const id of ruleIds) if (line.includes(id) && !(DISCUSS_SIGNAL.includes(id) && DISCUSS_FILES.has(path))) hit('rule id');
         if (LEVEL.test(line)) hit('finding level');
         if (VERDICT.test(line)) hit('gate verdict');
       });
@@ -699,7 +700,6 @@ const HINTS: Record<string, string | null> = {
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
   'accord-audit': null,
-  'accord-intent': '[ticket id]',
   'accord-approach': '[ticket id]',
   'accord-plan': '[ticket id]',
   'accord-build': '[ticket id]',
@@ -1128,6 +1128,8 @@ describe('retired skill folders', () => {
       'SKILL.md', 'ask.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'review-security.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
     ]);
     expect(RETIRED_SKILL_FOLDERS['accord-pickup']).toEqual(['SKILL.md', 'ask.md', 'failure.md', 'ids.md', 'worktree.md']);
+    // intent exists from v0.2.0 (ask.md, ids.md), gains lane.md in v0.3.0, research.md in v0.4.0, scout.md and discuss.md in v0.4.1; v0.10.0 and the branch load the same seven.
+    expect(RETIRED_SKILL_FOLDERS['accord-intent']).toEqual(['SKILL.md', 'ask.md', 'discuss.md', 'ids.md', 'lane.md', 'research.md', 'scout.md']);
     // new exists from v0.8.0: SKILL.md plus the `loads:` basenames over the tags (security.md came from review/security.md), plus what the branch rendered (queue.md, review-security.md).
     expect(RETIRED_SKILL_FOLDERS['accord-new']).toEqual([
       'SKILL.md', 'ask.md', 'epic.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'queue.md', 'review-foreign.md', 'review-security.md', 'route.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
@@ -1280,6 +1282,22 @@ describe('a ticket at a stage', () => {
     expect(foldedStageProblems(clean.slice(1), map, dirs)).toContain('plan: .claude/skills/accord/plan.md is missing');
     expect(foldedStageProblems(clean.map((f, i) => (i === 3 ? { ...f, text: 'other\n' } : f)), map, dirs)).toEqual(['plan: accord/plan-critique.md differs between target directories']);
     expect(foldedStageProblems(clean.map((f, i) => (i === 0 ? { ...f, text: '---\nname: x\n---\nbody\n' } : f)), map, dirs).join('\n')).toContain('has a frontmatter block');
+  });
+
+  it('risk:regression the intent stage renders as accord/intent.md with its two children, named in the stage section (D-04)', () => {
+    expect(STAGE_FILES.intent).toBe('intent.md');
+    const CHILDREN = ['intent.md', 'intent-discuss.md', 'intent-research.md'];
+    for (const roster of everyRoster()) {
+      const files = skillTargets(roster);
+      expect(files.filter((f) => f.path.includes('/accord-intent/')).map((f) => f.path), 'no rendered path holds an accord-intent folder').toEqual([]);
+      for (const dir of skillDirs(roster)) {
+        const copies = CHILDREN.map((name) => files.find((f) => f.path === `${dir}/accord/${name}`));
+        copies.forEach((copy, i) => expect(copy, `${dir}/accord/${CHILDREN[i]} renders`).toBeDefined());
+        for (const copy of copies) expect(FRONTMATTER.test(withoutMarker(copy?.text ?? '')), `${copy?.path} has no frontmatter block`).toBe(false);
+        const section = stageSection(files.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '');
+        for (const name of CHILDREN) expect(section, `${dir}: the stage section names ./${name}`).toContain('./' + name);
+      }
+    }
   });
 
   it('risk:regression the accord description names every stage (D-04)', () => {

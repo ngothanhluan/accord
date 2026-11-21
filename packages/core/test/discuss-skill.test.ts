@@ -35,7 +35,7 @@ it('risk:regression the intent skill runs discuss after the interview in all fou
       continue;
     }
     const step = skill.slice(from, to);
-    for (const p of ['`accord gate ready <id>`', '`gate.discuss-missing`', '`gate.discuss-unmapped`', '`./discuss.md`', 'claimed before the discuss stage', 'the owner approves once, at accord-approach step 5'])
+    for (const p of ['`accord gate ready <id>`', '`gate.discuss-missing`', '`gate.discuss-unmapped`', '`./intent-discuss.md`', 'claimed before the discuss stage', 'the owner approves once, at accord-approach step 5'])
       if (!step.includes(p)) bad.push(dir + ' step 9 lacks ' + p);
     if (step.includes('--approval')) bad.push(dir + ' step 9 still shows the approval view');
     if (step.includes('explicit yes')) bad.push(dir + ' step 9 still asks for a yes');
@@ -84,7 +84,7 @@ it('risk:regression Continue resumes a ticket whose intent is written at intent 
       continue;
     }
     const approach = step.indexOf('at step 3 when it holds only');
-    const intent = step.indexOf("otherwise `accord-intent`, at step 9 when the anchor's next step is the owner's approval");
+    const intent = step.indexOf("otherwise the row `intent`, at step 9 when the anchor's next step is the owner's approval");
     if (intent < 0) bad.push(dir + ': Continue does not send stage intent to step 9');
     if (approach < 0 || intent < approach) bad.push(dir + ': the step 9 route is not after the two approach checks');
   }

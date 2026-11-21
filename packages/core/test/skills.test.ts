@@ -796,8 +796,8 @@ describe('no resume artifact anywhere in the render output (ROADMAP criterion 6)
 
 // ST-LN-92 plan 04-15: the build skill's waves.md names `accord waves` and `accord worktree task`, so the command pattern counts them as commands, not as prose.
 it('risk:regression the command pattern reads accord waves and accord worktree task as commands (ST-LN-92 92-ac-2)', () => {
-  const waves = output.find((f) => f.path === '.claude/skills/accord-build/waves.md')?.text ?? '';
-  expect(waves.length, 'accord-build/waves.md is missing from the render output').toBeGreaterThan(0);
+  const waves = output.find((f) => f.path === stagePath('build', 'waves'))?.text ?? '';
+  expect(waves.length, `${stagePath('build', 'waves')} is missing from the render output`).toBeGreaterThan(0);
   const named = new Set([...waves.matchAll(COMMAND)].map((m) => m[1]));
   for (const c of ['waves', 'worktree task', 'task-done', 'brief']) expect(named.has(c), c).toBe(true);
 });

@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -700,7 +700,6 @@ const HINTS: Record<string, string | null> = {
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
   'accord-audit': null,
-  'accord-review': '[ticket id]',
   'accord-verify': '[ticket id]',
   'accord-debug': '[ticket id] [failure]',
   'accord-designer': '<ticket id>',
@@ -1141,6 +1140,8 @@ describe('retired skill folders', () => {
     expect(RETIRED_SKILL_FOLDERS['accord-build']).toEqual([
       'SKILL.md', 'ask.md', 'baseline.md', 'build-no-plan.md', 'build-waves.md', 'no-plan.md', 'plan-baseline.md', 'scout.md', 'waves.md',
     ]);
+    // review exists from v0.2.0 (record.md, ask.md), gains security.md in v0.7.0 (review-security.md on the branch); the branch also renders review-security.md in the folder.
+    expect(RETIRED_SKILL_FOLDERS['accord-review']).toEqual(['SKILL.md', 'ask.md', 'record.md', 'review-security.md', 'security.md']);
     // Guard the guard: the same lists without the `accord-continue` entry report it, and without `accord-pickup` report it.
     const without = (folder: string): Record<string, readonly string[]> => Object.fromEntries(Object.entries(RETIRED_SKILL_FOLDERS).filter(([name]) => name !== folder));
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-continue'))).toContain('accord-continue');
@@ -1148,6 +1149,7 @@ describe('retired skill folders', () => {
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-new'))).toContain('accord-new');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-plan'))).toContain('accord-plan');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-build'))).toContain('accord-build');
+    expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-review'))).toContain('accord-review');
   });
 });
 
@@ -1355,6 +1357,28 @@ describe('a ticket at a stage', () => {
         for (const name of BARE) expect(files.some((f) => f.path === `${dir}/accord/${name}`), `${dir}/accord/${name} is no bare child of the accord folder`).toBe(false);
         const section = stageSection(files.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '');
         for (const name of CHILDREN) expect(section, `${dir}: the stage section names ./${name}`).toContain('./' + name);
+      }
+    }
+  });
+
+  it('risk:regression the review stage reads its record and security checklist beside it in the accord folder (D-04)', () => {
+    expect(STAGE_FILES.review).toBe('review.md');
+    const FILES = ['review.md', 'review-record.md', 'review-security.md'];
+    for (const roster of everyRoster()) {
+      const files = skillTargets(roster);
+      expect(files.filter((f) => f.path.includes('/accord-review/')).map((f) => f.path), 'no rendered path holds /accord-review/').toEqual([]);
+      for (const f of files) expect(/(?:^|[^-\w/])\.\/record\.md/.test(f.text), `${f.path} names ./record.md`).toBe(false);
+      for (const dir of skillDirs(roster)) {
+        const copies = FILES.map((name) => files.find((f) => f.path === `${dir}/accord/${name}`));
+        copies.forEach((copy, i) => expect(copy, `${dir}/accord/${FILES[i]} renders`).toBeDefined());
+        for (const copy of copies) expect(FRONTMATTER.test(withoutMarker(copy?.text ?? '')), `${copy?.path} has no frontmatter block`).toBe(false);
+        expect(files.some((f) => f.path === `${dir}/accord/record.md`), `${dir}/accord/record.md is no bare child of the accord folder`).toBe(false);
+        const review = files.find((f) => f.path === `${dir}/accord/review.md`)?.text ?? '';
+        for (const name of ['./review-record.md', './review-security.md']) expect(review, `${dir}: review.md names ${name}`).toContain(name);
+        for (const name of ['./plan.md', './build.md']) expect(review, `${dir}: review.md names ${name} where it named the command`).toContain(name);
+        for (const command of ['accord-plan', 'accord-build']) expect(review, `${dir}: review.md still names the ${command} command`).not.toContain(command);
+        const section = stageSection(files.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '');
+        for (const name of FILES) expect(section, `${dir}: the stage section names ./${name}`).toContain('./' + name);
       }
     }
   });

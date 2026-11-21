@@ -60,6 +60,7 @@ it('risk:security the review skill runs a security reviewer on the security pack
     if (skill.length === 0) bad.push(runtime + ': ' + stagePath('review') + ' is missing');
     for (const f of skill) {
       if (!f.text.includes('./review-security.md')) bad.push(f.path + ' lacks the pointer ./review-security.md');
+      if (!f.text.includes('./review-record.md')) bad.push(f.path + ' lacks the pointer ./review-record.md');
       if (Buffer.byteLength(f.text) > 6000) bad.push(f.path + ' is over 6000 bytes');
     }
     const record = rendersAt(runtime, (dir) => stagePath('review', 'record', dir));

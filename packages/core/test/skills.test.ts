@@ -87,7 +87,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'continue', 'new', 'pickup', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'new', 'upgrade', 'audit', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('intent')).toBe('accord-intent');
     expect(installedName('designer')).toBe('accord-designer');
@@ -237,13 +237,11 @@ const COMMAND =
 const MAX_SKILL_BYTES = 6000;
 
 /** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. The command
- *  skills open on what their moved rule names first: Continue and Pick up on the ticket-id rule (`accord status`), New request
+ *  skills open on what their moved rule names first: New request
  *  on its lane routes, Upgrade on the dashboard line it reads the command from (ST-LN-83 7-ac-1). */
 const FIRST_COMMAND: Record<string, string> = {
   accord: 'dashboard',
   'accord-designer': 'gate ready',
-  'accord-continue': 'status',
-  'accord-pickup': 'status',
   'accord-new': 'new ticket',
   'accord-upgrade': 'dashboard',
   'accord-audit': 'audit',
@@ -623,9 +621,7 @@ it('ac-3 each new mention names the step or event at which to read its file and 
 // `accord anchor`, whose id defaults to the ticket of the current branch; designer runs `accord gate ready <id>`.
 const HINTS: Record<string, string | null> = {
   accord: '[request]',
-  'accord-continue': '<ticket id>',
   'accord-new': '<request>',
-  'accord-pickup': '<ticket id>',
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
   'accord-audit': null,
@@ -743,27 +739,98 @@ describe('one command per action', () => {
     return { dirs, texts: dirs.map((dir) => files.find((f) => f.path === `${dir}/${name}/SKILL.md`)?.text ?? '') };
   };
 
-  it('risk:regression accord-continue renders from one definition for every runtime (ST-LN-83 7-ac-1)', () => {
+  // Phase 8.3 D-01, D-03: continue and pick up stopped being commands; their texts are reference files of /accord, loaded at the typed forms.
+  it('risk:regression accord/continue.md and accord/pickup.md render from one definition for every runtime (D-03)', () => {
     for (const runtime of ALL_RUNTIMES) {
-      const { dirs, texts } = copiesOf('accord-continue', runtime);
+      const cfg = config({ runtimes: [runtime] });
+      const files = skillTargets(cfg);
+      const dirs = skillDirs(cfg);
       expect(dirs.length, runtime).toBeGreaterThan(0);
-      for (const [i, text] of texts.entries()) {
-        expect(text.length, `${runtime}: ${dirs[i]}/accord-continue/SKILL.md is missing`).toBeGreaterThan(0);
-        expect(text, `${runtime}: ${dirs[i]} differs from ${dirs[0]}`).toBe(texts[0]);
+      for (const folder of ['/accord-continue/', '/accord-pickup/']) {
+        expect(files.filter((f) => f.path.includes(folder)).map((f) => f.path), `${runtime}: no ${folder} folder is rendered`).toEqual([]);
       }
-      expect(frontmatter(texts[0])?.name, runtime).toBe('accord-continue');
-      const body = bodyOf(texts[0]);
-      expect(body, runtime).toContain('accord worktree open <id> --continue');
-      expect(body, runtime).toContain('accord anchor');
-      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
+      const bodies: Record<string, string> = {};
+      for (const name of ['continue', 'pickup']) {
+        const texts = dirs.map((dir) => files.find((f) => f.path === `${dir}/accord/${name}.md`)?.text ?? '');
+        for (const [i, text] of texts.entries()) {
+          expect(text.length, `${runtime}: ${dirs[i]}/accord/${name}.md is missing`).toBeGreaterThan(0);
+          expect(text, `${runtime}: ${dirs[i]} differs from ${dirs[0]}`).toBe(texts[0]);
+          expect(frontmatter(text), `${runtime}: a reference carries no frontmatter block`).toBeNull();
+        }
+        bodies[name] = bodyOf(texts[0]);
+      }
+      expect(bodies.continue, runtime).toContain('accord worktree open <id> --continue');
+      expect(bodies.continue, runtime).toContain('accord anchor');
+      expect(bodies.continue, runtime).toContain('no `## Resolved` follows its last `## Episode`');
+      expect(bodies.pickup, runtime).toContain('accord worktree open <id>');
+      expect(bodies.pickup, runtime).not.toContain('--continue');
+      const accord = bodyOf(files.find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '').replace(/\s+/g, ' ');
       expect(accord.length, runtime).toBeGreaterThan(0);
-      expect(accord, runtime).toContain('accord-continue');
+      expect(accord, runtime).toContain('follow `./pickup.md` for Pick up');
+      expect(accord, runtime).toContain('`./continue.md` for Continue');
+      expect(accord, runtime).not.toContain('accord-continue');
+      expect(accord, runtime).not.toContain('accord-pickup');
       expect(accord, runtime).not.toContain('## Continue');
     }
   });
 
+  it('risk:regression a typed form with no id asks for it and runs nothing (D-03)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const cfg = config({ runtimes: [runtime] });
+      const dir = skillDirs(cfg)[0];
+      const accord = bodyOf(skillTargets(cfg).find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '').replace(/\s+/g, ' ');
+      expect(accord, runtime).toContain(
+        '`/accord continue` or `/accord pick-up` with no id asks the owner for the ticket id in one question and runs, claims, creates and edits nothing.',
+      );
+    }
+  });
+
+  it('risk:complex-branching free text that looks like a ticket id still routes as text (D-02)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const cfg = config({ runtimes: [runtime] });
+      const files = skillTargets(cfg);
+      const dir = skillDirs(cfg)[0];
+      const accord = bodyOf(files.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '').replace(/\s+/g, ' ');
+      for (const part of [
+        'the whole text after it is exactly one ticket id',
+        '`continue the refactor`',
+        '`/accord continue ST-2 now`',
+        '`/accord continue ST-99` follows `./route.md` like any other text',
+        'follow `./route.md` with the whole text after `/accord`',
+      ]) {
+        expect(accord, `${runtime}: ${part}`).toContain(part);
+      }
+      for (const name of ['continue', 'pickup']) {
+        const text = bodyOf(files.find((f) => f.path === `${dir}/accord/${name}.md`)?.text ?? '').replace(/\s+/g, ' ');
+        expect(text, `${runtime} ${name}: any other text follows the route`).toContain('any other text follows `./route.md` with the whole text');
+      }
+    }
+  });
+
+  // Phase 8.3 D-01 (Pitfall 1): the accord folder renders the lane, finish and scout files again, so none of them may stay on the retire list.
+  it('risk:data-loss the lane finish and scout files render in the accord folder and are not retired (D-01)', () => {
+    const rendered = ['lane', 'lane-r', 'lane-s', 'finish', 'scout', 'review-security'];
+    const retired = ['security', 'upgrade'];
+    for (const runtime of ALL_RUNTIMES) {
+      const cfg = config({ runtimes: [runtime] });
+      const paths = new Set(skillTargets(cfg).map((f) => f.path));
+      for (const dir of skillDirs(cfg)) {
+        for (const name of rendered) {
+          const path = `${dir}/accord/${name}.md`;
+          expect(paths.has(path), `${runtime}: ${path} is rendered`).toBe(true);
+          expect(RETIRED_FILES, path).not.toContain(path);
+        }
+        for (const name of retired) {
+          const path = `${dir}/accord/${name}.md`;
+          expect(paths.has(path), `${runtime}: ${path} is not rendered`).toBe(false);
+          expect(RETIRED_FILES, path).toContain(path);
+        }
+      }
+    }
+  });
+
   it('risk:regression every action of the old accord skill is its own command for every runtime (ST-LN-83 7-ac-1)', () => {
-    const needle: Record<string, string> = { 'accord-new': 'accord new ticket', 'accord-pickup': 'accord worktree open <id>', 'accord-upgrade': './upgrade.md' };
+    const needle: Record<string, string> = { 'accord-new': 'accord new ticket', 'accord-upgrade': './upgrade.md' };
     for (const runtime of ALL_RUNTIMES) {
       for (const [name, text] of Object.entries(needle)) {
         const { dirs, texts } = copiesOf(name, runtime);
@@ -775,11 +842,10 @@ describe('one command per action', () => {
         expect(frontmatter(texts[0])?.name, `${runtime} ${name}`).toBe(name);
         expect(bodyOf(texts[0]), `${runtime} ${name}`).toContain(text);
       }
-      expect(bodyOf(copiesOf('accord-pickup', runtime).texts[0]), runtime).not.toContain('--continue');
       const { dirs } = copiesOf('accord', runtime);
       const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
       expect(accord, runtime).toContain('## Dashboard');
-      for (const name of ['accord-new', 'accord-pickup', 'accord-upgrade']) expect(accord, `${runtime} ${name}`).toContain(name);
+      for (const name of ['accord-new', 'accord-upgrade']) expect(accord, `${runtime} ${name}`).toContain(name);
       for (const heading of ['## Pick up', '## New request: ', '## Upgrade: ']) expect(accord, `${runtime} ${heading}`).not.toContain(heading);
     }
   });
@@ -827,7 +893,7 @@ describe('one command per action', () => {
   it('risk:regression a command that needs an argument asks for it and runs nothing without it (ST-LN-83 7-ac-1)', () => {
     const ASKS = /With no argument, ask the owner for [^.]+ in one question and run, claim, create and edit nothing\./;
     for (const runtime of ALL_RUNTIMES) {
-      for (const name of ['accord-continue', 'accord-new', 'accord-pickup']) {
+      for (const name of ['accord-new']) {
         const { texts } = copiesOf(name, runtime);
         expect(texts[0].length, `${runtime} ${name} is missing`).toBeGreaterThan(0);
         expect(bodyOf(texts[0]).replace(/\s+/g, ' '), `${runtime} ${name}`).toMatch(ASKS);
@@ -884,8 +950,15 @@ describe('retired skill folders', () => {
     }
     // queue exists from v0.8.0 and loaded the same three files in every release: SKILL.md plus the `loads:` basenames, as the tag script found them.
     expect(RETIRED_SKILL_FOLDERS['accord-queue']).toEqual(['SKILL.md', 'ask.md', 'ids.md', 'similar.md']);
-    // Guard the guard: a STAGES copy without `continue` and no entry for it reports it.
-    expect(missingEntries(RENDERED_BY_0_10_0, STAGES.filter((s) => s !== 'continue'), RETIRED_SKILL_FOLDERS)).toContain('accord-continue');
+    // continue and pickup exist from v0.8.0: SKILL.md plus the `loads:` basenames over the tags, plus what the branch rendered (review-security.md, and security.md under its old name).
+    expect(RETIRED_SKILL_FOLDERS['accord-continue']).toEqual([
+      'SKILL.md', 'ask.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'review-security.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
+    ]);
+    expect(RETIRED_SKILL_FOLDERS['accord-pickup']).toEqual(['SKILL.md', 'ask.md', 'failure.md', 'ids.md', 'worktree.md']);
+    // Guard the guard: the same lists without the `accord-continue` entry report it, and without `accord-pickup` report it.
+    const without = (folder: string): Record<string, readonly string[]> => Object.fromEntries(Object.entries(RETIRED_SKILL_FOLDERS).filter(([name]) => name !== folder));
+    expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-continue'))).toContain('accord-continue');
+    expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-pickup'))).toContain('accord-pickup');
   });
 });
 

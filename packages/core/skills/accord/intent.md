@@ -62,9 +62,9 @@ session.
    error) stop and report what it printed to the owner: it says nothing about discuss. When it names
    `gate.discuss-missing` or `gate.discuss-unmapped`, follow `./intent-discuss.md`; when it names neither, the ticket
    was claimed before the discuss stage or its discuss.md is mapped, and goes on. Ask no yes here: the owner
-   approves once, at accord-approach step 5.
+   approves once, at `./approach.md` step 5.
 
-10. Next: `accord-approach`.
+10. Next: `./approach.md`.
 
 ## Rules
 

@@ -61,7 +61,7 @@ the owner's yes before anyone plans. You run it in the main session.
    `accord approve <id>`, then `accord gate ready <id>`, and commits and pushes.
    Never run `accord approve` without the owner's yes in this conversation.
 
-6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it
+6. Next: `./plan.md`, only once `accord gate ready <id>` passes. While it
    fails, the commit in step 5 carries `approved_hash:` alone; after its push,
    stop and tell the owner that `/accord continue <id>` plans the ticket once
    the gate passes.

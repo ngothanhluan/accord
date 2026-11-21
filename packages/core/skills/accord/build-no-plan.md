@@ -36,7 +36,7 @@ its Ruling goes into the ledger commit of step 4.
    line and the `@test:` tags: copy every Ruling in the executor's report into `accord/tickets/<id>/ledger.md` under
    `## Rulings`, commit the ticket with the ledger, then run `accord worktree push <id>`; go on even if it fails.
 
-5. With the plan stage off there is no `accord-plan` to go back to: a block that steps 4 and 7 of `./build.md` send
+5. With the plan stage off there is no plan stage (`./plan.md`) to go back to: a block that steps 4 and 7 of `./build.md` send
    there goes to the owner, and after a change of course (step 6) the new yes is followed by `accord brief <id> 1`
    again.
 

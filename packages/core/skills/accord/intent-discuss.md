@@ -43,4 +43,4 @@ tell the owner so in one line, write no discuss.md, and go to the stage `accord 
 6. On a resume, the first line of discuss.md with no D-nn is the next question.
 
 7. When every line names a D-nn, run `accord gate ready <id>`. Go on only when it names neither
-   `gate.discuss-missing` nor `gate.discuss-unmapped`; then `accord-approach`.
+   `gate.discuss-missing` nor `gate.discuss-unmapped`; then `./approach.md`.

@@ -70,7 +70,7 @@ open a new session in the main checkout and do steps 2 to 6 there.
 
 ## Moving to lane S
 
-Only during the intent interview of a lane M ticket, on the owner's yes, as `accord-intent` says. The ticket keeps its
+Only during the intent interview of a lane M ticket, on the owner's yes, as the intent stage of `/accord` says. The ticket keeps its
 id, branch and worktree, and this same session goes on with it.
 
 1. Refuse the move, say why and that the ticket stays lane M, and stop, when `## Open questions` holds an unchecked

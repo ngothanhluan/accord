@@ -43,9 +43,9 @@ const REQUIRED: Record<string, readonly string[]> = {
   // ST-LN-83 7-ac-1: the Continue steps moved out of /accord, with the phrases that only they carried.
   // Phase 8.3 D-04: step 4 reads the file the stage section of /accord names; a stage with no row there runs its own command.
   continue: ['accord status --json', 'accord worktree open <id> --continue', 'accord anchor', 'accord-debug', '## Resolved', '## A ticket at a stage', 'the row `approach` at step 5', 'no `## Resolved` follows its last `## Episode`', '`done` takes the row `verify` at step 6', './worktree.md', './lane-s.md', './lane-r.md', 'accord gate ready <id>'],
-  intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md', './intent-discuss.md', './intent-research.md'],
+  intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', './approach.md', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md', './intent-discuss.md', './intent-research.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./approach-critique.md.
-  approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './approach-critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
+  approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', './plan.md', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './approach-critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', './build.md', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', './plan.md', 'accord-review', '`Stage: plan`', 'accord-debug', 'git status --porcelain', './scout.md', 'Report file', 'BLOCKED: conflict', './build-waves.md'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify', 're-review', 'places checked:', 'ADDRESSED', './review-record.md', './review-security.md', './plan.md', './build.md'],
@@ -164,6 +164,38 @@ it("risk:regression the verify stage's children render under their prefixed name
   expect(bare.test('follow `./deferred.md`')).toBe(true);
   expect(bare.test('(`./writer.md`)')).toBe(true);
   expect(bare.test('as `./verify-ci.md` says, `./verify-writer.md`, `./plan-critique.md`')).toBe(false);
+});
+
+// Phase 8.3 D-04 (08.3-19): with the intent, approach and plan stages folded, no rendered text sends an agent to their commands.
+it('risk:regression no stage text names the intent approach or plan command (D-04)', () => {
+  const command = /\baccord-(?:intent|approach|plan)(?![\w-])/;
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  for (const runtime of ['claude', 'codex', 'cursor', 'copilot'] as const) {
+    for (const roles of [['ba', 'dev'], ['ba', 'dev', 'designer']] as AccordConfig['roles'][]) {
+      const cfg = { ...config, roles, runtimes: [runtime] } as AccordConfig;
+      const out = skillTargets(cfg);
+      expect(out.filter((f) => command.test(f.text)).map((f) => f.path), runtime + ' ' + roles.join('+') + ': no rendered file names a stage command').toEqual([]);
+      for (const dir of skillDirs(cfg)) {
+        const text = (path: string) => flat(out.find((f) => f.path === path)?.text ?? '');
+        expect(text(besidePath('new', 'new.md', dir)), dir + ' new.md').toContain('`./intent.md`');
+        expect(text(stagePath('intent', undefined, dir)), dir + ' intent.md').toContain('`./approach.md`');
+        expect(text(stagePath('intent', 'discuss', dir)), dir + ' intent-discuss.md').toContain('`./approach.md`');
+        expect(text(stagePath('approach', undefined, dir)), dir + ' approach.md').toContain('`./plan.md`');
+        // ids.md and lane-s.md render in several folders; where one is rendered it names the stage of /accord
+        for (const shared of ['ids.md', 'lane-s.md']) {
+          const here = out.filter((f) => f.path.startsWith(dir + '/') && f.path.endsWith('/' + shared));
+          for (const f of here) expect(flat(f.text), f.path).toContain('the intent stage of `/accord`');
+        }
+      }
+    }
+  }
+  // guard the guard: the pattern catches a command and lets the planner agent, longer names and the stage files through
+  expect(command.test('load `accord-intent` and start')).toBe(true);
+  expect(command.test('Next: `accord-approach`.')).toBe(true);
+  expect(command.test('re-plan through accord-plan.')).toBe(true);
+  expect(command.test('dispatch `accord-planner`')).toBe(false);
+  expect(command.test('the accord-plan-critic')).toBe(false);
+  expect(command.test('Next: `./approach.md`, then `./plan.md`')).toBe(false);
 });
 
 describe('stage skills name what the spec requires', () => {
@@ -316,7 +348,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
     const lists = {
       sentence: idx((s) => /^\d+\. \*\*Discuss\./.test(s)),
       auditor: idx((s) => s.includes('Dispatch `accord-auditor`')),
-      next: idx((s) => /^\d+\. Next: `accord-approach`/.test(s)),
+      next: idx((s) => /^\d+\. Next: `\.\/approach\.md`/.test(s)),
     };
     const off = Object.entries(lists).filter(([, l]) => l.length !== 1);
     for (const [name, l] of off) bad.push(path + ' ' + name + ' found ' + l.length + ' steps');
@@ -1353,7 +1385,7 @@ it('risk:regression the lane S and approach skills wait for a prerequisite merge
 
 it('risk:regression a lane M ticket that gate ready refuses is never planned from approach or continue', () => {
   const G = "Else, at any stage but `intent`, first run `accord gate ready <id>`; when it fails, show the owner what it prints and stop; when it changes the ticket, commit the ticket.";
-  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord continue <id>` plans the ticket once the gate passes.";
+  const H = "6. Next: `./plan.md`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord continue <id>` plans the ticket once the gate passes.";
   const tickets: Files = { 'accord/config.yml': CONFIG, [P('A')]: laneTicket('A'), [P('B')]: laneTicket('B', { frontmatter: ['depends_on: ["A"]'] }) };
   approve(tickets, 'B');
   const snap = loadSnapshot({ files: tickets, tree: Object.keys(tickets) });
@@ -2655,7 +2687,7 @@ it('risk:regression the lane step of accord-new dispatches no researcher (ST-LN-
     const lane = get(besidePath('new', 'lane.md', dir));
     for (const p of ['Dispatch only the scout at this step, and never the researcher', 'at the discuss step of the intent stage']) if (!lane.includes(p)) bad.push(dir + ' accord-new/lane.md lacks ' + p);
     const skill = get(stagePath('new', undefined, dir));
-    for (const p of ['Never dispatch the researcher from this skill', 'at the discuss step of `accord-intent`']) if (!skill.includes(p)) bad.push(dir + ' accord-new/SKILL.md lacks ' + p);
+    for (const p of ['Never dispatch the researcher from this skill', 'at the discuss step of `./intent.md`']) if (!skill.includes(p)) bad.push(dir + ' accord-new/SKILL.md lacks ' + p);
   }
   expect(bad).toEqual([]);
 });

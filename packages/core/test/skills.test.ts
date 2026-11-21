@@ -801,9 +801,9 @@ it('risk:regression the command pattern reads accord waves and accord worktree t
   for (const c of ['waves', 'worktree task', 'task-done', 'brief']) expect(named.has(c), c).toBe(true);
 });
 
-// ST-LN-83 7-ac-1 (D-02): each action of the old single /accord skill is its own command, one definition each, installed
+// ST-LN-83 7-ac-1 (D-02), reversed by Phase 8.3 D-03: the actions of the old single /accord skill are files of /accord, one definition each, installed
 // by every runtime's directories from the same text.
-describe('one command per action', () => {
+describe('the actions of the old accord skill', () => {
   const copiesOf = (name: string, runtime: AccordConfig['runtimes'][number]): { dirs: string[]; texts: string[] } => {
     const cfg = config({ runtimes: [runtime] });
     const files = skillTargets(cfg);
@@ -912,24 +912,50 @@ describe('one command per action', () => {
     }
   });
 
-  it('risk:regression every action of the old accord skill is its own command for every runtime (ST-LN-83 7-ac-1)', () => {
-    const needle: Record<string, string> = { 'accord-upgrade': './upgrade.md' };
+  // Phase 8.3 D-03: the actions of the old single accord skill (continue, pick up, queue, new) are files of /accord; only upgrade stays a command of its own.
+  it('risk:regression every action of the old single accord skill is a file of /accord for every runtime (D-03)', () => {
+    const needle: Record<string, string> = {
+      continue: 'accord worktree open <id> --continue',
+      pickup: 'accord worktree open <id>',
+      queue: 'accord new ticket --queue',
+      new: 'accord new ticket',
+    };
     for (const runtime of ALL_RUNTIMES) {
+      const cfg = config({ runtimes: [runtime] });
+      const files = skillTargets(cfg);
+      const dirs = skillDirs(cfg);
+      expect(dirs.length, runtime).toBeGreaterThan(0);
       for (const [name, text] of Object.entries(needle)) {
-        const { dirs, texts } = copiesOf(name, runtime);
-        expect(dirs.length, `${runtime} ${name}`).toBeGreaterThan(0);
-        for (const [i, copy] of texts.entries()) {
-          expect(copy.length, `${runtime}: ${dirs[i]}/${name}/SKILL.md is missing`).toBeGreaterThan(0);
-          expect(copy, `${runtime}: ${dirs[i]}/${name} differs from ${dirs[0]}`).toBe(texts[0]);
+        const copies = dirs.map((dir) => files.find((f) => f.path === `${dir}/accord/${name}.md`)?.text ?? '');
+        for (const [i, copy] of copies.entries()) {
+          expect(copy.length, `${runtime}: ${dirs[i]}/accord/${name}.md is missing`).toBeGreaterThan(0);
+          expect(copy, `${runtime}: ${dirs[i]}/accord/${name}.md differs from ${dirs[0]}`).toBe(copies[0]);
         }
-        expect(frontmatter(texts[0])?.name, `${runtime} ${name}`).toBe(name);
-        expect(bodyOf(texts[0]), `${runtime} ${name}`).toContain(text);
+        expect(frontmatter(copies[0]), `${runtime} ${name}: a file of /accord carries no frontmatter block`).toBeNull();
+        expect(bodyOf(copies[0]), `${runtime} ${name}`).toContain(text);
+        expect(files.some((f) => f.path.includes(`/accord-${name}/`)), `${runtime}: no accord-${name} folder`).toBe(false);
+        const accord = files.find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
+        expect(accord, `${runtime}: /accord names ./${name}.md`).toContain(`./${name}.md`);
       }
-      const { dirs } = copiesOf('accord', runtime);
-      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
+      const accord = files.find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
       expect(accord, runtime).toContain('## Dashboard');
-      for (const name of ['accord-upgrade']) expect(accord, `${runtime} ${name}`).toContain(name);
       for (const heading of ['## Pick up', '## New request: ', '## Upgrade: ']) expect(accord, `${runtime} ${heading}`).not.toContain(heading);
+    }
+  });
+
+  // Upgrade keeps its own command: one definition, the same text in every runtime's directories.
+  it('risk:regression accord-upgrade stays a command rendered from one definition for every runtime (D-03)', () => {
+    for (const runtime of ALL_RUNTIMES) {
+      const { dirs, texts } = copiesOf('accord-upgrade', runtime);
+      expect(dirs.length, runtime).toBeGreaterThan(0);
+      for (const [i, copy] of texts.entries()) {
+        expect(copy.length, `${runtime}: ${dirs[i]}/accord-upgrade/SKILL.md is missing`).toBeGreaterThan(0);
+        expect(copy, `${runtime}: ${dirs[i]}/accord-upgrade differs from ${dirs[0]}`).toBe(texts[0]);
+      }
+      expect(frontmatter(texts[0])?.name, runtime).toBe('accord-upgrade');
+      expect(bodyOf(texts[0]), runtime).toContain('./upgrade.md');
+      const accord = skillTargets(config({ runtimes: [runtime] })).find((f) => f.path === `${dirs[0]}/accord/SKILL.md`)?.text ?? '';
+      expect(accord, runtime).toContain('accord-upgrade');
     }
   });
 

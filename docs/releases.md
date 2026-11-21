@@ -2,7 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.11.1 — 2026-11-21
+
+Release 0.11.1 lets `/accord` take any wording for work on a ticket (the bullet below): text that asks to resume or take a ticket, named by its id or described, goes to Continue or Pick up, so no typed form is needed. Tickets in flight: nothing a ticket is refused for changes, and `accord gate ready` and `accord gate done` give the same answers. Only the `accord` skill's `SKILL.md` and `route.md` change; a repository pinned to 0.11.0 gets them with `accord upgrade`, which also moves the pin and the panel plugin.
 
 - `/accord` routes free text that asks to work on a ticket, in any words or language and named by its id or described ("go on with ST-12", "resume the export ticket"): a claimed ticket goes to Continue and an unclaimed one to Pick up, and when the text fits no ticket or several, `/accord` asks which one in one question. In 0.11.0 such text matched no route. Nothing needs to be typed in a special form any more: the README and the design describe `/accord` with your own words, and the typed forms `/accord continue <id>`, `/accord pick-up <id>` and `/accord queue <idea>` stay as what the dashboard, the panel buttons and accord's printed lines send. The session check runs at a routed Continue or Pick up as at a typed one, so a ticket session still cannot move to another ticket.
 

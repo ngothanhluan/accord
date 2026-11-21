@@ -113,6 +113,22 @@ describe('accord hook', () => {
       expect(await resumed({}, 'feature/x')).not.toContain('stage file:');
       expect(await resumed({ 'accord/tickets/T-1.md': laneTicket('T-1', { lane: '' }) })).not.toContain('stage file:');
     }, 60_000);
+
+    // Phase 8.3 D-04 (08.3-18): every stage after the last fold has its file, so a lane M ticket at verify or at done names ./verify.md, whatever STAGE_FILES holds elsewhere
+    it('risk:complex-branching after /clear a lane M ticket at verify or done names ./verify.md (D-04)', async () => {
+      const verifying: Record<string, string> = {};
+      building(verifying, 'T-1');
+      verifying['accord/tickets/T-1/ledger.md'] = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n';
+      verifying['accord/tickets/T-1/review.md'] = 'verdict: converged\n';
+      const finished: Record<string, string> = {};
+      done(finished, 'T-1');
+      for (const [name, files, stage] of [['verify', verifying, 'verify'], ['done', finished, 'done']] as const) {
+        const out = await resumed(files);
+        expect(/^Stage: (\w+)/m.exec(out)?.[1], `${name}: the anchor prints its stage`).toBe(stage);
+        expect(out.endsWith(line('verify.md') + '\n'), `${name} names ./verify.md`).toBe(true);
+        expect(out.split('stage file:').length - 1, name).toBe(1);
+      }
+    }, 60_000);
   });
 
   it('subagent-start prints the ruleset as additionalContext JSON', async () => {

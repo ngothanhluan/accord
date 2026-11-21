@@ -899,7 +899,6 @@ packages/core/test/skills.test.ts#render-output-invariants->-every-SKILL.md-name
 packages/core/test/skills.test.ts#render-output-invariants->-every-SKILL.md-opens-on-its-first-command-(SKILL-04,-D-128,-spec-§6)
 packages/core/test/skills.test.ts#render-output-invariants->-every-file-carries-exactly-one-marker-whose-hash-recomputes-(D-110,-D-111)
 packages/core/test/skills.test.ts#render-output-invariants->-every-relative-reference-resolves-inside-the-same-render,-for-more-than-one-roster-(D-110)
-packages/core/test/skills.test.ts#render-output-invariants->-exactly-one-rendered-file-tells-its-reader-about-ticking-`verified`,-and-it-is-accord-verify-(SKILL-07)
 packages/core/test/skills.test.ts#render-output-invariants->-has-files-to-check
 packages/core/test/skills.test.ts#render-output-invariants->-no-backslash-in-any-emitted-path-or-any-rendered-text-(D-51)
 packages/core/test/skills.test.ts#render-output-invariants->-no-rendered-line-carries-the-`Result:`-or-`Evidence:`-label-behind-a-list-marker

@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -531,14 +531,14 @@ describe('render output invariants', () => {
     expect(lines.some((l) => l.startsWith('Evidence:')), 'no line begins with the Evidence label').toBe(true);
   });
 
-  it('exactly one rendered file tells its reader about ticking `verified`, and it is accord-verify (SKILL-07)', () => {
-    // A write verb immediately before the key. The owner ticks it; the verify skill is the one file that
+  it('risk:regression exactly one rendered file tells its reader about ticking verified and it is the verify stage file (D-04)', () => {
+    // A write verb immediately before the key. The owner ticks it; the verify stage file is the one file that
     // says so, and says the agent never does.
     const WRITES = /\b(ticks?|writes?|records?)\s+`?verified/i;
     const rendered = [...output, ...agentTargets(config({ runtimes: ['claude'] }))];
     const authors = rendered.filter((f) => WRITES.test(f.text)).map((f) => f.path);
-    expect([...new Set(authors.map((p) => baseOf(dirOf(p)) + '/' + baseOf(p)))]).toEqual(['accord-verify/SKILL.md']);
-    expect(authors).toContain('.claude/skills/accord-verify/SKILL.md');
+    expect([...new Set(authors.map((p) => baseOf(dirOf(p)) + '/' + baseOf(p)))]).toEqual(['accord/verify.md']);
+    expect(authors).toContain(stagePath('verify'));
   });
 
   it('the prototype brief names no accord command before its step 4 heading', () => {
@@ -630,7 +630,7 @@ it('ac-1 every reference file of a rendered skill is named in its own SKILL.md',
     expect(files.length).toBeGreaterThan(0);
     const paths = files.map((f) => f.path);
     for (const dir of ['.claude/skills', '.agents/skills']) {
-      for (const p of ['accord/finish.md', 'accord/lane-s.md', 'accord/new.md', 'accord-debug/worktree.md', 'accord-debug/ids.md', 'accord-verify/worktree.md', 'accord-verify/ids.md']) {
+      for (const p of ['accord/finish.md', 'accord/lane-s.md', 'accord/new.md', 'accord-debug/worktree.md', 'accord-debug/ids.md']) {
         expect(paths, `${dir}/${p} is not rendered`).toContain(`${dir}/${p}`);
       }
     }
@@ -671,16 +671,16 @@ it('ac-3 each new mention names the step or event at which to read its file and 
   const D = 'at step 5';
   const vague = /\b(?:when|if|as) (?:needed|necessary|required)\b/i;
   const expectations: [string, string, string][] = [
-    ['accord', './finish.md', A],
-    ['accord-debug', './worktree.md', B],
-    ['accord-debug', './ids.md', C],
-    ['accord-verify', './worktree.md', B],
-    ['accord-verify', './ids.md', D],
+    ['accord/SKILL.md', './finish.md', A],
+    ['accord-debug/SKILL.md', './worktree.md', B],
+    ['accord-debug/SKILL.md', './ids.md', C],
+    ['accord/verify.md', './worktree.md', B],
+    ['accord/verify.md', './ids.md', D],
   ];
   for (const dir of ['.claude/skills', '.agents/skills']) {
     for (const [skill, ref, needle] of expectations) {
-      const file = ROSTERS[0].find((f) => f.path === `${dir}/${skill}/SKILL.md`);
-      expect(file, `${dir}/${skill}/SKILL.md`).toBeDefined();
+      const file = ROSTERS[0].find((f) => f.path === `${dir}/${skill}`);
+      expect(file, `${dir}/${skill}`).toBeDefined();
       const sentence = sentenceWith(file?.text ?? '', ref);
       expect(sentence, `${dir}/${skill}: ${ref}`).toContain(needle);
       expect(sentence).not.toMatch(vague);
@@ -704,7 +704,6 @@ const HINTS: Record<string, string | null> = {
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
   'accord-audit': null,
-  'accord-verify': '[ticket id]',
   'accord-debug': '[ticket id] [failure]',
   'accord-designer': '<ticket id>',
 };
@@ -1146,6 +1145,10 @@ describe('retired skill folders', () => {
     ]);
     // review exists from v0.2.0 (record.md, ask.md), gains security.md in v0.7.0 (review-security.md on the branch); the branch also renders review-security.md in the folder.
     expect(RETIRED_SKILL_FOLDERS['accord-review']).toEqual(['SKILL.md', 'ask.md', 'record.md', 'review-security.md', 'security.md']);
+    // verify exists from v0.2.0 (ci.md, ids.md, worktree.md, ask.md, failure.md), gains finish.md in v0.3.0, resume.md in v0.6.0, writer.md in v0.7.0, deferred.md in v0.8.0; the branch also rendered verify-ci.md, verify-deferred.md and verify-writer.md in the folder.
+    expect(RETIRED_SKILL_FOLDERS['accord-verify']).toEqual([
+      'SKILL.md', 'ask.md', 'ci.md', 'deferred.md', 'failure.md', 'finish.md', 'ids.md', 'resume.md', 'verify-ci.md', 'verify-deferred.md', 'verify-writer.md', 'worktree.md', 'writer.md',
+    ]);
     // Guard the guard: the same lists without the `accord-continue` entry report it, and without `accord-pickup` report it.
     const without = (folder: string): Record<string, readonly string[]> => Object.fromEntries(Object.entries(RETIRED_SKILL_FOLDERS).filter(([name]) => name !== folder));
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-continue'))).toContain('accord-continue');
@@ -1154,6 +1157,7 @@ describe('retired skill folders', () => {
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-plan'))).toContain('accord-plan');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-build'))).toContain('accord-build');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-review'))).toContain('accord-review');
+    expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-verify'))).toContain('accord-verify');
   });
 });
 
@@ -1188,7 +1192,7 @@ describe('a ticket at a stage', () => {
         expect(section, `${f.path}: the stage section says the anchor decides, after every /clear or compaction`).toMatch(/after every `\/clear` or compaction/);
         expect(section).toContain('`accord anchor`');
         expect(section).toContain('never from memory');
-        expect(section).toContain('A lane M stage with no row here runs its own command');
+        expect(section, `${f.path}: every stage has a row, so none runs its own command`).not.toContain('runs its own command');
       }
     }
     // the map: lane S and R name their files, a lane M stage its STAGE_FILES entry, anything else nothing
@@ -1387,6 +1391,42 @@ describe('a ticket at a stage', () => {
     }
   });
 
+  it('risk:regression the verify stage renders as accord/verify.md with its three children and no stage is a command (D-04)', () => {
+    expect(STAGE_FILES.verify).toBe('verify.md');
+    expect(STAGE_FILES.done).toBe('verify.md');
+    const FILES = ['verify.md', 'verify-ci.md', 'verify-deferred.md', 'verify-writer.md'];
+    for (const roster of everyRoster()) {
+      const files = skillTargets(roster);
+      expect(files.filter((f) => f.path.includes('/accord-verify/')).map((f) => f.path), 'no rendered path holds /accord-verify/').toEqual([]);
+      for (const dir of skillDirs(roster)) {
+        const copies = FILES.map((name) => files.find((f) => f.path === `${dir}/accord/${name}`));
+        copies.forEach((copy, i) => expect(copy, `${dir}/accord/${FILES[i]} renders`).toBeDefined());
+        for (const copy of copies) expect(FRONTMATTER.test(withoutMarker(copy?.text ?? '')), `${copy?.path} has no frontmatter block`).toBe(false);
+        for (const name of ['ci.md', 'deferred.md', 'writer.md']) expect(files.some((f) => f.path === `${dir}/accord/${name}`), `${dir}/accord/${name} is no bare child of the accord folder`).toBe(false);
+        const verify = files.find((f) => f.path === `${dir}/accord/verify.md`)?.text ?? '';
+        for (const name of ['./verify-ci.md', './verify-deferred.md', './verify-writer.md', './resume.md', './build.md']) expect(verify, `${dir}: verify.md names ${name}`).toContain(name);
+        expect(verify, `${dir}: verify.md no longer names the build command`).not.toContain('accord-build');
+        const section = stageSection(files.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '');
+        for (const name of FILES) expect(section, `${dir}: the stage section names ./${name}`).toContain('./' + name);
+      }
+    }
+  });
+
+  it('risk:regression STAGE_FILES holds exactly the six stages and done and no stage is a command (D-04)', () => {
+    expect(Object.keys(STAGE_FILES).sort()).toEqual(['approach', 'build', 'done', 'intent', 'plan', 'review', 'verify']);
+    expect(STAGE_FILES).toEqual({ intent: 'intent.md', approach: 'approach.md', plan: 'plan.md', build: 'build.md', review: 'review.md', verify: 'verify.md', done: 'verify.md' });
+    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug']);
+    for (const stage of ['intent', 'approach', 'plan', 'build', 'review', 'verify']) {
+      expect(Object.keys(HINTS), `HINTS holds no command for ${stage}`).not.toContain('accord-' + stage);
+      expect(Object.keys(FIRST_COMMAND), `FIRST_COMMAND holds no command for ${stage}`).not.toContain('accord-' + stage);
+    }
+    for (const f of accordSkills) {
+      const section = stageSection(f.text);
+      expect(section, `${f.path}: the stage section names the verify row`).toContain('./verify.md');
+      expect(section, `${f.path}: the stage section runs no command`).not.toContain('runs its own command');
+    }
+  });
+
   it("risk:regression the accord folder renders resume.md for the plan stage's Unfinished step in every tool (D-04)", () => {
     for (const runtime of ALL_RUNTIMES) {
       const cfg = config({ runtimes: [runtime] });
@@ -1403,7 +1443,7 @@ describe('a ticket at a stage', () => {
     expect('yaml' in source ? String(source.yaml.loads) : '', 'the accord SKILL.md loads shared/resume.md').toContain('shared/resume.md');
     for (const f of accordSkills) {
       const sentences = sentencesNaming(f.text, 'resume.md');
-      expect(sentences.some((s) => s.includes('plan') && s.includes('Unfinished')), `${f.path}: a sentence names ./resume.md with plan and Unfinished`).toBe(true);
+      expect(sentences.some((s) => s.includes('plan') && s.includes('verify') && s.includes('Unfinished')), `${f.path}: a sentence names ./resume.md with plan, verify and Unfinished`).toBe(true);
     }
   });
 

@@ -59,13 +59,13 @@ it('risk:security the review skill runs a security reviewer on the security pack
     const skill = rendersAt(runtime, (dir) => stagePath('review', undefined, dir));
     if (skill.length === 0) bad.push(runtime + ': ' + stagePath('review') + ' is missing');
     for (const f of skill) {
-      if (!f.text.includes('./security.md')) bad.push(f.path + ' lacks the pointer ./security.md');
+      if (!f.text.includes('./review-security.md')) bad.push(f.path + ' lacks the pointer ./review-security.md');
       if (Buffer.byteLength(f.text) > 6000) bad.push(f.path + ' is over 6000 bytes');
     }
     const record = rendersAt(runtime, (dir) => stagePath('review', 'record', dir));
     if (record.length === 0) bad.push(runtime + ': ' + stagePath('review', 'record') + ' is missing');
     for (const f of record)
-      for (const p of lacks(flat(f.text), ['Security: no pattern matched', 'Security: lens security ran', 'no `Security:` line', './security.md']))
+      for (const p of lacks(flat(f.text), ['Security: no pattern matched', 'Security: lens security ran', 'no `Security:` line', './review-security.md']))
         bad.push(f.path + ' lacks ' + p);
   }
   expect(bad).toEqual([]);
@@ -74,18 +74,52 @@ it('risk:security the review skill runs a security reviewer on the security pack
 it('risk:security lane S review rounds add the security reviewer as lane M does, in every tool (ST-LN-36 36-ac-2)', () => {
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
-    const security = rendersAt(runtime, (dir) => besidePath('new', 'security.md', dir));
-    if (security.length === 0) bad.push(runtime + ': ' + besidePath('new', 'security.md') + ' is missing');
+    const security = rendersAt(runtime, (dir) => besidePath('new', 'review-security.md', dir));
+    if (security.length === 0) bad.push(runtime + ': ' + besidePath('new', 'review-security.md') + ' is missing');
     const laneS = rendersAt(runtime, (dir) => besidePath('new', 'lane-s.md', dir));
     if (laneS.length === 0) bad.push(runtime + ': ' + besidePath('new', 'lane-s.md') + ' is missing');
     for (const f of laneS)
       for (const p of lacks(flat(f.text), [
         'when the round\'s package lists a security trigger, add a security reviewer',
-        './security.md',
+        './review-security.md',
         'in every round write the round\'s `Security:` line',
         '`Security: no pattern matched` when the package lists none',
       ]))
         bad.push(f.path + ' lacks ' + p);
+  }
+  expect(bad).toEqual([]);
+});
+
+/** What is wrong with a render list: a retired checklist path, a pointer to the old name, a folder naming a file it lacks. */
+const securityRenderIssues = (files: readonly { path: string; text: string }[]): string[] => {
+  const bad: string[] = [];
+  const paths = new Set(files.map((f) => f.path));
+  for (const f of files) {
+    if (/\/accord\/security\.md$/.test(f.path)) bad.push(f.path + ' is the retired checklist path');
+    if (f.text.includes('./security.md')) bad.push(f.path + ' names ./security.md');
+    if (f.text.includes('./review-security.md')) {
+      const beside = f.path.replace(/\/[^/]+$/, '/review-security.md');
+      if (!paths.has(beside)) bad.push(f.path + ' names ./review-security.md but ' + beside + ' is not rendered');
+    }
+  }
+  return bad;
+};
+
+it('risk:data-loss the security checklist renders as review-security.md wherever a stage reads it and never as the retired name (D-01)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const files = skillTargets(config(runtime));
+    bad.push(...securityRenderIssues(files).map((p) => runtime + ': ' + p));
+    // not vacuous: the review, new and continue stages each name the checklist and render it beside their own file
+    for (const stage of ['review', 'new', 'continue']) {
+      const own = rendersAt(runtime, (dir) => stagePath(stage, undefined, dir));
+      if (own.length === 0) bad.push(runtime + ': ' + stagePath(stage) + ' is missing');
+      for (const f of own) if (!f.text.includes('./review-security.md')) bad.push(f.path + ' does not name ./review-security.md');
+    }
+    // guard the guard: a render list holding the retired path is reported
+    const dir = skillDirs(config(runtime))[0] as string;
+    const guarded = securityRenderIssues([...files, { path: dir + '/accord/security.md', text: 'x' }]);
+    if (!guarded.some((p) => p.includes(dir + '/accord/security.md is the retired checklist path'))) bad.push(runtime + ': the guard missed the retired path');
   }
   expect(bad).toEqual([]);
 });

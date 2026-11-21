@@ -277,3 +277,54 @@ it('risk:regression a fixed comment gets its reply only after a fresh judge re-c
     'the comment goes back to step 5',
   ]) expect(section, 'the section lacks: ' + phrase).toContain(phrase);
 });
+
+// Phase 8.4 (08.4-04): in lane M a bug comment gets only its failing test from accord-debug before the judge rules (D-02, D-03).
+const sectionOf = (text: string): string => {
+  const at = flat(withoutMarker(text)).indexOf('## In `/accord-resolve-pr`');
+  return at < 0 ? '' : flat(withoutMarker(text)).slice(at);
+};
+
+it('risk:complex-branching a lane M bug comment gets only its failing test from accord-debug before the judge rules (D-03)', () => {
+  const files = skillTargets(config({ runtimes: [...ALL] }));
+  for (const dir of RESOLVE) {
+    const copy = files.find((f) => f.path === dir + '/judge.md');
+    expect(copy, dir + '/judge.md renders').toBeDefined();
+    const section = sectionOf(copy?.text ?? '');
+    for (const phrase of [
+      'In lane M, once steps 3 and 4 are clear, load `accord-debug` for the ticket as step 5\'s failure path loads it, one comment at a time',
+      "give it the comment verbatim with the judge's `reproduce:` line as its report",
+      'say that `/accord-resolve-pr` started it for a comment',
+      'its executor commits only the failing test and stops, with no fix',
+      'In lane M, `holds` sends the comment to step 5',
+      'a second executor run starts from that test and fixes it',
+    ]) expect(section, dir + ' lacks: ' + phrase).toContain(phrase);
+    const at = ['In lane S, before any fix of it', 'In lane M, once steps 3 and 4 are clear', 'Then dispatch a fresh `accord-judge` again', 'In lane M, `holds`'].map((p) => section.indexOf(p));
+    expect(at[0], dir).toBeGreaterThan(-1);
+    for (let i = 1; i < at.length; i += 1) expect(at[i], dir + ' order ' + i).toBeGreaterThan(at[i - 1]!);
+    const review = files.find((f) => f.path === dir.replace('resolve-pr', 'review-pr') + '/judge.md');
+    expect(review?.text, dir + ' review-pr copy').toBe(copy?.text);
+  }
+});
+
+const EXECUTOR_PATHS = ['.claude/agents/accord-executor.md'] as const;
+
+it("risk:security the executor stops after the reproduction test only when its brief's last line says so (D-03)", () => {
+  const texts = [
+    ...ALL.flatMap((rt) => agentTargets(config({ runtimes: [rt] })).filter((f) => f.path.endsWith('/accord-executor.md')).map((f) => [rt, f.text] as const)),
+    ...EXECUTOR_PATHS.map((p) => [p, readFileSync(new URL(p, root), 'utf8')] as const),
+  ];
+  expect(texts.length).toBeGreaterThan(1);
+  for (const [where, text] of texts) {
+    const body = flat(text);
+    for (const phrase of [
+      'When the last line of your brief is `Test only: commit the reproduction test alone, then stop.`',
+      'write and run only the reproduction test your brief names',
+      'commit it alone, with any fixture it reads, when its failing output shows the reported behaviour',
+      'commit nothing when it passes, leaving it uncommitted',
+      'change no other file and fix nothing',
+      '`no red test — the reproduction passes`',
+      'A brief whose last line is anything else is built or fixed as the rest of this file says.',
+      "Write the failing test first: the task's criterion test, or the reproduction or failing case the findings name. Show it failing, then write the code and show it passing.",
+    ]) expect(body, where + ' lacks: ' + phrase).toContain(phrase);
+  }
+});

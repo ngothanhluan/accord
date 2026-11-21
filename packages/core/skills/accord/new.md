@@ -4,7 +4,7 @@ kind: reference
 
 `/accord` follows this file with the whole text once `./route.md` reads a request as a change or as research, and it starts a New request.
 
-First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`. When the request reads as another route of `./route.md` (a question, a brainstorm, a queued idea as `./queue.md` says, a review of code accord did not build as `./review-foreign.md` says), say so and follow that route instead of proposing a lane.
+First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`. When the request reads as another route of `./route.md` (a question, a brainstorm, a queued idea as `./queue.md` says, a review of code accord did not build, which loads `accord-review-pr`), say so and follow that route instead of proposing a lane.
 
 ## New request
 

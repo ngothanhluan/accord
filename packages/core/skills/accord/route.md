@@ -32,7 +32,7 @@ Run the session check, then edit that ticket, putting the owner's words under it
 
 ## Review code or a pull request accord did not build
 
-Follow `./review-foreign.md`, without the session check.
+Load `accord-review-pr` with the request (a pull request number or link, or a branch), without the session check.
 
 ## Where the session check runs
 

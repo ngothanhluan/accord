@@ -4,7 +4,7 @@ Each section lists what changes for tickets in flight and for repositories pinne
 
 ## Unreleased
 
-Phase 8.3 folds commands into `/accord` and gives the others a command of their own. Its first group folds four commands that started work, its second group folds the six lane M stage skills, and its third group adds four commands (`/accord-config`, `/accord-onboard`, `/accord-resolve-pr` and `/accord-review-pr`) and a hint for every command; a later group lets `/accord-debug` work outside a ticket. The release ships once every group has merged, when the menu holds eight commands plus the opt-in designer role (`accord-designer`, rendered only when `roles` lists `designer`). Until then this section grows with each group.
+Phase 8.3 folds commands into `/accord` and gives the others a command of their own. Its first group folds four commands that started work, its second group folds the six lane M stage skills, and its third group adds four commands (`/accord-config`, `/accord-onboard`, `/accord-resolve-pr` and `/accord-review-pr`) and a hint for every command; its fourth group lets `/accord-debug` work outside a ticket. The release ships once every group has merged, when the menu holds eight commands plus the opt-in designer role (`accord-designer`, rendered only when `roles` lists `designer`). Until then this section grows with each group.
 
 - Four commands leave the menu; each is now text `/accord` loads, reached from `/accord` with the text typed after it:
 
@@ -47,6 +47,10 @@ Phase 8.3 folds commands into `/accord` and gives the others a command of their 
 - New CLI verb `accord config areas [<area>] [--json]`: it prints each settings area (`area: <id> - <title>`), each key's value and what it controls, and the proposals `accord init` detected, and it writes nothing. The area ids are `team`, `git`, `tests`, `review`, `integrations`, `hygiene`, `templates` and `managed`.
 - `schemas/config-areas.json` ships beside the other schemas (exported through `./schemas/*`) and core exports `CONFIG_AREAS`, `ConfigArea` and `ConfigAreaKey` (a change the hub reads). A new top-level config key needs an area there or the test suite fails.
 - `accord skills sync` and `accord upgrade` remove the accord skill folder's `comments.md`, `review-foreign.md` and `onboard.md`, each only while its marker shows nobody edited it, because each text moved to the folder of its own command.
+- `/accord-debug` works outside a ticket: on an issue no ticket holds it finds the root cause with a fresh debugger, fixes nothing, and ends by offering a ticket through `/accord` with the root cause in the request. Its notes live in a private file of the system temp directory, never committed, the same for every worktree of one repository, kept across `/clear` and lost on a temp clean-up or a reboot (which ends the investigation, not any work).
+- New CLI verb `accord debug path [--json]`: it prints `path: <file>` and `episode: open` or `episode: none`, and creates the private folder (0700) and an empty file (0600) when absent; it refuses a link, a folder owned by another user or open to others, and a file that is not a regular file, and changes nothing on a refusal.
+- In Claude Code, the session-resume hook prints `Unfinished: <path>: resume the debugger with /accord-debug` when no ticket is active and that file holds an open investigation. The hook only reads the file, never creates it, and never prints its text. The other tools have no hook.
+- The debugger agent's input line takes the state file's path outside a ticket, and it still writes one file. The `/accord-debug` size limit entry moved from 5500 to 5710 bytes (it renders at 5708); no sentence of any text was cut.
 
 ## 0.10.0 — 2026-11-21
 

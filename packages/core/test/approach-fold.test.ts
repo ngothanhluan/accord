@@ -44,7 +44,7 @@ it('ac-5 the critic checks every decision and correction in plan mode and in dif
   expect(planner.indexOf(SEVENTH), 'planner lacks SEVENTH').toBeGreaterThan(intro);
 });
 
-const G = 'Write the ladder Ruling of `./critique.md` into `accord/tickets/<id>/ledger.md`. When a new session or a revision needs the planner again, dispatch it in `direction` mode with the name of the option `## Approach` names: it keeps that option, and nobody picks again.';
+const G = 'Write the ladder Ruling of `./approach-critique.md` into `accord/tickets/<id>/ledger.md`. When a new session or a revision needs the planner again, dispatch it in `direction` mode with the name of the option `## Approach` names: it keeps that option, and nobody picks again.';
 const C = "From round 2, even after a Must, the round is `diff`: write `git diff <the previous round's commit> -- accord/tickets/<id>.md`, which holds the amended `## Approach`, into a file outside the working tree, and dispatch one `accord-critic` in a fresh context, mode `approach`, with the paths of the ticket, that file, and `approach-review.md`, never the planner's report.";
 const D = 'Mark `fixed` each finding the critic lists after `fixed:`, and `withdrawn` each one it lists after `withdrawn:`.';
 const E = 'A Nice, a `defer to plan` one included, is marked `deferred`, goes to the ledger under `## Deferred`, and never to the planner.';
@@ -93,7 +93,7 @@ it('ac-3 approach critique defers detail to the plan and reads only the approach
   holds(critic, ['is marked `defer to plan` and rated Nice, never a Must or a Should', 'read `## Approach` only at the changed lines, never in full', 'From round 2 of `approach` mode you also get the paths of a file holding `git diff` of the ticket since the previous round', '`accord/tickets/<id>/approach-review.md`', 'raise new findings only on the changed lines', 'or `approach-review.md` in `approach` mode', '`fixed: <round>.<n>, <round>.<n>`', '`withdrawn: <round>.<n>, <round>.<n>`']);
   const loop = flat(skillFile(stagePath('approach', 'critique')));
   holds(loop, [C, D, E, '`accord round <id> --approach`']);
-  holds(flat(skillFile(stagePath('approach'))), ['./critique.md', '`accord round <id> --approach`']);
+  holds(flat(skillFile(stagePath('approach'))), ['./approach-critique.md', '`accord round <id> --approach`']);
 });
 
 it('risk:complex-branching a resumed or revised approach round keeps its option and skips every ruled-out one', () => {
@@ -131,7 +131,7 @@ it('risk:security the critique loop names the mark slot as the one place a risk 
     'A risk named only in prose is not read and does not block; an open Must or Should that names one is listed under the risks, and an open Nice is not listed.',
     "rewrite a mark accord cannot read in the exact form it was meant to have, keeping the kind it names (`risks: security` becomes `risk: security`), and never change a finding's severity, state or the risk it names.",
     'When you cannot tell what the mark was meant to say, ask the owner, or have the critic restate that one mark; do not guess.',
-    'as `./critique.md` gives the form',
+    'as `./approach-critique.md` gives the form',
   ]);
   holds(flat(agent('critic')), ['write the risk only on its `rests on:` line, exactly `risk: data-loss` or `risk: security`, never in backticks, quotes or prose.']);
 });

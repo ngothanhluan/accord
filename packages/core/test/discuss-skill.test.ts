@@ -105,8 +105,8 @@ it('risk:regression the owner approves once from the short view in all four tool
     const to = skill.indexOf('6. Next');
     const step = skill.slice(from, to);
     if (from < 0 || to < from) bad.push(dir + ': approach step 5 is not the owner\'s yes');
-    else if (!step.includes('./approval.md')) bad.push(dir + ' approach step 5 does not name ./approval.md');
-    if (!skill.includes('approach/approval.md') && !skill.includes('./approval.md')) bad.push(dir + ' approach SKILL.md does not name approval.md');
+    else if (!step.includes('./approach-approval.md')) bad.push(dir + ' approach step 5 does not name ./approach-approval.md');
+    if (!skill.includes('./approach-approval.md')) bad.push(dir + ' approach.md does not name approach-approval.md');
     for (const p of [
       '`accord show <id> --approval --short`',
       'not inside a code block',

@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'plan', 'build', 'review', 'verify', 'debug']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -700,7 +700,6 @@ const HINTS: Record<string, string | null> = {
   // A command that takes no argument shows no hint.
   'accord-upgrade': null,
   'accord-audit': null,
-  'accord-approach': '[ticket id]',
   'accord-plan': '[ticket id]',
   'accord-build': '[ticket id]',
   'accord-review': '[ticket id]',
@@ -1130,6 +1129,8 @@ describe('retired skill folders', () => {
     expect(RETIRED_SKILL_FOLDERS['accord-pickup']).toEqual(['SKILL.md', 'ask.md', 'failure.md', 'ids.md', 'worktree.md']);
     // intent exists from v0.2.0 (ask.md, ids.md), gains lane.md in v0.3.0, research.md in v0.4.0, scout.md and discuss.md in v0.4.1; v0.10.0 and the branch load the same seven.
     expect(RETIRED_SKILL_FOLDERS['accord-intent']).toEqual(['SKILL.md', 'ask.md', 'discuss.md', 'ids.md', 'lane.md', 'research.md', 'scout.md']);
+    // approach exists from v0.2.0 (ask.md), gains critique.md in v0.4.0, approval.md and scout.md in v0.4.1; v0.10.0 and the branch load the same five.
+    expect(RETIRED_SKILL_FOLDERS['accord-approach']).toEqual(['SKILL.md', 'approval.md', 'ask.md', 'critique.md', 'scout.md']);
     // new exists from v0.8.0: SKILL.md plus the `loads:` basenames over the tags (security.md came from review/security.md), plus what the branch rendered (queue.md, review-security.md).
     expect(RETIRED_SKILL_FOLDERS['accord-new']).toEqual([
       'SKILL.md', 'ask.md', 'epic.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'queue.md', 'review-foreign.md', 'review-security.md', 'route.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
@@ -1298,6 +1299,37 @@ describe('a ticket at a stage', () => {
         for (const name of CHILDREN) expect(section, `${dir}: the stage section names ./${name}`).toContain('./' + name);
       }
     }
+  });
+
+  it('risk:regression the approach stage renders as accord/approach.md with its two children, named in the stage section (D-04)', () => {
+    expect(STAGE_FILES.approach).toBe('approach.md');
+    const CHILDREN = ['approach.md', 'approach-approval.md', 'approach-critique.md'];
+    for (const roster of everyRoster()) {
+      const files = skillTargets(roster);
+      expect(files.filter((f) => f.path.includes('/accord-approach/')).map((f) => f.path), 'no rendered path holds an accord-approach folder').toEqual([]);
+      for (const dir of skillDirs(roster)) {
+        const copies = CHILDREN.map((name) => files.find((f) => f.path === `${dir}/accord/${name}`));
+        copies.forEach((copy, i) => expect(copy, `${dir}/accord/${CHILDREN[i]} renders`).toBeDefined());
+        for (const copy of copies) expect(FRONTMATTER.test(withoutMarker(copy?.text ?? '')), `${copy?.path} has no frontmatter block`).toBe(false);
+        const section = stageSection(files.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '');
+        for (const name of CHILDREN) expect(section, `${dir}: the stage section names ./${name}`).toContain('./' + name);
+      }
+    }
+  });
+
+  it('risk:regression the approach critique never renders under the bare name critique.md in the accord folder (D-04)', () => {
+    for (const roster of everyRoster()) {
+      const files = skillTargets(roster);
+      expect(files.filter((f) => /\/accord\/critique\.md$/.test(f.path)).map((f) => f.path), 'a bare critique.md in the accord folder would be written by two sources').toEqual([]);
+      for (const dir of skillDirs(roster)) {
+        const own = files.find((f) => f.path === `${dir}/accord/approach.md`)?.text ?? '';
+        for (const name of ['./approach-approval.md', './approach-critique.md']) expect(own, `${dir}: approach.md names ${name}`).toContain(name);
+        expect(own, `${dir}: approach.md names no bare child`).not.toMatch(/\.\/(?:approval|critique)\.md/);
+      }
+    }
+    // guard the guard: a bare name is caught by the pattern
+    expect('.claude/skills/accord/critique.md').toMatch(/\/accord\/critique\.md$/);
+    expect('.claude/skills/accord/approach-critique.md').not.toMatch(/\/accord\/critique\.md$/);
   });
 
   it('risk:regression the accord description names every stage (D-04)', () => {

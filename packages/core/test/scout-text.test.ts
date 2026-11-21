@@ -61,8 +61,8 @@ it('risk:complex-branching the approach and build stages send an approve refusal
   const approach = flat(skillText(stagePath('approach')));
   const skillStep5 = approach.slice(approach.indexOf("5. **The owner's yes.**"), approach.indexOf('6. Next'));
   expect(skillStep5.length, 'approach step 5 is missing').toBeGreaterThan(0);
-  // ST-LN-91 plan 03-05: step 5 only names ./approval.md, where the scout check and the show step live, so the check is read there.
-  expect(skillStep5, 'approach step 5 does not name ./approval.md').toContain('`./approval.md`');
+  // ST-LN-91 plan 03-05: step 5 only names ./approach-approval.md, where the scout check and the show step live, so the check is read there.
+  expect(skillStep5, 'approach step 5 does not name ./approach-approval.md').toContain('`./approach-approval.md`');
   const step5 = flat(skillText(stagePath('approach', 'approval')));
   expect(step5.length, 'approach approval.md is missing').toBeGreaterThan(0);
   const check = step5.indexOf('accord scout check "accord/tickets/<id>/scout.md"');

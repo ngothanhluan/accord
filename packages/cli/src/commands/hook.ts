@@ -223,9 +223,9 @@ export function hookInput(ctx: CommandContext): { session_id?: string; command_n
 }
 
 /**
- * ST-LN-83 D-06: the commands this hook sees are accord, accord-new, accord-continue and accord-pickup (the UserPromptExpansion matcher). In a session that works
- * a ticket it blocks only what would touch another ticket: /accord-new, /accord-pickup, a Continue of any ticket but this one (as /accord-continue <id> or the
- * typed "/accord continue <id>") and the typed "/accord pick-up <id>". The dashboard and any other "/accord <text>" go through: the skill routes the text (a question
+ * ST-LN-83 D-06, 08.3 D-03: the commands this hook sees are accord and accord-new (the UserPromptExpansion matcher). In a session that works
+ * a ticket it blocks only what would touch another ticket: /accord-new, a typed Continue of any ticket but this one ("/accord continue <id>") and a typed
+ * Pick up of any ticket ("/accord pick-up <id>"). The dashboard and any other "/accord <text>", "/accord queue <idea>" included, go through: the skill routes the text (a question
  * is answered there) and the CLI guard behind this hook (`accord worktree check`, `accord new ticket`) refuses a change, because a hook sees the typed command and
  * not the intent, and accord never calls a model. A block reason is the CLI guard's own text and ends with the line that opens the right session; this hook never
  * switches a session to another ticket (D-07). Any error of its own allows, with one stderr line.
@@ -249,23 +249,17 @@ function promptExpansion(ctx: CommandContext): number {
       cont = word(/^continue\s+(\S+)$/);
       const pick = word(/^pick-up\s+(\S+)$/);
       if (cont === undefined && pick === undefined) return allow();
-      typed = cont !== undefined ? undefined : `/accord-pickup ${ID.test(pick as string) ? pick : '<id>'}`;
-    } else if (name === 'accord-continue') {
-      cont = args.split(/\s+/)[0];
-      if (cont === '') return allow();
-    } else if (name === 'accord-pickup') {
-      const id = args.split(/\s+/)[0];
-      typed = `/accord-pickup ${ID.test(id) ? id : '<id>'}`;
+      typed = cont !== undefined ? undefined : `/accord pick-up ${ID.test(pick as string) ? pick : '<id>'}`;
     } else if (name === 'accord-new') {
       typed = '/accord-new <request>';
     } else {
-      return allow(); // accord-queue, accord-upgrade and every other command never touch the ticket's branch
+      return allow(); // every other command, `/accord queue <idea>` and accord-upgrade included, never touches the ticket's branch
     }
     const w = worksTicket(i.cwd ?? ctx.root, i.session_id, ctx.snapshot);
     if (w === undefined) return allow();
     const mainPath = listWorktrees(w.top)[0].path;
     if (cont !== undefined && guardAllowsContinue(w, mainPath, cont)) return allow();
-    const command = cont !== undefined ? `/accord-continue ${ID.test(cont) ? cont : '<id>'}` : (typed as string);
+    const command = cont !== undefined ? `/accord continue ${ID.test(cont) ? cont : '<id>'}` : (typed as string);
     ctx.stdout.write(JSON.stringify({ decision: 'block', reason: worksMessage(w, mainPath, sessionNext(w.top, ctx.snapshot, mainPath, command, cont)) }) + '\n');
     return 0;
   } catch (e) {

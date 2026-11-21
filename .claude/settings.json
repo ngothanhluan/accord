@@ -35,7 +35,7 @@
     ],
     "UserPromptExpansion": [
       {
-        "matcher": "accord|accord-new|accord-continue|accord-pickup",
+        "matcher": "accord|accord-new",
         "hooks": [
           {
             "type": "command",

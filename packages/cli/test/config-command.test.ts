@@ -1,8 +1,10 @@
 // ST-LN-50 D-11 (t2-ac-9, command half): `accord config get|set|unset|check` on real files. Every case runs in its
 // own sandbox repository through runCli; a refusal must leave accord/config.yml byte-identical.
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { CONFIG_AREAS } from '@accord-dev/accord-core';
+import { afterEach, describe, expect, it } from 'vitest';
 import { commitAll, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, pinned } from '../../../test/helpers/lane.js';
 
@@ -332,4 +334,91 @@ it('risk:parsing commits.message is set validated and unset through accord confi
   const gone = await run(['config', 'unset', 'commits.message.preset'], repo);
   expect(gone.code).toBe(0);
   expect(text(repo)).toBe(CONFIG);
+});
+
+// Phase 8.3 D-08, D-13 (Ruling 9): `accord config areas` prints every area with each top-level key's value, its plain-words text and init's proposals, from data and from the files; it writes nothing.
+describe('accord config areas', () => {
+  const MANAGED_LINE = 'area: managed - Managed by accord (not walked: accord writes these)';
+  const textOf = (key: string): string => CONFIG_AREAS.flatMap((a) => a.keys).find((k) => k.key === key)?.text ?? '';
+  const IDENTITY = ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false'];
+
+  /** A repository whose `main` holds 3 plain and 37 squash-style commits (subjects ending ` (#n)`), built with `git commit-tree` over the empty tree, and a valid accord/config.yml in the working tree. */
+  function squashed(): string {
+    const repo = sandbox();
+    const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
+    try {
+      gitRun(repo, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+      const tree = gitRun(repo, 'write-tree').trim();
+      let tip: string | undefined;
+      for (let n = 1; n <= 40; n++) {
+        const msg = join(folder, 'msg.txt');
+        writeFileSync(msg, (n <= 3 ? `change ${n}` : `change ${n} (#${n})`) + '\n');
+        tip = gitRun(repo, ...IDENTITY, 'commit-tree', tree, ...(tip === undefined ? [] : ['-p', tip]), '-F', msg).trim();
+      }
+      gitRun(repo, 'update-ref', 'refs/heads/main', tip as string);
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+    return repo;
+  }
+
+  it('risk:regression accord config areas prints every area with values texts and proposals (D-08)', async () => {
+    const repo = sandbox(CONFIG + 'git:\n  merge: squash\n');
+    const before = gitRun(repo, 'status', '--porcelain');
+    const all = await run(['config', 'areas'], repo);
+    expect([all.code, all.err]).toEqual([0, '']);
+    const lines = all.out.split('\n');
+    // one area line per area, in data order
+    expect(lines.filter((l) => l.startsWith('area: '))).toEqual(CONFIG_AREAS.map((a) => `area: ${a.id} - ${a.title}` + (a.walk === false ? ' (not walked: accord writes these)' : '')));
+    expect(lines).toContain(MANAGED_LINE);
+    // a key shows its value as YAML flow and its text; an unset key says unset
+    expect(lines).toContain(`  git = {merge: squash} - ${textOf('git')}`);
+    expect(lines).toContain(`  stale_days = unset - ${textOf('stale_days')}`);
+    expect(textOf('git')).not.toBe('');
+    // every key of every area is printed once
+    expect(lines.filter((l) => /^ {2}[a-z_]+ = /.test(l))).toHaveLength(CONFIG_AREAS.flatMap((a) => a.keys).length);
+    // one area alone
+    const git = await run(['config', 'areas', 'git'], repo);
+    expect(git.code).toBe(0);
+    expect(git.out.split('\n').filter((l) => l.startsWith('area: '))).toEqual(['area: git - Git and pull requests']);
+    expect(git.out).toContain(`  git = {merge: squash} - ${textOf('git')}`);
+    expect(git.out).not.toContain('stale_days');
+    // an unknown area exits 2 and names the ids
+    const none = await run(['config', 'areas', 'nowhere'], repo);
+    expect(none.code).toBe(2);
+    expect(none.err).toContain('nowhere');
+    expect(none.err).toContain(CONFIG_AREAS.map((a) => a.id).join(', '));
+    // --json holds the same: 8 areas, 30 keys, a null for an unset key, walk false for managed
+    const json = JSON.parse((await run(['config', 'areas', '--json'], repo)).out) as { areas: { id: string; title: string; walk: boolean; keys: { key: string; text: string; value: unknown; proposals: unknown[] }[] }[] };
+    expect(json.areas).toHaveLength(8);
+    expect(json.areas.flatMap((a) => a.keys)).toHaveLength(30);
+    expect(json.areas.map((a) => a.id)).toEqual(CONFIG_AREAS.map((a) => a.id));
+    expect(json.areas.find((a) => a.id === 'managed')?.walk).toBe(false);
+    expect(json.areas.find((a) => a.id === 'git')?.walk).toBe(true);
+    const keys = json.areas.flatMap((a) => a.keys);
+    expect(keys.find((k) => k.key === 'git')).toEqual({ key: 'git', text: textOf('git'), value: { merge: 'squash' }, proposals: [] });
+    expect(keys.find((k) => k.key === 'stale_days')?.value).toBeNull();
+    // it writes nothing
+    expect(text(repo)).toBe(CONFIG + 'git:\n  merge: squash\n');
+    expect(gitRun(repo, 'status', '--porcelain')).toBe(before);
+    // a repository with no accord/config.yml is a usage error, as for config get
+    const bare = makeEmptyRepo();
+    repos.push(bare);
+    expect((await run(['config', 'areas'], bare)).code).toBe(2);
+  });
+
+  it("risk:complex-branching config areas shows init's proposal under its key (D-08)", async () => {
+    const repo = squashed();
+    const evidence = '37 of 40 recent commits on main end in (#n)';
+    const out = await run(['config', 'areas', 'git'], repo);
+    expect([out.code, out.err]).toEqual([0, '']);
+    const lines = out.out.split('\n');
+    const at = lines.findIndex((l) => l.startsWith('  git = '));
+    expect(lines[at + 1]).toBe(`  proposal: git.merge = "squash"  (evidence: ${evidence})`);
+    // the same line init prints, so the two can never differ
+    const init = await run(['init'], repo);
+    expect(init.out).toContain(`proposal: git.merge = "squash"  (evidence: ${evidence})`);
+    const json = JSON.parse((await run(['config', 'areas', '--json'], repo)).out) as { areas: { keys: { key: string; proposals: unknown[] }[] }[] };
+    expect(json.areas.flatMap((a) => a.keys).find((k) => k.key === 'git')?.proposals).toEqual([{ key: 'git.merge', value: 'squash', evidence }]);
+  });
 });

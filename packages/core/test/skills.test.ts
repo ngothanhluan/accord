@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -232,7 +232,7 @@ const MAX_SKILL_LINES = 120;
 
 /** The commands the CLI actually registers, longest path first so `gate ready` wins over a bare `gate`. */
 const COMMAND =
-  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
+  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|worktree check|config areas|config get|config set|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
 
 /** Spec §2: each skill targets at most 6000 bytes. */
 const MAX_SKILL_BYTES = 6000;
@@ -244,6 +244,7 @@ const FIRST_COMMAND: Record<string, string> = {
   'accord-designer': 'gate ready',
   'accord-upgrade': 'dashboard',
   'accord-audit': 'audit',
+  'accord-config': 'worktree check',
 };
 const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
 
@@ -710,6 +711,7 @@ const HINTS: Record<string, string | null> = {
   'accord-upgrade': null,
   'accord-audit': null,
   'accord-debug': '[ticket id] [failure]',
+  'accord-config': '[area]',
   'accord-designer': '<ticket id>',
 };
 
@@ -1420,7 +1422,7 @@ describe('a ticket at a stage', () => {
   it('risk:regression STAGE_FILES holds exactly the six stages and done and no stage is a command (D-04)', () => {
     expect(Object.keys(STAGE_FILES).sort()).toEqual(['approach', 'build', 'done', 'intent', 'plan', 'review', 'verify']);
     expect(STAGE_FILES).toEqual({ intent: 'intent.md', approach: 'approach.md', plan: 'plan.md', build: 'build.md', review: 'review.md', verify: 'verify.md', done: 'verify.md' });
-    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug']);
+    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
     for (const stage of ['intent', 'approach', 'plan', 'build', 'review', 'verify']) {
       expect(Object.keys(HINTS), `HINTS holds no command for ${stage}`).not.toContain('accord-' + stage);
       expect(Object.keys(FIRST_COMMAND), `FIRST_COMMAND holds no command for ${stage}`).not.toContain('accord-' + stage);

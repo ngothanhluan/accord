@@ -20,6 +20,7 @@ import { pr } from './commands/pr.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
+import { debugPath } from './commands/debug.js';
 import { configAreas, configCheck, configGet, configSet, configUnset } from './commands/config.js';
 import { gate } from './commands/gate.js';
 import { hook, HOOK_EVENTS, preToolUseWrite } from './commands/hook.js';
@@ -377,6 +378,16 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--json', 'print { findings } instead of text')
     .action((o: { json?: boolean }) => {
       setCode(configCheck(preflight(opts), o));
+    });
+
+  // Phase 8.3 D-06: the state file of /accord-debug outside any ticket, in a private folder of the system temp directory; created here and nowhere else.
+  const debug = program.command('debug').description('state of /accord-debug outside any ticket');
+  debug
+    .command('path')
+    .description("print the path of this repository's debug state file outside any ticket, in a private folder of the system temp directory, and whether an episode is open; creates it empty when absent and refuses a link")
+    .option('--json', 'print { path, episode } instead of text')
+    .action((o: { json?: boolean }) => {
+      setCode(debugPath(preflight(opts), o));
     });
 
   // Owner decision (2026-11-15): a script the repository declares (`tracker.command`, `git.sync`) runs only after the person allowed it here, once, in a record inside .git.

@@ -152,6 +152,19 @@ it('risk:complex-branching a stop from round 3 holds until a no findings round a
   expect(nextRound(repo(undefined, { id: 'S-1', plan: three }), 'S-1', 'plan').kind).toBe('refused');
 });
 
+// Phase 8.3 D-04 (08.3-19): the round texts that send the owner on name the approach and plan stage files, never a command.
+it('risk:regression the round texts name the approach and plan stage files and no command (D-04)', () => {
+  const three = HEAD + round(1, MUST) + round(2, MUST) + round(3, SHOULD);
+  const approachStop = roundText(nextRound(repo(undefined, { approach: three }), 'T-1', 'approach'));
+  expect(approachStop).toContain('then write that option into ## Approach and critique it through the approach stage (approach.md)');
+  const ended = nextRound(repo(undefined, { approach: three + 'verdict: accepted-by-owner "go on"\n' }), 'T-1', 'approach');
+  expect(ended.reasons.join('\n')).toContain('the loop has ended: the approach stage (approach.md) goes on to write ## Approach in full and ask the owner');
+  const planStop = roundText(nextRound(repo(undefined, { plan: three }), 'T-1', 'plan'));
+  const reviewStop = roundText(nextRound(repo(three), 'T-1', 'review'));
+  for (const text of [planStop, reviewStop]) expect(text).toContain('then re-plan through the plan stage (plan.md)');
+  for (const text of [approachStop, ended.reasons.join('\n'), planStop, reviewStop]) expect(text).not.toMatch(/accord-(?:approach|plan)(?![\w-])/);
+});
+
 it('risk:calculation the fix executor model tiers up by family and refuses a model it cannot tier', () => {
   const three = HEAD + round(1, NICE) + round(2, NICE) + round(3, NICE);
   const cfg = (model: string | undefined, tier = '4') =>

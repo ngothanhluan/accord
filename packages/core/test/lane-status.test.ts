@@ -199,7 +199,7 @@ it('risk:complex-branching the ready commit decides only plan versus build', () 
 });
 
 it('risk:parsing an intent of comments or a template scenario only criteria block reads as unwritten', () => {
-  const INTERVIEW = 'the intent interview (accord-intent)';
+  const INTERVIEW = 'the intent interview (intent.md)';
   const APPROVE = 'the owner approves the ticket (accord approve)';
   const TPL = ['```gherkin', 'Feature: T-1', '', '  @ac-1', '  Scenario: <observable outcome>', '    Given ...', '    When ...', '    Then ...'];
   const OTHER = ['', '  @ac-2', '  Scenario: another', '    Given a', '    When b', '    Then c'];

@@ -408,7 +408,7 @@ it('risk:complex-branching the dashboard counts a dependent of a claim-branch-do
 });
 
 it('ac-4 an unwritten intent points anchor and dashboard to the intent interview', async () => {
-  const INTERVIEW = 'the intent interview (accord-intent)';
+  const INTERVIEW = 'the intent interview (intent.md)';
   const APPROVE = 'the owner approves the ticket (accord approve)';
   const repo = copyRepo(tplIntent);
   try {

@@ -2935,3 +2935,38 @@ it('risk:regression a debug run not started for a pull request comment keeps its
   if (REPORT_CONTRACT.includes('Test only')) bad.push('REPORT_CONTRACT holds Test only');
   expect(bad).toEqual([]);
 });
+
+it('risk:complex-branching a lane M comment that ends with no fix closes its debug episode and reverts its test commit (D-02)', () => {
+  const flatT = (t: string) => t.replace(/\s+/g, ' ');
+  const all = skillTargets(DEBUG_RUNTIMES);
+  const bad: string[] = [];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const ref = flatT(all.find((f) => f.path === dir + '/accord-debug/debug-comment.md')?.text ?? '');
+    if (ref === '') {
+      bad.push(dir + '/accord-debug/debug-comment.md is not shipped');
+      continue;
+    }
+    for (const p of [
+      '**No fix.**',
+      "On `does not hold`, or when the comment ends with no fix after its author's or the owner's answer",
+      'append `## Resolved` to `debug.md` with the verdict and its reason',
+      'delete the uncommitted test file its report names',
+      'revert that one commit yourself with `git revert`, never a reset',
+      'it holds the test alone, never product code',
+      'step 4 of `./failure.md` gives a fix: its own review round, then verify again',
+      "On `unclear` the episode stays open while the comment is asked, and the next comment's run waits for it",
+      '**After a `/clear`.**',
+      'holds a `- test only:` line goes on from that line',
+      'run that test with the `tests.affected` command',
+    ])
+      if (!ref.includes(p)) bad.push(dir + ' debug-comment.md lacks ' + p);
+    const at = ['**Holds.**', '**No fix.**', '**After a `/clear`.**'].map((p) => ref.indexOf(p));
+    if (at[0]! < 0 || at[1]! < at[0]! || at[2]! < at[1]!) bad.push(dir + ' debug-comment.md paragraphs are out of order: ' + at.join(','));
+    const judge = flatT(all.find((f) => f.path === dir + '/accord-resolve-pr/judge.md')?.text ?? '');
+    const section = judge.slice(Math.max(0, judge.indexOf('## In `/accord-resolve-pr`')));
+    const holds = section.indexOf('In lane M, `holds` sends the comment to step 5');
+    const none = section.indexOf('`does not hold` or `unclear` starts no fix');
+    if (holds < 0 || none < holds) bad.push(dir + ' accord-resolve-pr/judge.md lacks the no-fix route after the holds route: ' + holds + ',' + none);
+  }
+  expect(bad).toEqual([]);
+});

@@ -40,3 +40,16 @@ export function stagePath(name: string, child?: string, dir = '.claude/skills'):
 export function besidePath(name: string, file: string, dir = '.claude/skills'): string {
   return `${stagePathIn(KEYS, name, undefined, dir).replace(/\/[^/]+$/, '')}/${file}`;
 }
+
+/**
+ * Whether a rendered path is a file of one of the named stages: in the stage's own folder before its fold,
+ * `accord/<name>.md` or `accord/<name>-*.md` after it.
+ */
+export function ofStage(path: string, names: readonly string[]): boolean {
+  return names.some((name) =>
+    ['.claude/skills', '.agents/skills'].some((dir) => {
+      const own = stagePath(name, undefined, dir);
+      return path.startsWith(own.endsWith('/SKILL.md') ? own.slice(0, -'SKILL.md'.length) : own.slice(0, -'.md'.length));
+    }),
+  );
+}

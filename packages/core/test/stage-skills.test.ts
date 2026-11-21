@@ -11,7 +11,7 @@ import { RULES } from '../src/lint/rules.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
 import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
-import { besidePath, stagePath, stagePathIn } from './helpers/stage-files.js';
+import { besidePath, ofStage, stagePath, stagePathIn } from './helpers/stage-files.js';
 
 // Phase 8.3 D-04: a stage loop also visits the names that never fold (accord, upgrade, audit, debug); those keep their own folder.
 const FOLDED = new Set(['queue', 'continue', 'pickup', 'new', 'intent', 'approach', 'plan', 'build', 'review', 'verify']);
@@ -19,14 +19,6 @@ const FOLDED = new Set(['queue', 'continue', 'pickup', 'new', 'intent', 'approac
 const stageFile = (stage: string, dir = '.claude/skills'): string => (FOLDED.has(stage) ? stagePath(stage, undefined, dir) : dir + '/' + installedName(stage) + '/SKILL.md');
 /** A file rendered beside the own file of `stage`. */
 const sideFile = (stage: string, file: string, dir = '.claude/skills'): string => (FOLDED.has(stage) ? besidePath(stage, file, dir) : dir + '/' + installedName(stage) + '/' + file);
-/** Whether a rendered path is a file of one of the named stages: in the stage's own folder before its fold, `accord/<stage>.md` or `accord/<stage>-*.md` after. */
-const ofStage = (path: string, names: readonly string[]): boolean =>
-  names.some((n) =>
-    ['.claude/skills', '.agents/skills'].some((d) => {
-      const own = stagePath(n, undefined, d);
-      return path.startsWith(own.endsWith('/SKILL.md') ? own.slice(0, -'SKILL.md'.length) : own.slice(0, -'.md'.length));
-    }),
-  );
 /** `file` in a folder named as the 0.10.0 render named it (`accord-verify`): a name that has folded is followed to its fold. */
 const inFolder = (folder: string, file: string, dir = '.claude/skills'): string => {
   const name = folder.replace(/^accord-/, '');
@@ -64,14 +56,16 @@ const files = skillTargets(config);
 
 // Phase 8.3 D-03, D-04: the render path of a folded name, before and after its fold, comes from one helper.
 it('risk:regression stagePath and besidePath give the render path of a folded name before and after its fold (D-04)', () => {
+  // the folder a name rendered into before its fold, built apart from the helper's own rule
+  const inOwnFolder = (name: string, file: string, dir = '.claude/skills') => `${dir}/${['accord', name].join('-')}/${file}`;
   const before = new Set(['accord/SKILL.md', 'intent/SKILL.md', 'intent/discuss.md', 'plan/SKILL.md', 'plan/critique.md']);
-  expect(stagePathIn(before, 'intent')).toBe('.claude/skills/accord-intent/SKILL.md');
-  expect(stagePathIn(before, 'intent', 'discuss')).toBe('.claude/skills/accord-intent/discuss.md');
-  expect(stagePathIn(before, 'intent', 'discuss', '.agents/skills')).toBe('.agents/skills/accord-intent/discuss.md');
+  expect(stagePathIn(before, 'intent')).toBe(inOwnFolder('intent', 'SKILL.md'));
+  expect(stagePathIn(before, 'intent', 'discuss')).toBe(inOwnFolder('intent', 'discuss.md'));
+  expect(stagePathIn(before, 'intent', 'discuss', '.agents/skills')).toBe(inOwnFolder('intent', 'discuss.md', '.agents/skills'));
   // a child moved early: the stage's folder renders the prefixed name while its own SKILL.md still renders
   const early = new Set(['accord/SKILL.md', 'plan/SKILL.md', 'accord/plan-critique.md']);
-  expect(stagePathIn(early, 'plan', 'critique')).toBe('.claude/skills/accord-plan/plan-critique.md');
-  expect(stagePathIn(early, 'plan')).toBe('.claude/skills/accord-plan/SKILL.md');
+  expect(stagePathIn(early, 'plan', 'critique')).toBe(inOwnFolder('plan', 'plan-critique.md'));
+  expect(stagePathIn(early, 'plan')).toBe(inOwnFolder('plan', 'SKILL.md'));
   // after the fold: the stage is a file of the accord folder, its children carry its prefix
   const after = new Set(['accord/SKILL.md', 'accord/intent.md', 'accord/intent-discuss.md']);
   expect(stagePathIn(after, 'intent')).toBe('.claude/skills/accord/intent.md');
@@ -81,6 +75,11 @@ it('risk:regression stagePath and besidePath give the render path of a folded na
   // the real keys: a name that has not folded yet renders in its own folder, a folded one in accord
   expect(besidePath('new', 'lane-s.md')).toBe(stagePath('new').replace(/[^/]+$/, 'lane-s.md'));
   expect(besidePath('queue', 'ask.md', '.agents/skills')).toBe('.agents/skills/accord/ask.md');
+  // ofStage follows a stage's files through the fold: its own folder before, accord/<name>*.md after
+  expect(ofStage(stagePath('plan', 'critique'), ['plan'])).toBe(true);
+  expect(ofStage(stagePath('plan'), ['plan', 'build'])).toBe(true);
+  expect(ofStage(stagePath('plan'), ['review', 'verify'])).toBe(false);
+  expect(ofStage('.agents/skills/accord/ask.md', ['plan', 'review'])).toBe(false);
   // a name outside the ten throws, so a typo cannot read an empty path
   for (const bad of ['accord', 'debug', 'upgrade', 'audit', 'nope']) {
     expect(() => stagePathIn(before, bad), bad).toThrow();
@@ -1755,6 +1754,7 @@ it('risk:regression every rendered SKILL.md stays within 6000 bytes and 120 line
 });
 
 it('risk:regression the verify stage reads the Unfinished line from an anchor run after the sync, and commits the verification it may resume before the sync (ST-LN-72 review rounds 1 and 2)', () => {
+  expect(files.filter((x) => x.path === stagePath('verify')), stagePath('verify') + ' is rendered').toHaveLength(1);
   for (const f of files.filter((x) => x.path === stagePath('verify'))) {
     const text = f.text.replace(/\s+/g, ' ');
     const sync = text.indexOf('accord worktree sync');

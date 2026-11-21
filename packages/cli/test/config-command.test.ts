@@ -421,4 +421,76 @@ describe('accord config areas', () => {
     const json = JSON.parse((await run(['config', 'areas', '--json'], repo)).out) as { areas: { keys: { key: string; proposals: unknown[] }[] }[] };
     expect(json.areas.flatMap((a) => a.keys).find((k) => k.key === 'git')?.proposals).toEqual([{ key: 'git.merge', value: 'squash', evidence }]);
   });
+
+  /** A proposals file in a fresh folder outside the repository; the folder is removed with the sandboxes. */
+  function proposalsFile(content: string, name = 'scan.json'): string {
+    const folder = mkdtempSync(join(tmpdir(), 'accord-scan-'));
+    repos.push(folder);
+    const path = join(folder, name);
+    writeFileSync(path, content);
+    return path;
+  }
+  const SCAN = [
+    { key: 'git.merge', value: 'merge', evidence: 'the last 12 pull requests' },
+    { key: 'git', value: { merge: 'rebase' }, evidence: '3 workflow files' },
+    { key: 'stale_days', value: '21', evidence: 'the last 21 days' },
+  ];
+
+  it("risk:complex-branching config areas --proposals merges the scan's proposals and init's wins on the same key (D-08)", async () => {
+    const repo = squashed();
+    const before = gitRun(repo, 'status', '--porcelain');
+    const config = text(repo);
+    const file = proposalsFile(JSON.stringify(SCAN));
+    const out = await run(['config', 'areas', '--proposals', file], repo);
+    expect([out.code, out.err]).toEqual([0, '']);
+    const lines = out.out.split('\n');
+    const git = lines.findIndex((l) => l.startsWith('  git = '));
+    expect(lines[git + 1]).toBe('  proposal: git.merge = "squash"  (evidence: 37 of 40 recent commits on main end in (#n))');
+    const stale = lines.findIndex((l) => l.startsWith('  stale_days = unset - '));
+    expect(lines[stale + 1]).toBe('  proposal: stale_days = "21"  (evidence: the last 21 days)');
+    const dropped = [
+      'dropped: git.merge = "merge"  (accord init proposes git.merge)',
+      'dropped: git = {"merge":"rebase"}  (accord init proposes git.merge)',
+    ];
+    for (const d of dropped) expect(lines.indexOf(d), d).toBeGreaterThan(lines.map((l, i) => (l.startsWith('area: ') ? i : -1)).reduce((a, b) => Math.max(a, b), -1));
+    // a single area still prints every dropped line
+    expect((await run(['config', 'areas', 'git', '--proposals', file], repo)).out).toContain(dropped[0]);
+    // --json carries { areas, dropped }
+    const json = JSON.parse((await run(['config', 'areas', '--json', '--proposals', file], repo)).out) as { areas: unknown[]; dropped: { key: string; reason: string }[] };
+    expect(json.areas).toHaveLength(8);
+    expect(json.dropped[0]?.reason).toBe('accord init proposes git.merge');
+    expect(json.dropped.map((d) => d.key)).toEqual(['git.merge', 'git']);
+    // it writes nothing, and without --proposals the output is as before
+    expect(text(repo)).toBe(config);
+    expect(gitRun(repo, 'status', '--porcelain')).toBe(before);
+    const plain = await run(['config', 'areas', '--json'], repo);
+    expect(Object.keys(JSON.parse(plain.out) as object)).toEqual(['areas']);
+    expect(plain.out).not.toContain('dropped');
+  });
+
+  it('risk:parsing config areas --proposals refuses a file that is not a JSON array of proposals (D-08)', async () => {
+    const repo = squashed();
+    const config = text(repo);
+    const folder = mkdtempSync(join(tmpdir(), 'accord-scan-'));
+    repos.push(folder);
+    const plain = (await run(['config', 'areas'], repo)).out;
+    const bad: [string, string][] = [
+      ['a missing file', join(folder, 'missing.json')],
+      ['a folder', folder],
+      ['not json', proposalsFile('{]')],
+      ['not an array', proposalsFile('{}')],
+      ['no evidence', proposalsFile('[{ "key": "stale_days", "value": "21" }]')],
+    ];
+    for (const [what, path] of bad) {
+      const out = await run(['config', 'areas', '--proposals', path], repo);
+      expect(out.code, what).toBe(2);
+      expect(out.err, what).toContain(path.replace(/\\/g, '/'));
+      expect(out.err, what).not.toContain('\\');
+      expect(text(repo), what).toBe(config);
+    }
+    // an empty array prints exactly what the command prints with no file
+    const empty = await run(['config', 'areas', '--proposals', proposalsFile('[]')], repo);
+    expect([empty.code, empty.err, empty.out]).toEqual([0, '', plain]);
+    expect(empty.out).not.toContain('dropped:');
+  });
 });

@@ -363,11 +363,12 @@ it('risk:regression no skill source names a folded command (D-03)', () => {
   expect(foldedHits([{ path: 'packages/cli/src/x.ts', text: "'accord-queue': ['SKILL.md']," }], pattern)).toHaveLength(1);
 });
 
-// Phase 8.3 D-07 (08.3-23): onboarding is the command `/accord-onboard`, so no skill source, rendered file or source file names the typed form `/accord onboard`. README.md and
-// docs/design.md join the scan in 08.3-25 (they hold the old form until then), so the two docs are left out of this one. The pattern ends at a word boundary, and `/accord-onboard` has a hyphen where the space is.
+// Phase 8.3 D-07 (08.3-23, 08.3-25): onboarding is the command `/accord-onboard`, so no skill source, rendered file, source file or doc names the typed form `/accord onboard`. README.md and
+// docs/design.md joined the scan in 08.3-25. The pattern ends at a word boundary, and `/accord-onboard` has a hyphen where the space is.
 const OLD_ONBOARD = /\/accord onboard\b/;
 it('risk:regression no text names the old onboard form (D-07)', () => {
-  const sources = foldedSources().filter((s) => !DOC_FILES.includes(s.path));
+  const sources = foldedSources();
+  for (const doc of DOC_FILES) expect(sources.some((s) => s.path === doc), `${doc} was scanned`).toBe(true);
   for (const dir of ['packages/core/skills/', 'packages/core/src/', 'packages/cli/src/', 'packages/core/panel/']) {
     expect(sources.some((s) => s.path.startsWith(dir)), `${dir} was scanned`).toBe(true);
   }
@@ -378,6 +379,26 @@ it('risk:regression no text names the old onboard form (D-07)', () => {
   for (const hit of ['type `/accord onboard` now', 'or on /accord onboard.']) expect(OLD_ONBOARD.test(hit), hit).toBe(true);
   for (const miss of ['type /accord-onboard to confirm them one by one', '`accord-onboard`', 'accord onboard', '/accord onboarding']) expect(OLD_ONBOARD.test(miss), miss).toBe(false);
   expect(foldedHits([{ path: 'packages/cli/src/commands/init.ts', text: 'type /accord onboard to confirm' }], OLD_ONBOARD)).toHaveLength(1);
+  for (const doc of DOC_FILES) expect(foldedHits([{ path: doc, text: 'type /accord onboard to confirm' }], OLD_ONBOARD), doc).toHaveLength(1);
+});
+
+// Phase 8.3 D-01, D-05, D-07 to D-13 (08.3-25): the two docs a person reads name the eight commands with the hint each shows, the opt-in designer, and the config areas verb and data file.
+it('risk:regression README and design name the eight commands with their hints and the opt-in designer (D-01)', () => {
+  const doc = Object.fromEntries(foldedSources().filter((s) => DOC_FILES.includes(s.path)).map((s) => [s.path, s.text.replace(/\s+/g, ' ')]));
+  const readme = doc['README.md'] ?? '';
+  const design = doc['docs/design.md'] ?? '';
+  expect(readme.length, 'README.md was read').toBeGreaterThan(0);
+  const commands = Object.entries(HINTS).filter(([name]) => name !== 'accord-designer');
+  expect(commands.map(([name]) => name).sort()).toEqual(['accord', 'accord-audit', 'accord-config', 'accord-debug', 'accord-onboard', 'accord-resolve-pr', 'accord-review-pr', 'accord-upgrade']);
+  for (const [name, hint] of commands) {
+    // a command that takes no argument is listed by its name alone, the others with their hint, in the command table
+    const cell = hint === '[no arguments]' ? '`/' + name + '`' : '`/' + name + ' ' + hint + '`';
+    expect(readme, `README.md command table lists ${cell}`).toContain('| ' + cell + ' |');
+  }
+  expect(readme, 'README.md says accord-designer is opt-in through roles').toMatch(/`accord-designer`[^.|]*`roles`[^.|]*`designer`|`designer`[^.|]*`roles`[^.|]*`accord-designer`/);
+  expect(readme, 'README.md says init names the onboard command').toContain('ends by naming `/accord-onboard`');
+  expect(readme, 'README.md lists the config areas verb').toContain('`accord config areas [<area>]`');
+  for (const phrase of ['accord config areas', 'schemas/config-areas.json', '/accord-config', '/accord-onboard', '/accord-resolve-pr', '/accord-review-pr']) expect(design, `docs/design.md names ${phrase}`).toContain(phrase);
 });
 
 it('risk:regression the accord skill names its typed forms (D-03)', () => {

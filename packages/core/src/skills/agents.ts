@@ -36,9 +36,11 @@ const RETIRED_ACCORD_REFS = ['security', 'upgrade'];
 // here in the same commit, so `skills sync` and `accord upgrade` remove its intact files and `skills sync` the emptied folder; an edited file stays.
 // `accord-queue`: v0.8.0 to v0.10.0 (queue/SKILL.md loaded ids.md, ask.md and similar.md in each).
 // `accord-continue`, `accord-pickup`: v0.8.0 to v0.10.0 plus the branch (review-security.md, and security.md under its old name), the union of their `loads:` basenames.
+// `accord-approach`: v0.2.0 to v0.10.0 (ask.md; critique.md from v0.4.0; approval.md and scout.md from v0.4.1; the branch renders the same five).
 // `accord-intent`: v0.2.0 to v0.10.0 (ask, ids; lane.md from v0.3.0; research.md from v0.4.0; scout.md and discuss.md from v0.4.1; the branch renders the same seven).
 // `accord-new`: v0.8.0 to v0.10.0 plus the branch (queue.md and review-security.md; security.md came from `review/security.md`; epic.md from `new/epic.md`).
 export const RETIRED_SKILL_FOLDERS: Readonly<Record<string, readonly string[]>> = {
+  'accord-approach': ['SKILL.md', 'approval.md', 'ask.md', 'critique.md', 'scout.md'],
   'accord-continue': [
     'SKILL.md', 'ask.md', 'failure.md', 'finish.md', 'ids.md', 'lane-r.md', 'lane-s.md', 'lane.md', 'review-security.md', 'scout.md', 'security.md', 'similar.md', 'worktree.md',
   ],

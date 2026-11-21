@@ -1188,6 +1188,100 @@ describe('a ticket at a stage', () => {
     expect(stageSection(`${HEADING}\n\nlane S: \`./lane-s.md\`.\n\n## Rules\n- \`./lane-r.md\``)).not.toContain('./lane-r.md');
   });
 
+  const duplicates = (paths: readonly string[]): string[] => paths.filter((p, i) => paths.indexOf(p) !== i);
+  const everyRoster = (): AccordConfig[] => [
+    ...ALL_RUNTIMES.flatMap((runtime) => [config({ runtimes: [runtime] }), config({ roles: ['ba', 'dev'], runtimes: [runtime] }), config({ roles: ['ba', 'dev', 'designer'], runtimes: [runtime] })]),
+    config({ runtimes: ALL_RUNTIMES }),
+    config({ roles: ['ba', 'dev'], runtimes: ALL_RUNTIMES }),
+  ];
+
+  it('risk:regression skillTargets returns no duplicate path (D-04)', () => {
+    // a file that two sources both render would be written twice and the last one would win, so a folded text and a child of the old folder must never share a path
+    for (const roster of everyRoster()) {
+      const paths = skillTargets(roster).map((f) => f.path);
+      expect(paths.length, 'a roster rendered nothing').toBeGreaterThan(0);
+      expect(duplicates(paths), `${roster.runtimes.join('+')} ${roster.roles.join('+')}`).toEqual([]);
+    }
+    // guard the guard: one repeated path is reported once per repeat, and a clean list reports nothing
+    expect(duplicates(['.claude/skills/accord/a.md', '.claude/skills/accord/b.md', '.claude/skills/accord/a.md'])).toEqual(['.claude/skills/accord/a.md']);
+    expect(duplicates(['a', 'b', 'c'])).toEqual([]);
+  });
+
+  /** Every sentence of `text` (whitespace collapsed, split at a full stop and a space) that names `./<file>`. */
+  const sentencesNaming = (text: string, file: string): string[] => {
+    const flat = text.replace(/\s+/g, ' ');
+    const out: string[] = [];
+    for (let i = flat.indexOf('./' + file); i !== -1; i = flat.indexOf('./' + file, i + 1)) {
+      const start = flat.lastIndexOf('. ', i) + 2;
+      const end = flat.indexOf('. ', i);
+      out.push(flat.slice(start > 1 ? start : 0, end === -1 ? undefined : end + 1));
+    }
+    return out;
+  };
+  const VAGUE = /\b(?:when|if|as) (?:needed|necessary|required)\b/i;
+  const AT_A_STEP = /\b(?:step|stage|when|after|before|at|route|lane)\b|\/accord /i;
+  /** The problem of one mention: it says nothing of when to read the file, or it says only "when needed". '' when the sentence names a step, a stage, a route, a typed form or an event. */
+  const mentionProblem = (sentence: string): string => (VAGUE.test(sentence) ? 'a vague phrase' : AT_A_STEP.test(sentence) ? '' : 'no step, stage, route, typed form or event');
+
+  it('risk:regression every file of the accord folder is named at a step a stage a route or a typed form (D-04)', () => {
+    const bad: string[] = [];
+    for (const roster of ROSTERS) {
+      const skillOf = (dir: string) => roster.find((f) => f.path === `${dir}/accord/SKILL.md`)?.text ?? '';
+      for (const f of roster.filter((r) => /\/accord\/[^/]+\.md$/.test(r.path) && !r.path.endsWith('/SKILL.md'))) {
+        const dir = f.path.slice(0, f.path.indexOf('/accord/'));
+        const file = baseOf(f.path);
+        const named = sentencesNaming(skillOf(dir), file);
+        expect(named.length, `${f.path} is named as ./${file} in its SKILL.md`).toBeGreaterThan(0);
+        for (const sentence of named) if (mentionProblem(sentence) !== '') bad.push(`${f.path}: "${sentence}"`);
+      }
+    }
+    expect([...new Set(bad)], 'a mention that names no step, stage, route or typed form, or only "when needed"').toEqual([]);
+    // guard the guard: a "when needed" mention and a bare mention are reported, a step, a route and a typed form pass
+    expect(mentionProblem('Read `./x.md` when needed.')).toBe('a vague phrase');
+    expect(mentionProblem('Read `./x.md` as required at step 3.')).toBe('a vague phrase');
+    expect(mentionProblem('See `./x.md`.')).not.toBe('');
+    for (const ok of ['At step 6 of `./x.md`, report it.', 'Any other text follows `./x.md`.', '`/accord queue <idea>` follows `./x.md`.', 'Lane R follows `./x.md`.']) expect(mentionProblem(ok), ok).toBe('');
+    expect(sentencesNaming('First. See `./x.md` now. Then `./x.md` again.', 'x.md')).toEqual(['See `./x.md` now.', 'Then `./x.md` again.']);
+    expect(sentencesNaming('See `./new.md`.', 'new-epic.md')).toEqual([]);
+  });
+
+  /** One line per problem with a folded stage `stage` in `files`: its own folder, a file missing from a target directory, a copy that differs, or a frontmatter block. */
+  const foldedStageProblems = (files: readonly SkillFile[], map: Readonly<Record<string, string>>, dirs: readonly string[]): string[] => {
+    const found: string[] = [];
+    for (const stage of Object.keys(map).filter((s) => s !== 'done')) {
+      for (const f of files) if (f.path.includes(`/accord-${stage}/`)) found.push(`${stage}: ${f.path} is in the old folder`);
+      const names = new Set([map[stage], ...files.filter((f) => f.path.includes('/accord/')).map((f) => baseOf(f.path)).filter((n) => n.startsWith(stage + '-') && n.endsWith('.md'))]);
+      for (const name of names) {
+        const copies = dirs.map((dir) => files.find((f) => f.path === `${dir}/accord/${name}`));
+        copies.forEach((copy, i) => {
+          if (copy === undefined) found.push(`${stage}: ${dirs[i]}/accord/${name} is missing`);
+          else if (FRONTMATTER.test(withoutMarker(copy.text))) found.push(`${stage}: ${copy.path} has a frontmatter block`);
+        });
+        const texts = new Set(copies.flatMap((c) => (c === undefined ? [] : [c.text])));
+        if (texts.size > 1) found.push(`${stage}: accord/${name} differs between target directories`);
+      }
+    }
+    return found;
+  };
+
+  it('risk:regression every folded stage renders as flat files of the accord folder for every runtime (D-04)', () => {
+    // one case per entry of STAGE_FILES, so each fold is covered the moment it lands; `done` shares the file of `verify`
+    for (const roster of everyRoster()) {
+      const dirs = skillDirs(roster);
+      expect(dirs.length).toBeGreaterThan(0);
+      expect(foldedStageProblems(skillTargets(roster), STAGE_FILES, dirs), `${roster.runtimes.join('+')} ${roster.roles.join('+')}`).toEqual([]);
+    }
+    // guard the guard: an own folder, a missing copy, a differing copy and a frontmatter block are each reported; a clean render passes
+    const dirs = ['.claude/skills', '.agents/skills'];
+    const map = { plan: 'plan.md', done: 'verify.md' };
+    const clean = dirs.flatMap((dir) => [{ path: `${dir}/accord/plan.md`, text: 'body\n' }, { path: `${dir}/accord/plan-critique.md`, text: 'c\n' }]);
+    expect(foldedStageProblems(clean, map, dirs)).toEqual([]);
+    expect(foldedStageProblems([...clean, { path: '.claude/skills/accord-plan/SKILL.md', text: 'x' }], map, dirs)).toEqual(['plan: .claude/skills/accord-plan/SKILL.md is in the old folder']);
+    expect(foldedStageProblems(clean.slice(1), map, dirs)).toContain('plan: .claude/skills/accord/plan.md is missing');
+    expect(foldedStageProblems(clean.map((f, i) => (i === 3 ? { ...f, text: 'other\n' } : f)), map, dirs)).toEqual(['plan: accord/plan-critique.md differs between target directories']);
+    expect(foldedStageProblems(clean.map((f, i) => (i === 0 ? { ...f, text: '---\nname: x\n---\nbody\n' } : f)), map, dirs).join('\n')).toContain('has a frontmatter block');
+  });
+
   it('risk:regression the accord description names every stage (D-04)', () => {
     expect(accordSkills.length, 'no accord skill is rendered').toBeGreaterThan(0);
     for (const f of accordSkills) {

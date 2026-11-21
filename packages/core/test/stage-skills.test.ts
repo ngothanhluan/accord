@@ -1494,7 +1494,7 @@ it('risk:regression accord-resolve-pr is the comments procedure as its own comma
   expect(dirs).toEqual(['.agents/skills', '.claude/skills']);
   const raw = (dir: string, name: string) => all.find((f) => f.path === `${dir}/accord-resolve-pr/${name}`)?.text;
   // the command renders its four references beside it, identical in every target directory
-  for (const name of ['SKILL.md', 'worktree.md', 'ids.md', 'failure.md', 'ask.md']) {
+  for (const name of ['SKILL.md', 'worktree.md', 'ids.md', 'failure.md', 'ask.md', 'judge.md']) {
     const copies = dirs.map((d) => raw(d, name));
     for (const [i, copy] of copies.entries()) expect(copy, `${dirs[i]}/accord-resolve-pr/${name} renders`).toBeDefined();
     expect(flat(copies[0] ?? '').replace(/<!--.*?-->/g, ''), name + ' differs between the directories').toBe(flat(copies[1] ?? '').replace(/<!--.*?-->/g, ''));
@@ -1518,7 +1518,7 @@ it('risk:regression accord-resolve-pr is the comments procedure as its own comma
     'the fix commits are pushed as the stages of `/accord` already push them',
     'open and not merged', 'lane M from verify on, lane S from its step 6', 'Never read a pull request\'s comments unasked',
     "Take each review thread, each top-level comment and each review's summary as one comment, a reply inside a thread being part of that thread, by a person whoever it is, the owner included",
-    'mark it holds, does not hold, or unclear before fixing any comment',
+    'it marks each comment holds, does not hold, or unclear, with evidence',
     'a failed check follows `./failure.md` instead',
     'Only once steps 3 and 4 are clear: a comment that holds and reports a failure in the work follows `./failure.md` from its step 1, through `accord-debug`, in lane M only; in lane S it is fixed as the lane S steps say, a bug getting a failing test first, then the fix and another review round. Classify each other comment that holds',
     "the ticket whose `branch` in `accord status --json` is the pull request's branch (`gh pr view <link> --json headRefName`)",
@@ -1536,7 +1536,7 @@ it('risk:regression accord-resolve-pr is the comments procedure as its own comma
     'Post no reply, comment or review to the pull request before that yes',
   ];
   expect(parts.filter((p) => !c.includes(p))).toEqual([]);
-  const order = ['**Read.**', '**Check.**', '**Unclear first.**', '**Conflicts.**', '**Fix.**', '**Reply.**'].map((h) => c.indexOf(h));
+  const order = ['**Read.**', '**Judge.**', '**Unclear first.**', '**Conflicts.**', '**Fix.**', '**Reply.**'].map((h) => c.indexOf(h));
   expect(order.every((i, n) => i > -1 && (n === 0 || i > order[n - 1]!))).toBe(true);
   // the moved text names only files its own folder renders
   for (const gone of ['./comments.md', './review.md']) expect(c, gone).not.toContain(gone);

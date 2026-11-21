@@ -250,3 +250,30 @@ it('risk:security a bug claim is reproduced by a test the session writes and nev
   // 08.4-01 owner answer 14: the review-pr exception never reaches this command's judge
   expect(section.toLowerCase()).not.toContain('no test is run');
 });
+
+it('risk:regression a fixed comment gets its reply only after a fresh judge re-checks it against the new code (D-04)', () => {
+  const files = skillTargets(config({ runtimes: [...ALL] }));
+  for (const dir of RESOLVE) {
+    const text = flat(bodyOf(files.find((f) => f.path === dir + '/SKILL.md')?.text ?? ''));
+    for (const phrase of [
+      'Before a reply says a comment was fixed in a commit, dispatch a fresh `accord-judge` to re-check that comment against the new code',
+      'the reproducing test now passes, or the file and line it cited now differ',
+      'gets no fixed reply and goes back to step 5',
+      "A declined reply carries the judge's evidence",
+      'one new review round and then verify again for lane M, the lane S steps for lane S',
+      'Post no reply, comment or review to the pull request before that yes',
+    ]) expect(text, dir + ' lacks: ' + phrase).toContain(phrase);
+    const recheck = text.indexOf('re-check that comment');
+    expect(recheck, dir).toBeGreaterThan(text.indexOf('5. **Fix.**'));
+    expect(recheck, dir).toBeLessThan(text.indexOf('draft one reply per comment: the commit that fixed it, the reason it was not changed, or the answer it took'));
+  }
+  const section = resolveSection();
+  for (const phrase of [
+    '**Re-check.**',
+    'its first verdict block',
+    'run at the fix commit',
+    'whether the comment still holds at the new code',
+    'lets you draft the fixed reply',
+    'the comment goes back to step 5',
+  ]) expect(section, 'the section lacks: ' + phrase).toContain(phrase);
+});

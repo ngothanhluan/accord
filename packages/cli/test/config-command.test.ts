@@ -523,4 +523,91 @@ describe('accord config areas', () => {
     expect(crlf.out).toBe(plain.out);
     expect(crlf.out).toContain('  proposal: stale_days = "21"  (evidence: the last 21 days)');
   });
+
+  /** The output lines of `config areas --proposals` over `entries` (the `dropped:` and `proposal:` lines are what the tests read). */
+  async function scanLines(repo: string, entries: unknown[]): Promise<{ lines: string[]; out: string }> {
+    const out = await run(['config', 'areas', '--proposals', proposalsFile(JSON.stringify(entries))], repo);
+    expect([out.code, out.err]).toEqual([0, '']);
+    return { lines: out.out.split('\n'), out: out.out };
+  }
+
+  it('risk:security config areas --proposals drops a scan proposal that sets a script accord trust guards (D-08)', async () => {
+    const repo = sandbox();
+    const config = text(repo);
+    const evidence = '2 files';
+    const scripts = await scanLines(repo, [
+      { key: 'git.sync', value: './sync.sh', evidence },
+      { key: 'build.regenerate', value: './regen.sh', evidence },
+      { key: 'tracker', value: { adapter: 'script', command: './x.sh' }, evidence },
+      { key: 'commits.message', value: { command: './m.sh' }, evidence },
+    ]);
+    for (const [key, value, kind] of [
+      ['git.sync', '"./sync.sh"', 'git.sync'],
+      ['build.regenerate', '"./regen.sh"', 'build.regenerate'],
+      ['tracker', '{"adapter":"script","command":"./x.sh"}', 'tracker.command'],
+      ['commits.message', '{"command":"./m.sh"}', 'commits.message.command'],
+    ]) {
+      expect(scripts.lines, key).toContain(`dropped: ${key} = ${value}  (sets ${kind}, a script that runs only after accord trust)`);
+    }
+    expect(scripts.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+
+    // a parent of a script key given a value that is no object: the schema types it as an object, so config set would refuse it
+    const parents = await scanLines(repo, [
+      { key: 'tracker', value: './x.sh', evidence },
+      { key: 'commits.message', value: './m.sh', evidence },
+    ]);
+    for (const [key, value] of [['tracker', '"./x.sh"'], ['commits.message', '"./m.sh"']]) {
+      const line = parents.lines.find((l) => l.startsWith(`dropped: ${key} = ${value}  (`));
+      expect(line, key).toBeDefined();
+      expect(line, key).toContain('(accord config set would refuse it: ');
+    }
+    expect(parents.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+
+    // a tracker that is no script, a worktree setup and a test command are proposed verbatim
+    const fine = await scanLines(repo, [
+      { key: 'tracker', value: { adapter: 'linear' }, evidence },
+      { key: 'setup', value: ['npm ci'], evidence: '2 workflow files' },
+      { key: 'tests.affected', value: 'npx vitest run', evidence: '2 workflow files' },
+    ]);
+    expect(fine.lines).toContain('  proposal: tracker = {"adapter":"linear"}  (evidence: 2 files)');
+    expect(fine.lines).toContain('  proposal: setup = ["npm ci"]  (evidence: 2 workflow files)');
+    expect(fine.lines).toContain('  proposal: tests.affected = "npx vitest run"  (evidence: 2 workflow files)');
+    expect(fine.lines.filter((l) => l.startsWith('dropped:'))).toEqual([]);
+    expect(text(repo)).toBe(config);
+  });
+
+  it('risk:regression config areas --proposals drops a value config set would refuse or the current value (D-08)', async () => {
+    const same = sandbox(CONFIG + 'git:\n  merge: squash\n');
+    const kept = await scanLines(same, [{ key: 'git.merge', value: 'squash', evidence: '12 pull requests' }]);
+    expect(kept.lines).toContain('dropped: git.merge = "squash"  (same as the current value)');
+    expect(kept.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+
+    const refused = await scanLines(sandbox(), [{ key: 'git.merge', value: 'fast', evidence: '12 pull requests' }]);
+    const line = refused.lines.find((l) => l.startsWith('dropped: git.merge = "fast"  ('));
+    expect(line).toBeDefined();
+    expect(line).toContain('(accord config set would refuse it: ');
+    expect(line).toContain('must be equal to one of the allowed values');
+    expect(refused.lines.filter((l) => l.includes('proposal:'))).toEqual([]);
+  });
+
+  it('risk:security config areas --proposals drops evidence whose citation does not resolve and a value with a control character (D-07)', async () => {
+    const repo = sandbox();
+    writeFiles(repo, { 'src/a.ts': 'one\ntwo\nthree\n' });
+    gitRun(repo, 'add', '-A');
+    gitRun(repo, ...IDENTITY, 'commit', '-q', '-m', 'fixture');
+    const out = await scanLines(repo, [
+      { key: 'git.merge', value: 'squash', evidence: 'nosuch/b.ts:4' },
+      { key: 'stale_days', value: '21', evidence: 'src/a.ts:9' },
+      { key: 'tests.affected', value: 'npx vitest run', evidence: 'src\\a.ts:2' },
+      { key: 'setup', value: ['a‮b'], evidence: 'src/a.ts:1' },
+    ]);
+    expect(out.lines.find((l) => l.startsWith('dropped: git.merge = "squash"  ('))).toContain('(evidence citation nosuch/b.ts:4 does not resolve');
+    expect(out.lines.find((l) => l.startsWith('dropped: stale_days = "21"  ('))).toContain('(evidence citation src/a.ts:9 does not resolve');
+    // a Windows path is kept and printed with `/`
+    expect(out.lines).toContain('  proposal: tests.affected = "npx vitest run"  (evidence: src/a.ts:2)');
+    expect(out.out).not.toContain('\\');
+    // an invisible character is refused, and never printed raw
+    expect(out.lines.find((l) => l.startsWith('dropped: setup = '))).toContain('(the value holds a control character)');
+    expect(out.out).not.toContain('‮');
+  });
 });

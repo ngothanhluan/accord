@@ -265,7 +265,7 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
   const DIALOG = "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -282,7 +282,7 @@ it('ac-2 the shared ask rule says when to ask multiple choice and when to ask an
   const KIND = "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -299,7 +299,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
   const PLAIN = 'Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss.';
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -316,7 +316,7 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
 it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
   const bad: string[] = [];
@@ -336,7 +336,7 @@ it('ac-4 the intent skill takes the kind of question from the shared ask rule', 
 it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -362,7 +362,7 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -388,7 +388,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
@@ -421,7 +421,7 @@ it('ac-5 the accord skill takes the claim branch from the CLI in Continue Pick u
 
 it('risk:regression the accord skill picks up then continues a named ticket and routes any other text by intent', () => {
   const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
-  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Onboard'));
+  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Rules'));
   expect(named.length).toBeGreaterThan(0);
   expect(text.indexOf('## A ticket named')).toBeGreaterThan(text.indexOf('## Dashboard'));
   expect(named.indexOf('`/accord pick-up <id>`')).toBeGreaterThanOrEqual(0);
@@ -447,7 +447,7 @@ it('risk:regression the accord skill opens each ticket in its own worktree and c
   const ids = get('.claude/skills/accord/ids.md');
   const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
   const dash = slice(text, '## Dashboard', '## A ticket named');
-  const named = slice(text, '## A ticket named', '## Onboard');
+  const named = slice(text, '## A ticket named', '## Rules');
   const continueText = get(stagePath('continue'));
   const cont = slice(continueText, '## Steps', '## Rules');
   const pickText = get(stagePath('pickup'));
@@ -507,7 +507,7 @@ it('risk:complex-branching the accord skill pushes then enters the worktree on e
   expect(ref).toContain('carry it to the worktree before you stop or move into it');
   expect(ref).toContain('Any other exit 2: show the message and stop');
   expect(ref).not.toContain('EnterWorktree');
-  const i = text.indexOf('First run the session check in `./worktree.md` for the dashboard and for `/accord onboard`.');
+  const i = text.indexOf('First run the session check in `./worktree.md` for the dashboard.');
   expect(i).toBeGreaterThan(-1);
   expect(i).toBeLessThan(text.indexOf('## Dashboard'));
   expect(ref.indexOf('## Session check')).toBeGreaterThan(-1);
@@ -665,7 +665,7 @@ it('risk:regression record.md and lane S step 4 name the places-checked and re-r
 
 it('risk:regression the accord skill takes an id that accord status lists with a branch', () => {
   const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
-  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Onboard'));
+  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Rules'));
   expect(named).toContain('an id that `accord status --json` lists with a `branch`');
   expect(named).toContain('`/accord continue ST-99` follows `./route.md` like any other text');
 });
@@ -673,7 +673,7 @@ it('risk:regression the accord skill takes an id that accord status lists with a
 function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
-  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+  expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
   for (const dir of skillDirs(all)) {
@@ -1216,9 +1216,11 @@ it('risk:regression the accord skill routes upgrade to its reference and the wor
   const acc = flatS('.claude/skills/accord/SKILL.md');
   for (const s of ['`/accord upgrade` loads `accord-upgrade`', 'Any other text, but `upgrade`, `onboard` or `queue` with text after it: follow `./route.md`']) expect(acc).toContain(s);
   expect(flatS('.claude/skills/accord-upgrade/SKILL.md')).toContain('`./upgrade.md`');
-  // WR-09: onboard is excluded from the New-request rule, and the session check still runs before it
+  // WR-09: onboard is excluded from the New-request rule; since 08.3-23 it loads its own command, which runs its own session check first
   expect(acc).not.toContain('Any other text, but `upgrade`, starts');
-  expect(acc).toContain('It is not a New request, and the session check above runs first.');
+  expect(acc).toContain('`onboard` after `/accord` loads `accord-onboard`');
+  expect(acc).not.toContain('## Onboard');
+  expect(flatS('.claude/skills/accord-onboard/SKILL.md')).toContain('Run `accord worktree check`');
   const up = flatS('.claude/skills/accord-upgrade/upgrade.md');
   expect(up.length).toBeGreaterThan(0);
   for (const s of [

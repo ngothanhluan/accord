@@ -88,7 +88,7 @@ describe('rendered skills', () => {
   });
 
   it('installs the accord source directory as accord and every other X as accord-X', () => {
-    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+    expect(STAGES).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
     expect(installedName('accord')).toBe('accord');
     expect(installedName('audit')).toBe('accord-audit');
     expect(installedName('designer')).toBe('accord-designer');
@@ -245,6 +245,7 @@ const FIRST_COMMAND: Record<string, string> = {
   'accord-upgrade': 'dashboard',
   'accord-audit': 'audit',
   'accord-config': 'worktree check',
+  'accord-onboard': 'worktree check',
 };
 const firstCommand = (dir: string): string => FIRST_COMMAND[dir] ?? 'anchor';
 
@@ -712,6 +713,7 @@ const HINTS: Record<string, string | null> = {
   'accord-audit': null,
   'accord-debug': '[ticket id] [failure]',
   'accord-config': '[area]',
+  'accord-onboard': '[no arguments]',
   'accord-designer': '<ticket id>',
 };
 
@@ -1166,6 +1168,18 @@ describe('retired skill folders', () => {
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-review'))).toContain('accord-review');
     expect(missingEntries(RENDERED_BY_0_10_0, STAGES, without('accord-verify'))).toContain('accord-verify');
   });
+
+  // Phase 8.3 D-01, D-07 (08.3-23): the onboarding text left the accord folder for its own command, so the old rendered file is retired in both skill directories and not rendered.
+  // It rendered as `accord/onboard.md` from v0.5.0 to v0.10.0 and under no other name, so the one path is the whole list.
+  it('risk:data-loss the accord folder retires onboard.md and renders it nowhere (D-01)', () => {
+    for (const dir of SKILL_DIRS) expect(RETIRED_FILES, `${dir}/accord/onboard.md`).toContain(`${dir}/accord/onboard.md`);
+    for (const roster of ROSTERS) {
+      expect(roster.filter((f) => f.path.endsWith('/accord/onboard.md')).map((f) => f.path), 'the accord folder renders onboard.md').toEqual([]);
+      expect(roster.some((f) => f.path.endsWith('/accord-onboard/SKILL.md')), 'accord-onboard renders').toBe(true);
+    }
+    // the new command's folder is no retired path
+    expect(RETIRED_FILES.filter((p) => p.includes('/accord-onboard/'))).toEqual([]);
+  });
 });
 
 // Phase 8.3 D-04: a ticket's lane and stage map to a file of the accord folder. `STAGE_FILES` is the one map (each fold adds its stage); the cases read it,
@@ -1422,7 +1436,7 @@ describe('a ticket at a stage', () => {
   it('risk:regression STAGE_FILES holds exactly the six stages and done and no stage is a command (D-04)', () => {
     expect(Object.keys(STAGE_FILES).sort()).toEqual(['approach', 'build', 'done', 'intent', 'plan', 'review', 'verify']);
     expect(STAGE_FILES).toEqual({ intent: 'intent.md', approach: 'approach.md', plan: 'plan.md', build: 'build.md', review: 'review.md', verify: 'verify.md', done: 'verify.md' });
-    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'config']);
+    expect([...STAGES]).toEqual(['accord', 'upgrade', 'audit', 'debug', 'onboard', 'config']);
     for (const stage of ['intent', 'approach', 'plan', 'build', 'review', 'verify']) {
       expect(Object.keys(HINTS), `HINTS holds no command for ${stage}`).not.toContain('accord-' + stage);
       expect(Object.keys(FIRST_COMMAND), `FIRST_COMMAND holds no command for ${stage}`).not.toContain('accord-' + stage);

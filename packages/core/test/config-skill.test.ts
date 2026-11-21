@@ -1,5 +1,5 @@
 // Phase 8.3 D-08, D-09, D-10: `/accord-config` walks the settings area by area from `accord config areas` (data, D-13), scans nothing, and writes a value only through
-// `accord config set` after the owner's yes. The per-key walk lives once in `shared/walk.md`, which the config skill loads and 08.3-23 makes the onboarding skill load.
+// `accord config set` after the owner's yes. The per-key walk lives once in `shared/walk.md`, which the config skill loads and the onboarding skill loads too (08.3-23).
 // The text is read with whitespace collapsed, so a phrase wrapped across two lines is still found. The real-command check for every `accord ...` the skill names is skill-commands.test.ts in the cli package.
 import { describe, expect, it } from 'vitest';
 import { skillTargets, withoutMarker } from '../src/index.js';
@@ -96,5 +96,26 @@ describe('the config skill walks areas from the CLI and writes only through acco
     expect(body).not.toContain('pass the bare value in single quotes');
     // the accord folder never renders it: the walk belongs to the commands that run it
     expect(at(ALL, '.claude/skills/accord/walk.md')).toBe('');
+  });
+
+  // 08.3-23: `/accord-onboard` follows the same walk, so it renders once in the source and identical in both commands' folders; neither SKILL.md holds its text.
+  it('risk:regression onboard and config share one walk (D-10)', () => {
+    const onboard = at(ALL, '.claude/skills/accord-onboard/SKILL.md');
+    expect(onboard, 'accord-onboard/SKILL.md is not rendered').not.toBe('');
+    const onboardBody = flat(withoutMarker(onboard).replace(/^---\n[\s\S]*?\n---\n/, ''));
+    for (const dir of ['.claude/skills', '.agents/skills']) {
+      expect(at(ALL, dir + '/accord-config/walk.md'), dir).not.toBe('');
+      expect(at(ALL, dir + '/accord-onboard/walk.md'), `${dir}: onboard's walk.md is config's walk.md`).toBe(at(ALL, dir + '/accord-config/walk.md'));
+    }
+    // both SKILL.md files list and name the one walk
+    for (const [name, text] of [['accord-config', body], ['accord-onboard', onboardBody]] as const) {
+      expect(text, name + ' names ./walk.md').toContain('`./walk.md`');
+      expect(text, name + ' holds no copy of the walk').not.toContain('Take the proposed value');
+      for (const trust of ['accord trust git.sync@<digest>', 'accord trust --revoke', 'does not run them until the person allows them once', 'pass the bare value in single quotes'])
+        expect(text.includes(trust), `${name} holds the trust text: ${trust}`).toBe(false);
+    }
+    // the walk's only copy of the key procedure is walk.md: no other rendered file of any folder holds it
+    const holders = ALL.filter((f) => f.path.startsWith('.claude/skills/') && flat(f.text).includes('Take the proposed value')).map((f) => f.path);
+    expect(holders.sort()).toEqual(['.claude/skills/accord-config/walk.md', '.claude/skills/accord-onboard/walk.md']);
   });
 });

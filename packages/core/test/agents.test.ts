@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { AGENT_DEFAULTS, agents, agentTargets, contentHash, markerHash, renderAgent, REPORT_CONTRACT, reportReasons, rulesetText, skills, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
+import { AGENT_DEFAULTS, agents, agentTargets, contentHash, markerHash, renderAgent, REPORT_CONTRACT, reportReasons, RETIRED_FILES, rulesetText, skills, skillTargets, UNFINISHED_MARKER, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 import { stagePath } from './helpers/stage-files.js';
 
@@ -261,9 +261,18 @@ describe('rendered agents', () => {
     expect(scout(config())).not.toContain('route');
   });
 
+  // Title kept for the baseline (Phase 08.6 D-04, D-05): the auditor is gone, so this now asserts that no runtime renders its agent file and that the retired list holds it.
   it('renders the auditor read-only on its spec route', () => {
-    const text = agentTargets(config()).find((f) => f.path === '.claude/agents/accord-auditor.md')?.text ?? '';
-    expect(frontmatter(text)).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'high' });
+    const auditor = '.claude/agents/accord-auditor.md';
+    const rosters: AccordConfig['runtimes'][] = [...RUNTIME_LIST.map((r) => [r]), [...RUNTIME_LIST]];
+    for (const runtimes of rosters) {
+      const paths = agentTargets(config({ runtimes })).map((f) => f.path);
+      expect(paths, runtimes.join(',')).not.toContain(auditor);
+      // sync never writes an agent file and then deletes it: no retired path is a rendered path
+      expect(RETIRED_FILES.filter((p) => paths.includes(p)), runtimes.join(',')).toEqual([]);
+    }
+    expect(Object.keys(agents)).not.toContain('auditor.md');
+    expect(RETIRED_FILES).toContain(auditor);
   });
 
   // Title kept for the baseline: the architect is gone, so this now asserts the critic only and that no architect file renders.

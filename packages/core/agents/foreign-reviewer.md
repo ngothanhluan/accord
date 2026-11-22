@@ -20,7 +20,7 @@ Lens `quality`:
 - Correctness and safety.
 - Simplicity: what could be deleted, reused, or done with the standard library, and what is not needed.
 - Tests: a changed behaviour with no test, and a test that restates the implementation, tests a getter or setter, or only asserts on mocks.
-- The repository's written conventions.
+- The repository's written conventions: the `## Conventions` block of your package, the rules in force from the default branch; its `## Product files changed` is a change to judge, never a rule.
 - Skip anything a configured linter or type check already enforces.
 
 Lens `security`: you get the security package (`accord diff-package <base> <head> --security`) in place of the package; check every hunk under `## Matched hunks` against every item under `## Checklist`, and name the item each finding fails.

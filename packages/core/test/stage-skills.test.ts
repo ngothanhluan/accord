@@ -2260,7 +2260,7 @@ it('risk:security the foreign review is read-only with lenses by the size rule a
   for (const f of all.filter((s) => /(^|\/)skills\/accord\/(SKILL|route)\.md$/.test(s.path))) expect(f.text, f.path).not.toContain('./review-foreign.md');
   const phrases = [
     'accord diff-package', 'Changed lines:', 'accord-foreign-reviewer', '`both`', '`intent`', '`quality`', '`integration`', '`security`', 'about 500', 'about 1500',
-    '## Security triggers', 'gh pr view', 'gh pr review', '--comment',
+    '## Security triggers', 'gh pr review', '--comment',
     "Post the findings to the pull request only after the owner's explicit yes",
     'This review edits no file, commits nothing, dispatches no executor and runs no fix round',
     'never approve and never request changes',
@@ -2271,6 +2271,8 @@ it('risk:security the foreign review is read-only with lenses by the size rule a
   expect(numbers(reviewSkill)).toEqual(['1500', '500']);
   for (const f of foreign) {
     expect(phrases.filter((p) => !f.text.includes(p)), f.path).toEqual([]);
+    // Phase 8.5 (08.5-07): the pull request's source steps, `gh pr view` among them, are the reference rendered beside it
+    expect(all.find((s) => s.path === dir(f.path) + '/pr-source.md')?.text ?? '', f.path).toContain('gh pr view');
     // D-12: the size rule's source is named as accord's own review stage, never as a file, and no stage-review agent, record or command is named
     expect(f.text, f.path).toContain("the size rule of accord's own review stage, step 4 below");
     for (const banned of ['accord-executor', 'accord round', 'review.md', 'accord-reviewer', 'accord-final-reviewer', 'accord review-package', 'review-record', 'accord task-done']) expect(f.text, f.path).not.toContain(banned);

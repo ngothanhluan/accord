@@ -14,12 +14,12 @@ this worktree, the ticket's own, unless a step names another folder.
    size or `Parallel:`: its brief names that folder, so it goes through steps 2 to 7 and is merged and cleaned. A task
    whose line ends `— owner` is never built in this worktree: step 6.
 
-2. **Open.** For each task of the batch, run `accord worktree task open <id> <n>`, then `accord brief <id> <n>` into a
-   brief file outside the working tree. When `accord worktree task open` exits 2 saying the ticket was claimed before
+2. **Open.** For each task of the batch, run `accord worktree task open <id> <n>`, then `accord brief <id> <n> --out brief-<n>.md`, which writes
+   the brief into the git-ignored `.accord-reports/<id>/` folder. When `accord worktree task open` exits 2 saying the ticket was claimed before
    0.6.0, open no other task worktree: build every task left in this worktree one at a time, as step 2 of `./build.md`
    says. Its briefs name no `Work dir:` and no `Report file:`, as before.
 
-3. **Dispatch.** Dispatch a fresh `accord-executor` for each task of the batch, with its brief path only: the brief
+3. **Dispatch.** Dispatch a fresh `accord-executor` for each task of the batch, with the path its `file:` line prints, only: the brief
    carries the rule to work only in its `Work dir:` and the report its `Report file:` asks for. Dispatch them in one
    message where your tool runs subagents in parallel, else one after another; either way they write the same records.
    Never pass chat history.
@@ -52,8 +52,7 @@ this worktree, the ticket's own, unless a step names another folder.
 7. **Permission.** `BLOCKED: permission <path>` from a task worktree means your tool refused a write there. After the
    wave's other tasks are recorded, take each such task in task order: run `accord worktree task merge <id> <n>` first,
    which brings every commit its executor made there into this branch (with none, this branch does not move; a
-   conflict takes step 5's route), then `accord worktree task clean <id> <n>`, then `accord brief <id> <n>` again into
-   its brief file. No task worktree is left, so its `Work dir:` and `Report file:` are this worktree's. Dispatch a fresh
+   conflict takes step 5's route), then `accord worktree task clean <id> <n>`, then `accord brief <id> <n> --out brief-<n>.md` again. No task worktree is left, so its `Work dir:` and `Report file:` are this worktree's. Dispatch a fresh
    `accord-executor` with it plus the blocked report, one at a time, and record the task as step 3 of `./build.md` says.
    Keep that order; the clean never comes before the merge, because clean refuses a branch holding commits this branch
    lacks, and a brief run before it names the same folder. When that merge or clean still refuses (tracked changes left there, or a conflict

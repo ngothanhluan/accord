@@ -1,0 +1,83 @@
+---
+id: "T-1"
+title: "Export"
+type: story
+status: open
+lane: M
+ui: false
+---
+## Intent
+Owners can export their report as CSV.
+Expected size: 5 tasks
+
+## Acceptance criteria
+```gherkin
+Feature: Export
+
+  @ac-1 @test:export#writes-csv
+  Scenario: export writes a csv
+    Given a report
+    When the owner exports it
+    Then a csv file is written
+
+  @ac-2 @test:export#escapes-commas
+  Scenario: commas are escaped
+    Given a cell with a comma
+    When the owner exports it
+    Then the cell is quoted
+```
+
+## Vetoes
+- No new dependency.
+
+## Decisions
+- D-01 Use the existing writer — "reuse what we have"
+
+## Corrections
+
+## Open questions
+- [x] Delimiter? Comma.
+
+## Approach
+Extend the existing report writer with a csv mode.
+
+---
+
+# Plan
+
+## Task 1: Writer csv mode
+covers: @ac-1, D-01
+files: src/export.ts
+verify: export#writes-csv (@ac-1)
+after: none
+Add a csv branch to the writer.
+
+---
+
+Work dir: <root>
+Work only in this folder: run every command and make every commit there, give every path as an absolute path under it, and never merge, rebase or push.
+Report file: <root>/.accord-reports/T-1/task-1.md
+Write this file as your last step, after your last commit. It holds these two lines:
+red reason: <the behaviour the failing test showed missing, not an error in the test>
+self-review: missing: <...>; extra: <...>; misread: <...>
+A self-review part with nothing to say is none. A task with no red test of its own (its test came with an earlier task, or every scenario is @ui)
+writes red reason: no red test — <why>; a bare none is refused. accord task-done refuses the task without both lines.
+
+Test command: npx vitest run src/export.ts
+This is the only test command the executor runs for this task.
+
+---
+
+Commit rule: the first line of every commit message matches commits.message.preset conventional.
+Example that passes: feat(cart): add coupon field
+Merge commits and Revert "..." subjects are exempt.
+Check each message with accord commit check <file> before you commit it; accord task-done refuses a commit that breaks the rule.
+
+---
+
+<BOM># Conventions<CR>
+<CR>
+<!-- one rule per line --><CR>
+<CR>
+- Rule one of the team.<CR>
+- Rule two of the team.<CR>

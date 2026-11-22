@@ -530,6 +530,24 @@ it('ac-4 the executor runs only the test command its brief prints and never test
   }
 });
 
+// Phase 8.5 D-02, D-04, P11 (08.5-05): every brief is the file accord built; the executor no longer says a review, debug or failure brief prints no test command, and it still reads accord/product/ itself.
+it('risk:regression the executor says its brief is the file accord built and keeps its two reads of accord/product (8.5-ac-8 D-04)', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const rendered = agentTargets(config({ runtimes: ['claude', 'codex', 'cursor', 'copilot'] })).filter((f) => f.path.endsWith('/accord-executor.md'));
+  expect(rendered.length).toBeGreaterThan(0);
+  const texts: [string, string][] = [['core', agents['executor.md']], ...rendered.map((f): [string, string] => [f.path, f.text])];
+  for (const [name, text] of texts) {
+    const body = flat(text);
+    expect(body, name + ' still says a review, debug or failure brief prints no test command').not.toContain('as a review, debug or failure brief does');
+    for (const phrase of [
+      'the file accord built for you (`accord brief`)',
+      'the lines accord writes',
+      'Read `accord/product/` before you start',
+      'follow `accord/product/conventions.md` in every commit and every file you write',
+    ]) expect(body, name + ' lacks: ' + phrase).toContain(phrase);
+  }
+});
+
 it('risk:regression the critic lists what not to critique allows no findings and caps its report (ST-LN-91 D-13)', () => {
   const flat = (s: string): string => s.replace(/\s+/g, ' ');
   const critic = flat(agentTargets(config()).find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '');

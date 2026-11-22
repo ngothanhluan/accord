@@ -55,7 +55,9 @@ followed by the request, in place of the line it prints, and stop here.
    another review round. Classify each other comment that holds `patch`, `plan-gap` or
    `intent-gap` and handle them as the review stage of `/accord` handles one round's
    findings, the patch ones fixed together through a fresh executor in
-   lane M, and by you yourself in lane S, which has no executor. The fix
+   lane M, and by you yourself in lane S, which has no executor. The lane M executor's brief is
+   `accord brief <id> --fix <findings file>`, built from those comments'
+   findings as the review stage builds it. The fix
    then takes the path `./failure.md` gives a failure reported after
    verify: one new review round and then verify again for lane M, the
    lane S steps for lane S.

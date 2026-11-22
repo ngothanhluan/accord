@@ -4,7 +4,7 @@
 // gate.fix-not-addressed read by kind. Pure: the host supplies the claim pin it read from git. No code runs at load but constants.
 import { laneTicket, workOf } from '../gate/work.js';
 import type { GateRule } from '../gate/rules.js';
-import type { RepoSnapshot, RoundFinding } from '../model/snapshot.js';
+import type { FixReport, RepoSnapshot, RoundFinding } from '../model/snapshot.js';
 import { hasLine, reReviewedFixFiles } from './evidence.js';
 import { FIX_RECORD_FROM, claimPinBefore, claimPinError } from './pin.js';
 import { factsOf, placedRounds, skipped } from './scope.js';
@@ -50,6 +50,20 @@ const withNote = (snapshot: RepoSnapshot, id: string, reason: string): string =>
   return error === undefined ? reason : `${reason}; ${error}; the claim pin could not be read, so the fix record rules apply`;
 };
 
+/** One place as a report and a finding compare it: trimmed, backticks dropped, `\` read as `/`. */
+const placeKey = (p: string): string => p.trim().replace(/`/g, '').replace(/[\\]/g, '/');
+
+/** True when two place lists are the same set under placeKey. */
+const samePlaces = (a: readonly string[], b: readonly string[]): boolean => {
+  const x = new Set(a.map(placeKey));
+  const y = new Set(b.map(placeKey));
+  return x.size === y.size && [...x].every((p) => y.has(p));
+};
+
+/** D-19, R-6: true when a report line `places checked: <n>: <places>` covers the fixed finding `n` of round `p`: its token is `<n>` or `<p>.<n>` and its places equal the finding's `checked:` set. */
+const reportCovers = (reports: readonly FixReport[], p: number, n: number | undefined, checked: readonly string[]): boolean =>
+  n !== undefined && reports.some((r) => r.places.some((l) => (l.n === String(n) || l.n === `${p}.${n}`) && samePlaces(l.places, checked)));
+
 const RANK: Record<RoundFinding['severity'], number> = { Nice: 0, Should: 1, Must: 2 };
 
 /**
@@ -59,11 +73,14 @@ const RANK: Record<RoundFinding['severity'], number> = { Nice: 0, Should: 1, Mus
 const reportedAgain = (round: { findings: readonly RoundFinding[] }, f: RoundFinding): boolean =>
   round.findings.some((x) => RANK[x.severity] >= RANK[f.severity] && x.file !== undefined && (x.file === f.file || x.file === f.notAddressed?.file));
 
-/** One way the fix record is wrong: `rule` says which gate row names it (`places`: gate.fix-places-missing, `answer`: gate.fix-not-addressed, `outside`: gate.fix-outside-open). */
+/**
+ * One way the fix record is wrong: `rule` says which gate row names it (`places`: gate.fix-places-missing, `answer`: gate.fix-not-addressed, `outside`: gate.fix-outside-open). `report` (Phase 8.5 D-19) names
+ * no gate row: it is built only when the host supplied the `fixReports` fact, which only `accord round` does, so `accord gate done` and CI never see it.
+ */
 export interface FixProblem {
   line: number;
   reason: string;
-  rule: 'places' | 'answer' | 'outside';
+  rule: 'places' | 'answer' | 'outside' | 'report';
   /** Set on the problems only the verdict form adds: the fix (`<r>.<n>`, ` cycle <k>` from cycle 2) whose re-review round has not run yet. `accord round` lists these and refuses none of them. */
   awaiting?: string;
 }
@@ -122,6 +139,15 @@ export function fixProblems(snapshot: RepoSnapshot, id: string, o: { verdict?: b
           f.line,
           'places',
           `${where}, ${which} is fixed in a commit with no checked: mark listing every place the same claim or pattern was checked (checked: <path>[:<line>], <path>[:<line>]…, D-08)`,
+        );
+      }
+      // D-19, R-6: the places the fix recorded must be the places an executor fix report lists, when the host read the reports (accord round). The `checked:` mark stays the one receipt (R-10).
+      if (f.checked !== undefined && snapshot.fixReports !== undefined && Object.hasOwn(snapshot.fixReports, id) && !reportCovers(snapshot.fixReports[id], at.p, f.n, f.checked)) {
+        add(
+          f.line,
+          'report',
+          `${where}, ${which} is recorded fixed with checked: ${f.checked.join(', ')}, but no executor fix report under .accord-reports/${id}/ lists those places: ` +
+            `build the fix brief with accord brief ${id} --fix <findings file>, dispatch a fresh executor with it, and copy the places its report lists (D-19)`,
         );
       }
       // both marks on one line never reach here: the finding grammar refuses that line as a record problem (record.ts)

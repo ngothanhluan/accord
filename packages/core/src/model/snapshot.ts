@@ -89,6 +89,14 @@ export type RoundFacts =
  * could not say.
  */
 export type SecurityFacts = { error: string } | { rounds: { head: string; triggers: string[] }[] };
+/**
+ * Phase 8.5 D-19: one executor fix report (`.accord-reports/<id>/fix-<k>.md`) as the host read it: its file name and each `places checked: <n>: <place>, <place>…` line, `n` the finding's
+ * number (`<n>` or `<round>.<n>`) and `places` the listed places as written, trimmed.
+ */
+export interface FixReport {
+  file: string;
+  places: readonly { n: string; places: readonly string[] }[];
+}
 
 /**
  * Phase 8.1 D-14, D-17, D-20: the slop hits of a ticket's cumulative diff as the host read them from git (the list `accord review-package` prints under `## Slop`), and how many lines of the team's
@@ -391,6 +399,9 @@ export interface RepoSnapshot {
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
   securityFacts?: Record<string, SecurityFacts>; // ST-LN-36: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, a ticket claimed before the security record rule's cut-off)
+  // Phase 8.5 D-19: host-supplied by `accord round` only, for a ticket claimed at or after PRODUCT_TEXT_FROM and not in lane S, whose review record holds a fixed finding with a `checked:` mark; absent otherwise.
+  // `accord gate done` and CI never read it: the reports are machine-local, as the task report is.
+  fixReports?: Record<string, readonly FixReport[]>;
   slopFacts?: Record<string, SlopFacts>; // Phase 8.1 D-17: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, review skipped, a ticket claimed before the slop gate's cut-off)
   researchFacts?: Record<string, ResearchFact>; // carried through from SnapshotInput
   // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or

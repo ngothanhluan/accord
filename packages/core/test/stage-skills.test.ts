@@ -1002,7 +1002,8 @@ it('risk:regression the build skill re-briefs a task refused for its report, in 
       continue;
     }
     const step3 = text.slice(text.indexOf('3. **Record.**'), text.indexOf('4. **Blocked.**'));
-    for (const p of ['Report file', 'run `accord brief <id> <n>` again into the brief file', 'dispatch a fresh executor with it plus the reasons']) {
+    // Phase 8.5 D-23 (08.5-05): the task brief is written with --out into the git-ignored report folder
+    for (const p of ['Report file', 'run `accord brief <id> <n> --out brief-<n>.md` again', 'dispatch a fresh executor with it plus the reasons']) {
       if (!step3.includes(p)) bad.push(path + ' step 3 lacks ' + p);
     }
     const step4 = text.slice(text.indexOf('4. **Blocked.**'), text.indexOf('5. **Files.**'));
@@ -1026,7 +1027,7 @@ it('risk:regression the build skill tells a missing or old executor report from 
     if (!ownerWhen.includes('`tests.report`') || ownerWhen.includes('executor') || /\bthe report is missing\b/.test(ownerWhen)) bad.push(dir + ' owner bullet: ' + ownerWhen);
     // the re-brief bullet names every executor report refusal of task-done: missing, written before HEAD's commit, lacking its lines
     const exec = bullets.find((b) => b.includes('Report file')) ?? '';
-    for (const p of ['is missing', "written before HEAD's commit", 'lacks its lines', 'run `accord brief <id> <n>` again']) if (!exec.includes(p)) bad.push(dir + ' executor bullet lacks ' + p);
+    for (const p of ['is missing', "written before HEAD's commit", 'lacks its lines', 'run `accord brief <id> <n> --out brief-<n>.md` again']) if (!exec.includes(p)) bad.push(dir + ' executor bullet lacks ' + p);
     const noPlan = (everyFile.get(stagePath('build', 'no-plan', dir)) ?? '').replace(/\s+/g, ' ');
     const step4 = noPlan.slice(noPlan.indexOf('4. When it refuses'), noPlan.indexOf('5. With the plan stage off'));
     for (const p of ['`tests.report` file', 'executor report']) if (!step4.includes(p)) bad.push(dir + ' no-plan step 4 lacks ' + p);
@@ -2075,7 +2076,8 @@ it('risk:concurrency the build skill dispatches a wave in batches up to the cap,
         '`accord task-done <id> <n>`',
         '`accord worktree task clean <id> <n>`',
         'in task order',
-        'brief path only',
+        // Phase 8.5 D-23 (08.5-05): the brief file is the one `accord brief --out` wrote, named by its `file:` line
+        'with the path its `file:` line prints, only',
         'lists no task of this wave',
         '`Task <n> worktree:`',
       ]),
@@ -2184,7 +2186,7 @@ it('risk:data-loss a task stopped by a permission refusal is merged before its t
     const step = held[0];
     const merge = step.indexOf('`accord worktree task merge <id> <n>`');
     const clean = step.indexOf('`accord worktree task clean <id> <n>`');
-    const brief = step.indexOf('`accord brief <id> <n>`');
+    const brief = step.indexOf('`accord brief <id> <n> --out brief-<n>.md`');
     if (!(merge >= 0 && clean > merge && brief > clean)) bad.push(dir + ' waves.md permission step order: merge ' + merge + ', clean ' + clean + ', brief ' + brief);
     bad.push(
       ...lacking(dir + ' waves.md permission step', step, [
@@ -2890,7 +2892,8 @@ it('risk:regression accord-debug started by accord-resolve-pr for a comment comm
       'Step 3 runs as written',
       'A second return without evidence stops at the owner, as step 3 says: no test is written and no fix starts.',
       '**Test only.**',
-      '`' + TEST_ONLY_LINE + '` as the last line of the brief',
+      // Phase 8.5 D-02, R-7 (08.5-05): the brief now comes from accord brief --fix --test-only, which ends with the line; superseded on purpose: the 08.4 pin 'as the last line of the brief' described a hand-written brief
+      '`accord brief <id> --fix <findings file> --test-only --out test-only-brief.md`, which ends with the line `' + TEST_ONLY_LINE + '`',
       'commits that test alone, with any fixture it reads, when it fails on the reported behaviour',
       'commits nothing when it passes, leaving it uncommitted',
       '**Hand back.**',
@@ -2901,7 +2904,7 @@ it('risk:regression accord-debug started by accord-resolve-pr for a comment comm
       "the test id, the test's file and that output file",
       '**Holds.**',
       'skip step 3',
-      'with no `Test only:` line, naming that test and its commit',
+      '`accord brief <id> --fix <findings file> --out fix-brief.md`, which has no `Test only:` line, the findings naming that test and its commit',
       'steps 5 to 9 run as written',
     ])
       if (!ref.includes(p)) bad.push(dir + ' debug-comment.md lacks ' + p);
@@ -2930,9 +2933,10 @@ it('risk:regression a debug run not started for a pull request comment keeps its
     for (const s of [
       'The main session never edits product code: the fix goes through the executor path of the build stage of `/accord`.',
       'Note the HEAD sha.',
-      'copy the ticket file byte for byte (never retype it), then append the root cause, its evidence, and the reproduction test.',
+      // Phase 8.5 D-02 (08.5-05): the 08.4 sentence 'copy the ticket file byte for byte' is superseded on purpose; accord brief --fix builds the brief
+      'Write the root cause, its evidence and the reproduction test to a findings file outside the working tree and build the brief with `accord brief <id> --fix <findings file> --out fix-brief.md`.',
       'The executor starts with that failing reproduction test, greps every caller of what it changes, and fixes the root cause once in shared code, never at each caller.',
-      'Dispatch a fresh `accord-executor` with its path.',
+      'Dispatch a fresh `accord-executor` with the path its `file:` line prints.',
       'Route every other stop as the build stage of `/accord` does.',
     ])
       if (!step4.includes(s)) bad.push(f.path + ' step 4 lacks ' + s);

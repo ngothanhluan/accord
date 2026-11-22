@@ -152,6 +152,15 @@ export const SLOP_FROM = '0.9.0';
  */
 export const DEFERRED_MARK_FROM = '0.10.0';
 
+/**
+ * Phase 8.5 D-19, D-22 and R-8: the release from which `accord brief` gives a ticket's task brief the shared layout (the ruleset first, the conventions under `## Conventions`, the lines the CLI
+ * writes last) and from which `accord round` refuses a fix with no executor fix report behind its `checked:` mark. A ticket claimed under a pin below it keeps today's brief byte for byte,
+ * with the line checks applied to its raw conventions append, and is never refused for a report; `accord brief --fix` has one layout for any claim pin (D-31). Read only through claimPinBefore.
+ * It is the next minor after the newest released heading of docs/releases.md at planning, 0.12.2; the release that ships Phase 8.5 sets it to its own version if another release came
+ * first, and PHASE8_5 in migration-pin.test.ts follows.
+ */
+export const PRODUCT_TEXT_FROM = '0.13.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

@@ -130,6 +130,19 @@ export function briefWorkRoot(root: string, claimed: RepoSnapshot, id: string, n
   throw new UsageError(wrongCheckout(`accord brief ${id} ${n}`, id, ticketBranch, list));
 }
 
+/**
+ * Phase 8.5 D-02: the folder a fix executor works in when `accord brief <id> --fix` names no task: the ticket's own checkout, as a fix is committed on the ticket branch. `root` when it is on that
+ * branch, or when the ticket's branch exists nowhere (never claimed, as `briefWorkRoot` passes it); a checkout on another branch is the refusal every task command makes, naming the one to run it in.
+ */
+export function fixWorkRoot(root: string, claimed: RepoSnapshot, id: string): string {
+  const ticketBranch = branchOf(claimed, id);
+  if (currentBranch(root) === ticketBranch) return slash(root);
+  const list = listWorktrees(root);
+  const exists = list.some((w) => w.branch === ticketBranch) || ['refs/heads/', 'refs/remotes/origin/'].some((p) => gitOk(root, ['rev-parse', '--verify', '-q', p + ticketBranch]));
+  if (!exists) return slash(root);
+  throw new UsageError(wrongCheckout(`accord brief ${id} --fix`, id, ticketBranch, list));
+}
+
 /** The checks every task command makes: the id and task number, and that it runs in the ticket's own checkout (exit 2 naming the one to run it in). */
 function inTicketCheckout(ctx: CommandContext, id: string, task: string, verb: 'open' | 'merge' | 'clean'): { n: number; ticketBranch: string; list: PrunableEntry[] } {
   const n = taskNumber(task);

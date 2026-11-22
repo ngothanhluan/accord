@@ -5,8 +5,11 @@
 import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONVENTIONS_FILE } from '@accord-dev/accord-core';
+import { CONVENTIONS_FILE, rulesetText } from '@accord-dev/accord-core';
 import type { ProductChange, ProductRead } from '@accord-dev/accord-core';
+import pkg from '../../package.json' with { type: 'json' };
+import { UsageError } from './fs.js';
+import { shown } from './script-trust.js';
 
 /** Every spawn here is git with a literal array; a pathspec is literal, and the output is never decoded by a shell. */
 const git = (root: string, args: string[]): string =>
@@ -55,6 +58,32 @@ export function readProductText(root: string, copy: { from: 'working' } | { from
     return { kind: 'text', copy: 'default', text: git(root, ['cat-file', 'blob', m[3]]) };
   } catch {
     return fallback();
+  }
+}
+
+/** D-21: the ruleset with the invocation the SubagentStart hook prints, `npx --yes <package>@<version>` of the running CLI, so a brief and the hook carry one text. */
+export const cliRuleset = (): string => rulesetText(`npx --yes ${pkg.name}@${pkg.version}`);
+
+/** An input bound, not the size cap of D-27: a findings file is a short list, never a log. */
+export const MAX_FINDINGS_BYTES = 1048576;
+
+/**
+ * D-13, T-08.5-16: the text of the findings file of `accord brief --fix`, read only when it is a regular file (never a link, whose target is never opened) of at most 1 MiB.
+ * Anything else is a UsageError naming the file with forward slashes and saying nothing was written; the caller writes nothing before this returns.
+ */
+export function readFindings(path: string): string {
+  const name = shown(path.replace(/\\/g, '/'));
+  const refuse = (why: string): never => {
+    throw new UsageError(`the findings file ${name} ${why}; nothing was written`);
+  };
+  const found = lstatSync(path, { throwIfNoEntry: false });
+  if (found === undefined) return refuse('does not exist');
+  if (!found.isFile()) return refuse('is not a regular file (a link, a folder or a device)');
+  if (found.size > MAX_FINDINGS_BYTES) return refuse(`is over ${MAX_FINDINGS_BYTES} bytes (1 MiB)`);
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return refuse('could not be read');
   }
 }
 

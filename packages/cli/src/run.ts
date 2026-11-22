@@ -13,6 +13,7 @@ import { deferred } from './commands/deferred.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import type { BriefOptions } from './commands/brief.js';
 import { audit } from './commands/audit.js';
 import { commitCheck, commitMessage } from './commands/commit.js';
 import { conventionsWrite } from './commands/conventions.js';
@@ -189,10 +190,15 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     });
 
   program
-    .command('brief <id> <task>')
-    .description("print the ticket and one plan task: the brief an executor receives; from 0.6.0 it names the task's report file and clears that task's old report")
-    .action((id: string, task: string) => {
-      setCode(brief(preflight(opts), id, task));
+    .command('brief <id> [task]')
+    .description(
+      "print the ticket and one plan task: the brief an executor receives; from 0.6.0 it names the task's report file and clears that task's old report; with --fix, the brief of the executor that fixes the findings in a file",
+    )
+    .option('--fix <file>', 'build the brief of a fix: the ticket, the findings in <file>, the conventions, and the lines accord writes; no task number needed')
+    .option('--out <file>', 'write the brief to <file> in the report folder (.accord-reports/<id>/, git-ignored), UTF-8 with no byte order mark, and print its path')
+    .option('--test-only', 'with --fix: end the brief with the Test only line, so the executor commits the reproduction test alone')
+    .action((id: string, task: string | undefined, options: BriefOptions) => {
+      setCode(brief(preflight(opts), id, task, options, opts.cwd));
     });
 
   program

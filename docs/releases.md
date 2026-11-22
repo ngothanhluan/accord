@@ -2,7 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.14.0 — 2026-11-22
+
+Release 0.14.0 removes the auditor. The intent stage no longer has an audit step and accord no longer renders `accord-auditor`: a criterion with two readings is now caught by the approach critic and by the owner's approval of the short approach view. The intent steps after the removed one moved up by one (Discuss is step 8 and Next step 9), and every skill line that names an intent step by number follows. Tickets in flight: no ticket is refused for something new, and `accord gate ready` and `accord gate done` give the same answers, since no gate reads an audit record. A repository pinned to 0.13.1 gets the change with `accord upgrade`, which also moves the pin and the panel plugin and removes an unedited `.claude/agents/accord-auditor.md`; a config that still names `models.auditor` loads, and `accord lint` warns that the entry has no effect. This release also carries the two fixes merged since 0.13.1: the base branch name check of `/accord-review-pr` and the conventions lines that `accord upgrade` lists.
 
 - `/accord-review-pr` fetches a pull request of another repository only when its base branch name holds letters, digits and `.` `_` `/` `-` only, and it passes the ref to `git fetch` as one quoted word, so a branch name written to run a command on your machine is never run. A name with any other character is not fetched and the review says so. Tickets in flight are unaffected.
 - `accord upgrade` lists, as `unsafe line:` lines, the same lines of `accord/product/conventions.md` that `accord lint` reports, including a line that a comment hides from the plain line check, so the upgrade pull request and lint agree.

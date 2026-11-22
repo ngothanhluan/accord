@@ -2560,10 +2560,13 @@ it('risk:regression every stage offers a rule or Rejected line and records it on
   const bytes = Buffer.byteLength(read(stagePath('verify')), 'utf8');
   expect(bytes).toBeLessThanOrEqual(6000);
   expect(bytes).toBeLessThan(5975);
-  // D-11: no lint or gate rule reads conventions.md
-  const ids = [...RULES.map((r) => r.id), ...[READY_RULES, PLAN_RULES, DONE_RULES, PLAN_R_RULES, DONE_S_RULES, DONE_R_RULES].flat().map((r) => r.id)];
+  // ST-LN-84 D-11: no gate rule reads conventions.md. Superseded on purpose by Phase 8.5 D-09 and D-11, with one named exception: the lint rule
+  // `lint.conventions-file` (an unsafe line is an error, LOCKED); it reads the file and no ticket, so no gate rule does.
+  const gateIds = [READY_RULES, PLAN_RULES, DONE_RULES, PLAN_R_RULES, DONE_S_RULES, DONE_R_RULES].flat().map((r) => r.id as string);
+  const ids = [...RULES.map((r) => r.id as string), ...gateIds];
   expect(ids.length).toBeGreaterThan(30);
-  expect(ids.filter((id) => /convention/i.test(id) && id !== 'lint.id-convention')).toEqual([]);
+  expect(ids.filter((id) => /convention/i.test(id) && id !== 'lint.id-convention')).toEqual(['lint.conventions-file']);
+  expect(gateIds.filter((id) => /convention/i.test(id))).toEqual([]);
 });
 
 // ST-LN-84 7-ac-6 (07-17, D-10): intent and approach name a matching `## Rejected` line before proposing an option; lane S's finish writes the ledger's lines before `accord gate done`.

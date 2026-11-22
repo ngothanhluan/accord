@@ -69,6 +69,7 @@ const LOCKED_LIST = [
   'lint.ac-tag-missing',
   'lint.ac-tag-multiple',
   'lint.config-floor',
+  'lint.conventions-file',
   'lint.heading-missing',
   'lint.id-mismatch',
   'lint.lane-s-lane-m-records',

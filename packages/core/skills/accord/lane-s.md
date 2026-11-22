@@ -37,8 +37,8 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    sensitive area, or a sign of a new interface lifts the ticket to lane M.
 3. **Tests.** Run the `tests.affected` command from `accord/config.yml` over the changed files, or `tests.full` when
    `tests.affected` is not configured or finds no test file. Fix what fails, then commit the change.
-4. **Review rounds.** Round <n> runs `accord review-package <id>` into a file outside the working tree and
-   dispatches one fresh `accord-reviewer`, lens `both`, with the paths of the ticket file, that file, and
+4. **Review rounds.** Round <n> runs `accord review-package <id> --out package-<n>.md`, which prints `Head: <sha>` and `file:`, and
+   dispatches one fresh `accord-reviewer`, lens `both`, with the paths of the ticket file, the `file:` path, and
    `accord/tickets/<id>/ledger.md` when it exists. Beside it, when the round's package lists a security trigger, add a security reviewer, and in every round write the round's `Security:` line (`Security: no pattern matched` when the package lists none), as `./review-security.md` says. Append what it reports to `accord/tickets/<id>/review.md` under
    `## Round <n> head <sha>`, `<sha>` being the `Head: <sha>` line the package printed and the heading ending
    ` (added code round 1)` when `accord round` printed `Added code:`; write each finding as

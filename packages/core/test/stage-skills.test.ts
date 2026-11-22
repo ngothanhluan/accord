@@ -2523,7 +2523,9 @@ it('risk:regression the scout and the critic receive the related tickets decisio
   const named = all.filter((f) => f.text.includes('accord related')).map((f) => f.path);
   expect(named.length).toBeGreaterThan(0);
   expect(named.filter((p) => ofStage(p, ['build', 'review', 'verify']) || p.endsWith('/lane-s.md'))).toEqual([]);
-  expect(named.filter((p) => !ofStage(p, ['intent', 'approach']))).toEqual([]);
+  // Phase 8.5 (08.5-07, R-2): the judge's own file (`accord related <id> --for judge`) holds no related tickets, so the judge reference and /accord-resolve-pr may name that form and no other
+  const elsewhere = (p: string): string => (all.find((f) => f.path === p)?.text ?? '').split('accord related <id> --for judge').join('');
+  expect(named.filter((p) => !ofStage(p, ['intent', 'approach']) && elsewhere(p).includes('accord related'))).toEqual([]);
   // and no rendered skill text tells an agent to open other tickets' files for their decisions
   expect(all.flatMap((f) => opensOthers(f.text).map((m) => f.path + ': ' + m))).toEqual([]);
 });

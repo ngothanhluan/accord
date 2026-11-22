@@ -224,7 +224,7 @@ it("risk:security the judge reads the default branch's conventions from a file t
   const reference = flat(withoutMarker(renderSkill('shared/judge.md' as SkillKey)));
   const step2 = reference.slice(reference.indexOf('2. **Dispatch.**'), reference.indexOf('3. **Verdict.**'));
   for (const phrase of [
-    'the `## Conventions` the CLI built from the default branch',
+    '`## Conventions` the CLI built from the default branch',
     '`accord related <id> --for judge --out judge-input.md`',
     '`file:` line prints',
     "never the pull request's head",

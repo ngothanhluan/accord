@@ -18,9 +18,9 @@ and removes a default only with a `- Removed: <id> — <reason>` line written on
 2. **No trigger.** When the section says `(none: no pattern matched)`, dispatch no security reviewer and write the line
    `Security: no pattern matched` in the round's section of `review.md`.
 
-3. **A trigger.** Any trigger, a `(cannot tell: …)` line included, means: run `accord review-package <id> --security`
-   into a file outside the working tree, and dispatch one more fresh `accord-reviewer`, lens `security`, beside the
-   round's other reviewers. Give it the paths of the ticket file, that file and `accord/tickets/<id>/ledger.md`. It
+3. **A trigger.** Any trigger, a `(cannot tell: …)` line included, means: run `accord review-package <id> --security --out security-<n>.md`,
+   and dispatch one more fresh `accord-reviewer`, lens `security`, beside the
+   round's other reviewers. Give it the paths of the ticket file, the `file:` path it printed and `accord/tickets/<id>/ledger.md`. It
    checks every hunk under `## Matched hunks` against every item under `## Checklist`. Write the line
    `Security: lens security ran` in the round's section.
 
@@ -41,7 +41,7 @@ Every other round section, a lone final review included, carries exactly one `Se
 record shows the decision was made. From accord 0.7.0:
 
 - `accord round` and `accord gate done` refuse a round whose package had triggers and whose section lacks
-  `Security: lens security ran`, naming the triggers. Run `accord review-package <id> --security --round <k>` for the
+  `Security: lens security ran`, naming the triggers. Run `accord review-package <id> --security --round <k> --out security-<n>.md` for the
   round they name, dispatch the security reviewer on it, write the line, and commit.
 - They also refuse a round section, a final review that follows a round of its stretch excepted, with no `Security:` line. The refusal says the package
   had no trigger: write `Security: no pattern matched` and commit.

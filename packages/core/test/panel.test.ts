@@ -28,7 +28,7 @@ async function loadPanel(): Promise<{ register: (on: Handler) => void }> {
   return import(/* @vite-ignore */ pathToFileURL(join(dir, '.claude/accord-panel/plugin/hooks/register.js')).href);
 }
 
-async function loadView(): Promise<{ view: (state: unknown, query: string) => any }> {
+async function loadView(): Promise<{ view: (state: unknown, query: string) => any; [name: string]: any }> {
   const dir = mkdtempSync(join(tmpdir(), 'accord-panel-view-'));
   dirs.push(dir);
   for (const f of pluginTargets({ runtimes: ['claude'] }, PKG)) {
@@ -844,4 +844,151 @@ it('risk:security the detail view prints holderShown as the Holder and falls bac
   expect(holder({ holder: 'a@x.io', holderShown: 5 })).toBe('Holder: a@x.io');
   expect(holder({ holder: 'a@x.io', holderShown: 'A\u202eX' })).toBe('Holder: A X');
   expect(holder({ holder: null })).toBe('Holder: none');
+});
+
+// Phase 08.7 D-07, A-02: one stage reader draws the bar for every lane; Phase 10's stage table replaces it.
+it('risk:parsing pipelineOf maps lanes M S and R and every stage to cells with turned-off stages marked (D-07)', async () => {
+  const { pipelineOf } = await loadView();
+  const cols = (cells: any[], k: string): unknown[] => cells.map((c) => c[k]);
+  const m = pipelineOf({ lane: 'M', stage: 'build', tasksDone: 2, tasksTotal: 5 });
+  expect(cols(m, 'key')).toEqual(['intent', 'plan', 'build', 'review', 'verify']);
+  expect(cols(m, 'label')).toEqual(['intent/approach', 'plan', 'build 2/5', 'review', 'verify']);
+  expect(cols(m, 'state')).toEqual(['done', 'done', 'current', 'todo', 'todo']);
+  expect(cols(m, 'color')).toEqual(['blue', 'cyan', 'yellow', 'magenta', 'green']);
+  expect(cols(pipelineOf({ lane: 'M', stage: 'done', tasksDone: 5, tasksTotal: 5 }), 'state')).toEqual(['done', 'done', 'done', 'done', 'done']);
+  const s = pipelineOf({ lane: 'S', stage: 'review' });
+  expect(cols(s, 'key')).toEqual(['intent', 'build', 'review']);
+  expect(cols(s, 'state')).toEqual(['done', 'done', 'current']);
+  expect(cols(s, 'label')[1]).toBe('build');
+  const r = pipelineOf({ lane: 'R', stage: 'research' });
+  expect(cols(r, 'key')).toEqual(['intent', 'research']);
+  expect(cols(r, 'state')).toEqual(['done', 'current']);
+  expect(cols(r, 'color')).toEqual(['blue', 'cyan']);
+  for (const lane of ['L', 'P']) expect(cols(pipelineOf({ lane, stage: 'plan' }), 'key')).toEqual(cols(m, 'key'));
+  expect(cols(pipelineOf({ lane: 'L', stage: 'plan' }), 'label')[0]).toBe('intent/approach');
+  expect(cols(pipelineOf({ lane: 'M', stage: 'build', tasksDone: 2, tasksTotal: 5, stagesOff: ['plan'] }), 'state')).toEqual(['done', 'off', 'current', 'todo', 'todo']);
+  expect(cols(pipelineOf({ lane: 'M', stage: 'constructor' }), 'state')).toEqual(['todo', 'todo', 'todo', 'todo', 'todo']);
+  expect(cols(pipelineOf({ lane: 'M', stage: 'review', review: { round: 2, cap: 5 } }), 'label')[3]).toBe('review r2/5');
+});
+
+// Phase 08.7 D-03: a tab label carries a number only when the JSON holds it.
+it("risk:parsing tab labels read the json's own numbers (D-03)", async () => {
+  const { tabLabels } = await loadView();
+  const state = {
+    dashboard: board({
+      yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 },
+      ready: { rows: [{ id: 'ST-2', title: 'Export' }, { id: 'ST-3', title: 'Import' }], more: 0 },
+      team: { rows: [{ id: 'ST-4', title: 'A' }, { id: 'ST-5', title: 'B' }], more: 1 },
+    }),
+  };
+  const labels = (t: Record<string, unknown>, running = 0) => tabLabels({ state, ticket: { id: 'ST-1', state: { ticket: detailOf(t) } }, running });
+  expect(labels({}).dashboard.summary).toBe('1 yours · 2 ready · 3 team');
+  expect(labels({}).dashboard.label).toBe('2 dashboard 1 yours · 2 ready · 3 team');
+  expect(labels({ stage: 'build' }).ticket.label).toBe('1 ticket ST-1 build');
+  expect(labels({ stage: 'review', review: { cycle: 1, round: 2, cap: 5, rounds: [] } }).ticket.label).toBe('1 ticket ST-1 review r2/5');
+  expect(labels({}, 3).ticket.label).toContain('◐3');
+  expect(labels({}, 0).ticket.label).not.toContain('◐');
+  expect(labels({ log: [{ at: 5, kind: 'gate', text: 'gate done FAIL: red', fail: true }] }).ticket.label).toContain('gate failed');
+  expect(labels({ log: [{ at: 5, kind: 'gate', text: 'gate done PASS' }] }).ticket.label).not.toContain('gate failed');
+});
+
+const claimed = JSON.stringify(
+  board({
+    current: 'ST-1',
+    yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 },
+    ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 },
+  }),
+);
+const SHOW = (id: string): string[] => ['npx', '--yes', '@accord-dev/accord@9.9.9', 'show', id, '--json'];
+// the pane of a ticket worktree after its dashboard and its ticket `show` both settled
+async function claimedPane(): Promise<Awaited<ReturnType<typeof host>>> {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: claimed });
+  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));
+  h.settle({ stdout: JSON.stringify(detailOf()) });
+  await vi.waitFor(() => expect(h.texts()).toContain('build 1/3'));
+  return h;
+}
+const marked = (h: Awaited<ReturnType<typeof host>>): El[] => ['Box', 'Text', 'Button', 'Input'].flatMap((t) => h.nodes(t)).filter((n) => n.props.autoFocus === true);
+const tabs = (h: Awaited<ReturnType<typeof host>>): Record<string, any> => Object.fromEntries(h.buttons().filter((b) => String(b.key).startsWith('tab:')).map((b) => [b.key, b]));
+
+// Phase 08.7 D-03, D-10: the pane opens on the ticket tab for the ticket this worktree claimed and on the dashboard with one hint line otherwise.
+it('ac-6 the pane opens on the ticket tab for the claimed ticket and on the dashboard with one hint line otherwise (D-03 D-10)', async () => {
+  const h = await claimedPane();
+  expect(tabs(h)['tab:ticket']).toMatchObject({ hotkey: '1', variant: 'primary' });
+  expect(tabs(h)['tab:dashboard']).toMatchObject({ hotkey: '2', variant: 'secondary' });
+  expect(h.texts()).toContain('ST-1 Login form');
+  expect(h.texts()).toContain('build 1/3');
+  expect(h.input()).toBeUndefined();
+  expect(marked(h)).toEqual([]);
+  const other = await host(await loadPanel());
+  await other.fire('session.start', start);
+  other.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(other.texts().some((x) => x.includes('ST-2'))).toBe(true));
+  expect(Object.keys(tabs(other))).toEqual([]);
+  const t = other.texts();
+  expect(t.indexOf('No ticket in flight in this worktree')).toBeGreaterThanOrEqual(0);
+  expect(t.indexOf('No ticket in flight in this worktree')).toBeLessThan(t.indexOf('YOURS'));
+  expect(other.cell('No ticket in flight in this worktree').text.dimColor).toBe(true);
+  expect(other.input()?.autoFocus).toBe(true);
+  expect(other.$.process.run).toHaveBeenCalledTimes(1);
+});
+
+// Phase 08.7 D-03, A-04 (probe row A4 `keys: field takes digits`, read so by A-09): a picked tab stays, the in-flight id jumps, and the search field takes focus only when clicked while a ticket is in flight.
+it('risk:complex-branching keys 1 and 2 switch tabs a picked tab stays and the in-flight id jumps to the ticket tab (D-03)', async () => {
+  const h = await claimedPane();
+  const calls = (): number => h.$.process.run.mock.calls.length;
+  press(h, 'tab:dashboard');
+  await vi.waitFor(() => expect(h.input()).toBeDefined());
+  expect(h.texts()).toContain('ST-2');
+  expect(tabs(h)['tab:dashboard'].variant).toBe('primary');
+  expect(tabs(h)['tab:ticket'].variant).toBe('secondary');
+  expect(tabs(h)['tab:ticket'].hotkey).toBe('1');
+  expect(tabs(h)['tab:dashboard'].hotkey).toBe('2');
+  expect(h.input()?.autoFocus).toBeUndefined();
+  expect(marked(h)).toEqual([]);
+  await h.fire('turn.complete', { reason: 'answer' });
+  await vi.waitFor(() => expect(h.inflight()).toBe(2));
+  h.settle({ stdout: claimed });
+  h.settle({ stdout: JSON.stringify(detailOf({ title: 'Renamed' })) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(0));
+  await new Promise((r) => setTimeout(r, 10));
+  expect(h.input()).toBeDefined();
+  expect(tabs(h)['tab:dashboard'].variant).toBe('primary');
+  const before = calls();
+  press(h, 'show:ST-1');
+  await vi.waitFor(() => expect(h.texts()).toContain('ST-1 Renamed'));
+  expect(calls()).toBe(before);
+  expect(h.input()).toBeUndefined();
+  expect(tabs(h)['tab:ticket'].hotkey).toBe('1');
+  expect(tabs(h)['tab:dashboard'].hotkey).toBe('2');
+  press(h, 'tab:dashboard');
+  await vi.waitFor(() => expect(h.input()).toBeDefined());
+  press(h, 'show:ST-2');
+  expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 });
+  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toContain('back'));
+  expect(Object.keys(tabs(h))).toEqual(['tab:ticket', 'tab:dashboard']);
+  // a dashboard that no longer names a claimed ticket drops the tab strip and the ticket
+  press(h, 'back');
+  await h.fire('turn.complete', { reason: 'answer' });
+  await vi.waitFor(() => expect(h.inflight()).toBeGreaterThanOrEqual(1));
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(Object.keys(tabs(h))).toEqual([]));
+  expect(h.texts()).toContain('No ticket in flight in this worktree');
+  expect(h.input()?.autoFocus).toBe(true);
+});
+
+// Phase 08.7 D-10: an id out of the JSON becomes an argv element, so only a safe id may reach `show`.
+it('risk:security a current id that is not a safe id never reaches a command (D-10)', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: JSON.stringify(board({ current: 'ST 1|x', yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true));
+  await new Promise((r) => setTimeout(r, 10));
+  expect(Object.keys(tabs(h))).toEqual([]);
+  expect(h.texts()).toContain('No ticket in flight in this worktree');
+  expect(h.$.process.run).toHaveBeenCalledTimes(1);
+  expect(h.$.process.run.mock.calls.some((c: any[]) => c[0].includes('show'))).toBe(false);
 });

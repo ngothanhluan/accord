@@ -49,7 +49,7 @@ const joiner = (cp: number): boolean => cp === 0x200c || cp === 0x200d;
  */
 const fold = (s: string): string => s.normalize('NFKC').replace(/[\u200c\u200d]/g, '').replace(/[\p{Z}\s]+/gu, ' ').replace(/ :/g, ':').toLowerCase();
 /** What may stand before a reserved start without changing how it reads: blockquote, list, heading, emphasis, code and quote marks and brackets, and whitespace. The alternatives start with different characters. */
-const WRAPPERS = /^(?:[>*_~`#"'(\[]|[-+]\s|\d+[.)]\s|\s)+/;
+const WRAPPERS = /^(?:[>*_~`#"'([]|[-+]\s|\d+[.)]\s|\s)+/;
 
 /** The folded line without its leading wrappers: the text a prefix such as `work dir:` is looked for at the start of. */
 const unwrapped = (line: string): string => {

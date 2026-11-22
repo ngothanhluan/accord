@@ -6,7 +6,7 @@ import { CHANGED_WITHHELD_LINE } from '../src/product/assemble.js';
 const cp = (n: number): string => String.fromCodePoint(n);
 
 it('risk:data-loss a findings line over 300 characters reaches the brief and only a line over 4000 is withheld (review WR-01)', () => {
-  const long = 'Must src/a.ts:10 ' + 'the export drops the header row when the report is empty and '.repeat(5);
+  const long = 'Must src/a.ts:10 ' + 'the export drops the header row when the report is empty and '.repeat(5) + 'end';
   expect(long.length).toBeGreaterThan(300);
   const block = findingsBlock([long, 'Short one.', 'x'.repeat(4001)].join('\n'));
   expect(block).toContain(long);

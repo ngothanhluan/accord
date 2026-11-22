@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   agentTargets,
+  checkProductText,
+  CONVENTIONS_FILE,
   isIntactRender,
   lintSnapshot,
   loadConfig,
@@ -19,8 +21,11 @@ import {
   RETIRED_FILES,
   skillTargets,
 } from '@accord-dev/accord-core';
+import type { ProductRead } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { gitDefaultRef, gitFilesAt, loadRefInput, UsageError } from '../load/fs.js';
+import { readProductText } from '../load/product.js';
+import { shown } from '../load/script-trust.js';
 import { newer } from './notice.js';
 import { git, gitNoPrompt, gitOk } from './worktree.js';
 import { hooksPlanFor, SETTINGS } from './skills.js';
@@ -42,6 +47,17 @@ function gitIn(root: string, args: string[], extra: { env?: NodeJS.ProcessEnv; i
 // keeps appending to the same end of the frontmatter (`ac_hash`, `plan_hash`), so a line written here conflicted at the branch's next merge, and the ticket, not done, put a failing `gate done` into the
 // upgrade pull request. While the claim commit is reachable the claim fact already gives the rules the ticket was claimed under, and the first `accord worktree sync` or Continue after the upgrade writes
 // the field into the branch's own copy (backfillRuleset in worktree.ts), before a rebase or a team script can rewrite the claim commit.
+
+/**
+ * Phase 8.5 D-11: one `unsafe line:` per refused line of the default branch's conventions.md in line order, or the one `unsafe file:` line when the entry is a link or not a regular
+ * file (no line was read, so none is named). Core's fixed reasons and fixes name the file, the line and a code point, never the line, so nothing of the file is echoed.
+ */
+function unsafeLines(read: ProductRead): string[] {
+  if (read.copy !== 'default') return []; // a git failure fell back to the working copy, which is not the default branch's file
+  if (read.kind === 'not-regular') return [shown(`unsafe file: ${CONVENTIONS_FILE}: is a link or not a regular file - fix: replace it with a regular file`)];
+  if (read.kind !== 'text') return [];
+  return checkProductText(read.text).problems.map((p) => shown(`unsafe line: ${CONVENTIONS_FILE}:${p.line}: ${p.reason} - fix: ${p.fix}`));
+}
 
 export function upgrade(ctx: InitContext): number {
   const root = ctx.root;
@@ -99,6 +115,8 @@ export function upgrade(ctx: InitContext): number {
       `the upgrade would fail lint on ${short}:\n${bad.map((f) => `${f.file}: ${f.rule}: ${f.reason}`).join('\n')}\nfix these on ${short} first` + NOTHING,
     );
   }
+  // The lint guard above is not widened: loadRefInput still reads config and tickets only, so a conventions line never refuses the upgrade (P5); it is listed after `title:` instead.
+  const unsafe = unsafeLines(readProductText(root, { from: 'default', ref }));
   writes.push(...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg));
 
   const folder = mkdtempSync(join(tmpdir(), 'accord-upgrade-'));
@@ -133,7 +151,7 @@ export function upgrade(ctx: InitContext): number {
         (warning === undefined ? '' : '\n' + warning),
     );
   }
-  ctx.stdout.write(`branch: upgrade/${v}\nbase: ${short}\ntitle: upgrade: accord ${v}\n`);
+  ctx.stdout.write(`branch: upgrade/${v}\nbase: ${short}\ntitle: upgrade: accord ${v}\n${unsafe.map((l) => l + '\n').join('')}`);
   if (warning !== undefined) ctx.stderr.write(warning + '\n');
   // D-16: an accord hook the owner edited was kept in the upgrade commit; one line each, on stderr beside the warning.
   ctx.stderr.write((hooks?.notes ?? []).map((n) => n + '\n').join(''));

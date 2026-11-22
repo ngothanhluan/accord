@@ -107,7 +107,7 @@ export function productChange(root: string, base: string | undefined, head: stri
   if (base === undefined) return { kind: 'unknown', why: 'no default branch in this clone' };
   if (base.startsWith('-') || head.startsWith('-')) return { kind: 'unknown', why: 'not a git ref' };
   try {
-    return { kind: 'diff', text: git(root, ['--literal-pathspecs', '-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff', '--no-textconv', `${base}...${head}`, '--', file]) };
+    return { kind: 'diff', text: git(root, ['--literal-pathspecs', '-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff', '--no-textconv', '--text', `${base}...${head}`, '--', file]) };
   } catch {
     return { kind: 'unknown', why: plain(`git could not diff ${base}...${head}`) };
   }

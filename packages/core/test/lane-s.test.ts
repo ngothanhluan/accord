@@ -131,7 +131,7 @@ it('ac-5 a queued lane M ticket drops to lane S only at intent on the owners yes
   const rule = intent.slice(intent.indexOf('**Lane S.**'));
   expect(rule.length).toBeGreaterThan(0);
   expect(intent.indexOf('**Lane S.**')).toBeGreaterThan(intent.indexOf('## Rules'));
-  for (const x of ['fits lane S', '`accord status --json`', '`depends_on`', '`git status --porcelain --untracked-files=all`', "only on the owner's yes", '`## Moving to lane S` in `./ids.md`', 'From step 9 on, a lane never drops'])
+  for (const x of ['fits lane S', '`accord status --json`', '`depends_on`', '`git status --porcelain --untracked-files=all`', "only on the owner's yes", '`## Moving to lane S` in `./ids.md`', 'From step 8 on, a lane never drops'])
     expect(rule, x).toContain(x);
   const ids = flat(besidePath('intent', 'ids.md'));
   expect(ids.length).toBeGreaterThan(0);

@@ -43,7 +43,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   // ST-LN-83 7-ac-1: the Continue steps moved out of /accord, with the phrases that only they carried.
   // Phase 8.3 D-04: step 4 reads the file the stage section of /accord names; a stage with no row there runs its own command.
   continue: ['accord status --json', 'accord worktree open <id> --continue', 'accord anchor', 'accord-debug', '## Resolved', '## A ticket at a stage', 'the row `approach` at step 5', 'no `## Resolved` follows its last `## Episode`', '`done` takes the row `verify` at step 6', './worktree.md', './lane-s.md', './lane-r.md', 'accord gate ready <id>'],
-  intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', './approach.md', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md', './intent-discuss.md', './intent-research.md'],
+  intent: ['accord anchor', 'accord-scout', '0.2', '## Corrections', '## Open questions', 'D-01', './approach.md', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`', './scout.md', './intent-discuss.md', './intent-research.md'],
   // Body edit, title kept: the planner's direction mode replaces the architect, and the critique loop moved to ./approach-critique.md.
   approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', './plan.md', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Corrections and Approach as written', 'approved_hash:', './approach-critique.md', '`accord round <id> --approach`', './scout.md', 'accord scout check'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'after:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', './build.md', 'accord subject plan_ready <id>', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last plan-ready commit', './resume.md'],
@@ -359,6 +359,7 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
 });
 
 // SHOW-1's verbatim paste is superseded by ST-LN-19 D-01; ST-LN-19 ac-4 proves the new step.
+// Body edit, title kept: SHOW-1 D-05 placed the Discuss sentence after the audit step and Phase 08.6 D-04 removed that step.
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
@@ -373,14 +374,38 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
     const idx = (f: (s: string) => boolean) => steps.flatMap((s, i) => (f(s) ? [i] : []));
     const lists = {
       sentence: idx((s) => /^\d+\. \*\*Discuss\./.test(s)),
-      auditor: idx((s) => s.includes('Dispatch `accord-auditor`')),
+      auditor: idx((s) => s.includes('accord-auditor')),
       next: idx((s) => /^\d+\. Next: `\.\/approach\.md`/.test(s)),
     };
-    const off = Object.entries(lists).filter(([, l]) => l.length !== 1);
+    if (lists.auditor.length) bad.push(path + ' a step still dispatches accord-auditor');
+    const off = Object.entries(lists).filter(([name, l]) => name !== 'auditor' && l.length !== 1);
     for (const [name, l] of off) bad.push(path + ' ' + name + ' found ' + l.length + ' steps');
     if (off.length) continue;
-    if (!(lists.auditor[0] < lists.sentence[0] && lists.sentence[0] < lists.next[0])) bad.push(path + ' out of order');
+    if (!(lists.sentence[0] < lists.next[0])) bad.push(path + ' out of order');
   }
+  expect(bad).toEqual([]);
+});
+
+// Phase 08.6 D-04: the intent stage has no audit step; its steps run 1 to 9 and nothing rendered names the auditor.
+it('risk:regression the intent skill has no audit step and no rendered skill or agent names the auditor in all four tools (D-04)', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  const skills = skillTargets(all);
+  const everyFile = new Map(skills.map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const path = stagePath('intent', undefined, dir);
+    const text = everyFile.get(path) ?? '';
+    if (!text) { bad.push(path + ' missing'); continue; }
+    const steps = text.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => c.replace(/[ \t]*\n[ \t]*/g, ' '));
+    const numbers = steps.map((s) => Number(/^(\d+)\./.exec(s)?.[1]));
+    if (numbers.join(',') !== '1,2,3,4,5,6,7,8,9') bad.push(path + ' steps run ' + numbers.join(','));
+    if (steps.some((s) => /^\d+\. \*\*Audit/.test(s))) bad.push(path + ' still has an audit step');
+    if (!/^7\. \*\*Write back\*\*/.test(steps[6] ?? '') || !(steps[6] ?? '').includes('commit `accord/tickets/<id>.md`')) bad.push(path + ' step 7 is not Write back with the commit of the ticket');
+    if (!/^8\. \*\*Discuss\./.test(steps[7] ?? '')) bad.push(path + ' step 8 is not Discuss');
+    if (!/^9\. Next: `\.\/approach\.md`/.test(steps[8] ?? '')) bad.push(path + ' step 9 is not Next');
+  }
+  for (const f of [...skills, ...agentTargets(all)]) if (/auditor/i.test(f.text)) bad.push(f.path + ' names the auditor');
   expect(bad).toEqual([]);
 });
 
@@ -691,7 +716,7 @@ function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
   for (const dir of skillDirs(all)) {
-    // ST-LN-91 plan 03-04: accord-intent step 9 is the discuss stage and asks no yes; the owner's one yes is approach step 5.
+    // ST-LN-91 plan 03-04: accord-intent step 8 is the discuss stage and asks no yes; the owner's one yes is approach step 5.
     for (const stage of ['approach']) {
       const text = everyFile.get(stageFile(stage, dir)) ?? '';
       if (!text) { out.push({ dir, stage, step: '', bad: 'missing' }); continue; }
@@ -707,17 +732,17 @@ function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[
   return out;
 }
 
-/** Problems with accord-intent's step 9 in every render: it must be the discuss step, name ./intent-discuss.md and ask no yes. */
-function intentStep9(): string[] {
+/** Problems with accord-intent's step 8 in every render: it must be the discuss step, name ./intent-discuss.md and ask no yes. */
+function intentStep8(): string[] {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
     const text = (everyFile.get(stagePath('intent', undefined, dir)) ?? '').replace(/\s+/g, ' ');
-    const step = text.slice(text.indexOf('9. **Discuss.**'), text.indexOf('10. Next'));
-    if (!step) { bad.push(dir + ' intent step 9 is not the discuss step'); continue; }
-    if (!step.includes('./intent-discuss.md')) bad.push(dir + ' intent step 9 lacks ./intent-discuss.md');
-    for (const p of ['explicit yes', '--approval']) if (step.includes(p)) bad.push(dir + ' intent step 9 still holds ' + p);
+    const step = text.slice(text.indexOf('8. **Discuss.**'), text.indexOf('9. Next'));
+    if (!step) { bad.push(dir + ' intent step 8 is not the discuss step'); continue; }
+    if (!step.includes('./intent-discuss.md')) bad.push(dir + ' intent step 8 lacks ./intent-discuss.md');
+    for (const p of ['explicit yes', '--approval']) if (step.includes(p)) bad.push(dir + ' intent step 8 still holds ' + p);
   }
   return bad;
 }
@@ -731,7 +756,7 @@ it('ac-4 the intent and approach skills show the approval view at the owners yes
     if (step.toLowerCase().includes('from the ticket file')) bad.push(dir + ' ' + stage + ' still says from the ticket file');
   }
   expect(bad).toEqual([]);
-  expect(intentStep9()).toEqual([]);
+  expect(intentStep8()).toEqual([]);
 });
 
 it('risk:security the approach yes step says accord approve refuses on a blocking finding and why (ST-LN-91 D-22)', () => {
@@ -754,7 +779,7 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
     if (!step.includes('ask for an explicit yes')) bad.push(dir + ' ' + stage + ' ask for an explicit yes');
   }
   expect(bad).toEqual([]);
-  expect(intentStep9()).toEqual([]);
+  expect(intentStep8()).toEqual([]);
 });
 
 it('risk:regression the verify skill syncs the remote main after the review commit and before the full suite', () => {

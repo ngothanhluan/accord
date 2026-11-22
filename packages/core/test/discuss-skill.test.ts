@@ -28,17 +28,17 @@ it('risk:regression the intent skill runs discuss after the interview in all fou
       bad.push(stagePath('intent', undefined, dir) + ' is missing');
       continue;
     }
-    const from = skill.indexOf('9. **Discuss.**');
-    const to = skill.indexOf('10. Next');
+    const from = skill.indexOf('8. **Discuss.**');
+    const to = skill.indexOf('9. Next');
     if (from < 0 || to < from) {
-      bad.push(dir + ': step 9 is not the discuss step');
+      bad.push(dir + ': step 8 is not the discuss step');
       continue;
     }
     const step = skill.slice(from, to);
     for (const p of ['`accord gate ready <id>`', '`gate.discuss-missing`', '`gate.discuss-unmapped`', '`./intent-discuss.md`', 'claimed before the discuss stage', 'the owner approves once, at `./approach.md` step 5'])
-      if (!step.includes(p)) bad.push(dir + ' step 9 lacks ' + p);
-    if (step.includes('--approval')) bad.push(dir + ' step 9 still shows the approval view');
-    if (step.includes('explicit yes')) bad.push(dir + ' step 9 still asks for a yes');
+      if (!step.includes(p)) bad.push(dir + ' step 8 lacks ' + p);
+    if (step.includes('--approval')) bad.push(dir + ' step 8 still shows the approval view');
+    if (step.includes('explicit yes')) bad.push(dir + ' step 8 still asks for a yes');
     if (!(rendered.get(stagePath('intent', 'discuss', dir)) ?? '')) bad.push(dir + ': discuss.md is not rendered');
   }
   expect(bad).toEqual([]);
@@ -165,15 +165,15 @@ it('risk:regression the planner always returns the test-strategy area, so a tick
   expect(bad).toEqual([]);
 });
 
-it('risk:regression intent step 9 acts on the exit code of accord gate ready (ST-LN-91 IN-04)', () => {
+it('risk:regression intent step 8 acts on the exit code of accord gate ready (ST-LN-91 IN-04)', () => {
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
     const skill = flat(rendered.get(stagePath('intent', undefined, dir)) ?? '');
-    const step = skill.slice(skill.indexOf('9. **Discuss.**'), skill.indexOf('10. Next'));
+    const step = skill.slice(skill.indexOf('8. **Discuss.**'), skill.indexOf('9. Next'));
     for (const p of ['read its exit code', 'On exit 2', 'stop and report what it printed to the owner', 'claimed before the discuss stage'])
-      if (!step.includes(p)) bad.push(dir + ' step 9 lacks ' + p);
+      if (!step.includes(p)) bad.push(dir + ' step 8 lacks ' + p);
     // Exit 2 comes before the "names neither" reading, so a usage or pin error is never read as an old ticket.
-    if (step.indexOf('On exit 2') > step.indexOf('claimed before the discuss stage')) bad.push(dir + ' step 9 reads exit 2 after the old-ticket case');
+    if (step.indexOf('On exit 2') > step.indexOf('claimed before the discuss stage')) bad.push(dir + ' step 8 reads exit 2 after the old-ticket case');
   }
   expect(bad).toEqual([]);
 });

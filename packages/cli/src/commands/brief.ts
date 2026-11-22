@@ -1,9 +1,9 @@
-// Spec §8 `accord brief <id> <n>`: the whole brief an executor receives — the ticket verbatim, the plan's
-// preamble, task n of the plan, the task's one test command, then the conventions. Never chat history,
-// never a summary.
-import { existsSync, readFileSync } from 'node:fs';
+// Spec §8 `accord brief <id> <n>`: the whole brief an executor receives — the ticket verbatim, the plan's preamble, task n of the plan, the task's one test command, then the conventions.
+// Never chat history, never a summary. Phase 8.5: a ticket claimed at or after PRODUCT_TEXT_FROM gets the shared layout (the ruleset first, the conventions under `## Conventions`, only lines
+// accord writes after them), an older one keeps today's brief (D-21, D-22); `--fix <findings file>` builds the brief of a fix executor in the shared layout for any ticket (D-02, D-31).
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { briefText, checkProductText, claimPinBefore, commitRuleLine, commitRuleOf, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, planFile, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, workOf } from '@accord-dev/accord-core';
+import { briefText, checkProductText, claimPinBefore, commitRuleLine, commitRuleOf, CONVENTIONS_FILE, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, notReadLine, planFile, PRODUCT_TEXT_FROM, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, withheldLine, workOf } from '@accord-dev/accord-core';
 import type { PlanTask, RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
@@ -82,12 +82,29 @@ function reportBlock(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: 
   return dir + 'Report file: ' + reportPath(root, id, n) + '\n' + REPORT_CONTRACT + '\n';
 }
 
-// From disk, not the snapshot copy, so a BOM or CRLF reaches the brief as written (ST-LN-8 D-04).
+const BOM = '﻿';
+
+/**
+ * R-1, D-08: the conventions text of a ticket claimed before PRODUCT_TEXT_FROM, still appended raw after a bare `---` (ST-LN-8 D-04: from disk, so a BOM or CRLF reaches the brief as
+ * written), but through the same reader and line check as every other delivery: a file that is a link is the not-read line and no byte of its target, and a line `checkProductText`
+ * withholds has its content, up to its own line end, replaced by its placeholder. A file with no refused line is returned byte for byte.
+ */
 function conventionsTail(ctx: CommandContext): string {
-  const convPath = join(ctx.root, 'accord', 'product', 'conventions.md');
-  const conv = existsSync(convPath) ? readFileSync(convPath, 'utf8') : '';
-  // trim() strips whitespace and the byte order mark alike.
-  return conv.trim() === '' ? '' : '\n---\n\n' + conv;
+  const read = readProductText(ctx.root, { from: 'working' });
+  if (read.kind === 'absent') return '';
+  if (read.kind === 'not-regular') return '\n---\n\n' + notReadLine(CONVENTIONS_FILE) + '\n';
+  // trim() strips whitespace and the byte order mark alike: a file with nothing else is no file, as before, so a stray mark in it is not a refused line
+  if (read.text.trim() === '') return '';
+  const refused = new Set(checkProductText(read.text).problems.map((p) => p.line));
+  let conv = read.text;
+  if (refused.size > 0) {
+    const bom = read.text.startsWith(BOM) ? BOM : '';
+    // the capture group keeps each line end as written; the numbering is checkProductText's (one BOM dropped, CRLF, a lone CR and LF end a line)
+    const parts = read.text.slice(bom.length).split(/(\r\n|\r|\n)/);
+    for (let i = 0, n = 1; i < parts.length; i += 2, n++) if (refused.has(n)) parts[i] = withheldLine(CONVENTIONS_FILE, n);
+    conv = bom + parts.join('');
+  }
+  return '\n---\n\n' + conv;
 }
 
 /**
@@ -114,6 +131,17 @@ function commitRuleTail(ctx: CommandContext, id: string): string {
   return lines.length === 0 ? '' : '\n---\n\n' + lines.join('\n') + '\n';
 }
 
+/** The non-blank lines of a block of CLI-written text: every line the legacy brief joins with `\n` ends, so the shared layout prints the same words. */
+const linesOf = (block: string): string[] => block.split('\n').filter((l) => l !== '');
+
+/**
+ * The task brief of a ticket claimed at or after PRODUCT_TEXT_FROM (D-21): the ruleset, the ticket, the section (the plan's preamble and the task, or the plan-off line), the conventions of
+ * the working branch (D-06), then only lines accord writes: Work dir, the report file and its contract, the test command, the commit rule. The legacy layout is `legacyBrief`.
+ */
+function sharedBrief(ctx: CommandContext, ticket: string, section: string, cli: readonly string[]): string {
+  return briefText({ role: 'executor', ruleset: cliRuleset(), ticket, section, conventions: readProductText(ctx.root, { from: 'working' }), cli });
+}
+
 // ST-LN-50 D-08 Ruling: with the plan stage off the whole ticket is task 1, briefed from the ticket itself; no plan.md is read, whatever it holds.
 function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: number, file: string, lane: string | undefined): string {
   if (n !== 1) {
@@ -121,7 +149,19 @@ function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: 
   }
   const text = normaliseText(readFileSync(join(ctx.root, file), 'utf8'));
   const line = `The plan stage is off for lane ${lane}: build the whole ticket as task 1; every scenario that is not @ui needs one test that proves it.`;
-  return text.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + ticketTestBlock(ctx) + commitRuleTail(ctx, id) + conventionsTail(ctx);
+  const report = reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n));
+  const legacy = claimPinBefore(claimed, id, PRODUCT_TEXT_FROM);
+  return legacy ? legacyPlanOffBrief(ctx, id, text, line, report) : sharedBrief(ctx, text, line, [...linesOf(report), ...linesOf(ticketTestBlock(ctx)), ...commitRuleLines(ctx, id)]);
+}
+
+/** D-22: today's plan-off brief, byte for byte for a safe conventions file: the ticket, the plan-off line, the lines accord writes, the commit rule, the raw conventions (R-1). */
+function legacyPlanOffBrief(ctx: CommandContext, id: string, ticket: string, line: string, report: string): string {
+  return ticket.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + report + ticketTestBlock(ctx) + commitRuleTail(ctx, id) + conventionsTail(ctx);
+}
+
+/** D-22: today's task brief, byte for byte for a safe conventions file: the ticket, the preamble and the task, the lines accord writes, the commit rule, the raw conventions (R-1). */
+function legacyBrief(ctx: CommandContext, id: string, ticket: string, rules: string, section: string, report: string, t: PlanTask): string {
+  return ticket.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + report + testBlock(ctx, t) + commitRuleTail(ctx, id) + conventionsTail(ctx);
 }
 
 /** What `accord brief` may be given besides the ticket and a task: the findings file of a fix, where to write the brief, and the test-only ending of a fix brief. */
@@ -235,5 +275,8 @@ export function brief(ctx: CommandContext, id: string, task: string | undefined,
   while (pre.length > 0 && pre[0].trim() === '') pre.shift();
   while (pre.length > 0 && pre[pre.length - 1].trim() === '') pre.pop();
   const rules = pre.length > 0 ? pre.join('\n') + '\n\n' : '';
-  return emit(ctx, id, text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + testBlock(ctx, t) + commitRuleTail(ctx, id) + conventionsTail(ctx), options.out);
+  const report = reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n));
+  const legacy = claimPinBefore(claimed, id, PRODUCT_TEXT_FROM);
+  const body = legacy ? legacyBrief(ctx, id, text, rules, section, report, t) : sharedBrief(ctx, text, rules + section, [...linesOf(report), ...linesOf(testBlock(ctx, t)), ...commitRuleLines(ctx, id)]);
+  return emit(ctx, id, body, options.out);
 }

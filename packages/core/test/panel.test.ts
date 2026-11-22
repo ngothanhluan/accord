@@ -952,7 +952,7 @@ const marked = (h: Awaited<ReturnType<typeof host>>): El[] => ['Box', 'Text', 'B
 const tabs = (h: Awaited<ReturnType<typeof host>>): Record<string, any> => Object.fromEntries(h.buttons().filter((b) => String(b.key).startsWith('tab:')).map((b) => [b.key, b]));
 
 // Phase 08.7 D-03, D-10: the pane opens on the ticket tab for the ticket this worktree claimed and on the dashboard with one hint line otherwise.
-it('ac-6 the pane opens on the ticket tab for the claimed ticket and on the dashboard with one hint line otherwise (D-03 D-10)', async () => {
+it('risk:regression the pane opens on the ticket tab for the claimed ticket and on the dashboard with one hint line otherwise (D-03 D-10)', async () => {
   const h = await claimedPane();
   expect(tabs(h)['tab:ticket']).toMatchObject({ hotkey: '1', variant: 'primary' });
   expect(tabs(h)['tab:dashboard']).toMatchObject({ hotkey: '2', variant: 'secondary' });
@@ -1076,7 +1076,7 @@ const textsIn = (el: any): string[] => {
 const kids = (row: Record<string, any>): string[] => (row.children as any[]).flatMap((c) => textsIn(c));
 
 // Phase 08.7 D-04 (as amended by A-01): the review block reads per round and per severity; the criteria and the log come from the same JSON.
-it('ac-7 the ticket tab draws the review rounds the criteria and the session log from show json (D-04)', async () => {
+it('risk:regression the ticket tab draws the review rounds the criteria and the session log from show json (D-04)', async () => {
   const log = logOf();
   const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing'), critOf('ac-3', 'Remembers me', 'untested')], log });
   const t = h.texts();
@@ -1213,7 +1213,7 @@ const agentOf = (id: string, type: string, over: Record<string, unknown> = {}): 
 const subStart = (id: string): Record<string, unknown> => ({ turnId: 't-' + id, text: 'x', agentId: id });
 
 // Phase 08.7 D-01, D-02, D-03: the agents block lists the accord agents the mod saw start, a timer while one runs and its own time when it ends; the tab label counts the running ones.
-it('ac-8 the agents block shows running accord agents with timers and finished ones with their time (D-01 D-02)', async () => {
+it('risk:regression the agents block shows running accord agents with timers and finished ones with their time (D-01 D-02)', async () => {
   const h = await claimedPane();
   expect(h.texts()).toContain('AGENTS');
   expect(h.texts()).toContain('none running');
@@ -1437,7 +1437,7 @@ const rowKids = (h: Awaited<ReturnType<typeof host>>, id: string): { props: Reco
 const cellsOf = (box: { props: Record<string, any> }): (string | undefined)[] => (box.props.children as { props: Record<string, any> }[]).map((c) => c.props.backgroundColor);
 
 // Phase 08.7 D-05: every lane row draws one 1-column Box per stage cell, coloured for done and current cells, every epic row a Progress, every section a round Box led by its heading.
-it('ac-9 the dashboard tab draws a mini stage bar per row an epic progress bar and boxed sections (D-05)', async () => {
+it('risk:regression the dashboard tab draws a mini stage bar per row an epic progress bar and boxed sections (D-05)', async () => {
   const h = await barPane();
   const bar = rowKids(h, 'ST-3')[1];
   expect(bar.props).toMatchObject({ width: 5, flexShrink: 0 });

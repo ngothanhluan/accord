@@ -1,7 +1,7 @@
 // Phase 8.5 G2 (D-22, R-1, 8.5-ac-6): a ticket claimed before the product text cut-off keeps today's task brief and today's plan-off brief byte for byte. The first two cases were
 // written and run on the untouched brief.ts, which wrote their goldens (the Wave 0 capture of 08.5-VALIDATION.md); every later change to brief.ts is held to them. The last two
 // cases hold the one change R-1 allows: the legacy conventions append withholds a refused line and does not follow a link.
-// The CLI runs as itself (0.12.2) and the ticket is claimed under 0.12.2, below the cut-off. The goldens show a byte order mark and a carriage return as <BOM> and <CR>, because
+// The CLI runs as itself (0.13.0) and the ticket is claimed under 0.12.2, below the cut-off. The goldens show a byte order mark and a carriage return as <BOM> and <CR>, because
 // .gitattributes (`* text=auto eol=lf`) would turn the bytes themselves into line feeds at commit and the golden would then stop matching what the brief prints.
 import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

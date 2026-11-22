@@ -309,6 +309,7 @@ describe('accord task-done', () => {
 describe('accord brief', () => {
   it('prints the ticket verbatim, then the one task', async () => {
     const repo = makeLaneRepo();
+    claimedUnder(repo, '0.12.2'); // a test about the layout before 0.13.0, where the brief starts with the ticket
     try {
       const r = await run(['brief', 'T-1', '2'], repo);
       expect(r.code).toBe(0);
@@ -1362,6 +1363,7 @@ it('ac-4 tests skipped prints every case the report records as skipped with the 
 
 it('ac-2 every brief ends with the repository conventions', async () => {
   const repo = makeLaneRepo();
+  claimedUnder(repo, '0.12.2'); // a test about the layout before 0.13.0, where the conventions follow the task after a rule line
   const conv = join(repo, 'accord', 'product', 'conventions.md');
   const brief = async () => (await run(['brief', 'T-1', '2'], repo)).out;
   try {

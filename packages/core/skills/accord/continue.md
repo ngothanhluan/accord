@@ -25,7 +25,7 @@ before the owner's yes; on that yes it follows `./pickup.md` with that id.
    Then read the file the `## A ticket at a stage` section of `/accord` names for the stage it prints, from the anchor and never from memory. The row is the stage it prints, except that `intent`
    takes the row `approach` at step 5, the owner's yes, when the ticket's
    `## Approach` holds a `- Rejected:` line, at step 3 when it holds only
-   the draft of its step 2, otherwise the row `intent`, at step 9 when the anchor's next
+   the draft of its step 2, otherwise the row `intent`, at step 8 when the anchor's next
    step is the owner's approval, and `done` takes the row `verify` at step 6.
    A lane M stage with no row there runs its own command, `accord-<row>`.
    Resume at the step the anchor names. Never re-run a task

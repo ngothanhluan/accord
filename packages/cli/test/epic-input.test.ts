@@ -102,7 +102,7 @@ describe('accord hook subagent-start and the epic', () => {
       expect(context, agent).toBe([alone, BLOCK([D1, D2])].join('\n\n'));
     }
     // the other roles, a ticket with no parent, the main checkout and unreadable input keep the ruleset alone
-    for (const agent of ['accord-executor', 'accord-auditor', 'accord-verifier', 'accord-debugger', 'accord-researcher']) {
+    for (const agent of ['accord-executor', 'accord-verifier', 'accord-debugger', 'accord-researcher']) {
       expect((await contextOf(repo, asked(agent, story))).context, agent).toBe(alone);
     }
     expect((await contextOf(repo, asked('accord-planner', plain))).context).toBe(alone);

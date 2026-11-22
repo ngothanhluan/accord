@@ -1,4 +1,4 @@
-// ST-LN-80: models.architect still validates so an old config loads, but nothing reads it any more.
+// models.architect (ST-LN-80) and models.auditor (Phase 08.6 D-05) still validate so an old config loads, but nothing reads them any more.
 import { commitRuleOf, commitRuleProblem, visible } from '../commits/rule.js';
 import type { CommitRule } from '../commits/rule.js';
 import { OFF_TICKET_BRANCH, renderSubject, SUBJECT_NAMES, subjectCollisions } from '../commits/subjects.js';
@@ -7,17 +7,25 @@ import { floorProblems } from '../gate/floor.js';
 import { teamSectionProblems } from '../scaffold/sections.js';
 import type { Rule } from './rules.js';
 
+/** The `models:` keys accord no longer reads, in the order they are reported, each with the reason lint prints. */
+const RETIRED_MODEL_KEYS: readonly { key: 'architect' | 'auditor'; reason: string }[] = [
+  {
+    key: 'architect',
+    reason:
+      'models.architect has no effect: accord no longer renders accord-architect, and the planner drafts the approach, so models.planner now applies; remove models.architect',
+  },
+  {
+    key: 'auditor',
+    reason: 'models.auditor has no effect: accord no longer renders accord-auditor and the intent stage has no audit step; remove models.auditor',
+  },
+];
+
 export const modelRetired: Rule['check'] = (snapshot) =>
-  snapshot.config?.models?.architect === undefined
-    ? []
-    : [
-        {
-          file: 'accord/config.yml',
-          pointer: '/models/architect',
-          reason:
-            'models.architect has no effect: accord no longer renders accord-architect, and the planner drafts the approach, so models.planner now applies; remove models.architect',
-        },
-      ];
+  RETIRED_MODEL_KEYS.filter(({ key }) => snapshot.config?.models?.[key] !== undefined).map(({ key, reason }) => ({
+    file: 'accord/config.yml',
+    pointer: '/models/' + key,
+    reason,
+  }));
 
 /** ST-LN-50 D-06: two templates that render one subject, where one is read back, would let a written subject be read as a claim or a plan-ready commit. */
 export const subjectDuplicate: Rule['check'] = (snapshot) =>

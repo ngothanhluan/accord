@@ -38,8 +38,8 @@ it('risk:security accord-judge renders with only Read Grep and Glob in every ren
 
   // the codex runtime gets no agent file
   expect(agentTargets(config({ runtimes: ['codex'] })).filter((f) => f.path.endsWith('accord-judge.md'))).toEqual([]);
-  // twelve agents render for the claude runtime
-  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(12);
+  // eleven agents render for the claude runtime
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(11);
 
   const committed = readFileSync(new URL(AGENT_PATH, root), 'utf8');
   expect(committed).toMatch(/^tools: "Read, Grep, Glob"$/m);

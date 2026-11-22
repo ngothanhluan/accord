@@ -42,7 +42,7 @@ After `accord anchor` prints a ticket's lane and stage, read the file for them a
 
 - lane S: `./lane-s.md`.
 - lane R: `./lane-r.md`.
-- lane M, row `intent`: `./intent.md`, which names `./intent-discuss.md` at its step 9 and `./intent-research.md` at its steps 2 and 6.
+- lane M, row `intent`: `./intent.md`, which names `./intent-discuss.md` at its step 8 and `./intent-research.md` at its steps 2 and 6.
 - lane M, row `approach`: `./approach.md`, which names `./approach-critique.md` at its step 3 and, for the owner's yes, `./approach-approval.md` at its step 5. The anchor prints `intent` for a ticket still at approach: it takes this row at step 5 when its `## Approach` holds a `- Rejected:` line, at step 3 when it holds only the draft of step 2.
 - lane M, row `plan`: `./plan.md`, which names `./plan-critique.md` at its steps 1, 5 and 6, `./plan-legacy-round1.md` at its step 5 for a 0.4.0 round 1, and `./plan-baseline.md` at its steps 7 and 8.
 - lane M, row `build`: `./build.md`, which names `./build-waves.md` at its step 2 and `./build-no-plan.md` at its step 1 for a task with no plan.

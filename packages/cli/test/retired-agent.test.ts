@@ -89,6 +89,32 @@ it('risk:data-loss sync keeps an edited architect agent and reports it as an orp
   expect(r.err).toContain('orphan ' + AGENT);
 }, 120_000);
 
+// Phase 08.6 D-05: a team's config that still names models.auditor keeps loading, and lint says the entry does nothing; models.architect is still reported first, unchanged.
+it('risk:regression a config with models auditor loads and lint reports that the entry has no effect (D-05)', async () => {
+  type Finding = { rule: string; level: string; file: string; pointer: string; reason: string };
+  const retiredOf = async (repo: string): Promise<Finding[]> => {
+    const lint = await run(['lint', '--json'], repo);
+    expect(lint.code, lint.out + lint.err).toBe(0);
+    return (JSON.parse(lint.out) as { findings: Finding[] }).findings.filter((f) => f.rule === 'lint.model-retired');
+  };
+
+  const only = sandbox('[claude, codex]');
+  const onlyCfg = join(only, 'accord', 'config.yml');
+  writeFileSync(onlyCfg, readFileSync(onlyCfg, 'utf8') + '\nmodels:\n  auditor:\n    model: opus\n    effort: high\n');
+  const one = await retiredOf(only);
+  expect(one).toHaveLength(1);
+  expect(one[0]).toMatchObject({ level: 'warning', file: 'accord/config.yml', pointer: '/models/auditor' });
+  expect(one[0]?.reason).toContain('models.auditor has no effect');
+  expect(one[0]?.reason).toContain('remove models.auditor');
+
+  const both = sandbox('[claude, codex]');
+  const bothCfg = join(both, 'accord', 'config.yml');
+  writeFileSync(bothCfg, readFileSync(bothCfg, 'utf8') + '\nmodels:\n  architect:\n    model: opus\n    effort: high\n  auditor:\n    model: opus\n    effort: high\n');
+  const two = await retiredOf(both);
+  expect(two.map((f) => f.pointer)).toEqual(['/models/architect', '/models/auditor']);
+  expect(two[0]?.reason).toContain('models.planner');
+}, 120_000);
+
 // Phase 08.6 D-05: the auditor agent retires the way the architect did: an intact rendered copy goes, and a leftover models auditor entry still loads.
 it('risk:stale-file sync removes the rendered auditor agent while its marker is intact and an old models auditor entry still loads (D-05)', async () => {
   const repo = sandbox('[claude, codex]');

@@ -2,6 +2,11 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- `/accord-review-pr` fetches a pull request of another repository only when its base branch name holds letters, digits and `.` `_` `/` `-` only, and it passes the ref to `git fetch` as one quoted word, so a branch name written to run a command on your machine is never run. A name with any other character is not fetched and the review says so. Tickets in flight are unaffected.
+- `accord upgrade` lists, as `unsafe line:` lines, the same lines of `accord/product/conventions.md` that `accord lint` reports, including a line that a comment hides from the plain line check, so the upgrade pull request and lint agree.
+
 ## 0.13.1 — 2026-11-22
 
 Release 0.13.1 fixes the conventions-file checks of 0.13.0, found by the code review of Phase 8.5 (the bullets below): the conventions line check could be bypassed with extra or non-breaking spaces, joiners, bold or quote marks and closing heading marks, and comment text was delivered raw in the legacy brief and the Rejected block, and a long line could hang accord for seconds; findings keep long lines; a `-diff` attribute no longer hides the conventions change; origin aliases like `github.com-work` and `ssh.github.com` count as this repository; and a ticket with no readable claim commit is not refused for a missing fix report. Tickets in flight: no ticket is refused for something new, and `accord gate ready` and `accord gate done` give the same answers. A conventions line that was delivered but read like an accord line, or held a comment with such text, is now withheld and `accord lint` reports it as `lint.conventions-file`, so after upgrading a team may need to fix lines. A repository pinned to 0.13.0 gets the change with `accord upgrade`, which also moves the pin and the panel plugin.

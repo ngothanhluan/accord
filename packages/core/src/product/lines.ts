@@ -257,13 +257,18 @@ export const withheldFindingLine = (n: number): string => `(accord withheld line
 /** D-01: what stands in the place of a file that is a link or not a regular file; it names no byte of the target. */
 export const notReadLine = (file: string): string => `(accord did not read ${file}: it is a link or not a regular file)`;
 
+/** Every unsafe line of a conventions file in line order, one entry per line: what checkProductText refuses and what a comment hides from it. Lint and `accord upgrade` both list these. */
+export function conventionsProblems(text: string): LineProblem[] {
+  const problems = [...checkProductText(text).problems];
+  for (const c of commentProblems(text)) if (!problems.some((p) => p.line === c.line)) problems.push(c);
+  return problems.sort((a, b) => a.line - b.line);
+}
+
 /** The lint check of `lint.conventions-file` (D-09, D-11, R-4): one draft per unsafe line of the whole file, at its line, no claim cut-off. An absent file has none. */
 export function conventionsFile(snapshot: RepoSnapshot): Omit<Finding, 'level' | 'rule'>[] {
   if (!Object.hasOwn(snapshot.files, CONVENTIONS_FILE)) return [];
   const text = snapshot.files[CONVENTIONS_FILE];
-  const problems = [...checkProductText(text).problems];
-  for (const c of commentProblems(text)) if (!problems.some((p) => p.line === c.line)) problems.push(c);
-  return problems.sort((a, b) => a.line - b.line).map((p) => ({
+  return conventionsProblems(text).map((p) => ({
     file: CONVENTIONS_FILE,
     line: p.line,
     reason: `${p.reason}, so accord withholds it from every agent - fix: ${p.fix}`,

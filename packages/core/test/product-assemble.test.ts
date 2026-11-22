@@ -195,7 +195,7 @@ const BARE_N1 = [
   '',
 ];
 
-describe('relatedText', () => {
+describe('relatedText over a product read (D-08)', () => {
   it('risk:regression bare relatedText stays byte for byte for a safe file and withholds an unsafe Rejected line (D-08)', () => {
     const snap = sandbox();
     expect(relatedText(snap, 'N-1')).toBe([...BARE_N1, '## Rejected', '(none)', ''].join('\n'));

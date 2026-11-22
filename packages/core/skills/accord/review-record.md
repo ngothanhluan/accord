@@ -66,6 +66,9 @@ Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <path>[:<line>] 
   answer once its re-review round exists, a NOT ADDRESSED finding not written again as above, and an outside-diff finding
   left open. A fix whose re-review round has not run yet is listed on `accord round`'s `Re-review:` line, and
   `accord gate done` refuses it: run that round before the verdict.
+- From accord 0.13.0, for a ticket claimed at or after it and outside lane S, `accord round` also refuses a fixed finding
+  whose `checked:` places no executor fix report lists (the report file `accord brief <id> --fix` names, on the machine that
+  ran the fix); a fix made on another machine is run again. `accord gate done` and CI never read the report.
 - A round's fix is every commit after its head, up to the next round's head or, after the last round, to the
   last commit, but merges of the default branch, a debug episode's commits and commits that change only the
   ticket's records. Each file a fix changes is the location of a finding of that round, or a Ruling under

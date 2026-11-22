@@ -9,7 +9,6 @@ export const ROLES = {
   'accord-critic': 'finding',
   'accord-reviewer': 'finding',
   'accord-final-reviewer': 'finding',
-  'accord-auditor': 'finding',
   'accord-verifier': 'finding',
   'accord-architect': 'fact',
   'accord-scout': 'fact',
@@ -263,7 +262,6 @@ export function dispatchTable(rows, name = 'r1') {
 // ---- hold rules and judge briefs ----
 export function mustsOf(agent, report, verification) {
   const lines = String(report ?? '').split(/\r?\n/).map((l) => l.trim());
-  if (agent === 'accord-auditor') return lines.filter((l) => /^@ac-\d+:/.test(l) && !l.includes('one reading'));
   if (agent === 'accord-verifier') {
     return String(verification ?? '').split(/^(?=## @ac-\d+)/m).flatMap((b) => {
       const id = /^## (@ac-\d+)/.exec(b)?.[1];
@@ -323,7 +321,6 @@ export function runProblem(row, run, { judge, read }) {
 }
 
 const MATCH = {
-  'accord-auditor': ['The reference run read these criteria two ways:', 'The reference run read no criterion two ways.', 'For each M<k>, decide whether the run read that criterion two ways too, whatever its wording.'],
   'accord-verifier': ['The reference run marked these criteria fail or blocked:', 'The reference run marked no criterion fail or blocked.', 'For each M<k>, decide whether the run marked that criterion fail or blocked in its verification.md.'],
 };
 const MATCH_FINDINGS = ['The reference run reported these Must findings:', 'The reference run reported no Must finding.', 'For each M<k>, decide whether the run reported the same issue, whatever its wording; read the ticket and the code to decide.'];
@@ -414,7 +411,7 @@ export function better(results) {
   return out;
 }
 
-const NONE = { 'accord-auditor': 'read no criterion two ways', 'accord-verifier': 'marked no criterion fail or blocked' };
+const NONE = { 'accord-verifier': 'marked no criterion fail or blocked' };
 export function byDefault(results) {
   return agentsOf(results).filter((a) => ROLES[a] === 'finding').flatMap((agent) =>
     currentOf(results, agent).filter((r) => r.reference === 0).sort((a, b) => a.n - b.n)

@@ -176,7 +176,7 @@ if (unmatched.length) {
 out.push('', '## Findings reported by critics and reviewers', '');
 row('agent', 'runs', 'runs with Must', 'Must', 'Should', 'Nice');
 row('---', '---:', '---:', '---:', '---:', '---:');
-for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-auditor']) {
+for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer']) {
   const rs = accordRuns.filter((r) => r.agent === agent);
   const sum = (s) => rs.reduce((n, r) => n + r.findings[s], 0);
   row(agent, rs.length, rs.filter((r) => r.findings.Must).length, sum('Must'), sum('Should'), sum('Nice'));

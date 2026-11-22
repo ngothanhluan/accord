@@ -129,7 +129,7 @@ export type { SlopPattern, SlopSpec } from './slop/spec.js';
 export { CONVENTIONS_FILE, PRODUCT_MAX_LINE, RESERVED_HEADINGS, RESERVED_PREFIXES, checkProductText, conventionsFile, lineProblem, notReadLine, withheldFindingLine, withheldLine } from './product/lines.js';
 export type { LineProblem, LineProblemKind, LineVerdict, ProductLine } from './product/lines.js';
 export {
-  BLOCK_ORDER, CHANGED_DUTY, CHANGED_HEADING, CHANGED_WITHHELD_LINE, CONVENTIONS_HEADING, EPIC_DUTY, FINDINGS_DUTY, FINDINGS_HEADING, JUDGE_DUTY, NO_DEFAULT_REF_LINE, REJECTED_DUTY,
+  AGENT_CHANNELS, BLOCK_ORDER, CHANGED_DUTY, CHANGED_HEADING, CHANGED_WITHHELD_LINE, CONVENTIONS_HEADING, EPIC_DUTY, FINDINGS_DUTY, FINDINGS_HEADING, JUDGE_DUTY, NO_DEFAULT_REF_LINE, REJECTED_DUTY,
   REJECTED_HEADING, RELATED_DUTY, ROLE_BLOCKS, TEST_ONLY_LINE, WRITER_DUTY, WRITER_ROLES, briefText, changedBlock, conventionsBlock, findingsBlock, otherRepositoryLine, productBlocks, subagentContext,
   unknownRepositoryLine,
 } from './product/assemble.js';

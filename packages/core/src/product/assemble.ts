@@ -35,6 +35,22 @@ export const ROLE_BLOCKS: Readonly<Record<ProductRole, readonly BlockKind[]>> = 
   'main-session': ['ruleset'],
   'lane-s-session': ['conventions'],
 };
+/**
+ * Phase 8.5 D-04: the CLI channel of each accord agent, by the name it renders under: the command whose output (or file) gives that agent the ruleset, the epic block and, where its role's blocks
+ * hold `conventions`, the team's conventions, the same on every tool. A test fails when an agent source names the product files while no channel with `conventions` covers it. The scout and critic
+ * channels carry no whole conventions block (D-20: they get the Rejected lines of it), so they are listed for the ruleset, the related tickets and the epic block and never count as conventions
+ * channels. The prose reads of `accord/product/` in the executor, planner and reviewer sources stay until 999.51 removes them, and 999.51 widens this table when it does.
+ */
+export const AGENT_CHANNELS: Readonly<Record<string, { command: string; role: ProductRole }>> = {
+  'accord-executor': { command: 'accord brief', role: 'executor' },
+  'accord-planner': { command: 'accord related <id> --for planner', role: 'planner' },
+  'accord-reviewer': { command: 'accord review-package', role: 'reviewer' },
+  'accord-final-reviewer': { command: 'accord review-package', role: 'reviewer' },
+  'accord-judge': { command: 'accord related <id> --for judge', role: 'judge' },
+  'accord-foreign-reviewer': { command: 'accord diff-package', role: 'foreign-reviewer' },
+  'accord-scout': { command: 'accord related <id> --for scout', role: 'scout' },
+  'accord-critic': { command: 'accord related <id> --for critic', role: 'critic' },
+};
 /** The roles that write code or plans: they follow the conventions; every other role judges against them. */
 export const WRITER_ROLES: readonly ProductRole[] = ['executor', 'fix-executor', 'planner', 'lane-s-session'];
 

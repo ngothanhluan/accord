@@ -2,8 +2,9 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { cleanup, commitAll, commitMsg, copyRepo, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { laneRHash, loadSnapshot } from '@accord-dev/accord-core';
-import { approve, building, done, LANE_BODY, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
+import { approve, building, CONFIG, done, LANE_BODY, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
+import { v2Review } from '../../../test/helpers/review-v2.js';
 
 const LONG = 'Export every report of the month as one CSV file with quoted cells';
 const STEP = 'And the file name is the report name followed by the month and the extension csv';
@@ -242,3 +243,29 @@ it("risk:regression accord show prints a lane R ticket's question (ST-LN-94 94-a
     cleanup(repo);
   }
 }, 120_000);
+
+// Phase 08.7 D-02 D-04 D-07: the pane's ticket tab reads the review rounds and the stages the team turned off from show --json; a ticket with neither keeps its JSON as it was.
+it('risk:regression show json adds review and stagesOff only when the ticket has them (D-02 D-04 D-07)', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1/review.md': v2Review([[{ lines: ['Must 1 [patch]: the writer drops the header — src/export.ts:1 — open'] }]]) });
+  try {
+    const first = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(first.review.round).toBe(1);
+    expect(first.review.rounds[0].findings.Must.open).toBe(1);
+    expect(Object.hasOwn(first, 'stagesOff')).toBe(false);
+    writeFiles(repo, { 'accord/config.yml': CONFIG + 'strictness:\n  stages:\n    M:\n      plan: off\n' });
+    const second = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(second.stagesOff).toEqual(['plan']);
+    const row = (JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stagesOff?: string[] }[]).find((r) => r.id === 'T-1');
+    expect(second.stagesOff).toEqual(row?.stagesOff);
+  } finally {
+    cleanup(repo);
+  }
+  const bare = makeLaneRepo();
+  try {
+    const none = JSON.parse((await run(['show', 'T-1', '--json'], bare)).out);
+    expect(Object.hasOwn(none, 'review')).toBe(false);
+    expect(Object.hasOwn(none, 'stagesOff')).toBe(false);
+  } finally {
+    cleanup(bare);
+  }
+});

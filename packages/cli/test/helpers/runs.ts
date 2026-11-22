@@ -74,11 +74,11 @@ export interface Counted {
 }
 
 /** Runs the command with counting on only around it, so the test's own setup is never counted; returns a copy of the git calls. */
-export async function counted(argv: string[], cwd: string): Promise<Counted> {
+export async function counted(argv: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Promise<Counted> {
   spawnLog.calls = [];
   spawnLog.on = true;
   try {
-    const r = await run(argv, cwd, {});
+    const r = await run(argv, cwd, env);
     return { ...r, argv: spawnLog.calls.map((a) => [...a]) };
   } finally {
     spawnLog.on = false;

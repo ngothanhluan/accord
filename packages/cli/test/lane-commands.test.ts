@@ -12,6 +12,10 @@ import { commitSeconds } from '../src/commands/task-done.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
 
+// Phase 8.5 D-16, D-25: outside Claude Code `accord anchor` prints the ruleset first, so the anchor cases below, which assert the anchor itself or an empty output, run as a Claude Code session
+// (the hooks print the ruleset there); inClaude counts these two variables as one. Their assertions are unchanged.
+const CLAUDE_ENV = { CLAUDE_CODE_SESSION_ID: 'sess-anchor', CLAUDE_PID: '4242' };
+
 describe('accord approve', () => {
   it('writes approved_hash once and is a no-op the second time', async () => {
     const repo = makeLaneRepo();
@@ -749,7 +753,7 @@ describe('accord anchor', () => {
     try {
       commitAll(repo);
       gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
-      const r = await run(['anchor'], repo);
+      const r = await run(['anchor'], repo, CLAUDE_ENV);
       expect(r.code).toBe(0);
       expect(r.out.startsWith('# Anchor: T-1 "Export"\n')).toBe(true);
     } finally {
@@ -761,7 +765,7 @@ describe('accord anchor', () => {
     const repo = makeLaneRepo();
     try {
       commitAll(repo);
-      const r = await run(['anchor'], repo);
+      const r = await run(['anchor'], repo, CLAUDE_ENV);
       expect(r).toMatchObject({ code: 0, out: '' });
     } finally {
       cleanup(repo);
@@ -773,7 +777,7 @@ describe('accord anchor', () => {
     try {
       commitAll(repo);
       gitRun(repo, 'checkout', '-q', '--detach');
-      const r = await run(['anchor'], repo);
+      const r = await run(['anchor'], repo, CLAUDE_ENV);
       expect(r).toMatchObject({ code: 0, out: '' });
     } finally {
       cleanup(repo);
@@ -1152,7 +1156,7 @@ it('ac-1 anchor finds the active ticket from a branch named by the template', as
   try {
     commitAll(repo);
     gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
-    const r = await run(['anchor'], repo);
+    const r = await run(['anchor'], repo, CLAUDE_ENV);
     expect(r.code).toBe(0);
     expect(r.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
     const h = await run(['hook', 'session-resume'], repo);
@@ -1171,10 +1175,10 @@ it('risk:complex-branching a template on the default branch is in force without 
     writeFiles(repo, { 'accord/config.yml': CONFIG });
     commitAll(repo);
     gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
-    const r = await run(['anchor'], repo);
+    const r = await run(['anchor'], repo, CLAUDE_ENV);
     expect(r.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
     gitRun(repo, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD');
-    const r2 = await run(['anchor'], repo);
+    const r2 = await run(['anchor'], repo, CLAUDE_ENV);
     expect(r2.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
   } finally {
     cleanup(repo);
@@ -1189,7 +1193,7 @@ it('risk:complex-branching a template on a ref other than the default branch set
     writeFiles(repo, { 'accord/config.yml': CONFIG });
     commitAll(repo);
     gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
-    const r = await run(['anchor'], repo);
+    const r = await run(['anchor'], repo, CLAUDE_ENV);
     expect(r.code).toBe(0);
     expect(r.out).toBe('');
   } finally {
@@ -1282,7 +1286,7 @@ it('ac-3 lint rejects an invalid template and anchor still reads the t branch', 
       const f = (JSON.parse(l.out).findings as { pointer?: string; rule: string }[]).filter((x) => x.pointer === '/branch');
       expect(f.length, value).toBeGreaterThan(0);
       expect(f.every((x) => x.rule.startsWith('schema.'))).toBe(true);
-      const a = await run(['anchor'], repo);
+      const a = await run(['anchor'], repo, CLAUDE_ENV);
       expect(a.code).toBe(0);
       expect(a.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
     }
@@ -1300,7 +1304,7 @@ it('ac-4 without the branch key t branches count and template branches do not', 
     commitAll(repo);
     gitRun(repo, 'update-ref', 'refs/remotes/origin/feature/ST-AN-3', 'HEAD');
     gitRun(repo, 'checkout', '-q', '-b', 't/ST-AN-2');
-    const a = await run(['anchor'], repo);
+    const a = await run(['anchor'], repo, CLAUDE_ENV);
     expect(a.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
     const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; claimedBy?: string }[];
     expect(rows.find((r) => r.id === 'ST-AN-2')?.claimedBy).toBeTruthy();

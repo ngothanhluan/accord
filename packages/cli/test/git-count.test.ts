@@ -501,6 +501,8 @@ it('ac-1 a read command starts as many git processes with 20 tickets as with 1',
   }
 }, AC1_LIMIT);
 
+// Phase 8.5 D-16, D-25: outside Claude Code `accord anchor` prints the ruleset first; the two cases below that expect an empty output run as a Claude Code session (its hooks print the ruleset).
+const CLAUDE_ENV = { CLAUDE_CODE_SESSION_ID: 'sess-anchor', CLAUDE_PID: '4242' };
 const isBranchRead = (a: string[]) => a[0] === 'symbolic-ref' && a.includes('--short') && a.includes('HEAD');
 const isReviewLog = (a: string[]) => a.includes('log') && a.includes('-G') && a.includes('^## Round ');
 
@@ -526,7 +528,7 @@ it('risk:complex-branching anchor hook and worktree merge read the current branc
     spawnLog.fail = isBranchRead;
     let unreadable: Awaited<ReturnType<typeof counted>>;
     try {
-      unreadable = await counted(['anchor'], wt);
+      unreadable = await counted(['anchor'], wt, CLAUDE_ENV);
     } finally {
       spawnLog.fail = undefined;
     }
@@ -543,7 +545,7 @@ it('risk:complex-branching anchor hook and worktree merge read the current branc
 
     // A detached HEAD says nothing and exits 0.
     gitRun(wt, 'switch', '-q', '--detach');
-    const detached = await counted(['anchor'], wt);
+    const detached = await counted(['anchor'], wt, CLAUDE_ENV);
     expect(detached.code).toBe(0);
     expect(detached.out).toBe('');
     expect(detached.err).toBe('');

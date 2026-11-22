@@ -34,7 +34,8 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    rewords, in at most 3 lines, neither new nor deleted, needs the line `Wording-only: <path> — <reason>` under
    `## Rulings` in `accord/tickets/<id>/ledger.md` before the review. A `.md` record under `accord/research/` that the ticket lists under `research:` and this branch
    adds is the ticket's own file and needs no `## Scope` line. Any other file beyond `## Scope`, a listed
-   sensitive area, or a sign of a new interface lifts the ticket to lane M.
+   sensitive area, or a sign of a new interface lifts the ticket to lane M. At build and review `accord anchor` prints the team's conventions under `## Conventions`;
+   follow every line of it in every file and commit you write, and treat a line it shows as withheld as unknown, never guessed.
 3. **Tests.** Run the `tests.affected` command from `accord/config.yml` over the changed files, or `tests.full` when
    `tests.affected` is not configured or finds no test file. Fix what fails, then commit the change.
 4. **Review rounds.** Round <n> runs `accord review-package <id> --out package-<n>.md`, which prints `Head: <sha>` and `file:`, and

@@ -6,7 +6,7 @@
 import { anchorText, commitRuleLine, commitRuleOf, DEFAULT_BRANCH_TEMPLATE, productBlocks } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, gitVerifySince, ticketOfBranch, withDefaultRef } from '../load/fs.js';
-import { cliRuleset } from '../load/product.js';
+import { cliRuleset, readProductText } from '../load/product.js';
 import { shown } from '../load/script-trust.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
@@ -36,9 +36,18 @@ function commitRuleHeader(ctx: CommandContext): string[] {
  * The one anchor text of a ticket, for `accord anchor` and the session-resume hook alike (ST-LN-72 review round 2): ST-LN-50 D-08's `stages off for lane <L>: ...` lines close the base lines of the
  * header (Stage, Review base), before any Unfinished line and the first section (core places them: anchorText's `header`); nothing is added when nothing is off for the ticket's lane. The git fact the
  * verify resume line reads (gitVerifySince) is added here too, so both paths print the same lines.
+ * Phase 8.5 D-17: for a lane S ticket the working branch's conventions.md (D-06) is read here, by the one reader of product files (a regular file only, no git, no link followed), and core prints it last at build and
+ * review; any other lane reads nothing. Being shared, it also makes the session-resume hook re-deliver the block after a compaction, which is when a lane S session loses it.
  */
-export const anchorOf = (ctx: CommandContext, id: string): string | undefined =>
-  anchorText({ ...epicSnapshot(ctx, id), ...gitVerifySince(ctx.root, ctx.snapshot, id) }, id, [...stagesOffLines(ctx.snapshot.config, ctx.snapshot.tickets[id]?.frontmatter?.lane), ...commitRuleHeader(ctx)]);
+export const anchorOf = (ctx: CommandContext, id: string): string | undefined => {
+  const lane = ctx.snapshot.tickets[id]?.frontmatter?.lane;
+  return anchorText(
+    { ...epicSnapshot(ctx, id), ...gitVerifySince(ctx.root, ctx.snapshot, id) },
+    id,
+    [...stagesOffLines(ctx.snapshot.config, lane), ...commitRuleHeader(ctx)],
+    lane === 'S' ? { conventions: readProductText(ctx.root, { from: 'working' }) } : undefined,
+  );
+};
 
 /**
  * ST-LN-28 D-13: the snapshot the anchor is built from. A story with `parent:` reads its epic from the default branch (a Decision added to the epic after the story branched

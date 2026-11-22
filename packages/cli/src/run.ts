@@ -528,9 +528,16 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('related <id>')
-    .description('print the Vetoes and Decisions of the tickets related to <id>, for the scout at intent and the critic at approach')
-    .action((id: string) => {
-      setCode(related(preflight(opts), id));
+    .description('print the Vetoes and Decisions of the tickets related to <id>, for the scout at intent and the critic at approach; with --for, the file the scout, planner, critic or judge is given')
+    .addOption(
+      new Option(
+        '--for <role>',
+        'scout, planner, critic or judge: print the file that agent is given: the ruleset, the related tickets, the Rejected lines, the epic block, for the planner and the judge the conventions, and for the judge the change this branch makes to them',
+      ).choices(['scout', 'planner', 'critic', 'judge']),
+    )
+    .option('--out <file>', 'with --for: write the file to <file> in the report folder (.accord-reports/<id>/, git-ignored), UTF-8 with no byte order mark, and print its path')
+    .action((id: string, options: { for?: string; out?: string }) => {
+      setCode(related(preflight(opts), id, options));
     });
 
   program

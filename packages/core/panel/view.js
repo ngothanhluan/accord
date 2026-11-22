@@ -60,6 +60,8 @@ const cells = (r) => {
     id: r.id,
     lane,
     stage: clean(stage + (r.idleDays === undefined ? '' : ` idle ${r.idleDays}d`)),
+    // D-05, D-07: the mini stage bar is the same stage reader as the ticket tab's; a row with no string stage gets none
+    ...(typeof r.stage === 'string' ? { bar: pipelineOf(r).map(({ key, state, color }) => ({ key, state, color })) } : {}),
     stageColor: typeof r.stage === 'string' && Object.hasOwn(STAGE_COLOR, r.stage) ? STAGE_COLOR[r.stage] : undefined,
     title: r.title,
     blockedBy: blocked,
@@ -67,7 +69,17 @@ const cells = (r) => {
     who: typeof r.claimedByShown === 'string' ? clean(r.claimedByShown) : typeof r.claimedBy === 'string' ? clean(r.claimedBy) : '',
   };
 };
-const epicCells = (r) => ({ id: r.id, lane: laneOf(r), stage: clean(`${r.done}/${r.total} done`), stageColor: undefined, title: r.title, blockedBy: '', who: '' });
+// D-05: an epic row's `progress` is the JSON's own done and total; a row without both numbers draws the count text only
+const epicCells = (r) => ({
+  id: r.id,
+  lane: laneOf(r),
+  stage: clean(`${r.done}/${r.total} done`),
+  stageColor: undefined,
+  title: r.title,
+  blockedBy: '',
+  who: '',
+  ...(num(r.done) && num(r.total) ? { progress: { label: `${r.id} children done`, value: r.done, max: r.total, valueText: clean(`${r.done}/${r.total} done`) } } : {}),
+});
 // the panel runs /accord with the typed form: command accord, args `<action> <id>` (08.3-09 D-03)
 const act = (key, label, action, id) => ({ key: `${key}:${id}`, label, command: 'accord', args: `${action} ${id}` });
 // same id pattern as cli new-ticket.ts: a file stem with spaces must never reach a command as an id
@@ -78,7 +90,7 @@ const withOpen = (key, label, action) => (r) =>
     ? { ...cells(r), open: { key: `show:${r.id}`, id: r.id, ...(key ? { action: act(key, label, action, r.id) } : {}) } }
     : cells(r);
 
-export function view(state, query) {
+export function view(state, query, columns) {
   const q = query.trim().toLowerCase();
   if (state === undefined) return { message: ['Loading…'] };
   if (state.message !== undefined) return { message: state.message.split('\n').map(clean).filter((l) => l) };
@@ -98,11 +110,12 @@ export function view(state, query) {
   }
   // longest cell over every row before the search filter, so columns neither differ between sections nor move while typing
   const all = [d.yours, d.team, d.ready, ...(d.upNext ? [d.upNext] : []), d.epics];
-  const widths = { id: len('ID'), lane: len('LANE'), stage: len('STAGE') };
+  const widths = { id: len('ID'), bar: 1, lane: len('LANE'), stage: len('STAGE') };
   for (const sec of all) {
     for (const r of rowsOf(sec)) {
       const c = sec === d.epics ? epicCells(r) : cells(r);
       widths.id = Math.max(widths.id, len(c.id));
+      widths.bar = Math.max(widths.bar, c.bar?.length ?? 0);
       widths.lane = Math.max(widths.lane, len(c.lane));
       widths.stage = Math.max(widths.stage, len(c.stage));
     }
@@ -117,6 +130,8 @@ export function view(state, query) {
     sections,
     summary,
     widths,
+    // Phase 08.7 D-03, D-05: which columns the rows draw at the width the pane reports
+    layout: layoutOf(columns),
     // Phase 08.7 D-10: a loaded dashboard that names no claimed ticket says so in one line
     ...(currentOf(state) === undefined ? { hint: HINT } : {}),
     ...(noMatch ? { noMatch } : {}),
@@ -206,7 +221,8 @@ export function detailView({ action, state }) {
 // ---- Phase 08.7: the ticket tab. Every number below is one the JSON holds, the length of a list it holds, or the mod's own count of running agents. ----
 
 export const HINT = 'No ticket in flight in this worktree';
-// Interim pane widths in terminal columns (08.7-04 owns the final values): at least WIDE is wide, below NARROW is narrow.
+// Pane widths in terminal columns (D-03, A-09): the dock body is at most 45% of the terminal and at least 24 columns, so a 110-column terminal gives about 49 (narrow), 144 gives 64 (mid)
+// and 200 gives 90 (wide). At least WIDE is wide, below NARROW is narrow.
 export const WIDE = 80;
 export const NARROW = 56;
 

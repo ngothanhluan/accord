@@ -1452,7 +1452,7 @@ it('ac-9 the dashboard tab draws a mini stage bar per row an epic progress bar a
   expect(progress).toHaveLength(1);
   expect(progress[0].props).toMatchObject({ label: 'EP-1 children done', value: 1, max: 3, valueText: '1/3 done', color: 'green' });
   for (const heading of ['YOURS', 'TEAM', 'READY', 'UP NEXT', 'EPICS']) {
-    const section = h.nodes('Box').find((n) => (n.props.children as any[])[0]?.props?.children?.[0] === heading);
+    const section = h.nodes('Box').find((n) => ((n.props.children ?? []) as any[])[0]?.props?.children?.[0] === heading);
     expect(section?.props, heading).toMatchObject({ borderStyle: 'round', marginTop: 1, flexDirection: 'column', paddingX: 1 });
     expect((section?.props.children as any[])[0].props).toMatchObject({ bold: true, color: 'cyan' });
   }

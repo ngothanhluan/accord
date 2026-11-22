@@ -299,7 +299,7 @@ export function register(on) {
       if (detail) void loadDetail($);
       if (ticket) void loadTicket($);
     }
-    const { Box, Text, Button, Input } = $.ui.resolve(e);
+    const { Box, Text, Button, Input, Progress } = $.ui.resolve(e);
     // D-06: where desktop shows the pane as a widget, clicks may not reach it: the two tab summaries (or the hint and the dashboard summary) as text, no Button
     const widget = e.props?.placement === 'widget';
     ensureTick($, widget);
@@ -466,7 +466,7 @@ export function register(on) {
       }
       return Box({ flexDirection: 'column', children });
     }
-    const v = view(state, query);
+    const v = view(state, query, e.props?.bodyColumns);
     // A drawn Input holds its value until the next draw, so every draw passes the stored text.
     const search = () =>
       Input({
@@ -490,18 +490,41 @@ export function register(on) {
       children.push(search());
       if (v.noMatch) children.push(Text({ children: [v.noMatch] }));
       if (v.newRequest) children.push(Button({ key: v.newRequest.key, label: v.newRequest.label, onPress: run(v.newRequest) }));
-      const { widths } = v;
-      const cellBoxes = (id, lane, stage, title) => [
+      const { widths, layout } = v;
+      // D-03, D-05: the columns follow the width the pane reports: wide ID, bar, lane, stage, title; mid drops the lane; narrow drops the stage text too
+      const withLane = layout === 'wide';
+      const withStage = layout !== 'narrow';
+      const cellBoxes = (id, bar, lane, stage, title) => [
         Box({ width: widths.id, flexShrink: 0, children: [id] }),
-        Box({ width: widths.lane, flexShrink: 0, children: [lane] }),
-        Box({ width: widths.stage, flexShrink: 0, children: [stage] }),
+        bar,
+        ...(withLane ? [Box({ width: widths.lane, flexShrink: 0, children: [lane] })] : []),
+        ...(withStage ? [Box({ width: widths.stage, flexShrink: 0, children: [stage] })] : []),
         Box({ flexGrow: 1, flexShrink: 1, children: [title] }),
       ];
       const line = (kids) => Box({ flexDirection: 'row', columnGap: 2, children: kids });
+      // one 1-column Box per stage cell, coloured for done and current cells; a one-space Text gives each cell its line, so an empty Box cannot collapse to no height
+      const barBox = (r) =>
+        Box({
+          width: widths.bar,
+          flexShrink: 0,
+          flexDirection: 'row',
+          children: (r.bar ?? []).map((c) =>
+            Box({ width: 1, flexShrink: 0, ...(c.state === 'done' || c.state === 'current' ? { backgroundColor: c.color } : {}), children: [Text({ children: [' '] })] }),
+          ),
+        });
+      // an epic's progress spans the bar and lane columns (the bar column alone when the lane is dropped); an engine without Progress, or an epic with no children, shows the count as text
+      const progressBox = (r) => {
+        const span = widths.bar + (withLane ? widths.lane + 2 : 0);
+        const p = r.progress;
+        if (p === undefined) return Box({ width: span, flexShrink: 0, children: [] });
+        if (typeof Progress === 'function' && p.max > 0) return Box({ width: span, flexShrink: 0, children: [Progress({ ...p, color: 'green' })] });
+        return Box({ width: Math.max(span, [...p.valueText].length), flexShrink: 0, children: [Text({ children: [p.valueText] })] });
+      };
       for (const s of v.sections) {
-        children.push(Box({ marginTop: 1, children: [Text({ bold: true, color: 'cyan', children: [s.heading] })] }));
+        const body = [Text({ bold: true, color: 'cyan', children: [s.heading] })];
         if (s.rows.length > 0) {
-          children.push(line(cellBoxes(...['ID', 'LANE', 'STAGE', 'TITLE'].map((w) => Text({ dimColor: true, children: [w] })))));
+          const header = ['ID', 'LANE', 'STAGE', 'TITLE'].map((w) => Text({ dimColor: true, children: [w] }));
+          body.push(line(cellBoxes(header[0], Box({ width: widths.bar, flexShrink: 0 }), header[1], header[2], header[3])));
         }
         for (const r of s.rows) {
           const stage = Text({ children: [r.stage], ...(r.stageColor ? { color: r.stageColor } : {}) });
@@ -515,17 +538,21 @@ export function register(on) {
                 children: [Text({ bold: true, underline: true, color: 'suggestion', children: [r.id] })],
               })
             : Text({ bold: true, children: [r.id] });
-          const kids = cellBoxes(idCell, Text({ children: [r.lane] }), stage, Text({ wrap: 'truncate', children: [r.title] }));
-          children.push(line(kids));
+          const epic = s.heading === 'EPICS';
+          const kids = cellBoxes(idCell, epic ? progressBox(r) : barBox(r), Text({ children: [r.lane] }), stage, Text({ wrap: 'truncate', children: [r.title] }));
+          // an epic's progress box already spans the lane column, so the lane cell leaves the epic row
+          if (epic && withLane) kids.splice(2, 1);
+          body.push(line(kids));
           if (r.blockedBy || r.who) {
             const sub = [Box({ width: widths.id, flexShrink: 0 })];
             if (r.blockedBy) sub.push(Text({ color: 'red', children: [r.blockedBy] }));
             if (r.who) sub.push(Text({ dimColor: true, children: [r.who] }));
-            children.push(line(sub));
+            body.push(line(sub));
           }
         }
-        if (s.rows.length === 0) children.push(Text({ dimColor: true, children: ['none'] }));
-        if (s.more > 0) children.push(Text({ dimColor: true, children: ['+' + s.more + ' more'] }));
+        if (s.rows.length === 0) body.push(Text({ dimColor: true, children: ['none'] }));
+        if (s.more > 0) body.push(Text({ dimColor: true, children: ['+' + s.more + ' more'] }));
+        children.push(Box({ marginTop: 1, flexDirection: 'column', borderStyle: 'round', paddingX: 1, children: body }));
       }
       children.push(Text({ dimColor: true, children: [v.summary] }));
     }

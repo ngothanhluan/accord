@@ -3,6 +3,7 @@ import { approvalShort, approvalView, ticketDetail } from '@accord-dev/accord-co
 import type { TicketDetail } from '@accord-dev/accord-core';
 import { colourApproval } from '../render/color.js';
 import { UsageError } from '../load/fs.js';
+import { ticketLog } from '../load/ticket-log.js';
 import { whoFor } from '../load/who.js';
 import { isUnsafe } from '../render/dashboard.js';
 import { stagesOffLines } from '../render/stages-off.js';
@@ -86,9 +87,12 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
   if (d === undefined) throw new Error('no detail for ' + id); // unreachable after requireLaneTicket
   // Phase 8.2 D-07, D-08: the Holder line shows the person through the one display function; the JSON keeps `holder` the email and adds `holderShown` beside it in initials mode only.
   const who = whoFor(ctx.root, ctx.snapshot.config);
+  // Phase 08.7 D-04: the session log (commits, agent reports, gate runs) is read for the JSON only; the text output never reads it (D-09). Each text is cleaned as the text output cleans a line.
+  const log = options.json === true ? ticketLog(ctx.root, id).map((e) => ({ ...e, text: clean(e.text) })) : [];
+  const detail = log.length === 0 ? d : { ...d, log };
   ctx.stdout.write(
     options.json === true
-      ? JSON.stringify(who.mode === 'initials' && d.holder !== null ? { ...d, holderShown: who.show(d.holder) } : d, null, 2) + '\n'
+      ? JSON.stringify(who.mode === 'initials' && d.holder !== null ? { ...detail, holderShown: who.show(d.holder) } : detail, null, 2) + '\n'
       : text(d, stagesOffLines(ctx.snapshot.config, d.lane), d.holder === null ? 'none' : who.show(d.holder)),
   );
   return 0;

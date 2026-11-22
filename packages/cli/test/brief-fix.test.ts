@@ -8,7 +8,7 @@ import { afterEach, expect, it } from 'vitest';
 import { FIX_REPORT_CONTRACT, FINDINGS_DUTY, WRITER_DUTY, rulesetText } from '@accord-dev/accord-core';
 import { CONFIG, LANE_S_BODY, REPORT, laneTicket } from '../../../test/helpers/lane.js';
 import pkg from '../package.json' with { type: 'json' };
-import { claimedUnder, cleanup, makeLaneRepo, run } from './helpers/repo.js';
+import { claimedUnder, cleanup, gitRun, makeLaneRepo, run } from './helpers/repo.js';
 
 const WORK_DIR_RULE = 'Work only in this folder: run every command and make every commit there, give every path as an absolute path under it, and never merge, rebase or push.';
 const ONLY = 'This is the only test command the executor runs for these findings.';
@@ -179,4 +179,83 @@ it.skipIf(process.platform === 'win32')('risk:security brief --fix refuses a fin
   expect(r.err).toContain('the findings file');
   expect(r.err).toContain('nothing was written');
   expect(existsSync(join(repo, '.accord-reports'))).toBe(false);
+}, 120_000);
+
+const TEST_ONLY = 'Test only: commit the reproduction test alone, then stop.';
+const OUT_FILE = (repo: string, name: string): string => join(repo, '.accord-reports', 'T-1', name);
+
+it('risk:security brief --out writes the brief as UTF-8 with no byte order mark into the report folder and prints its path (8.5-ac-4 D-23)', async () => {
+  const repo = sandbox();
+  const file = findingsFile(FINDINGS.join('\n') + '\n');
+  const before = gitRun(repo, 'status', '--porcelain');
+  const plain = await run(['brief', 'T-1', '--fix', file], repo);
+  expect(plain.code, plain.err).toBe(0);
+  const out = await run(['brief', 'T-1', '--fix', file, '--out', 'fix-brief.md'], repo);
+  expect(out.code, out.err).toBe(0);
+  const path = /^file: (.+)\n$/.exec(out.out)?.[1];
+  expect(path, 'stdout is exactly one file: line').toBeDefined();
+  expect(path).not.toContain('\\');
+  expect(path!.endsWith('/.accord-reports/T-1/fix-brief.md')).toBe(true);
+  expect(realpathSync.native(path!)).toBe(realpathSync.native(OUT_FILE(repo, 'fix-brief.md')));
+  const bytes = readFileSync(OUT_FILE(repo, 'fix-brief.md'));
+  expect(bytes.equals(Buffer.from(plain.out, 'utf8'))).toBe(true);
+  expect(bytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]))).toBe(false);
+  expect(bytes.includes(13)).toBe(false);
+  expect(readFileSync(join(repo, '.accord-reports', '.gitignore'), 'utf8')).toBe('*\n');
+  expect(gitRun(repo, 'status', '--porcelain')).toBe(before);
+
+  // the task form writes the same way
+  const task = await run(['brief', 'T-1', '1'], repo);
+  const written = await run(['brief', 'T-1', '1', '--out', 'brief-1.md'], repo);
+  expect(written.code, written.err).toBe(0);
+  expect(written.out).toMatch(/^file: .+\/\.accord-reports\/T-1\/brief-1\.md\n$/);
+  expect(readFileSync(OUT_FILE(repo, 'brief-1.md')).equals(Buffer.from(task.out, 'utf8'))).toBe(true);
+}, 120_000);
+
+it('risk:security brief --out refuses a path a link and a report name and writes nothing (8.5-ac-4 D-23)', async () => {
+  const repo = sandbox();
+  const file = findingsFile(FINDINGS.join('\n') + '\n');
+  for (const name of ['../x.md', 'a/b.md', '-x.md', '.gitignore', 'task-1.md', 'fix-2.md', 'FIX-3.md', '']) {
+    const r = await run(['brief', 'T-1', '--fix', file, `--out=${name}`], repo);
+    expect(r.code, JSON.stringify(name)).toBe(2);
+    expect(r.err, JSON.stringify(name)).toContain('nothing was written');
+    expect(existsSync(join(repo, '.accord-reports')), JSON.stringify(name)).toBe(false);
+  }
+  // a folder where the file would go: refused, and it keeps what it holds
+  mkdirSync(OUT_FILE(repo, 'fix-brief.md'), { recursive: true });
+  writeFileSync(join(OUT_FILE(repo, 'fix-brief.md'), 'keep.txt'), 'kept\n');
+  const folder = await run(['brief', 'T-1', '--fix', file, '--out', 'fix-brief.md'], repo);
+  expect(folder.code).toBe(2);
+  expect(folder.err).toContain('nothing was written');
+  expect(readFileSync(join(OUT_FILE(repo, 'fix-brief.md'), 'keep.txt'), 'utf8')).toBe('kept\n');
+}, 120_000);
+
+it.skipIf(process.platform === 'win32')('risk:security brief --out refuses a file that is a link and leaves its target unchanged (8.5-ac-4 D-23)', async () => {
+  const repo = sandbox();
+  const file = findingsFile(FINDINGS.join('\n') + '\n');
+  const target = findingsFile('target\n');
+  mkdirSync(join(repo, '.accord-reports', 'T-1'), { recursive: true });
+  symlinkSync(target, OUT_FILE(repo, 'fix-brief.md'));
+  const r = await run(['brief', 'T-1', '--fix', file, '--out', 'fix-brief.md'], repo);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('nothing was written');
+  expect(readFileSync(target, 'utf8')).toBe('target\n');
+}, 120_000);
+
+it('risk:regression brief --test-only prints the Test only line last (8.5-ac-4 R-7 D-21)', async () => {
+  const repo = sandbox();
+  const file = findingsFile(FINDINGS.join('\n') + '\n');
+  const plain = await run(['brief', 'T-1', '--fix', file], repo);
+  const only = await run(['brief', 'T-1', '--fix', file, '--test-only'], repo);
+  expect(only.code, only.err).toBe(0);
+  expect(TEST_ONLY).toBe('Test only: commit the reproduction test alone, then stop.');
+  expect(only.out).toBe(plain.out + TEST_ONLY + '\n');
+  expect(only.out.trimEnd().split('\n').pop()).toBe(TEST_ONLY);
+  // with --out the file ends the same way and stdout holds only the file: line
+  const out = await run(['brief', 'T-1', '--fix', file, '--test-only', '--out', 'only.md'], repo);
+  expect(out.out).toMatch(/^file: .+\/only\.md\n$/);
+  expect(readFileSync(OUT_FILE(repo, 'only.md'), 'utf8')).toBe(only.out);
+  const bare = await run(['brief', 'T-1', '1', '--test-only'], repo);
+  expect(bare.code).toBe(2);
+  expect(bare.err).toContain('--test-only works only with --fix');
 }, 120_000);

@@ -125,6 +125,8 @@ export { diffFiles, matchedHunks, securityTriggers, triggerText } from './securi
 export type { DiffFile, DiffHunk, Trigger } from './security/match.js';
 export { DEFAULT_SLOP, parseSlop, SLOP_FILE, slopFile, slopSpec, STRUCTURAL_KINDS } from './slop/spec.js';
 export type { SlopPattern, SlopSpec } from './slop/spec.js';
+export { CONVENTIONS_FILE, PRODUCT_MAX_LINE, RESERVED_HEADINGS, RESERVED_PREFIXES, checkProductText, conventionsFile, lineProblem, notReadLine, withheldFindingLine, withheldLine } from './product/lines.js';
+export type { LineProblem, LineProblemKind, LineVerdict, ProductLine } from './product/lines.js';
 export { DEFAULT_MAX_FILE_LINES, growthHits, isManifest, maxFileLines, newDependencies, orphanCandidates, orphanHits, orphanTerms } from './slop/structural.js';
 export type { NewDependency } from './slop/structural.js';
 export { isLockfile, LOCKFILES, slopHits, slopLine, slopSkipped, sortHits } from './slop/match.js';

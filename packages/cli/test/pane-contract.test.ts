@@ -8,6 +8,7 @@ import { pluginTargets } from '@accord-dev/accord-core';
 import { afterEach, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
 import { cleanup, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { laneTicket } from '../../../test/helpers/lane.js';
 import { v2Review } from '../../../test/helpers/review-v2.js';
 
 const dirs: string[] = [];
@@ -80,6 +81,43 @@ it('risk:regression the pane draws the real review and log json of a claimed tic
     expect(review.rounds[0].parts).toContain('Must 1 open');
     const now = Math.floor(Date.now() / 1000);
     expect(logRows(got.ticket.log, now).map((r: any) => r.text)).toEqual(['executor report task 1', 'plan: T-1 ready', 'claim: T-1']);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.7-04 D-05: the real `dashboard --json` of a sandbox with lane M, S and R tickets and an epic, read by the real view.js: every lane row gets the bar the stage reader gives its row, every epic row a progress.
+it('risk:regression the dashboard tab draws a bar for every real dashboard row (D-05)', async () => {
+  const repo = makeLaneRepo({
+    'accord/tickets/T-2.md': laneTicket('T-2', { lane: 'S' }),
+    'accord/tickets/T-3.md': laneTicket('T-3', { lane: 'R' }),
+    'accord/tickets/T-4.md': laneTicket('T-4', { frontmatter: ['parent: "EP-1"'] }),
+    'accord/tickets/EP-1.md': laneTicket('EP-1', { lane: '' }).replace('type: story', 'type: epic'),
+  });
+  try {
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    gitRun(repo, 'config', 'user.name', 'fixture');
+    gitRun(repo, 'config', 'commit.gpgsign', 'false');
+    commitMsg(repo, 'fixture');
+    const dash = await run(['dashboard', '--json'], repo);
+    expect(dash.code).toBe(0);
+    const { outcome, view, pipelineOf } = await loadView();
+    const state = outcome({ exitCode: 0, stdout: dash.out, stderr: '' });
+    expect(state.dashboard).toBeDefined();
+    const raw = new Map<string, any>();
+    for (const key of ['yours', 'team', 'ready', 'upNext']) for (const r of state.dashboard[key]?.rows ?? []) raw.set(r.id, r);
+    const shown = view(state, '');
+    const lanes = shown.sections.filter((s: any) => s.heading !== 'EPICS').flatMap((s: any) => s.rows);
+    expect(lanes.length).toBeGreaterThanOrEqual(3);
+    for (const row of lanes) {
+      const source = raw.get(row.id);
+      expect(typeof source?.stage, row.id).toBe('string');
+      expect(row.bar.length, row.id).toBe(pipelineOf(source).length);
+    }
+    const epics = shown.sections.find((s: any) => s.heading === 'EPICS');
+    expect(epics?.rows.length).toBeGreaterThanOrEqual(1);
+    for (const row of epics.rows) expect(row.progress).toEqual({ label: row.id + ' children done', value: expect.any(Number), max: expect.any(Number), valueText: expect.stringMatching(/^\d+\/\d+ done$/) });
+    expect(shown.widths.bar).toBeGreaterThanOrEqual(1);
   } finally {
     cleanup(repo);
   }

@@ -629,6 +629,8 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
     return rest;
   };
   const idBox = { width: 5, flexShrink: 0 };
+  // Phase 08.7-04 D-05: the bar column holds the longest mini stage bar (five cells) between the id and the lane
+  const barBox = { width: 5, flexShrink: 0, flexDirection: 'row' };
   const laneBox = { width: 4, flexShrink: 0 };
   const stageBox = { width: 12, flexShrink: 0 };
   const titleBox = { flexGrow: 1, flexShrink: 1 };
@@ -650,17 +652,19 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   const widthsHold = (): void => {
     const kids = h.row('ST-3').children as { props: Record<string, any> }[];
     expect(bare(kids[0].props)).toEqual(idBox);
-    expect(bare(kids[1].props)).toEqual(laneBox);
-    expect(bare(kids[2].props)).toEqual(stageBox);
+    expect(bare(kids[1].props)).toEqual(barBox);
+    expect(bare(kids[2].props)).toEqual(laneBox);
+    expect(bare(kids[3].props)).toEqual(stageBox);
   };
   expect(h.cell('ST-3').text.bold).toBe(true);
   expect(h.row('ST-3')).toMatchObject({ flexDirection: 'row', columnGap: 2 });
   widthsHold();
   const kids = h.row('ST-3').children as { props: Record<string, any> }[];
-  expect(bare(kids[3].props)).toEqual(titleBox);
-  expect(Object.keys(kids[3].props)).not.toContain('width');
-  expect(Object.keys(kids[3].props)).not.toContain('minWidth');
-  expect((kids[1].props.children[0] as { props: { children: string[] } }).props.children).toEqual(['M']);
+  expect(kids).toHaveLength(5);
+  expect(bare(kids[4].props)).toEqual(titleBox);
+  expect(Object.keys(kids[4].props)).not.toContain('width');
+  expect(Object.keys(kids[4].props)).not.toContain('minWidth');
+  expect((kids[2].props.children[0] as { props: { children: string[] } }).props.children).toEqual(['M']);
   expect(bare(h.cell('LANE').box)).toEqual(laneBox);
   expect(bare(h.cell('ID').box)).toEqual(idBox);
   expect(bare(h.cell('STAGE').box)).toEqual(stageBox);
@@ -683,7 +687,7 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   const walk = (n: any): void => {
     if (!n || typeof n !== 'object') return;
     const first = n.props?.children?.[0];
-    if (n.type === 'Box' && n.props.flexDirection === 'row' && first?.type === 'Box' && !(first.props.children?.length > 0)) {
+    if (n.type === 'Box' && n.props.flexDirection === 'row' && n.props.columnGap === 2 && first?.type === 'Box' && !(first.props.children?.length > 0)) {
       second.push((n.props.children as any[]).slice(1).map((c) => c.props.children.join('')));
     }
     for (const c of n.props?.children ?? []) walk(c);
@@ -1408,4 +1412,104 @@ it('risk:complex-branching an asked open that desktop cannot place names the rea
   await terminal.fire('command.run', { command: 'accord-panel', args: '' });
   expect(terminal.$.ui.toast).toHaveBeenCalledTimes(1);
   expect(terminal.$.ui.toast).toHaveBeenCalledWith('The terminal is too narrow for the accord pane: it needs 110 columns');
+});
+
+// ---- Phase 08.7-04: the dashboard tab's mini stage bars, epic bars, boxed sections and width-picked columns (D-03, D-05) ----
+
+const barBoard = JSON.stringify(
+  board({
+    yours: { rows: [{ id: 'ST-1', title: 'Y', lane: 'M', stage: 'plan' }], more: 0 },
+    team: { rows: [{ id: 'ST-3', lane: 'M', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5 }], more: 0 },
+    ready: { rows: [{ id: 'ST-5', lane: 'S', title: 'Small', stage: 'review' }, { id: 'ST-6', lane: 'R', title: 'Look', stage: 'research' }, { id: 'ST-8', title: 'No stage' }], more: 0 },
+    upNext: { rows: [{ id: 'ST-7', title: 'Later', lane: 'M', stage: 'intent' }], more: 0 },
+    epics: { rows: [{ id: 'EP-1', title: 'E', done: 1, total: 3 }], more: 0 },
+  }),
+);
+async function barPane(columns?: number): Promise<Awaited<ReturnType<typeof host>>> {
+  const h = await host(await loadPanel());
+  h.columns = columns;
+  await h.fire('session.start', start);
+  h.settle({ stdout: barBoard });
+  await vi.waitFor(() => expect(h.texts()).toContain('Later'));
+  return h;
+}
+const rowKids = (h: Awaited<ReturnType<typeof host>>, id: string): { props: Record<string, any> }[] => h.row(id).children as { props: Record<string, any> }[];
+const cellsOf = (box: { props: Record<string, any> }): (string | undefined)[] => (box.props.children as { props: Record<string, any> }[]).map((c) => c.props.backgroundColor);
+
+// Phase 08.7 D-05: every lane row draws one 1-column Box per stage cell, coloured for done and current cells, every epic row a Progress, every section a round Box led by its heading.
+it('ac-9 the dashboard tab draws a mini stage bar per row an epic progress bar and boxed sections (D-05)', async () => {
+  const h = await barPane();
+  const bar = rowKids(h, 'ST-3')[1];
+  expect(bar.props).toMatchObject({ width: 5, flexShrink: 0 });
+  expect(cellsOf(bar)).toEqual(['blue', 'cyan', 'yellow', undefined, undefined]);
+  for (const c of bar.props.children as { props: Record<string, any> }[]) expect(c.props.width).toBe(1);
+  expect(cellsOf(rowKids(h, 'ST-5')[1])).toEqual(['blue', 'yellow', 'magenta']);
+  expect(cellsOf(rowKids(h, 'ST-6')[1])).toEqual(['blue', 'cyan']);
+  // a row with no stage draws an empty bar cell of the same width, so the columns stay aligned
+  expect(rowKids(h, 'ST-8')[1].props).toMatchObject({ width: 5 });
+  expect(cellsOf(rowKids(h, 'ST-8')[1])).toEqual([]);
+  const progress = h.nodes('Progress');
+  expect(progress).toHaveLength(1);
+  expect(progress[0].props).toMatchObject({ label: 'EP-1 children done', value: 1, max: 3, valueText: '1/3 done', color: 'green' });
+  for (const heading of ['YOURS', 'TEAM', 'READY', 'UP NEXT', 'EPICS']) {
+    const section = h.nodes('Box').find((n) => (n.props.children as any[])[0]?.props?.children?.[0] === heading);
+    expect(section?.props, heading).toMatchObject({ borderStyle: 'round', marginTop: 1, flexDirection: 'column', paddingX: 1 });
+    expect((section?.props.children as any[])[0].props).toMatchObject({ bold: true, color: 'cyan' });
+  }
+});
+
+// Phase 08.7 D-03, D-05: the row columns follow the width the pane reports; the ticket tab's stage bar drops its labels at narrow.
+it('risk:complex-branching the row columns follow the pane width the pane reports (D-03 D-05)', async () => {
+  const widths: [number | undefined, string[]][] = [
+    [undefined, ['ID', 'LANE', 'STAGE', 'TITLE']],
+    [200, ['ID', 'LANE', 'STAGE', 'TITLE']],
+    [80, ['ID', 'LANE', 'STAGE', 'TITLE']],
+    [79, ['ID', 'STAGE', 'TITLE']],
+    [56, ['ID', 'STAGE', 'TITLE']],
+    [55, ['ID', 'TITLE']],
+    [24, ['ID', 'TITLE']],
+  ];
+  for (const [columns, headers] of widths) {
+    const h = await barPane(columns);
+    const label = String(columns);
+    // header row: the bar column's header is an empty Box, so a header row holds one more child than it has header texts
+    expect(h.row('ID').children, label).toHaveLength(headers.length + 1);
+    for (const w of ['LANE', 'STAGE', 'TITLE']) expect(h.texts().includes(w), label + ' ' + w).toBe(headers.includes(w));
+    const kids = rowKids(h, 'ST-3');
+    expect(kids, label).toHaveLength(headers.length + 1);
+    expect(kids[1].props.width, label).toBe(5);
+    expect(kids.some((k) => (k.props.children as any[])?.[0]?.props?.children?.[0] === 'M'), label).toBe(headers.includes('LANE'));
+    expect(kids.some((k) => (k.props.children as any[])?.[0]?.props?.children?.[0] === 'build 2/5'), label).toBe(headers.includes('STAGE'));
+    expect(h.texts().includes('build 2/5'), label).toBe(headers.includes('STAGE'));
+    // the epic row keeps its id, its progress box and its title; the stage count text goes with the stage column
+    const epic = h.row('EP-1').children as any[];
+    expect(epic, label).toHaveLength(headers.includes('STAGE') ? 4 : 3);
+    expect(epic[1].props.children[0].type, label).toBe('Progress');
+    expect(h.texts().includes('1/3 done'), label).toBe(headers.includes('STAGE'));
+  }
+  // the ticket tab below NARROW drops the stage labels and names the current stage once
+  for (const [columns, labelled] of [[100, true], [55, false]] as [number, boolean][]) {
+    const h = await claimedPane();
+    h.columns = columns;
+    await h.$.ui.invalidate('ui.render');
+    expect(h.texts().includes('intent/approach'), String(columns)).toBe(labelled);
+    expect(h.texts().filter((t) => t === 'build 1/3'), String(columns)).toHaveLength(1);
+  }
+});
+
+// Phase 08.7 D-05: an engine that gives no Progress element still shows the epic's count, as text, and nothing throws.
+it('risk:complex-branching an engine without Progress draws the epic count as text (D-05)', async () => {
+  const h = await host(await loadPanel());
+  const resolve = h.$.ui.resolve;
+  h.$.ui.resolve = (e: unknown) => {
+    const { Progress, ...rest } = resolve(e) as Record<string, unknown>;
+    void Progress;
+    return rest;
+  };
+  await h.fire('session.start', start);
+  h.settle({ stdout: barBoard });
+  await vi.waitFor(() => expect(h.texts()).toContain('Later'));
+  expect(h.nodes('Progress')).toEqual([]);
+  expect(h.texts().filter((t) => t === '1/3 done')).toHaveLength(2);
+  expect(cellsOf(rowKids(h, 'ST-3')[1])).toEqual(['blue', 'cyan', 'yellow', undefined, undefined]);
 });

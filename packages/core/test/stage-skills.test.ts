@@ -3070,3 +3070,20 @@ it('risk:regression the review stage runs every package with --out and passes th
   }
   expect(bad).toEqual([]);
 });
+
+// Phase 8.5 (08.5-09, D-17): a lane S session has no brief, so lane-s.md tells it that `accord anchor` prints the team's conventions at build and review, and to follow them.
+it("risk:regression lane S step 2 says the anchor prints the team's conventions at build and review (8.5-ac-17 D-17)", () => {
+  const bad: string[] = [];
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] }).filter((f) => f.path.endsWith('.md'));
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const lane = (all.find((f) => f.path === besidePath('new', 'lane-s.md', dir))?.text ?? '').replace(/\s+/g, ' ');
+    if (lane === '') {
+      bad.push(dir + ': lane-s.md is not rendered');
+      continue;
+    }
+    const step2 = lane.slice(lane.indexOf('2. **Change.**'), lane.indexOf('3. **Tests.**'));
+    for (const p of ["At build and review `accord anchor` prints the team's conventions under `## Conventions`", 'follow every line of it in every file and commit you write', 'a line it shows as withheld as unknown, never guessed'])
+      if (!step2.includes(p)) bad.push(dir + ' lane-s.md step 2 lacks: ' + p);
+  }
+  expect(bad).toEqual([]);
+});

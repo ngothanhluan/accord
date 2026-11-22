@@ -2,6 +2,7 @@
 import { dashboard, loadSnapshot } from '@accord-dev/accord-core';
 import { gitUserEmail, loadClaimView, remoteRefs, UsageError, withDefaultRef, withQueued } from '../load/fs.js';
 import { whoFor } from '../load/who.js';
+import { activeTicket } from './anchor.js';
 import { conventionsNotice } from './audit.js';
 import { dashboardFetchLimitMs } from './fetch-limit.js';
 import { upgradeNotice } from './notice.js';
@@ -26,6 +27,21 @@ function reloaded(ctx: CommandContext): CommandContext {
   return { ...ctx, snapshot: withDefaultRef(ctx.root, loaded, parts.refs), plain, branch: parts.branch };
 }
 
+/**
+ * Phase 08.7 D-10: the lane ticket this checkout's branch claims, for the flightdeck pane's ticket tab, read by the anchor's own reader (`activeTicket`: the branch the load already read and the
+ * templates in force) so the pane never parses a branch. Undefined on the default branch, a detached HEAD, a branch naming no ticket, a ticket with no `lane:` (`show` refuses it) and when git could
+ * not say the branch; a throw never fails the dashboard.
+ */
+function currentTicket(ctx: CommandContext): string | undefined {
+  try {
+    const id = activeTicket(ctx.root, ctx.snapshot, ctx.branch);
+    if (id === undefined || !Object.hasOwn(ctx.snapshot.tickets, id)) return undefined;
+    return ctx.snapshot.tickets[id]?.frontmatter?.lane === undefined ? undefined : id;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function dashboardCommand(first: CommandContext, options: { json?: boolean }): Promise<number> {
   const viewer = gitUserEmail(first.root);
   if (viewer === '') throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>');
@@ -47,8 +63,12 @@ export async function dashboardCommand(first: CommandContext, options: { json?: 
   // Phase 8.2 D-07, D-08: how a person is shown runs after the data is computed, so the viewer's own tickets are still matched by email; the JSON keeps `claimedBy` and adds `claimedByShown` in initials mode only.
   const who = whoFor(ctx.root, ctx.snapshot.config);
   const json = who.mode === 'initials' ? dashboardForJson(d, who.show) : d;
+  // Phase 08.7 D-10: `current` sits after the dashboard's own keys and before `offline`; JSON only, the text is unchanged (D-09)
+  const current = options.json ? currentTicket(ctx) : undefined;
   ctx.stdout.write(
-    options.json ? JSON.stringify(f.why === undefined ? json : { ...json, offline: f.why }, null, 2) + '\n' : withStagesOff(ctx, renderDashboard(dashboardForText(d, who.show))),
+    options.json
+      ? JSON.stringify({ ...json, ...(current === undefined ? {} : { current }), ...(f.why === undefined ? {} : { offline: f.why }) }, null, 2) + '\n'
+      : withStagesOff(ctx, renderDashboard(dashboardForText(d, who.show))),
   );
   return 0;
 }

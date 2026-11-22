@@ -3,6 +3,7 @@
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { lineProblem } from '@accord-dev/accord-core';
 import { afterEach, expect, it } from 'vitest';
 import { cleanup, gitRun, run, writeFiles } from './helpers/repo.js';
 import { makeClone } from './helpers/worktree.js';
@@ -100,6 +101,45 @@ it('risk:security accord conventions write refuses a line it cannot read and cha
   const missing = await run(['conventions', 'write', join(c.root, 'nope.md')], c.root);
   expect(missing.code, missing.out + missing.err).toBe(2);
   expect(gitRun(c.remote, 'branch', '--list', 'conventions/*').trim()).toBe('');
+});
+
+it('risk:security accord conventions write accepts and refuses exactly the lines the delivery check does (8.5-ac-3 D-12)', async () => {
+  const c = clone();
+  const tail = ' — enforced by: prose';
+  /** a writer-shaped line of exactly `n` characters */
+  const ofLength = (n: number): string => `- ${'x'.repeat(n - 2 - tail.length)}${tail}`;
+  const shaped = (x: string): string => `- ${x}${tail}`;
+  // hidden characters are built by escape, never written literally
+  const persian = 'می‌خواهم';
+  const rows: [string, string, boolean][] = [
+    ['U+200C between letters', shaped(persian), true],
+    ['a bidi override U+202E', shaped(`a${String.fromCodePoint(0x202e)}b`), false],
+    ['a tag character U+E0041', shaped(`a${String.fromCodePoint(0xe0041)}b`), false],
+    ['a TAB', shaped('a\tb'), false],
+    ['300 characters in all', ofLength(300), true],
+    ['301 characters in all', ofLength(301), false],
+    ['a Test command: start', '- Test command: x — enforced by: prose', false],
+    ['a Commit rule: start', '- Commit rule: x — enforced by: prose', false],
+  ];
+  for (const [what, line, accepted_] of rows) {
+    const problem = lineProblem(line);
+    // the contract of D-12: accepted exactly when the delivery check finds nothing; the table also states what each row is
+    expect(problem === undefined, `${what}: the table row matches the delivery check`).toBe(accepted_);
+    const r = await run(['conventions', 'write', accepted(`${A}\n${line}\n`)], c.root);
+    if (problem === undefined) {
+      expect(r.code, `${what}: ${r.out}${r.err}`).toBe(0);
+      const m = /^branch: (conventions\/\d{4}-\d{2}-\d{2})$/m.exec(r.out);
+      expect(m, `${what}: ${r.out}`).not.toBeNull();
+      const branch = (m as RegExpExecArray)[1];
+      expect(gitRun(c.remote, 'show', `${branch}:accord/product/conventions.md`), what).toContain(line);
+      gitRun(c.remote, 'branch', '-D', branch);
+    } else {
+      expect(r.code, `${what}: ${r.out}${r.err}`).toBe(2);
+      expect(r.err, what).toContain('line 2');
+      expect(r.err, what).toContain(problem.reason);
+      expect(gitRun(c.remote, 'branch', '--list', 'conventions/*').trim(), `${what}: no branch is pushed`).toBe('');
+    }
+  }
 });
 
 it('risk:security accord conventions write refuses a conventions subject the quoted gh title cannot carry and writes nothing (U-3)', async () => {

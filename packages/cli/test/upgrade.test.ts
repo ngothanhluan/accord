@@ -1,5 +1,6 @@
 // ST-LN-25 `accord upgrade`: the pushed branch moves every pin, and the checkout it ran in is left alone.
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
@@ -7,7 +8,7 @@ import { parse } from 'yaml';
 import { contentHash, hookEntries, initFiles, mergeHooks, RETIRED_SKILL_FOLDERS, RULESET_FROM, setFrontmatterKey } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { done as doneFiles, laneTicket, P, pinned as pinnedConfig } from '../../../test/helpers/lane.js';
-import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
 import { copyClone, makeTemplate } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
 
@@ -459,4 +460,48 @@ it('risk:complex-branching accord upgrade does not touch an approved in-flight t
   // and the upgrade pull request carries no ticket that is not done
   const changed = gitRun(c.remote, 'diff', '--name-only', 'main', `upgrade/${RULESET_FROM}`, '--', 'accord/tickets').trim();
   expect(changed).toBe('');
+});
+
+// Phase 8.5 D-11, D-01: the upgrade pull request is where old conventions lines are fixed, so the command names each line the default branch holds that accord now withholds, and never the line itself.
+const CONVENTIONS = 'accord/product/conventions.md';
+const THREE = `branch: upgrade/${v}\nbase: main\ntitle: upgrade: accord ${v}\n`;
+
+it('risk:regression accord upgrade lists each unsafe conventions line of the default branch with its fix (8.5-ac-3 D-11)', async () => {
+  const c = copy(pinned, pinnedOther);
+  const o = c.others[0];
+  const long = `- ${'ZQ'.repeat(150)}`;
+  const original = `- A safe rule — enforced by: prose\n${long}\n`;
+  writeFiles(o, { [CONVENTIONS]: original });
+  commitMsg(o, 'conventions with a long line');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+
+  const r = await run(['upgrade'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out).toBe(`${THREE}unsafe line: ${CONVENTIONS}:2: is over 300 characters - fix: split it into lines of at most 300 characters\n`);
+  expect(r.out + r.err).not.toContain('ZQZQ');
+  // the upgrade itself is untouched by the line: it still pushes, and it leaves the file as it was
+  expect(gitRun(c.remote, 'show', `upgrade/${v}:${CONVENTIONS}`)).toBe(original);
+});
+
+it('risk:security accord upgrade lists a linked conventions.md as one unsafe file line and prints no byte of its target (8.5-ac-3 D-01)', async () => {
+  const c = copy(pinned, pinnedOther);
+  const o = c.others[0];
+  // a mode 120000 entry whose target leaves the repository, built with plumbing so it runs on every OS
+  const folder = mkdtempSync(join(tmpdir(), 'accord-link-'));
+  try {
+    writeFileSync(join(folder, 'target.txt'), '../secret.txt');
+    const oid = gitRun(o, 'hash-object', '-w', join(folder, 'target.txt')).trim();
+    gitRun(o, 'update-index', '--add', '--cacheinfo', `120000,${oid},${CONVENTIONS}`);
+    writeFileSync(join(folder, 'msg.txt'), 'conventions.md is a link\n');
+    gitRun(o, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'commit', '-q', '-F', join(folder, 'msg.txt'), '--cleanup=verbatim');
+  } finally {
+    cleanup(folder);
+  }
+  gitRun(o, 'push', '-q', 'origin', 'main');
+
+  const r = await run(['upgrade'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out).toBe(`${THREE}unsafe file: ${CONVENTIONS}: is a link or not a regular file - fix: replace it with a regular file\n`);
+  expect(r.out).not.toContain('unsafe line:');
+  expect(r.out + r.err).not.toContain('secret');
 });

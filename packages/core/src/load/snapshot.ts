@@ -18,6 +18,7 @@ import { isResearchPath } from './research.js';
 import { parseRounds } from '../round/record.js';
 import { SECURITY_FILE } from '../security/spec.js';
 import { SLOP_FILE } from '../slop/spec.js';
+import { CONVENTIONS_FILE } from '../product/lines.js';
 import { parseVerification } from './verification.js';
 import { parseBaseline, parseDebug, parseDiscuss, parseLedger, parsePlan, parseReview } from './work.js';
 
@@ -150,6 +151,8 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
   if (Object.hasOwn(files, SECURITY_FILE)) snapshotFiles[SECURITY_FILE] = normaliseText(files[SECURITY_FILE]);
   // Phase 8.1 D-15: the team's slop patterns, read by slopSpec and lint.slop-file; after the security file, so a repository without one keeps its goldens.
   if (Object.hasOwn(files, SLOP_FILE)) snapshotFiles[SLOP_FILE] = normaliseText(files[SLOP_FILE]);
+  // Phase 8.5 D-09, D-11: the team's conventions, read by lint.conventions-file; after the slop file, so a repository without one keeps its goldens.
+  if (Object.hasOwn(files, CONVENTIONS_FILE)) snapshotFiles[CONVENTIONS_FILE] = normaliseText(files[CONVENTIONS_FILE]);
 
   for (const id of Object.keys(verifications)) {
     if (Object.hasOwn(tickets, id)) continue;

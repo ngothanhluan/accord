@@ -422,7 +422,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   const conventions = program.command('conventions').description("the team's conventions file, accord/product/conventions.md");
   conventions
     .command('write <file>')
-    .description('read the accepted lines from <file> (each "- <convention> — enforced by: <rule id or prose>", printable, at most 300 characters, no comment marker; a line already in the file is skipped and named), append them to accord/product/conventions.md as origin\'s default branch has it, in a temporary worktree, commit them with the conventions subject, push branch conventions/<date> and print branch:, base: and title:; refused (exit 2) when a line cannot be read or origin already has that branch; the checkout is not touched and nothing is merged')
+    .description('read the accepted lines from <file> (each "- <convention> — enforced by: <rule id or prose>", no comment marker, and passing the same line check accord uses when it delivers conventions.md: no hidden character, at most 300 characters, no line accord itself writes; a line already in the file is skipped and named), append them to accord/product/conventions.md as origin\'s default branch has it, in a temporary worktree, commit them with the conventions subject, push branch conventions/<date> and print branch:, base: and title:; refused (exit 2) when a line cannot be read or origin already has that branch; the checkout is not touched and nothing is merged')
     .action((file: string) => {
       setCode(conventionsWrite(preflight(opts), file, opts.cwd));
     });

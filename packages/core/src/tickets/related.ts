@@ -3,6 +3,8 @@
 // open other tickets. Pure: no node import, no filesystem; the CLI hands it the snapshot it loaded (working tree plus default branch).
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Ticket } from '../model/snapshot.js';
+import type { ProductRead, RelatedParts } from '../product/assemble.js';
+import { CONVENTIONS_FILE, lineProblem, notReadLine, visibleLines, withheldLine } from '../product/lines.js';
 import { similarTickets, ticketFacts } from './similar.js';
 
 /** The sections of a related ticket that are printed, in this order. */
@@ -54,31 +56,54 @@ function sectionLines(ticket: Ticket, name: string): string[] {
 /**
  * ST-LN-84 D-10: every line of the conventions text that records a refused option: its text, after an optional list marker, starts
  * `Rejected:`. Lines inside HTML comments are not lines of the file's content; the ones that count are printed as written, minus the line break.
+ * Phase 8.5 D-08: every one of them passes the line check of product/lines.ts first, and a refused line prints `withheldLine` in its place, never its text.
+ * `conventions` is the text, or what `readProductText` read: a `not-regular` read gives the one not-read line and an absent file gives none. An unclosed `<!--`
+ * withholds its own line and cannot hide a Rejected line after it (P7).
  */
-function rejectedLines(conventions: string | undefined): string[] {
-  const raw = (conventions ?? '').replace(/^\u{FEFF}/u, '').split(/\r?\n/);
-  const visible = stripHtmlComments(raw.map((text, i) => ({ line: i + 1, text })));
-  return raw.filter((_, i) => /^\s*(?:[-*+]\s+)?Rejected:/.test(visible[i].text));
+export function rejectedLines(conventions: string | ProductRead | undefined): string[] {
+  if (typeof conventions === 'object') {
+    if (conventions.kind === 'not-regular') return [notReadLine(CONVENTIONS_FILE)];
+    if (conventions.kind === 'absent') return [];
+  }
+  const text = typeof conventions === 'string' ? conventions : (conventions?.text ?? '');
+  const raw = text.replace(/^\u{FEFF}/u, '').split(/\r\n|\r|\n/);
+  const { visible, unclosed } = visibleLines(raw);
+  const found: string[] = [];
+  raw.forEach((line, i) => {
+    if (!/^\s*(?:[-*+]\s+)?Rejected:/.test(visible[i])) return;
+    found.push(unclosed.has(i) || lineProblem(line.replace(/[ \t]+$/, '')) !== undefined ? withheldLine(CONVENTIONS_FILE, i + 1) : line);
+  });
+  return found;
+}
+
+/**
+ * What `relatedText` and the related block of `productBlocks` share: the lines under `# Related tickets of <id>`, one block `## <id> "<title>" (<status>)` per related
+ * ticket with a blank line between two, or `(none)`. undefined when `id` is no ticket of the snapshot.
+ */
+export function relatedParts(snapshot: RepoSnapshot, id: string): RelatedParts | undefined {
+  if (copyOf(snapshot, id) === undefined) return undefined;
+  const lines: string[] = [];
+  const ids = relatedIds(snapshot, id);
+  if (ids.length === 0) lines.push('(none)');
+  ids.forEach((rid, k) => {
+    const ticket = copyOf(snapshot, rid) as Ticket;
+    const fm = ticket.frontmatter as NonNullable<Ticket['frontmatter']>;
+    if (k > 0) lines.push('');
+    lines.push(`## ${rid} "${printable(fm.title)}" (${fm.status})`);
+    for (const name of SECTIONS) lines.push(`### ${name}`, ...sectionLines(ticket, name));
+  });
+  return { id, lines };
 }
 
 /**
  * The text `accord related <id>` prints: `# Related tickets of <id>`, then for each of `relatedIds` a block `## <id> "<title>" (<status>)` with
  * its `### Vetoes` and `### Decisions` lines as written, or `(none)` under the header when nothing is related, then `## Rejected` with every
- * `Rejected:` line of `conventions` (the text of accord/product/conventions.md, a fact the CLI reads from disk; absent when there is no file)
+ * `Rejected:` line of `conventions` (the text of accord/product/conventions.md, or what the CLI read of it; absent when there is no file)
  * as written, or `(none)`. undefined when `id` is no ticket of the snapshot.
  */
-export function relatedText(snapshot: RepoSnapshot, id: string, conventions?: string): string | undefined {
-  if (copyOf(snapshot, id) === undefined) return undefined;
-  const out = [`# Related tickets of ${id}`];
-  const ids = relatedIds(snapshot, id);
-  if (ids.length === 0) out.push('', '(none)');
-  for (const rid of ids) {
-    const ticket = copyOf(snapshot, rid) as Ticket;
-    const fm = ticket.frontmatter as NonNullable<Ticket['frontmatter']>;
-    out.push('', `## ${rid} "${printable(fm.title)}" (${fm.status})`);
-    for (const name of SECTIONS) out.push(`### ${name}`, ...sectionLines(ticket, name));
-  }
+export function relatedText(snapshot: RepoSnapshot, id: string, conventions?: string | ProductRead): string | undefined {
+  const parts = relatedParts(snapshot, id);
+  if (parts === undefined) return undefined;
   const rejected = rejectedLines(conventions);
-  out.push('', '## Rejected', ...(rejected.length === 0 ? ['(none)'] : rejected));
-  return out.join('\n') + '\n';
+  return [`# Related tickets of ${id}`, '', ...parts.lines, '', '## Rejected', ...(rejected.length === 0 ? ['(none)'] : rejected)].join('\n') + '\n';
 }

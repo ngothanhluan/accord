@@ -37,7 +37,8 @@ const FLOOR: Record<string, readonly string[]> = {
     'gate.suite-not-passed', 'gate.verification-unfinished', 'gate.evidence-unresolved', 'gate.note-missing', 'gate.note-unresolved', 'gate.note-pasted',
     'gate.research-record-missing', 'gate.research-spent-missing', 'gate.research-over-budget', 'gate.research-shipped',
   ],
-  'the security and data-loss rules': ['gate.sensitive-touched', 'gate.out-of-scope', 'gate.interface-sign', 'gate.branch-unknown', 'lint.lane-s-lane-m-records'],
+  // Phase 8.5 R-4: lint.conventions-file guards the trust boundary of product text delivered to agents (D-08)
+  'the security and data-loss rules': ['gate.sensitive-touched', 'gate.out-of-scope', 'gate.interface-sign', 'gate.branch-unknown', 'lint.lane-s-lane-m-records', 'lint.conventions-file'],
   'which rules apply, which lane a ticket is in and what the config says': [
     'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor', 'lint.security-file', 'lint.template-section',
   ],

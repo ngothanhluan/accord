@@ -42,6 +42,7 @@ import {
 } from './ticket.js';
 import { securityFile } from '../security/spec.js';
 import { slopFile } from '../slop/spec.js';
+import { conventionsFile } from '../product/lines.js';
 import { researchReference } from './research.js';
 import { testUntraced } from './tests.js';
 import { prototypeDerivation, tokenHardcoded, tokensMissing } from './tokens.js';
@@ -105,5 +106,8 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.security-file', level: 'error', profiles: ['build', 'maintain'], check: securityFile },
   // Phase 8.1 D-15: overridable (a team may lower it), and no claim cut-off: it reads the team's file, not a ticket.
   { id: 'lint.slop-file', level: 'error', profiles: ['build', 'maintain'], check: slopFile },
+  // Phase 8.5 D-09, D-11, R-4: an unsafe line of accord/product/conventions.md is an error over the whole file, lines written before the upgrade included, with no claim cut-off.
+  // LOCKED (gate/floor.ts): a team that could lower it would hide a forged line from its own CI; delivery withholds the line whatever the level.
+  { id: 'lint.conventions-file', level: 'error', profiles: ['build', 'maintain'], check: conventionsFile },
   { id: 'lint.template-section', level: 'error', profiles: ['build', 'maintain'], check: templateSection },
 ];

@@ -271,6 +271,33 @@ export function tabLabels({ state, ticket, running }) {
   };
 }
 
+// D-01, D-02: the agents block. Only an agent whose list type is `accord-<role>` is drawn, and the view is never given an agent's label or description:
+// a roster entry holds the type, the times and the state, nothing else. These rows rank the mod's own display state, not a number the CLI holds.
+export const ACCORD_AGENT = /^accord-[a-z][a-z-]{0,30}$/;
+export const AGENTS_SHOWN = 6;
+
+export const isAccordAgent = (type) => typeof type === 'string' && ACCORD_AGENT.test(type);
+
+// `m:ss`; a negative or non-finite time reads 0:00
+export function mmss(ms) {
+  if (!num(ms) || ms < 0) return '0:00';
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+// `roster` is an array of `{ key, type, running, startTime, durationMs?, endTime? }`, `now` epoch milliseconds: running agents first (newest start first), then finished ones (newest end first), at most AGENTS_SHOWN rows.
+export function agentRows(roster, now) {
+  const mine = roster.filter((a) => isAccordAgent(a.type));
+  const running = mine.filter((a) => a.running === true).sort((a, b) => b.startTime - a.startTime);
+  const finished = mine.filter((a) => a.running !== true).sort((a, b) => (b.endTime ?? 0) - (a.endTime ?? 0));
+  return [...running, ...finished].slice(0, AGENTS_SHOWN).map((a) => ({
+    key: a.key,
+    name: clean(a.type.slice('accord-'.length)),
+    running: a.running === true,
+    time: mmss(a.running === true ? now - a.startTime : a.durationMs),
+  }));
+}
+
 // D-04, A-01: the review block reads per round and per severity; the lens split is queued for Phase 10. Every count is one the JSON holds.
 const SEVERITIES = ['Must', 'Should', 'Nice'];
 const COUNTS = ['open', 'fixed', 'deferred'];

@@ -34,8 +34,11 @@ accord skill's lane S steps say, and the fix gets another review round.
    `gh run view <run-id> --log-failed`.
 3. A failure only another operating system shows (a CI check, or a test
    skipped here): its red is the CI log, and its green is that check
-   passing at the next verify. Give the debugger, and the executor in
-   its brief, the failing check's log as the failing output, and say
+   passing at the next verify. Give the debugger the failing check's log
+   as the failing output. Put that log into the findings file the
+   executor's brief is built from, `accord brief <id> --fix <findings file>`
+   (a log too long for the brief's line checks is saved whole to its own
+   file outside the working tree, and the findings name that file), and say
    the reproduction test is skipped on this operating system. After
    the fix, go on to the stage `accord anchor` prints, without
    `## Resolved` (`done`: the verify stage of `/accord` at step 6, whose Finish

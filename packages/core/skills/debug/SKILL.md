@@ -41,13 +41,9 @@ main session and orchestrate: debuggers investigate, executors fix.
    hypotheses and what was ruled out.
 
 4. **Fix.** The main session never edits product code: the fix goes
-   through the executor path of the build stage of `/accord`. Note the HEAD sha. Write a
-   brief file outside the working tree: copy the ticket file byte for
-   byte (never retype it), then append the root cause, its evidence, and
-   the reproduction test. The executor starts with that failing
+   through the executor path of the build stage of `/accord`. Note the HEAD sha. Write the root cause, its evidence and the reproduction test to a findings file outside the working tree and build the brief with `accord brief <id> --fix <findings file> --out fix-brief.md`. The executor starts with that failing
    reproduction test, greps every caller of what it changes, and fixes
-   the root cause once in shared code, never at each caller. Dispatch a
-   fresh `accord-executor` with its path. `BLOCKED` on a test that is
+   the root cause once in shared code, never at each caller. Dispatch a fresh `accord-executor` with the path its `file:` line prints. `BLOCKED` on a test that is
    not a criterion test: ask the owner, as there is no plan task to
    re-plan. Route every other stop as the build stage of `/accord` does.
 

@@ -17,8 +17,8 @@ executor leaves its work uncommitted until step 4, so a resumed run on a dirty t
 take the baseline after an executor has written code. There is no plan-ready commit: the baseline commit stays alone, and
 its Ruling goes into the ledger commit of step 4.
 
-1. Run `accord brief <id> 1` into a file outside the working tree (for example the system temp directory), so it is
-   never committed, and dispatch one fresh `accord-executor` with the path of that file only. Never pass chat history.
+1. Run `accord brief <id> 1 --out brief-1.md`, which writes the brief into the git-ignored `.accord-reports/<id>/` folder, so it is
+   never committed, and dispatch one fresh `accord-executor` with the path its `file:` line prints, only. Never pass chat history.
    The brief holds the whole ticket.
 
 2. When it reports, run the test command the brief printed yourself: `tests.affected`, or `tests.full` when the brief

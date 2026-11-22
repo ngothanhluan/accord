@@ -1,15 +1,20 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
+// Phase 8.5 D-03, D-05, D-07, D-23: after `## Slop` the package carries the reviewer's product blocks (the ruleset, the epic block of a story, the default branch's `## Conventions` and the
+// branch's own `## Product files changed`, from core's `productBlocks`), so a branch cannot loosen a rule for its own reviewer; `--out <file>` writes the package into the report folder.
 import { execFileSync } from 'node:child_process';
-import { interfaceSigns, matchedHunks, outsideScope, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { epicBlock, interfaceSigns, matchedHunks, outsideScope, productBlocks, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
+import { cliRuleset, productChange, readProductText } from '../load/product.js';
+import { writeAgentFile } from '../load/report.js';
 import { exemptCopies, securityRoundRanges } from '../load/security-facts.js';
 import { shown as printable } from '../load/script-trust.js';
 import { slopFacts } from '../load/slop-facts.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
+import { epicSnapshot } from './anchor.js';
 import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 
@@ -65,6 +70,19 @@ function slopSection(ctx: CommandContext, s: RepoSnapshot, id: string, def: stri
 export const securityText = (title: string, sec: SecuritySections): string =>
   [title, '## Checklist', sec.checklist, '## Security triggers', sec.triggers, '## Matched hunks', sec.hunks].join('\n\n') + '\n';
 
+/**
+ * D-23, R-5: print the package, or with `--out` write it through the one writer of agent files (`.accord-reports/<id>/<name>`, UTF-8 with no byte order mark) and print what a skill reads:
+ * the `Head:` line when the package has one, then `file: <path>`.
+ */
+function emit(ctx: CommandContext, id: string, text: string, out: string | undefined, head: string | undefined): void {
+  if (out === undefined) {
+    ctx.stdout.write(text);
+    return;
+  }
+  const file = writeAgentFile(ctx.root, id, out, text);
+  ctx.stdout.write((head === undefined ? '' : 'Head: ' + head + '\n') + 'file: ' + file + '\n');
+}
+
 /** A full 40 or 64 digit sha as its first twelve digits; any other ref as typed. */
 const abbrev = (ref: string): string => (/^[0-9a-f]{40,64}$/.test(ref) ? ref.slice(0, 12) : ref);
 
@@ -72,7 +90,7 @@ const abbrev = (ref: string): string => (/^[0-9a-f]{40,64}$/.test(ref) ? ref.sli
  * `--security --round <k>`: the security package of the k-th `## Round` section of review.md, over the range the security record rule reads (securityRoundRanges), so a session refused for a
  * skipped security review can review exactly that round. A `(final review)` round that follows a round of its stretch has none (D-10): its fix is reviewed at the re-review round after it.
  */
-function securityRoundPackage(ctx: CommandContext, id: string, asked: string): number {
+function securityRoundPackage(ctx: CommandContext, id: string, asked: string, out: string | undefined): number {
   if (!/^[1-9][0-9]*$/.test(asked)) throw new UsageError(`--round takes a round number, 1 or more: ${asked}`);
   const k = Number(asked);
   const ranges = securityRoundRanges(ctx.root, ctx.snapshot, id);
@@ -93,17 +111,17 @@ function securityRoundPackage(ctx: CommandContext, id: string, asked: string): n
     if (e instanceof UsageError) throw e;
     throw new UsageError(`cannot diff round ${k} (${range}): ${why(e)}`);
   }
-  ctx.stdout.write(securityText(`# Security package: ${id} (${range})\nHead: ${abbrev(at.head)}`, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, { root: ctx.root, head: at.head }, pkg.unread)));
+  emit(ctx, id, securityText(`# Security package: ${id} (${range})\nHead: ${abbrev(at.head)}`, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, { root: ctx.root, head: at.head }, pkg.unread)), out, abbrev(at.head));
   return 0;
 }
 
-export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string; security?: boolean; round?: string }): number {
+export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string; security?: boolean; round?: string; out?: string }): number {
   const ticket = requireLaneTicket(ctx, id);
   refuseLaneR(ticket, id, 'review package');
   if (options.round !== undefined && options.security !== true) throw new UsageError('--round is for the security package: give --security too');
   if (options.security === true && options.round !== undefined) {
     if (options.base !== undefined) throw new UsageError('--round takes the range of the recorded round; give no --base');
-    return securityRoundPackage(ctx, id, options.round);
+    return securityRoundPackage(ctx, id, options.round, options.out);
   }
   const laneS = ticket.frontmatter?.lane === 'S';
   const git = (args: string[]) =>
@@ -228,10 +246,12 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     throw new UsageError(`cannot diff ${range}: ${why(e)}`);
   }
   // ST-LN-62: what `accord gate done` would name, shown before it runs; the command never fails on the fact.
+  let headLine: string | undefined;
   if (!old) {
     const walk = readWalk(ctx.root, { laneS, def, baseline });
     const commit = ctx.snapshot.git?.commit;
     const head = 'error' in walk ? '(cannot tell: ' + walk.error + ')' : commit === undefined ? '(cannot tell: no commit)' : nearestCode(walk, commit, id);
+    headLine = head;
     parts[0] += '\nHead: ' + head;
   }
   const shown: string[] = [];
@@ -250,12 +270,19 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   if (options.security === true) {
     // The security package: the same range and diff, but only the checklist, the triggers and the hunks they match.
     const at = parts[0].indexOf('\nHead: ');
-    ctx.stdout.write(securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true, { root: ctx.root, head: 'HEAD' }, unread)));
+    emit(ctx, id, securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true, { root: ctx.root, head: 'HEAD' }, unread)), options.out, headLine);
     return 0;
   }
   shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false, { root: ctx.root, head: 'HEAD' }, unread).triggers);
   shown.push('## Slop', slopSection(ctx, s, id, def));
-  parts.splice(parts.indexOf('## Stat'), 0, ...shown);
-  ctx.stdout.write(parts.join('\n\n') + '\n');
+  // D-03, D-05, D-07: the reviewer's product blocks, read from the default ref this function already read (no second lookup); a clone with no default ref gets the working copy and the one line saying so.
+  const product = productBlocks('reviewer', {
+    ruleset: cliRuleset(),
+    epic: epicBlock(epicSnapshot(ctx, id), id),
+    conventions: readProductText(ctx.root, { from: 'default', ref: def }),
+    changed: productChange(ctx.root, def, 'HEAD'),
+  });
+  parts.splice(parts.indexOf('## Stat'), 0, ...shown, ...product);
+  emit(ctx, id, parts.join('\n\n') + '\n', options.out, headLine);
   return 0;
 }

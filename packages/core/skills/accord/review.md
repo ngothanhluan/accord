@@ -11,11 +11,7 @@ fix.
 1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming review, do not run this stage: tell the
    owner so in one line and go to the stage it names next, `./verify.md`.
 
-2. **Package.** Run `accord review-package <id>` into a file outside the working tree. After a round with a head in
-   `review.md`, it holds the commits, the stat, and the diff after that head, without what a merge brought in from
-   the default branch; before round 1, from the plan's `baseline:` (when the plan stage is off there is none: from the default branch). It prints `Head: <sha>` for the round's heading,
-   and lists under `## Undeclared files` every changed file no task's `files:` line names, and under
-   `## Interface signs` each sign of a new interface the branch adds.
+2. **Package.** Run `accord review-package <id> --out package-<n>.md`; it prints `Head: <sha>` for the round's heading and `file: <path>`, the reviewers' package. After a round with a head in `review.md`, it holds the commits, the stat, and the diff after that head, without what a merge brought in from the default branch; before round 1, from the plan's `baseline:` (when the plan stage is off there is none: from the default branch). It lists under `## Undeclared files` every changed file no task's `files:` line names, and under `## Interface signs` each sign of a new interface the branch adds.
 
 3. **Reviewers.** Choose by the unit's diff size and risk:
    - up to about 500 changed lines: one `accord-reviewer`, lens `both`;
@@ -41,9 +37,7 @@ fix.
    - Copy every Ruling in its report, and each file outside the plan you accept, or that the fix changed with no
      finding of the round in it, as a Ruling naming the file and its reason, into
      `accord/tickets/<id>/ledger.md` under `## Rulings`; commit the ledger.
-   - After every fix round, a Should-only one included, re-review only the fix diff:
-     `accord review-package <id>` into a file outside the working tree, one
-     reviewer, lens `both`, given the findings it re-checks and asked for one line each,
+   - After every fix round, a Should-only one included, re-review only the fix diff: `accord review-package <id> --out package-<n>.md`, one reviewer, lens `both`, given the findings it re-checks and asked for one line each,
      `<r>.<n>: ADDRESSED <path>:<line>` or `<r>.<n>: NOT ADDRESSED <path>:<line>`; record its answers as `./review-record.md` says.
    - A plan gap goes back to `./plan.md` as a re-plan, where the critic runs again; with the plan stage off, stop and ask the owner.
    - An intent gap stops the run and asks the owner.
@@ -57,8 +51,7 @@ fix.
    tiers up from `escalation.fix_round_tier_up`. On `stop: report to owner` (a Should or a Must from round 3, or the cap)
    or `refused:`, act as `./review-record.md` says; never report the work finished. On `Re-review:`, re-review first; past the cap, on the owner's Ruling.
 
-7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from
-   `accord review-package <id> --base <the plan's baseline:>` (when the plan stage is off, `--base <the default branch>`), its round headed `(final review)` (over about 1500
+7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from `accord review-package <id> --base <the plan's baseline:> --out final-package.md` (when the plan stage is off, `--base <the default branch>`), its round headed `(final review)` (over about 1500
    changed lines, dispatch it with lens `integration`). If it finds a Must or a Should: one fix and one scoped re-review, as in
    step 4. Its brief: `accord brief <id> --fix`. If a Must or a Should is still open after that (a NOT ADDRESSED one is), stop and ask the owner.
 

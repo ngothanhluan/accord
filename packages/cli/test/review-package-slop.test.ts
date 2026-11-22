@@ -12,7 +12,9 @@ function identity(repo: string): void {
 /** The `## Slop` section of a package, heading included. */
 const slopSection = (out: string): string => {
   const at = out.indexOf('## Slop');
-  const next = out.indexOf('\n## ', at + 1);
+  // Phase 8.5 D-03 (08.5-06): the ruleset's heading, `# accord rules`, follows `## Slop` with one `#`, so the section ends at the next heading of either depth.
+  const rest = out.slice(at + 1).search(/\n#{1,2} /);
+  const next = rest < 0 ? -1 : rest + at + 1;
   return at < 0 ? '' : out.slice(at, next < 0 ? undefined : next).trimEnd();
 };
 const slopLines = (out: string): string[] => slopSection(out).split('\n').filter((l) => l.startsWith('- slop:'));

@@ -77,8 +77,13 @@ it('risk:security review-package prints the security triggers of a change in lan
 const BEFORE = fileURLToPath(new URL('./fixtures/review-package-before/', import.meta.url));
 const shas = (text: string): string => text.replace(/\b[0-9a-f]{7,40}\b/g, '<sha>');
 // Phase 8.1 G4a: the `## Slop` section that follows the security one is left out as well; review-package-slop.test.ts proves it.
+// Phase 8.5 D-03, D-05 (08.5-06): the product blocks that follow `## Slop` (the ruleset, `## Epic`, `## Conventions`, `## Product files changed`) are left out too, first, because the slop
+// pattern below expects a `## ` heading right after its section and the ruleset's heading is `# accord rules`; review-package-conventions.test.ts proves the blocks themselves.
 const withoutSecurity = (text: string): string =>
-  text.replace(/## Security triggers\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '').replace(/## Slop\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '');
+  text
+    .replace(/# accord rules[\s\S]*?(?=## Stat\n)/, '')
+    .replace(/## Security triggers\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '')
+    .replace(/## Slop\n\n[^\n]*(?:\n[^\n#][^\n]*)*\n\n(?=## )/, '');
 
 it.each(PACKAGE_FIXTURES)(
   'risk:regression review-package is byte-identical apart from the security section and runs no new git command, %s (ST-LN-36 36-ac-1)',

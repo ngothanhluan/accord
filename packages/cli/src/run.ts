@@ -210,19 +210,22 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('review-package <id>')
-    .description('print the commits, stat, and diff a reviewer reads')
+    .description("print the commits, stat, and diff a reviewer reads, then the ruleset, the story's epic block, the default branch's conventions and the branch's own change to them")
     .option('--base <ref>', "the commit or branch the work started from (default: the plan's baseline:; with the plan stage off, the default branch)")
     .option('--security', 'print the security package: the checklist, the security triggers and only the hunks they match')
     .option('--round <n>', 'with --security: the package of the n-th ## Round section of review.md')
-    .action((id: string, options: { base?: string; security?: boolean; round?: string }) => {
+    .option('--out <file>', 'write the package to <file> in the report folder (.accord-reports/<id>/, git-ignored), UTF-8 with no byte order mark; stdout then prints the Head line and the file path')
+    .action((id: string, options: { base?: string; security?: boolean; round?: string; out?: string }) => {
       setCode(reviewPackage(preflight(opts), id, options));
     });
 
   program
-    .command('diff-package <base> <head>')
-    .description('print the review package of the changes from <base> to <head>, for a review of code accord did not build')
+    .command('diff-package [base] [head]')
+    .description("print the review package of the changes from <base> to <head>, for a review of code accord did not build, with the default branch's conventions when the pull request is this repository's")
     .option('--security', 'print the security package: the checklist, the security triggers and only the hunks they match')
-    .action((base: string, head: string, options: { security?: boolean }) => {
+    .option('--pr <url>', "the pull request's link, from gh pr view's url field: the CLI tells whether it belongs to this repository; with no <base> and <head> it prints where to fetch its commits from")
+    .option('--out <file>', 'write the package to <file> in the report folder (.accord-reports/_diff/, git-ignored), UTF-8 with no byte order mark; stdout then prints the changed-line count and the file path')
+    .action((base: string | undefined, head: string | undefined, options: { security?: boolean; pr?: string; out?: string }) => {
       setCode(diffPackage(preflight(opts), base, head, options));
     });
 
@@ -525,9 +528,16 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('related <id>')
-    .description('print the Vetoes and Decisions of the tickets related to <id>, for the scout at intent and the critic at approach')
-    .action((id: string) => {
-      setCode(related(preflight(opts), id));
+    .description('print the Vetoes and Decisions of the tickets related to <id>, for the scout at intent and the critic at approach; with --for, the file the scout, planner, critic or judge is given')
+    .addOption(
+      new Option(
+        '--for <role>',
+        'scout, planner, critic or judge: print the file that agent is given: the ruleset, the related tickets, the Rejected lines, the epic block, for the planner and the judge the conventions, and for the judge the change this branch makes to them',
+      ).choices(['scout', 'planner', 'critic', 'judge']),
+    )
+    .option('--out <file>', 'with --for: write the file to <file> in the report folder (.accord-reports/<id>/, git-ignored), UTF-8 with no byte order mark, and print its path')
+    .action((id: string, options: { for?: string; out?: string }) => {
+      setCode(related(preflight(opts), id, options));
     });
 
   program

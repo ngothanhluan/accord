@@ -1,9 +1,15 @@
 // ST-LN-83 07-07 (D-05) `accord diff-package <base> <head> [--security]`: the review package of any two commits, for a review of code or a pull request accord
 // did not build. It has no ticket, plan or round, so it is not `review-package <id>`; it prints what a reviewer reads, a deterministic changed-line count the size
-// rule reads, and with `--security` the security sections review-package builds. git only, literal argument arrays, no shell, and nothing here writes.
+// rule reads, and with `--security` the security sections review-package builds. git only, literal argument arrays, no shell, and nothing here writes to the repository.
+// Phase 8.5 D-14, D-23, R-9: after the title the package carries the default branch's `## Conventions` and the range's own `## Product files changed` (the foreign reviewer's
+// blocks), unless `--pr <url>` names another repository's pull request, which gets one line saying none; the CLI tells this repository's pull request from another's by comparing the
+// link with origin's URL, and runs no network command: `--pr` alone prints where to fetch from. `--out <file>` writes only into the git-ignored report folder (`.accord-reports/_diff/`).
 import { execFileSync } from 'node:child_process';
-import { UsageError } from '../load/fs.js';
+import { fetchLine, otherRepositoryLine, productBlocks, pullRequestOf, repositoryOf, unknownRepositoryLine } from '@accord-dev/accord-core';
+import { defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, why } from '../load/package-diff.js';
+import { originUrl, productChange, readProductText } from '../load/product.js';
+import { assertAgentFile, DIFF_FOLDER, writeAgentFile } from '../load/report.js';
 import type { CommandContext } from '../run.js';
 import { securitySections, securityText } from './review-package.js';
 
@@ -38,7 +44,27 @@ function changedLines(root: string, range: string): number {
   return total;
 }
 
-export function diffPackage(ctx: CommandContext, base: string, head: string, options: { security?: boolean }): number {
+/**
+ * R-9: `accord diff-package --pr <url>` with no base and head: where the pull request's commits come from, for the skill to fetch (the CLI fetches nothing): `repository: this` and
+ * `fetch: origin pull/<n>/head`, `repository: other <owner>/<repo>` and `fetch: https://github.com/<owner>/<repo>.git pull/<n>/head`, or `repository: unknown - <why>` and no fetch line.
+ */
+function decision(ctx: CommandContext, link: string): number {
+  const pull = pullRequestOf(link);
+  const where = repositoryOf(pull, originUrl(ctx.root));
+  const fetch = fetchLine(where, pull);
+  const said = where.kind === 'this' ? 'this' : where.kind === 'other' ? `other ${where.owner}/${where.repo}` : `unknown - ${where.why}`;
+  ctx.stdout.write(`repository: ${said}\n` + (fetch === undefined ? '' : `fetch: ${fetch}\n`));
+  return 0;
+}
+
+export function diffPackage(ctx: CommandContext, base: string | undefined, head: string | undefined, options: { security?: boolean; pr?: string; out?: string }): number {
+  if (base === undefined && head === undefined) {
+    if (options.pr === undefined) throw new UsageError('give <base> and <head>, or --pr <url> alone to see where its commits are fetched from');
+    if (options.security === true || options.out !== undefined) throw new UsageError('--pr with no <base> and <head> only says where to fetch from; give --security or --out with <base> and <head>');
+    return decision(ctx, options.pr);
+  }
+  if (base === undefined || head === undefined) throw new UsageError('give both <base> and <head>, or neither with --pr <url>');
+  if (options.out !== undefined) assertAgentFile(DIFF_FOLDER, options.out);
   const baseSha = commitOf(ctx.root, base);
   const headSha = commitOf(ctx.root, head);
   const range = `${baseSha}...${headSha}`;
@@ -53,10 +79,21 @@ export function diffPackage(ctx: CommandContext, base: string, head: string, opt
     throw new UsageError(`cannot diff ${base}...${head}: ${why(e)}`);
   }
   const title = `# Diff package ${base}...${head}\nBase: ${baseSha}\nHead: ${headSha}\nChanged lines: ${lines}`;
-  if (options.security === true) {
-    ctx.stdout.write(securityText(title, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, { root: ctx.root, head: headSha }, pkg.unread)));
+  // D-23, R-5: with `--out` the text is written through the one writer of agent files and stdout says what a skill reads: the changed-line count, then the path.
+  const emit = (text: string): number => {
+    ctx.stdout.write(options.out === undefined ? text : `Changed lines: ${lines}\nfile: ${writeAgentFile(ctx.root, DIFF_FOLDER, options.out, text)}\n`);
     return 0;
-  }
-  ctx.stdout.write([title, '## Stat', pkg.stat || '(no changes)', '## Diff', pkg.diff || '(no changes)'].join('\n\n') + '\n');
-  return 0;
+  };
+  // 8.5-ac-19: the security package holds the checklist and what it matches, and no product text.
+  if (options.security === true) return emit(securityText(title, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, { root: ctx.root, head: headSha }, pkg.unread)));
+  // D-14: this repository's review (no link, or a link of this repository's own pull request) gets the default branch's conventions and the range's change; another repository's gets one line.
+  const where = options.pr === undefined ? ({ kind: 'this' } as const) : repositoryOf(pullRequestOf(options.pr), originUrl(ctx.root));
+  const product =
+    where.kind === 'this'
+      ? productBlocks('foreign-reviewer', {
+          conventions: readProductText(ctx.root, { from: 'default', ref: defaultRefOf(ctx.root) }),
+          changed: productChange(ctx.root, baseSha, headSha),
+        })
+      : [where.kind === 'other' ? otherRepositoryLine(where.owner, where.repo) : unknownRepositoryLine(where.why)];
+  return emit([title, ...product, '## Stat', pkg.stat || '(no changes)', '## Diff', pkg.diff || '(no changes)'].join('\n\n') + '\n');
 }

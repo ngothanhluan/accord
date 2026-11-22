@@ -11,9 +11,9 @@ Run `accord anchor <id>` first. When it prints `stages off for lane <L>:` naming
 tell the owner so in one line, write no discuss.md, and go to the stage `accord anchor` names next.
 
 1. Dispatch `accord-planner` in its `discuss` mode with the paths of `accord/tickets/<id>.md` and
-   `accord/tickets/<id>/scout.md`. It replies with the gray areas by group: direction options, behaviour and
+   `accord/tickets/<id>/scout.md`, and the path `accord related <id> --for planner --out planner-input.md` printed. It replies with the gray areas by group: direction options, behaviour and
    output, failure and data loss, scope edges, interfaces, measurement rules or heuristics, test strategy. It always returns at least the test-strategy gray area; when a reply holds none, write that one yourself. When
-   its reply names a question the code answers, dispatch `accord-scout` with that question and give the planner
+   its reply names a question the code answers, dispatch `accord-scout` with that question and the path `accord related <id> --for scout --out scout-input.md` printed, and give the planner
    the reply.
    When a gray area, or the ticket itself, turns on an outside library, API or version that the code cannot answer,
    dispatch `accord-researcher` once per library, with the question and the library, and its version when it is known.

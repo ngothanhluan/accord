@@ -206,3 +206,9 @@ Follow every line below in every commit and every file you write, and never gues
 - Never add a trailer.
 (accord withheld line 4 of accord/product/conventions.md: it breaks a delivery rule; run accord lint)
 - Rejected: a queue — too slow
+
+=== other-repository ===
+Conventions: none - this pull request belongs to another repository (someone/fork), so it is judged against its own stated purpose only
+
+=== unknown-repository ===
+Conventions: none - accord cannot tell which repository this pull request belongs to (origin's URL is not a form accord reads), so none of this repository's conventions are given

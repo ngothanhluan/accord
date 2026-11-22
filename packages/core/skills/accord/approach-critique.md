@@ -67,7 +67,7 @@ critique is always the one `## Approach` names: a resumed session or a
 revision keeps it, and only step 3 below or the owner moves to another. When
 another option of the ladder Ruling takes the place of the one `## Approach`
 names and this session no longer holds the planner's report, dispatch
-`accord-planner` in its `direction` mode with the ticket path, that option's
+`accord-planner` in its `direction` mode with the ticket path, the `planner-input.md` path, that option's
 name and its entry of the ladder Ruling, and write the draft it returns into
 `## Approach` as step 2 of the skill says.
 
@@ -112,16 +112,17 @@ run it again.
 
 ## The rounds
 
-1. **Read.** Round 1 is `whole`: run `accord related <id>`, then dispatch one `accord-critic` in a
+1. **Read.** Before each round run `accord related <id> --for critic --out critic-input.md`; every critic of the round,
+   a `diff` one included, gets the path its `file:` line printed. Round 1 is `whole`: dispatch one `accord-critic` in a
    fresh context, mode `approach`, with the path of the ticket file, whose `## Approach` holds
-   only the draft of step 2, and what `accord related <id>` printed, verbatim, so it can check
-   the approach against the related tickets' Vetoes and Decisions. When the ticket touches auth, money, migration,
+   only the draft of step 2, and the `critic-input.md` path, so it can check
+   the approach against the related tickets' Vetoes and Decisions and the epic's. When the ticket touches auth, money, migration,
    or data deletion, ask it for three concrete failure scenarios as well.
    From round 2, even after a Must, the round is `diff`: write
    `git diff <the previous round's commit> -- accord/tickets/<id>.md`, which
    holds the amended `## Approach`, into a file outside the working tree, and
    dispatch one `accord-critic` in a fresh context, mode `approach`, with the
-   paths of the ticket, that file, and `approach-review.md`, never the
+   paths of the ticket, that file, `approach-review.md` and the `critic-input.md` path, never the
    planner's report. The planner's `accord/tickets/<id>/direction.md` holds
    its reasons: it is committed with the ticket and never given to the
    critic.
@@ -152,7 +153,7 @@ run it again.
    that `accord subject approach_round <id> round <n>, <m> Must, <s> Should` prints, `<m>` and `<s>` counting
    the Musts and the Shoulds after the last `## Closed` line that are `open`
    or `unverified`; the next `diff` round reads from that commit. Dispatch
-   `accord-planner` in its `direction` mode with the ticket path, the name of
+   `accord-planner` in its `direction` mode with the ticket path, the `planner-input.md` path, the name of
    the option `## Approach` names, the path of `approach-review.md`, and every
    Must and Should that is `open` or `unverified`, never a Nice, each
    labelled `<round>.<n>`. Write the revised option, which keeps its name,

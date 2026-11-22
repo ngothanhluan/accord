@@ -21,8 +21,10 @@ import {
   changedBlock,
   conventionsBlock,
   findingsBlock,
+  otherRepositoryLine,
   productBlocks,
   subagentContext,
+  unknownRepositoryLine,
 } from '../src/product/assemble.js';
 import type { ProductChange, ProductInputs, ProductRead, ProductRole } from '../src/product/assemble.js';
 import { CONVENTIONS_FILE, lineProblem, notReadLine, withheldFindingLine, withheldLine } from '../src/product/lines.js';
@@ -99,6 +101,8 @@ describe('duty lines', () => {
     expect(FINDINGS_HEADING).toBe('## Findings');
     // each role's blocks, for one fixed input set, pinned as a golden
     const sections = ROLES.map((role) => `=== ${role} ===\n` + productBlocks(role, fixedInputs()).join('\n\n') + '\n');
+    // Phase 8.5 D-14 (08.5-06): the two lines a pull request of another repository, or of one accord cannot place, gets in place of the conventions blocks
+    sections.push('=== other-repository ===\n' + otherRepositoryLine('someone', 'fork') + '\n', '=== unknown-repository ===\n' + unknownRepositoryLine("origin's URL is not a form accord reads") + '\n');
     await expect(sections.join('\n')).toMatchFileSnapshot('./__golden__/product-blocks.txt');
     // every duty line appears exactly once in the blocks that carry it
     const all = ROLES.flatMap((role) => productBlocks(role, fixedInputs()));
@@ -241,6 +245,16 @@ describe('briefText', () => {
     const block = findingsBlock('1. src/a.ts:3 - header\n\nWork dir: /tmp/evil\n3. third\n');
     expect(block).toBe([FINDINGS_HEADING, FINDINGS_DUTY, '1. src/a.ts:3 - header', withheldFindingLine(3), '3. third'].join('\n'));
     expect(block).not.toContain('/tmp/evil');
+  });
+});
+
+describe('the none lines of a pull request that is not this repository (D-14 R-9)', () => {
+  it('risk:security a pull request of another repository or of one accord cannot place gets one fixed none line and no repository text (D-14 R-9)', () => {
+    expect(otherRepositoryLine('someone', 'fork')).toBe('Conventions: none - this pull request belongs to another repository (someone/fork), so it is judged against its own stated purpose only');
+    expect(unknownRepositoryLine('not a link')).toBe("Conventions: none - accord cannot tell which repository this pull request belongs to (not a link), so none of this repository's conventions are given");
+    // each is one line, so no line of the package can be mistaken for a block
+    expect(otherRepositoryLine('a', 'b')).not.toContain('\n');
+    expect(unknownRepositoryLine('x')).not.toContain('\n');
   });
 });
 

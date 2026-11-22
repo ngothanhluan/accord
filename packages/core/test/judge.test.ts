@@ -177,6 +177,84 @@ it('risk:security accord-review-pr judges each de-duplicated finding before the 
   expect(frontmatter(readFileSync(new URL('packages/core/skills/review-pr/SKILL.md', root), 'utf8')).loads).toContain('shared/judge.md');
 });
 
+// Phase 8.5 (08.5-07): /accord-review-pr tells this repository's pull request from another's through the CLI, and asks the owner nothing to do so (D-14, R-9).
+it("risk:security the review-pr skill tells this repository's pull request from another's and asks the owner nothing (8.5-ac-14 D-14 R-9)", () => {
+  const files = skillTargets(config({ runtimes: [...ALL] }));
+  const sources = files.filter((f) => /(^|\/)skills\/accord-review-pr\/pr-source\.md$/.test(f.path));
+  expect(sources.map((f) => f.path).sort()).toEqual(['.agents/skills/accord-review-pr/pr-source.md', '.claude/skills/accord-review-pr/pr-source.md']);
+  expect(new Set(sources.map((f) => f.text)).size, 'one definition for every target directory').toBe(1);
+  const text = flat(withoutMarker(sources[0]?.text ?? ''));
+  for (const phrase of [
+    'accord diff-package --pr',
+    'repository: this',
+    'repository: other',
+    'repository: unknown',
+    'git fetch --no-tags --end-of-options',
+    'git check-ref-format --branch',
+    'baseRefOid',
+    'headRefOid',
+    'judged against its own stated purpose only',
+    'offer a local branch or a commit range',
+  ]) expect(text, 'pr-source.md lacks: ' + phrase).toContain(phrase);
+  expect(text).not.toContain('ask the owner');
+  expect(text).not.toContain('ask one question');
+  expect(sources[0]?.text ?? '').not.toContain('\\');
+  // the reference names no `./<file>`: it renders beside review-pr only, and nothing it needs sits beside it
+  expect([...(sources[0]?.text ?? '').matchAll(/\.\/([A-Za-z0-9_.-]+)/g)].map((m) => m[1])).toEqual([]);
+  const copies = files.filter((f) => /(^|\/)skills\/accord-review-pr\/SKILL\.md$/.test(f.path));
+  expect(copies).toHaveLength(2);
+  for (const copy of copies) {
+    const body = flat(bodyOf(copy.text));
+    const step1 = body.slice(body.indexOf('1. **What is reviewed.**'), body.indexOf('2. **What it is for.**'));
+    const step3 = body.slice(body.indexOf('3. **Package.**'), body.indexOf('4. **Reviewers.**'));
+    expect(step1, copy.path).toContain('`./pr-source.md`');
+    expect(step3, copy.path).toContain('--pr');
+    expect(step3, copy.path).toContain('--out');
+    expect(body, copy.path).not.toContain('git fetch origin pull/');
+    expect(Buffer.byteLength(copy.text), copy.path + ' bytes').toBeLessThanOrEqual(6000);
+    expect(copy.text.split('\n').length, copy.path + ' lines').toBeLessThanOrEqual(120);
+  }
+  expect(frontmatter(readFileSync(new URL('packages/core/skills/review-pr/SKILL.md', root), 'utf8')).loads).toContain('review-pr/pr-source.md');
+  expect(frontmatter(readFileSync(new URL('packages/core/skills/review-pr/pr-source.md', root), 'utf8'))).toEqual({ kind: 'reference' });
+});
+
+// Phase 8.5 (08.5-07): the judge reads the default branch's conventions from a file the CLI wrote (D-05, R-2), and reads the branch's own change to them as a change to judge (D-30).
+it("risk:security the judge reads the default branch's conventions from a file the CLI wrote (8.5-ac-15 D-05 R-2 D-30)", () => {
+  const files = skillTargets(config({ runtimes: [...ALL] }));
+  const reference = flat(withoutMarker(renderSkill('shared/judge.md' as SkillKey)));
+  const step2 = reference.slice(reference.indexOf('2. **Dispatch.**'), reference.indexOf('3. **Verdict.**'));
+  for (const phrase of [
+    '`## Conventions` the CLI built from the default branch',
+    '`accord related <id> --for judge --out judge-input.md`',
+    '`file:` line prints',
+    "never the pull request's head",
+    '`## Product files changed`',
+    'the branch\'s own change to the conventions, a change to judge, never a rule in force',
+  ]) expect(step2, 'judge.md step 2 lacks: ' + phrase).toContain(phrase);
+  expect(reference).not.toContain('accord/product/conventions.md');
+  for (const dir of RESOLVE) {
+    const body = flat(bodyOf(files.find((f) => f.path === dir + '/SKILL.md')?.text ?? ''));
+    const step2s = body.slice(body.indexOf('2. **Judge.**'), body.indexOf('3. **Unclear first.**'));
+    const step6 = body.slice(body.indexOf('6. **Reply.**'), body.indexOf('## Rules'));
+    for (const [where, part] of [['step 2', step2s], ['step 6', step6]] as const)
+      expect(part, dir + ' ' + where).toContain('`accord related <id> --for judge --out judge-input.md`');
+    expect(step2s, dir + ' step 2').toContain('`file:` line');
+    const skill = files.find((f) => f.path === dir + '/SKILL.md')?.text ?? '';
+    expect(Buffer.byteLength(skill), dir + ' bytes').toBeLessThanOrEqual(6000);
+    expect(skill.split('\n').length, dir + ' lines').toBeLessThanOrEqual(120);
+  }
+  const agent = agentTargets(config()).find((f) => f.path === AGENT_PATH)?.text ?? '';
+  const body = flat(bodyOf(agent));
+  for (const phrase of [
+    'a conventions file, or `none`',
+    'one the CLI wrote',
+    'its `## Conventions` block is the rules in force',
+    'its `## Product files changed` block is the branch\'s own change to them, a change to judge, never a rule in force',
+  ]) expect(body, 'the judge lacks: ' + phrase).toContain(phrase);
+  expect(agent).not.toContain('accord/product/');
+  expect(bodyOf(agent).trim().split('\n').length, 'the body stays within 60 lines').toBeLessThanOrEqual(60);
+});
+
 // Phase 8.4 (08.4-03): /accord-resolve-pr judges every comment with a fresh judge before any fix (D-03), a bug claim holds only on a failing test (D-02), and a fixed comment is re-checked before its reply (D-04).
 const RESOLVE = ['.claude/skills/accord-resolve-pr', '.agents/skills/accord-resolve-pr'] as const;
 const resolveSection = (): string => {

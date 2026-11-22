@@ -13,7 +13,9 @@ prints for this ticket (five rounds and the stop from round 3).
 
 Count the `## Task` sections of `plan.md` and judge from the ticket and the
 plan whether the ticket touches auth, money, migration, or data deletion, or
-the plan touches a path under `sensitive:` in `accord/config.yml`. Dispatch
+the plan touches a path under `sensitive:` in `accord/config.yml`. Run
+`accord related <id> --for critic --out critic-input.md` first: every critic of round 1
+gets the path its `file:` line printed. Dispatch
 in parallel, each in a fresh context, mode `plan`, with the paths of the
 ticket and `plan.md`:
 

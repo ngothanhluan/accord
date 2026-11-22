@@ -322,8 +322,9 @@ it('risk:complex-branching the review package lists the out-of-scope files and i
     commitMsg(repo, 'change');
     const first = await run(['review-package', 'S-1'], repo);
     expect(first.code).toBe(0);
+    // Phase 8.5 D-03 (08.5-06): the reviewer's product blocks follow the slop section, ruleset first, so the sections pinned here end at the ruleset and no longer at `## Stat`.
     expect(first.out).toContain(
-      '## Out-of-scope files\n\nschemas/x.json\nsrc/b.ts\n\n## Interface signs\n\nschemas/x.json: a new schema file\n\n## Security triggers\n\n(none: no pattern matched)\n\n## Slop\n\n- slop:orphan-file src/b.ts:1 — no other tracked file names it\n\n## Stat',
+      '## Out-of-scope files\n\nschemas/x.json\nsrc/b.ts\n\n## Interface signs\n\nschemas/x.json: a new schema file\n\n## Security triggers\n\n(none: no pattern matched)\n\n## Slop\n\n- slop:orphan-file src/b.ts:1 — no other tracked file names it\n\n# accord rules',
     );
     gitRun(repo, 'rm', '-q', 'src/b.ts', 'schemas/x.json');
     commitMsg(repo, 'remove');

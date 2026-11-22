@@ -153,9 +153,10 @@ it('ac-1 in claude code pick up from the main checkout takes the hold and prints
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
   expect(readHolds(c)['ST-9']).toMatchObject({ tool: 'Claude Code', marker: 'sess-A', pid: 7001, start: 'S-A' });
   expect(c.git('branch', '--show-current').trim()).toBe('main');
-  const moved = await run(['anchor'], c.sibling('ST-9'));
+  // Phase 8.5 D-25: the anchor runs as the Claude Code session it is, whose hooks print the ruleset
+  const moved = await run(['anchor'], c.sibling('ST-9'), envOf(A));
   expect(moved.out.startsWith('# Anchor: ST-9')).toBe(true);
-  expect(moved.out).toBe((await run(['anchor', 'ST-9'], c.root)).out);
+  expect(moved.out).toBe((await run(['anchor', 'ST-9'], c.root, envOf(A))).out);
 });
 
 it('ac-2 in claude code continue from the main checkout enters a claimed worktree whose session ended with or without a worktree here', async () => {
@@ -246,7 +247,7 @@ it('ac-3 in claude code a new lane m ticket is committed pushed and held and pri
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
   expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
   expect(existsSync(`${c.root}/accord/tickets/ST-9.md`)).toBe(false);
-  const a = await run(['anchor'], c.sibling('ST-9'));
+  const a = await run(['anchor'], c.sibling('ST-9'), envOf(A)); // Phase 8.5 D-25: as the Claude Code session it is
   expect(a.code).toBe(0);
   expect(a.out.startsWith('# Anchor: ST-9')).toBe(true);
   expect(a.out).toContain('Stage: intent');

@@ -108,7 +108,7 @@ The designer skill, `accord-designer`, is opt-in: it is installed only when `rol
 Lanes:
 
 - S, a small fix (a bug, a copy change, one flag). The session writes one line for what it understood and one for when it is done, makes the change, runs the affected tests, and runs review rounds with a fresh reviewer until no Must finding is open. Then `gate done` and a pull request.
-- M, a feature (one story). It passes through six stages. They are files of `/accord`, which reads the one for the ticket's stage from `accord anchor`, in a new session and after every `/clear` or compaction too:
+- M, a feature (one story). It passes through six stages. They are files of `/accord`, which reads the one for the ticket's stage from `accord anchor`, in a new session and after every `/clear` or compaction too (on tools without the session hooks `accord anchor` also prints the rules first, and in lane S the team's conventions at build and review):
   1. intent (`intent.md`): an interview that writes the intent, acceptance criteria, vetoes and decisions, then the discuss stage: it asks the owner every gray area one at a time, with a recommended default and what each choice costs, and writes each answer as a Decision.
   2. approach (`approach.md`): the planner drafts the lightest approach that works, a critic argues against it in at most two rounds `accord round <id> --approach` counts, and the owner approves the whole ticket once, from `accord show <id> --approval --short`.
   3. plan (`plan.md`): a task-by-task plan that lists tasks, criteria, files, interfaces and dependencies, checked by `accord gate plan`, and one plan checker checks it in at most three rounds.

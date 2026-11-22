@@ -6,6 +6,8 @@ import { unfinishedDebug, workOf } from '../gate/work.js';
 import { headingKey, sectionLines } from '../load/sections.js';
 import { RULING } from '../load/work.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { productBlocks } from '../product/assemble.js';
+import type { ProductRead } from '../product/assemble.js';
 import { epicBlock } from './epic.js';
 import { laneRNext, laneSNext, nextStep, progressOf } from './stage.js';
 import type { LaneRStage, LaneSStage } from './stage.js';
@@ -44,8 +46,10 @@ function unfinishedLines(snapshot: RepoSnapshot, id: string): string[] {
 /**
  * undefined when `id` is not a lane ticket in the snapshot. `header` is extra header lines the host supplies (ST-LN-50 D-08: `stages off for lane <L>: ...`); they close the base lines (Stage, Review base)
  * and come before the Unfinished lines, so the header reads in one order whoever prints it.
+ * Phase 8.5 D-17: `product` is what the host read of the working branch's conventions.md (D-06; core reads nothing). A lane S ticket at `build` or `review`, the stages where its session writes code
+ * with no brief, gets the conventions block of `productBlocks('lane-s-session')` last, after `## Rulings`, with its duty line and every line checked; any other ticket and stage, and a call without `product`, print today's text.
  */
-export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly string[] = []): string | undefined {
+export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly string[] = [], product?: { conventions: ProductRead }): string | undefined {
   if (!Object.hasOwn(snapshot.tickets, id)) return undefined;
   const ticket = snapshot.tickets[id];
   const progress = progressOf(snapshot, ticket);
@@ -88,5 +92,6 @@ export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly 
   const printed = new Set(written.map((l) => RULING.exec(l)?.[1]));
   const rulings = [...written, ...(work?.ledger?.rulings ?? []).filter((r) => !printed.has(r))];
   out.push('', '## Rulings', ...(rulings.length === 0 ? ['(none)'] : rulings));
+  if (lane === 'S' && (progress.stage === 'build' || progress.stage === 'review') && product !== undefined) out.push('', ...productBlocks('lane-s-session', { conventions: product.conventions }));
   return out.join('\n') + '\n';
 }

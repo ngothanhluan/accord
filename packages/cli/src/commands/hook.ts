@@ -2,9 +2,10 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
-import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, loadSnapshot, rulesetText, sessionLine, stageFile, statusRows } from '@accord-dev/accord-core';
+import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, loadSnapshot, sessionLine, stageFile, statusRows, subagentContext } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
+import { cliRuleset } from '../load/product.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
 import { pinMessage, versionOnDisk } from '../pin.js';
 import { repoRoot } from '../root.js';
@@ -21,9 +22,10 @@ export type HookEvent = (typeof HOOK_EVENTS)[number];
 export function hook(ctx: CommandContext, event: HookEvent): number {
   if (event === 'prompt-expansion') return promptExpansion(ctx);
   if (event === 'pre-tool-use') return preToolUse(ctx);
-  const rules = rulesetText(`npx --yes ${pkg.name}@${pkg.version}`);
+  // Phase 8.5 D-18: the same ruleset text the CLI-written files carry (cliRuleset), and the SubagentStart text built by core's subagentContext, so the hook and the files cannot drift; its bytes are unchanged.
+  const rules = cliRuleset();
   if (event === 'subagent-start') {
-    const out = { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: rules + subagentEpic(ctx) } };
+    const out = { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: subagentContext(rules, subagentEpic(ctx)) } };
     ctx.stdout.write(JSON.stringify(out) + '\n');
     return 0;
   }
@@ -85,13 +87,13 @@ function unfinishedLine(root: string): string {
 
 /**
  * ST-LN-28 D-13: for a scout, planner, critic, reviewer, final reviewer or judge (EPIC_ROLES, never the foreign reviewer, which has no ticket) dispatched in a story's worktree (`agent_type` and `cwd` on stdin), a blank line and the epic block of the story's
- * `parent:`, built by the CLI from the default branch's copy of the epic and added after the ruleset; the agent is never told to go and read the epic. '' for any other
+ * `parent:`, built by the CLI from the default branch's copy of the epic and added after the ruleset (core's `subagentContext` joins them); the agent is never told to go and read the epic. undefined for any other
  * agent, for a ticket without `parent:`, for a folder on no ticket branch and for input this hook cannot read. Fails open: any error is one stderr line and the ruleset alone.
  */
-function subagentEpic(ctx: CommandContext): string {
+function subagentEpic(ctx: CommandContext): string | undefined {
   try {
     const input = hookInput(ctx);
-    if (input?.agent_type === undefined || !EPIC_ROLES.includes(input.agent_type)) return '';
+    if (input?.agent_type === undefined || !EPIC_ROLES.includes(input.agent_type)) return undefined;
     const root = input.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
     const c: CommandContext = { ...ctx, root };
     if (root !== ctx.root) {
@@ -102,12 +104,11 @@ function subagentEpic(ctx: CommandContext): string {
       delete c.light;
     }
     const id = activeTicket(root, c.snapshot, branchFor(root, ctx));
-    const block = id === undefined ? undefined : epicBlock(epicSnapshot(c, id), id);
-    return block === undefined ? '' : '\n\n' + block;
+    return id === undefined ? undefined : epicBlock(epicSnapshot(c, id), id);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     ctx.stderr.write(`accord hook subagent-start: ${msg.split('\n')[0]}; the ruleset alone`.replace(/\\/g, '/') + '\n');
-    return '';
+    return undefined;
   }
 }
 

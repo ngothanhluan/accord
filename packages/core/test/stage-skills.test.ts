@@ -1248,6 +1248,10 @@ it('risk:regression the accord skill routes upgrade to its reference and the wor
     'exactly as printed',
     '`gh pr create --head <branch> --base <base> --title "<title>" --body "Moves the version pin and regenerates the skill files."`',
     'otherwise ask the owner to open the pull request',
+    // Phase 8.5 D-11: the lines of conventions.md that accord withholds are shown to the owner as printed
+    '`unsafe line:`',
+    '`unsafe file:`',
+    "the upgrade pull request's lint turns red until those lines are fixed in it",
   ])
     expect(up).toContain(s);
   expect(up).not.toContain('`Run accord as ');

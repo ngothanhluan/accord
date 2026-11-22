@@ -54,7 +54,7 @@ async function host(mod: { register: (on: Handler) => void }) {
     columns: undefined as number | undefined,
     placement: undefined as string | undefined,
     agents: [] as Record<string, unknown>[],
-    surfaces: [] as Record<string, unknown>[],
+    surfaces: [] as unknown[],
     timers: [] as { ms: number; fn: () => unknown; cancelled: boolean }[],
     tree: () => tree,
     async fire(event: string, e: any): Promise<any> {
@@ -232,14 +232,47 @@ it('risk:parsing every panel file carries one marker whose hash recomputes', () 
   expect(pluginTargets({ runtimes: ['codex'] }, PKG)).toEqual([]);
 });
 
-it('risk:complex-branching the pane opens only in an interactive terminal and an unplaced pane names its command', async () => {
-  for (const e of [{ ...start, isInteractive: false, surface: null }, { ...start, surface: 'desktop' }]) {
-    const h = await host(await loadPanel());
-    await h.fire('session.start', e);
-    expect(h.$.command.register).not.toHaveBeenCalled();
-    expect(h.$.ui.open).not.toHaveBeenCalled();
-    expect(h.$.process.run).not.toHaveBeenCalled();
+// Phase 08.7 D-06: the start gate keys on the render surface of a client that places panes (an interactive terminal or the Desktop Code tab); the terminal-only start test is replaced by this one.
+// Every surface gets the command, a headless session registers it and nothing else, and a vscode or mobile client attaching opens nothing unasked.
+it('risk:complex-branching the pane opens on an interactive terminal and a desktop client while a headless session only registers the command (D-06)', async () => {
+  const headless = await host(await loadPanel());
+  headless.agents = [{ id: 'a1', type: 'accord-executor', status: 'running', startTime: Date.now() }];
+  await headless.fire('session.start', { ...start, isInteractive: false, surface: null });
+  expect(headless.$.command.register).toHaveBeenCalledTimes(1);
+  expect(headless.$.command.register).toHaveBeenCalledWith({ name: 'accord-panel', description: 'Open the accord pane' });
+  expect(headless.$.ui.open).not.toHaveBeenCalled();
+  expect(headless.$.process.run).not.toHaveBeenCalled();
+  await headless.fire('turn.start', { turnId: 't1', text: 'x', agentId: 'a1' });
+  expect(headless.$.agent.list).not.toHaveBeenCalled();
+  expect(headless.$.process.run).not.toHaveBeenCalled();
+  // a desktop client attaching later opens the pane once and runs the dashboard once; the command is not registered again
+  await headless.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' });
+  expect(headless.$.command.register).toHaveBeenCalledTimes(1);
+  expect(headless.$.ui.open).toHaveBeenCalledTimes(1);
+  expect(headless.$.process.run).toHaveBeenCalledTimes(1);
+  expect(headless.$.process.run).toHaveBeenCalledWith(['npx', '--yes', '@accord-dev/accord@9.9.9', 'dashboard', '--json'], { timeoutMs: 120000 });
+  await headless.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' });
+  expect(headless.$.ui.open).toHaveBeenCalledTimes(1);
+  expect(headless.$.process.run).toHaveBeenCalledTimes(1);
+  // an interactive desktop session start opens the pane once, and a later attach adds nothing
+  const desktop = await host(await loadPanel());
+  await desktop.fire('session.start', { ...start, surface: 'desktop' });
+  expect(desktop.$.command.register).toHaveBeenCalledTimes(1);
+  expect(desktop.$.ui.open).toHaveBeenCalledTimes(1);
+  expect(desktop.$.process.run).toHaveBeenCalledTimes(1);
+  await desktop.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' });
+  expect(desktop.$.command.register).toHaveBeenCalledTimes(1);
+  expect(desktop.$.ui.open).toHaveBeenCalledTimes(1);
+  // vscode and mobile get the command and no unasked open, at a session start and at an attach
+  for (const surface of ['vscode', 'mobile']) {
+    const other = await host(await loadPanel());
+    await other.fire('session.start', { ...start, surface });
+    await other.fire('session.attach', { surface, clientId: surface + ':1' });
+    expect(other.$.command.register).toHaveBeenCalledTimes(1);
+    expect(other.$.ui.open).not.toHaveBeenCalled();
+    expect(other.$.process.run).not.toHaveBeenCalled();
   }
+  // the terminal keeps its behaviour: an unplaced unasked open names the command once, a placed one says nothing
   const unplaced = await host(await loadPanel());
   unplaced.placed = false;
   await unplaced.fire('session.start', start);
@@ -248,6 +281,7 @@ it('risk:complex-branching the pane opens only in an interactive terminal and an
   const placed = await host(await loadPanel());
   await placed.fire('session.start', start);
   expect(placed.$.ui.toast).not.toHaveBeenCalled();
+  expect(placed.$.ui.open).toHaveBeenCalledTimes(1);
 });
 
 const twoRows = JSON.stringify(
@@ -1327,4 +1361,51 @@ it('risk:concurrency a session that never opened the pane calls no agent list (D
   expect(h.$.process.run).not.toHaveBeenCalled();
   expect(h.$.clock.after).not.toHaveBeenCalled();
   expect(h.$.clock.every).not.toHaveBeenCalled();
+});
+
+// ---- Phase 08.7-06: the desktop entry (D-06) ----
+
+// Phase 08.7 D-06: where desktop shows the pane as a widget its clicks may not arrive, so it draws the two tab summaries as plain text and no Button.
+it('risk:regression a widget placement draws only the two tab summaries (D-06)', async () => {
+  const h = await claimedPane();
+  h.columns = 100;
+  h.placement = 'widget';
+  await h.$.ui.invalidate('ui.render');
+  expect(h.buttons()).toEqual([]);
+  expect(h.nodes('Input')).toEqual([]);
+  expect(h.texts()).toEqual(['1 ticket ST-1 build', '2 dashboard 1 yours · 1 ready · 0 team']);
+  // a widget cannot be told apart by its width alone: a dock placement of the same pane still draws its buttons
+  h.placement = 'dock';
+  await h.$.ui.invalidate('ui.render');
+  expect(Object.keys(tabs(h))).toEqual(['tab:ticket', 'tab:dashboard']);
+  // with no ticket in flight the widget is the hint line and the dashboard's summary line
+  const none = await host(await loadPanel());
+  none.columns = 100;
+  none.placement = 'widget';
+  await none.fire('session.start', start);
+  none.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(none.texts()).toEqual(['No ticket in flight in this worktree', '0 in progress, 0 ready, 0 blocked, 0 backlog, 0 done']));
+  expect(none.buttons()).toEqual([]);
+  expect(none.nodes('Input')).toEqual([]);
+});
+
+// Phase 08.7 D-06, T-08.7-20: when an asked open stays unplaced and a desktop client is attached, the toast names the engine's reason, cleaned; without one it is today's terminal text.
+it('risk:complex-branching an asked open that desktop cannot place names the reason (D-06)', async () => {
+  const h = await host(await loadPanel());
+  h.surfaces = ['terminal', 'desktop'];
+  h.placed = false;
+  const open = h.$.ui.open.getMockImplementation() as (a: unknown) => Promise<void>;
+  h.$.ui.open.mockImplementation(async (a: unknown) => {
+    await open(a);
+    return { isPlaced: false, reason: 'no room\u0007 for‮ a pane' };
+  });
+  await h.fire('command.run', { command: 'accord-panel', args: '' });
+  expect(h.$.ui.toast).toHaveBeenCalledTimes(1);
+  expect(h.$.ui.toast).toHaveBeenCalledWith('The accord pane could not be placed here: no room for a pane');
+  const terminal = await host(await loadPanel());
+  terminal.surfaces = ['terminal'];
+  terminal.placed = false;
+  await terminal.fire('command.run', { command: 'accord-panel', args: '' });
+  expect(terminal.$.ui.toast).toHaveBeenCalledTimes(1);
+  expect(terminal.$.ui.toast).toHaveBeenCalledWith('The terminal is too narrow for the accord pane: it needs 110 columns');
 });

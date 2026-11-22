@@ -2,6 +2,12 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+Accord now checks the lines of `accord/product/conventions.md` before any agent reads them (Phase 8.5, first group). Tickets in flight: nothing a ticket is refused for changes. A repository pinned to an older accord gets the change with `accord upgrade`, whose run lists the conventions lines to fix.
+
+- `accord lint` reports `lint.conventions-file` (an error no team can lower) for each line of `accord/product/conventions.md` that holds a hidden character, starts like a line accord itself writes in a brief (`Work dir:`, `Report file:`, `Test command:`, `---`, `Commit rule:`, `Example that passes:`, `Test only:`) or a fixed heading, is over 300 characters, or opens a comment that never closes. It reads the whole file with no claim cut-off, so after upgrading a team fixes those lines in the upgrade pull request, whose `accord upgrade` run lists them as `unsafe line:` lines (or one `unsafe file:` line when the file is a link). Delivery withholds such a line and shows a placeholder that names the line and never its text. `accord conventions write` now accepts U+200C and U+200D between letters and refuses the reserved starts. Tickets in flight are unaffected.
+
 ## 0.12.2 — 2026-11-22
 
 Release 0.12.2 fixes a security finding of Phase 8.4, threat T-08.4-27 (the bullet below): a scout reply whose `## Absent` pattern could hang `accord scout check` is now refused with the row named, and the bullet lists the pattern shapes the check accepts. The same check serves the intent and approach stages, so a pattern with two unbounded quantifiers, nested quantifiers, a backreference, a lookaround or over 200 characters now fails the check there too. Tickets in flight: nothing a ticket is refused for changes, and `accord gate ready` and `accord gate done` give the same answers; only a scout reply with such a pattern is refused. The scout agent text and the onboarding skill's `scan.md` state the accepted shape; a repository pinned to 0.12.1 gets it with `accord upgrade`, which also moves the pin and the panel plugin.

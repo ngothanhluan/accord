@@ -127,6 +127,11 @@ export { DEFAULT_SLOP, parseSlop, SLOP_FILE, slopFile, slopSpec, STRUCTURAL_KIND
 export type { SlopPattern, SlopSpec } from './slop/spec.js';
 export { CONVENTIONS_FILE, PRODUCT_MAX_LINE, RESERVED_HEADINGS, RESERVED_PREFIXES, checkProductText, conventionsFile, lineProblem, notReadLine, withheldFindingLine, withheldLine } from './product/lines.js';
 export type { LineProblem, LineProblemKind, LineVerdict, ProductLine } from './product/lines.js';
+export {
+  BLOCK_ORDER, CHANGED_DUTY, CHANGED_HEADING, CHANGED_WITHHELD_LINE, CONVENTIONS_HEADING, EPIC_DUTY, FINDINGS_DUTY, FINDINGS_HEADING, JUDGE_DUTY, NO_DEFAULT_REF_LINE, REJECTED_DUTY,
+  REJECTED_HEADING, RELATED_DUTY, ROLE_BLOCKS, WRITER_DUTY, WRITER_ROLES, changedBlock, conventionsBlock, productBlocks, subagentContext,
+} from './product/assemble.js';
+export type { BlockKind, ProductChange, ProductInputs, ProductRead, ProductRole, RelatedParts } from './product/assemble.js';
 export { DEFAULT_MAX_FILE_LINES, growthHits, isManifest, maxFileLines, newDependencies, orphanCandidates, orphanHits, orphanTerms } from './slop/structural.js';
 export type { NewDependency } from './slop/structural.js';
 export { isLockfile, LOCKFILES, slopHits, slopLine, slopSkipped, sortHits } from './slop/match.js';
@@ -168,7 +173,7 @@ export { BASELINE_LISTED, baselineGap, branchGaps, deferredGaps, draftAge, draft
 export type { ClaimRefFact, OldDraft } from './audit/hygiene.js';
 export { deferredMark, ownerDeferred, ratingOf } from './tickets/deferred.js';
 export type { DeferredMark, DeferredRating, OwnerDeferred } from './tickets/deferred.js';
-export { relatedIds, relatedText } from './tickets/related.js';
+export { rejectedLines, relatedIds, relatedParts, relatedText } from './tickets/related.js';
 export { requestWords, similarTickets, STOP_WORDS, ticketFacts } from './tickets/similar.js';
 export { DEFAULT_TITLE_RULE, TITLE_PLACEHOLDER, titleProblem, titleRuleLine, titleRuleOf } from './tickets/title.js';
 export type { TitleRule } from './tickets/title.js';

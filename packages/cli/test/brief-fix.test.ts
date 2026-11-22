@@ -1,5 +1,5 @@
 // Phase 8.5 G2 (D-02, D-13, D-21, D-23, R-7, R-11): `accord brief <id> [task] --fix <findings file>` builds the one brief of a fix executor: the ruleset, the ticket, the checked
-// findings, the team's conventions, and last only the lines accord writes. The CLI is not mocked (0.12.2) and the ticket is claimed under 0.12.2, below the product text cut-off:
+// findings, the team's conventions, and last only the lines accord writes. The CLI is not mocked (0.13.0) and the ticket is claimed under 0.12.2, below the product text cut-off:
 // `--fix` has one layout for any claim pin (R-11, D-31). Real files and real git in tmp sandboxes.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

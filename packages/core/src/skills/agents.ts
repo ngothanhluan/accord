@@ -27,6 +27,7 @@ export const AGENT_DEFAULTS: Record<RouteKey, { model: string; effort: Effort }>
 
 // ST-LN-80: files accord rendered before and no longer renders. `skills sync` and `accord upgrade` remove one when its
 // marker is intact; an edited copy stays.
+// Phase 08.6 (D-05): the auditor's agent file retires the same way: an intact copy goes, an edited one stays.
 // Phase 7 (07-01): the accord skill stopped loading these reference files; the stage skills still render their own.
 // Phase 8.3 (08.3-05): the accord folder renders finish, lane, lane-r, lane-s and scout again, so they leave this list in that commit; `security` and `upgrade` stay.
 // Phase 8.3 (08.3-24): `review-foreign` joins them. The foreign review became the command `accord-review-pr`; `accord/review-foreign.md` rendered from v0.8.0 to v0.10.0 and under no other name in this folder.
@@ -66,6 +67,7 @@ export const RETIRED_SKILL_FOLDERS: Readonly<Record<string, readonly string[]>> 
 
 export const RETIRED_FILES: readonly string[] = [
   agentDir + '/accord-architect.md',
+  agentDir + '/accord-auditor.md',
   ...['.claude/skills', '.agents/skills'].flatMap((dir) => RETIRED_ACCORD_REFS.map((name) => dir + '/accord/' + name + '.md')),
   ...['.claude/skills', '.agents/skills'].flatMap((dir) =>
     Object.entries(RETIRED_SKILL_FOLDERS).flatMap(([folder, held]) => held.map((file) => dir + '/' + folder + '/' + file)),

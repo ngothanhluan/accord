@@ -336,7 +336,7 @@ describe('rendered agents', () => {
   });
 });
 
-// Phase 6 (cost): the shipped defaults of the executor and the auditor are high, and the executor declares its tools.
+// Phase 6 (cost): the shipped default of the executor is sonnet at high, and the executor declares its tools.
 const rendered = (c: AccordConfig, role: string): string => agentTargets(c).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
 
 it('risk:regression with no models entry the executor renders on sonnet at high and the planner stays on opus at high (ST-LN-85 6-ac-1)', () => {
@@ -347,12 +347,6 @@ it('risk:regression with no models entry the executor renders on sonnet at high 
   // an entry wins, field by field
   expect(frontmatter(rendered(config({ models: { executor: { model: 'opus' } } }), 'executor'))).toMatchObject({ model: 'opus', effort: 'high' });
   expect(frontmatter(rendered(config({ models: { executor: { model: 'sonnet', effort: 'medium' } } }), 'executor'))).toMatchObject({ model: 'sonnet', effort: 'medium' });
-});
-
-it('risk:regression with no models entry the auditor renders on opus at high (ST-LN-85 6-ac-1b)', () => {
-  expect(AGENT_DEFAULTS.auditor).toEqual({ model: 'opus', effort: 'high' });
-  expect(frontmatter(rendered(config(), 'auditor'))).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'high' });
-  expect(AGENT_DEFAULTS.critic).toEqual({ model: 'opus', effort: 'high' });
 });
 
 it('risk:security the executor declares its six tools and stops on a need outside the repository and every rendered accord agent declares a tools line (ST-LN-85 6-ac-3)', () => {
@@ -374,7 +368,7 @@ it('risk:security the executor declares its six tools and stops on a need outsid
     }
   }
   expect(offenders).toEqual([]);
-  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(12);
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(11);
   // the committed copies of this repository equal what the config renders, so each declares tools (the researcher its withheld tools) and the executor its six
   const committedDir = new URL('../../../.claude/agents/', import.meta.url);
   const committedFiles = readdirSync(committedDir).filter((n) => /^accord-.*\.md$/.test(n));
@@ -591,7 +585,7 @@ it('ac-3 the scout architect critic and planner read the research records and no
   const S =
     "Read every record the ticket's frontmatter `research:` key lists, when it has one: a record is evidence, not a contract, and holds at the commit it names, so check a claim against the code before you rely on it.";
   const files = agentTargets(config({ runtimes: ['claude', 'codex', 'cursor', 'copilot'] }));
-  const names = ['auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'foreign-reviewer', 'judge', 'planner', 'researcher', 'reviewer', 'scout', 'verifier'];
+  const names = ['critic', 'debugger', 'executor', 'final-reviewer', 'foreign-reviewer', 'judge', 'planner', 'researcher', 'reviewer', 'scout', 'verifier'];
   expect(files.map((f) => f.path).sort()).toEqual(names.map((n) => `.claude/agents/accord-${n}.md`));
   const readers = ['scout', 'critic', 'planner'];
   for (const f of files) {
@@ -633,7 +627,7 @@ it('risk:security the researcher renders on sonnet with web tools and no write-c
   }
   // the agent-dispatch tool and its earlier name are withheld last
   expect(text).toMatch(/^disallowedTools: ".*, Agent, Task"$/m);
-  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(12);
+  expect(agentTargets(config({ runtimes: ['claude'] }))).toHaveLength(11);
   expect(agentTargets(config({ runtimes: ['claude'] })).map((f) => f.path)).toContain('.claude/agents/accord-researcher.md');
 });
 

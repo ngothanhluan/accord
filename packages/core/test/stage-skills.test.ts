@@ -409,6 +409,70 @@ it('risk:regression the intent skill has no audit step and no rendered skill or 
   expect(bad).toEqual([]);
 });
 
+// Phase 08.6 D-09 (planner Ruling R-1): every reference to an intent step by number lands on the step it means, in both skill folders.
+it('risk:regression every reference to an intent step by number names the step it means in all four tools (D-09)', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const flatten = (t: string): string => t.replace(/\s+/g, ' ');
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const intentPath = stagePath('intent', undefined, dir);
+    const intentRaw = everyFile.get(intentPath) ?? '';
+    if (!intentRaw) { bad.push(intentPath + ' missing'); continue; }
+    const steps = intentRaw.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => flatten(c).trim());
+    const stepOf = (n: number): string => steps.find((s) => s.startsWith(n + '. ')) ?? '';
+    // `n` is a step that starts with `start` or holds `holds`; `what` names the reference in the message
+    const lands = (where: string, what: string, n: number, test: (s: string) => boolean): void => {
+      if (!test(stepOf(n))) bad.push(where + ': ' + what + ' says step ' + n + ', which is not the step it means');
+    };
+    const read = (path: string): string => flatten(everyFile.get(path) ?? '');
+    // every reference below must be found at least once, so a reworded line fails here instead of passing on nothing
+    const found = (where: string, what: string, matches: RegExpMatchArray[], min = 1): RegExpMatchArray[] => {
+      if (matches.length < min) bad.push(where + ': found ' + matches.length + ' of "' + what + '", expected at least ' + min);
+      return matches;
+    };
+    const all_ = (text: string, re: RegExp): RegExpMatchArray[] => [...text.matchAll(re)];
+
+    const skillPath = besidePath('intent', 'SKILL.md', dir);
+    const skill = read(skillPath);
+    for (const m of found(skillPath, 'names ./intent-discuss.md at its step N', all_(skill, /names `\.\/intent-discuss\.md` at its step (\d+)/g)))
+      lands(skillPath, 'intent-discuss.md', Number(m[1]), (s) => s.includes('`./intent-discuss.md`'));
+    for (const m of found(skillPath, './intent-research.md at its steps N and M', all_(skill, /`\.\/intent-research\.md` at its steps (\d+) and (\d+)/g)))
+      for (const n of [Number(m[1]), Number(m[2])]) lands(skillPath, 'intent-research.md', n, (s) => s.includes('`./intent-research.md`'));
+
+    const contPath = stagePath('continue', undefined, dir);
+    for (const m of found(contPath, "otherwise the row intent, at step N when the anchor's next step is the owner's approval", all_(read(contPath), /otherwise the row `intent`, at step (\d+) when the anchor's next step is the owner's approval/g)))
+      lands(contPath, 'the owner approval route', Number(m[1]), (s) => s.startsWith(m[1] + '. **Discuss.**'));
+
+    const apprPath = stagePath('approach', 'approval', dir);
+    const back = found(apprPath, 'go back to ./intent.md step N', all_(read(apprPath), /go back to `\.\/intent\.md` step (\d+)/g), 2);
+    if (back.length !== 2) bad.push(apprPath + ': ' + back.length + ' references "go back to ./intent.md step N", expected exactly 2');
+    for (const m of back) lands(apprPath, 'go back to ./intent.md', Number(m[1]), (s) => s.includes('commit `accord/tickets/<id>.md`'));
+
+    const discPath = stagePath('intent', 'discuss', dir);
+    for (const m of found(discPath, 'go back to step N of the skill', all_(read(discPath), /go back to step (\d+) of the skill/g)))
+      lands(discPath, 'discuss go back', Number(m[1]), (s) => s.startsWith(m[1] + '. **Write the ticket**'));
+
+    const scoutPath = besidePath('intent', 'scout.md', dir);
+    for (const m of found(scoutPath, 'intent step N', all_(read(scoutPath), /intent step (\d+)/gi), 2))
+      lands(scoutPath, 'intent step', Number(m[1]), (s) => s.includes('accord-scout'));
+
+    const lane = flatten(intentRaw);
+    for (const m of found(intentPath, 'Before step N, when the interview shows', all_(lane, /Before step (\d+), when the interview shows/g)))
+      lands(intentPath, 'Lane S Before step', Number(m[1]), (s) => s.startsWith(m[1] + '. **Discuss.**'));
+    for (const m of found(intentPath, 'From step N on, a lane never drops', all_(lane, /From step (\d+) on, a lane never drops/g)))
+      lands(intentPath, 'Lane S From step', Number(m[1]), (s) => s.startsWith(m[1] + '. **Discuss.**'));
+
+    const resPath = stagePath('intent', 'research', dir);
+    const res = read(resPath);
+    for (const m of found(resPath, 'At step N, before any question to the owner', all_(res, /At step (\d+), before any question to the owner/g)))
+      lands(resPath, 'research before a question', Number(m[1]), (s) => s.startsWith(m[1] + '. **Look before asking.**'));
+    for (const m of found(resPath, 'At step N, before you rewrite a queued Intent', all_(res, /At step (\d+), before you rewrite a queued Intent/g)))
+      lands(resPath, 'research before a rewrite', Number(m[1]), (s) => s.startsWith(m[1] + '. **Write the ticket**'));
+  }
+  expect(bad).toEqual([]);
+});
+
 // SHOW-1's verbatim paste is superseded by ST-LN-19 D-01; ST-LN-19 ac-4 proves the new step.
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
@@ -1500,7 +1564,7 @@ it('risk:regression Continue reads the stage file from the stage section (D-04)'
     'from the anchor and never from memory',
     // the approach stage keeps its two step numbers: step 5 for the owner's yes, step 3 when only the draft of step 2 exists
     'takes the row `approach` at step 5, the owner\'s yes, when the ticket\'s `## Approach` holds a `- Rejected:` line, at step 3 when it holds only the draft of its step 2',
-    'at step 9 when the anchor\'s next step is the owner\'s approval',
+    'at step 8 when the anchor\'s next step is the owner\'s approval',
     // done goes to the verify step 6
     '`done` takes the row `verify` at step 6',
     // an unfolded stage runs its own command, so the branch works at every commit

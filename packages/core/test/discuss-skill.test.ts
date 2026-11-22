@@ -72,7 +72,8 @@ it('risk:regression the planner lists gray areas in its discuss mode and writes 
   expect(bodyLines.length).toBeLessThanOrEqual(60);
 });
 
-it('risk:regression Continue resumes a ticket whose intent is written at intent step 9 (ST-LN-91 91d-ac-4)', () => {
+// Phase 08.6 D-09: the audit step is gone, so Discuss is intent step 8 and Continue sends the owner's approval there.
+it('risk:regression Continue resumes a ticket whose intent is written at intent step 8 (ST-LN-91 91d-ac-4)', () => {
   const bad: string[] = [];
   for (const dir of skillDirs(all)) {
     const text = flat(rendered.get(stagePath('continue', undefined, dir)) ?? '');
@@ -84,9 +85,9 @@ it('risk:regression Continue resumes a ticket whose intent is written at intent 
       continue;
     }
     const approach = step.indexOf('at step 3 when it holds only');
-    const intent = step.indexOf("otherwise the row `intent`, at step 9 when the anchor's next step is the owner's approval");
-    if (intent < 0) bad.push(dir + ': Continue does not send stage intent to step 9');
-    if (approach < 0 || intent < approach) bad.push(dir + ': the step 9 route is not after the two approach checks');
+    const intent = step.indexOf("otherwise the row `intent`, at step 8 when the anchor's next step is the owner's approval");
+    if (intent < 0) bad.push(dir + ': Continue does not send stage intent to step 8');
+    if (approach < 0 || intent < approach) bad.push(dir + ': the step 8 route is not after the two approach checks');
   }
   expect(bad).toEqual([]);
 });

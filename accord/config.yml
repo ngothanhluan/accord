@@ -24,13 +24,12 @@ review:
 strictness:
   levels:
     lint.test-untraced: error
-# ST-LN-47 D-01, D-02: benchmark round 1 raised the auditor; the scout moves to sonnet
-# unmeasured, and ST-LN-46 measures it before any default in AGENT_DEFAULTS changes.
+# ST-LN-47 D-02: the scout moves to sonnet unmeasured, and ST-LN-46 measures it before any default in
+# AGENT_DEFAULTS changes.
 # Owner 2026-10-25: the executor runs sonnet at high, since medium left more defects for review to catch.
 # Owner 2026-10-25: the critic is back on the AGENT_DEFAULTS value, opus at high, so it has no entry here.
 # Owner 2026-10-25: the planner runs opus at high ahead of ST-LN-46's measurement; ST-LN-44's first plan took 5 Must, 14 Should at medium.
 models:
-  auditor: { model: opus, effort: high }
   executor: { model: sonnet, effort: high }
   planner: { model: opus, effort: high }
   scout: { model: sonnet, effort: low }

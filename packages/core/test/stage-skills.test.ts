@@ -600,7 +600,7 @@ it('risk:regression every fix round, a Should-only one included, gets a re-revie
     const step7 = skill.slice(skill.indexOf('7. **Final review.**'), skill.indexOf('8. **Record.**'));
     for (const p of [
       'run the `tests.affected` command over the files the fix touched, or `tests.full` when `tests.affected` is not configured or finds no test file.',
-      'After every fix round, a Should-only one included, re-review only the fix diff: `accord review-package <id>` into',
+      'After every fix round, a Should-only one included, re-review only the fix diff: `accord review-package <id> --out',
       '`<r>.<n>: ADDRESSED <path>:<line>` or `<r>.<n>: NOT ADDRESSED <path>:<line>`',
     ]) {
       if (!step4.includes(p)) bad.push(skillPath + ' step 4 lacks: ' + p);
@@ -1593,7 +1593,7 @@ it('risk:regression the review skills write version 2 records with heads marks a
       '`Review base: <sha>`',
     ]),
     ...['`Head: <sha>`', 'after that head'].filter((p) => !step2.includes(p)).map((p) => 'review step 2 lacks: ' + p),
-    ...(step4.includes('re-review only the fix diff: `accord review-package <id>` into') ? [] : ['review step 4 lacks the package without --base']),
+    ...(step4.includes('re-review only the fix diff: `accord review-package <id> --out') ? [] : ['review step 4 lacks the package without --base']),
     ...(step4.includes('--base <the noted sha>') ? ['review step 4 still holds --base <the noted sha>'] : []),
     ...["--base <the plan's baseline:>", '(final review)'].filter((p) => !step7.includes(p)).map((p) => 'review step 7 lacks: ' + p),
     ...missing(besidePath('new', 'lane-s.md'), [
@@ -2980,6 +2980,34 @@ it('risk:complex-branching a lane M comment that ends with no fix closes its deb
     const holds = section.indexOf('In lane M, `holds` sends the comment to step 5');
     const none = section.indexOf('`does not hold` or `unclear` starts no fix');
     if (holds < 0 || none < holds) bad.push(dir + ' accord-resolve-pr/judge.md lacks the no-fix route after the holds route: ' + holds + ',' + none);
+  }
+  expect(bad).toEqual([]);
+});
+
+// Phase 8.5 (08.5-07, D-05, D-23): every package run of the review stage writes its file through the CLI (`--out`), and the session passes the path the `file:` line prints.
+it('risk:regression the review stage runs every package with --out and passes the path its file: line prints (8.5-ac-15 D-23)', () => {
+  const bad: string[] = [];
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] }).filter((f) => f.path.endsWith('.md'));
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const text = (path: string): string => (all.find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
+    const review = text(stagePath('review', undefined, dir));
+    const security = text(stagePath('review', 'security', dir));
+    const lane = text(besidePath('new', 'lane-s.md', dir));
+    if (review === '' || security === '' || lane === '') {
+      bad.push(dir + ': the review stage, its security file or lane-s.md is not rendered');
+      continue;
+    }
+    const step2 = review.slice(review.indexOf('2. **Package.**'), review.indexOf('3. **Reviewers.**'));
+    const step4 = review.slice(review.indexOf('4. **Classify.**'), review.indexOf('5. **Converged**'));
+    const step7 = review.slice(review.indexOf('7. **Final review.**'), review.indexOf('8. **Record.**'));
+    const step4s = lane.slice(lane.indexOf('4. **Review rounds.**'), lane.indexOf('5. **'));
+    for (const p of ['`accord review-package <id> --out package-<n>.md`', '`Head: <sha>`', '`file: <path>`']) if (!step2.includes(p)) bad.push(dir + ' review step 2 lacks: ' + p);
+    if (!step4.includes('re-review only the fix diff: `accord review-package <id> --out package-<n>.md`')) bad.push(dir + " review step 4's re-review package lacks --out");
+    if (!step7.includes("`accord review-package <id> --base <the plan's baseline:> --out final-package.md`")) bad.push(dir + " review step 7's final package lacks --out");
+    if (!step4s.includes('`accord review-package <id> --out package-<n>.md`') || !step4s.includes('`file:`')) bad.push(dir + ' lane-s.md step 4 lacks --out and the file: line');
+    for (const p of ['`accord review-package <id> --security --out security-<n>.md`', '--security --round <k> --out']) if (!security.includes(p)) bad.push(dir + ' review-security.md lacks: ' + p);
+    for (const [where, t] of [['review', review], ['review-security', security], ['lane-s', lane]] as const)
+      if (t.includes('into a file outside the working tree')) bad.push(dir + ' ' + where + ' still says to run a package into a file outside the working tree');
   }
   expect(bad).toEqual([]);
 });

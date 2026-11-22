@@ -2,6 +2,8 @@
 import { acHash } from '../gate/hash.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { Lane, RepoSnapshot } from '../model/snapshot.js';
+import { reviewSummary } from './review.js';
+import type { ReviewSummary } from './review.js';
 import { statusRows } from './rows.js';
 import type { Stage } from './stage.js';
 
@@ -16,6 +18,8 @@ export interface CriterionDetail {
   ticked: boolean; // id is in frontmatter verified:
   verification: 'pass' | 'fail' | 'blocked' | null;
 }
+/** Phase 08.7 D-04: one line of the ticket's session log; the CLI host fills it from git, the agent report files and the gate run record (08.7-05), core never does. */
+export interface TicketLogEntry { at: number; kind: 'commit' | 'gate' | 'report'; text: string; fail?: true }
 export interface TicketDetail {
   id: string;
   title: string;
@@ -29,6 +33,9 @@ export interface TicketDetail {
   intent: string[];
   question?: string[]; // ST-LN-94: lane R only, the ## Question lines; intent stays empty for lane R
   criteria: CriterionDetail[];
+  stagesOff?: string[]; // Phase 08.7 D-07: the stages the team turned off for this ticket's lane, the row's own list; absent when none is off
+  review?: ReviewSummary; // Phase 08.7 D-04: the review rounds counted per round and severity; absent without a review record
+  log?: TicketLogEntry[]; // Phase 08.7 D-04: filled by the CLI host (08.7-05), never by core
 }
 
 /** undefined unless `id` is a lane ticket in the snapshot. `blockedBy` is decided on the default branch the host read (`snapshot.defaultRef`), else by `plain`, the checkout-only snapshot (BUG-LN-2 D-04, D-05, BUG-LN-13 D-01). */
@@ -61,9 +68,11 @@ export function ticketDetail(snapshot: RepoSnapshot, id: string, plain?: RepoSna
       : 'untested';
     return { id: cid, title: s.name, steps: s.steps, label, test, testResult, ticked, verification };
   });
+  const review = reviewSummary(snapshot, id);
   return {
     id, title: row.title ?? '', stage: row.stage, lane: row.lane,
     tasksDone: row.tasksDone ?? 0, tasksTotal: row.tasksTotal ?? 0, branch: row.branch ?? '',
     holder: row.claimedBy ?? null, blockedBy: row.blockedBy ?? [], intent, ...(laneR ? { question: lines('Question') } : {}), criteria,
+    ...(row.stagesOff === undefined ? {} : { stagesOff: row.stagesOff }), ...(review === undefined ? {} : { review }),
   };
 }

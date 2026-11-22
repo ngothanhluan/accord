@@ -298,6 +298,19 @@ export function agentRows(roster, now) {
   }));
 }
 
+// D-06: the widget placement's lines: the two tab labels while a ticket is in flight, else the hint line (when the dashboard names no claimed ticket) and the dashboard's summary line.
+// Plain text only, every line through clean.
+export function widgetView({ state, ticket, running }) {
+  if (state === undefined) return ['Loading…'];
+  if (state.message !== undefined) return state.message.split(NL).map(clean).filter((l) => l);
+  if (ticket !== undefined) {
+    const labels = tabLabels({ state, ticket, running });
+    return [labels.ticket.label, labels.dashboard.label].map(clean);
+  }
+  const v = view(state, '');
+  return [...(v.hint === undefined ? [] : [v.hint]), v.summary].map(clean);
+}
+
 // D-04, A-01: the review block reads per round and per severity; the lens split is queued for Phase 10. Every count is one the JSON holds.
 const SEVERITIES = ['Must', 'Should', 'Nice'];
 const COUNTS = ['open', 'fixed', 'deferred'];

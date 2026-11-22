@@ -4,7 +4,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { prTitleProblem, renderSubject, templates } from '@accord-dev/accord-core';
+import { lineProblem, prTitleProblem, renderSubject, templates } from '@accord-dev/accord-core';
 import { gitDefaultRef, gitFilesAt, UsageError } from '../load/fs.js';
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
@@ -15,9 +15,7 @@ const NOTHING = ' - nothing was written or pushed';
 const CONVENTIONS = 'accord/product/conventions.md';
 /** The one shape a line takes (D-09, D-13): `- <convention> — enforced by: <rule id or prose>`, a rule id being what the linter config calls the rule. */
 const LINE = /^- (.+) — enforced by: ([A-Za-z0-9@/._:-]+)$/u;
-const MAX_LINE = 300;
 const BOM = new RegExp('^' + String.fromCharCode(0xfeff));
-const UNPRINTABLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const FORMAT_FIX = 'write each accepted line as "- <convention> — enforced by: <rule id or prose>", on one line of at most 300 characters, with no comment marker';
 
 const firstLine = (err: unknown): string => String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0];
@@ -33,8 +31,9 @@ function acceptedLines(text: string, name: string): { n: number; line: string }[
     const refuse = (why: string): never => {
       throw new UsageError(`${where} ${why} (${shown(line.slice(0, 80))}) - fix: ${FORMAT_FIX}${NOTHING}`);
     };
-    if (line.length > MAX_LINE) refuse(`is over ${MAX_LINE} characters`);
-    if (UNPRINTABLE.test(line)) refuse('holds a control or invisible character');
+    // D-12: the length, hidden-character and reserved-start refusals are the delivery check's, so the writer accepts exactly what delivery will deliver
+    const verdict = lineProblem(line);
+    if (verdict !== undefined) refuse(verdict.reason);
     if (line.includes('<!--') || line.includes('-->')) refuse('holds an HTML comment marker');
     if (!LINE.test(line)) refuse('does not read "- <convention> — enforced by: <rule id or prose>"');
     out.push({ n: i + 1, line });

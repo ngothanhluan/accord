@@ -992,3 +992,170 @@ it('risk:security a current id that is not a safe id never reaches a command (D-
   expect(h.$.process.run).toHaveBeenCalledTimes(1);
   expect(h.$.process.run.mock.calls.some((c: any[]) => c[0].includes('show'))).toBe(false);
 });
+
+// ---- Phase 08.7-07: the ticket tab's review rounds, criteria, session log and failure box (D-04, D-08, D-02) ----
+
+const tally = (open = 0, fixed = 0, deferred = 0): Record<string, number> => ({ open, fixed, deferred });
+const reviewOf = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  cycle: 1,
+  round: 2,
+  cap: 5,
+  verdict: 'converged',
+  rounds: [
+    { n: 1, findings: { Must: tally(1, 2), Should: tally(0, 0, 1), Nice: tally() } },
+    { n: 2, final: true, security: 'ran', findings: { Must: tally(), Should: tally(), Nice: tally() } },
+  ],
+  ...over,
+});
+const critOf = (id: string, title: string, label: string): Record<string, unknown> => ({ id, title, steps: [], label, test: null, testResult: null, ticked: false, verification: null });
+// ten log entries newest first, the third one an executor report; `at` counts back from now so the ages read as seconds and minutes
+const logOf = (): Record<string, unknown>[] => {
+  const now = Math.floor(Date.now() / 1000);
+  return Array.from({ length: 10 }, (_, i) =>
+    i === 2 ? { at: now - 30 - i * 40, kind: 'report', text: 'executor report task 1' } : { at: now - 30 - i * 40, kind: 'commit', text: `commit number ${i}` },
+  );
+};
+// the pane of a claimed ticket after `show` settled with these keys on top of detailOf()
+async function paneWith(over: Record<string, unknown>): Promise<Awaited<ReturnType<typeof host>>> {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: claimed });
+  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));
+  h.settle({ stdout: JSON.stringify(detailOf(over)) });
+  await vi.waitFor(() => expect(h.texts()).toContain('ST-1 Login form'));
+  return h;
+}
+const textsIn = (el: any): string[] => {
+  const out: string[] = [];
+  const walk = (n: any): void => {
+    if (!n || typeof n !== 'object') return;
+    if (n.type === 'Text') out.push((n.props.children as unknown[]).join(''));
+    for (const c of n.props?.children ?? []) walk(c);
+  };
+  walk(el);
+  return out;
+};
+const kids = (row: Record<string, any>): string[] => (row.children as any[]).flatMap((c) => textsIn(c));
+
+// Phase 08.7 D-04 (as amended by A-01): the review block reads per round and per severity; the criteria and the log come from the same JSON.
+it('ac-7 the ticket tab draws the review rounds the criteria and the session log from show json (D-04)', async () => {
+  const log = logOf();
+  const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing'), critOf('ac-3', 'Remembers me', 'untested')], log });
+  const t = h.texts();
+  expect(t).toContain('REVIEW r2/5 converged');
+  expect(kids(h.row('r1/5'))).toEqual(['r1/5', 'Must 1 open 2 fixed', 'Should 1 deferred']);
+  expect(kids(h.row('r2/5 final'))).toEqual(['r2/5 final', 'no findings', 'security lens ran']);
+  expect(h.cell('r1/5').text.bold).toBe(true);
+  expect(t).toContain('CRITERIA');
+  for (const [id, title, label] of [['ac-1', 'Logs in', 'passing'], ['ac-2', 'Logs out', 'failing'], ['ac-3', 'Remembers me', 'untested']]) {
+    expect(kids(h.row(title))).toEqual([id, title, label]);
+    expect(h.cell(title).text.wrap).toBe('truncate');
+  }
+  expect(h.cell('passing').text.color).toBe('green');
+  expect(h.cell('failing').text.color).toBe('red');
+  expect(h.cell('untested').text.dimColor).toBe(true);
+  expect(t).toContain('LOG');
+  const rest = t.slice(t.indexOf('LOG') + 1);
+  expect(rest).toHaveLength(16);
+  for (let i = 0; i < 8; i++) {
+    expect(rest[2 * i]).toMatch(/^[0-9]+[smhd]$/);
+    expect(rest[2 * i + 1]).toBe(log[i].text);
+  }
+  expect(rest).toContain('executor report task 1');
+  expect(rest).not.toContain('commit number 8');
+});
+
+// Phase 08.7 D-04: the rows are built from the JSON alone, nothing is counted in the view.
+it('risk:parsing review rows criteria rows and log rows are built from the json alone (D-04)', async () => {
+  const { reviewRows, criteriaRows, ago, logRows, failureOf, LOG_SHOWN } = await loadView();
+  const zero = { Must: tally(), Should: tally(), Nice: tally() };
+  const two = reviewRows({ cycle: 2, round: 1, cap: 5, rounds: [{ n: 1, added: true, security: 'none', findings: zero }] });
+  expect(two.heading).toBe('REVIEW cycle 2 r1/5');
+  expect(two.rounds).toEqual([{ head: 'r1/5 added', parts: ['no findings'], security: 'no security pattern' }]);
+  const rows = reviewRows(reviewOf());
+  expect(rows.heading).toBe('REVIEW r2/5 converged');
+  expect(rows.rounds[0]).toEqual({ head: 'r1/5', parts: ['Must 1 open 2 fixed', 'Should 1 deferred'], security: undefined });
+  expect(rows.rounds[1]).toMatchObject({ head: 'r2/5 final', parts: ['no findings'], security: 'security lens ran' });
+  const sev = reviewRows({ cycle: 1, round: 3, cap: 5, rounds: [{ n: 3, findings: { Must: tally(0, 0, 4), Should: tally(5), Nice: tally(0, 6) } }] });
+  expect(sev.rounds[0].parts).toEqual(['Must 4 deferred', 'Should 5 open', 'Nice 6 fixed']);
+  const colors = criteriaRows([critOf('a', 'A', 'failing'), critOf('b', 'B', 'blocked'), critOf('c', 'C', 'verified'), critOf('d', 'D', 'passing'), critOf('e', 'E', 'not run'), critOf('f', 'F', 'untested')]);
+  expect(colors.map((c: any) => c.color)).toEqual(['red', 'red', 'green', 'green', 'yellow', 'dim']);
+  expect(colors[0]).toEqual({ id: 'a', title: 'A', label: 'failing', color: 'red' });
+  expect([ago(100, 90), ago(0, 59), ago(0, 60), ago(0, 3599), ago(0, 3600), ago(0, 86399), ago(0, 86400)]).toEqual(['0s', '59s', '1m', '59m', '1h', '23h', '1d']);
+  const log = Array.from({ length: 12 }, (_, i) => ({ at: 1000 - i, kind: i === 1 ? 'gate' : 'commit', text: `t${i}`, ...(i === 1 ? { fail: true } : {}) }));
+  expect(LOG_SHOWN).toBe(8);
+  const shown = logRows(log, 1010);
+  expect(shown.map((r: any) => r.text)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7']);
+  expect(shown[1]).toEqual({ age: '11s', text: 't1', fail: true });
+  expect(failureOf(log)).toBeUndefined();
+  expect(failureOf([log[1]])).toEqual({ text: 't1' });
+  expect(failureOf(undefined)).toBeUndefined();
+});
+
+// Phase 08.7 D-04: only the newest log entry decides the failure box, and the tab label follows it.
+it('risk:complex-branching a newest failed gate run shows the failure block and the tab label says gate failed (D-04)', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const gate = { at: now - 20, kind: 'gate', text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true };
+  const h = await paneWith({ log: [gate, { at: now - 60, kind: 'commit', text: 'build: export' }] });
+  const box = h.nodes('Box').find((b) => b.props.borderColor === 'red');
+  expect(box?.props.borderStyle).toBe('round');
+  expect(textsIn(box)).toEqual(['Gate failed', gate.text]);
+  const heading = (box?.props.children as any[]).find((c) => c.type === 'Text' && c.props.children[0] === 'Gate failed');
+  expect(heading.props).toMatchObject({ bold: true, color: 'red' });
+  expect(tabs(h)['tab:ticket'].label).toContain('gate failed');
+  const later = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'fix: header' }, gate] });
+  expect(later.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(false);
+  expect(later.texts()).not.toContain('Gate failed');
+  expect(tabs(later)['tab:ticket'].label).not.toContain('gate failed');
+  expect(later.texts()).toContain('LOG');
+});
+
+// Phase 08.7 D-08: the context, tokens and cost block is backlog 999.59; the tab draws none of it.
+it('risk:regression the ticket tab draws no context token or cost block (D-08)', async () => {
+  const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log: logOf() });
+  const t = h.texts();
+  for (const heading of ['CRITERIA', 'LOG']) expect(t).toContain(heading);
+  expect(t.some((x) => x.startsWith('REVIEW'))).toBe(true);
+  expect(t.filter((x) => /\b(tokens?|cost|context)\b/i.test(x))).toEqual([]);
+});
+
+// Phase 08.7 D-04, T-08.7-12: every drawn string passes the view's clean, so no control or bidi code point reaches the pane.
+it('risk:security log lines criterion titles and stage text cannot put control characters into the pane (D-04)', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const h = await paneWith({
+    stage: 'build\u0007',
+    criteria: [critOf('ac-1', 'Lo⁦gs in', 'passing')],
+    log: [{ at: now - 5, kind: 'commit', text: 'evil‮\u0007subject' }],
+  });
+  const t = h.texts();
+  expect(t).toContain('evil subject');
+  expect(t).toContain('Lo gs in');
+  const bad = (c: number): boolean =>
+    c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x61c || c === 0x200e || c === 0x200f || c === 0x2028 || c === 0x2029 || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
+  for (const s of [...t, ...h.buttons().map((b) => String(b.label ?? ''))]) for (const ch of s) expect(bad(ch.codePointAt(0) as number)).toBe(false);
+});
+
+// Phase 08.7 D-02, T-08.7-24: a malformed review or log key is drawn as absent and the rest of the ticket still shows.
+it('risk:complex-branching a malformed review or log key is drawn as absent and the rest of the ticket still shows (D-02)', async () => {
+  const bad = await paneWith({ review: { round: 'x' }, criteria: [critOf('ac-1', 'Logs in', 'passing')] });
+  expect(bad.texts().some((x) => x.startsWith('REVIEW'))).toBe(false);
+  expect(bad.texts()).toContain('CRITERIA');
+  expect(bad.texts()).toContain('Logs in');
+  const text = await paneWith({ log: 'x', criteria: [critOf('ac-1', 'Logs in', 'passing')] });
+  expect(text.texts()).not.toContain('LOG');
+  expect(text.texts()).toContain('CRITERIA');
+  const now = Math.floor(Date.now() / 1000);
+  const mixed = await paneWith({
+    log: [
+      { at: 'x', kind: 'commit', text: 'bad at' },
+      { at: now - 9, kind: 'x', text: 'bad kind' },
+      { at: now - 8, kind: 'commit', text: 'good one' },
+      { at: now - 7, kind: 'commit', text: 12 },
+      { at: now - 6, kind: 'report', text: 'good two' },
+    ],
+    criteria: [critOf('ac-1', 'Logs in', 'passing')],
+  });
+  const t = mixed.texts();
+  expect(t).toContain('LOG');
+  expect(t.slice(t.indexOf('LOG') + 1).filter((x) => !/^[0-9]+[smhd]$/.test(x))).toEqual(['good one', 'good two']);
+});

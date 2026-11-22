@@ -36,7 +36,7 @@ describe('docs/design.md states the product-text channels (8.5-ac-20)', () => {
       expect(row, `no table row for ${who}`).toBeDefined();
       expect(row).toContain('accord anchor');
     }
-    for (const name of ['accord-verifier', 'accord-debugger', 'accord-auditor', 'accord-researcher']) {
+    for (const name of ['accord-verifier', 'accord-debugger', 'accord-researcher']) {
       const row = rows.find((r) => r.startsWith(`| ${name} `));
       expect(row, `no table row for ${name}`).toBeDefined();
       expect(row, `the row of ${name} lacks its channel`).toContain('the SubagentStart hook only');
@@ -59,5 +59,19 @@ describe('docs/design.md states the product-text channels (8.5-ac-20)', () => {
     const hooks = part('**Hooks.**', '## 10.');
     expect(hooks).toContain('`accord anchor` prints the same ruleset first on every tool but Claude Code');
     expect(hooks).toContain('the SubagentStart text is unchanged');
+  });
+
+  // Phase 08.6 D-04, D-06: the design lists no auditor and says in one line what catches a criterion with two readings.
+  it('risk:regression docs/design.md lists no auditor and says what catches a criterion with two readings (D-04 D-06)', () => {
+    expect(design.match(/auditor/gi) ?? [], 'docs/design.md still names the auditor').toEqual([]);
+    const agents = part('**Agents.**', '**Routing.**');
+    expect(agents).toContain('`scout`, `critic`, `planner`, `executor`, `reviewer`, `final-reviewer`, `foreign-reviewer`, `judge`, `verifier`, `debugger`, and `researcher`');
+    const line = lines.filter((l) => l.includes('a criterion with two readings is caught by the approach critic'));
+    expect(line, 'one line of the design says what catches a criterion with two readings').toHaveLength(1);
+    for (const phrase of ["the owner's approval of the short approach view", 'acceptance tests written red', 'once Phase 10 builds them'])
+      expect(line[0], `the line lacks: ${phrase}`).toContain(phrase);
+    // the line comes after the Stages table and before the paragraph on switching stages off
+    expect(lines.indexOf(line[0] as string)).toBeGreaterThan(lines.findIndex((l) => l.startsWith('| verify | `verify.md` |')));
+    expect(lines.indexOf(line[0] as string)).toBeLessThan(lines.findIndex((l) => l.startsWith('A team may switch `discuss`')));
   });
 });

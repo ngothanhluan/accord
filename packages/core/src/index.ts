@@ -130,8 +130,11 @@ export { CONVENTIONS_FILE, PRODUCT_MAX_LINE, RESERVED_HEADINGS, RESERVED_PREFIXE
 export type { LineProblem, LineProblemKind, LineVerdict, ProductLine } from './product/lines.js';
 export {
   BLOCK_ORDER, CHANGED_DUTY, CHANGED_HEADING, CHANGED_WITHHELD_LINE, CONVENTIONS_HEADING, EPIC_DUTY, FINDINGS_DUTY, FINDINGS_HEADING, JUDGE_DUTY, NO_DEFAULT_REF_LINE, REJECTED_DUTY,
-  REJECTED_HEADING, RELATED_DUTY, ROLE_BLOCKS, TEST_ONLY_LINE, WRITER_DUTY, WRITER_ROLES, briefText, changedBlock, conventionsBlock, findingsBlock, productBlocks, subagentContext,
+  REJECTED_HEADING, RELATED_DUTY, ROLE_BLOCKS, TEST_ONLY_LINE, WRITER_DUTY, WRITER_ROLES, briefText, changedBlock, conventionsBlock, findingsBlock, otherRepositoryLine, productBlocks, subagentContext,
+  unknownRepositoryLine,
 } from './product/assemble.js';
+export { NOT_A_PULL_LINK, ORIGIN_UNREADABLE, fetchLine, parseRepoUrl, pullRequestOf, repositoryOf } from './product/repo.js';
+export type { PullRequest, RepositoryOf } from './product/repo.js';
 export type { BlockKind, ProductChange, ProductInputs, ProductRead, ProductRole, RelatedParts } from './product/assemble.js';
 export { DEFAULT_MAX_FILE_LINES, growthHits, isManifest, maxFileLines, newDependencies, orphanCandidates, orphanHits, orphanTerms } from './slop/structural.js';
 export type { NewDependency } from './slop/structural.js';

@@ -35,7 +35,7 @@ interface Box {
  * Main holds conventions.md with L1 and L2, a business-rules file and a glossary; the branch t/T-1 (lane M, plan baseline = main's commit) deletes L2 and changes code.
  * `origin` is the remote's URL when given; `refs/remotes/origin/main` is set to main's commit by hand, so no network is involved.
  */
-function sandbox(origin: string | undefined = 'https://github.com/acme/widget.git'): Box {
+function sandbox(origin: string | null = 'https://github.com/acme/widget.git'): Box {
   const repo = makeEmptyRepo();
   try {
     gitRun(repo, 'config', 'user.email', 'an@example.com');
@@ -51,7 +51,7 @@ function sandbox(origin: string | undefined = 'https://github.com/acme/widget.gi
     });
     const base = commitMsg(repo, 'base');
     gitRun(repo, 'branch', '-M', 'main');
-    if (origin !== undefined) {
+    if (origin !== null) {
       gitRun(repo, 'remote', 'add', 'origin', origin);
       gitRun(repo, 'update-ref', 'refs/remotes/origin/main', base);
     }
@@ -106,7 +106,7 @@ it('risk:security a pull request of this repository gets the default branch\'s c
     expect(other.code).toBe(0);
     expect(other.out).not.toContain('## Conventions');
     expect(other.out).not.toContain('## Product files changed');
-    expect(other.out).not.toContain(L1);
+    expect(other.out).not.toContain(JUDGE_DUTY);
     const none = other.out.split('\n').filter((l) => l.startsWith('Conventions: none'));
     expect(none).toEqual(['Conventions: none - this pull request belongs to another repository (someone/fork), so it is judged against its own stated purpose only']);
     expect(other.out).toContain('## Stat');
@@ -126,7 +126,7 @@ it('risk:security a pull request of this repository gets the default branch\'s c
 }, 120_000);
 
 it('risk:security a clone with no origin or an origin accord cannot read gets none, and says why (8.5-ac-14 D-14 R-9)', async () => {
-  for (const origin of [undefined, '/srv/somewhere/else.git']) {
+  for (const origin of [null, '/srv/somewhere/else.git']) {
     const { repo } = sandbox(origin);
     try {
       const r = await run(['diff-package', 'main', 't/T-1', '--pr', THIS], repo);

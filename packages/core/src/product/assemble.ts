@@ -122,9 +122,15 @@ export function changedBlock(change: ProductChange): string {
   return out.join('\n');
 }
 
-// Phase 8.5 D-14, R-9 (08.5-06): red stubs, replaced in the green commit.
-export const otherRepositoryLine = (_owner: string, _repo: string): string => '';
-export const unknownRepositoryLine = (_why: string): string => '';
+/**
+ * D-14, R-9: what a pull request of another repository gets in place of the conventions and the change blocks. Fixed text: `owner` and `repo` come from `pullRequestOf` (character-limited),
+ * so no repository text reaches the line.
+ */
+export const otherRepositoryLine = (owner: string, repo: string): string =>
+  `Conventions: none - this pull request belongs to another repository (${owner}/${repo}), so it is judged against its own stated purpose only`;
+/** D-14, R-9: the line when the repository of a pull request cannot be told; `why` is one of the fixed reasons of repo.ts. */
+export const unknownRepositoryLine = (why: string): string =>
+  `Conventions: none - accord cannot tell which repository this pull request belongs to (${why}), so none of this repository's conventions are given`;
 
 /** The related block: `# Related tickets of <id>`, RELATED_DUTY, a blank line, then the parts' lines or `(none)`. */
 const relatedBlock = (related: RelatedParts): string => [`# Related tickets of ${related.id}`, RELATED_DUTY, '', ...(related.lines.length === 0 ? ['(none)'] : related.lines)].join('\n');

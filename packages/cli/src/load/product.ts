@@ -87,6 +87,15 @@ export function readFindings(path: string): string {
   }
 }
 
+/** R-9 (08.5-06): origin's URL as git reports it (`git remote get-url origin`, a local read), or undefined when there is no origin or git cannot say. It is text for core's `repositoryOf`, never run. */
+export function originUrl(root: string): string | undefined {
+  try {
+    return git(root, ['remote', 'get-url', 'origin']).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** A reason that holds a ref or a path as git printed it: one line, no control character, no backslash. */
 const plain = (text: string): string => text.replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\\/g, '/');
 

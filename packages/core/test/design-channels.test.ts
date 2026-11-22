@@ -26,7 +26,8 @@ describe('docs/design.md states the product-text channels (8.5-ac-20)', () => {
       .filter((l) => l.startsWith('|'));
 
     for (const [name, channel] of Object.entries(AGENT_CHANNELS)) {
-      const row = rows.find((r) => r.includes(`\`${name}\``));
+      // the first cell holds no backticks: the Routing table's own test counts every line that starts with a backtick cell between its two paragraphs
+      const row = rows.find((r) => r.startsWith(`| ${name} `));
       expect(row, `no table row for ${name}`).toBeDefined();
       expect(row, `the row of ${name} lacks its command`).toContain(channel.command);
     }
@@ -36,7 +37,7 @@ describe('docs/design.md states the product-text channels (8.5-ac-20)', () => {
       expect(row).toContain('accord anchor');
     }
     for (const name of ['accord-verifier', 'accord-debugger', 'accord-auditor', 'accord-researcher']) {
-      const row = rows.find((r) => r.includes(`\`${name}\``));
+      const row = rows.find((r) => r.startsWith(`| ${name} `));
       expect(row, `no table row for ${name}`).toBeDefined();
       expect(row, `the row of ${name} lacks its channel`).toContain('the SubagentStart hook only');
     }

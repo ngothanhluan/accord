@@ -4,7 +4,7 @@
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Ticket } from '../model/snapshot.js';
 import type { ProductRead, RelatedParts } from '../product/assemble.js';
-import { CONVENTIONS_FILE, lineProblem, notReadLine, visibleLines, withheldLine } from '../product/lines.js';
+import { CONVENTIONS_FILE, lineProblem, notReadLine, trimLineEnd, visibleLines, withheldLine } from '../product/lines.js';
 import { similarTickets, ticketFacts } from './similar.js';
 
 /** The sections of a related ticket that are printed, in this order. */
@@ -71,7 +71,9 @@ export function rejectedLines(conventions: string | ProductRead | undefined): st
   const found: string[] = [];
   raw.forEach((line, i) => {
     if (!/^\s*(?:[-*+]\s+)?Rejected:/.test(visible[i])) return;
-    found.push(unclosed.has(i) || lineProblem(line.replace(/[ \t]+$/, '')) !== undefined ? withheldLine(CONVENTIONS_FILE, i + 1) : line);
+    // a line with a comment on it is printed without the comment (review CR-02); a line with none is printed as written
+    const shown = visible[i] === line ? line : trimLineEnd(visible[i]);
+    found.push(unclosed.has(i) || lineProblem(trimLineEnd(shown)) !== undefined ? withheldLine(CONVENTIONS_FILE, i + 1) : shown);
   });
   return found;
 }

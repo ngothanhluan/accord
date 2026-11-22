@@ -219,9 +219,18 @@ export function checkProductText(text: string): { lines: ProductLine[]; problems
   return { lines, problems };
 }
 
+/** The first problem of a piece of a line that the comment marks cut it into; a blank piece has none. */
+const firstSegmentProblem = (line: string): LineVerdict | undefined => {
+  for (const part of line.split('<!--').flatMap((p) => p.split('-->'))) {
+    const found = part.trim() === '' ? undefined : lineProblem(part);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+};
+
 /**
  * Review 08.5 CR-02: the lines of the file that hold a closed HTML comment, or part of one, and break a delivery rule as written. A comment never reaches a block that strips comments, but the
- * legacy brief and the Rejected block print raw lines, so a line is judged twice: as it stands, and with the comment marks blanked, so the words inside a comment are read as text. One entry per
+ * legacy brief prints raw lines, so a line is judged as it stands and again for each piece the comment marks cut it into, so the words inside a comment are read as text. One entry per
  * line, in line order; an unclosed opener is not here (checkProductText reports it).
  */
 export function commentProblems(text: string): LineProblem[] {
@@ -232,7 +241,7 @@ export function commentProblems(text: string): LineProblem[] {
     if (unclosed.has(i)) continue;
     const line = trimLineEnd(raw[i]);
     if (line === '') continue;
-    const found = lineProblem(line) ?? (line.length > PRODUCT_MAX_LINE ? undefined : lineProblem(line.split('<!--').join(' ').split('-->').join(' ')));
+    const found = lineProblem(line) ?? (line.length > PRODUCT_MAX_LINE ? undefined : firstSegmentProblem(line));
     if (found !== undefined) out.push({ line: i + 1, ...found });
   }
   return out;

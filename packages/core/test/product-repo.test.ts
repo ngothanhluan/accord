@@ -59,8 +59,9 @@ describe('parseRepoUrl and repositoryOf', () => {
     // another repository, a fork among them: a clone whose origin is the fork, the other way round, is `other` too
     expect(repositoryOf(pullRequestOf('https://github.com/someone/fork/pull/7'), 'https://github.com/acme/widget.git')).toEqual({ kind: 'other', owner: 'someone', repo: 'fork' });
     expect(repositoryOf(pullRequestOf(LINK), 'https://github.com/someone/fork.git')).toEqual({ kind: 'other', owner: 'acme', repo: 'widget' });
-    // an origin on another host is another repository's, never this one
-    expect(repositoryOf(pullRequestOf(LINK), 'https://ghe.example.com/acme/widget.git')).toEqual({ kind: 'other', owner: 'acme', repo: 'widget' });
+    // an origin on another host is never this one: the same name there is not told (it may be an ssh alias), another name is another repository (review WR-05)
+    expect(repositoryOf(pullRequestOf(LINK), 'https://ghe.example.com/acme/widget.git')).toEqual({ kind: 'unknown', why: "origin's host is not github.com" });
+    expect(repositoryOf(pullRequestOf(LINK), 'https://ghe.example.com/acme/gadget.git')).toEqual({ kind: 'other', owner: 'acme', repo: 'widget' });
     // a form accord does not read, or no origin at all
     for (const origin of ['file:///srv/repo', '/srv/repo', 'C:/srv/repo', '', undefined]) {
       const where = repositoryOf(pullRequestOf(LINK), origin);

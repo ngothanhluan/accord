@@ -1,13 +1,17 @@
 // Spec §6 `accord anchor [id]`: the active ticket's intent, vetoes, decisions, corrections, and position,
 // for the SessionStart hook after compaction and for the first step of every stage skill. Without an id
 // the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
-import { anchorText, commitRuleLine, commitRuleOf, DEFAULT_BRANCH_TEMPLATE } from '@accord-dev/accord-core';
+// Phase 8.5 D-16, D-25: outside Claude Code this command is also the main session's channel for the ruleset, which Claude Code's session hooks print themselves: it comes first, built by the shared
+// core assembly with the hooks' exact text, and only here, never in `anchorOf`, so the session-resume hook, which already prints it, never prints it twice.
+import { anchorText, commitRuleLine, commitRuleOf, DEFAULT_BRANCH_TEMPLATE, productBlocks } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, gitVerifySince, ticketOfBranch, withDefaultRef } from '../load/fs.js';
+import { cliRuleset } from '../load/product.js';
 import { shown } from '../load/script-trust.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
+import { inClaude } from './worktree.js';
 
 /** The id the current branch carries under a template in force; undefined on any other branch. Throws when git could not say. */
 export function activeTicket(root: string, snapshot: RepoSnapshot, known?: { name: string | undefined }): string | undefined {
@@ -46,6 +50,9 @@ export function epicSnapshot(ctx: CommandContext, id: string): RepoSnapshot {
 }
 
 export function anchor(ctx: CommandContext, id: string | undefined): number {
+  // D-16: the ruleset and a blank line, the bytes the session hooks write before their anchor (the ruleset's own newline, then one more), for a session that is not Claude Code, with or
+  // without an active ticket, and when the CLI cannot tell which tool this is.
+  if (inClaude(ctx.env) === undefined) ctx.stdout.write(productBlocks('main-session', { ruleset: cliRuleset() })[0] + '\n\n');
   if (id !== undefined) {
     requireLaneTicket(ctx, id);
     ctx.stdout.write(anchorOf(ctx, id) ?? '');

@@ -1,9 +1,13 @@
-import { actionFor, detailOutcome, detailView, failure, outcome, view } from './view.js';
+import { actionFor, currentOf, detailOutcome, detailView, failure, layoutOf, outcome, tabLabels, ticketView, view } from './view.js';
 
 let state;
 let query = '';
 // the open ticket detail, undefined while the dashboard shows
 let detail;
+// Phase 08.7 D-10: the lane ticket this worktree claimed, `{ id, state }` with the `show` result in state; undefined when the dashboard names none
+let ticket;
+// Phase 08.7 D-03: the tab the person pressed, 'ticket' or 'dashboard'; undefined until one is pressed
+let picked;
 
 let running = false;
 let again = false;
@@ -24,10 +28,54 @@ async function refresh($) {
       } catch (err) {
         state = failure(err);
       }
+      syncTicket($);
       await $.ui.invalidate('ui.render');
     } while (again);
   } finally {
     running = false;
+  }
+}
+
+// Follows the dashboard's `current`: a new id starts its `show`, no id clears the ticket and the picked tab, a failed dashboard run keeps both.
+function syncTicket($) {
+  if (state?.dashboard === undefined) return;
+  const id = currentOf(state);
+  if (id === undefined) {
+    ticket = undefined;
+    picked = undefined;
+    return;
+  }
+  if (ticket?.id === id) return;
+  ticket = { id };
+  void loadTicket($);
+}
+
+let ticketRunning = false;
+let ticketAgain = false;
+
+// Runs `show` for the claimed ticket; a result for an id no longer current is dropped.
+async function loadTicket($) {
+  if (ticketRunning) {
+    ticketAgain = true;
+    return;
+  }
+  ticketRunning = true;
+  try {
+    do {
+      ticketAgain = false;
+      const id = ticket?.id;
+      if (id === undefined) break;
+      let result;
+      try {
+        result = detailOutcome(await $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'show', id, '--json'], { timeoutMs: 120000 }));
+      } catch (err) {
+        result = failure(err);
+      }
+      if (ticket?.id === id) ticket.state = result;
+      await $.ui.invalidate('ui.render');
+    } while (ticketAgain);
+  } finally {
+    ticketRunning = false;
   }
 }
 
@@ -94,6 +142,7 @@ export function register(on) {
     if (pane?.isPlaced === true) {
       void refresh($);
       if (detail) void loadDetail($);
+      if (ticket) void loadTicket($);
     } else if (pane) stale = true;
     return next(e);
   });
@@ -104,10 +153,64 @@ export function register(on) {
       stale = false;
       void refresh($);
       if (detail) void loadDetail($);
+      if (ticket) void loadTicket($);
     }
     const { Box, Text, Button, Input } = $.ui.resolve(e);
     const children = [];
     const run = (action) => () => void $.command.run({ command: action.command, args: action.args });
+    // D-03: the ticket tab shows while a ticket is in flight, unless the person picked the dashboard; with none in flight the pane is the dashboard alone
+    const tab = ticket === undefined ? 'dashboard' : (picked ?? 'ticket');
+    const pick = (which) => () => {
+      picked = which;
+      void $.ui.invalidate('ui.render');
+    };
+    if (ticket !== undefined) {
+      const labels = tabLabels({ state, ticket, running: 0 }); // the count of running accord agents comes with the roster
+      const t = labels.ticket;
+      const ticketParts = [Text({ bold: true, children: ['1 ticket'] }), Text({ children: [' ' + t.id] })];
+      if (t.stage !== '') ticketParts.push(Text({ ...(t.stageColor ? { color: t.stageColor } : {}), children: [' ' + t.stage + (t.review ? ' ' + t.review : '')] }));
+      if (t.running) ticketParts.push(Text({ color: 'merged', children: [' ◐' + t.running] }));
+      if (t.failed) ticketParts.push(Text({ color: 'red', children: [' gate failed'] }));
+      const dashParts = [Text({ bold: true, children: ['2 dashboard'] })];
+      if (labels.dashboard.summary !== '') dashParts.push(Text({ dimColor: true, children: [' ' + labels.dashboard.summary] }));
+      // both tab Buttons keep their hotkeys on both tabs and neither takes focus by itself
+      children.push(
+        Box({
+          flexDirection: 'row',
+          columnGap: 2,
+          children: [
+            Button({ key: 'tab:ticket', hotkey: '1', variant: tab === 'ticket' ? 'primary' : 'secondary', label: t.label, onPress: pick('ticket'), children: ticketParts }),
+            Button({ key: 'tab:dashboard', hotkey: '2', variant: tab === 'dashboard' ? 'primary' : 'secondary', label: labels.dashboard.label, onPress: pick('dashboard'), children: dashParts }),
+          ],
+        }),
+      );
+    }
+    if (tab === 'ticket') {
+      const tv = ticketView({ ticket });
+      if (tv.message) {
+        for (const line of tv.message) children.push(Text({ children: [line] }));
+      } else {
+        const narrow = layoutOf(e.props?.bodyColumns) === 'narrow';
+        const cellBox = (c) => {
+          const filled = c.state === 'done' || c.state === 'current';
+          const label = narrow ? (filled ? [] : [Text({ dimColor: true, children: ['·'] })]) : [Text({ ...(c.state === 'current' ? { bold: true } : {}), ...(filled ? {} : { dimColor: true }), children: [c.text] })];
+          return Box({ paddingX: 1, flexShrink: 0, ...(filled ? { backgroundColor: c.color } : {}), children: label });
+        };
+        children.push(
+          Box({
+            flexDirection: 'column',
+            borderStyle: 'round',
+            borderColor: 'claude',
+            children: [
+              Text({ bold: true, wrap: 'truncate', children: [tv.title] }),
+              Box({ flexDirection: 'row', columnGap: 1, children: tv.cells.map(cellBox) }),
+              ...(narrow && tv.current !== undefined ? [Text({ children: [tv.current] })] : []),
+            ],
+          }),
+        );
+      }
+      return Box({ flexDirection: 'column', children });
+    }
     if (detail) {
       const d = detailView({ ...detail, action: actionFor(state, detail.id) });
       const bar = [
@@ -148,7 +251,8 @@ export function register(on) {
         key: 'search',
         label: 'Search',
         placeholder: 'ticket id or title, or a new request',
-        autoFocus: true,
+        // A-04 (probe row A4 `keys: field takes digits`): while a ticket is in flight the tab keys 1 and 2 exist, so the field takes focus only when clicked
+        ...(ticket === undefined ? { autoFocus: true } : {}),
         value: query,
         onInput: (text) => {
           query = text;
@@ -160,6 +264,7 @@ export function register(on) {
       if (state === undefined) children.push(search());
       for (const line of v.message) children.push(Text({ children: [line] }));
     } else {
+      if (v.hint) children.push(Text({ dimColor: true, children: [v.hint] }));
       children.push(search());
       if (v.noMatch) children.push(Text({ children: [v.noMatch] }));
       if (v.newRequest) children.push(Button({ key: v.newRequest.key, label: v.newRequest.label, onPress: run(v.newRequest) }));
@@ -183,7 +288,8 @@ export function register(on) {
                 key: r.open.key,
                 label: r.open.id,
                 plain: true,
-                onPress: () => void openDetail($, r.open),
+                // the id of the ticket in flight shows its tab instead of opening a detail (D-03)
+                onPress: r.open.id === ticket?.id ? pick('ticket') : () => void openDetail($, r.open),
                 children: [Text({ bold: true, underline: true, color: 'suggestion', children: [r.id] })],
               })
             : Text({ bold: true, children: [r.id] });

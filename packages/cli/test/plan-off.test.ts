@@ -4,7 +4,7 @@ import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { approve, CONFIG, discussFiles, junit, LANE_BODY, laneTicket, P, REPORT, writeReport, type Files } from '../../../test/helpers/lane.js';
-import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { claimedUnder, cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 const OFF = 'strictness:\n  stages:\n    M:\n      plan: "off"\n';
 const AFFECTED = CONFIG.replace(`  report: ${REPORT}\n`, `  report: ${REPORT}\n  affected: "npx vitest run {files}"\n`);
@@ -22,7 +22,7 @@ function repoWith(config: string, withPlan = false): string {
     gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
     gitRun(repo, 'config', 'user.name', 'fixture');
     gitRun(repo, 'config', 'commit.gpgsign', 'false');
-    commitMsg(repo, 'claim: T-1');
+    claimedUnder(repo, '0.12.2'); // a test about the brief layout before 0.13.0: the ticket first, then the plan-off line
     return repo;
   } catch (e) {
     cleanup(repo);

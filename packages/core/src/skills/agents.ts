@@ -14,7 +14,6 @@ export const agentDir = '.claude/agents';
 
 export const AGENT_DEFAULTS: Record<RouteKey, { model: string; effort: Effort }> = {
   scout: { model: 'haiku', effort: 'low' },
-  auditor: { model: 'opus', effort: 'high' },
   critic: { model: 'opus', effort: 'high' },
   planner: { model: 'opus', effort: 'high' },
   executor: { model: 'sonnet', effort: 'high' },

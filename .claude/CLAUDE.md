@@ -13,7 +13,7 @@ Accord is a contract for AI-assisted software delivery: a conventional folder in
 - **Tech stack**: TypeScript monorepo — `core` (pure), `cli`, `mcp`; skill definitions live in `core` as data; distributed via npx — matches how AI-tool users install things
 - **Isomorphic core**: core must not import `node:fs` or `node:child_process` outside loaders — a pure core is testable and portable without a filesystem, and `mcp` stays an empty workspace after D-117
 - **No API keys**: accord never calls a model itself — team members have subscriptions, not keys
-- **Compatibility**: skill workflows must produce identical behaviour in Claude Code, Cursor, Copilot, and Codex — one definition per role, rendered
+- **Compatibility**: skill workflows are one definition per role, rendered for Claude Code, Cursor, Copilot, and Codex, and what is rendered today stays identical across them. Since 2026-11-22 new work is designed, built and proven in Claude Code first: nothing new is researched or built for the other three until the owner reopens it, and a behaviour that works only in Claude Code is declared as a parity exception in `docs/design.md`
 - **Cross-platform**: CLI must run on Windows and POSIX — author develops on Windows; teams are mixed
 - **Independence**: adapter `none` must be fully usable; nothing may require a tracker or Figma
 - **Naming**: npm `accord` is held by an abandoned package; publish scoped unless the name is reclaimed

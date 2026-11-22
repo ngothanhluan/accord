@@ -218,6 +218,22 @@ it("risk:security the review-pr skill tells this repository's pull request from 
   expect(frontmatter(readFileSync(new URL('packages/core/skills/review-pr/pr-source.md', root), 'utf8'))).toEqual({ kind: 'reference' });
 });
 
+// Security audit U-2: the base branch name of another repository's pull request is attacker text, and check-ref-format accepts shell metacharacters.
+it("risk:injection review-pr fetches a base branch only when its name holds letters, digits and . _ / - and passes the ref as one quoted word (R-9 8.5-ac-14)", () => {
+  const files = skillTargets(config({ runtimes: [...ALL] }));
+  const sources = files.filter((f) => /(^|\/)skills\/accord-review-pr\/pr-source\.md$/.test(f.path));
+  expect(sources).toHaveLength(2);
+  for (const source of sources) {
+    const text = flat(withoutMarker(source.text));
+    const step4 = text.slice(text.indexOf('4. **Fetch.**'), text.indexOf('5. **Commits.**'));
+    expect(step4, source.path).toContain('git check-ref-format --branch');
+    expect(step4, source.path).toContain('^[A-Za-z0-9._/-]+$');
+    expect(step4, source.path).toContain('"refs/heads/<baseRefName>"');
+    expect(step4, source.path).toContain('no leading `-`');
+    expect(step4, source.path).not.toMatch(/ refs\/heads\/<baseRefName>/);
+  }
+});
+
 // Phase 8.5 (08.5-07): the judge reads the default branch's conventions from a file the CLI wrote (D-05, R-2), and reads the branch's own change to them as a change to judge (D-30).
 it("risk:security the judge reads the default branch's conventions from a file the CLI wrote (8.5-ac-15 D-05 R-2 D-30)", () => {
   const files = skillTargets(config({ runtimes: [...ALL] }));

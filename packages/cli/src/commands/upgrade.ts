@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   agentTargets,
-  checkProductText,
+  conventionsProblems,
   CONVENTIONS_FILE,
   isIntactRender,
   lintSnapshot,
@@ -56,7 +56,7 @@ function unsafeLines(read: ProductRead): string[] {
   if (read.copy !== 'default') return []; // a git failure fell back to the working copy, which is not the default branch's file
   if (read.kind === 'not-regular') return [shown(`unsafe file: ${CONVENTIONS_FILE}: is a link or not a regular file - fix: replace it with a regular file`)];
   if (read.kind !== 'text') return [];
-  return checkProductText(read.text).problems.map((p) => shown(`unsafe line: ${CONVENTIONS_FILE}:${p.line}: ${p.reason} - fix: ${p.fix}`));
+  return conventionsProblems(read.text).map((p) => shown(`unsafe line: ${CONVENTIONS_FILE}:${p.line}: ${p.reason} - fix: ${p.fix}`));
 }
 
 export function upgrade(ctx: InitContext): number {

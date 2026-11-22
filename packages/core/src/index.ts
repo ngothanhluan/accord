@@ -126,7 +126,7 @@ export { diffFiles, matchedHunks, securityTriggers, triggerText } from './securi
 export type { DiffFile, DiffHunk, Trigger } from './security/match.js';
 export { DEFAULT_SLOP, parseSlop, SLOP_FILE, slopFile, slopSpec, STRUCTURAL_KINDS } from './slop/spec.js';
 export type { SlopPattern, SlopSpec } from './slop/spec.js';
-export { CONVENTIONS_FILE, PRODUCT_MAX_LINE, RESERVED_HEADINGS, RESERVED_PREFIXES, checkProductText, conventionsFile, lineProblem, notReadLine, withheldFindingLine, withheldLine } from './product/lines.js';
+export { CONVENTIONS_FILE, PRODUCT_MAX_LINE, RESERVED_HEADINGS, RESERVED_PREFIXES, checkProductText, commentProblems, conventionsFile, lineProblem, notReadLine, trimLineEnd, visibleLines, withheldFindingLine, withheldLine } from './product/lines.js';
 export type { LineProblem, LineProblemKind, LineVerdict, ProductLine } from './product/lines.js';
 export {
   AGENT_CHANNELS, BLOCK_ORDER, CHANGED_DUTY, CHANGED_HEADING, CHANGED_WITHHELD_LINE, CONVENTIONS_HEADING, EPIC_DUTY, FINDINGS_DUTY, FINDINGS_HEADING, JUDGE_DUTY, NO_DEFAULT_REF_LINE, REJECTED_DUTY,

@@ -11,8 +11,8 @@ session.
 1. Run `accord anchor`. If the ticket file does not exist yet, `/accord`
    creates it first: start there.
 
-2. **Look before asking.** Run `accord related <id>`. Dispatch `accord-scout` with the path of
-   `accord/tickets/<id>.md`, the questions the code can answer, and what `accord related <id>` printed, verbatim. Check its
+2. **Look before asking.** Run `accord related <id> --for scout --out scout-input.md`. Dispatch `accord-scout` with the path of
+   `accord/tickets/<id>.md`, the questions the code can answer, and the path its `file:` line printed. Check its
    reply as `./scout.md` says, and save it as `accord/tickets/<id>/scout.md`
    only when that file does not exist. Never ask the owner what the code answers. A question about an existing project
    cites the file that prompted it. Before any question, read `./intent-research.md`.
@@ -34,8 +34,8 @@ session.
 
 5. **One question per message**, aimed at the dimension with the highest
    score; which kind of question to ask, and how, follows `./ask.md`. Before
-   proposing an option, compare it with the `## Rejected` lines `accord related <id>`
-   printed in step 2, and name a matching line to the owner first.
+   proposing an option, compare it with the `## Rejected` lines of `scout-input.md`
+   from step 2, and name a matching line to the owner first.
 
 6. **Write the ticket** `accord/tickets/<id>.md`, each section as follows:
 

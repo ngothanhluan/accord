@@ -2544,7 +2544,7 @@ it('risk:regression the scout and the critic receive the related tickets decisio
     expect(between(critique, 'The option under critique', '## The count'), dir + ' the ladder re-dispatch gets the planner file').toContain('`accord-planner` in its `direction` mode with the ticket path, the `planner-input.md` path');
     expect(between(critique, '5. **Fix.**', 'Then go back to step 1.'), dir + ' the fix dispatch gets the planner file').toContain('`planner-input.md` path');
     const plan = at('plan');
-    expect(between(plan, '2. **Plan.**', '3. **Slices.**'), dir + ' plan step 2 runs the planner file').toContain('Run ' + PLANNER);
+    expect(between(plan, '2. **Plan.**', '3. **Slices.**'), dir + ' plan step 2 gives the planner file').toContain('the path printed by ' + PLANNER);
     const planCritique = at('plan', 'critique');
     expect(between(planCritique, '5. **Fix.**', 'Then go back to step 4'), dir + ' the plan fix dispatch gets the planner file').toContain(PLANNER);
     expect(between(getAt(besidePath('intent', 'resume.md', dir)), '**Plan.**', '**Verify.**'), dir + ' a planner resume inherits step 2').toContain('the inputs of step 2');

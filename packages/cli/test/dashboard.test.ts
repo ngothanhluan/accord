@@ -470,3 +470,51 @@ it('risk:complex-branching the dashboard lists lane R tickets with their stage (
     cleanup(repo);
   }
 }, 120_000);
+
+// Phase 08.7 D-10: the flightdeck pane asks the CLI which lane ticket this worktree claimed; the branch is read by the one reader the anchor uses, never by the pane.
+it('risk:complex-branching dashboard json names the lane ticket this branch claims as current and none on main or a detached head (D-10)', async () => {
+  const repo = makeLaneRepo({ [P('T-9')]: laneTicket('T-9', { lane: '' }) });
+  try {
+    identity(repo);
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    commitMsg(repo, 'fixture');
+    const start = gitRun(repo, 'symbolic-ref', '--short', 'HEAD').trim();
+    const current = async () => {
+      const res = await run(['dashboard', '--json'], repo);
+      expect(res.code).toBe(0);
+      return JSON.parse(res.out) as Dashboard & { current?: string };
+    };
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
+    expect((await current()).current).toBe('T-1');
+    gitRun(repo, 'checkout', '-q', start);
+    expect(Object.hasOwn(await current(), 'current')).toBe(false);
+    gitRun(repo, 'checkout', '-q', '--detach');
+    expect(Object.hasOwn(await current(), 'current')).toBe(false);
+    gitRun(repo, 'checkout', '-q', '-b', 't/NOPE-1', start);
+    expect(Object.hasOwn(await current(), 'current')).toBe(false);
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-9', start);
+    expect(Object.hasOwn(await current(), 'current')).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.7 D-09, D-10: `current` is a JSON key only; the text a person reads is the same on the claim branch and off it.
+it('risk:regression the dashboard text is the same on the claim branch and off it (D-09 D-10)', async () => {
+  const repo = makeLaneRepo();
+  try {
+    identity(repo);
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    commitMsg(repo, 'fixture');
+    const start = gitRun(repo, 'symbolic-ref', '--short', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
+    const onClaim = await run(['dashboard'], repo);
+    gitRun(repo, 'checkout', '-q', '-b', 'other', start);
+    const off = await run(['dashboard'], repo);
+    expect([onClaim.code, off.code]).toEqual([0, 0]);
+    expect(onClaim.out).toBe(off.out);
+    expect(onClaim.out).not.toContain('current');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

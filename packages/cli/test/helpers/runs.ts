@@ -119,11 +119,14 @@ export function normalise(text: string, sample: Sample, copy: SampleCopy, extra:
   for (const [s, tag] of folders) out = out.replace(new RegExp(escapeRe(s), 'gi'), tag);
   const known: Record<string, string> = { ...extra, ...sample.names };
   const shas = Object.keys(known);
-  return out.replace(/(?<![0-9a-fA-F])[0-9a-f]{7,40}(?![0-9a-fA-F])/g, (run) => {
-    const sha = shas.find((s) => s.startsWith(run));
-    if (sha === undefined) return run;
-    return run.length === 40 ? `<sha:${known[sha]}>` : `<short:${known[sha]}>`;
-  });
+  return out
+    .replace(/(?<![0-9a-fA-F])[0-9a-f]{7,40}(?![0-9a-fA-F])/g, (run) => {
+      const sha = shas.find((s) => s.startsWith(run));
+      if (sha === undefined) return run;
+      return run.length === 40 ? `<sha:${known[sha]}>` : `<short:${known[sha]}>`;
+    })
+    // Phase 08.7 D-04: a `log` entry of `show --json` holds the commit's absolute epoch second, which moves with the build's start time.
+    .replace(/("at":\s*)\d{9,}/g, '$1"<at>"');
 }
 
 interface Place {

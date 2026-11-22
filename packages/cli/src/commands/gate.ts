@@ -10,6 +10,7 @@ import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
 import { withSlopFacts } from '../load/slop-facts.js';
+import { appendGateRun, GATE_LOG } from '../load/ticket-log.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -78,6 +79,15 @@ export function gate(
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );
+  // Phase 08.7 D-04, A-03: the run is recorded as one line of the git-ignored `.accord-reports/<id>/gate.log` for the pane's log only; no gate, lint rule or round command reads it. The folder is
+  // the snapshot's own key (an unknown id writes nothing), and a failed append names itself once on stderr and changes neither the verdict nor the exit code.
+  if (Object.hasOwn(ctx.snapshot.tickets, id)) {
+    try {
+      appendGateRun(ctx.root, id, result, Math.floor(Date.now() / 1000));
+    } catch (err) {
+      ctx.stderr.write(`could not record the gate run in .accord-reports/${id}/${GATE_LOG}: ${err instanceof Error ? err.message : String(err)}\n`);
+    }
+  }
 
   // D-96: no flag, option, or environment variable enables or suppresses this. `acHash` is absent when
   // the ticket is unknown or carries no `@ac-n` scenario, and there is then nothing to record.

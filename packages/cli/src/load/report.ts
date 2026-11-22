@@ -3,8 +3,10 @@
 // ticket key and the validated task number only (T-04-12), never from report or plan text.
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { SAFE_ID } from '@accord-dev/accord-core';
 import { assertNoLink } from '../guard.js';
 import { UsageError } from './fs.js';
+import { shown } from './script-trust.js';
 
 export const REPORT_DIR = '.accord-reports';
 
@@ -62,6 +64,40 @@ export function prepareFixReport(root: string, id: string): number {
   mkdirSync(folder, { recursive: true });
   if (!existsSync(join(root, ...ignore.split('/')))) writeFileSync(join(root, ...ignore.split('/')), '*\n');
   return k;
+}
+
+/** D-23: the name `--out` takes: a bare file name, never a path, that starts with a letter or digit (so never `-x`, `.gitignore` or `..`). */
+export const AGENT_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+/** The folder of a file no ticket owns (`accord diff-package --out`, 08.5-06): no ticket id can be it, since an id starts with a letter or digit. */
+export const DIFF_FOLDER = '_diff';
+/** The names of the reports an executor writes and `accord task-done` and `accord round` read; `--out` never writes one, so no brief can forge a report. */
+const REPORT_NAME = /^(?:task|fix)-[0-9]+\.md$/i;
+
+/** The refusals of `writeAgentFile` that need no disk: a UsageError ending `nothing was written`, thrown before any file or folder is made. */
+export function assertAgentFile(folder: string, name: string): void {
+  const nothing = '; nothing was written';
+  const said = shown(name.replace(/\\/g, '/'));
+  if (folder !== DIFF_FOLDER && !SAFE_ID.test(folder)) throw new UsageError(`not a valid report folder: ${shown(folder.replace(/\\/g, '/'))}${nothing}`);
+  if (!AGENT_FILE.test(name)) throw new UsageError(`--out takes a bare file name of letters, digits, . _ and -, at most 100 characters, starting with a letter or digit, never a path: ${said}${nothing}`);
+  if (REPORT_NAME.test(name)) throw new UsageError(`--out never takes a report name (task-<n>.md or fix-<k>.md): ${said}${nothing}`);
+}
+
+/**
+ * D-23, R-5: one writer for every file accord writes for an agent to read (`accord brief --out`, and the package commands of 08.5-06): `.accord-reports/<folder>/<name>` under the checkout
+ * root, written as UTF-8 with no byte order mark (the text is LF already), so no shell redirect can change its encoding. The folder is a validated ticket id or `DIFF_FOLDER`; the name passes
+ * `assertAgentFile`; the `.gitignore` of `*` is made as `prepareReport` makes it, and neither it, the folders nor the file may be a link, a junction or a non-file (`assertNoLink`: exit 2).
+ * Returns the file's absolute path with forward slashes.
+ */
+export function writeAgentFile(root: string, folder: string, name: string, text: string): string {
+  assertAgentFile(folder, name);
+  const rel = `${REPORT_DIR}/${folder}/${name}`;
+  const ignore = `${REPORT_DIR}/.gitignore`;
+  assertNoLink(root, ignore);
+  assertNoLink(root, rel);
+  mkdirSync(join(root, REPORT_DIR, folder), { recursive: true });
+  if (!existsSync(join(root, ...ignore.split('/')))) writeFileSync(join(root, ...ignore.split('/')), '*\n');
+  writeFileSync(join(root, ...rel.split('/')), text, 'utf8');
+  return root.replace(/\\/g, '/').replace(/\/+$/, '') + '/' + rel;
 }
 
 /** The report's text and modification time; undefined when there is none, or when it or a folder above it is not a plain file or folder (a link reads as missing). */

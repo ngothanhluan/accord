@@ -3,12 +3,12 @@
 // never a summary.
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { briefText, checkProductText, claimPinBefore, commitRuleLine, commitRuleOf, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, planFile, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, workOf } from '@accord-dev/accord-core';
+import { briefText, checkProductText, claimPinBefore, commitRuleLine, commitRuleOf, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, planFile, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, workOf } from '@accord-dev/accord-core';
 import type { PlanTask, RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
 import { cliRuleset, readFindings, readProductText } from '../load/product.js';
-import { fixReportPath, prepareFixReport, prepareReport, reportPath } from '../load/report.js';
+import { assertAgentFile, fixReportPath, prepareFixReport, prepareReport, reportPath, writeAgentFile } from '../load/report.js';
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
@@ -115,13 +115,25 @@ function commitRuleTail(ctx: CommandContext, id: string): string {
 }
 
 // ST-LN-50 D-08 Ruling: with the plan stage off the whole ticket is task 1, briefed from the ticket itself; no plan.md is read, whatever it holds.
-function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: number, file: string, lane: string | undefined): number {
+function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: number, file: string, lane: string | undefined): string {
   if (n !== 1) {
     throw new UsageError(`the plan stage is off for lane ${lane} (strictness.stages.${lane}.plan): the whole ticket is task 1, there is no task ${n}`);
   }
   const text = normaliseText(readFileSync(join(ctx.root, file), 'utf8'));
   const line = `The plan stage is off for lane ${lane}: build the whole ticket as task 1; every scenario that is not @ui needs one test that proves it.`;
-  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + ticketTestBlock(ctx) + commitRuleTail(ctx, id) + conventionsTail(ctx));
+  return text.replace(/\n*$/, '\n') + '\n---\n\n' + line + '\n\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + ticketTestBlock(ctx) + commitRuleTail(ctx, id) + conventionsTail(ctx);
+}
+
+/** What `accord brief` may be given besides the ticket and a task: the findings file of a fix, where to write the brief, and the test-only ending of a fix brief. */
+export interface BriefOptions {
+  fix?: string;
+  out?: string;
+  testOnly?: boolean;
+}
+
+/** D-23: the brief goes to stdout, or with `--out` into `.accord-reports/<id>/<file>` (UTF-8, no byte order mark, LF), and stdout then holds only the `file:` line. */
+function emit(ctx: CommandContext, id: string, text: string, out: string | undefined): number {
+  ctx.stdout.write(out === undefined ? text : 'file: ' + writeAgentFile(ctx.root, id, out, text) + '\n');
   return 0;
 }
 
@@ -160,7 +172,7 @@ function fixTestLines(ctx: CommandContext, paths: readonly string[]): string[] {
  * With no task the work dir is the ticket's own checkout and the fix report is the next `fix-<k>.md`; with a task its worktree and the task's files join the test command. Nothing is
  * written before the findings are read and the task is found.
  */
-function briefFix(ctx: CommandContext, id: string, n: number | undefined, ticketFile: string, lane: string | undefined, findingsArg: string, cwd: string): number {
+function briefFix(ctx: CommandContext, id: string, n: number | undefined, ticketFile: string, lane: string | undefined, findingsArg: string, cwd: string, testOnly: boolean): string {
   const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
   const findings = readFindings(resolve(cwd, findingsArg));
   let dir: string;
@@ -187,27 +199,31 @@ function briefFix(ctx: CommandContext, id: string, n: number | undefined, ticket
     ...FIX_REPORT_CONTRACT.split('\n').filter((l) => l !== ''),
     ...fixTestLines(ctx, [...paths, ...named]),
     ...commitRuleLines(ctx, id),
+    // R-7: the last line accord writes, so executor.md's last-line rule holds and no skill appends a line to a brief by hand
+    ...(testOnly ? [TEST_ONLY_LINE] : []),
   ];
   const ticket = normaliseText(readFileSync(join(ctx.root, ticketFile), 'utf8'));
-  ctx.stdout.write(briefText({ role: 'fix-executor', ruleset: cliRuleset(), ticket, section: findingsBlock(findings), conventions: readProductText(ctx.root, { from: 'working' }), cli }));
-  return 0;
+  return briefText({ role: 'fix-executor', ruleset: cliRuleset(), ticket, section: findingsBlock(findings), conventions: readProductText(ctx.root, { from: 'working' }), cli });
 }
 
-export function brief(ctx: CommandContext, id: string, task: string | undefined, options: { fix?: string }, cwd: string): number {
+export function brief(ctx: CommandContext, id: string, task: string | undefined, options: BriefOptions, cwd: string): number {
   if (task === undefined && options.fix === undefined) throw new UsageError(NEED_TASK);
+  if (options.testOnly === true && options.fix === undefined) throw new UsageError('--test-only works only with --fix');
   const n = task === undefined ? undefined : taskNumber(task);
   const ticket = requireLaneTicket(ctx, id);
   // T-04-12: the id names the report path; a ticket file `accord/tickets/...md` loads under the key `..`. Checked after the lookup, so an unknown id
   // keeps its `no ticket` refusal.
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   refuseLaneR(ticket, id, 'plan tasks');
+  // D-23: the name is checked before anything is written, so a refused one leaves no report folder behind
+  if (options.out !== undefined) assertAgentFile(id, options.out);
   if (options.fix !== undefined) {
     if (ticket.frontmatter?.lane === 'S') throw new UsageError('lane S has no executor: the session fixes the findings itself');
-    return briefFix(ctx, id, n, ticket.file, ticket.frontmatter?.lane, options.fix, cwd);
+    return emit(ctx, id, briefFix(ctx, id, n, ticket.file, ticket.frontmatter?.lane, options.fix, cwd, options.testOnly === true), options.out);
   }
   if (n === undefined) throw new UsageError(NEED_TASK);
   const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
-  if (stageOff(ctx.snapshot, id, 'plan')) return briefTicket(ctx, claimed, id, n, ticket.file, ticket.frontmatter?.lane);
+  if (stageOff(ctx.snapshot, id, 'plan')) return emit(ctx, id, briefTicket(ctx, claimed, id, n, ticket.file, ticket.frontmatter?.lane), options.out);
   const plan = workOf(ctx.snapshot, id)?.plan;
   if (plan === undefined) throw new UsageError('no plan at ' + planFile(id));
   const t = plan.tasks.find((x) => x.n === n);
@@ -219,6 +235,5 @@ export function brief(ctx: CommandContext, id: string, task: string | undefined,
   while (pre.length > 0 && pre[0].trim() === '') pre.shift();
   while (pre.length > 0 && pre[pre.length - 1].trim() === '') pre.pop();
   const rules = pre.length > 0 ? pre.join('\n') + '\n\n' : '';
-  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + testBlock(ctx, t) + commitRuleTail(ctx, id) + conventionsTail(ctx));
-  return 0;
+  return emit(ctx, id, text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + '\n---\n\n' + reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n)) + testBlock(ctx, t) + commitRuleTail(ctx, id) + conventionsTail(ctx), options.out);
 }

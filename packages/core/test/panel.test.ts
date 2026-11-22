@@ -49,6 +49,13 @@ async function host(mod: { register: (on: Handler) => void }) {
   let inputText = '';
   const h = {
     placed: true,
+    // Phase 08.7: the surface a draw reports, the pane's width (undefined draws no props), the agents `$.agent.list` gives, the surfaces `$.session.surfaces` gives and the timers `$.clock` was asked for
+    surface: 'terminal' as string,
+    columns: undefined as number | undefined,
+    placement: undefined as string | undefined,
+    agents: [] as Record<string, unknown>[],
+    surfaces: [] as Record<string, unknown>[],
+    timers: [] as { ms: number; fn: () => unknown; cancelled: boolean }[],
     tree: () => tree,
     async fire(event: string, e: any): Promise<any> {
       const chain = hooks.filter((x) => x.event === event && Object.entries(x.matcher).every(([k, v]) => e[k] === v));
@@ -111,11 +118,20 @@ async function host(mod: { register: (on: Handler) => void }) {
     type: (text: string) => ((inputText = text), h.input()?.onInput(text, {})),
   };
   const draw = async (): Promise<void> => {
-    const r = await h.fire('ui.render', { component: 'Pane', requestId: 'accord-panel', surface: 'terminal' });
+    const props = h.columns === undefined ? {} : { bodyColumns: h.columns, placement: h.placement ?? 'dock' };
+    const r = await h.fire('ui.render', { component: 'Pane', requestId: 'accord-panel', surface: h.surface, props });
     if (r && r.type) tree = r;
     inputText = h.input()?.value ?? '';
   };
+  const timer = (ms: number, fn: () => unknown): { cancel: () => void } => {
+    const t = { ms, fn, cancelled: false };
+    h.timers.push(t);
+    return { cancel: () => void (t.cancelled = true) };
+  };
   const $: any = {
+    agent: { list: vi.fn(async () => h.agents) },
+    clock: { after: vi.fn(timer), every: vi.fn(timer) },
+    session: { surfaces: vi.fn(async () => h.surfaces) },
     process: { run: vi.fn(() => new Promise<Result>((res, rej) => runs.push({ res, rej }))) },
     command: { register: vi.fn(async () => ({})), run: vi.fn(async () => ({})) },
     ui: {
@@ -133,6 +149,7 @@ async function host(mod: { register: (on: Handler) => void }) {
         Text: (p: any) => ({ type: 'Text', props: p }),
         Button: (p: any) => ({ type: 'Button', props: p }),
         Input: (p: any) => ({ type: 'Input', props: { ...p, value: p.value ?? '' } }),
+        Progress: (p: any) => ({ type: 'Progress', props: p }),
       }),
     },
   };

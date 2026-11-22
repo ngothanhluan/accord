@@ -53,7 +53,7 @@ it('risk:security the line check refuses bidi tag hidden reserved and over-long 
   ]) {
     expect(kind(line), line).toBe('reserved');
   }
-  for (const line of ['# Conventions', '## Conventions for tests', '- Rejected: a queue — too slow', '| a | b |', 'emoji ok' + cp(0xfe0f), '- a --- b', 'Work directory of the build', '## Task list']) {
+  for (const line of ['# Conventions', '## Conventions for tests', '- Rejected: a queue — too slow', '| a | b |', 'emoji ok ' + cp(0x2764) + cp(0xfe0f), '- a --- b', 'Work directory of the build', '## Task list']) {
     expect(kind(line), line).toBeUndefined();
   }
   // every reason names the code point and never holds the refused character

@@ -3,12 +3,12 @@
 // accord writes after them), an older one keeps today's brief (D-21, D-22); `--fix <findings file>` builds the brief of a fix executor in the shared layout for any ticket (D-02, D-31).
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { briefText, checkProductText, claimPinBefore, commitRuleLine, commitRuleOf, CONVENTIONS_FILE, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, notReadLine, planFile, PRODUCT_TEXT_FROM, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, withheldLine, workOf } from '@accord-dev/accord-core';
+import { briefText, checkProductText, claimPinBefore, commentProblems, commitRuleLine, commitRuleOf, CONVENTIONS_FILE, FINDING_MAX_LINE, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, notReadLine, planFile, PRODUCT_TEXT_FROM, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, withheldLine, workOf } from '@accord-dev/accord-core';
 import type { PlanTask, RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
 import { cliRuleset, readFindings, readProductText } from '../load/product.js';
-import { assertAgentFile, fixReportPath, prepareFixReport, prepareReport, reportPath, writeAgentFile } from '../load/report.js';
+import { checkAgentFile, fixReportPath, prepareFixReport, prepareReport, reportPath, writeAgentFile } from '../load/report.js';
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
@@ -82,12 +82,12 @@ function reportBlock(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: 
   return dir + 'Report file: ' + reportPath(root, id, n) + '\n' + REPORT_CONTRACT + '\n';
 }
 
-const BOM = '﻿';
+const BOM = '\uFEFF';
 
 /**
  * R-1, D-08: the conventions text of a ticket claimed before PRODUCT_TEXT_FROM, still appended raw after a bare `---` (ST-LN-8 D-04: from disk, so a BOM or CRLF reaches the brief as
  * written), but through the same reader and line check as every other delivery: a file that is a link is the not-read line and no byte of its target, and a line `checkProductText`
- * withholds has its content, up to its own line end, replaced by its placeholder. A file with no refused line is returned byte for byte.
+ * withholds has its content, up to its own line end, replaced by its placeholder. A file with no refused line (a comment of ordinary words is not one) is returned byte for byte.
  */
 function conventionsTail(ctx: CommandContext): string {
   const read = readProductText(ctx.root, { from: 'working' });
@@ -95,7 +95,8 @@ function conventionsTail(ctx: CommandContext): string {
   if (read.kind === 'not-regular') return '\n---\n\n' + notReadLine(CONVENTIONS_FILE) + '\n';
   // trim() strips whitespace and the byte order mark alike: a file with nothing else is no file, as before, so a stray mark in it is not a refused line
   if (read.text.trim() === '') return '';
-  const refused = new Set(checkProductText(read.text).problems.map((p) => p.line));
+  // a line that holds a comment is judged as written too: the tail prints raw lines, so the words inside a comment reach the model (review CR-02)
+  const refused = new Set([...checkProductText(read.text).problems, ...commentProblems(read.text)].map((p) => p.line));
   let conv = read.text;
   if (refused.size > 0) {
     const bom = read.text.startsWith(BOM) ? BOM : '';
@@ -186,7 +187,7 @@ const MAX_FINDING_PATHS = 200;
 /** The tracked files the findings name, as `path` or `path:line` (and `path:line:column`), in the order they first appear, at most 200; a withheld line names none. */
 function findingPaths(findings: string, tree: ReadonlySet<string>): string[] {
   const out: string[] = [];
-  for (const line of checkProductText(findings).lines) {
+  for (const line of checkProductText(findings, { maxLine: FINDING_MAX_LINE }).lines) {
     if (line.withheld) continue;
     for (const word of line.text.split(/\s+/)) {
       const token = word.replace(/^[(["'`<{]+/, '').replace(/[)\]"'`>},;.]+$/, '');
@@ -256,7 +257,7 @@ export function brief(ctx: CommandContext, id: string, task: string | undefined,
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   refuseLaneR(ticket, id, 'plan tasks');
   // D-23: the name is checked before anything is written, so a refused one leaves no report folder behind
-  if (options.out !== undefined) assertAgentFile(id, options.out);
+  if (options.out !== undefined) checkAgentFile(ctx.root, id, options.out);
   if (options.fix !== undefined) {
     if (ticket.frontmatter?.lane === 'S') throw new UsageError('lane S has no executor: the session fixes the findings itself');
     return emit(ctx, id, briefFix(ctx, id, n, ticket.file, ticket.frontmatter?.lane, options.fix, cwd, options.testOnly === true), options.out);

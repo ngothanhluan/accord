@@ -63,14 +63,17 @@ export function readFixReports(root: string, id: string): FixReport[] {
 
 /**
  * `snapshot` with fixReports[id] set; `snapshot` itself when the ticket has no lane, is lane S, has no version 2 review record or no finding recorded fixed with a `checked:` mark, or was claimed
- * before PRODUCT_TEXT_FROM (D-19, R-11: only this refusal reads the claim pin; the `--fix` brief has one layout for any pin). A failed claim read is not before the cut-off (claimPinBefore fails
- * closed), so the reports are read and the refusal applies. `root` is the checkout `accord round` runs in: a fix run in another worktree leaves its report there and is run again (D-19).
+ * before PRODUCT_TEXT_FROM (D-19, R-11: only this refusal reads the claim pin; the `--fix` brief has one layout for any pin). A claim git cannot read (none, or a failed read) is not
+ * a claim at the cut-off or later (review WR-04: the legacy rules are the safe ones for a refusal that asks for a file only the machine that ran the fix holds). `root` is the checkout `accord round` runs in: a fix run in another worktree leaves its report there and is run again (D-19).
  */
 export function withFixReports(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot {
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
   const rec = workOf(snapshot, id)?.rounds;
   if (lane === undefined || lane === 'S' || rec === undefined || rec.version !== 2) return snapshot;
   if (!rec.cycles.some((c) => c.rounds.some((r) => r.findings.some((f) => f.state === 'fixed' && f.checked !== undefined)))) return snapshot;
+  // review WR-04: a claim git cannot read (no `claim: <id>` commit, or a failed read) is not a claim at 0.13.0 or later, so the ticket keeps the rules it had and is never refused for a report
+  const fact = Object.hasOwn(snapshot.claimPins ?? {}, id) ? snapshot.claimPins![id] : undefined;
+  if (fact === undefined || 'error' in fact) return snapshot;
   if (claimPinBefore(snapshot, id, PRODUCT_TEXT_FROM)) return snapshot;
   return { ...snapshot, fixReports: { ...snapshot.fixReports, [id]: readFixReports(root, id) } };
 }

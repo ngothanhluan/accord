@@ -15,9 +15,14 @@ export const NOT_A_PULL_LINK = 'not a https://github.com/<owner>/<repo>/pull/<n>
 /** The reason said when origin is missing or its URL is not a form accord reads. */
 export const ORIGIN_UNREADABLE = "origin's URL is not a form accord reads";
 
+/** The reason said when origin names this pull request's repository on a host accord cannot place (a name an ssh config maps, a Git host of another kind). */
+export const ORIGIN_HOST = "origin's host is not github.com";
+/** Review 08.5 WR-05: the hosts that are github.com: itself, its ssh-over-443 host and an ssh config alias `github.com-<name>`. A lookalike such as `github.com.evil.example` is none of them. */
+const isGithubHost = (host: string): boolean => host === 'github.com' || host === 'ssh.github.com' || /^github\.com-[a-z0-9-]+$/.test(host);
+
 /** Bounds, not a size cap on repository text: no link or origin URL of any real repository comes near them. */
 const MAX_LINK = 300;
-const OWNER = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
+const OWNER = /^[A-Za-z0-9][A-Za-z0-9_-]{0,38}$/;
 const REPO = /^[A-Za-z0-9._-]{1,100}$/;
 const PULL_LINK = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/([1-9][0-9]{0,9})\/?$/;
 
@@ -43,7 +48,7 @@ const SCP = new RegExp(`^(?:[^/@:\\s]+@)?${HOST}:${PATH}$`);
 
 /**
  * R-9: host, owner and repository of a remote's URL, or undefined for any other form. Read: `https://<host>/<owner>/<repo>[.git][/]`, `ssh://[<user>@]<host>[:<port>]/<owner>/<repo>[.git]`, and
- * the scp form `[<user>@]<host>:<owner>/<repo>[.git]` (its host must hold a dot, so a Windows path such as `C:/dir/repo` is no remote). The host is lower-cased; owner and repository are
+ * the scp form `[<user>@]<host>:<owner>/<repo>[.git]` (its host must hold a dot or the form must name a user, so a Windows path such as `C:/dir/repo` is no remote). The host is lower-cased; owner and repository are
  * as typed (the comparison is case-insensitive).
  */
 export function parseRepoUrl(url: string): { host: string; owner: string; repo: string } | undefined {
@@ -51,7 +56,8 @@ export function parseRepoUrl(url: string): { host: string; owner: string; repo: 
   for (const form of [HTTPS, SSH, SCP]) {
     const m = form.exec(url);
     if (m === null) continue;
-    if (form === SCP && !m[1].includes('.')) continue;
+    // a dotless scp host is a remote only with a user in front of it (`git@gh-work:o/r`, an ssh alias); a bare `C:/dir` is a Windows path
+    if (form === SCP && !m[1].includes('.') && !url.includes('@')) continue;
     return { host: m[1].toLowerCase(), owner: m[2], repo: m[3] };
   }
   return undefined;
@@ -59,14 +65,17 @@ export function parseRepoUrl(url: string): { host: string; owner: string; repo: 
 
 /**
  * R-9, D-14: whether the pull request is this clone's own. `pull` undefined (the link was not in the accepted shape) and an origin that is missing or not a form `parseRepoUrl` reads are
- * `unknown`; github.com with the same owner and repository (case-insensitively) is `this`; anything else is `other`, a fork included: a clone whose origin is the fork is another repository
+ * `unknown`; github.com (or its ssh host or a `github.com-<name>` alias) with the same owner and repository (case-insensitively) is `this`; the same name on a host accord cannot place is `unknown`; anything else is `other`, a fork included: a clone whose origin is the fork is another repository
  * to a pull request of the upstream, and the other way round.
  */
 export function repositoryOf(pull: PullRequest | undefined, origin: string | undefined): RepositoryOf {
   if (pull === undefined) return { kind: 'unknown', why: NOT_A_PULL_LINK };
   const where = origin === undefined ? undefined : parseRepoUrl(origin);
   if (where === undefined) return { kind: 'unknown', why: ORIGIN_UNREADABLE };
-  if (where.host === 'github.com' && where.owner.toLowerCase() === pull.owner.toLowerCase() && where.repo.toLowerCase() === pull.repo.toLowerCase()) return { kind: 'this' };
+  const sameName = where.owner.toLowerCase() === pull.owner.toLowerCase() && where.repo.toLowerCase() === pull.repo.toLowerCase();
+  if (sameName && isGithubHost(where.host)) return { kind: 'this' };
+  // a host accord cannot place may be an ssh alias of github.com: the same name there is not called another repository
+  if (sameName) return { kind: 'unknown', why: ORIGIN_HOST };
   return { kind: 'other', owner: pull.owner, repo: pull.repo };
 }
 

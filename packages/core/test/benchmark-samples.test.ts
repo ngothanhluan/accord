@@ -100,8 +100,9 @@ it('risk:data-loss the committed sample list passes its checks before the transc
   const root = fileURLToPath(new URL('../../../', import.meta.url));
   const list = JSON.parse(readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8')) as { samples: { agent: string; transcript: string }[] };
   expect(checkSamples(list)).toEqual([]);
-  expect(list.samples).toHaveLength(45);
+  expect(list.samples).toHaveLength(40);
   expect(list.samples.some((s) => s.agent === 'accord-debugger')).toBe(false);
+  expect(list.samples.some((s) => s.agent === 'accord-auditor')).toBe(false);
   expect(list.samples.every((s) => /^C--Work-accord/.test(s.transcript))).toBe(true);
 });
 

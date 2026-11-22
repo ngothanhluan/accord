@@ -573,7 +573,7 @@ it('risk:regression --samples finds a transcript Claude Code moved to another pr
     const out = f.cmd('--samples');
     expect(out.stderr).toContain('P-moved/S1/subagents/agent-x1.jsonl');
     expect(out.status).toBe(0);
-    expect(out.stdout).toBe('0 written, 45 kept\n');
+    expect(out.stdout).toBe('0 written, 40 kept\n');
     expect(JSON.parse(readFileSync(join(f.dirOf(f.moved), 'root-reads.json'), 'utf8'))).toEqual([{ path: 'pkg.txt', start: 1, total: 2, whole: true, text: 'one\ntwo' }]);
     // the snapshot keeps naming the path it was made from
     expect(JSON.parse(readFileSync(join(f.dirOf(f.moved), 'sample.json'), 'utf8')).transcript).toBe(OLD);

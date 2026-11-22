@@ -37,20 +37,21 @@ it('ac-1 every agent sample runs at its current effort and one step either side 
     readSessions: (d: string[]) => { runs: { turns: unknown[] }[] };
   };
   const agents = Object.keys(round.ROLES);
+  expect(agents).not.toContain('accord-auditor');
   const list = listOf(agents);
   expect(round.checkSamples(list)).toEqual([]);
   // Fixed settings, so a later change to an agent's frontmatter does not touch this test; reviewer sits at the top of the scale, scout at the bottom.
   const settings: Record<string, { model: string; effort: string }> = {
     'accord-executor': { model: 'sonnet', effort: 'medium' }, 'accord-planner': { model: 'sonnet', effort: 'medium' },
     'accord-critic': { model: 'opus', effort: 'high' }, 'accord-reviewer': { model: 'opus', effort: 'max' },
-    'accord-final-reviewer': { model: 'opus', effort: 'high' }, 'accord-auditor': { model: 'sonnet', effort: 'medium' },
+    'accord-final-reviewer': { model: 'opus', effort: 'high' },
     'accord-verifier': { model: 'sonnet', effort: 'xhigh' }, 'accord-architect': { model: 'opus', effort: 'high' },
     'accord-scout': { model: 'haiku', effort: 'low' },
   };
   const want: Record<string, string[]> = {
     'accord-executor': ['low', 'medium', 'high'], 'accord-planner': ['low', 'medium', 'high'],
     'accord-critic': ['medium', 'high', 'xhigh'], 'accord-reviewer': ['xhigh', 'max'],
-    'accord-final-reviewer': ['medium', 'high', 'xhigh'], 'accord-auditor': ['low', 'medium', 'high'],
+    'accord-final-reviewer': ['medium', 'high', 'xhigh'],
     'accord-verifier': ['high', 'xhigh', 'max'], 'accord-architect': ['medium', 'high', 'xhigh'],
     'accord-scout': ['low', 'medium'],
   };
@@ -164,7 +165,7 @@ it('ac-2 a run holds only when it is no worse than the current effort on the sam
     expect(holds(agent, { current: true, [key]: true })).toBe(true);
     expect(holds(agent, { current: true, [key]: false })).toBe(false);
   }
-  for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-auditor', 'accord-verifier']) {
+  for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-verifier']) {
     expect(holds(agent, { current: false, verdict: { same: [true, true], newMusts: 0 } })).toBe(true);
     expect(holds(agent, { current: false, verdict: { same: [true, false], newMusts: 0 } })).toBe(false);
     expect(holds(agent, { current: false, verdict: { same: [], newMusts: 3 } })).toBe(true);
@@ -184,12 +185,11 @@ it('ac-2 a run holds only when it is no worse than the current effort on the sam
   for (const k of ['must', 'match', 'fact']) expect(r.parseVerdict(k, '', 0)).toBe(null);
 
   expect(r.mustsOf('accord-critic', '1. Must — a\n2. Should — b\n3. **Must** — c\n')).toEqual(['1. Must — a', '3. **Must** — c']);
-  expect(r.mustsOf('accord-auditor', '@ac-1: one reading\n@ac-2: "x" or "y", split by "each"\n')).toEqual(['@ac-2: "x" or "y", split by "each"']);
   expect(r.mustsOf('accord-verifier', '', '## @ac-1\nResult: pass\n\n## @ac-2\nResult: fail\n\n## @ac-3\nResult: blocked\n')).toEqual(['@ac-2 fail', '@ac-3 blocked']);
 
   const list = JSON.parse(readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8'));
   const rows = r.runMatrix(list, agentSettings(root));
-  const finding = ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-auditor', 'accord-verifier'];
+  const finding = ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-verifier'];
   for (const row of rows) {
     expect(row.judge === null).toBe(finding.includes(row.agent) && row.current);
     if (row.judge) {
@@ -206,9 +206,6 @@ it('ac-2 a run holds only when it is no worse than the current effort on the sam
   expect(m).toContain('new Musts: <n>');
   expect(r.judgeBrief('must', base)).toContain('Must findings: <n>');
   expect(r.judgeBrief('fact', base)).toContain('wrong facts: <n>');
-  const a = r.judgeBrief('match', { ...base, agent: 'accord-auditor', reference: ['@ac-2: "x" or "y"'] });
-  expect(a).toContain('M1: @ac-2: "x" or "y"');
-  expect(a).toContain('read that criterion two ways too');
   const v = r.judgeBrief('match', { ...base, agent: 'accord-verifier', reference: ['@ac-2 fail'] });
   expect(v).toContain('M1: @ac-2 fail');
   expect(v).toContain('marked that criterion fail or blocked');
@@ -342,7 +339,7 @@ it('risk:complex-branching a finding run holds by default when the reference hol
     holds: (a: string, o: Record<string, unknown>) => boolean | null;
     parseVerdict: (k: string, t: string, n: number) => unknown;
   };
-  for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-auditor', 'accord-verifier']) {
+  for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-verifier']) {
     expect(r.holds(agent, { current: false, reference: 0 })).toBe(true);
     expect(r.holds(agent, { current: false, reference: 1 })).toBe(null);
     expect(r.holds(agent, { current: false, reference: 1, verdict: { same: [false], newMusts: null } })).toBe(false);

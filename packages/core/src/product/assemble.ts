@@ -2,7 +2,7 @@
 // Rejected lines, the epic block, the team's conventions and the branch's own change to them, each block under its fixed heading with one duty line. Pure: the CLI reads every file
 // (product.ts in the CLI's load folder) and passes text; core builds. The wrappers (headings, duty lines) sit outside `rulesetText` and `epicBlock`, whose text the SubagentStart hook
 // also prints, so the hook and a CLI-written file carry the same bodies (P6).
-import { CONVENTIONS_FILE, checkProductText, lineProblem, notReadLine, withheldFindingLine, withheldLine } from './lines.js';
+import { CONVENTIONS_FILE, FINDING_MAX_LINE, checkProductText, lineProblem, notReadLine, trimLineEnd, withheldFindingLine, withheldLine } from './lines.js';
 import { rejectedLines } from '../tickets/related.js';
 
 /** What the CLI read of one product file: its text, nothing (absent), or a link or other non-regular file whose target is never read (D-01). `note` says the default-branch copy could not be read, so `copy` is the working tree's (D-07). */
@@ -126,7 +126,8 @@ export function changedBlock(change: ProductChange): string {
       inHunk = m !== null;
       out.push(m === null ? CHANGED_WITHHELD_LINE : m[0]);
     } else if (inHunk && (line.startsWith(' ') || line.startsWith('+') || line.startsWith('-'))) {
-      out.push(lineProblem(line.slice(1).replace(/[ \t\r]+$/, '')) === undefined ? line.charAt(0) + line.slice(1).replace(/[ \t\r]+$/, '') : line.charAt(0) + CHANGED_WITHHELD_LINE);
+      const text = trimLineEnd(line.slice(1));
+      out.push(lineProblem(text) === undefined ? line.charAt(0) + text : line.charAt(0) + CHANGED_WITHHELD_LINE);
     } else if (inHunk && line === '') {
       out.push('');
     } else if (line === '\\ No newline at end of file' || (!inHunk && GIT_HEADERS.some((h) => line.startsWith(h)))) {
@@ -184,7 +185,7 @@ export const TEST_ONLY_LINE = 'Test only: commit the reproduction test alone, th
  * the number the file gives it; it is never quoted. A finding quotes a pull request comment or a CI log, so it is data, never framing the brief's own lines can be mistaken for.
  */
 export function findingsBlock(text: string): string {
-  return [FINDINGS_HEADING, FINDINGS_DUTY, ...checkProductText(text).lines.map((l) => (l.withheld ? withheldFindingLine(l.line) : l.text))].join('\n');
+  return [FINDINGS_HEADING, FINDINGS_DUTY, ...checkProductText(text, { maxLine: FINDING_MAX_LINE }).lines.map((l) => (l.withheld ? withheldFindingLine(l.line) : l.text))].join('\n');
 }
 
 /** What `briefText` assembles: the ruleset and conventions come from `productBlocks`, the rest is built by the caller. `cli` holds the lines accord writes, last. */

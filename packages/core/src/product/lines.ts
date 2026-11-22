@@ -7,6 +7,8 @@ import type { RepoSnapshot } from '../model/snapshot.js';
 export const CONVENTIONS_FILE = 'accord/product/conventions.md';
 /** D-10: a line is at most this many UTF-16 code units, measured before any expression runs on it. */
 export const PRODUCT_MAX_LINE = 300;
+/** Review 08.5 WR-01: a finding, a pasted pull request comment or a CI log line is longer than a convention rule, so the findings file of `--fix` is judged at this length. */
+export const FINDING_MAX_LINE = 4000;
 
 /** D-01 and R-3: the line starts the CLI itself writes in a brief, in the order D-01 then R-3 list them; matched case-insensitively after whitespace, blockquote and list markers. */
 export const RESERVED_PREFIXES = ['Work dir:', 'Report file:', 'Test command:', '---', 'Commit rule:', 'Example that passes:', 'Test only:'] as const;
@@ -90,8 +92,8 @@ function hiddenAt(cps: readonly number[]): number | undefined {
  * code units), bidi control or tag character (each named), any other hidden character (U+200C and U+200D stay between two letters or marks), a reserved prefix, a reserved
  * heading. The two reserved checks read the line folded as a reader reads it (CR-01). The reasons name a code point and never quote the line.
  */
-export function lineProblem(line: string): LineVerdict | undefined {
-  if (line.length > PRODUCT_MAX_LINE) return verdict('length', `is over ${PRODUCT_MAX_LINE} characters`, `split it into lines of at most ${PRODUCT_MAX_LINE} characters`);
+export function lineProblem(line: string, maxLine: number = PRODUCT_MAX_LINE): LineVerdict | undefined {
+  if (line.length > maxLine) return verdict('length', `is over ${maxLine} characters`, `split it into lines of at most ${maxLine} characters`);
   const cps = Array.from(line, (c) => c.codePointAt(0) as number);
   const bidi = cps.find(isBidi);
   if (bidi !== undefined) return verdict('bidi', `holds a bidi control character (${HEX(bidi)})`, `delete the character (${HEX(bidi)}) or retype the line`);
@@ -195,7 +197,8 @@ export interface ProductLine {
  * is not blank (trailing spaces and tabs do not count) goes through `lineProblem`. `lines` holds the non-blank lines in order, a refused one with `withheld` true and no
  * text; `problems` holds one entry per refused line in line order. Delivery never fails on a refused line: it prints `withheldLine` in its place.
  */
-export function checkProductText(text: string): { lines: ProductLine[]; problems: LineProblem[] } {
+export function checkProductText(text: string, options: { maxLine?: number } = {}): { lines: ProductLine[]; problems: LineProblem[] } {
+  const maxLine = options.maxLine ?? PRODUCT_MAX_LINE;
   const raw = rawLines(text);
   const { visible, unclosed } = visibleLines(raw);
   const lines: ProductLine[] = [];
@@ -209,7 +212,7 @@ export function checkProductText(text: string): { lines: ProductLine[]; problems
     }
     const kept = trimLineEnd(shown);
     if (kept === '') return;
-    const found = lineProblem(kept);
+    const found = lineProblem(kept, maxLine);
     if (found === undefined) lines.push({ line, text: kept, withheld: false });
     else {
       lines.push({ line, text: '', withheld: true });

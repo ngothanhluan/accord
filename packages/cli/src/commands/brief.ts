@@ -3,7 +3,7 @@
 // accord writes after them), an older one keeps today's brief (D-21, D-22); `--fix <findings file>` builds the brief of a fix executor in the shared layout for any ticket (D-02, D-31).
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { briefText, checkProductText, claimPinBefore, commentProblems, commitRuleLine, commitRuleOf, CONVENTIONS_FILE, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, notReadLine, planFile, PRODUCT_TEXT_FROM, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, withheldLine, workOf } from '@accord-dev/accord-core';
+import { briefText, checkProductText, claimPinBefore, commentProblems, commitRuleLine, commitRuleOf, CONVENTIONS_FILE, FINDING_MAX_LINE, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, notReadLine, planFile, PRODUCT_TEXT_FROM, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, withheldLine, workOf } from '@accord-dev/accord-core';
 import type { PlanTask, RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
@@ -187,7 +187,7 @@ const MAX_FINDING_PATHS = 200;
 /** The tracked files the findings name, as `path` or `path:line` (and `path:line:column`), in the order they first appear, at most 200; a withheld line names none. */
 function findingPaths(findings: string, tree: ReadonlySet<string>): string[] {
   const out: string[] = [];
-  for (const line of checkProductText(findings).lines) {
+  for (const line of checkProductText(findings, { maxLine: FINDING_MAX_LINE }).lines) {
     if (line.withheld) continue;
     for (const word of line.text.split(/\s+/)) {
       const token = word.replace(/^[(["'`<{]+/, '').replace(/[)\]"'`>},;.]+$/, '');

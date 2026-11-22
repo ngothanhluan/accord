@@ -82,6 +82,13 @@ export function assertAgentFile(folder: string, name: string): void {
   if (REPORT_NAME.test(name)) throw new UsageError(`--out never takes a report name (task-<n>.md or fix-<k>.md): ${said}${nothing}`);
 }
 
+/** Review 08.5 IN-03: everything `writeAgentFile` would refuse, found before anything is written: the name, and a link or non-file at the report's `.gitignore` or at the file. Writes nothing. */
+export function checkAgentFile(root: string, folder: string, name: string): void {
+  assertAgentFile(folder, name);
+  assertNoLink(root, `${REPORT_DIR}/.gitignore`);
+  assertNoLink(root, `${REPORT_DIR}/${folder}/${name}`);
+}
+
 /**
  * D-23, R-5: one writer for every file accord writes for an agent to read (`accord brief --out`, and the package commands of 08.5-06): `.accord-reports/<folder>/<name>` under the checkout
  * root, written as UTF-8 with no byte order mark (the text is LF already), so no shell redirect can change its encoding. The folder is a validated ticket id or `DIFF_FOLDER`; the name passes

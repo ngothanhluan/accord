@@ -8,7 +8,7 @@ import type { PlanTask, RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
 import { cliRuleset, readFindings, readProductText } from '../load/product.js';
-import { assertAgentFile, fixReportPath, prepareFixReport, prepareReport, reportPath, writeAgentFile } from '../load/report.js';
+import { checkAgentFile, fixReportPath, prepareFixReport, prepareReport, reportPath, writeAgentFile } from '../load/report.js';
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
@@ -257,7 +257,7 @@ export function brief(ctx: CommandContext, id: string, task: string | undefined,
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   refuseLaneR(ticket, id, 'plan tasks');
   // D-23: the name is checked before anything is written, so a refused one leaves no report folder behind
-  if (options.out !== undefined) assertAgentFile(id, options.out);
+  if (options.out !== undefined) checkAgentFile(ctx.root, id, options.out);
   if (options.fix !== undefined) {
     if (ticket.frontmatter?.lane === 'S') throw new UsageError('lane S has no executor: the session fixes the findings itself');
     return emit(ctx, id, briefFix(ctx, id, n, ticket.file, ticket.frontmatter?.lane, options.fix, cwd, options.testOnly === true), options.out);

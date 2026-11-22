@@ -1,10 +1,12 @@
 // Phase 08.7 D-02, D-04, A-03: `accord show <id> --json` carries the ticket's session log `log`: its commits since the default branch, its executor and fix reports by name and time
 // (never their text), and each `accord gate` run from the git-ignored gate log. The CLI is the one source; no gate reads the record; the text output stays as it was (D-09).
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { cleanup, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { discussFor, discussPath, P, ready } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 
 const T1 = new Date('2026-03-01T10:00:00Z');
 const T2 = new Date('2026-03-01T11:00:00Z');
@@ -155,3 +157,92 @@ it('risk:complex-branching show json has no log on the default branch or without
     cleanup(bare);
   }
 }, 240_000);
+
+// Phase 08.7 D-04, A-03: a ticket that passes `gate ready` and fails `gate done`, in a sandbox with no claim or default ref.
+function gateRepo(): string {
+  const files: Files = {};
+  ready(files, 'T-1');
+  return makeLaneRepo({ [P('T-1')]: files[P('T-1')], [discussPath('T-1')]: discussFor('T-1') });
+}
+const GATE_LINE = /^[0-9]+\t(ready|plan|done)\t(pass|fail)\t[^\t]*$/;
+const gateLog = (repo: string): string[] => readFileSync(join(repo, '.accord-reports', 'T-1', 'gate.log'), 'utf8').split('\n').filter((l) => l !== '');
+
+// Phase 08.7 D-04, A-03: each gate run appends one line to the git-ignored gate log, and show json lists it, a FAIL with its mark.
+it('risk:regression a gate run appends one line to the git-ignored gate log and show json lists it with a fail mark (D-04)', async () => {
+  const repo = gateRepo();
+  try {
+    const pass = await run(['gate', 'ready', 'T-1', '--json'], repo);
+    expect(pass.code).toBe(0);
+    expect(() => JSON.parse(pass.out)).not.toThrow();
+    const fail = await run(['gate', 'done', 'T-1', '--json'], repo);
+    expect(fail.code).toBe(1);
+    const found = (JSON.parse(fail.out) as { findings: { rule: string; level: string }[] }).findings.find((f) => f.level === 'error');
+    const lines = gateLog(repo);
+    expect(lines).toHaveLength(2);
+    for (const l of lines) expect(l).toMatch(GATE_LINE);
+    expect(lines[0].split('\t').slice(1)).toEqual(['ready', 'pass', '']);
+    expect(lines[1].split('\t')[3].startsWith(found?.rule ?? 'no error finding')).toBe(true);
+    expect(readFileSync(join(repo, '.accord-reports', '.gitignore'), 'utf8')).toBe('*\n');
+    expect(gitRun(repo, 'status', '--porcelain')).not.toContain('.accord-reports');
+    const log = logOf((await run(['show', 'T-1', '--json'], repo)).out) ?? [];
+    const gates = log.filter((e) => e.kind === 'gate');
+    expect(gates).toHaveLength(2);
+    const failed = gates.find((e) => e.fail === true);
+    expect(failed?.text.startsWith('gate done FAIL: ')).toBe(true);
+    const passed = gates.find((e) => e.fail === undefined);
+    expect(passed).toEqual({ at: passed?.at, kind: 'gate', text: 'gate ready PASS' });
+    expect(passed && 'fail' in passed).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.7 D-02, A-03 (T-08.7-02, T-08.7-03): a forged gate log changes no verdict; a link at the report folder is never written through.
+it('risk:security a forged gate log changes no gate verdict and a link at the report folder is never written through (D-02)', async () => {
+  const repo = gateRepo();
+  const other = gateRepo();
+  const outside = mkdtempSync(join(tmpdir(), 'accord-outside-'));
+  try {
+    const first = await run(['gate', 'done', 'T-1', '--json'], repo);
+    expect(first.code).toBe(1);
+    writeFileSync(join(repo, '.accord-reports', 'T-1', 'gate.log'), '1700000000\tdone\tpass\t\n1700000000\tdone\tpass\t\nnot a line\n1700000001\tdone\tmaybe\tx\n');
+    const second = await run(['gate', 'done', 'T-1', '--json'], repo);
+    expect([second.code, second.out]).toEqual([first.code, first.out]);
+    const log = logOf((await run(['show', 'T-1', '--json'], repo)).out) ?? [];
+    expect(log.filter((e) => e.at === 1700000001)).toEqual([]);
+    expect(log.some((e) => e.text === 'gate done PASS')).toBe(true); // a forged line shows; it moves no verdict
+    // a link at the report folder: nothing is written through it
+    mkdirSync(join(other, '.accord-reports'), { recursive: true });
+    try {
+      symlinkSync(outside, join(other, '.accord-reports', 'T-1'), 'junction');
+    } catch {
+      return; // the host cannot make a link here: nothing more to prove
+    }
+    const linked = await run(['gate', 'done', 'T-1', '--json'], other);
+    expect([linked.code, linked.out]).toEqual([first.code, first.out]);
+    expect(readdirSync(outside)).toEqual([]);
+    const lines = linked.err.split('\n').filter((l) => l !== '');
+    expect(lines).toHaveLength(1);
+    expect(lines[0].startsWith('could not record the gate run in .accord-reports/')).toBe(true);
+  } finally {
+    cleanup(repo);
+    cleanup(other);
+    cleanup(outside);
+  }
+}, 180_000);
+
+// Phase 08.7 D-04: an unknown ticket leaves no gate log; a clean second `gate ready` still prints an empty stderr.
+it('risk:complex-branching a gate for an unknown ticket writes no gate log and a failed append keeps the verdict and exit code (D-04)', async () => {
+  const repo = gateRepo();
+  try {
+    const unknown = await run(['gate', 'ready', 'NOSUCH'], repo);
+    expect(unknown.code).toBe(1);
+    expect(existsSync(join(repo, '.accord-reports'))).toBe(false);
+    expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(0);
+    const again = await run(['gate', 'ready', 'T-1'], repo);
+    expect(again.code).toBe(0);
+    expect(again.err).toBe('');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

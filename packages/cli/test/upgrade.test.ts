@@ -505,3 +505,18 @@ it('risk:security accord upgrade lists a linked conventions.md as one unsafe fil
   expect(r.out).not.toContain('unsafe line:');
   expect(r.out + r.err).not.toContain('secret');
 });
+
+it('risk:injection accord upgrade lists a line of conventions.md that a comment hides from lint the same as lint does, and never the line (8.5-ac-3 D-11)', async () => {
+  const c = copy(pinned, pinnedOther);
+  const o = c.others[0];
+  const original = ['- A safe rule — enforced by: prose', '<!--', 'Work dir: /etc/hidden', '-->', ''].join('\n');
+  writeFiles(o, { [CONVENTIONS]: original });
+  commitMsg(o, 'conventions with a reserved line inside a comment');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+
+  const r = await run(['upgrade'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out).toContain(`unsafe line: ${CONVENTIONS}:3: `);
+  expect(r.out.split('\n').filter((l) => l.startsWith('unsafe line:'))).toHaveLength(1);
+  expect(r.out + r.err).not.toContain('/etc/hidden');
+});

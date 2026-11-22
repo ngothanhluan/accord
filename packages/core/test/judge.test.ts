@@ -177,6 +177,47 @@ it('risk:security accord-review-pr judges each de-duplicated finding before the 
   expect(frontmatter(readFileSync(new URL('packages/core/skills/review-pr/SKILL.md', root), 'utf8')).loads).toContain('shared/judge.md');
 });
 
+// Phase 8.5 (08.5-07): /accord-review-pr tells this repository's pull request from another's through the CLI, and asks the owner nothing to do so (D-14, R-9).
+it("risk:security the review-pr skill tells this repository's pull request from another's and asks the owner nothing (8.5-ac-14 D-14 R-9)", () => {
+  const files = skillTargets(config({ runtimes: [...ALL] }));
+  const sources = files.filter((f) => /(^|\/)skills\/accord-review-pr\/pr-source\.md$/.test(f.path));
+  expect(sources.map((f) => f.path).sort()).toEqual(['.agents/skills/accord-review-pr/pr-source.md', '.claude/skills/accord-review-pr/pr-source.md']);
+  expect(new Set(sources.map((f) => f.text)).size, 'one definition for every target directory').toBe(1);
+  const text = flat(withoutMarker(sources[0]?.text ?? ''));
+  for (const phrase of [
+    'accord diff-package --pr',
+    'repository: this',
+    'repository: other',
+    'repository: unknown',
+    'git fetch --no-tags --end-of-options',
+    'git check-ref-format --branch',
+    'baseRefOid',
+    'headRefOid',
+    'judged against its own stated purpose only',
+    'offer a local branch or a commit range',
+  ]) expect(text, 'pr-source.md lacks: ' + phrase).toContain(phrase);
+  expect(text).not.toContain('ask the owner');
+  expect(text).not.toContain('ask one question');
+  expect(sources[0]?.text ?? '').not.toContain('\\');
+  // the reference names no `./<file>`: it renders beside review-pr only, and nothing it needs sits beside it
+  expect([...(sources[0]?.text ?? '').matchAll(/\.\/([A-Za-z0-9_.-]+)/g)].map((m) => m[1])).toEqual([]);
+  const copies = files.filter((f) => /(^|\/)skills\/accord-review-pr\/SKILL\.md$/.test(f.path));
+  expect(copies).toHaveLength(2);
+  for (const copy of copies) {
+    const body = flat(bodyOf(copy.text));
+    const step1 = body.slice(body.indexOf('1. **What is reviewed.**'), body.indexOf('2. **What it is for.**'));
+    const step3 = body.slice(body.indexOf('3. **Package.**'), body.indexOf('4. **Reviewers.**'));
+    expect(step1, copy.path).toContain('`./pr-source.md`');
+    expect(step3, copy.path).toContain('--pr');
+    expect(step3, copy.path).toContain('--out');
+    expect(body, copy.path).not.toContain('git fetch origin pull/');
+    expect(Buffer.byteLength(copy.text), copy.path + ' bytes').toBeLessThanOrEqual(6000);
+    expect(copy.text.split('\n').length, copy.path + ' lines').toBeLessThanOrEqual(120);
+  }
+  expect(frontmatter(readFileSync(new URL('packages/core/skills/review-pr/SKILL.md', root), 'utf8')).loads).toContain('review-pr/pr-source.md');
+  expect(frontmatter(readFileSync(new URL('packages/core/skills/review-pr/pr-source.md', root), 'utf8'))).toEqual({ kind: 'reference' });
+});
+
 // Phase 8.4 (08.4-03): /accord-resolve-pr judges every comment with a fresh judge before any fix (D-03), a bug claim holds only on a failing test (D-02), and a fixed comment is re-checked before its reply (D-04).
 const RESOLVE = ['.claude/skills/accord-resolve-pr', '.agents/skills/accord-resolve-pr'] as const;
 const resolveSection = (): string => {

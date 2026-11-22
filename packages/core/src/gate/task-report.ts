@@ -12,6 +12,21 @@ export const REPORT_CONTRACT = [
   '',
 ].join('\n');
 
+/**
+ * Phase 8.5 D-02, D-19: the lines `accord brief --fix` prints under its `Report file:` line, the fix report `.accord-reports/<id>/fix-<k>.md`. It holds the task report's two keys and
+ * the two a fix adds: `commits:` and one `places checked:` line per finding, the line `accord round` reads back before it lets a finding be recorded fixed. It holds no test-only line:
+ * that belongs to `--test-only` of the brief (stage-skills.test.ts pins it).
+ */
+export const FIX_REPORT_CONTRACT = [
+  'Write this file as your last step, after your last commit. It holds these lines:',
+  'commits: <sha> <subject>, ...',
+  'red reason: <the behaviour the failing test showed missing, not an error in the test>',
+  'self-review: missing: <...>; extra: <...>; misread: <...>',
+  'places checked: <n>: <path>[:<line>], ... (one line per finding, <n> its number in ## Findings above)',
+  "accord round refuses the next round while a fixed finding's checked: places are in no fix report.",
+  '',
+].join('\n');
+
 const PARTS = ['missing:', 'extra:', 'misread:'] as const;
 // One linear pass over a line; the lookbehind keeps `dismissing:` from reading as `missing:`.
 const PART_KEY = /(?<![A-Za-z])(missing|extra|misread):/g;

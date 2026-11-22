@@ -2,16 +2,17 @@
 // preamble, task n of the plan, the task's one test command, then the conventions. Never chat history,
 // never a summary.
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { claimPinBefore, commitRuleLine, commitRuleOf, normaliseText, planFile, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, workOf } from '@accord-dev/accord-core';
+import { join, resolve } from 'node:path';
+import { briefText, checkProductText, claimPinBefore, commitRuleLine, commitRuleOf, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, planFile, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, workOf } from '@accord-dev/accord-core';
 import type { PlanTask, RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
-import { prepareReport, reportPath } from '../load/report.js';
+import { cliRuleset, readFindings, readProductText } from '../load/product.js';
+import { fixReportPath, prepareFixReport, prepareReport, reportPath } from '../load/report.js';
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
-import { briefWorkRoot } from './task-tree.js';
+import { briefWorkRoot, fixWorkRoot } from './task-tree.js';
 import { ID } from './worktree.js';
 
 const ONLY = 'This is the only test command the executor runs for this task.';
@@ -22,16 +23,22 @@ const NO_PATHS = 'No test command is configured for this task: its files: and ve
 // A path with a shell metacharacter is single-quoted, an inner quote written '\''.
 const quote = (p: string): string => (/^[A-Za-z0-9._/@+=:-]+$/.test(p) ? p : "'" + p.replace(/'/g, "'\\''") + "'");
 
+/** The paths a task's test command runs: its `files:` and the part of each `verify:` id before `#` that names a file. */
+function taskPaths(ctx: CommandContext, t: PlanTask): string[] {
+  const paths = [...new Set(t.files)];
+  for (const v of t.verify) {
+    const i = v.indexOf('#');
+    const prefix = i < 0 ? v : v.slice(0, i);
+    if ((ctx.snapshot.tree.includes(prefix) || t.files.includes(prefix)) && !paths.includes(prefix)) paths.push(prefix);
+  }
+  return paths;
+}
+
 // ST-LN-64: the one test command the executor runs, from config.yml. The CLI prints it and runs nothing.
 function testBlock(ctx: CommandContext, t: PlanTask): string {
   const tests = ctx.snapshot.config?.tests;
   if (tests?.affected !== undefined) {
-    const paths = [...new Set(t.files)];
-    for (const v of t.verify) {
-      const i = v.indexOf('#');
-      const prefix = i < 0 ? v : v.slice(0, i);
-      if ((ctx.snapshot.tree.includes(prefix) || t.files.includes(prefix)) && !paths.includes(prefix)) paths.push(prefix);
-    }
+    const paths = taskPaths(ctx, t);
     if (tests.affected.includes('{files}') && paths.length === 0) return NO_PATHS + '\n';
     // split/join, never String.replace, so a `$` in a path is not read as a replacement pattern.
     return 'Test command: ' + tests.affected.split('{files}').join(paths.map(quote).join(' ')) + '\n' + ONLY + '\n';
@@ -88,18 +95,23 @@ function conventionsTail(ctx: CommandContext): string {
  * to run before each commit, and (with a `command`) how to build the message. Empty when `commits.message` is unset, so the brief is then today's byte for byte; a pattern that is not in
  * force is named with `accord lint`. The model reads the rule when it writes the message, as it reads the title rule of Phase 7 D-08b.
  */
-function commitRuleTail(ctx: CommandContext, id: string): string {
+function commitRuleLines(ctx: CommandContext, id: string): string[] {
   const rule = commitRuleOf(ctx.snapshot.config);
-  if (rule === undefined) return '';
-  if ('problem' in rule) return `\n---\n\nCommit rule: commits.message is not in force (${shown(rule.problem)}); run accord lint.\n`;
-  const lines = [
+  if (rule === undefined) return [];
+  if ('problem' in rule) return [`Commit rule: commits.message is not in force (${shown(rule.problem)}); run accord lint.`];
+  return [
     `Commit rule: ${commitRuleLine(rule)}.`,
     ...(rule.example === '' ? [] : [`Example that passes: ${shown(rule.example)}`]),
     'Merge commits and Revert "..." subjects are exempt.',
     'Check each message with accord commit check <file> before you commit it; accord task-done refuses a commit that breaks the rule.',
     ...(ctx.snapshot.config?.commits?.message?.command === undefined ? [] : [`Build each message with accord commit message ${id} and commit with git commit -F <the message-file it prints> --cleanup=verbatim.`]),
   ];
-  return '\n---\n\n' + lines.join('\n') + '\n';
+}
+
+/** The legacy tail: the lines of `commitRuleLines` as a `---` separated block, empty when `commits.message` is unset. */
+function commitRuleTail(ctx: CommandContext, id: string): string {
+  const lines = commitRuleLines(ctx, id);
+  return lines.length === 0 ? '' : '\n---\n\n' + lines.join('\n') + '\n';
 }
 
 // ST-LN-50 D-08 Ruling: with the plan stage off the whole ticket is task 1, briefed from the ticket itself; no plan.md is read, whatever it holds.
@@ -113,13 +125,87 @@ function briefTicket(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: 
   return 0;
 }
 
-export function brief(ctx: CommandContext, id: string, task: string): number {
-  const n = taskNumber(task);
+const NEED_TASK = 'give a task number, or --fix <findings file>';
+const FIX_ONLY = 'This is the only test command the executor runs for these findings.';
+const FIX_NO_COMMAND = 'No test command is configured for this fix: run only the test files you write or change.';
+const FIX_NO_PATHS = 'No test command is configured for this fix: its findings name no tracked path for {files}; run only the test files you write or change.';
+const MAX_FINDING_PATHS = 200;
+
+/** The tracked files the findings name, as `path` or `path:line` (and `path:line:column`), in the order they first appear, at most 200; a withheld line names none. */
+function findingPaths(findings: string, tree: ReadonlySet<string>): string[] {
+  const out: string[] = [];
+  for (const line of checkProductText(findings).lines) {
+    if (line.withheld) continue;
+    for (const word of line.text.split(/\s+/)) {
+      const token = word.replace(/^[(["'`<{]+/, '').replace(/[)\]"'`>},;.]+$/, '');
+      const path = /^(.+?)(?::[0-9]+(?::[0-9]+)?)?$/.exec(token)?.[1];
+      if (path !== undefined && tree.has(path) && !out.includes(path)) out.push(path);
+      if (out.length >= MAX_FINDING_PATHS) return out;
+    }
+  }
+  return out;
+}
+
+/** The test lines of a fix brief: `tests.affected` filled with the tracked paths the task and the findings name; `tests.full` is never printed (executor rule). */
+function fixTestLines(ctx: CommandContext, paths: readonly string[]): string[] {
+  const affected = ctx.snapshot.config?.tests?.affected;
+  if (affected === undefined) return [FIX_NO_COMMAND];
+  if (affected.includes('{files}') && paths.length === 0) return [FIX_NO_PATHS];
+  return ['Test command: ' + affected.split('{files}').join(paths.map(quote).join(' ')), FIX_ONLY];
+}
+
+/**
+ * Phase 8.5 D-02, D-13, D-21, R-11: `accord brief <id> [task] --fix <findings file>`, the brief of the executor that fixes review, debug or comment findings: the ruleset, the ticket, the
+ * findings after the line check, the conventions of the working branch, then only lines accord writes. It has one layout for any claim pin (D-31): no CLI-built fix brief existed before.
+ * With no task the work dir is the ticket's own checkout and the fix report is the next `fix-<k>.md`; with a task its worktree and the task's files join the test command. Nothing is
+ * written before the findings are read and the task is found.
+ */
+function briefFix(ctx: CommandContext, id: string, n: number | undefined, ticketFile: string, lane: string | undefined, findingsArg: string, cwd: string): number {
+  const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
+  const findings = readFindings(resolve(cwd, findingsArg));
+  let dir: string;
+  let paths: string[] = [];
+  if (n === undefined) dir = fixWorkRoot(ctx.root, claimed, id);
+  else {
+    if (stageOff(ctx.snapshot, id, 'plan')) {
+      if (n !== 1) throw new UsageError(`the plan stage is off for lane ${lane} (strictness.stages.${lane}.plan): the whole ticket is task 1, there is no task ${n}`);
+    } else {
+      const plan = workOf(ctx.snapshot, id)?.plan;
+      if (plan === undefined) throw new UsageError('no plan at ' + planFile(id));
+      const t = plan.tasks.find((x) => x.n === n);
+      if (t === undefined) throw new UsageError(`${planFile(id)} has no "## Task ${n}"`);
+      paths = taskPaths(ctx, t);
+    }
+    dir = (briefWorkRoot(ctx.root, claimed, id, n) ?? ctx.root).replace(/\\/g, '/');
+  }
+  const named = findingPaths(findings, new Set(ctx.snapshot.tree)).filter((p) => !paths.includes(p));
+  const k = prepareFixReport(dir, id);
+  const cli = [
+    'Work dir: ' + dir,
+    WORK_DIR_RULE,
+    'Report file: ' + fixReportPath(dir, id, k),
+    ...FIX_REPORT_CONTRACT.split('\n').filter((l) => l !== ''),
+    ...fixTestLines(ctx, [...paths, ...named]),
+    ...commitRuleLines(ctx, id),
+  ];
+  const ticket = normaliseText(readFileSync(join(ctx.root, ticketFile), 'utf8'));
+  ctx.stdout.write(briefText({ role: 'fix-executor', ruleset: cliRuleset(), ticket, section: findingsBlock(findings), conventions: readProductText(ctx.root, { from: 'working' }), cli }));
+  return 0;
+}
+
+export function brief(ctx: CommandContext, id: string, task: string | undefined, options: { fix?: string }, cwd: string): number {
+  if (task === undefined && options.fix === undefined) throw new UsageError(NEED_TASK);
+  const n = task === undefined ? undefined : taskNumber(task);
   const ticket = requireLaneTicket(ctx, id);
   // T-04-12: the id names the report path; a ticket file `accord/tickets/...md` loads under the key `..`. Checked after the lookup, so an unknown id
   // keeps its `no ticket` refusal.
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   refuseLaneR(ticket, id, 'plan tasks');
+  if (options.fix !== undefined) {
+    if (ticket.frontmatter?.lane === 'S') throw new UsageError('lane S has no executor: the session fixes the findings itself');
+    return briefFix(ctx, id, n, ticket.file, ticket.frontmatter?.lane, options.fix, cwd);
+  }
+  if (n === undefined) throw new UsageError(NEED_TASK);
   const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
   if (stageOff(ctx.snapshot, id, 'plan')) return briefTicket(ctx, claimed, id, n, ticket.file, ticket.frontmatter?.lane);
   const plan = workOf(ctx.snapshot, id)?.plan;

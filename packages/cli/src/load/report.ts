@@ -1,7 +1,7 @@
 // ST-LN-59 D-07: where an executor writes its report and how task-done reads it. The folder sits inside the checkout the executor works in, so every tool and permission
 // mode lets it write there, and its own `.gitignore` holds `*`, so git, `accord review-package` and `git status` never see a report. The path is built from the loader's
 // ticket key and the validated task number only (T-04-12), never from report or plan text.
-import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { assertNoLink } from '../guard.js';
 import { UsageError } from './fs.js';
@@ -28,6 +28,40 @@ export function prepareReport(root: string, id: string, n: number): void {
   mkdirSync(join(root, REPORT_DIR, id), { recursive: true });
   if (!existsSync(join(root, ...ignore.split('/')))) writeFileSync(join(root, ...ignore.split('/')), '*\n');
   rmSync(join(root, ...rel.split('/')), { force: true });
+}
+
+/** D-02: the fix report's path under the checkout root, forward slashes: `.accord-reports/<id>/fix-<k>.md`; a fix has no task number. */
+export const fixReportRel = (id: string, k: number): string => `${REPORT_DIR}/${id}/fix-${k}.md`;
+
+/** The absolute path of fix report `k` under `root`, forward slashes on every host. */
+export function fixReportPath(root: string, id: string, k: number): string {
+  return root.replace(/\\/g, '/').replace(/\/+$/, '') + '/' + fixReportRel(id, k);
+}
+
+const FIX_NAME = /^fix-([1-9][0-9]{0,8})\.md$/;
+
+/**
+ * D-02: where a new fix report goes: the folder and its `.gitignore` (`*`, when absent) are made as `prepareReport` makes them, and `k` is one more than the largest `fix-<n>.md` among the
+ * folder's regular files, so an earlier fix report is kept and a second fix gets its own. Nothing is removed. The folder and the report may not be a link, a junction or a non-file
+ * (`assertNoLink`: exit 2, nothing written); a folder named like a report is no report and is refused when its number is taken.
+ */
+export function prepareFixReport(root: string, id: string): number {
+  const ignore = `${REPORT_DIR}/.gitignore`;
+  assertNoLink(root, ignore);
+  // a path that does not exist ends the walk: this checks the folders above it are real folders
+  assertNoLink(root, `${REPORT_DIR}/${id}/fix-0.md`);
+  const folder = join(root, REPORT_DIR, id);
+  let k = 1;
+  if (lstatSync(folder, { throwIfNoEntry: false }) !== undefined) {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const m = entry.isFile() ? FIX_NAME.exec(entry.name) : null;
+      if (m !== null) k = Math.max(k, Number(m[1]) + 1);
+    }
+  }
+  assertNoLink(root, fixReportRel(id, k));
+  mkdirSync(folder, { recursive: true });
+  if (!existsSync(join(root, ...ignore.split('/')))) writeFileSync(join(root, ...ignore.split('/')), '*\n');
+  return k;
 }
 
 /** The report's text and modification time; undefined when there is none, or when it or a folder above it is not a plain file or folder (a link reads as missing). */

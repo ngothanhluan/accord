@@ -52,7 +52,7 @@ export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } fr
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
 export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, RECORD_V2_FROM, RULESET_FROM, SECURITY_TRIGGER_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, pinAllowsV1, pinBefore, pinOf, rulesetFrom, rulesetOfTicket } from './round/pin.js';
 export { parseDiscuss, SLOP_OK } from './load/work.js';
-export { REPORT_CONTRACT, reportReasons } from './gate/task-report.js';
+export { FIX_REPORT_CONTRACT, REPORT_CONTRACT, reportReasons } from './gate/task-report.js';
 export { groundsDeferred, groundsFrom, groundsOn, groundsProblems, groundsV2 } from './round/grounds.js';
 export { fixScopeProblems } from './round/fixscope.js';
 export { fixOn, fixProblems } from './round/fix.js';
@@ -129,7 +129,7 @@ export { CONVENTIONS_FILE, PRODUCT_MAX_LINE, RESERVED_HEADINGS, RESERVED_PREFIXE
 export type { LineProblem, LineProblemKind, LineVerdict, ProductLine } from './product/lines.js';
 export {
   BLOCK_ORDER, CHANGED_DUTY, CHANGED_HEADING, CHANGED_WITHHELD_LINE, CONVENTIONS_HEADING, EPIC_DUTY, FINDINGS_DUTY, FINDINGS_HEADING, JUDGE_DUTY, NO_DEFAULT_REF_LINE, REJECTED_DUTY,
-  REJECTED_HEADING, RELATED_DUTY, ROLE_BLOCKS, WRITER_DUTY, WRITER_ROLES, changedBlock, conventionsBlock, productBlocks, subagentContext,
+  REJECTED_HEADING, RELATED_DUTY, ROLE_BLOCKS, TEST_ONLY_LINE, WRITER_DUTY, WRITER_ROLES, briefText, changedBlock, conventionsBlock, findingsBlock, productBlocks, subagentContext,
 } from './product/assemble.js';
 export type { BlockKind, ProductChange, ProductInputs, ProductRead, ProductRole, RelatedParts } from './product/assemble.js';
 export { DEFAULT_MAX_FILE_LINES, growthHits, isManifest, maxFileLines, newDependencies, orphanCandidates, orphanHits, orphanTerms } from './slop/structural.js';

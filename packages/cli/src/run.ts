@@ -189,10 +189,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     });
 
   program
-    .command('brief <id> <task>')
-    .description("print the ticket and one plan task: the brief an executor receives; from 0.6.0 it names the task's report file and clears that task's old report")
-    .action((id: string, task: string) => {
-      setCode(brief(preflight(opts), id, task));
+    .command('brief <id> [task]')
+    .description(
+      "print the ticket and one plan task: the brief an executor receives; from 0.6.0 it names the task's report file and clears that task's old report; with --fix, the brief of the executor that fixes the findings in a file",
+    )
+    .option('--fix <file>', 'build the brief of a fix: the ticket, the findings in <file>, the conventions, and the lines accord writes; no task number needed')
+    .action((id: string, task: string | undefined, options: { fix?: string }) => {
+      setCode(brief(preflight(opts), id, task, options, opts.cwd));
     });
 
   program

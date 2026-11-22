@@ -5,7 +5,7 @@
 import { realpathSync } from 'node:fs';
 import { afterEach, expect, it } from 'vitest';
 import { CONFIG, REPORT } from '../../../test/helpers/lane.js';
-import { claimedUnder, cleanup, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { claimedUnder, cleanup, makeLaneRepo, run } from './helpers/repo.js';
 
 const BOM = '\uFEFF';
 const CONVENTIONS = BOM + '# Conventions\r\n\r\n<!-- one rule per line -->\r\n\r\n- Rule one of the team.\r\n- Rule two of the team.\r\n';

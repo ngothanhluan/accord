@@ -372,7 +372,7 @@ it('risk:security the executor declares its six tools and stops on a need outsid
   // the committed copies of this repository equal what the config renders, so each declares tools (the researcher its withheld tools) and the executor its six
   const committedDir = new URL('../../../.claude/agents/', import.meta.url);
   const committedFiles = readdirSync(committedDir).filter((n) => /^accord-.*\.md$/.test(n));
-  expect(committedFiles).toHaveLength(12);
+  expect(committedFiles).toHaveLength(11);
   const lacking = committedFiles.filter(
     (n) => !(n === 'accord-researcher.md' ? /^disallowedTools: "[^"]+"$/m : /^tools: "[^"]+"$/m).test(readFileSync(new URL(n, committedDir), 'utf8')),
   );

@@ -6,6 +6,8 @@ Each section lists what changes for tickets in flight and for repositories pinne
 
 - `/accord-review-pr` fetches a pull request of another repository only when its base branch name holds letters, digits and `.` `_` `/` `-` only, and it passes the ref to `git fetch` as one quoted word, so a branch name written to run a command on your machine is never run. A name with any other character is not fetched and the review says so. Tickets in flight are unaffected.
 - `accord upgrade` lists, as `unsafe line:` lines, the same lines of `accord/product/conventions.md` that `accord lint` reports, including a line that a comment hides from the plain line check, so the upgrade pull request and lint agree.
+- The intent stage no longer has an audit step and accord no longer renders `accord-auditor`. A criterion with two readings is caught by the approach critic and by the owner's approval of the short approach view. The steps after the removed one moved up by one (Discuss is step 8 and Next step 9), and every skill line that names an intent step by number follows. `accord skills sync` and `accord upgrade` remove a `.claude/agents/accord-auditor.md` whose marker shows no edit, while an edited copy stays and sync lists it as an orphan. Tickets in flight are unaffected, since no gate reads an audit record.
+- A `models.auditor` entry in `accord/config.yml` still loads, and `accord lint` reports it as `lint.model-retired`, a warning, saying the entry has no effect; remove it.
 
 ## 0.13.1 — 2026-11-22
 

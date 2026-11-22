@@ -234,7 +234,7 @@ A team may switch `discuss`, `approach`, `plan` or `review` off for lane M, L or
 | accord-reviewer (the lane S reviewer too) | the ruleset, a story's epic block, the conventions, the branch's change to them | `accord review-package` | the default branch's copy, then `## Product files changed` |
 | accord-final-reviewer | the same as the reviewer | `accord review-package` | the default branch's copy, then `## Product files changed` |
 | accord-judge | the same, from the package of `/accord-review-pr` or the file of `/accord-resolve-pr` | `accord related <id> --for judge` | the default branch's copy, then `## Product files changed` (D-30) |
-| accord-foreign-reviewer | the ruleset and the conventions of this repository | `accord diff-package` | the default branch's copy; none for another repository's pull request |
+| accord-foreign-reviewer | the conventions of this repository (the ruleset reaches it through the Claude hook; `accord diff-package` prints none) | `accord diff-package` | the default branch's copy; none for another repository's pull request |
 | the main session | the ruleset, outside Claude Code | `accord anchor` | none |
 | the lane S session | the conventions at build and review, and the ruleset outside Claude Code | `accord anchor` | the working branch's copy |
 | accord-verifier | the ruleset | the SubagentStart hook only | none |

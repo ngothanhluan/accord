@@ -1159,3 +1159,172 @@ it('risk:complex-branching a malformed review or log key is drawn as absent and 
   expect(t).toContain('LOG');
   expect(t.slice(t.indexOf('LOG') + 1).filter((x) => !/^[0-9]+[smhd]$/.test(x))).toEqual(['good one', 'good two']);
 });
+
+// ---- Phase 08.7-06: the agents block and the roster (D-01, D-02, D-03) ----
+
+// each fake `$.agent.list()` entry carries the join key `id` (probe row A3), a label and a description the pane must never draw
+const agentOf = (id: string, type: string, over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  id,
+  type,
+  status: 'running',
+  startTime: Date.now() - 65500,
+  label: 'secret label ' + id,
+  description: 'secret description ' + id,
+  ...over,
+});
+const subStart = (id: string): Record<string, unknown> => ({ turnId: 't-' + id, text: 'x', agentId: id });
+
+// Phase 08.7 D-01, D-02, D-03: the agents block lists the accord agents the mod saw start, a timer while one runs and its own time when it ends; the tab label counts the running ones.
+it('ac-8 the agents block shows running accord agents with timers and finished ones with their time (D-01 D-02)', async () => {
+  const h = await claimedPane();
+  expect(h.texts()).toContain('AGENTS');
+  expect(h.texts()).toContain('none running');
+  expect(h.cell('none running').text.dimColor).toBe(true);
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('turn.start', subStart('a1'));
+  expect(h.texts()).toContain('◐ executor');
+  expect(h.texts()).toContain('1:05');
+  expect(h.texts()).not.toContain('none running');
+  expect(tabs(h)['tab:ticket'].label).toContain('◐1');
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 125000, reason: 'answer' });
+  expect(h.texts()).toContain('✓ executor');
+  expect(h.texts()).toContain('2:05');
+  expect(h.texts()).not.toContain('◐ executor');
+  expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
+  // the block sits between the failure box and the review rounds
+  const now = Math.floor(Date.now() / 1000);
+  const ordered = await paneWith({ stage: 'review', review: reviewOf(), log: [{ at: now - 20, kind: 'gate', text: 'gate done FAIL: red', fail: true }] });
+  const t = ordered.texts();
+  expect(t.indexOf('Gate failed')).toBeGreaterThanOrEqual(0);
+  expect(t.indexOf('AGENTS')).toBeGreaterThan(t.indexOf('Gate failed'));
+  expect(t.indexOf('AGENTS')).toBeLessThan(t.indexOf('REVIEW r2/5 converged'));
+});
+
+// Phase 08.7 D-01, D-02: the pure row builders keep accord agents only, running first, at most six rows.
+it('risk:parsing agent rows keep accord agents only rank running first and cap at six (D-01 D-02)', async () => {
+  const { agentRows, isAccordAgent, mmss, AGENTS_SHOWN, ACCORD_AGENT } = await loadView();
+  expect(AGENTS_SHOWN).toBe(6);
+  expect(ACCORD_AGENT.test('accord-executor')).toBe(true);
+  expect(['accord-executor', 'accord-x', 'accord-a-b'].map(isAccordAgent)).toEqual([true, true, true]);
+  expect(['accord-', 'accord-Executor', 'xaccord-executor', 'accord-1', 'accord-x‮', 'accord-x\n', 'general-purpose', 'accord-' + 'a'.repeat(32), undefined, 7].map(isAccordAgent)).toEqual(Array(10).fill(false));
+  expect([mmss(0), mmss(65000), mmss(125999), mmss(-5), mmss(NaN), mmss(Infinity), mmss(3600000)]).toEqual(['0:00', '1:05', '2:05', '0:00', '0:00', '0:00', '60:00']);
+  const rows = agentRows(
+    [
+      { key: 'f1', type: 'accord-planner', running: false, startTime: 0, endTime: 5000, durationMs: 4000 },
+      { key: 'r1', type: 'accord-executor', running: true, startTime: 1000 },
+      { key: 'r2', type: 'accord-reviewer', running: true, startTime: 3000 },
+      { key: 'f2', type: 'accord-critic', running: false, startTime: 0, endTime: 9000, durationMs: 9000 },
+      { key: 'x', type: 'general-purpose', running: true, startTime: 4000 },
+    ],
+    11000,
+  );
+  expect(rows).toEqual([
+    { key: 'r2', name: 'reviewer', running: true, time: '0:08' },
+    { key: 'r1', name: 'executor', running: true, time: '0:10' },
+    { key: 'f2', name: 'critic', running: false, time: '0:09' },
+    { key: 'f1', name: 'planner', running: false, time: '0:04' },
+  ]);
+  const many = agentRows(
+    Array.from({ length: 9 }, (_, i) => ({ key: 'k' + i, type: 'accord-executor', running: true, startTime: i * 1000 })),
+    20000,
+  );
+  expect(many).toHaveLength(6);
+  expect(many.map((r: any) => r.key)).toEqual(['k8', 'k7', 'k6', 'k5', 'k4', 'k3']);
+});
+
+// Phase 08.7 D-02: a subagent turn start runs no command; an accord subagent's end schedules one `show` refresh, debounced 3 seconds; one 1-second timer runs while an accord agent runs.
+it('risk:concurrency subagent turns start no accord run and an accord subagent end schedules one debounced show refresh (D-02)', async () => {
+  const h = await claimedPane();
+  const calls = (): number => h.$.process.run.mock.calls.length;
+  const base = calls();
+  h.agents = [agentOf('a1', 'accord-executor'), agentOf('a2', 'accord-planner'), agentOf('g1', 'general-purpose')];
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('turn.start', subStart('a2'));
+  await h.fire('turn.start', subStart('g1'));
+  expect(calls()).toBe(base);
+  expect(h.$.clock.every).toHaveBeenCalledTimes(1);
+  expect(h.$.clock.every).toHaveBeenCalledWith(1000, expect.any(Function));
+  expect(h.$.clock.after).not.toHaveBeenCalled();
+  await h.fire('turn.complete', { agentId: 'g1', durationMs: 10, reason: 'answer' });
+  expect(h.$.clock.after).not.toHaveBeenCalled();
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 10, reason: 'answer' });
+  expect(h.$.clock.after).toHaveBeenCalledTimes(1);
+  expect(h.$.clock.after).toHaveBeenLastCalledWith(3000, expect.any(Function));
+  expect(calls()).toBe(base);
+  const ticks = h.timers.filter((t) => t.ms === 1000);
+  expect(ticks).toHaveLength(1);
+  expect(ticks[0].cancelled).toBe(false);
+  await h.fire('turn.complete', { agentId: 'a2', durationMs: 10, reason: 'answer' });
+  const waits = h.timers.filter((t) => t.ms === 3000);
+  expect(waits.map((t) => t.cancelled)).toEqual([true, false]);
+  expect(ticks[0].cancelled).toBe(true);
+  expect(calls()).toBe(base);
+  await waits[1].fn();
+  expect(calls()).toBe(base + 1);
+  expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 });
+  h.settle({ stdout: JSON.stringify(detailOf()) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(0));
+});
+
+// Phase 08.7 D-01, T-08.7-13, T-08.7-16: the filter reads the type from the list entry, never a label or a description, and a type that only looks like an accord agent never passes.
+it('risk:security a non-accord subagent and a type that only looks like one are never shown (D-01)', async () => {
+  const h = await claimedPane();
+  const types = ['general-purpose', 'Explore', 'accord-', 'accord-Executor', 'xaccord-executor', 'accord-x‮'];
+  h.agents = types.map((t, i) => agentOf('s' + i, t));
+  for (let i = 0; i < types.length; i++) await h.fire('turn.start', subStart('s' + i));
+  expect(h.texts()).toContain('AGENTS');
+  expect(h.texts()).toContain('none running');
+  expect(h.texts().some((x) => /^[◐✓] /.test(x))).toBe(false);
+  expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
+  for (const x of h.texts()) {
+    expect(x).not.toContain('secret label');
+    expect(x).not.toContain('secret description');
+  }
+  // the join key is the entry's id: an event whose agentId matches no entry shows nothing
+  h.agents = [agentOf('b1', 'accord-executor')];
+  await h.fire('turn.start', subStart('zz'));
+  expect(h.texts()).toContain('none running');
+  // an accord agent shows by its type alone
+  await h.fire('turn.start', subStart('b1'));
+  expect(h.texts()).toContain('◐ executor');
+  for (const x of h.texts()) {
+    expect(x).not.toContain('secret');
+  }
+});
+
+// Phase 08.7 D-02: without `$.agent.list` the block is not drawn and nothing throws; without `$.clock` an accord agent's end refreshes the ticket at once.
+it('risk:complex-branching without agent list or clock the pane hides the agents block and still refreshes (D-02)', async () => {
+  const none = await claimedPane();
+  delete none.$.agent;
+  await none.fire('turn.start', subStart('a1'));
+  await none.$.ui.invalidate('ui.render');
+  expect(none.texts()).not.toContain('AGENTS');
+  expect(none.texts()).not.toContain('none running');
+  expect(none.texts()).toContain('build 1/3');
+  const bare = await claimedPane();
+  delete bare.$.clock;
+  bare.agents = [agentOf('a1', 'accord-executor')];
+  await bare.fire('turn.start', subStart('a1'));
+  expect(bare.timers).toEqual([]);
+  expect(bare.texts()).toContain('◐ executor');
+  const base = bare.$.process.run.mock.calls.length;
+  await bare.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' });
+  expect(bare.$.process.run.mock.calls.length).toBe(base + 1);
+  expect(bare.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 });
+  expect(bare.timers).toEqual([]);
+  bare.settle({ stdout: JSON.stringify(detailOf()) });
+  await vi.waitFor(() => expect(bare.inflight()).toBe(0));
+});
+
+// Phase 08.7 D-02, T-08.7-17: a session that never opened the pane reads no agent list, runs no command and asks for no timer.
+it('risk:concurrency a session that never opened the pane calls no agent list (D-02)', async () => {
+  const h = await host(await loadPanel());
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('session.start', { cwd: '.', surface: null, isInteractive: false });
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' });
+  expect(h.$.agent.list).not.toHaveBeenCalled();
+  expect(h.$.process.run).not.toHaveBeenCalled();
+  expect(h.$.clock.after).not.toHaveBeenCalled();
+  expect(h.$.clock.every).not.toHaveBeenCalled();
+});

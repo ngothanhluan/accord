@@ -83,6 +83,17 @@ it.skipIf(process.platform === 'win32')('risk:security a conventions.md that is 
   expect(conventionsBlock(folderRead, 'reviewer')).not.toContain(SECRET);
 });
 
+it.skipIf(process.platform !== 'win32')('risk:security a junction above conventions.md is not followed and no byte behind it is printed (8.5-ac-2 D-01)', () => {
+  const { dir } = outside();
+  writeFileSync(join(dir, 'conventions.md'), '- ' + SECRET + '\n');
+  const repo = sandbox();
+  mkdirSync(join(repo, 'accord'), { recursive: true });
+  symlinkSync(dir, join(repo, 'accord', 'product'), 'junction');
+  const read = readProductText(repo, { from: 'working' });
+  expect(read).toEqual({ kind: 'not-regular', copy: 'working' });
+  expect(conventionsBlock(read, 'executor')).not.toContain(SECRET);
+});
+
 it('risk:security a mode 120000 conventions.md on the default branch is not read and its link path is not printed (8.5-ac-2 D-01)', () => {
   const repo = sandbox();
   commitAll(repo, 'main without conventions');

@@ -81,9 +81,9 @@ const UNCLOSED = verdict('unclosed-comment', 'opens an HTML comment that never c
 /**
  * The visible text of each line with HTML comments removed, line numbers kept, as `stripHtmlComments` (load/sections.ts) removes closed comments. It differs in one case:
  * a `<!--` that never closes would swallow every later line, so it is not a comment here: its own line is reported in `unclosed` (and withheld) and every line after it
- * is read again from the start (P7), so one hostile `<!--` cannot hide the rules below it.
+ * is read again from the start (P7), so one hostile `<!--` cannot hide the rules below it. Exported for the Rejected-line reader of tickets/related.ts, which prints raw lines.
  */
-function visibleLines(raw: readonly string[]): { visible: string[]; unclosed: Set<number> } {
+export function visibleLines(raw: readonly string[]): { visible: string[]; unclosed: Set<number> } {
   const visible: string[] = new Array<string>(raw.length).fill('');
   const unclosed = new Set<number>();
   let from = 0;
@@ -121,7 +121,8 @@ function visibleLines(raw: readonly string[]): { visible: string[]; unclosed: Se
       out.forEach((t, k) => (visible[from + k] = t));
       break;
     }
-    for (let i = from; i < openedAt; i++) visible[i] = out[i - from];
+    // the opener's own line keeps the text before its `<!--`, so a reader can tell what the withheld line was about without ever printing it
+    for (let i = from; i <= openedAt; i++) visible[i] = out[i - from];
     unclosed.add(openedAt);
     from = openedAt + 1;
   }

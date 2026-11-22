@@ -122,6 +122,10 @@ export function changedBlock(change: ProductChange): string {
   return out.join('\n');
 }
 
+// Phase 8.5 D-14, R-9 (08.5-06): red stubs, replaced in the green commit.
+export const otherRepositoryLine = (_owner: string, _repo: string): string => '';
+export const unknownRepositoryLine = (_why: string): string => '';
+
 /** The related block: `# Related tickets of <id>`, RELATED_DUTY, a blank line, then the parts' lines or `(none)`. */
 const relatedBlock = (related: RelatedParts): string => [`# Related tickets of ${related.id}`, RELATED_DUTY, '', ...(related.lines.length === 0 ? ['(none)'] : related.lines)].join('\n');
 

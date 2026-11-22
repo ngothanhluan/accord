@@ -1,0 +1,10 @@
+=== diff-package --security ===
+# Diff package main...t/T-1
+## Checklist
+## Security triggers
+## Matched hunks
+=== review-package --security ===
+# Security package: T-1 (<sha>...HEAD)
+## Checklist
+## Security triggers
+## Matched hunks

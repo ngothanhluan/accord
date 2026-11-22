@@ -73,6 +73,9 @@ export interface Counted {
   argv: string[][];
 }
 
+/** The baseline goldens were recorded for `accord anchor` inside a Claude Code session; outside one the command now prints the ruleset first (Phase 8.5 D-16, D-25), so the sample runs it as one. */
+const CLAUDE_ENV = { CLAUDE_CODE_SESSION_ID: 'sess-anchor', CLAUDE_PID: '4242' };
+
 /** Runs the command with counting on only around it, so the test's own setup is never counted; returns a copy of the git calls. */
 export async function counted(argv: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Promise<Counted> {
   spawnLog.calls = [];
@@ -178,7 +181,7 @@ export async function runSample(keys: string[] = RUNS): Promise<Record<string, R
         }
         at = { cwd: localCopy.root, copy: localCopy, sample: side };
       } else throw new Error('no such place in run key: ' + key);
-      const r = await counted(argv, at.cwd);
+      const r = await counted(argv, at.cwd, argv[0] === 'anchor' ? CLAUDE_ENV : {});
       const refs = withRefs
         ? [at.copy.root, at.copy.remote].flatMap((d) => gitRun(d, 'for-each-ref', '--format=%(objectname) %(refname)').split('\n').filter((l) => l !== ''))
         : undefined;

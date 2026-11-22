@@ -1,6 +1,6 @@
 // The generated Claude Code pane: the real register.js driven through a fake host that follows claude-code.d.ts.
 /* eslint-disable @typescript-eslint/no-explicit-any -- the fake host mirrors an untyped mod API */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -1512,4 +1512,16 @@ it('risk:complex-branching an engine without Progress draws the epic count as te
   expect(h.nodes('Progress')).toEqual([]);
   expect(h.texts().filter((t) => t === '1/3 done')).toHaveLength(2);
   expect(cellsOf(rowKids(h, 'ST-3')[1])).toEqual(['blue', 'cyan', 'yellow', undefined, undefined]);
+});
+
+// Phase 08.7-04 D-02, D-06: docs/design.md records the 2026-10-14 panel exception word for word with the owner's widening and the Claude-Code-only scope, and README.md says the pane has two tabs.
+it('risk:regression docs/design.md records the panel exception verbatim with its widening and its parity exception (D-02 D-06)', () => {
+  const read = (path: string): string => readFileSync(new URL('../../../' + path, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const paragraphs = read('docs/design.md').split('\n').filter((l) => l.startsWith('**Panel.**'));
+  expect(paragraphs).toHaveLength(1);
+  const panel = paragraphs[0];
+  expect(panel).toContain('The panel must hold no logic or gate; it reads `status --json` only.');
+  expect(panel).toContain('the pane may also listen to subagent events, for display only');
+  for (const word of ['Parity exception', 'Desktop Code tab', 'accord show <id> --json']) expect(panel, word).toContain(word);
+  expect(read('README.md')).toContain('two tabs');
 });

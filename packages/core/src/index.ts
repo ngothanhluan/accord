@@ -38,6 +38,7 @@ export type {
   HeadFact,
   RoundFacts,
   SecurityFacts,
+  FixReport,
   SlopFacts,
   RecordPin,
   ClaimPin,

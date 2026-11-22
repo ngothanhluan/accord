@@ -2,6 +2,7 @@
 // review.md, plan-review.md or approach-review.md. Exit 0 only for a next round; 1 for a stop or a refusal; 2 for a usage error.
 import { nextRound, roundText, stageOff } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
+import { withFixReports } from '../load/fix-reports.js';
 import { UsageError, withReturnFacts } from '../load/fs.js';
 import { withPlanFix } from '../load/plan-diff.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
@@ -41,11 +42,16 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
       : // ST-LN-56 D-08, D-16: the fix record rules read the ticket's claim pin (RESEARCH Pitfall 7), never the working-tree pin.
         // ST-LN-36 D-05: the security record rule reads the same claim fact, so the loader reads nothing for a ticket claimed before its cut-off.
         // BUG-LN-25 D-16: the same render list as gate done, so the round and the gate agree on which copies are exempt.
-        withSecurityFacts(
+        // Phase 8.5 D-19: the fix reports of the checkout this command runs in, for a ticket claimed at or after PRODUCT_TEXT_FROM outside lane S; `accord gate done` never reads them.
+        withFixReports(
           ctx.root,
-          withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id),
+          withSecurityFacts(
+            ctx.root,
+            withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id),
+            id,
+            renderedFilesOf(ctx.snapshot.config),
+          ),
           id,
-          renderedFilesOf(ctx.snapshot.config),
         );
   const answer = nextRound(snapshot, id, plan ? 'plan' : approach ? 'approach' : 'review');
   ctx.stdout.write(roundText(answer));

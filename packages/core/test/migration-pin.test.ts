@@ -426,7 +426,7 @@ it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac
   const files = SRC_ROOTS.flatMap(sources);
   expect(files).toContain(PIN_FILE);
   // ST-LN-36 rel-ac-1: the scan reads the gate done path, the loader's pin gate and the `accord round` path, so a use there outside claimPinBefore( or a bare 0.7.0 fails it
-  for (const f of ['packages/core/src/round/security.ts', 'packages/cli/src/commands/brief.ts', 'packages/cli/src/commands/gate.ts', 'packages/cli/src/load/security-facts.ts', 'packages/core/src/round/next.ts', 'packages/cli/src/commands/round.ts']) {
+  for (const f of ['packages/core/src/round/security.ts', 'packages/cli/src/commands/brief.ts', 'packages/cli/src/commands/gate.ts', 'packages/cli/src/load/security-facts.ts', 'packages/core/src/round/next.ts', 'packages/cli/src/commands/round.ts', 'packages/cli/src/load/fix-reports.ts']) {
     expect(files, f).toContain(f);
   }
   expect(files.some((f) => f.startsWith('packages/core/src/generated/'))).toBe(false);

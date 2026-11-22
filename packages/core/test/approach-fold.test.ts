@@ -44,14 +44,15 @@ it('ac-5 the critic checks every decision and correction in plan mode and in dif
   expect(planner.indexOf(SEVENTH), 'planner lacks SEVENTH').toBeGreaterThan(intro);
 });
 
-const G = 'Write the ladder Ruling of `./approach-critique.md` into `accord/tickets/<id>/ledger.md`. When a new session or a revision needs the planner again, dispatch it in `direction` mode with the name of the option `## Approach` names: it keeps that option, and nobody picks again.';
-const C = "From round 2, even after a Must, the round is `diff`: write `git diff <the previous round's commit> -- accord/tickets/<id>.md`, which holds the amended `## Approach`, into a file outside the working tree, and dispatch one `accord-critic` in a fresh context, mode `approach`, with the paths of the ticket, that file, and `approach-review.md`, never the planner's report.";
+// Phase 8.5 D-15 and D-20 (08.5-08): C (the diff round's critic), G and N (the planner re-dispatches) now also name the `accord related <id> --for <role> --out` file.
+const G = 'Write the ladder Ruling of `./approach-critique.md` into `accord/tickets/<id>/ledger.md`. When a new session or a revision needs the planner again, dispatch it in `direction` mode with the `planner-input.md` path and the name of the option `## Approach` names: it keeps that option, and nobody picks again.';
+const C = "From round 2, even after a Must, the round is `diff`: write `git diff <the previous round's commit> -- accord/tickets/<id>.md`, which holds the amended `## Approach`, into a file outside the working tree, and dispatch one `accord-critic` in a fresh context, mode `approach`, with the paths of the ticket, that file, `approach-review.md` and the `critic-input.md` path, never the planner's report.";
 const D = 'Mark `fixed` each finding the critic lists after `fixed:`, and `withdrawn` each one it lists after `withdrawn:`.';
 const E = 'A Nice, a `defer to plan` one included, is marked `deferred`, goes to the ledger under `## Deferred`, and never to the planner.';
 const H = "An option is ruled out when a `## Closed <option>: ruled out by <round>.<n>` heading after the last `: the owner's no` heading names it.";
 const J = 'The option under critique is always the one `## Approach` names: a resumed session or a revision keeps it, and only step 3 below or the owner moves to another.';
 const M = "No part of the ladder Ruling names a file or a path: each option's description and the reason after `Recommended because` are plain words, never a `path:line`, because a Ruling that names a path stands as the reason for any fix commit to that path; the impact list stays in `## Approach`.";
-const N = "When another option of the ladder Ruling takes the place of the one `## Approach` names and this session no longer holds the planner's report, dispatch `accord-planner` in its `direction` mode with the ticket path, that option's name and its entry of the ladder Ruling, and write the draft it returns into `## Approach` as step 2 of the skill says.";
+const N = "When another option of the ladder Ruling takes the place of the one `## Approach` names and this session no longer holds the planner's report, dispatch `accord-planner` in its `direction` mode with the ticket path, the `planner-input.md` path, that option's name and its entry of the ladder Ruling, and write the draft it returns into `## Approach` as step 2 of the skill says.";
 const LADDER = "Ruling: the approach ladder is 1. <option>: <what it does>; 2. <option>: <what it does>; 3. <option>: <what it does>; <option> is Recommended because <the planner's line> — kept so a resumed or revised round critiques the option ## Approach names and nobody picks again — a ruled-out option comes back";
 
 const holds = (text: string, parts: string[]): void => {

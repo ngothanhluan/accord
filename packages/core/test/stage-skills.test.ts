@@ -2486,46 +2486,102 @@ it('risk:regression every skill line that creates a ticket passes a title and ju
   }
 });
 
-// ST-LN-22 7-ac-5 (07-12, D-09): the scout at intent step 2 and the critic at approach round 1 are given what `accord related <id>` printed, pasted into the dispatch; no other stage is, and no skill sends an agent to open other tickets.
-const RELATED = '`accord related <id>`';
-const PASTED = 'what `accord related <id>` printed, verbatim';
+// ST-LN-22 7-ac-5 (07-12, D-09), rewritten on purpose by Phase 8.5 D-15 and D-20 (08.5-08): the old contract (only intent step 2 and approach round 1 name `accord related`, each pasting what it printed, and a diff round never gets it) is superseded.
+// Now every scout dispatch with a ticket, every planner dispatch and every critic dispatch, a diff round and the legacy plan round 1 included, passes the path the `file:` line of
+// `accord related <id> --for <role> --out <file>` printed; the approach critic never gets `direction.md`; the lane scout before any ticket gets no file; Phase 10 keeps these lines. No skill sends an agent to open other tickets.
+const RELATED_ROLES = ['scout', 'planner', 'critic', 'judge'];
 const opensOthers = (text: string): string[] => text.match(/\b(?:open|read|look at)\s+(?:the |all |each |any )?(?:other|related) tickets?\b/gi) ?? [];
 
 it('risk:regression the scout and the critic receive the related tickets decisions (ST-LN-22 7-ac-5)', () => {
-  // the prohibition check can neither pass vacuously nor flag the pasted-block wording
+  // the prohibition check can neither pass vacuously nor flag the file wording
   expect(opensOthers('open the related tickets and read their Decisions')).toHaveLength(1);
   expect(opensOthers('read the other tickets for their vetoes')).toHaveLength(1);
-  expect(opensOthers('dispatch with what `accord related <id>` printed, verbatim')).toEqual([]);
+  expect(opensOthers('dispatch with the path its `file:` line printed')).toEqual([]);
 
+  const SCOUT = '`accord related <id> --for scout --out scout-input.md`';
+  const PLANNER = '`accord related <id> --for planner --out planner-input.md`';
+  const CRITIC = '`accord related <id> --for critic --out critic-input.md`';
   const all = similarRender();
+  const between = (text: string, from: string, to: string): string => {
+    const a = text.indexOf(from);
+    expect(a, 'lacks ' + from).toBeGreaterThanOrEqual(0);
+    const b = text.indexOf(to, a);
+    expect(b, 'lacks ' + to + ' after ' + from).toBeGreaterThan(a);
+    return text.slice(a, b);
+  };
   for (const dir of ['.claude/skills', '.agents/skills']) {
     const getAt = (p: string) => all.find((f) => f.path === p)?.text ?? '';
-    const intent = getAt(stagePath('intent', undefined, dir));
-    const step2 = intent.slice(intent.indexOf('2. **Look before asking.**'), intent.indexOf('3. **Confirm the parts.**'));
-    expect(step2.length, dir + ' intent step 2').toBeGreaterThan(0);
-    expect(step2, dir + ' intent step 2 runs the command').toContain(RELATED);
-    expect(step2, dir + ' intent step 2 dispatches the scout with it').toContain('Dispatch `accord-scout`');
-    expect(step2, dir + ' intent step 2 pastes it').toContain(PASTED);
+    const at = (name: string, child?: string) => {
+      const text = getAt(stagePath(name, child, dir));
+      expect(text.length, dir + ' ' + name + ' ' + (child ?? '') + ' renders').toBeGreaterThan(0);
+      return text;
+    };
 
-    const critique = getAt(stagePath('approach', 'critique', dir));
-    const round1 = critique.slice(critique.indexOf('1. **Read.** Round 1 is `whole`'), critique.indexOf('2. **Record.**'));
-    expect(round1.length, dir + ' critique round 1').toBeGreaterThan(0);
-    const wholeRead = round1.slice(0, round1.indexOf('From round 2'));
-    expect(wholeRead, dir + ' round 1 dispatches the critic').toContain('`accord-critic`');
-    expect(wholeRead, dir + ' round 1 pastes it').toContain(PASTED);
-    expect(wholeRead, dir + ' round 1 checks against the related tickets').toContain("related tickets' Vetoes and Decisions");
-    expect(round1.slice(round1.indexOf('From round 2')), dir + ' a diff round never gets it').not.toContain('accord related');
+    // the scout: intent step 2 and step 5, intent-discuss, shared/scout.md steps 2 and 5
+    const intent = at('intent');
+    const step2 = between(intent, '2. **Look before asking.**', '3. **Confirm the parts.**');
+    expect(step2, dir + ' intent step 2 runs the command').toContain('Run ' + SCOUT);
+    expect(step2, dir + ' intent step 2 dispatches the scout with the file').toContain('Dispatch `accord-scout`');
+    expect(step2, dir + ' intent step 2 gives the path').toContain('the path its `file:` line printed');
+    expect(step2, dir + ' intent step 2 pastes nothing').not.toContain('verbatim');
+    expect(between(intent, '5. **One question per message**', '6. **Write the ticket**'), dir + ' intent step 5 reads the Rejected lines of that file').toContain('the `## Rejected` lines of `scout-input.md`');
+    const discuss = between(at('intent', 'discuss'), '1. Dispatch `accord-planner`', '2. Write');
+    expect(discuss, dir + ' discuss runs the planner file').toContain(PLANNER);
+    expect(discuss, dir + ' discuss runs the scout file').toContain(SCOUT);
+    const scout = getAt(besidePath('intent', 'scout.md', dir));
+    expect(between(scout, '2. **Exit 1.**', '3. **Skipped.**'), dir + ' scout.md step 2 gives the same input file').toContain('the same input file the first dispatch had');
+    expect(between(scout, '5. **Approval.**', '6. **Read.**'), dir + ' scout.md step 5 runs the scout file').toContain(SCOUT);
+    // the lane scout runs before any ticket exists: no `--for`
+    expect(getAt(besidePath('new', 'lane.md', dir)), dir + ' lane.md names no --for').not.toContain('--for');
 
-    for (const text of [step2, round1]) expect(opensOthers(text), dir).toEqual([]);
+    // the planner: approach step 2 and its re-dispatches, approach-critique, intent-discuss, plan step 2, the plan critique's fix; a resume inherits plan step 2
+    const approach = at('approach');
+    const options = between(approach, '2. **Options.**', '3. **Critique.**');
+    expect(options, dir + ' approach step 2 runs the planner file').toContain('Run ' + PLANNER);
+    expect(options, dir + ' approach step 2 compares with that file').toContain('the `## Rejected` lines of `planner-input.md`');
+    expect(options, dir + ' approach step 2 keeps direction.md from the critic').toContain('which the critic never reads');
+    const critique = at('approach', 'critique');
+    expect(between(critique, 'The option under critique', '## The count'), dir + ' the ladder re-dispatch gets the planner file').toContain('`accord-planner` in its `direction` mode with the ticket path, the `planner-input.md` path');
+    expect(between(critique, '5. **Fix.**', 'Then go back to step 1.'), dir + ' the fix dispatch gets the planner file').toContain('`planner-input.md` path');
+    const plan = at('plan');
+    expect(between(plan, '2. **Plan.**', '3. **Slices.**'), dir + ' plan step 2 runs the planner file').toContain('Run ' + PLANNER);
+    const planCritique = at('plan', 'critique');
+    expect(between(planCritique, '5. **Fix.**', 'Then go back to step 4'), dir + ' the plan fix dispatch gets the planner file').toContain(PLANNER);
+    expect(between(getAt(besidePath('intent', 'resume.md', dir)), '**Plan.**', '**Verify.**'), dir + ' a planner resume inherits step 2').toContain('the inputs of step 2');
+
+    // the critic: approach-critique every round, plan-critique every round and lens, the legacy round 1
+    const round = between(critique, '1. **Read.**', '2. **Record.**');
+    expect(round, dir + ' approach critique runs the critic file before each round').toContain('Before each round run ' + CRITIC);
+    const split = round.indexOf('From round 2');
+    expect(split, dir + ' approach critique has a diff round').toBeGreaterThan(0);
+    expect(round.slice(0, split), dir + ' round 1 dispatches the critic').toContain('`accord-critic`');
+    expect(round.slice(0, split), dir + ' round 1 gives the critic file').toContain("the `critic-input.md` path, so it can check the approach against the related tickets' Vetoes and Decisions");
+    expect(round.slice(split), dir + ' a diff round gives it too').toContain("`approach-review.md` and the `critic-input.md` path, never the planner's report");
+    // no approach critic dispatch names `direction.md` as an input: the only mention says it is never given
+    expect(round.split('direction.md').slice(1).filter((rest) => !rest.slice(0, 120).includes('never given to the critic')), dir + ' direction.md is named only as never given to the critic').toEqual([]);
+    const read = between(planCritique, '1. **Read.**', '2. **Record.**');
+    expect(read, dir + ' plan critique runs the critic file once per round').toContain('Before each round run ' + CRITIC);
+    expect(read, dir + ' plan critique gives it to every critic of the round').toContain('every critic of the round, the plan checker, the security critic and a `diff` one included');
+    expect(read, dir + ' a diff critic never reads the whole plan').toContain('A `diff` critic never reads the whole plan.');
+    const legacy = at('plan', 'legacy-round1');
+    expect(legacy, dir + ' legacy round 1 runs the critic file').toContain(CRITIC);
+    expect(legacy, dir + ' legacy round 1 gives it to its critics').toContain('every critic of round 1 gets the path its `file:` line printed');
+
+    // for the rest, the rendered plan stage file stays inside its budget
+    expect(Buffer.byteLength(getAt(stagePath('plan', undefined, dir)), 'utf8'), dir + ' plan stage bytes').toBeLessThanOrEqual(5980);
+    for (const text of [step2, round, discuss, options, read]) expect(opensOthers(text), dir).toEqual([]);
   }
 
-  // the input reaches no other stage: build, review, verify and lane S name no `accord related`
+  // every rendered `--for` names one of the four roles, and no other stage names `accord related`
+  const roles = all.flatMap((f) => [...f.text.matchAll(/accord related <id> --for (\S+)/g)].map((m) => f.path + ': ' + m[1].replace(/[^a-z].*$/, '')));
+  expect(roles.length).toBeGreaterThan(0);
+  expect(roles.filter((r) => !RELATED_ROLES.includes(r.split(': ')[1]))).toEqual([]);
   const named = all.filter((f) => f.text.includes('accord related')).map((f) => f.path);
   expect(named.length).toBeGreaterThan(0);
   expect(named.filter((p) => ofStage(p, ['build', 'review', 'verify']) || p.endsWith('/lane-s.md'))).toEqual([]);
   // Phase 8.5 (08.5-07, R-2): the judge's own file (`accord related <id> --for judge`) holds no related tickets, so the judge reference and /accord-resolve-pr may name that form and no other
   const elsewhere = (p: string): string => (all.find((f) => f.path === p)?.text ?? '').split('accord related <id> --for judge').join('');
-  expect(named.filter((p) => !ofStage(p, ['intent', 'approach']) && elsewhere(p).includes('accord related'))).toEqual([]);
+  expect(named.filter((p) => !ofStage(p, ['intent', 'approach', 'plan']) && !p.endsWith('/scout.md') && elsewhere(p).includes('accord related'))).toEqual([]);
   // and no rendered skill text tells an agent to open other tickets' files for their decisions
   expect(all.flatMap((f) => opensOthers(f.text).map((m) => f.path + ': ' + m))).toEqual([]);
 });
@@ -2586,7 +2642,8 @@ it('risk:regression intent and approach name a matching Rejected line before pro
   for (const stage of ['intent', 'approach']) {
     const text = read(stageFile(stage));
     expect(text, stage).not.toBe('');
-    for (const phrase of ['compare it with the `## Rejected` lines `accord related <id>` printed', 'name a matching line to the owner first'])
+    // Phase 8.5 D-15 and D-20 (08.5-08): the lines are read from the file `accord related <id> --for <scout|planner> --out` wrote, not from pasted output.
+    for (const phrase of ['compare it with the `## Rejected` lines of `' + (stage === 'intent' ? 'scout' : 'planner') + '-input.md`', 'name a matching line to the owner first'])
       expect(text, stage + ' names ' + phrase).toContain(phrase);
   }
   for (const name of ['new', 'continue']) {

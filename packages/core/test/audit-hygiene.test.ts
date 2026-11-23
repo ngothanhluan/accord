@@ -242,7 +242,7 @@ it('risk:parsing the baseline gap names at most ten ids with their lines and the
   expect(gap?.text).toBe(
     '12 of 40 ids in accord/tests-baseline.txt can be removed: ' + twelve.slice(0, 10).map((f) => `${f.id} (line ${f.line}: not in the report)`).join(', ') + ', (+2 more)',
   );
-  expect(gap?.fix).toBe('delete lines 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 of accord/tests-baseline.txt (the baseline only shrinks, so deleting is allowed); run accord audit again for the rest');
+  expect(gap?.fix).toBe('delete lines 12, 11, 10, 9, 8, 7, 6, 5, 4, 3 of accord/tests-baseline.txt, from the bottom up, (the baseline only shrinks, so deleting is allowed); run accord audit again for the rest');
   // three ids, one of each reason, come out in line order with no more and no again
   const three = baselineGap(
     [
@@ -253,8 +253,22 @@ it('risk:parsing the baseline gap names at most ten ids with their lines and the
     5,
   );
   expect(three?.text).toBe('3 of 5 ids in accord/tests-baseline.txt can be removed: a#one (line 3: named by @test:), a#gone (line 5: not in the report), b#risk:x (line 9: carries risk:)');
-  expect(three?.fix).toBe('delete lines 3, 5, 9 of accord/tests-baseline.txt (the baseline only shrinks, so deleting is allowed)');
+  expect(three?.fix).toBe('delete lines 9, 5, 3 of accord/tests-baseline.txt, from the bottom up, (the baseline only shrinks, so deleting is allowed)');
   expect(baselineGap([], 5)).toBeUndefined();
+});
+
+// Phase 08.8 D-17 (IN-03): deleting the printed lines one by one must never shift a later number, and an id on two lines must go from both.
+it('risk:data-loss the baseline fix lists every line of a duplicated id from the bottom up (D-17)', () => {
+  const gap = baselineGap(
+    [
+      { id: 'a#one', why: 'test', line: 3 },
+      { id: 'b#gone', why: 'absent', line: 5 },
+      { id: 'a#one', why: 'test', line: 9 },
+    ],
+    6,
+  );
+  expect(gap?.fix).toBe('delete lines 9, 5, 3 of accord/tests-baseline.txt, from the bottom up, (the baseline only shrinks, so deleting is allowed)');
+  expect(gap?.text).toBe('2 of 6 ids in accord/tests-baseline.txt can be removed: a#one (line 3 and line 9: named by @test:), b#gone (line 5: not in the report)');
 });
 
 // Review WR-03: a local delete is printed tip-pinned, and no command is printed for a tip git did not give as a hash.

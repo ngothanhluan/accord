@@ -1,10 +1,11 @@
 // Phase 8.2 group 3 (D-01, D-02, D-06, D-07, D-08): `accord audit` reports claimed tickets idle past stale_days and unclaimed drafts untouched past stale_draft_days,
 // naming the person, from the branches already in the clone. It reads git and files, writes nothing and calls no model.
-import { existsSync, readdirSync, readFileSync, utimesSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, utimesSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
-import { DEFERRED_MARK_FROM } from '@accord-dev/accord-core';
+import { DEFERRED_MARK_FROM, loadSnapshot } from '@accord-dev/accord-core';
 import { building, CONFIG, done, gateReadyIn, junit, LANE_BODY, LANE_S_BODY, laneTicket, P, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { spawnLog } from './helpers/git-spawns.js';
@@ -12,6 +13,9 @@ import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './he
 import { copy, doneOnRemote, has, makeClone, ticketWorktree, useSandboxes } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
 import * as limit from '../src/commands/fetch-limit.js';
+import { auditHygiene } from '../src/load/audit-hygiene.js';
+import { loadFromFs } from '../src/load/fs.js';
+import type { CommandContext } from '../src/run.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -498,7 +502,7 @@ it('risk:complex-branching accord audit counts the baseline and lists removable 
     'a.test.ts#one (line 3: named by @test:)',
     'c.test.ts#risk:parsing-x (line 4: carries risk:)',
     'a.test.ts#gone (line 5: not in the report)',
-    'delete lines 3, 4, 5 of accord/tests-baseline.txt',
+    'delete lines 5, 4, 3 of accord/tests-baseline.txt, from the bottom up,',
   ]) {
     expect(gaps[0], r.out).toContain(part);
   }
@@ -550,4 +554,44 @@ it('risk:data-loss accord audit with a baseline and a report writes nothing and 
   expect(readFileSync(resolve(repo, REPORT)).equals(report)).toBe(true);
   expect(spawnLog.calls.length).toBeGreaterThan(0);
   expect(spawnLog.calls.filter((c) => writes(c)).map((c) => c.join(' '))).toEqual([]);
+});
+
+// ---- 08.8-12 (D-17): facts that never vanish or double, and a baseline fix that is safe to follow -----------------------------------------
+
+// Phase 08.8 D-17 (IN-02): a config accord cannot read leaves claim-unpushed and claim-branches out today; both are printed as not checked beside the other facts.
+it('risk:regression with an unreadable config the claim facts are printed as not checked (D-17)', async () => {
+  const broken = sandbox({ 'accord/tickets/T-1.md': laneTicket('T-1') }, CONFIG + "stale_days: 'soon'\n", 30);
+  claim(broken, 'T-1', 20);
+  const r = await audit(broken);
+  expect(r.code, r.out).toBe(0);
+  for (const name of ['work-ages', 'worktree-refs', 'deferred-marks', 'claim-unpushed', 'claim-branches']) {
+    expect(r.lines.filter((l) => l.startsWith(`fact: ${name}: not checked (`)), r.out).toHaveLength(1);
+  }
+});
+
+// Phase 08.8 D-17 (IN-01): the audit loads the checkout once, so a baseline that was readable then and is not now (deleted, locked) is the case the catch is for.
+// The test hands auditHygiene a context loaded while the file existed and removes the file before the call; no real run reaches this through the command.
+it('risk:regression the tests-baseline fact is printed once when the baseline cannot be read (D-17)', async () => {
+  const repo = baselineRepo();
+  writeFiles(repo, { [REPORT]: BASELINE_REPORT });
+  const ctx = { root: repo, snapshot: loadSnapshot(loadFromFs(repo)), stdout: new PassThrough(), stderr: new PassThrough(), env: {} } as CommandContext;
+  expect(ctx.snapshot.testsBaseline, 'the snapshot must hold the baseline for this case').toHaveLength(5);
+  rmSync(resolve(repo, BASELINE));
+  const { facts } = await auditHygiene(ctx);
+  const own = facts.filter((f) => f.name === 'tests-baseline');
+  expect(own).toHaveLength(1);
+  expect(own[0].value).toContain('removable ones: not checked (accord/tests-baseline.txt could not be read');
+});
+
+// Phase 08.8 D-17 (IN-03): an id on two lines is one gap that names both lines, and the fix deletes bottom up.
+it('risk:data-loss a baseline id on two lines is one gap naming both lines and the fix runs bottom up (D-17)', async () => {
+  const repo = baselineRepo(CONFIG, BASELINE_TEXT + 'a.test.ts#gone\n');
+  writeFiles(repo, { [REPORT]: BASELINE_REPORT });
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  const gaps = gapsOf(r.lines, 'baseline-removable');
+  expect(gaps, r.out).toHaveLength(1);
+  expect(gaps[0]).toContain('3 of 5 ids in accord/tests-baseline.txt can be removed');
+  expect(gaps[0]).toContain('a.test.ts#gone (line 5 and line 8: not in the report)');
+  expect(gaps[0]).toContain('delete lines 8, 5, 4, 3 of accord/tests-baseline.txt, from the bottom up,');
 });

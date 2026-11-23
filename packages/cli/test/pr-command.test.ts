@@ -166,3 +166,33 @@ it('risk:parsing accord pr writes not recorded for a scenario with no test tag a
   expect(bareLines[1]).toContain('(not recorded)');
   expect(remaining(bare.out)).toEqual(['Screenshots', 'Checklist']);
 }, 120_000);
+
+// Phase 08.8 D-16 (item 8): a ticket whose frontmatter does not parse has no known title, so `accord pr` stops instead of opening a pull request titled with its id.
+it('risk:regression accord pr refuses a ticket whose frontmatter does not parse (D-16)', async () => {
+  const repo = sandbox({
+    '.github/pull_request_template.md': TEMPLATE,
+    'accord/tickets/B-1.md': laneTicket('B-1').replace('title: "Export"', 'title: "Export'),
+  });
+  const r = await run(['pr', 'B-1'], repo);
+  expect(r.code, r.out + r.err).toBe(2);
+  expect(r.err).toContain('accord/tickets/B-1.md');
+  expect(r.err).toContain('accord lint');
+  expect(existsSync(bodyFile(repo, 'B-1'))).toBe(false);
+}, 120_000);
+
+// Phase 08.8 D-16 (item 7, session Ruling 2): a percent title is refused end to end; an apostrophe title goes through.
+it('risk:security accord pr refuses a percent title end to end (D-16)', async () => {
+  const repo = sandbox({
+    '.github/pull_request_template.md': TEMPLATE,
+    'accord/tickets/P-1.md': laneTicket('P-1').replace('title: "Export"', 'title: "Fix 100% CPU"'),
+    'accord/tickets/A-1.md': laneTicket('A-1').replace('title: "Export"', 'title: "Don\'t stop"'),
+  });
+  const bad = await run(['pr', 'P-1'], repo);
+  expect(bad.code, bad.out + bad.err).toBe(2);
+  expect(bad.err).toContain('percent sign');
+  expect(existsSync(bodyFile(repo, 'P-1'))).toBe(false);
+
+  const ok = await run(['pr', 'A-1'], repo);
+  expect(ok.code, ok.out + ok.err).toBe(0);
+  expect(ok.out).toContain("title: A-1: Don't stop\n");
+}, 120_000);

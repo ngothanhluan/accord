@@ -113,3 +113,10 @@ it('risk:security a title that would break the quoted gh argument is refused and
   expect(todaysBody(['claim: T-1', 'feat: add x'])).toBe('- claim: T-1\n- feat: add x\n');
   expect(epicBody(['Teams see every export.', 'No new dependency.'])).toBe('Teams see every export.\nNo new dependency.\n');
 });
+
+// Phase 08.8 D-16 (item 7, session Ruling 2): the title check adds only `%`, which cmd.exe expands inside the double-quoted --title; `'`, `!`, `;` and `&` are literal there and still pass.
+it('risk:security the title check refuses a percent sign and lets literal shell characters through (D-16)', () => {
+  expect(prTitleProblem(prTitle('T-1', 'Fix 100% CPU'))).toContain('percent sign');
+  expect(prTitleProblem(prTitle('T-1', "Don't break & fix; now!"))).toBeUndefined();
+  for (const bad of ['Say "hi"', 'run `x`', 'pay $5', 'a\b', 'two\nlines', 'bell\u0007']) expect(prTitleProblem(prTitle('T-1', bad)), bad).toContain('title');
+});

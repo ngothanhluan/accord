@@ -18,7 +18,7 @@ const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 // `/bin/sh` runs the POSIX guard of a team command (WR-04): a fixed script whose only argument is the numeric id of the command's process group, so no repository content reaches it.
 const ALLOWED = ['git', 'gh', 'ps', 'powershell', 'taskkill', '/bin/sh'];
 const SPAWN = /\b(?:execFileSync|execFile|spawnSync|spawn)\s*\(/g;
-// Phase 08.8 D-14: the debug folder check runs `icacls.exe` and `whoami.exe` by their path under `%SystemRoot%\System32` and never by name (Git Bash puts coreutils `whoami` first on PATH). It is
+// Phase 08.8 D-14: the debug folder check runs `icacls.exe`, `whoami.exe` and (review CR-01, for the owner) `WindowsPowerShell\v1.0\powershell.exe` by their path under `%SystemRoot%\System32` and never by name (Git Bash puts coreutils `whoami` first on PATH). It is
 // one call site in load/debug-folder.ts whose first argument is `system32(program)`, with an argument array and no shell; the test below pins exactly that shape.
 const SYSTEM32_FILE = 'load/debug-folder.ts';
 const SYSTEM32_FIRST_ARG = /^\s*system32\(\w+\)\s*,/;

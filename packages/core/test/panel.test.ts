@@ -2506,3 +2506,149 @@ it('risk:parsing each lively effect is a pure function of the frame time (L-01 L
   // no effect reads a clock of its own: the same arguments give the same frame (checked above) and the source holds no call to one
   expect(readFileSync(new URL('../panel/view.js', import.meta.url), 'utf8').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')).not.toMatch(/Date\.now|performance\./);
 });
+
+// ---- Phase 08.8.1-08 task 3: the lively and calm presets on the ticket tab, the burst of a finished task and the cut effects ----
+
+// The tasks of a four-task plan with `done` of them done, the task in flight the next one; each task covers one criterion
+const planOf = (done: number): Record<string, unknown> => ({
+  stage: 'build',
+  tasksDone: done,
+  tasksTotal: 4,
+  now: { task: done + 1, title: `Task ${done + 1}` },
+  tasks: [1, 2, 3, 4].map((n) => taskOf(n, `Task ${n}`, n <= done, [`ac-${n}`])),
+  criteria: [1, 2, 3, 4].map((n) => critOf(`ac-${n}`, `Criterion ${n}`, 'untested')),
+});
+// the pane after one more `show` result: an accord agent ends, its debounced refresh runs and `show` answers with these keys
+async function reshow(h: Awaited<ReturnType<typeof host>>, over: Record<string, unknown>, id: string): Promise<void> {
+  h.agents = [...h.agents, agentOf(id, 'accord-planner')];
+  await h.fire('turn.start', subStart(id));
+  await h.fire('turn.complete', { agentId: id, durationMs: 10, reason: 'answer' });
+  await h.timers.filter((t) => t.kind === 'after' && !t.cancelled).at(-1)?.fn();
+  await vi.waitFor(() => expect(h.inflight()).toBe(1));
+  h.settle({ stdout: JSON.stringify(detailOf(over)) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(0));
+}
+const sparkBox = (h: Awaited<ReturnType<typeof host>>): El | undefined => h.nodes('Box').find((b) => b.props.position === 'absolute');
+const counterOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^\d of 4$/.test(x));
+const barText = (h: Awaited<ReturnType<typeof host>>): El | undefined => h.nodes('Text').find((n) => /^[━─╸]{8,}$/.test(flat(n.props.children)));
+const eqText = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[▁▂▃▄▅▆▇]{4,}$/.test(x));
+const childColors = (n: El | undefined): string[] => ((n?.props.children ?? []) as any[]).map((c) => c.props.color);
+
+// Phase 08.8.1 L-01 D-03: a finished task starts one burst (sparkles and a rolling counter, about 1.2 seconds) and the lively preset draws its effects while an agent runs; calm moves only the shimmer and the counter, and under mine only the switched effects move
+it('risk:complex-branching a task finished plays sparkles and the rolling counter once and the lively preset draws its effects (L-01 D-03)', async () => {
+  const h = await paneWith(planOf(2), (x) => void (x.rows = 40));
+  const T = Date.now();
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(T);
+  try {
+    await startExecutor(h);
+    await h.fire('tool.call', { agentId: 'a1', tool: 'Edit', file_path: 'src/view.js' });
+    // no burst yet: the same count again starts none, and the frame holds no sparkle
+    await reshow(h, planOf(2), 'p1');
+    expect(sparkBox(h)).toBeUndefined();
+    await reshow(h, planOf(3), 'p2');
+    // inside the burst: sparkle glyphs in the overlay, the counter digit rolling
+    const frame = async (ms: number): Promise<void> => {
+      clock.mockReturnValue(T + ms);
+      await h.$.ui.invalidate('ui.render');
+    };
+    await frame(100);
+    const glyphs = '✦✧⋆·*+˚';
+    expect([...textsIn(sparkBox(h)).join('')].some((ch) => glyphs.includes(ch))).toBe(true);
+    const first = counterOf(h);
+    const titleA = titleColors(h);
+    const barA = childColors(barText(h));
+    const eqA = eqText(h);
+    const typedA = h.texts().find((x) => x.startsWith('Ed'));
+    const critA = h.cell('ac-4').text.color;
+    const stillA = h.cell('ac-1').text.color;
+    await frame(350);
+    expect(first).toMatch(/^\d of 4$/);
+    expect(first).not.toBe('3 of 4');
+    expect(counterOf(h)).not.toBe(first);
+    // the flowing title, the comet, the equalizer, the typed line and the breathing criterion each changed with the frame time
+    expect(titleColors(h)).not.toEqual(titleA);
+    expect(childColors(barText(h))).not.toEqual(barA);
+    expect(eqText(h)).not.toBe(eqA);
+    expect(typedA).toBeDefined();
+    expect(h.texts().find((x) => x.startsWith('Ed'))).not.toBe(typedA);
+    expect(h.cell('ac-4').text.color).not.toBe(critA);
+    // a criterion the task in flight does not cover keeps its colour
+    expect(h.cell('ac-1').text.color).toBe(stillA);
+    // after the burst: the number, no sparkle
+    await frame(1300);
+    expect(counterOf(h)).toBe('3 of 4');
+    expect(sparkBox(h)).toBeUndefined();
+    // a new ticket id starts none, even with a higher count
+    const next = JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } }));
+    await h.fire('turn.start', { turnId: 'm', text: 'x' });
+    await h.fire('turn.complete', { reason: 'answer' });
+    await vi.waitFor(() => expect(h.inflight()).toBe(1));
+    h.settle({ stdout: next });
+    await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
+    clock.mockReturnValue(T + 5000);
+    h.settle({ stdout: JSON.stringify(detailOf({ ...planOf(4), id: 'ST-2', title: 'Export' })) });
+    await vi.waitFor(() => expect(h.texts()).toContain('ST-2 Export'));
+    expect(sparkBox(h)).toBeUndefined();
+  } finally {
+    clock.mockRestore();
+  }
+  // calm: the shimmer and the counter move, nothing else
+  const calm = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'calm', effects: { shimmer: true, roll: true } }));
+  const c0 = Date.now();
+  const spy = vi.spyOn(Date, 'now').mockReturnValue(c0);
+  try {
+    await startExecutor(calm);
+    const grab = async (ms: number): Promise<{ title: string[]; now: string[] | undefined; bar: boolean; eq: string | undefined }> => {
+      spy.mockReturnValue(c0 + ms);
+      await calm.$.ui.invalidate('ui.render');
+      return { title: titleColors(calm), now: runColors(calm, 'task 3 of 4 · Task 3'), bar: barText(calm) !== undefined, eq: eqText(calm) };
+    };
+    const a = await grab(100);
+    const b = await grab(350);
+    expect(b.title).toEqual(a.title);
+    expect(a.now).toBeDefined();
+    expect(b.now).not.toEqual(a.now);
+    expect(a.bar).toBe(false);
+    expect(calm.nodes('Progress')).toHaveLength(1);
+    expect(a.eq).toBeUndefined();
+  } finally {
+    spy.mockRestore();
+  }
+  // mine with only the comet on: only the comet moves
+  const mine = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
+  const m0 = Date.now();
+  const spy2 = vi.spyOn(Date, 'now').mockReturnValue(m0);
+  try {
+    await startExecutor(mine);
+    spy2.mockReturnValue(m0 + 100);
+    await mine.$.ui.invalidate('ui.render');
+    const t1 = titleColors(mine);
+    const bar1 = childColors(barText(mine));
+    spy2.mockReturnValue(m0 + 350);
+    await mine.$.ui.invalidate('ui.render');
+    expect(titleColors(mine)).toEqual(t1);
+    expect(childColors(barText(mine))).not.toEqual(bar1);
+    expect(runColors(mine, 'task 3 of 4 · Task 3')).toBeUndefined();
+    expect(eqText(mine)).toBeUndefined();
+  } finally {
+    spy2.mockRestore();
+  }
+});
+
+// Phase 08.8.1 D-03: an effect the probe cut is never drawn, whatever the person switched on
+it('risk:regression the effects the probe cut are never drawn (D-03)', async () => {
+  viewPatch = (text) => text.replace('export const CUT_EFFECTS = [];', "export const CUT_EFFECTS = ['comet'];");
+  const { effectsOf, CUT_EFFECTS } = await loadView();
+  expect(CUT_EFFECTS).toEqual(['comet']);
+  expect([...effectsOf({ motion: 'lively', effects: {} })]).not.toContain('comet');
+  expect([...effectsOf({ motion: 'mine', effects: { comet: true, eq: true } })]).toEqual(['eq']);
+  const mine = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
+  viewPatch = undefined;
+  await startExecutor(mine);
+  expect(barText(mine)).toBeUndefined();
+  expect(mine.nodes('Progress')).toHaveLength(1);
+  // the same pane without the cut draws the comet
+  const open = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
+  await startExecutor(open);
+  expect(barText(open)).toBeDefined();
+});

@@ -4,7 +4,7 @@
 
 **accord**
 
-Accord is a contract for AI-assisted software delivery: a conventional folder in each repository where intent, EARS requirements, Gherkin acceptance criteria, and design references are recorded before an agent writes code, plus a CLI that checks that contract deterministically. The four roles — BA, designer, developer, reviewer — are four stages one person passes through, and equally four people on a team; no gate reads who anyone is. Everyone works through a coding agent: Claude Code, Cursor, Codex, or Copilot. It is an open-source personal project (MIT); the author is the first user.
+Accord is a contract for AI-assisted software delivery: a conventional folder in each repository where intent, EARS requirements, Gherkin acceptance criteria, and design references are recorded before an agent writes code, plus a CLI that checks that contract deterministically. Intent, approach, plan, build, review and verify are stages a ticket passes through, worked by one person or shared by a team; no gate reads who anyone is. Everyone works through a coding agent: Claude Code, Cursor, Codex, or Copilot. It is an open-source personal project (MIT); the author is the first user.
 
 **Core Value:** An agent cannot start a story without captured intent and acceptance criteria, and cannot finish one without independent verification against them.
 
@@ -147,7 +147,7 @@ Accord is a contract for AI-assisted software delivery: a conventional folder in
 | `path.join` for stored or printed paths | Backslashes on Windows leak into files and break POSIX teammates | `path.posix.join` |
 | TypeScript 7.x | typescript-eslint 8.69 peers on `<6.1` | TypeScript 5.9.3 until the lint toolchain supports 7 |
 | Node 20 in `engines` | EOL 2026-04-30; commander 15 and vitest 5 refuse it | `>=22.12.0` |
-| zod as the schema source | JSON output is lossy for refinements; the BA-facing contract should be JSON | Hand-written JSON Schema 2020-12 |
+| zod as the schema source | JSON output is lossy for refinements; the team-facing contract should be JSON | Hand-written JSON Schema 2020-12 |
 | A Markdown parser in v0.1 | 25+ transitive packages to answer two questions the scanner answers | Fence-aware scanner behind a `sections()` interface |
 
 ## Stack Patterns by Variant

@@ -6,7 +6,7 @@ A contract for AI-assisted software delivery.
 
 Accord adds a small, fixed folder to your repository. Before an agent writes code, that folder records what a feature is for, what it must do, how it must look, and how you will know it is done. Afterwards the work is verified against those same acceptance criteria. A CLI checks the contract deterministically, so an agent cannot skip it.
 
-BA, designer, developer and reviewer are four stages a ticket passes through, not four job titles. One person can pass through all four, or four people on a team can divide them. No gate reads who anyone is, so the same rules hold either way.
+Intent, approach, plan, build, review and verify are the stages a ticket passes through, not job titles. One person can take a ticket through all of them, or a team can share them. No gate reads who anyone is, so the same rules hold either way.
 
 Released: `@accord-dev/accord@0.15.0` on npm. See [docs/design.md](https://github.com/ngothanhluan/accord/blob/main/docs/design.md) for the design and the reasoning behind it.
 
@@ -16,7 +16,7 @@ AI coding agents produce features that pass their own tests and still miss what 
 
 ## What it is
 
-- A folder convention. A fixed `accord/` folder at the repository root holds `config.yml`, `product/` (glossary, business rules, conventions), `tickets/<id>.md` (epics, stories and bugs are all tickets; a story names its epic with `parent:`), `tickets/<id>/` (the ticket's records, such as `tickets/<id>/verification.md`), and `assets/<id>/` (designer-owned prototypes). Tracker links are a `tracker:` map keyed by adapter, for example `tracker: { github-issues: "1234" }`.
+- A folder convention. A fixed `accord/` folder at the repository root holds `config.yml`, `product/` (glossary, business rules, conventions), `tickets/<id>.md` (epics, stories and bugs are all tickets; a story names its epic with `parent:`), `tickets/<id>/` (the ticket's records, such as `tickets/<id>/verification.md`), and `assets/<id>/` (the design reference of each ticket, such as a prototype). Tracker links are a `tracker:` map keyed by adapter, for example `tracker: { github-issues: "1234" }`.
 - Plain-text formats that a person and a model can both read and a linter can check: EARS for requirements, Gherkin for acceptance criteria, and YAML frontmatter with a JSON schema.
 - Gates. Ready passes before work starts. Done passes only when a fresh agent context, not the one that wrote the code, has verified the work against the acceptance criteria and the test evidence matches.
 - A workflow shipped as skill files, one definition each, rendered for every coding agent you list: Claude Code, Codex, Cursor and Copilot.
@@ -105,7 +105,7 @@ The menu is eight commands. Work starts from `/accord` inside the agent session;
 | `/accord-resolve-pr <PR \| ticket id>` | Handle the feedback on a ticket's open pull request: a fresh read-only judge checks every comment before any is fixed (a bug claim holds only on a test that failed before any fix), each fixed comment is re-checked against the new code before its reply, the fixes go through the ticket's stages, and replies are posted only after your yes. It takes a number, a link or a ticket id, and asks for one when you give none. |
 | `/accord-review-pr <PR \| branch>` | Review code or a pull request accord did not build, read-only: a fresh read-only judge checks each finding first, a finding that does not hold is dropped with its reason, one it cannot settle by reading is marked for a manual check, and findings are posted to the pull request only after your yes. |
 
-The designer skill, `accord-designer`, is opt-in: it is installed only when `roles` lists `designer`, and it is no part of the eight.
+The design-reference skill, `accord-designer`, is opt-in: it is installed only when `roles` lists `designer`, and it is no part of the eight.
 
 Lanes:
 

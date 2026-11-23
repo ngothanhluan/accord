@@ -196,3 +196,13 @@ it('risk:security accord pr refuses a percent title end to end (D-16)', async ()
   expect(ok.code, ok.out + ok.err).toBe(0);
   expect(ok.out).toContain("title: A-1: Don't stop\n");
 }, 120_000);
+
+// Phase 08.8 D-16 (item 9, IN-06): the `remaining:` lines name the visible heading and skip a heading held by a comment.
+it('risk:regression remaining lines name the visible heading (D-16)', async () => {
+  const template = ['## Description', '<!-- what -->', '', '## Testing <!-- how you tested -->', '', '<!--', '## Hidden', '-->', ''].join('\n');
+  const repo = sandbox({ '.github/pull_request_template.md': template });
+  const r = await run(['pr', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(r.out).not.toContain('remaining: Hidden');
+  expect(remaining(r.out)).toEqual(['Testing']);
+}, 120_000);

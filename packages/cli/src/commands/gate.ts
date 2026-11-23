@@ -4,7 +4,7 @@
 // stdout before the write is attempted, so a write failure is reported after the true verdict rather
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
-import { capRulesOf, gateDone, gatePlan, gateReady, renderText, workOf } from '@accord-dev/accord-core';
+import { capRulesOf, gateDone, gatePlan, gateReady, renderText, stageOff, workOf } from '@accord-dev/accord-core';
 import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
@@ -65,7 +65,9 @@ export function gate(
   const forRounds = which === 'done' ? withRoundFacts(ctx.root, withReturnFacts(ctx.root, gated, id), id) : gated;
   const roundRecord = which === 'done' ? workOf(forRounds, id)?.rounds : which === 'plan' ? workOf(forRounds, id)?.planRounds : undefined;
   const hasRounds = roundRecord !== undefined && roundRecord.cycles.some((c) => c.rounds.length > 0);
-  const withRefs = hasRounds && (which === 'done' || !roundRecord.versioned) ? withDefaultRef(ctx.root, forRounds) : forRounds;
+  // Phase 08.8 review CR-02: a lane ticket whose review stage is off has no rounds, and Done reads the default ref for it too, so its security rule skips it once it is done there (D-03).
+  const reviewOff = which === 'done' && Object.hasOwn(forRounds.tickets, id) && forRounds.tickets[id].frontmatter?.lane !== undefined && stageOff(forRounds, id, 'review');
+  const withRefs = (hasRounds && (which === 'done' || !roundRecord.versioned)) || reviewOff ? withDefaultRef(ctx.root, forRounds) : forRounds;
   // ST-LN-36 D-05 (5): Done holds each recorded review round against the security triggers of its own package; read after the default ref, whose snapshot says a ticket done there is skipped.
   // BUG-LN-25 D-16: the copies `accord skills sync` writes come from renderedFilesOf, so a changed copy equal to its render is the one thing the scan leaves out.
   const config = ctx.snapshot.config;

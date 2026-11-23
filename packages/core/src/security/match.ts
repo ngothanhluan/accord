@@ -298,8 +298,21 @@ const contentSkipped = (path: string, generated: readonly string[], exempt: read
  * files that are not binary, not Markdown or test files outside the agent folders, not generated and not an exact `exempt` path (nothing is exempt when absent); one `cannot` trigger for each changed path the diff text does not
  * show. Deduplicated and sorted by path, then line, then pattern id.
  */
-export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[]; overlapBudget?: number }): Trigger[] {
-  const files = diffFiles(diffText);
+export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: ScanOptions): Trigger[] {
+  return scanPackage(spec, diffFiles(diffText), changed, options).triggers;
+}
+
+type ScanOptions = { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[]; overlapBudget?: number };
+
+/** The key of one changed line of a file: its path, its side and its number on that side. */
+const lineKey = (path: string, removed: boolean, line: number): string => `${path}\0${removed ? 'r' : 'a'}\0${line}`;
+
+/**
+ * The one scan of a package: its triggers (securityTriggers) and, Phase 08.8 review WR-05, the key (lineKey) of every changed line a pattern whose budget was spent did not read, the first one
+ * (which the triggers name once) and every later one, so matchedHunks prints exactly what this scan left unread, charged in this scan's own order.
+ */
+function scanPackage(spec: SecuritySpec, files: DiffFile[], changed: readonly string[], options: ScanOptions): { triggers: Trigger[]; unread: Set<string> } {
+  const unreadLines = new Set<string>();
   const shown = new Set<string>();
   for (const f of files) {
     if (f.path !== undefined) shown.add(f.path);
@@ -332,6 +345,7 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
         if (tooLong(l.text)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: '', label: LONG_LINE, cannot: true });
         lineRes.forEach(({ p, re }, i) => {
           if (!allow(i, head.length)) {
+            unreadLines.add(lineKey(f.path as string, removed, l.line));
             // D-12: the pattern's budget is spent: this is the first line it left unread, reported once per call
             if (!budgetReported.has(i)) {
               budgetReported.add(i);
@@ -347,9 +361,10 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
   for (const path of changed) if (!shown.has(path)) add({ path, pattern: '', label: '', cannot: true });
   // a path the host could not read as text (its --text diff was over the buffer) keeps its "Binary files differ" line and is a trigger of its own
   for (const path of options.unreadable ?? []) add({ path, pattern: '', label: UNREADABLE, cannot: true });
-  return [...out.values()].sort(
+  const triggers = [...out.values()].sort(
     (a, b) => cmp(a.path, b.path) || (a.line ?? 0) - (b.line ?? 0) || cmp(a.pattern, b.pattern) || Number(a.removed === true) - Number(b.removed === true),
   );
+  return { triggers, unread: unreadLines };
 }
 
 /** The line form of a trigger, as `accord review-package` prints it. */
@@ -365,34 +380,25 @@ export function triggerText(t: Trigger): string {
  * The security package's hunks (D-05 (4)): for each file with a trigger, in path order, one block of text. A file with a content match prints its header lines and every
  * hunk that holds a match, whole (the package's `-U10` context), never another hunk. A file with a path match prints every hunk up to `cap` lines (300) and then
  * `(truncated: <n> more lines in <path>)`; a hunk that holds a content match is printed whole even past the cap, so a cut never hides a match. A path the diff text does not
- * show is one block, `(cannot tell: …)`. Content matches are read from the hunks themselves, with the patterns and skips securityTriggers uses, so the two agree.
+ * show is one block, `(cannot tell: …)`. Phase 08.8 review WR-05: the hunks held are read off the one trigger scan (scanPackage), never a second meter: a hunk holds a line the triggers name
+ * (a match, a cut long line, the first line a spent pattern left unread) or any later line a spent pattern did not read, so every "cannot tell" line is printed and nothing unread is hidden.
  */
-export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[]; cap?: number; overlapBudget?: number }): string[] {
+export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: ScanOptions & { cap?: number }): string[] {
   const cap = options.cap ?? 300;
-  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated, unreadable: options.unreadable, exempt: options.exempt, overlapBudget: options.overlapBudget });
-  const pathHit = new Set(triggers.filter((t) => t.cannot !== true && t.line === undefined).map((t) => t.path));
-  const lineRes = compileLines(spec);
-  // D-12: the same budget as securityTriggers, so a package of hostile lines costs this reader no more; the hunk of the first line a spent pattern leaves unread is printed whole, like a long line
-  const allow = overlapMeter(lineRes.map(({ re }) => re), options.overlapBudget ?? SCAN_OVERLAP_BUDGET, DEFAULT_SECURITY.patterns);
-  const spentShown = new Set<number>();
-  const holds = (h: DiffHunk): boolean =>
-    [...h.added, ...h.removed].some((l) => {
-      if (tooLong(l.text)) return true;
-      return lineRes.some(({ re }, i) => {
-        if (allow(i, l.text.length)) return re.test(l.text);
-        if (spentShown.has(i)) return false;
-        spentShown.add(i);
-        return true;
-      });
-    });
-  const blocks: { key: string; text: string }[] = [];
   const files = diffFiles(diffText);
+  const { triggers, unread } = scanPackage(spec, files, changed, { generated: options.generated, unreadable: options.unreadable, exempt: options.exempt, overlapBudget: options.overlapBudget });
+  const pathHit = new Set(triggers.filter((t) => t.cannot !== true && t.line === undefined).map((t) => t.path));
+  const held = new Set(unread);
+  for (const t of triggers) if (t.line !== undefined) held.add(lineKey(t.path, t.removed === true, t.line));
+  const holds = (path: string) => (h: DiffHunk): boolean =>
+    h.added.some((l) => held.has(lineKey(path, false, l.line))) || h.removed.some((l) => held.has(lineKey(path, true, l.line)));
+  const blocks: { key: string; text: string }[] = [];
   for (const f of files) {
     // a file git reports as binary whose text section follows (package-diff.ts adds it) is printed once, from the text section
     if (f.binary && f.path !== undefined && files.some((g) => !g.binary && g.path === f.path)) continue;
     const name = f.path ?? f.oldPath;
     const byPath = (f.path !== undefined && pathHit.has(f.path)) || (f.oldPath !== undefined && pathHit.has(f.oldPath));
-    const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated, options.exempt ?? []) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds));
+    const content = f.binary || f.path === undefined || contentSkipped(f.path, options.generated, options.exempt ?? []) ? new Set<DiffHunk>() : new Set(f.hunks.filter(holds(f.path)));
     if (!byPath && content.size === 0) continue;
     const lines = [...f.header];
     let budget = cap;

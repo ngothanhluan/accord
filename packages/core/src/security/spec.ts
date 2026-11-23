@@ -63,32 +63,41 @@ function idProblem(t: string): string | undefined {
   return m === null || ID_ONLY.test(m[1]) ? undefined : `the id "${m[1]}" must be lower case and match ^[a-z0-9][a-z0-9-]*$`;
 }
 
-/** The number of single-character edits between two short strings. */
+/** The number of single-character edits between two short strings, a swap of two neighbouring characters counting as one (optimal string alignment). */
 function editDistance(a: string, b: string): number {
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array.from({ length: b.length }, (_, j) => (i === 0 ? j + 1 : 0))]);
   for (let i = 1; i <= a.length; i++) {
-    const row = [i];
-    for (let j = 1; j <= b.length; j++) row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    prev = row;
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
   }
-  return prev[b.length];
+  return d[a.length][b.length];
+}
+
+/** The words a team writes for one of the three reader headings: the names and their other forms. The short ones (`check`, `checks`, `remove`) count only when written exactly. */
+const READER_WORDS = ['patterns', 'pattern', 'checklist', 'checklists', 'removed', 'removal', 'removals'];
+const SHORT_READER_WORDS = ['check', 'checks', 'remove'];
+
+/**
+ * Phase 08.8 D-13, review WR-06: a heading key that looks like a misspelling of `patterns`, `checklist` or `removed`: with its spaces and hyphens taken out it is one of the reader words
+ * (`## Check list`, `## Checks`), or it is one word and one edit, or one swap of neighbouring letters, from one of the longer ones (`## Paterns`, `## Chekclist`). A heading of more than one
+ * word (`## Pattern library`, `## Checkout flow`) or a word further off (`## Revoked`, `## Remote`) is prose.
+ */
+function nearMiss(key: string): boolean {
+  const joined = key.replace(/[\s-]+/g, '');
+  if (READER_WORDS.includes(joined) || SHORT_READER_WORDS.includes(joined)) return true;
+  return !/[\s-]/.test(key) && READER_WORDS.some((word) => editDistance(key, word) <= 1);
 }
 
 /**
- * Phase 08.8 D-13: a heading key that looks like a misspelling of `patterns`, `checklist` or `removed`: after folding a trailing `s` it starts with `pattern`, `check` or `remov`,
- * or it is two edits or fewer from one of the three names.
+ * Phase 08.8 D-13: a section of a heading the reader does not know holds a list line shaped like a pattern or a removal. Review WR-06: a check's shape (`- <id>: <text>`) is how any
+ * list prose is written (`- owner: the platform team`), so it is not taken as a misplaced check.
  */
-function nearMiss(key: string): boolean {
-  const folded = key.endsWith('s') ? key.slice(0, -1) : key;
-  if (['pattern', 'check', 'remov'].some((stem) => folded.startsWith(stem))) return true;
-  return [...SECTIONS].some((name) => editDistance(key, name) <= 2);
-}
-
-/** Phase 08.8 D-13: a section of a heading the reader does not know holds a list line shaped like a pattern, a check or a removal. */
 function holdsReaderLine(lines: ReturnType<typeof scan>['sections'][number]['lines']): boolean {
   return stripHtmlComments(lines).some(({ text }) => {
     const t = text.trimEnd();
-    return t.startsWith('- ') && t.length <= MAX_PATTERN_LINE && (PATTERN.test(t) || REMOVED.test(t) || CHECK.test(t));
+    return t.startsWith('- ') && t.length <= MAX_PATTERN_LINE && (PATTERN.test(t) || REMOVED.test(t));
   });
 }
 

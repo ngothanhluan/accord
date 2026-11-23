@@ -909,14 +909,33 @@ it('risk:parsing a prose heading of security.md is accepted and a near-miss read
     expect(spec.problems.map((p) => p.line), heading).toEqual([5]);
     expect(spec.problems[0].reason, heading).toContain(`"## ${heading}" is not a section accord reads`);
   }
-  // an unread heading holding a line shaped like a pattern, a check or a removal is flagged: that line would silently do nothing
-  for (const line of ['- z: path z/ — y', '- z: line /a/ — y', '- z: check this', '- Removed: spawn — a reason']) {
+  // an unread heading holding a line shaped like a pattern or a removal is flagged: that line would silently do nothing (review WR-06: a check's shape is any `- key: text` prose line, so it is not)
+  for (const line of ['- z: path z/ — y', '- z: line /a/ — y', '- Removed: spawn — a reason']) {
     const spec = parseSecurityFile(make('Notes', [line]));
     expect(spec.problems.map((p) => p.line), line).toEqual([5]);
     expect(spec.problems[0].reason, line).toContain('"## Notes" is not a section accord reads');
   }
   // the level stays error
   expect(lintSnapshot(withFile(make('Pattern', prose))).findings.filter((f) => f.rule === 'lint.security-file').map((f) => f.level)).toEqual(['error']);
+});
+
+// Phase 08.8 review WR-06 (D-13): lint.security-file is LOCKED at error, so an ordinary prose heading never fails it, with a prose line or a `- key: value` line under it; a misspelling of
+// one of the three reader headings, a transposition or a split word included, is still flagged at its heading line.
+it('risk:parsing ordinary prose headings of security.md never fail the locked lint and typos of a reader heading still do (REVIEW WR-06)', () => {
+  const base = ['## Patterns', '', '- x: path x/ — y', ''];
+  const make = (heading: string, body: string[]): string => [...base, `## ${heading}`, '', ...body, ''].join('\n');
+  const lintOf = (text: string) => lintSnapshot(withFile(text)).findings.filter((f) => f.rule === 'lint.security-file');
+  for (const heading of ['Checkout flow', 'Pattern library', 'Removal history', 'Revoked', 'Remote', 'Patterns we rejected', 'Checks and balances']) {
+    expect(parseSecurityFile(make(heading, ['Keep this file short.'])).problems, heading).toEqual([]);
+    expect(lintOf(make(heading, ['Keep this file short.'])), heading).toEqual([]);
+  }
+  expect(parseSecurityFile(make('Contacts', ['- owner: the platform team'])).problems).toEqual([]);
+  expect(lintOf(make('Contacts', ['- owner: the platform team', '- backup: the security lead']))).toEqual([]);
+  for (const heading of ['Paterns', 'Pattern', 'Checklst', 'Chekclist', 'Check list', 'Checks', 'Remvoed', 'Removals', 'Remove']) {
+    const spec = parseSecurityFile(make(heading, ['Keep this file short.']));
+    expect(spec.problems.map((p) => p.line), heading).toEqual([5]);
+    expect(spec.problems[0].reason, heading).toContain(`"## ${heading}" is not a section accord reads`);
+  }
 });
 
 // D-21 (8-ac-15), lint-only (owner, 2026-11-19): a path entry that can never match and a heading accord never reads are lint.security-file problems that name the fix. None is marked
@@ -1003,4 +1022,27 @@ it('risk:resource a package of long hostile lines stops an overlapping pattern a
   expect(securityTriggers(spec, ordinary, ['src/y.ts'], { generated: [], overlapBudget: Infinity }).map((t) => t.cannot)).not.toContain(true);
   // a shipped default is never budgeted, even at a budget of one: built-path reads all 100 hostile lines
   expect(securityTriggers(DEFAULT_SECURITY, diff, ['src/x.ts'], { generated: [], overlapBudget: 1 })).toEqual([]);
+});
+
+// Phase 08.8 review WR-05 (D-12): the hunk printer reads the trigger scan's own charging, so a line the trigger list reports as "cannot tell" is always printed, and so is every later line the spent
+// pattern did not read. p1 matches the first two lines; p2 (two overlapping repeats) reads them and is spent at line 52, which the trigger list names.
+it('risk:security once a pattern budget is spent every line it left unread is printed in the security package (REVIEW WR-05)', () => {
+  const team = ['# Security review', '', '## Patterns', '', '- p1: line /^X/ — first', '- p2: line /.*a.*b/ — an overlap', '', '## Checklist', '', '## Removed', ''].join('\n');
+  const spec = securitySpec(withFile(team));
+  expect(spec.problems).toEqual([]);
+  const diff = [
+    'diff --git a/src/f.ts b/src/f.ts', 'index 1111111..2222222 100644', '--- a/src/f.ts', '+++ b/src/f.ts',
+    '@@ -1,0 +1,2 @@', '+Xaaaaaaaaa', '+Xaaaaaaaaa',
+    '@@ -50,0 +52,2 @@', '+zzzzzzzzzz', '+aaaaaaaa',
+    '@@ -78,0 +80 @@', '+yyyyyyyyyy',
+    'diff --git a/src/g.ts b/src/g.ts', 'index 3333333..4444444 100644', '--- a/src/g.ts', '+++ b/src/g.ts',
+    '@@ -1,0 +2 @@', '+qqqqqqqqqq',
+  ].join('\n');
+  const changed = ['src/f.ts', 'src/g.ts'];
+  const triggers = securityTriggers(spec, diff, changed, { generated: [], overlapBudget: 100 });
+  expect(triggers.filter((t) => t.cannot === true).map(triggerText)).toEqual([`src/f.ts:52: (cannot tell: scan budget of pattern p2 spent, its remaining lines were not scanned)`]);
+  const blocks = matchedHunks(spec, diff, changed, { generated: [], overlapBudget: 100 });
+  const printed = blocks.join('\n');
+  for (const line of ['+Xaaaaaaaaa', '+zzzzzzzzzz', '+aaaaaaaa', '+yyyyyyyyyy', '+qqqqqqqqqq']) expect(printed, line).toContain(line);
+  expect(blocks).toHaveLength(2);
 });

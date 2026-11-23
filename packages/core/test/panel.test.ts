@@ -1572,6 +1572,9 @@ it('risk:regression docs/design.md records the panel exception verbatim with its
   expect(panel).toContain('the pane may also listen to subagent events, for display only');
   // Phase 08.8.1 IN-02: the widening of the tool-call events is recorded in the same paragraph
   expect(panel).toContain('tool-call events, for display only');
+  // Phase 08.8.1-09 L-02 L-03 D-03: each person's colours and motion live in the mod's own store on their machine, and motion runs within a measured budget and stops when idle
+  expect(panel).toContain('never in the repository');
+  expect(panel).toContain('stops when nothing does');
   for (const word of ['Parity exception', 'Desktop Code tab', 'accord show <id> --json']) expect(panel, word).toContain(word);
   expect(read('README.md')).toContain('two tabs');
 });

@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
-import { agentTargets, contentHash, hookEntries, loadConfig, markerHash, normaliseText, pluginTargets, skillTargets, withoutMarker } from '@accord-dev/accord-core';
+import { agentTargets, contentHash, hookEntries, loadConfig, markerHash, normaliseText, pluginTargets, runsAccordHook, skillTargets, withoutMarker } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
 import { writeSkillFiles } from '../src/commands/skills.js';
@@ -593,6 +593,42 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
       expect(Object.values(count).filter((n) => n !== 1), 'round ' + round).toEqual([]);
       expect(Object.keys(count).filter((id) => id.startsWith('SessionStart|session-start|'))).toHaveLength(1);
       expect(hooks.SessionStart[0]).toEqual(edited);
+    }
+  });
+
+  // Phase 08.8 D-10: an accord hook edited into a quoted path that holds a space is still recognised, so sync adds no second set.
+  it('risk:regression sync keeps one accord hook set when the edited hook path is quoted and holds a space (D-10)', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    type Listed = { matcher: string; hooks: { type: string; command: string; timeout?: number; if?: string }[] }[];
+    const edited: Record<string, Listed> = {};
+    for (const [event, list] of Object.entries(hookEntries(pkg))) {
+      edited[event] = list.map((x) => ({
+        ...x,
+        hooks: x.hooks.map((h) => ({ ...h, command: 'node "C:\\Users\\A B\\cli.js" hook ' + / hook (\S+)$/.exec(h.command)![1] })),
+      }));
+    }
+    writeFileSync(at(repo, SETTINGS), JSON.stringify({ hooks: edited }));
+    let first = '';
+    for (const round of [1, 2]) {
+      const { code } = await run(['skills', 'sync'], repo);
+      expect(code, 'round ' + round).toBe(0);
+      const text = bytes(at(repo, SETTINGS));
+      if (round === 1) first = text;
+      else expect(text, 'a second sync leaves the file byte for byte').toBe(first);
+      const hooks = JSON.parse(text).hooks as Record<string, Listed>;
+      const count: Record<string, number> = {};
+      for (const [event, list] of Object.entries(hooks)) {
+        for (const h of list.flatMap((x) => x.hooks)) {
+          const sub = runsAccordHook(h.command);
+          if (sub === undefined) continue;
+          const id = event + '|' + sub + '|' + (h.if ?? '');
+          count[id] = (count[id] ?? 0) + 1;
+        }
+      }
+      // one command per event, subcommand and `if`; the edited form stays and no npx command is added beside it
+      expect(Object.values(count).filter((n) => n !== 1), 'round ' + round).toEqual([]);
+      expect(commands(repo), 'round ' + round).toEqual([]);
     }
   });
 

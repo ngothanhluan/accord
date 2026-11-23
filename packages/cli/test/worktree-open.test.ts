@@ -329,7 +329,7 @@ it('risk:regression the CLI messages name the new commands in the worktree open 
   c.git('fetch', '-q', 'origin');
   const r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
-  expect(r.err).toContain('to work on it with them, type /accord continue ST-9');
+  expect(r.err).toContain('to work on it with them, ask to continue ST-9');
 });
 
 it('risk:complex-branching pick up refuses a branch another person claimed', async () => {
@@ -343,7 +343,7 @@ it('risk:complex-branching pick up refuses a branch another person claimed', asy
   const r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
   expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
-  expect(r.err).toContain('/accord continue ST-9');
+  expect(r.err).toContain('ask to continue ST-9'); // Phase 08.8 D-15: plain words, no typed form
   expect(r.out).not.toContain('stop:');
   expect(entries(c)).toHaveLength(1);
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();

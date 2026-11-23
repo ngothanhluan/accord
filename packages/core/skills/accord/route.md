@@ -6,6 +6,8 @@ kind: reference
 
 This applies to any text after `/accord` that is not one of its typed forms. A person never needs a typed form: any wording, in any language, reaches the same steps through the routes below, and the typed forms are what the dashboard, the panel and accord's own lines send. The main session judges the intent: the CLI cannot, because accord never calls a model. Before acting, say the route out loud: "I read this as <route> and will <action>; say so if not." Follow the owner's override at once. When two routes fit, or none does, ask the owner one short question as `./ask.md` says and wait for the answer; never default silently. This step never picks a model or a thinking level.
 
+Text that starts with `new request: ` came from the panel's New request button, where a person typed search text and pressed the button. The text after that lead-in is routed by its meaning, never as a typed form, even when it starts with `queue`, `continue <id>`, `pick-up <id>` or `upgrade`: say the route out loud like any other, so a person who meant a typed form sees the route and can override it.
+
 ## Change: a feature or a bug
 
 Follow `./new.md` with the whole request: it proposes lane S, M or L as its lane step says and follows that lane's route. A release or an operations request takes this route too. A bug whose cause nobody has shown goes to `accord-debug` once its ticket exists, before its approach.

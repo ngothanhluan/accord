@@ -334,7 +334,8 @@ export function register(on) {
       );
     }
     if (tab === 'ticket') {
-      const tv = ticketView({ ticket, now: Math.floor(Date.now() / 1000) });
+      const nowMs = Date.now();
+      const tv = ticketView({ ticket, now: Math.floor(nowMs / 1000), nowMs, agents: [...roster].map(([key, a]) => ({ key, ...a })) });
       if (tv.message) {
         for (const line of tv.message) children.push(Text({ children: [line] }));
       } else {
@@ -361,6 +362,8 @@ export function register(on) {
             ],
           }),
         );
+        // Phase 08.8.1 L-06: the NOW lines right under the head, the first bold and the second dimmed
+        for (const [i, l] of (tv.now ?? []).entries()) children.push(Text({ ...(i === 0 ? { bold: true } : { dimColor: true }), wrap: 'truncate', children: [l.text] }));
         // D-04: below the head, in order: the failure box, the review rounds, the criteria checklist and the session log. Nothing here names context, tokens or cost (D-08).
         const block = (heading, rows) => Box({ flexDirection: 'column', borderStyle: 'round', children: [Text({ bold: true, children: [heading] }), ...rows] });
         const widest = (list) => Math.max(...list.map((x) => [...x].length));

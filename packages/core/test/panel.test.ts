@@ -1684,13 +1684,13 @@ it('risk:parsing the now line names the task in flight the review round or the s
   const review = { id: 'ST-1', stage: 'review', lane: 'M', tasksDone: 4, tasksTotal: 4, review: { cycle: 1, round: 2, cap: 5, rounds: [] } };
   expect(nowLines({ ticket: review, agents: exec, waiting: undefined, now: t0 })[0]).toEqual({ text: 'review round 2 of 5' });
   expect(nowLines({ ticket: { id: 'ST-1', stage: 'verify', lane: 'M', tasksDone: 4, tasksTotal: 4 }, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'verify' }]);
-  // a build ticket with no `now` key reads its stage label, and a finished agent or a non-accord agent adds no second line
+  // a build ticket with no `now` key reads its stage word, and a finished agent or a non-accord agent adds no second line
   const plain = { id: 'ST-1', stage: 'build', lane: 'M', tasksDone: 1, tasksTotal: 3 };
   const idle = [
     { key: 'f1', type: 'accord-executor', running: false, startTime: 1, endTime: 2, durationMs: 1000 },
     { key: 'g1', type: 'general-purpose', running: true, startTime: 1 },
   ];
-  expect(nowLines({ ticket: plain, agents: idle, waiting: undefined, now: t0 })).toEqual([{ text: 'build 1/3' }]);
+  expect(nowLines({ ticket: plain, agents: idle, waiting: undefined, now: t0 })).toEqual([{ text: 'build' }]);
   // every text is cleaned
   const dirty = { ...build, now: { task: 3, title: 'bad‮\u0007title' } };
   expect(nowLines({ ticket: dirty, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'task 3 of 4 · bad title' }]);
@@ -1715,6 +1715,7 @@ it('risk:regression the ticket tab draws the now line under the head (L-06)', as
     expect(got.ticket.now, JSON.stringify(now)).toBeUndefined();
   }
   const odd = await paneWith({ stage: 'build', now: { task: '3', title: 7 } });
-  expect(odd.texts().filter((x) => x === 'build 1/3')).toHaveLength(2);
+  expect(odd.texts().filter((x) => x === 'build 1/3')).toHaveLength(1);
+  expect(odd.texts()).toContain('build');
   expect(odd.texts().some((x) => x.startsWith('task '))).toBe(false);
 });

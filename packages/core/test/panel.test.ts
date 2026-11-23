@@ -1540,6 +1540,8 @@ it('risk:regression docs/design.md records the panel exception verbatim with its
   const panel = paragraphs[0];
   expect(panel).toContain('The panel must hold no logic or gate; it reads `status --json` only.');
   expect(panel).toContain('the pane may also listen to subagent events, for display only');
+  // Phase 08.8.1 IN-02: the widening of the tool-call events is recorded in the same paragraph
+  expect(panel).toContain('tool-call events, for display only');
   for (const word of ['Parity exception', 'Desktop Code tab', 'accord show <id> --json']) expect(panel, word).toContain(word);
   expect(read('README.md')).toContain('two tabs');
 });
@@ -1836,4 +1838,81 @@ it('risk:complex-branching the now line says waiting for you after a main turn e
   release('ANSWER');
   expect(await pending).toBe('ANSWER');
   await vi.waitFor(() => expect(h.texts().some((x) => x.startsWith('Waiting for you'))).toBe(false));
+});
+
+// Phase 08.8.1 W5 (08.7 review WR-05): the roster is reconciled with the host's agent list at each main-loop turn end and refresh, and a change of ticket clears it.
+it('risk:concurrency an agent the host no longer lists as running is marked finished at the next main turn end and its timer stops (W5)', async () => {
+  const h = await claimedPane();
+  h.agents = [agentOf('a1', 'accord-executor'), agentOf('a2', 'accord-planner')];
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('turn.start', subStart('a2'));
+  expect(h.texts()).toContain('◐ executor');
+  expect(h.texts()).toContain('◐ planner');
+  const ticks = h.timers.filter((t) => t.ms === 1000);
+  expect(ticks).toHaveLength(1);
+  expect(ticks[0].cancelled).toBe(false);
+  // a1 is gone from the list and a2 is listed with another status; neither raised its own turn.complete
+  h.agents = [agentOf('a2', 'accord-planner', { status: 'completed' })];
+  await h.fire('turn.complete', { reason: 'answer' });
+  await vi.waitFor(() => expect(h.texts()).toContain('✓ executor'));
+  expect(h.texts()).toContain('✓ planner');
+  expect(h.texts()).not.toContain('◐ executor');
+  expect(ticks.every((t) => t.cancelled)).toBe(true);
+  expect(h.timers.filter((t) => t.ms === 1000 && !t.cancelled)).toHaveLength(0);
+  expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
+  // a change of the dashboard's current id clears the roster
+  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
+  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  await vi.waitFor(() => expect(h.texts()).toContain('ST-2 Export'));
+  expect(h.texts()).toContain('none running');
+  expect(h.texts()).not.toContain('✓ executor');
+});
+
+// Phase 08.8.1 IN-01 (08.7 review): a throw inside an awaited call never stops the hook chain, and a pane that failed to open is opened by the next start.
+it('risk:regression a throwing hook still passes the event on and a failed pane open allows a retry (IN-01)', async () => {
+  const lister = await host(await loadPanel());
+  lister.$.agent.list.mockRejectedValue(new Error('no list'));
+  expect(await lister.fire('session.start', start, async () => 'S')).toBe('S');
+  expect(await lister.fire('turn.start', subStart('a1'), async () => 'T')).toBe('T');
+  const drawn = await claimedPane();
+  drawn.agents = [agentOf('a1', 'accord-executor')];
+  drawn.$.ui.invalidate.mockRejectedValue(new Error('draw'));
+  expect(await drawn.fire('turn.start', subStart('a1'), async () => 'T')).toBe('T');
+  expect(await drawn.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' }, async () => 'C')).toBe('C');
+  expect(await drawn.fire('turn.complete', { reason: 'answer' }, async () => 'M')).toBe('M');
+  const opener = await host(await loadPanel());
+  opener.$.ui.open.mockRejectedValueOnce(new Error('open'));
+  expect(await opener.fire('session.start', start, async () => 'S')).toBe('S');
+  expect(opener.$.ui.open).toHaveBeenCalledTimes(1);
+  await opener.fire('session.start', start);
+  expect(opener.$.ui.open).toHaveBeenCalledTimes(2);
+  const attacher = await host(await loadPanel());
+  attacher.$.ui.open.mockRejectedValueOnce(new Error('open'));
+  expect(await attacher.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' }, async () => 'A')).toBe('A');
+  await attacher.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' });
+  expect(attacher.$.ui.open).toHaveBeenCalledTimes(2);
+});
+
+// Phase 08.8.1 IN-03 (08.7 review): one loader runs show; a main-loop turn end starts the ticket's show only when the dashboard run left the id unchanged, so a new id costs one show.
+it('risk:concurrency a new ticket id starts one show run and not two (IN-03)', async () => {
+  const showsOf = (h: Awaited<ReturnType<typeof host>>, id: string): number => h.$.process.run.mock.calls.filter((c: any[]) => c[0][3] === 'show' && c[0][4] === id).length;
+  const h = await claimedPane();
+  expect(showsOf(h, 'ST-1')).toBe(1);
+  await h.fire('turn.complete', { reason: 'answer' });
+  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
+  await vi.waitFor(() => expect(showsOf(h, 'ST-2')).toBe(1));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(showsOf(h, 'ST-1')).toBe(1);
+  expect(showsOf(h, 'ST-2')).toBe(1);
+  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(0));
+  expect(showsOf(h, 'ST-2')).toBe(1);
+  // the same id: the dashboard run settles first and then the ticket's show runs once
+  await h.fire('turn.complete', { reason: 'answer' });
+  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
+  await vi.waitFor(() => expect(showsOf(h, 'ST-2')).toBe(2));
+  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(0));
+  expect(showsOf(h, 'ST-2')).toBe(2);
 });

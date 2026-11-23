@@ -1,4 +1,4 @@
-import { actionFor, agentRows, clean, currentOf, detailOutcome, detailView, failure, isAccordAgent, layoutOf, outcome, tabLabels, ticketView, view, widgetView } from './view.js';
+import { actionFor, agentRows, answerLine, briefTask, clean, currentOf, detailOutcome, detailView, failure, isAccordAgent, layoutOf, outcome, runsAccord, tabLabels, ticketView, toolLabel, view, widgetView } from './view.js';
 
 // Phase 08.7 D-02, probe row A3 (headless session of 2026-11-23): the `$.agent.list()` entry joins a subagent event by its `id`, which equals the event's `agentId`.
 const LIST_ID_KEY = 'id';
@@ -18,10 +18,39 @@ let active = false;
 let commandReady = false;
 // Phase 08.7 D-01, D-02: the accord agents this mod saw start, `agentId` -> `{ type, startTime, running, durationMs?, endTime? }`; display only, never a label or a description
 const roster = new Map();
+// Phase 08.8.1 L-06: set while the main loop waits for the person (its turn ended, or its AskUserQuestion call is open), `{ since, line? }`; display only
+let waiting;
 let tick;
 let debounce;
 // whether the host's `$.agent.list()` answered with a list at its last call; the agents block is drawn only then. The host's nouns are only ever called (a call that throws means the host lacks the noun), never read as values.
 let listing = false;
+
+// Redraws without ever throwing into a hook
+function redraw($) {
+  try {
+    void Promise.resolve($.ui.invalidate('ui.render')).catch(() => {});
+  } catch {
+    // a host without the call: nothing to redraw
+  }
+}
+
+// Phase 08.8.1 D-01, L-06 (probe row P1): a subagent's tool call sets its roster row's last tool and, from the report path it reads or writes, its task. Only the label and a number are kept.
+function noteTool($, e) {
+  const agent = roster.get(e.agentId);
+  if (agent === undefined || !agent.running) return;
+  let changed = false;
+  const label = toolLabel(e);
+  if (label !== undefined && label !== agent.tool) {
+    agent.tool = label;
+    changed = true;
+  }
+  const task = ticket === undefined ? undefined : briefTask(e.file_path, ticket.id);
+  if (task !== undefined && task !== agent.task) {
+    agent.task = task;
+    changed = true;
+  }
+  if (changed) redraw($);
+}
 
 const shownTab = () => (ticket === undefined ? 'dashboard' : (picked ?? 'ticket'));
 const runningAgents = () => [...roster.values()].filter((a) => a.running).length;
@@ -265,8 +294,44 @@ export function register(on) {
 
   // D-02: a subagent's turn start reads the agent list once, for the roster only; it runs no accord command
   on('turn.start', async ($, e, next) => {
+    // Phase 08.8.1 L-06: a main-loop turn starting ends the waiting state
+    if (typeof e.agentId !== 'string' && waiting !== undefined) {
+      waiting = undefined;
+      redraw($);
+    }
     if (active && typeof e.agentId === 'string') await noteAgent($, e.agentId);
     return next(e);
+  });
+
+  // Phase 08.8.1 D-01, L-05, L-06 (probe rows P1, P2): the hook only records display state, in a try, and returns what the call returned with `e` unchanged. A subagent's call sets its row; a main-loop accord command schedules one debounced `show` refresh after it ran; an open AskUserQuestion call reads as waiting.
+  on('tool.call', async ($, e, next) => {
+    let asking;
+    let refreshAfter = false;
+    try {
+      if (active && typeof e === 'object' && e !== null) {
+        if (typeof e.agentId === 'string') noteTool($, e);
+        else if (e.tool === 'AskUserQuestion') {
+          asking = { since: Date.now() };
+          waiting = asking;
+          redraw($);
+        } else refreshAfter = runsAccord(e);
+      }
+    } catch {
+      // display only: a failed read of the call never reaches the call
+    }
+    try {
+      return await next(e);
+    } finally {
+      try {
+        if (asking !== undefined && waiting === asking) {
+          waiting = undefined;
+          redraw($);
+        }
+        if (refreshAfter) scheduleTicketRefresh($);
+      } catch {
+        // display only
+      }
+    }
   });
 
   on('turn.complete', async ($, e, next) => {
@@ -282,8 +347,11 @@ export function register(on) {
       await $.ui.invalidate('ui.render');
       return next(e);
     }
+    // Phase 08.8.1 L-06 (probe row P8): the main loop's turn ended, so it waits for the person; the last line of its answer is kept when the host sent one
+    if (active && typeof e.agentId !== 'string') waiting = { since: Date.now(), line: answerLine(e.answer) };
     const pane = e.agentId ? undefined : (await $.ui.panes()).find((p) => p.id === 'accord-panel');
     if (pane?.isPlaced === true) {
+      redraw($);
       void refresh($);
       if (detail) void loadDetail($);
       if (ticket) void loadTicket($);
@@ -335,7 +403,7 @@ export function register(on) {
     }
     if (tab === 'ticket') {
       const nowMs = Date.now();
-      const tv = ticketView({ ticket, now: Math.floor(nowMs / 1000), nowMs, agents: [...roster].map(([key, a]) => ({ key, ...a })) });
+      const tv = ticketView({ ticket, now: Math.floor(nowMs / 1000), nowMs, agents: [...roster].map(([key, a]) => ({ key, ...a })), waiting });
       if (tv.message) {
         for (const line of tv.message) children.push(Text({ children: [line] }));
       } else {
@@ -387,7 +455,12 @@ export function register(on) {
             Box({
               flexDirection: 'row',
               columnGap: 1,
-              children: [Text({ color: a.running ? 'merged' : 'green', children: [(a.running ? '◐ ' : '✓ ') + a.name] }), Text({ dimColor: true, children: [a.time] })],
+              children: [
+                Text({ color: a.running ? 'merged' : 'green', children: [(a.running ? '◐ ' : '✓ ') + a.name] }),
+                Text({ dimColor: true, children: [a.time] }),
+                // Phase 08.8.1 L-06: the task the mod saw the agent read or write a report for
+                ...(a.task === undefined ? [] : [Text({ dimColor: true, children: ['task ' + a.task] })]),
+              ],
             }),
           );
           children.push(

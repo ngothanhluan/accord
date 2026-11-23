@@ -343,7 +343,92 @@ export function agentRows(roster, now) {
     name: clean(a.type.slice('accord-'.length)),
     running: a.running === true,
     time: mmss(a.running === true ? now - a.startTime : a.durationMs),
+    // Phase 08.8.1 L-06, D-01: the task the agent holds and the tool it called last, when the mod saw them
+    ...(num(a.task) ? { task: a.task } : {}),
+    ...(str(a.tool) && clean(a.tool) !== '' ? { tool: clean(a.tool) } : {}),
   }));
+}
+
+// ---- Phase 08.8.1 D-01, L-05, L-06: what the pane takes from tool calls. Only a tool name, a base name, a program name and a task number matched from a fixed path shape reach the view; no argument, command text or file content does (T-08.8.1-14, T-08.8.1-15). ----
+
+const LABEL_MAX = 40;
+const FILE_TOOLS = { Read: 'file_path', Write: 'file_path', Edit: 'file_path', NotebookEdit: 'notebook_path', Grep: 'path', Glob: 'path' };
+const SHELL_TOOLS = ['Bash', 'PowerShell'];
+const PROGRAM = /^[A-Za-z0-9][A-Za-z0-9._+-]*$/;
+const cut = (text, max) => [...text].slice(0, max).join('');
+const baseOf = (path) => String(path).replaceAll('\\', '/').split('/').filter((x) => x !== '').at(-1) ?? '';
+
+// The first words of a command line, a leading quoted word kept whole (a program path may hold a space).
+function wordsOf(command) {
+  const words = [];
+  let rest = command.trim();
+  while (rest !== '' && words.length < 10) {
+    const quote = rest[0];
+    let word;
+    if (quote === '"' || quote === "'") {
+      const end = rest.indexOf(quote, 1);
+      word = end < 0 ? rest.slice(1) : rest.slice(1, end);
+      rest = end < 0 ? '' : rest.slice(end + 1).trimStart();
+    } else {
+      word = /^\S+/.exec(rest)[0];
+      rest = rest.slice(word.length).trimStart();
+    }
+    words.push(word);
+  }
+  return words;
+}
+
+// The program a shell command runs, never its arguments: leading NAME=value words are skipped, a path and an extension are cut off, and `npx` or `npm exec` name the first non-flag word after them (a version suffix cut off).
+function programOf(command) {
+  const words = wordsOf(command);
+  let i = words.findIndex((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
+  if (i < 0) return undefined;
+  const name = (w) => baseOf(w).replace(/\.(exe|cmd|bat|ps1|sh|com)$/i, '');
+  let program = name(words[i]);
+  if (program === 'npx' || (program === 'npm' && words[i + 1] === 'exec')) {
+    i += program === 'npx' ? 1 : 2;
+    const target = words.slice(i).find((w) => !w.startsWith('-'));
+    if (target === undefined) return PROGRAM.test(program) ? program : undefined;
+    program = name(target);
+    const at = program.indexOf('@', 1);
+    if (at > 0) program = program.slice(0, at);
+  }
+  return PROGRAM.test(program) ? program : undefined;
+}
+
+// D-01: `Edit view.js`, `Bash vitest`, `Grep`; at most 40 characters, cleaned. `e` is the `tool.call` input.
+export function toolLabel(e) {
+  if (!plain(e) || !str(e.tool)) return undefined;
+  const tool = clean(e.tool);
+  if (tool === '') return undefined;
+  let detail = '';
+  if (Object.hasOwn(FILE_TOOLS, e.tool)) {
+    const path = e[FILE_TOOLS[e.tool]];
+    if (str(path)) detail = clean(baseOf(path));
+  } else if (SHELL_TOOLS.includes(e.tool) && str(e.command)) detail = programOf(e.command.slice(0, 2000)) ?? '';
+  return cut(detail === '' ? tool : `${tool} ${detail}`, LABEL_MAX);
+}
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// L-06: the task number of `.accord-reports/<id>/brief-<n>.md` or `task-<n>.md` for the shown ticket, matched only in that shape; anything else is undefined.
+export function briefTask(path, id) {
+  if (!str(path) || path.length > 1000 || !str(id) || !SAFE_ID.test(id)) return undefined;
+  const m = new RegExp(`(?:^|/)\\.accord-reports/${escapeRe(id)}/(?:brief|task)-([1-9][0-9]{0,8})\\.md$`).exec(path.replaceAll('\\', '/'));
+  return m === null ? undefined : Number(m[1]);
+}
+
+// L-05: a Bash or PowerShell call that runs accord (the word `accord` or `accord.cmd`, or the published package name).
+export function runsAccord(e) {
+  if (!plain(e) || !SHELL_TOOLS.includes(e.tool) || !str(e.command)) return false;
+  return /(?:^|[\s"'])accord(?:\.cmd)?(?=$|[\s"'])|@accord-dev\/accord/.test(e.command.slice(0, 2000));
+}
+
+// L-06 (probe row P8): the last non-empty line of a turn's answer, cleaned and cut; undefined when the answer is no string or has none.
+export function answerLine(answer) {
+  if (!str(answer)) return undefined;
+  const line = answer.split(NL).map(clean).filter((l) => l !== '').at(-1);
+  return line === undefined ? undefined : cut(line, 200);
 }
 
 // Phase 08.8.1 L-06: the NOW lines under the ticket head. `ticket` is the `show --json` ticket, `agents` the roster as an array (`agentRows` input), `now` epoch milliseconds.
@@ -355,9 +440,14 @@ export function nowLines({ ticket, agents, waiting, now }) {
   else if (t.stage === 'review' && plain(t.review) && num(t.review.round) && num(t.review.cap)) head = `review round ${t.review.round} of ${t.review.cap}`;
   // the stage word alone: the stage track already draws the cell's own label (with its counts) once, and the tab names it once
   else head = str(t.stage) ? t.stage : '';
+  // the main loop waits for the person: its turn ended or its question is open
+  if (plain(waiting) && num(waiting.since)) {
+    const line = str(waiting.line) ? clean(waiting.line) : '';
+    return [{ text: `Waiting for you · ${mmss(now - waiting.since)}` }, ...(line === '' ? [] : [{ text: line }])];
+  }
   const lines = [{ text: clean(head) }];
   const running = agentRows(Array.isArray(agents) ? agents : [], now).find((a) => a.running);
-  if (running !== undefined) lines.push({ text: `${running.name} · ${running.time}` });
+  if (running !== undefined) lines.push({ text: `${running.name} · ${running.time}${running.tool === undefined ? '' : ` · ${running.tool}`}` });
   return lines;
 }
 

@@ -205,7 +205,8 @@ it('risk:regression no stage text names the build review or verify command (D-04
       for (const dir of skillDirs(cfg)) {
         const text = (path: string) => flat(out.find((f) => f.path === path)?.text ?? '');
         for (const file of [stagePath('build', undefined, dir), stagePath('build', 'no-plan', dir)]) {
-          expect(text(file), file).toMatch(/[Nn]ext: `\.\/review\.md`, or `\.\/verify\.md` when `accord anchor` names review off/);
+          // Phase 08.8 D-03: with review off the next step is the review-off security review, then verify
+          expect(text(file), file).toMatch(/[Nn]ext: `\.\/review\.md`\. When `accord anchor` names review off, follow the section `With the review stage off` of `\.\/review-security\.md`, then `\.\/verify\.md`/);
         }
         expect(text(stagePath('review', undefined, dir)), dir + ' review.md').toContain('go to the stage it names next, `./verify.md`');
         expect(text(stagePath('review', undefined, dir)), dir + ' review.md step 9').toContain('9. Next: `./verify.md`.');
@@ -3173,6 +3174,34 @@ it("risk:regression lane S step 2 says the anchor prints the team's conventions 
     const step2 = lane.slice(lane.indexOf('2. **Change.**'), lane.indexOf('3. **Tests.**'));
     for (const p of ["At build and review `accord anchor` prints the team's conventions under `## Conventions`", 'follow every line of it in every file and commit you write', 'a line it shows as withheld as unknown, never guessed'])
       if (!step2.includes(p)) bad.push(dir + ' lane-s.md step 2 lacks: ' + p);
+  }
+  expect(bad).toEqual([]);
+});
+
+// Phase 08.8 D-03: with the review stage off the build stage's next step is the review-off section of review-security.md before verify, and that section holds the commands and the ledger line 08.8-05's gate reads.
+it('risk:regression with review off the build stage runs the security review before verify (D-03)', () => {
+  const bad: string[] = [];
+  const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] }).filter((f) => f.path.endsWith('.md'));
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    const text = (path: string): string => (all.find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
+    const build = text(stagePath('build', undefined, dir));
+    const noPlan = text(stagePath('build', 'no-plan', dir));
+    const security = text(stagePath('review', 'security', dir));
+    if (build === '' || noPlan === '' || security === '') {
+      bad.push(dir + ': build.md, build-no-plan.md or review-security.md is not rendered');
+      continue;
+    }
+    for (const [where, step] of [['build.md step 8', build.slice(build.indexOf('8. When every task has a ledger line'), build.indexOf('## Rules'))], ['build-no-plan.md step 6', noPlan.slice(noPlan.indexOf('6. Next:'))]] as const) {
+      const sec = step.indexOf('./review-security.md');
+      const verify = step.indexOf('./verify.md');
+      if (step === '' || sec < 0 || verify < 0 || sec > verify) bad.push(dir + ' ' + where + ' does not name ./review-security.md before ./verify.md for review off');
+    }
+    const at = security.indexOf('## With the review stage off');
+    const section = at < 0 ? '' : security.slice(at);
+    if (section === '') bad.push(dir + ' review-security.md has no section named for the review stage being off');
+    for (const p of ['accord review-package <id> --security', 'lens security', 'accord brief <id> --fix', 'Security: lens security ran at <sha>', '## Security', 'ledger.md']) {
+      if (!section.includes(p)) bad.push(dir + ' review-security.md review-off section lacks: ' + p);
+    }
   }
   expect(bad).toEqual([]);
 });

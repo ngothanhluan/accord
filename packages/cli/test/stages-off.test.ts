@@ -1,6 +1,7 @@
 // ST-LN-50 t2-ac-5 (stage half), t2-ac-6: `strictness.stages.M.review: "off"` on real files and real git. A lane M ticket built through task-done with no
 // review.md is at verify (status and anchor), and `accord gate done` passes after verification without review.md. With no stages key every output is today's.
-import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
@@ -215,7 +216,8 @@ it('risk:complex-branching status names the stages that are off (ST-LN-50 t2-ac-
     const json = JSON.parse(await textOf(repo, 'status', '--json')) as Record<string, unknown>[];
     expect(json[0].stagesOff).toEqual(['review']);
     const text = await textOf(repo, 'status');
-    expect(text).toContain('stages off for lane M: review' + String.fromCharCode(10));
+    // Phase 08.8 D-03: with review in the list the line also says the security review stays on
+    expect(text).toContain('stages off for lane M: review; the security review stays on' + String.fromCharCode(10));
     // after the table, before the summary line
     expect(text.indexOf('stages off for lane M: review')).toBeLessThan(text.indexOf('1 ticket shown'));
     expect(text.indexOf('stages off for lane M: review')).toBeGreaterThan(text.indexOf('T-1'));
@@ -237,7 +239,8 @@ it('risk:complex-branching every view names the stages that are off (ST-LN-50 t2
     gitRun(repo, 'config', 'commit.gpgsign', 'false');
     commitMsg(repo, 'claim: T-1');
     const views: string[][] = [['anchor', 'T-1'], ['show', 'T-1'], ['show', 'T-1', '--approval'], ['show', 'T-1', '--approval', '--short'], ['dashboard'], ['status']];
-    const LINE = 'stages off for lane M: discuss, review';
+    // Phase 08.8 D-03: review is in the list, so the line says the security review stays on
+    const LINE = 'stages off for lane M: discuss, review; the security review stays on';
     for (const args of views) {
       const r = await run(args, repo);
       expect(r.code, args.join(' ')).toBe(0);
@@ -276,7 +279,7 @@ it('risk:complex-branching the anchor header keeps the stages-off line right aft
       const lines = (await run(args, repo)).out.split('\n');
       const stage = lines.findIndex((l) => l.startsWith('Stage:'));
       expect(stage, args.join(' ')).toBeGreaterThan(-1);
-      expect(lines[stage + 1], args.join(' ')).toBe('stages off for lane M: discuss, review');
+      expect(lines[stage + 1], args.join(' ')).toBe('stages off for lane M: discuss, review; the security review stays on');
       expect(lines[stage + 2], args.join(' ')).toBe('Unfinished: accord/tickets/T-1/plan.md: resume the planner');
       expect(lines[stage + 3], args.join(' ')).toBe('');
       expect(lines[stage + 4], args.join(' ')).toBe('## Intent');
@@ -288,3 +291,61 @@ it('risk:complex-branching the anchor header keeps the stages-off line right aft
     cleanup(repo);
   }
 }, 120_000);
+
+// Phase 08.8 D-03: a team that turned review off reads in every view that the security review still applies; a lane with only other stages off, or none, reads what it read before.
+it('risk:regression with review off every view says the security review stays on (D-03)', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + OFF('review') });
+  try {
+    gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
+    gitRun(repo, 'config', 'user.name', 'fixture');
+    gitRun(repo, 'config', 'commit.gpgsign', 'false');
+    commitMsg(repo, 'claim: T-1');
+    const LINE = 'stages off for lane M: review; the security review stays on';
+    const views: string[][] = [['anchor', 'T-1'], ['show', 'T-1'], ['show', 'T-1', '--approval', '--short'], ['dashboard'], ['status']];
+    for (const args of views) {
+      const out = (await run(args, repo)).out;
+      expect(out, args.join(' ')).toContain(LINE);
+      expect(out.split(LINE).length, args.join(' ')).toBe(2);
+    }
+    // the machine views are as they were: the row still names only the stage, and no JSON holds the clause
+    const status = await textOf(repo, 'status', '--json');
+    expect((JSON.parse(status) as Record<string, unknown>[])[0].stagesOff).toEqual(['review']);
+    expect(status).not.toContain('security review');
+    expect((await run(['show', 'T-1', '--json'], repo)).out).not.toContain('security review');
+
+    // only other stages off: the line is what it was
+    writeFiles(repo, { 'accord/config.yml': CONFIG + OFF('plan') });
+    const plan = await textOf(repo, 'status');
+    expect(plan).toContain('stages off for lane M: plan' + String.fromCharCode(10));
+    expect(plan).not.toContain('security review');
+    // nothing off: no line
+    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    expect(await textOf(repo, 'status')).not.toContain('security review');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8 D-03: the two commands the build skill's review-off step names work for a ticket with no review record: the security package lists the trigger, and the fix brief is built.
+it('risk:complex-branching with review off the security package and the fix brief run for the ticket (D-03)', async () => {
+  const repo = await built(CONFIG + STAGES);
+  const outside = mkdtempSync(join(tmpdir(), 'accord-findings-'));
+  try {
+    writeFiles(repo, { 'src/spawn.ts': ["import { execFileSync } from 'node:child_process';", "execFileSync('git', ['status']);", ''].join('\n') });
+    commitAll(repo);
+    const pkg = await run(['review-package', 'T-1', '--security'], repo);
+    expect(pkg.code, pkg.err).toBe(0);
+    expect(pkg.out).toContain('## Security triggers');
+    expect(pkg.out).toContain('src/spawn.ts');
+    expect(pkg.out).toContain('execFileSync(');
+
+    const findings = join(outside, 'findings.md');
+    writeFileSync(findings, ['1. src/spawn.ts:2 - the command is not checked.', ''].join('\n'));
+    const fix = await run(['brief', 'T-1', '--fix', findings], repo);
+    expect(fix.code, fix.err).toBe(0);
+    expect(fix.out).toContain('file:');
+  } finally {
+    cleanup(repo);
+    cleanup(outside);
+  }
+}, 180_000);

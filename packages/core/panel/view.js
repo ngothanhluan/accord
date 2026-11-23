@@ -893,3 +893,113 @@ export function shimmer(text, t, stops) {
   const centre = ((seconds(t) * 12) % (chars.length + 16)) - 8;
   return chars.map((ch, i) => ({ ch, color: mixHex(gradientAt(stops, i / chars.length), GLOW, Math.max(0, 1 - Math.abs(i - centre) / 4)) }));
 }
+
+// A triangle wave over 0 to 1 and back, period 2.
+const pingpong = (x) => {
+  const p = ((x % 2) + 2) % 2;
+  return p <= 1 ? p : 2 - p;
+};
+
+// The title's gradient flowing: the same stops as the still title, shifted back and forth with the time (sketch 004's flowText); one `{ ch, color }` per code point.
+export function flowRun(text, stops, t) {
+  const chars = [...text];
+  const shift = seconds(t) * 0.25;
+  return chars.map((ch, i) => ({ ch, color: gradientAt(stops, Math.min(0.9999, pingpong((i / chars.length) * 0.9 + shift))) }));
+}
+
+// The empty track of the comet bar and the colour the breathing criteria dim to (sketch 004's faint greys).
+const TRACK = '#2c2e3b';
+const DIM = '#474a5c';
+
+// The build bar as `width` one-cell `{ ch, color }`: the filled part `━` in the stops with a bright head that runs along it about 16 cells a second, the rest an empty `─` track; a time that is no number draws no head (a still bar).
+export function comet(frac, width, t, stops) {
+  const w = Math.max(0, Math.floor(num(width) ? width : 0));
+  const filled = Math.round(Math.min(1, Math.max(0, num(frac) ? frac : 0)) * w);
+  const head = num(t) ? Math.floor(seconds(t) * 16) % (filled + 10) : -1;
+  return Array.from({ length: w }, (_, i) => {
+    if (i >= filled) return { ch: '─', color: TRACK };
+    const d = head - i;
+    const lit = d >= 0 && d < 4 ? 1 - d / 4 : 0;
+    return { ch: '━', color: mixHex(gradientAt(stops, (i / w) * 0.8), GLOW, lit * 0.85) };
+  });
+}
+
+const BARS = [...'▁▂▃▄▅▆▇'];
+
+// `width` bars of the equalizer, each moving with the time; `seed` keeps two rows from moving in step.
+export function equalizer(t, width, seed = 0) {
+  const s = seconds(t);
+  let out = '';
+  for (let k = 0; k < Math.max(0, Math.floor(num(width) ? width : 0)); k++) {
+    const v = (Math.sin(s * 7 + k * 1.7 + seed) + Math.sin(s * 3.1 + k * 0.8 + seed * 2) + 2) / 4;
+    out += BARS[Math.min(BARS.length - 1, Math.floor(v * BARS.length))];
+  }
+  return out;
+}
+
+export const TYPE_MS = 28;
+
+// A line typed out a character every TYPE_MS from `start`, a cursor after it until it is whole.
+export function typed(text, start, now) {
+  const chars = [...clean(text)];
+  const n = num(start) && num(now) ? Math.max(0, Math.floor((now - start) / TYPE_MS)) : chars.length;
+  return n < chars.length ? chars.slice(0, n).join('') + '▌' : chars.join('');
+}
+
+export const BURST_MS = 1200;
+export const ROLL_MS = 700;
+export const SPARK_ROWS = 3;
+const SPARKS = 46;
+const SPARK_GLYPHS = [...'✦✧⋆·*+˚'];
+
+// A small seeded generator (mulberry32): the same seed gives the same sequence.
+function seeded(seed) {
+  let a = (num(seed) ? seed : 0) >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// The sparkles of a burst `{ at, seed }` at time `now`, over SPARK_ROWS rows and `width` columns: `{ x, y, ch, p, fade }` (`p` a palette position 0 to 1, `fade` 0 to 1 as it ages). None before the burst or from BURST_MS on.
+export function sparkles(burst, now, width) {
+  if (!plain(burst) || !num(burst.at) || !num(now) || !num(width)) return [];
+  const ms = now - burst.at;
+  if (!(ms >= 0) || ms >= BURST_MS) return [];
+  const age = ms / 1000;
+  const rand = seeded(burst.seed);
+  const out = new Map();
+  for (let k = 0; k < SPARKS; k++) {
+    const x0 = width * 0.5 - 7 + rand() * 14;
+    const y0 = 1 + rand();
+    const vx = (rand() - 0.2) * 20;
+    const vy = -(0.6 + rand() * 1.6);
+    const ch = SPARK_GLYPHS[Math.floor(rand() * SPARK_GLYPHS.length)];
+    const p = rand();
+    const x = Math.round(x0 + vx * age);
+    const y = Math.round(y0 + vy * age + 2.2 * age * age);
+    if (x >= 0 && x < width && y >= 0 && y < SPARK_ROWS) out.set(`${y}:${x}`, { x, y, ch, p, fade: Math.min(1, ms / BURST_MS) });
+  }
+  return [...out.values()].sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
+// The counter `<n> of <total>`: for ROLL_MS after `at` its digit rolls (changing every 50 ms), then it reads the number.
+export function rolling(n, total, at, now) {
+  const age = num(at) && num(now) ? now - at : -1;
+  if (age >= 0 && age < ROLL_MS) return `${(Math.floor(age / 50) * 7 + (num(n) ? n : 0) + 3) % 10} of ${total}`;
+  return `${n} of ${total}`;
+}
+
+// A colour breathing between a dim grey and itself, one breath every 1.1 seconds; anything that is no `#rrggbb` is given back as it was.
+export function breathe(color, t) {
+  const c = isHex(color);
+  if (c === undefined) return color;
+  return mixHex(DIM, c, (1 - Math.cos((2 * Math.PI * seconds(t)) / 1.1)) / 2);
+}
+
+const SPIN = [...'◐◓◑◒'];
+
+// A running agent's mark: four quarters, eight steps a second.
+export const spinner = (t) => SPIN[Math.floor(Math.max(0, seconds(t)) * 8) % SPIN.length];

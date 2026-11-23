@@ -1591,3 +1591,27 @@ it('risk:parsing an empty frontmatter block gives a problem and no exception (8-
   expect(readSource('---\nname: x\n---\nbody')).toEqual({ yaml: { name: 'x' }, body: 'body' });
   expect(readSource('just a body')).toEqual({ yaml: {}, body: 'just a body' });
 });
+
+// Phase 08.8 D-16 (items 1 and 3): when accord is already current the upgrade skill says so and goes on to its audit question instead of stopping; where it asks, it names ask.md's three rules.
+it('risk:regression the upgrade skill reaches its audit question when accord is current (D-16)', () => {
+  const text = (skills['accord/upgrade.md' as SkillKey] ?? '').replace(/\s+/g, ' ');
+  expect(text).not.toBe('');
+  const from2 = text.indexOf('2. Take the command');
+  const from3 = text.indexOf('3. Run that command');
+  const from5 = text.indexOf('5. Ask one question');
+  expect(from2, 'step 2 not found').toBeGreaterThan(-1);
+  expect(from3, 'step 3 not found').toBeGreaterThan(from2);
+  expect(from5, 'step 5 not found').toBeGreaterThan(from3);
+  const step2 = text.slice(from2, from3);
+  const current = step2.slice(step2.indexOf('When that first line'), step2.indexOf('The command is the text'));
+  expect(current).toContain('say accord is current');
+  expect(current).toContain('step 5');
+  expect(current).not.toContain('and stop');
+  // the other refusals of step 2 and of step 3 still stop
+  expect(step2).toContain('say it was not run and why, and stop');
+  expect(text.slice(from3, text.indexOf('4. It prints'))).toContain('on exit 2 show the message and stop');
+  // the audit question runs the installed command when there was no new version, and names ask.md's three rules
+  const step5 = text.slice(from5);
+  expect(step5).toContain('in plain chat, the recommended answer first, every id glossed');
+  expect(step5).toContain('already current');
+});

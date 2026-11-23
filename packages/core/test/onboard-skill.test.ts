@@ -305,3 +305,24 @@ describe('the onboarding skill scans the repository and merges what it finds wit
     expect(phrases.filter((p) => !body.includes(p))).toEqual([]);
   });
 });
+
+// Phase 08.8 D-16 (items 2 and 3): step 5 of the onboard skill no longer reads as its last line, and the question of step 6 names ask.md's three rules.
+it('risk:regression onboard step 5 leads on to the audit question (D-16)', () => {
+  const text = flat(source('onboard/SKILL.md'));
+  const from5 = text.indexOf('5. When the last proposal');
+  const from6 = text.indexOf('6. Ask one question');
+  const rules = text.indexOf('## Rules');
+  expect(from5, 'step 5 not found').toBeGreaterThan(-1);
+  expect(from6, 'step 6 not found').toBeGreaterThan(from5);
+  expect(rules, 'Rules not found').toBeGreaterThan(from6);
+  const step5 = text.slice(from5, from6);
+  expect(step5).toContain('finish as `./walk.md` says');
+  expect(step5).toContain('commits nothing');
+  expect(step5).toMatch(/go on to step 6/);
+  // the sentence that the skill commits nothing does not close step 5
+  expect(step5.trimEnd().endsWith('commits nothing.')).toBe(false);
+  // step 6 is still the audit question and names ask.md's three rules
+  const step6 = text.slice(from6, rules);
+  expect(step6).toContain('whether to run `accord audit` now');
+  expect(step6).toContain('in plain chat, the recommended answer first, every id glossed');
+});

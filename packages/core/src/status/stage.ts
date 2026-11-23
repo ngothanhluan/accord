@@ -31,6 +31,23 @@ const ticksBound = (ticket: Ticket): boolean => {
 const planReady = (snapshot: RepoSnapshot, facts: NonNullable<RepoSnapshot['planFacts']>, id: string): boolean =>
   Object.hasOwn(facts, id) && facts[id].clean && facts[id].subject !== undefined && matchesSubject(snapshot.config, 'plan_ready', id, facts[id].subject);
 
+/**
+ * Phase 08.8.1 D-02: true exactly when `progressOf`'s BUG-LN-2 line holds a ticket whose plan.md carries a `plan_hash` (accord gate plan passed at least once) at plan, because plan.md is dirty or its last commit's subject is not the
+ * `plan_ready` subject. Display only: it reads the same facts the same way and calls `planReady` itself, so the CLI and the pane say the same stage and the stage rule is not touched. A body that differs from its plan_hash under a
+ * clean plan-ready commit is not this: the stage reads build, and `accord task-done` refuses the next task (gate/task.ts: plan.md changed since its plan_hash was recorded).
+ */
+export function planChanged(snapshot: RepoSnapshot, id: string): boolean {
+  const ticket = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id] : undefined;
+  const fm = ticket?.frontmatter;
+  if (ticket === undefined || fm?.lane === undefined || fm.lane === 'S' || fm.lane === 'R') return false;
+  if (fm.approved_hash === undefined || fm.approved_hash !== approvedHash(ticket)) return false;
+  if (stageOff(snapshot, id, 'plan') || snapshot.planFacts === undefined) return false;
+  const work = workOf(snapshot, id);
+  if (work?.plan?.planHash === undefined) return false;
+  const done = work.ledger?.done ?? {};
+  return work.plan.tasks.some((t) => !Object.hasOwn(done, String(t.n))) && !planReady(snapshot, snapshot.planFacts, id);
+}
+
 const NEXT: Record<Exclude<Stage, 'build' | 'intent' | 'research'>, string> = {
   plan: 'write the plan and pass accord gate plan',
   review: 'review to convergence',

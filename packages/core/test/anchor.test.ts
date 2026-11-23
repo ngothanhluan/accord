@@ -142,3 +142,21 @@ it('risk:complex-branching a lane S anchor prints the research list before the R
   expect(anchorText(snap(lane(['research: []'])), 'S-1')).not.toContain('## Research');
   expect(anchorText(snap(base), 'T-1')).not.toContain('## Research');
 });
+
+// Phase 08.8.1 D-05: the session-resume hook prints the anchor into an agent's context; for a ticket whose records git does not hold the anchor says so in place of a stage that is not real.
+it('risk:complex-branching the anchor prints a not-committed warning in place of the stage line and keeps it for a tracked ticket (D-05)', () => {
+  const plan3 = PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n';
+  const files = { ...approved(base, 'T-1'), 'accord/tickets/T-1/plan.md': plan3 };
+  const load = (extra: Record<string, unknown>) => loadSnapshot({ files, tree: [], ...extra });
+  const tracked = anchorText(load({ planFacts: { 'T-1': { clean: true, subject: 'plan: T-1 ready' } } }), 'T-1')!.split('\n');
+  expect(tracked[2]).toBe('Stage: build 0/3, next: task 1 "Writer csv mode"');
+  // An ignored plan.md has no commit, so the host supplies no plan fact for it.
+  const warned = anchorText(load({ trackFacts: { 'T-1': { state: 'ignored', path: 'accord/tickets/T-1/plan.md' } } }), 'T-1')!;
+  const lines = warned.split('\n');
+  expect(lines[2]).toBe('accord/ is not committed in this repository: git ignores accord/tickets/T-1/plan.md, so accord cannot track the stage or the tasks');
+  expect(lines.some((l) => l.startsWith('Stage:'))).toBe(false);
+  expect(warned).not.toContain('build 0/3');
+  expect(warned).not.toContain('plan, next:');
+  // The sections after the stage position are unchanged.
+  expect(lines.slice(3)).toEqual(tracked.slice(3));
+});

@@ -1,4 +1,6 @@
 // ST-LN-6 task 2: `accord show <id> [--json]`, in-process through runCli on a fixture repository.
+import { appendFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { cleanup, commitAll, commitMsg, copyRepo, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { laneRHash, loadSnapshot } from '@accord-dev/accord-core';
@@ -269,3 +271,163 @@ it('risk:regression show json adds review and stagesOff only when the ticket has
     cleanup(bare);
   }
 });
+
+// Phase 08.8.1 D-05 L-05: CSA-185's shape. accord/ is git-ignored, so plan.md has no ready commit and the ledger no done line: show --json and the anchor say why, in place of a wrong `plan 0/3`.
+const THREE_TASKS =
+  PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n';
+const NOT_IGNORED = 'accord/ is not committed in this repository: git ignores accord/tickets/T-1/plan.md, so accord cannot track the stage or the tasks';
+const NOT_COMMITTED = 'accord/tickets/T-1/plan.md is not committed yet: accord cannot track the stage or the tasks until it is';
+
+it('risk:regression show json and anchor say accord is not committed when git ignores it (D-05 L-05)', async () => {
+  const repo = makeLaneRepo({ ...approved(), 'accord/tickets/T-1/plan.md': THREE_TASKS });
+  try {
+    commitAll(repo, 'plan: T-1 ready');
+    // A tracked ticket: no warnings key, and the anchor keeps its Stage line.
+    const tracked = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(tracked).toMatchObject({ stage: 'build', tasksDone: 0, tasksTotal: 3 });
+    expect(Object.hasOwn(tracked, 'warnings')).toBe(false);
+    const trackedAnchor = (await run(['anchor', 'T-1'], repo)).out;
+    expect(trackedAnchor).not.toContain('is not committed');
+    expect(trackedAnchor.split('\n').some((l) => l.startsWith('Stage: build 0/3'))).toBe(true);
+    // CSA-185: accord/ leaves the index and is git-excluded.
+    appendFileSync(join(repo, '.git', 'info', 'exclude'), 'accord/\n');
+    gitRun(repo, 'rm', '-r', '-q', '--cached', 'accord');
+    commitMsg(repo, 'chore: stop tracking accord');
+    const shown = await run(['show', 'T-1', '--json'], repo);
+    expect(shown.code).toBe(0);
+    const json = JSON.parse(shown.out);
+    expect(json.stage).toBe('plan');
+    expect(json.warnings).toHaveLength(1);
+    expect(json.warnings[0].kind).toBe('not-committed');
+    expect(json.warnings[0].text).toBe(NOT_IGNORED);
+    expect(json.warnings[0].text).toContain('git ignores accord/');
+    const anchored = await run(['anchor', 'T-1'], repo);
+    expect(anchored.code).toBe(0);
+    const lines = anchored.out.split('\n');
+    expect(lines).toContain(json.warnings[0].text);
+    expect(lines.some((l) => l.startsWith('Stage:'))).toBe(false);
+    expect(anchored.out).not.toContain('build 0/3');
+    expect(anchored.out).not.toContain('plan, next:');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8.1 D-05: the warning fires only when tracking matters: a ticket still at intent says nothing; a plan.md git lists as untracked is named.
+it('risk:complex-branching an uncommitted plan is named and an uncommitted ticket still at intent says nothing (D-05)', async () => {
+  const early = makeLaneRepo({ [P('T-2')]: laneTicket('T-2') });
+  try {
+    const j = JSON.parse((await run(['show', 'T-2', '--json'], early)).out);
+    expect(Object.hasOwn(j, 'warnings')).toBe(false);
+    const a = (await run(['anchor', 'T-2'], early)).out;
+    expect(a).not.toContain('is not committed');
+    expect(a.split('\n').some((l) => l.startsWith('Stage:'))).toBe(true);
+  } finally {
+    cleanup(early);
+  }
+  const repo = makeLaneRepo(approved());
+  try {
+    rmSync(join(repo, 'accord', 'tickets', 'T-1', 'plan.md'));
+    commitAll(repo, 'claim: T-1');
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN });
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(j.warnings[0]).toEqual({ kind: 'not-committed', text: NOT_COMMITTED });
+    const a = await run(['anchor', 'T-1'], repo);
+    expect(a.out.split('\n')).toContain(NOT_COMMITTED);
+    expect(a.out.split('\n').some((l) => l.startsWith('Stage:'))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8.1 D-02: a gated plan that the stage holds at plan (dirty, or last committed under another subject) is named, with the done tasks still counted; at build nothing is said and task-done is what refuses.
+it('risk:regression show json and anchor warn when a gated plan changed and is not committed as plan ready and say nothing at build (D-02)', async () => {
+  const PLAN_TEXT = 'plan.md changed after accord gate plan passed: the plan stage reviews the change, passes accord gate plan again and makes its plan-ready commit before the build goes on';
+  const EDITED = PLAN.replace('Quote cells that contain a comma.', 'Quote every cell that contains a comma.');
+  const atBuild = (): string => {
+    const repo = makeLaneRepo(approved());
+    commitAll(repo, 'plan: T-1 ready');
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAll(repo, 'task 1 done');
+    return repo;
+  };
+  // Committed under another subject.
+  const other = atBuild();
+  try {
+    expect(JSON.parse((await run(['show', 'T-1', '--json'], other)).out)).toMatchObject({ stage: 'build', tasksDone: 1 });
+    writeFiles(other,{ 'accord/tickets/T-1/plan.md': EDITED });
+    commitAll(other, 'feat: reword task 2');
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], other)).out);
+    expect(j).toMatchObject({ stage: 'plan', tasksDone: 1 });
+    expect(j.warnings).toEqual([{ kind: 'plan-changed', text: PLAN_TEXT }]);
+    const lines = (await run(['anchor', 'T-1'], other)).out.split('\n');
+    const at = lines.findIndex((l) => l.startsWith('Stage: plan, next: '));
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(lines[at + 1]).toBe(PLAN_TEXT);
+  } finally {
+    cleanup(other);
+  }
+  // Left uncommitted.
+  const dirty = atBuild();
+  try {
+    writeFiles(dirty, { 'accord/tickets/T-1/plan.md': EDITED });
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], dirty)).out);
+    expect(j).toMatchObject({ stage: 'plan', tasksDone: 1 });
+    expect(j.warnings).toEqual([{ kind: 'plan-changed', text: PLAN_TEXT }]);
+  } finally {
+    cleanup(dirty);
+  }
+  // Re-committed under the plan_ready subject: the stage reads build, nothing is said, and task-done refuses.
+  const ready = atBuild();
+  try {
+    writeFiles(ready, { 'accord/tickets/T-1/plan.md': EDITED });
+    commitAll(ready, (await run(['subject', 'plan_ready', 'T-1'], ready)).out.trim());
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], ready)).out);
+    expect(j.stage).toBe('build');
+    expect(Object.hasOwn(j, 'warnings')).toBe(false);
+    const refused = await run(['task-done', 'T-1', '2'], ready);
+    expect(refused.code).not.toBe(0);
+    expect(refused.out + refused.err).toContain('plan.md changed since its plan_hash was recorded');
+  } finally {
+    cleanup(ready);
+  }
+}, 120_000);
+
+// Phase 08.8.1 L-06 L-07: show --json names the task in flight (the one `accord anchor` calls next) and lists the plan's tasks; the text output of `accord show` does not change.
+it('risk:regression show json adds now and tasks for a ticket at build and its text output is unchanged (L-06 L-07)', async () => {
+  // A task title with a bidi override reaches the JSON as one space; the plan's own text is not touched.
+  const plan = PLAN.replace('Escaping', 'Esc\u202eaping');
+  const repo = makeLaneRepo({ ...approved(), 'accord/tickets/T-1/plan.md': plan });
+  try {
+    commitAll(repo, 'plan: T-1 ready');
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAll(repo, 'task 1 done');
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(j.stage).toBe('build');
+    const next = /next: task (\d+) /.exec((await run(['anchor', 'T-1'], repo)).out);
+    expect(next).not.toBeNull();
+    expect(j.now).toEqual({ task: Number(next?.[1]), title: 'Esc aping' });
+    expect(j.tasks).toEqual([
+      { n: 1, title: 'Writer csv mode', done: true, covers: ['ac-1'] },
+      { n: 2, title: 'Esc aping', done: false, covers: ['ac-2'] },
+    ]);
+    // The new keys follow the keys the detail had; the log, when there is one, comes last.
+    const keys = Object.keys(j);
+    expect(keys.indexOf('now')).toBeGreaterThan(keys.indexOf('criteria'));
+    // The text is what it was before the keys existed: no task, no `now`.
+    const text = await run(['show', 'T-1'], repo);
+    expect(text.code).toBe(0);
+    expect(text.out).toBe(
+      [
+        'T-1 Export', 'Stage: build', 'Lane: M', 'Tasks: 1/2', 'Branch: t/T-1', 'Holder: none', 'Blocked by: none', '',
+        'Intent:', 'Owners can export their report as CSV.', 'Expected size: 5 tasks', '',
+        'ac-1 export writes a csv', '  Given a report', '  When the owner exports it', '  Then a csv file is written',
+        '  State: passing', '  Test: export#writes-csv', '  Test result: passed', '  Ticked: no', '  Verification: none', '',
+        'ac-2 commas are escaped', '  Given a cell with a comma', '  When the owner exports it', '  Then the cell is quoted',
+        '  State: passing', '  Test: export#escapes-commas', '  Test result: passed', '  Ticked: no', '  Verification: none', '',
+      ].join('\n'),
+    );
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

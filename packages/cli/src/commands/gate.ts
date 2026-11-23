@@ -83,7 +83,9 @@ export function gate(
   );
   // Phase 08.7 D-04, A-03: the run is recorded as one line of the git-ignored `.accord-reports/<id>/gate.log` for the pane's log only; no gate, lint rule or round command reads it. The folder is
   // the snapshot's own key (an unknown id writes nothing), and a failed append names itself once on stderr and changes neither the verdict nor the exit code.
-  if (Object.hasOwn(ctx.snapshot.tickets, id)) {
+  // Phase 08.8.1 IN-04: with `CI` set (anything but empty, `0` or `false`) no log is written: nothing in CI reads the file and a read-only workspace printed a stderr line on every run.
+  const inCi = ctx.env.CI !== undefined && !['', '0', 'false'].includes(ctx.env.CI);
+  if (Object.hasOwn(ctx.snapshot.tickets, id) && !inCi) {
     try {
       appendGateRun(ctx.root, id, result, Math.floor(Date.now() / 1000));
     } catch (err) {

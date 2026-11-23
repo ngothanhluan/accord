@@ -128,3 +128,29 @@ it('risk:complex-branching accord audit never throws when config.yml fails the s
   expect(bad.lines.find((l) => l.startsWith('fact: pr-template:'))).toContain("pr.command not checked (config.yml does not pass this CLI's schema)");
   expect(bad.lines.find((l) => l.startsWith('fact: commit-rule:'))).toContain('not checked');
 });
+
+// Phase 08.8 D-16 (IN-03): a read capped at 200 config files says so, so the linter and test facts are known to be partial.
+it('risk:complex-branching audit says how many config files it read when there are more than it reads (D-16)', async () => {
+  const many: Record<string, string> = {};
+  for (let n = 0; n < 201; n += 1) many[`packages/p${n}/tsconfig.json`] = '{ "compilerOptions": { "strict": true } }\n';
+  const over = await audit(committed(many));
+  expect(over.code, over.out).toBe(0);
+  expect(over.lines).toContain('fact: config-files-read: 200 of 201');
+
+  const few: Record<string, string> = {};
+  for (let n = 0; n < 3; n += 1) few[`packages/p${n}/tsconfig.json`] = '{ "compilerOptions": { "strict": true } }\n';
+  const under = await audit(committed(few));
+  expect(under.lines.some((l) => l.startsWith('fact: config-files-read:')), under.out).toBe(false);
+});
+
+// Phase 08.8 D-16 (IN-04): the audit asks the npm registry at most once a day, so its help must not say it uses no network.
+it('risk:regression the audit command does not claim it never uses the network (D-16)', async () => {
+  const repo = committed({});
+  const help = await run(['audit', '--help'], repo);
+  expect(help.code, help.out + help.err).toBe(0);
+  // commander wraps the description at the terminal width, so compare on whitespace-collapsed text
+  const text = help.out.replace(/\s+/g, ' ');
+  expect(text).toContain('npm registry');
+  expect(text).not.toContain('files only');
+  expect(text).not.toContain('no network');
+});

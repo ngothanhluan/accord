@@ -1,4 +1,4 @@
-// Phase 8.1 G3a (D-08, D-09 step 1): what `accord audit` can tell about a repository from its own files, with no model and no network: the languages and folders git tracks,
+// Phase 8.1 G3a (D-08, D-09 step 1): what `accord audit` can tell about a repository from its own files (`accord audit` as a whole reads files, calls no model, and asks the npm registry at most once a day for the latest accord release; this loader itself reads only files): the languages and folders git tracks,
 // the linter and the rules it turns on, the formatter, how strict type checking is, and the test frameworks. Host loader, read-only and bounded, like detect.ts: it works on the
 // paths `git ls-files` lists (the caller gives them), reads at most 200 of the config files among them and at most 1 MiB of each through detect.ts's bounded reader (a link or any
 // non-file is skipped), and executes nothing: a config file is text to read, never code to run (T-08.1-15). Every name that reaches the terminal goes through `printable` (T-08.1-14).
@@ -35,6 +35,8 @@ export interface MachineFacts {
   formatters: Found[];
   typechecks: Typecheck[];
   tests: string[];
+  /** how many of the candidate config files were read, and how many there were; fewer read than candidates means the linter and test facts are partial (Phase 08.8 D-16 IN-03) */
+  reads: { read: number; total: number };
 }
 
 /** The folders accord and the coding tools write themselves, which say nothing about the team's own code. */
@@ -150,6 +152,8 @@ export function machineFacts(root: string, tracked: readonly string[]): MachineF
     else if (STYLELINT.test(base)) linter('stylelint', rel);
     else if (GOLANGCI.test(base)) linter('golangci-lint', rel);
     else if (TSCONFIG.test(base)) {
+      // Phase 08.8 D-16 (IN-03): a solution-style config (`references`, no `compilerOptions`) sets nothing itself; the configs it points at are judged on their own, so this one is skipped.
+      if (/"references"\s*:/.test(text) && !/"compilerOptions"\s*:/.test(text)) continue;
       const explicit = /"strict"\s*:\s*(true|false)/.exec(text);
       if (explicit !== null) typechecks.push({ file: rel, strict: explicit[1] === 'true', what: explicit[1] === 'true' ? 'strict' : 'not strict' });
       else if (/"extends"\s*:/.test(text)) typechecks.push({ file: rel, strict: true, what: 'extends another config' });
@@ -223,5 +227,5 @@ export function machineFacts(root: string, tracked: readonly string[]): MachineF
     else typechecks.push({ file, strict: propsNullable, what: propsNullable ? 'Nullable enable (Directory.Build.props)' : 'Nullable not set' });
   }
 
-  return { languages, layout, linters, rules: [...rules].sort(), formatters, typechecks, tests: [...tests].sort() };
+  return { languages, layout, linters, rules: [...rules].sort(), formatters, typechecks, tests: [...tests].sort(), reads: { read: Math.min(reads, MAX_READS), total: candidates.length } };
 }

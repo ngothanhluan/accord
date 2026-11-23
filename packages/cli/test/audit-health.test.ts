@@ -274,3 +274,19 @@ it('risk:regression accord audit names a missing or hand-edited accord hook and 
   const after = await audit(fixed);
   expect(after.lines.filter((l) => /^gap: (hook|render)-/.test(l)), after.out).toEqual([]);
 });
+
+// Phase 08.8 D-16 (IN-05): a version in the workflow that is followed by a closing quote or a comma is still that version.
+it('risk:parsing the workflow pin is read without a trailing quote or comma (D-16)', async () => {
+  const repo = await initialised();
+  const workflow = '.github/workflows/accord.yml';
+  const original = readFileSync(at(repo, workflow), 'utf8');
+  const withVersion = (version: string, suffix: string): string => original.replace(/(npx --yes \S+?@)\S+/g, `$1${version}${suffix}`);
+
+  writeFileSync(at(repo, workflow), withVersion(RUNNING, '"'));
+  const quoted = await audit(repo);
+  expect(quoted.lines.some((l) => l.startsWith('gap: workflow-pin:')), quoted.out).toBe(false);
+
+  writeFileSync(at(repo, workflow), withVersion('0.0.1', "',"));
+  const stale = await audit(repo);
+  expect(line(stale.lines, 'gap: workflow-pin:'), stale.out).toContain('runs accord 0.0.1, and config.yml pins');
+});

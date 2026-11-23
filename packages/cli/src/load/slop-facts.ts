@@ -132,7 +132,8 @@ export function slopFacts(root: string, snapshot: RepoSnapshot, id: string, rend
       const found = new Set(candidates.filter((p) => named(root, p, orphanTerms(p))));
       hits.push(...orphanHits(candidates, found));
     }
-    return { hits: sortHits(hits), unread: spec.problems.length };
+    // Phase 08.8 D-16 (IN-05): the note says "lines not read", so it counts the pattern lines that are not in force, not a heading or removal problem that lint reports
+    return { hits: sortHits(hits), unread: spec.problems.filter((p) => p.pattern === true).length };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'git failed reading the slop facts: ' + whyGit(e) };
   }

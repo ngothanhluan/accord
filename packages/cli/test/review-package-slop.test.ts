@@ -174,3 +174,16 @@ it('risk:complex-branching slop.max_file_lines moves the bound and a Removed lin
     cleanup(repo);
   }
 }, 120_000);
+
+// Phase 08.8 D-16 (IN-05): the note says "lines not read", so a heading problem of the team file is not one of them.
+it('risk:regression the slop note counts only pattern lines not read (D-16)', async () => {
+  const team = '# Slop patterns\n\n## Patterns\n\n- slow: line /(a+)+$/ — slow\n\n## Misc\n\n- an unknown section\n';
+  const repo = ticketRepo({ 'accord/product/slop.md': team, 'package.json': PACKAGE_BASE }, { 'package.json': PACKAGE_HEAD });
+  try {
+    const out = await run(['review-package', 'T-1'], repo);
+    expect(out.err).toBe('');
+    expect(slopSection(out.out)).toContain('(accord/product/slop.md: 1 line not read; run accord lint)');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

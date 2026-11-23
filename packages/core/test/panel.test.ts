@@ -2909,3 +2909,34 @@ it('risk:regression every one of the twelve effects is its own switch and a cut 
   expect(cut.texts().filter((x) => x.includes('cut for speed'))).toEqual(['[ ] scrolling log ticker · cut for speed']);
   expect(cut.texts()).toContain('[x] orbiting agent marks');
 });
+
+// ---- Phase 08.8.1-10: tests the audit of Phase 08.7 found missing ----
+
+// Phase 08.8.1 audit of Phase 08.7 (T-08.7-14, D-02): subagent event spam never grows the roster past fifty, so the running count in the tab label stops at fifty and the oldest start goes first.
+it('risk:resource the agent roster holds at most fifty accord agents however many subagents start (D-02)', async () => {
+  const h = await claimedPane();
+  h.agents = Array.from({ length: 60 }, (_, i) => agentOf('a' + i, 'accord-executor', { startTime: Date.now() - 600000 + i }));
+  for (let i = 0; i < 60; i++) await h.fire('turn.start', subStart('a' + i));
+  expect(tabs(h)['tab:ticket'].label).toContain('◐50');
+  expect(tabs(h)['tab:ticket'].label).not.toContain('◐60');
+});
+
+// Phase 08.8.1 audit of Phase 08.7 (T-08.7-15, D-02): the pane holds no logic or gate beyond display. Read from its source: it imports nothing but view.js, reads no file, makes no network call, reaches the
+// host only through the listed nouns and runs only the pinned `npx` for `dashboard` and `show`. A person who widens the pane widens this list on purpose, with the owner's say.
+it('risk:security the pane reaches the host only through the display nouns and runs only the pinned npx show and dashboard (D-02)', () => {
+  const code = (name: string): string =>
+    readFileSync(new URL('../panel/' + name, import.meta.url), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join('\n');
+  const reg = code('register.js');
+  const view = code('view.js');
+  for (const src of [reg, view]) expect(src).not.toMatch(/\b(?:require|eval|fetch|readFile|readFileSync|writeFile|writeFileSync|spawn|execFile|execSync)\s*\(|child_process|XMLHttpRequest|WebSocket|from\s+['"]node:|\bimport\s*\(/);
+  expect([...reg.matchAll(/^import\b[^;]*?from\s+'([^']+)'/gm)].map((m) => m[1])).toEqual(['./view.js']);
+  expect(view).not.toMatch(/^import\b/m);
+  const nouns = [...new Set([...reg.matchAll(/\$\.([a-z]+)\.([a-zA-Z]+)/g)].map((m) => `${m[1]}.${m[2]}`))].sort();
+  expect(nouns).toEqual(['agent.list', 'clock.after', 'clock.every', 'command.register', 'command.run', 'process.run', 'session.surfaces', 'store.get', 'store.set', 'ui.invalidate', 'ui.open', 'ui.panes', 'ui.resolve', 'ui.toast']);
+  const runs = [...reg.matchAll(/\$\.process\.run\(([^)]*)/g)].map((m) => m[1]);
+  expect(runs).toHaveLength(2);
+  for (const argv of runs) expect(argv).toMatch(/^\['npx', '--yes', 'ACCORD_PACKAGE_SPEC', '(?:dashboard|show)'/);
+});

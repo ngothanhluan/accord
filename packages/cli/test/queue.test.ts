@@ -169,6 +169,19 @@ it('risk:data-loss queue refuses an existing backlog branch and pushes nothing (
   }
 }, 180_000);
 
+// Phase 08.8 D-17: the hint for a branch already in this clone deletes only the tip the command read (accord/product/conventions.md line 9), never `git branch -D`
+it('risk:data-loss queue refuses an existing branch with a tip-pinned delete hint (D-17)', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const branch = 'backlog/q-8-' + today();
+  c.git('branch', branch);
+  const tip = c.git('rev-parse', 'refs/heads/' + branch).trim();
+  expect(tip).toMatch(/^[0-9a-f]{40,64}$/);
+  const r = await run(['new', 'ticket', 'Q-8', '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'an idea'], c.root);
+  expect(r.code, r.out + r.err).toBe(2);
+  expect(r.err).toContain('git update-ref -d refs/heads/' + branch + ' ' + tip);
+  expect(r.err).not.toContain('git branch -D');
+}, 180_000);
+
 it('risk:complex-branching queue merge follows config: the queue path prints the merge line and keeps the last good value (ST-LN-83 7-ac-4)', async () => {
   const c = copy({ tickets: ['ST-9', 'ST-10'] });
   const queue = (id: string) => run(['new', 'ticket', id, '--queue', '--lane', 'M', '--title', 'Note the idea', '--note', 'an idea'], c.root);

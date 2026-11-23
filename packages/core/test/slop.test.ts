@@ -187,3 +187,25 @@ it('risk:security a binary code file with no text section is an unscanned hit an
   // the same path with a text section (package-diff adds one) is scanned as text
   expect(kinds(binary('src/a.ts') + '\n' + added('src/a.ts', THREE))).toEqual(['empty-catch src/a.ts:3']);
 });
+
+// Phase 08.8 D-12: the slop scan runs team patterns over the whole diff, so it carries the same per-package budget as the security scan (the budget is passed small to keep the case quick).
+it('risk:resource the slop scan stops an overlapping team pattern at the budget with one unscanned hit (D-12)', { timeout: 120_000 }, () => {
+  const spec = slopSpec(withTeamFile(teamFile('- slow: line /a*a*b/ — a hostile overlap')));
+  expect(spec.patterns.map((p) => p.id)).toContain('slow');
+  const hostile = added('src/x.ts', Array.from({ length: 100 }, () => 'a'.repeat(1000)));
+  const start = performance.now();
+  const hits = slopHits(spec, hostile, { generated: [], overlapBudget: 3_000_000 });
+  expect(performance.now() - start).toBeLessThan(10_000);
+  // four lines of 1000 characters pass the budget, so the fifth is the first one left unread
+  expect(hits).toHaveLength(1);
+  expect(hits[0]).toMatchObject({ kind: 'unscanned', path: 'src/x.ts', line: 5 });
+  expect(hits[0].label).toContain('scan budget');
+  // ordinary lines give the same hits as with the budget out of reach
+  const ordinary = added('src/y.ts', Array.from({ length: 2000 }, (_, i) => (i % 7 === 0 ? 'try { run(); } catch {}' : `const value${i} = compute(${i}); // an ordinary line`)));
+  const same = slopHits(slopSpec(snapshot()), ordinary, { generated: [] });
+  expect(same.length).toBeGreaterThan(0);
+  expect(slopHits(slopSpec(snapshot()), ordinary, { generated: [], overlapBudget: Infinity })).toEqual(same);
+  // a shipped default is never budgeted, even at a budget of one: empty-catch reads all 100 lines
+  const spaced = added('src/z.ts', Array.from({ length: 100 }, () => 'catch' + ' '.repeat(900)));
+  expect(slopHits(slopSpec(snapshot()), spaced, { generated: [], overlapBudget: 1 })).toEqual([]);
+});

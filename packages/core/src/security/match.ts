@@ -1,6 +1,8 @@
 // ST-LN-36 D-05: which changed files and lines of a package's diff match the security patterns. Pure: it reads the `-U10` diff text and the
 // changed-file list the host already produced, never git. A path it cannot place in the diff text is a trigger of its own (fail closed).
 import { matches } from '../gate/scope.js';
+import { overlapRepeats } from './backtrack.js';
+import { DEFAULT_SECURITY } from './spec.js';
 import type { SecurityPattern, SecuritySpec } from './spec.js';
 
 /** One file's section of a diff text: its paths, its added and removed lines with their numbers on their own side, and whether git called it binary. */
@@ -168,9 +170,47 @@ export function diffFiles(diffText: string): DiffFile[] {
 /**
  * The one scan bound (D-09): a changed line is matched on its first SCAN_LINE_LIMIT characters only. The bound caps the time an allowed pattern may take per changed line, which is at most
  * two overlapping repeats in a row and 16 routes for one text; exponential shapes, longer runs and more routes are refused at read by backtrack.ts. The total still grows with the number of
- * changed lines, each one costing at most the sum of the patterns' cost on SCAN_LINE_LIMIT characters (08-08b states the figures); no total cap is built.
+ * changed lines, each one costing at most the sum of the patterns' cost on SCAN_LINE_LIMIT characters (08-08b states the figures). Phase 08.8 D-12 caps the total for the patterns whose cost grows
+ * with the square of a line's length: see SCAN_OVERLAP_BUDGET.
  */
 export const SCAN_LINE_LIMIT = 1000;
+/**
+ * Phase 08.8 D-12: the total cost one review package may spend on one pattern the guard accepts with two overlapping repeats (overlapRepeats >= 2, for example `.*a.*b`). The cost of such a pattern
+ * on a line grows with the square of the line's length, so the budget counts the squared lengths of the lines (after the SCAN_LINE_LIMIT cut) the pattern has read. Measured on a Windows host, Node 24:
+ * 175 to 310 ms for one 1000-character line of `a` (1 000 000 squared characters; about 0.26 s in a whole scan), so 12 000 000 lets a pattern read 13 such lines, about 3.4 s, and a package of 200
+ * hostile lines against two such team patterns takes about 5 s (16 000 000 took 9 to 11 s; unbudgeted it is about 100 s). Past the budget the pattern is not run on the lines left and the scan reports it once, fail closed
+ * (budgetLabel). A pattern with fewer than two overlapping repeats, and a shipped default (see overlapMeter), is never budgeted.
+ */
+export const SCAN_OVERLAP_BUDGET = 12_000_000;
+/** The label of the one report a pattern gets when its budget is spent: the id says which pattern did not read the rest of the package (fail closed, like LONG_LINE). */
+export const budgetLabel = (id: string): string => `scan budget of pattern ${id} spent, its remaining lines were not scanned`;
+
+/**
+ * The cost meter of one scan call (D-12). `allow(i, length)` is true when pattern `i` may be run on a text of `length` characters and charges the square of the length; it is false once the
+ * pattern has read more than `budget` squared characters, which is the first line left unread. A pattern with fewer than two overlapping repeats costs nothing. So does a pattern that is a
+ * shipped default (`shipped`: its source and flags equal a default's, which is then that default): the defaults are measured (08-08b) and the guard's chain count rates five of them 2 although
+ * each runs in under a millisecond on a hostile 1000-character line, so budgeting them would stop a default on an ordinary large diff.
+ */
+export function overlapMeter(res: readonly RegExp[], budget: number, shipped: readonly { source?: string; flags?: string }[]): (i: number, length: number) => boolean {
+  // a compiled RegExp spells its source its own way (`/` becomes `\/`), so a default is compared as compiled
+  const known = new Set<string>();
+  for (const d of shipped) {
+    try {
+      const re = new RegExp(d.source ?? '', d.flags ?? '');
+      known.add(`${re.flags}/${re.source}`);
+    } catch {
+      // a default that does not compile matches nothing
+    }
+  }
+  const heavy = res.map((re) => !known.has(`${re.flags}/${re.source}`) && overlapRepeats(re.source, re.flags) >= 2);
+  const spent = res.map(() => 0);
+  return (i, length) => {
+    if (!heavy[i]) return true;
+    if (spent[i] > budget) return false;
+    spent[i] += length * length;
+    return true;
+  };
+}
 /** The label of the trigger a cut line gets: a line over the bound is never scanned whole and says so (fail closed). */
 const LONG_LINE = `line longer than ${SCAN_LINE_LIMIT} characters, not fully scanned`;
 const UNREADABLE = 'too large to read as text, so its lines were not scanned';
@@ -258,7 +298,7 @@ const contentSkipped = (path: string, generated: readonly string[], exempt: read
  * files that are not binary, not Markdown or test files outside the agent folders, not generated and not an exact `exempt` path (nothing is exempt when absent); one `cannot` trigger for each changed path the diff text does not
  * show. Deduplicated and sorted by path, then line, then pattern id.
  */
-export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[] }): Trigger[] {
+export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[]; overlapBudget?: number }): Trigger[] {
   const files = diffFiles(diffText);
   const shown = new Set<string>();
   for (const f of files) {
@@ -275,6 +315,8 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
     for (const p of pathPatterns) if (p.entries.some((e) => pathMatches(e, path))) add({ path, pattern: p.id, label: p.label });
   }
   const lineRes = compileLines(spec);
+  const allow = overlapMeter(lineRes.map(({ re }) => re), options.overlapBudget ?? SCAN_OVERLAP_BUDGET, DEFAULT_SECURITY.patterns);
+  const budgetReported = new Set<number>();
   const skipped = (path: string): boolean => contentSkipped(path, options.generated, options.exempt ?? []);
   const unreadable = new Set(options.unreadable ?? []);
   for (const f of files) {
@@ -288,7 +330,15 @@ export function securityTriggers(spec: SecuritySpec, diffText: string, changed: 
       for (const l of lines) {
         const head = tooLong(l.text) ? l.text.slice(0, SCAN_LINE_LIMIT) : l.text;
         if (tooLong(l.text)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: '', label: LONG_LINE, cannot: true });
-        for (const { p, re } of lineRes) if (re.test(head)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: p.id, label: p.label });
+        lineRes.forEach(({ p, re }, i) => {
+          if (!allow(i, head.length)) {
+            // D-12: the pattern's budget is spent: this is the first line it left unread, reported once per call
+            if (!budgetReported.has(i)) {
+              budgetReported.add(i);
+              add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: p.id, label: budgetLabel(p.id), cannot: true });
+            }
+          } else if (re.test(head)) add({ path: f.path as string, line: l.line, ...(removed ? { removed: true } : {}), pattern: p.id, label: p.label });
+        });
       }
     };
     scanLines(f.added, false);
@@ -317,15 +367,23 @@ export function triggerText(t: Trigger): string {
  * `(truncated: <n> more lines in <path>)`; a hunk that holds a content match is printed whole even past the cap, so a cut never hides a match. A path the diff text does not
  * show is one block, `(cannot tell: …)`. Content matches are read from the hunks themselves, with the patterns and skips securityTriggers uses, so the two agree.
  */
-export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[]; cap?: number }): string[] {
+export function matchedHunks(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[]; cap?: number; overlapBudget?: number }): string[] {
   const cap = options.cap ?? 300;
-  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated, unreadable: options.unreadable, exempt: options.exempt });
+  const triggers = securityTriggers(spec, diffText, changed, { generated: options.generated, unreadable: options.unreadable, exempt: options.exempt, overlapBudget: options.overlapBudget });
   const pathHit = new Set(triggers.filter((t) => t.cannot !== true && t.line === undefined).map((t) => t.path));
   const lineRes = compileLines(spec);
+  // D-12: the same budget as securityTriggers, so a package of hostile lines costs this reader no more; the hunk of the first line a spent pattern leaves unread is printed whole, like a long line
+  const allow = overlapMeter(lineRes.map(({ re }) => re), options.overlapBudget ?? SCAN_OVERLAP_BUDGET, DEFAULT_SECURITY.patterns);
+  const spentShown = new Set<number>();
   const holds = (h: DiffHunk): boolean =>
     [...h.added, ...h.removed].some((l) => {
       if (tooLong(l.text)) return true;
-      return lineRes.some(({ re }) => re.test(l.text));
+      return lineRes.some(({ re }, i) => {
+        if (allow(i, l.text.length)) return re.test(l.text);
+        if (spentShown.has(i)) return false;
+        spentShown.add(i);
+        return true;
+      });
     });
   const blocks: { key: string; text: string }[] = [];
   const files = diffFiles(diffText);

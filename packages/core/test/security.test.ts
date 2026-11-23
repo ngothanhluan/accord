@@ -566,10 +566,11 @@ it('risk:resource many long changed lines run each line pattern once per line on
     return original.call(this, input);
   });
   try {
-    const triggers = securityTriggers(spec, diff, ['src/data.js'], { generated: [] });
+    // Phase 08.8 D-12: these three team patterns each hold two overlapping repeats, so the package budget would stop them after 13 of the 100 lines; this case is about the per-line bound (D-09), so the budget is out of reach
+    const triggers = securityTriggers(spec, diff, ['src/data.js'], { generated: [], overlapBudget: Infinity });
     const scan = { ...lengths };
     lengths = {};
-    const hunks = matchedHunks(spec, diff, ['src/data.js'], { generated: [] });
+    const hunks = matchedHunks(spec, diff, ['src/data.js'], { generated: [], overlapBudget: Infinity });
     const hunkRuns = { ...lengths };
     spy.mockRestore();
 
@@ -974,4 +975,32 @@ it('risk:security a repeated or unknown section heading of the security file is 
   // the shipped template and the defaults read clean
   expect(parseSecurityFile(templates['security.md']).problems).toEqual([]);
   expect(DEFAULT_SECURITY.problems).toEqual([]);
+});
+
+// Phase 08.8 D-12: a pattern the guard accepts with two overlapping repeats costs the square of a line's length (about 0.2 s for 1000 characters), so a package of hostile lines is capped in total.
+// The budget is passed small through the scan's options so the case stays quick: the unbudgeted run of these 100 lines takes 20 s or more.
+it('risk:resource a package of long hostile lines stops an overlapping pattern at the budget and says so once (D-12)', { timeout: 120_000 }, () => {
+  const team = ['# Security review', '', '## Patterns', '', '- slow: line /.*a.*b/ — a hostile overlap', '', '## Checklist', '', '## Removed', ''].join('\n');
+  const spec = securitySpec(withFile(team));
+  expect(spec.problems).toEqual([]);
+  const hostile = (path: string, count: number, text: string): string =>
+    [`diff --git a/${path} b/${path}`, 'new file mode 100644', 'index 0000000..1111111', '--- /dev/null', `+++ b/${path}`, `@@ -0,0 +1,${count} @@`, ...Array.from({ length: count }, () => '+' + text)].join('\n');
+  const diff = hostile('src/x.ts', 100, 'a'.repeat(SCAN_LINE_LIMIT));
+  const start = performance.now();
+  const triggers = securityTriggers(spec, diff, ['src/x.ts'], { generated: [], overlapBudget: 3_000_000 });
+  const took = performance.now() - start;
+  expect(took).toBeLessThan(10_000);
+  // four lines of 1000 characters pass the budget of 3 000 000 squared characters, so the fifth line is the first one left unread
+  expect(triggers).toHaveLength(1);
+  expect(triggers[0]).toMatchObject({ path: 'src/x.ts', line: 5, pattern: 'slow', cannot: true });
+  expect(triggers[0].label).toContain('scan budget');
+  expect(triggerText(triggers[0])).toContain('(cannot tell: ');
+  // a diff of ordinary lines scans exactly as it does with the budget out of reach
+  const ordinary = hostile('src/y.ts', 2000, "execFileSync(total, items); // 60 characters or so of ordinary text");
+  const same = securityTriggers(DEFAULT_SECURITY, ordinary, ['src/y.ts'], { generated: [] });
+  expect(same.length).toBeGreaterThan(0);
+  expect(securityTriggers(DEFAULT_SECURITY, ordinary, ['src/y.ts'], { generated: [], overlapBudget: Infinity })).toEqual(same);
+  expect(securityTriggers(spec, ordinary, ['src/y.ts'], { generated: [], overlapBudget: Infinity }).map((t) => t.cannot)).not.toContain(true);
+  // a shipped default is never budgeted, even at a budget of one: built-path reads all 100 hostile lines
+  expect(securityTriggers(DEFAULT_SECURITY, diff, ['src/x.ts'], { generated: [], overlapBudget: 1 })).toEqual([]);
 });

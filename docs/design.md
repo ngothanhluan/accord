@@ -6,9 +6,9 @@ The workflow layer — lanes, owner approval, the plan gate, task records, revie
 
 ## 1. Why this exists
 
-Small delivery teams (BA, designer, developer, front-end, QA, team lead, coordinator) adopt AI coding agents and get two recurring failures: features that do not match the intent, and QA with no acceptance criteria to test against.
+Small delivery teams adopt AI coding agents and get two recurring failures: features that do not match the intent, and testing with no acceptance criteria to test against.
 
-Existing agent harnesses are single-developer tools. They interview the developer, but the person holding the intent is the BA or the client. The gap is not another agent harness; it is a shared artifact contract between roles.
+Existing agent harnesses are single-person tools. They interview the person at the keyboard, but the intent is often held by someone else, such as the client. The gap is not another agent harness; it is a shared artifact contract between the stages of a ticket.
 
 Research on where agent failures come from changes the design more than anything else. A study of 20,574 real coding-agent sessions (arXiv 2605.29442) reports:
 
@@ -21,7 +21,7 @@ Research on where agent failures come from changes the design more than anything
 
 Underspecification is real but is not the largest cause. So Accord spends as much on the Done gate (independent verification against acceptance criteria) as on the Ready gate (capturing intent), and it makes the gates deterministic through a CLI rather than leaving them to prompts an agent can ignore.
 
-No existing tool combines folder-as-source-of-truth, multi-role workflow, deterministic gates, MCP editing, and conflict approval in one place. Accord borrows established ideas where they fit: EARS for requirements, a proposal-then-archive lifecycle, a role roster, and branch-based editorial approval.
+No existing tool combines folder-as-source-of-truth, multi-stage workflow, deterministic gates, MCP editing, and conflict approval in one place. Accord borrows established ideas where they fit: EARS for requirements, a proposal-then-archive lifecycle, a role roster, and branch-based editorial approval.
 
 ## 2. Folder convention
 
@@ -35,20 +35,20 @@ accord/
     business-rules.md           # rules, thresholds, rounding, edge cases already decided
   tickets/<id>.md               # one file per epic, story, or bug
   tickets/<id>/verification.md  # review record, written by the fresh review context
-  assets/<id>/prototype.html    # designer-owned
+  assets/<id>/prototype.html    # the ticket's design reference
 ```
 
 Flat files, not nested folders. Epics, stories, and bugs share one file type (`type: epic | story | bug`); a story or bug names its epic with `parent:`. An epic holds intent and requirements for its children and is linted but never gated. This mirrors every tracker's model and keeps indexing trivial.
 
 Every ticket has YAML frontmatter validated against `ticket.schema.json`: `id`, `title`, `type`, `status` (`draft | open | archived`, document lifecycle only; work status stays in the tracker), optional `parent`, `tracker` (map keyed by adapter), `ui`, `design`, `assumptions`, `ac_hash`, `priority` (`high | medium | low`, absent means medium), and `verified` (always the last key). Unknown keys are errors, so tracker-owned data cannot leak into git; `priority` is the one such key accord reads, because the dashboard ranks by it.
 
-The body has fixed headings in fixed order: `## Intent`, `## Requirements`, `## Acceptance criteria`, `## Open questions` (BA-owned), then `## Plan` and `## Verification notes` (developer-owned, last). Epics omit Acceptance criteria, Plan, and Verification notes.
+The body has fixed headings in fixed order: `## Intent`, `## Requirements`, `## Acceptance criteria`, `## Open questions` (written at intent), then `## Plan` and `## Verification notes` (filled in at build and done, last). Epics omit Acceptance criteria, Plan, and Verification notes.
 
-`## Verification notes` holds one `### @ac-n` block per ticked scenario, each a line the developer writes themselves naming the logic that makes the scenario correct. It lives in the body rather than in frontmatter because it is the one field guaranteed to be free-form prose, and prose in YAML breaks the parse on the first colon.
+`## Verification notes` holds one `### @ac-n` block per ticked scenario, each a line the person who verifies writes themselves naming the logic that makes the scenario correct. It lives in the body rather than in frontmatter because it is the one field guaranteed to be free-form prose, and prose in YAML breaks the parse on the first colon.
 
 Formats:
 - Requirements in EARS: `WHEN <trigger> the system SHALL <response>` and its four sibling patterns. Lintable by regex.
-- Acceptance criteria in Gherkin. QA reads it, the agent reads it, and it can be turned into test skeletons (Reqnroll for .NET, playwright-bdd for JS).
+- Acceptance criteria in Gherkin. Verification reads it, the agent reads it, and it can be turned into test skeletons (Reqnroll for .NET, playwright-bdd for JS).
 - Intent is prose, capped short: five lines covering why, for whom, success measure, and explicit non-goals.
 
 Size discipline: intent about 5 lines, spec 5 to 15 EARS lines, 2 to 5 scenarios per story. If the spec is longer than the code, the spec is wrong.
@@ -59,60 +59,60 @@ No binary assets in the repo. Prototypes are HTML text. Screenshots are rendered
 
 `config.yml` declares `profile: build` or `profile: maintain`.
 
-- **build**: a new project, typically 2 to 6 weeks. In week zero the BA writes `product/` and one epic ticket per epic (5 to 10). Acceptance criteria are written per story just before it enters the sprint, not all up front.
+- **build**: a new project, typically 2 to 6 weeks. In week zero the intent stage writes `product/` and one epic ticket per epic (5 to 10). Acceptance criteria are written per story just before it enters the sprint, not all up front.
 - **maintain**: a delivered project receiving individual tickets. Epic tickets are optional. At handover, epic intent and requirements are folded into `product/business-rules.md` and the epics are set to `status: archived`.
 
 Profiles decide what the gates require. The rule lives in config, not in someone's judgement per ticket.
 
-## 4. Roles and ownership
+## 4. Stages and the roster
 
-The roster is `roles:` in `config.yml`: `ba` and `dev` are required, `designer` is optional. QA and lead are not roster roles: QA verifies on the dev environment and records results in the tracker; the lead's readiness review is a step inside the BA workflow. The roster only decides which skills are rendered; it never changes a gate result.
+The roster is `roles:` in `config.yml`. Its values are config values, not people. `ba` and `dev` are required and switch nothing on: the stage skills replaced them, and the key keeps them so no config breaks. `designer` is optional and switches on the `accord-designer` skill, the design-reference step of a `ui: true` ticket. The roster only decides which skills are rendered; it never changes a gate result. What a ticket needs at each stage is the same whoever does the work:
 
-- **BA** owns intent, spec, and every acceptance scenario. Only the BA edits acceptance criteria. The lead's readiness review happens inside the BA workflow before Ready.
-- **Designer** owns the design link or prototype.
-- **Dev / FE** implements from spec, AC, design, and plan only. Never adds a requirement. A gap goes to `## Open questions` and work stops until the BA answers.
-- **QA** (outside the repo) tests against the acceptance criteria on the dev environment after Done passes and records the result in the tracker; suggests missing scenarios to the BA, never by editing. AC is the test plan; there is no separate test plan artifact.
+- **Intent** sets the intent, the spec, and every acceptance scenario. Only the intent stage edits acceptance criteria. The readiness review happens inside the intent stage before Ready.
+- **Design reference** is the design link or prototype of a `ui: true` ticket.
+- **Build** implements from spec, AC, design, and plan only. Never adds a requirement. A gap goes to `## Open questions` and work stops until the intent stage answers.
+- **Testing** (outside the repo) runs against the acceptance criteria on the dev environment after Done passes and records the result in the tracker; it suggests missing scenarios to the intent stage, never by editing. AC is the test plan; there is no separate test plan artifact.
 
-The reviewer is not a role. The dev workflow's last step opens a fresh agent context (a subagent in Claude Code, a new chat in Cursor or Codex) and hands it `review.md`; only that fresh context writes `tickets/<id>/verification.md`. The agent that wrote the code never does. This is procedural, not tool-enforced, so the skill states it plainly.
+Review is a stage, not a person of a given title. The build stage's last step opens a fresh agent context (a subagent in Claude Code, a new chat in Cursor or Codex) and hands it `review.md`; only that fresh context writes `tickets/<id>/verification.md`. The agent that wrote the code never does. This is procedural, not tool-enforced, so the skill states it plainly.
 
-That context does two separable jobs and writes both into the same file. The `## @ac-n` blocks answer whether the change does what the acceptance criteria say. A `## Review` section answers whether what it does is sound — edge cases no scenario covers, business logic invented rather than specified, state and error handling, trust boundaries, reuse missed. Every review finding names a concrete failure: the input or state, and the wrong result that follows. A finding that cannot produce one was a preference and is dropped. The reviewer reports and never edits, since a reviewer that fixes has rejoined the work it was brought in to judge.
+That context does two separable jobs and writes both into the same file. The `## @ac-n` blocks answer whether the change does what the acceptance criteria say. A `## Review` section answers whether what it does is sound — edge cases no scenario covers, business logic invented rather than specified, state and error handling, trust boundaries, reuse missed. Every review finding names a concrete failure: the input or state, and the wrong result that follows. A finding that cannot produce one was a preference and is dropped. The review context reports and never edits, since a context that fixes has rejoined the work it was brought in to judge.
 
-Two techniques are loaded by the role workflows rather than invoked as roles of their own: systematic debugging, loaded by `dev` for a `type: bug` ticket or any unexpected behaviour, and code review, loaded by the review context. A bug needs no debugging session file because the ticket is the session.
+Two techniques are loaded by the stages rather than invoked on their own: systematic debugging, loaded at build for a `type: bug` ticket or any unexpected behaviour, and code review, loaded by the review context. A bug needs no debugging session file because the ticket is the session.
 
 Role workflows ship as skill files (Claude Code, Cursor, Copilot, Codex) so every member gets the same workflow from their own AI subscription. Each skill starts by running the CLI gate and stops on failure.
 
-Solo use is the same contract with one person. The four roles become four stages the developer and their agent pass through in order, not four people; the roster still decides which skills are rendered, and no gate result changes. Nothing in the gates reads who a person is, which is why the single-person case needs no separate mode.
+Solo use is the same contract with one person. The stages (intent, approach, plan, build, review, verify) are passed through in order by one person and their agent, not by separate people; the roster still decides which skills are rendered, and no gate result changes. Nothing in the gates reads who a person is, which is why the single-person case needs no separate mode.
 
 ## 5. Gates
 
 **Ready** (a story may enter the sprint). Applies to every story that touches code, including small bug fixes.
 
-| Check | Owner |
+| Check | Stage |
 |---|---|
-| `## Intent` is not empty: it says what the story is for, in business language | BA |
-| `## Requirements` carries at least one EARS line | BA |
-| At least one Gherkin scenario. A bug fix is written as Given the situation, When the action, Then the correct result | BA |
-| `ui: true` and profile maintain: `prototype.html` exists and was generated from the project's existing styles | Dev or Designer |
-| `ui: true` and profile build: a Figma link or a prototype exists | Designer |
-| Unchecked `## Open questions` items or unconfirmed `assumptions:` entries block Ready | BA |
+| `## Intent` is not empty: it says what the story is for, in business language | Intent |
+| `## Requirements` carries at least one EARS line | Intent |
+| At least one Gherkin scenario. A bug fix is written as Given the situation, When the action, Then the correct result | Intent |
+| `ui: true` and profile maintain: `prototype.html` exists and was generated from the project's existing styles | Build or design reference |
+| `ui: true` and profile build: a Figma link or a prototype exists | Design reference |
+| Unchecked `## Open questions` items or unconfirmed `assumptions:` entries block Ready | Intent |
 
 Prototype rule: if the repo has design tokens (CSS variables, Tailwind config, a design-system folder; the path is declared in config) the prototype may only use those tokens, and the linter flags hard-coded colours and spacing. If there are no tokens, the prototype must open with a comment listing the stylesheets it was derived from, so a reviewer can check.
 
 Not every ticket has UI. `ui: false` skips the design checks in both profiles.
 
-Lint also warns, and only warns, on vague wording in `## Requirements`, `## Acceptance criteria`, and answered `## Open questions`: "depends", "maybe", "probably", "mix of", "somewhere between", "not sure", "TBD". The words are a regex with false positives, so the finding never blocks Ready; the BA reads it and decides.
+Lint also warns, and only warns, on vague wording in `## Requirements`, `## Acceptance criteria`, and answered `## Open questions`: "depends", "maybe", "probably", "mix of", "somewhere between", "not sure", "TBD". The words are a regex with false positives, so the finding never blocks Ready; the intent stage reads it and decides.
 
-**Done** (a story may go to QA). Three layers, each defeating a different lie.
+**Done** (a story may go on to testing on the dev environment). Three layers, each defeating a different lie.
 
 *Machine.* Every scenario not tagged `@ui` carries a `@test:<id>` tag naming the test that proves it. Done fails unless that test is reported passed in the JUnit XML report named by `tests.report` in `config.yml`; the host puts that file into the snapshot and core reads it with a line scanner. A free-text `Evidence:` line never satisfies a non-`@ui` scenario on its own, because an agent can write one without running anything. A `@ui` scenario is exempt and leans on the human layer instead — brittle end-to-end tests get muted, and a muted gate is a decorative gate. A test reported skipped is not passed: muting a test is the cheapest way past a gate, so a skipped `@test:<id>` fails Done exactly as a failed one does. A host with no report available reports the check skipped, as the author check does.
 
-*Fresh context.* The dev workflow's final step opens a fresh agent context that produces `tickets/<id>/verification.md`, one `## @ac-n` block per scenario with `Result:` and `Evidence:`. The agent that wrote the code never writes this file. `Result: blocked` fails Done as `fail` does; a scenario that could not be verified is not verified. The file's `commit:` must equal the commit being gated, so a review of an older commit fails Done until the review is re-run.
+*Fresh context.* The build stage's final step opens a fresh agent context that produces `tickets/<id>/verification.md`, one `## @ac-n` block per scenario with `Result:` and `Evidence:`. The agent that wrote the code never writes this file. `Result: blocked` fails Done as `fail` does; a scenario that could not be verified is not verified. The file's `commit:` must equal the commit being gated, so a review of an older commit fails Done until the review is re-run.
 
-*Human.* The developer runs the scenarios on the dev environment, ticks `verified: [ac-1, ...]`, and writes one line per scenario under `## Verification notes` naming the logic that makes it correct. The note must cite a file path or test id that exists in the snapshot (a symbol is never accepted: the gate holds no source text) and must not be the scenario text pasted back; there is no character-count floor, which would only invite padding. Each tick binds to the AC hash and the commit sha, so a tick never survives a change to either.
+*Human.* The person who verifies runs the scenarios on the dev environment, ticks `verified: [ac-1, ...]`, and writes one line per scenario under `## Verification notes` naming the logic that makes it correct. The note must cite a file path or test id that exists in the snapshot (a symbol is never accepted: the gate holds no source text) and must not be the scenario text pasted back; there is no character-count floor, which would only invite padding. Each tick binds to the AC hash and the commit sha, so a tick never survives a change to either.
 
-Done passes only when the scenario tag set, the evidence tag set, and `verified` are the same set, every required test passed, every tick carries a valid note, and the acceptance criteria hash still matches the one recorded at Ready. QA then tests on the dev environment and records the outcome in the tracker. This is the part that addresses the 36% failure mode.
+Done passes only when the scenario tag set, the evidence tag set, and `verified` are the same set, every required test passed, every tick carries a valid note, and the acceptance criteria hash still matches the one recorded at Ready. Testing on the dev environment follows, and its outcome is recorded in the tracker. This is the part that addresses the 36% failure mode.
 
-What this cannot do: verify that the developer understood the code. No gate can. It verifies that a human touched the ticket, at the right version, in their own words, per scenario. Claiming more would be theatre.
+What this cannot do: verify that the person understood the code. No gate can. It verifies that a human touched the ticket, at the right version, in their own words, per scenario. Claiming more would be theatre.
 
 ## 6. Tracker and git: hybrid by durability
 
@@ -121,10 +121,10 @@ The tracker (Shortcut, GitHub Issues, Jira, Linear) remains the source of truth 
 Repo weight is not a storage problem. Five hundred ticket files and a hundred prototypes are a few megabytes; only images are heavy, and images are banned. The real cost is noise: doc PRs mixed with code PRs, notifications, history. Controls:
 
 - Edits made through tooling land on a working branch, one PR per day or per release, squash merged, `docs:` prefix.
-- CI path filter: a PR touching only the accord folder does not build; it may auto-merge on BA approval.
+- CI path filter: a PR touching only the accord folder does not build; it may auto-merge on the owner's approval.
 - When a ticket is done, its final AC is snapshotted into `tickets/<id>.md` in the release commit so decisions remain searchable months later.
 
-Adapter `none` must be fully usable. The first external users will be solo developers and two-person teams on GitHub Issues.
+Adapter `none` must be fully usable. The first external users will be single people and two-person teams on GitHub Issues.
 
 ## 7. CLI
 
@@ -171,7 +171,7 @@ Slop (Phase 8.1 D-14, D-15, D-16, D-20). Every review package from `accord revie
 
 The slop gate (Phase 8.1 D-17, D-15). `accord gate done` gives `gate.slop-unresolved`, an error, for every slop hit of the ticket's cumulative diff (the list `accord review-package` prints under `## Slop`, read again at Done) that is neither fixed, so gone from the diff, nor justified. A justification is one line in the last `## Round` of `accord/tickets/<id>/review.md`, with or without a list marker (`-`, `*`, `+` or `1.`): `slop:<kind> <path>:<line> — <reason>`, naming the hit's own kind, path and line; a line in an earlier round, with another line number, or with no reason resolves nothing. The reviewer writes it in its report outside any numbered finding, and the review record copies it into the round as it copies `Not an interface:` lines. The refusal prints the exact line to write. The rule belongs to the review stage (`STAGE_OF` in `packages/core/src/gate/floor.ts`), so it leaves with `strictness.stages.<lane>.review: off` and has no level a team can set; it sits in the lane M and lane S Done tables, not lane R's (lane R has no review). It fails closed: a team pattern of `accord/product/slop.md` that is not in force (does not compile, is refused by the guard, does not read) is a finding at its line naming `accord lint`, and slop facts that cannot be read (no plan baseline, a git failure) are one finding quoting why, never a silent pass. Only a ticket claimed at or after the release that ships it is judged (`SLOP_FROM` in `packages/core/src/round/pin.ts`, read through `claimPinBefore`); a ticket in flight keeps its answer and starts no slop read.
 
-Why a CLI and not just templates and prompts: templates are suggestions and prompts are advice. Both can be ignored by an agent, which is the dominant failure mode. The CLI gives the same deterministic answer on a BA's laptop, inside an agent session, in CI, and later in the hub, from one implementation.
+Why a CLI and not just templates and prompts: templates are suggestions and prompts are advice. Both can be ignored by an agent, which is the dominant failure mode. The CLI gives the same deterministic answer on a laptop, inside an agent session, in CI, and later in the hub, from one implementation.
 
 ## 8. Out of scope for v0.1
 
@@ -285,8 +285,8 @@ escalation:
 | 2026-09-04 | MIT | Adoption over control |
 | 2026-09-04 | Flat files, epic = feature file, story = ticket file | Mirrors trackers, easy indexing |
 | 2026-09-04 | Profiles `build` and `maintain` decide gate strictness | Rule in config, not in per-ticket judgement |
-| 2026-09-04 | Every code-touching story, including bug fixes, needs one scenario | Bug fixes are where QA most often lacks criteria |
-| 2026-09-04 | AC owned by BA only; QA tests and comments | Single owner of the contract |
+| 2026-09-04 | Every code-touching story, including bug fixes, needs one scenario | Bug fixes are where testing most often lacks criteria |
+| 2026-09-04 | AC edited at the intent stage only; testers comment | Single owner of the contract |
 | 2026-09-04 | Figma optional in both profiles; prototype required for UI tickets on maintain | Not every ticket has UI; old projects have no Figma |
 | 2026-09-04 | Prototype must follow design tokens when present, else derive from existing CSS | Keeps prototypes honest to the real product |
 | 2026-09-04 | Tracker stays source of truth for status; git for durable docs; batched PRs | Volume control without abandoning git |
@@ -294,4 +294,4 @@ escalation:
 | 2026-09-04 | Docs in English | Public project |
 | 2026-09-04 | Hub is a separate later repo | Convention must prove itself first |
 | 2026-09-14 | `Result: blocked` fails Done; a skipped `@test:<id>` is not passed; `verification.md` `commit:` must match the gated commit | Unverified is not verified; muted tests and stale reviews are the cheap ways past a gate |
-| 2026-09-14 | Vague-wording lint is warning-only, never blocks Ready | Regex has false positives; the BA decides |
+| 2026-09-14 | Vague-wording lint is warning-only, never blocks Ready | Regex has false positives; the intent stage decides |

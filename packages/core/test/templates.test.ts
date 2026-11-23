@@ -95,10 +95,36 @@ describe('template structure', () => {
   it('ownership guidance is present', () => {
     const businessLanguage = 'never name tables, endpoints, libraries, or screens';
     for (const md of [build, maintain, epic]) expect(md).toContain(businessLanguage);
-    for (const md of [build, maintain]) expect(md).toContain('Developer fills this in. BA leaves it empty.');
+    for (const md of [build, maintain]) expect(md).toContain('Filled in at build. Leave it empty at intent.');
     // D-116: the rejected-alternatives convention has no schema behind it, so the template guidance line is
     // the only place it is written down for someone who never reads the BA workflow.
     expect(templates['business-rules.md']).toContain('`Rejected: <option> — <reason>`');
+  });
+
+  // Phase 08.8 D-09: the comments name the stage that fills a section in (intent, build, done), never a job title,
+  // and each instruction the old comments carried is still there.
+  it('risk:regression templates give each instruction with no job title (D-09)', () => {
+    const job = /\bBA\b|[Dd]eveloper|[Dd]esigner\b|At handover/;
+    for (const name of names) {
+      const text = templates[name].replace(/accord-designer/g, '');
+      expect(text.split('\n').filter((line) => job.test(line)), name).toEqual([]);
+    }
+    const kept: [string, string[]][] = [
+      ['ticket-build.md', ['Why, for whom, how success is measured, and explicit non-goals', 'One EARS line per requirement', 'One fenced gherkin block; every scenario tagged @ac-n', 'Ready stays blocked while any is unchecked', 'A short plan only.']],
+      ['ticket-maintain.md', ['Why, for whom, how success is measured, and explicit non-goals', 'One EARS line per requirement', 'One fenced gherkin block; every scenario tagged @ac-n', 'Ready stays blocked while any is unchecked', 'A short plan only.']],
+      ['epic.md', ['Why, for whom, how success is measured, and explicit non-goals', 'One EARS line per requirement', 'Ready stays blocked while any is unchecked']],
+      ['glossary.md', ['One term per entry: the word the team actually uses and its business meaning']],
+      ['business-rules.md', ['one rule per bullet', 'the ticket cites it instead of restating it', '`Rejected: <option> — <reason>`']],
+      ['prototype-header.html', ['Derived from:', 'holds the design reference of this ticket']],
+    ];
+    for (const [name, phrases] of kept) for (const phrase of phrases) expect(templates[name as TemplateName], `${name}: ${phrase}`).toContain(phrase);
+    for (const md of [build, maintain]) {
+      // the self-test ticks are written at build and stay the last key
+      expect(md).toContain('Self-test ticks, e.g. [ac-1, ac-2]. Written at build, not at intent.');
+      expect(md).toContain('Always the last key so build edits stay far from intent edits.');
+      // the verification notes are filled in at done, one block per ticked scenario, and empty before
+      expect(md).toContain('Filled in at done; leave it empty before. One "### @ac-n <scenario name>" block per ticked scenario');
+    }
   });
 
   it('templates reflect the folder convention (FMT-01)', () => {

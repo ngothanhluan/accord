@@ -1,5 +1,6 @@
 // `accord hook <event>` end to end, in-process through runCli, on a lane repo.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -96,7 +97,8 @@ describe('accord hook', () => {
       expect(readdirSync(own)).toEqual(before);
 
       // an open episode: the line follows the session line, names the file and holds none of its text
-      mkdirSync(folder, { recursive: true });
+      // Phase 08.8 D-14: the hook reads only through the folder check, so the folder is made 0700 as `accord debug path` makes it (a default mkdir reads 0755 and is refused)
+      mkdirSync(folder, { recursive: true, mode: 0o700 });
       writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
       const open = await resume();
       expect(open.endsWith(unfinished), 'the line closes the output').toBe(true);
@@ -116,6 +118,70 @@ describe('accord hook', () => {
       const ticket = await resume();
       expect(ticket).toContain('Owners can export their report as CSV.');
       expect(ticket).not.toContain('Unfinished:');
+    } finally {
+      vi.unstubAllEnvs();
+      cleanup(own);
+    }
+  }, 60_000);
+
+  // Phase 08.8 D-14 (WR-02): the hook reads the state file only through the folder check `accord debug path` makes; on Windows a folder one more account can use is ignored.
+  it.runIf(process.platform === 'win32')('risk:security on Windows the session hook gives no Unfinished line for a folder open to another account (D-14)', async () => {
+    const own = mkdtempSync(join(tmpdir(), 'p88-hook-tmp-'));
+    try {
+      vi.stubEnv('TMPDIR', own);
+      vi.stubEnv('TEMP', own);
+      vi.stubEnv('TMP', own);
+      const repo = makeLaneRepo();
+      commitAll(repo);
+      const made = await run(['debug', 'path'], repo);
+      expect(made.code, made.err).toBe(0);
+      const file = debugStatePath(repo);
+      const folder = file.slice(0, file.lastIndexOf('/'));
+      writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
+      const resume = async (): Promise<string> => {
+        const r = await run(['hook', 'session-resume'], repo);
+        expect(r.code, r.err).toBe(0);
+        return r.out;
+      };
+      expect(await resume()).toContain(`Unfinished: ${file}: resume the debugger with /accord-debug\n`);
+
+      execFileSync(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'icacls.exe'), [folder.replace(/\//g, '\\'), '/grant', '*S-1-5-32-545:(OI)(CI)(R)'], { windowsHide: true });
+      const after = await resume();
+      expect(after).toMatch(SESSION_LINE);
+      expect(after).not.toContain('Unfinished:');
+    } finally {
+      vi.unstubAllEnvs();
+      cleanup(own);
+    }
+  }, 60_000);
+
+  // Phase 08.8 D-14 (IN-05): an episode whose state file was last written more than seven days ago is no longer announced by the hook; `accord debug path` still reports it open.
+  it('risk:regression the session hook stops announcing an episode untouched for more than seven days (D-14)', async () => {
+    const own = mkdtempSync(join(tmpdir(), 'p88-hook-old-'));
+    try {
+      vi.stubEnv('TMPDIR', own);
+      vi.stubEnv('TEMP', own);
+      vi.stubEnv('TMP', own);
+      const repo = makeLaneRepo();
+      commitAll(repo);
+      const made = await run(['debug', 'path'], repo);
+      expect(made.code, made.err).toBe(0);
+      const file = debugStatePath(repo);
+      writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
+      const ago = (days: number): void => {
+        const at = new Date(Date.now() - days * 86_400_000);
+        utimesSync(file, at, at);
+      };
+      const resume = async (): Promise<string> => {
+        const r = await run(['hook', 'session-resume'], repo);
+        expect(r.code, r.err).toBe(0);
+        return r.out;
+      };
+      ago(1);
+      expect(await resume()).toContain('Unfinished:');
+      ago(8);
+      expect(await resume()).not.toContain('Unfinished:');
+      expect((await run(['debug', 'path'], repo)).out).toContain('episode: open');
     } finally {
       vi.unstubAllEnvs();
       cleanup(own);

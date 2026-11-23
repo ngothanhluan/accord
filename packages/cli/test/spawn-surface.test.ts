@@ -18,6 +18,10 @@ const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 // `/bin/sh` runs the POSIX guard of a team command (WR-04): a fixed script whose only argument is the numeric id of the command's process group, so no repository content reaches it.
 const ALLOWED = ['git', 'gh', 'ps', 'powershell', 'taskkill', '/bin/sh'];
 const SPAWN = /\b(?:execFileSync|execFile|spawnSync|spawn)\s*\(/g;
+// Phase 08.8 D-14: the debug folder check runs `icacls.exe` and `whoami.exe` by their path under `%SystemRoot%\System32` and never by name (Git Bash puts coreutils `whoami` first on PATH). It is
+// one call site in load/debug-folder.ts whose first argument is `system32(program)`, with an argument array and no shell; the test below pins exactly that shape.
+const SYSTEM32_FILE = 'load/debug-folder.ts';
+const SYSTEM32_FIRST_ARG = /^\s*system32\(\w+\)\s*,/;
 const FIRST_ARG = /^\s*(['"])([^'"]*)\1\s*[,)]/;
 
 /** Blank whole-line comments rather than delete them, so reported line numbers stay accurate. */
@@ -73,12 +77,18 @@ describe('spawn surface', () => {
 
 it('risk:security only git gh ps powershell taskkill and /bin/sh are spawned by name and the setup and team-command sites use the shell', () => {
   const sites = spawnSites();
+  const system32 = sites.filter((s) => s.where.startsWith(SYSTEM32_FILE + ':') && SYSTEM32_FIRST_ARG.test(s.args));
   const unnamed = sites.filter((s) => {
+    if (system32.includes(s)) return false;
     const m = FIRST_ARG.exec(s.args);
     return m === null || !ALLOWED.includes(m[2]);
   });
   expect(unnamed.map((s) => s.where.split(':')[0])).toEqual(['load/proc.ts', 'load/team-run.ts']);
   for (const s of unnamed) expect(s.args).toContain('shell: true');
+  // D-14: the System32 exception is one site, takes an argument array, and never a shell
+  expect(system32).toHaveLength(1);
+  expect(sites.filter((s) => s.where.startsWith(SYSTEM32_FILE + ':'))).toHaveLength(1);
+  expect(system32[0].args).not.toMatch(/\bshell\s*:/);
   expect(sites.filter((s) => /\bshell\s*:/.test(s.args)).map((s) => s.where)).toEqual(unnamed.map((s) => s.where));
 });
 

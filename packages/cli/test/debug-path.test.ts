@@ -1,5 +1,6 @@
 // Phase 8.3 D-06 (Ruling 10): `accord debug path` names the state file of /accord-debug outside any ticket, in a private folder of the system temp directory.
 // The temp directory is stubbed to a folder of this file's own (as queue.test.ts does), so no test reaches the real one and none writes in the repository.
+import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -132,6 +133,39 @@ it.skipIf(process.platform === 'win32')('risk:security accord debug path refuses
   expect(fresh.code, fresh.err).toBe(0);
   expect(lstatSync(folder).mode & 0o777).toBe(0o700);
   expect(lstatSync(file).mode & 0o777).toBe(0o600);
+});
+
+// Phase 08.8 D-14 (WR-01, IN-02): Node reports no owner and mode 666 on Windows, so the folder's access list is the check: the folder accord makes holds only SYSTEM,
+// Administrators and the person; one more account (here the Users group) makes accord refuse it, name the account and name TEMP as the way to use another folder.
+it.runIf(process.platform === 'win32')('risk:security on Windows debug path refuses a folder open to the Users group (D-14)', async () => {
+  const repo = sandbox();
+  const first = await run(['debug', 'path'], repo);
+  expect(first.code, first.err).toBe(0);
+  const file = pathOf(first.out);
+  const folder = file.slice(0, file.lastIndexOf('/'));
+  writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
+
+  execFileSync(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'icacls.exe'), [folder.replace(/\//g, '\\'), '/grant', '*S-1-5-32-545:(OI)(CI)(R)'], { windowsHide: true });
+  const refused = await run(['debug', 'path'], repo);
+  expect(refused.code).toBe(2);
+  expect(refused.err).toContain(folder);
+  expect(refused.err).toContain('S-1-5-32-545');
+  expect(refused.err).toContain('TEMP');
+  expect(readFileSync(file, 'utf8')).toBe('## Episode 1\n\nthe export drops a row\n');
+  expect(readdirSync(folder)).toEqual([file.slice(file.lastIndexOf('/') + 1)]);
+});
+
+// Phase 08.8 D-14 (WR-02): a state file over DEBUG_STATE_MAX (1 MiB) is refused, naming the size, and is never read.
+it('risk:resource accord debug path refuses a state file over the size limit (D-14)', async () => {
+  const repo = sandbox();
+  const file = pathOf((await run(['debug', 'path'], repo)).out);
+  writeFileSync(file, 'x'.repeat(1024 * 1024 + 1));
+  const out = await run(['debug', 'path'], repo);
+  expect(out.code).toBe(2);
+  expect(out.err).toContain(file);
+  expect(out.err).toContain('1048577');
+  expect(out.out).toBe('');
+  expect(lstatSync(file).size).toBe(1024 * 1024 + 1);
 });
 
 it('risk:security accord debug path refuses a state file that is not a regular file (D-06)', async () => {

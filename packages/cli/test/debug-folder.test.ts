@@ -1,0 +1,93 @@
+// Phase 08.8 D-14: the one folder check that `accord debug path` and the session hook's `Unfinished:` line share. The parser and the verdicts are pure and run on every OS;
+// the Windows access list read from a real folder is proven by the `runIf` cases of debug-path.test.ts and hook.test.ts.
+import { expect, it } from 'vitest';
+import type { Stats } from 'node:fs';
+import { DEBUG_STATE_MAX, folderVerdict, readDebugFile, sddlAces, windowsVerdict } from '../src/load/debug-folder.js';
+
+const USER = 'S-1-5-21-1-2-3-1001';
+
+// Phase 08.8 D-14: icacls /save writes the folder's name on line 1 and its access list as SDDL on line 2.
+it('risk:parsing sddlAces reads the allow entries of an icacls save file (D-14)', () => {
+  const text = '﻿debug-folder\r\nD:AI(A;OICI;FA;;;SY)(A;OICIID;FA;;;BA)(A;OICI;FA;;;S-1-5-21-1-2-3-1001)\r\n';
+  const read = sddlAces(text);
+  expect(read).toEqual({
+    aces: [
+      { allow: true, inheritOnly: false, sid: 'SY' },
+      { allow: true, inheritOnly: false, sid: 'BA' },
+      { allow: true, inheritOnly: false, sid: USER },
+    ],
+  });
+
+  // a deny entry is read as deny, an inherit-only entry as inherit-only
+  expect(sddlAces('x\r\nD:PAI(D;;FA;;;WD)(A;OICIIO;FA;;;CO)\r\n')).toEqual({
+    aces: [
+      { allow: false, inheritOnly: false, sid: 'WD' },
+      { allow: true, inheritOnly: true, sid: 'CO' },
+    ],
+  });
+
+  // anything that is not an access list is an error, never an empty list
+  for (const bad of ['', 'x\r\n', 'x\r\nO:BAG:SY\r\n', 'x\r\nD:AI(A;OICI;FA;;;)\r\n', 'x\r\nD:AI(A;OICI;FA)\r\n', 'x\r\nD:AI(Q;OICI;FA;;;SY)\r\n', 'x\r\nD:AI\r\n', 'x\r\nD:AI(A;OICI;FA;;;SY\r\n']) {
+    const result = sddlAces(bad);
+    expect(result, JSON.stringify(bad)).toHaveProperty('error');
+  }
+});
+
+// Phase 08.8 D-14: a folder accord trusts grants no account other than SYSTEM, Administrators and the person running it.
+it('risk:security the Windows verdict refuses an allow entry for any other account (D-14)', () => {
+  const entry = (sid: string, inheritOnly = false) => ({ allow: true, inheritOnly, sid });
+  const verdict = (...sids: string[]) => windowsVerdict(sids.map((sid) => entry(sid)), USER);
+
+  expect(verdict('SY', 'BA', USER)).toBeUndefined();
+  expect(verdict('S-1-5-18', 'S-1-5-32-544', USER)).toBeUndefined();
+
+  // another account, a group everyone is in, or another person's own SID: refused, naming it
+  for (const other of ['S-1-5-32-545', 'WD', 'AU', 'S-1-5-21-1-2-3-1002', 'S-1-1-0']) {
+    expect(verdict('SY', 'BA', USER, other), other).toContain(other);
+  }
+
+  // the creator-owner entry that only children inherit is not an account; the same entry for anyone else is
+  expect(windowsVerdict([entry('SY'), entry('CO', true)], USER)).toBeUndefined();
+  expect(windowsVerdict([entry('SY'), entry('S-1-3-0', true)], USER)).toBeUndefined();
+  expect(windowsVerdict([entry('SY'), entry('WD', true)], USER)).toContain('WD');
+
+  // a deny entry takes access away and is never a reason to refuse
+  expect(windowsVerdict([entry('SY'), { allow: false, inheritOnly: false, sid: 'WD' }], USER)).toBeUndefined();
+});
+
+// Phase 08.8 D-14 (IN-01, IN-02): off Windows the owner and the mode decide; a filesystem that stores no POSIX modes (WSL on /mnt/c) reads every folder 0777 and is accepted for its owner.
+it('risk:security the POSIX verdict refuses another owner and an open folder unless the filesystem stores no modes (D-14)', () => {
+  const own = { isLink: false, isDirectory: true, uid: 1000, userUid: 1000, mode: 0o700, madeNow: false };
+  expect(folderVerdict(own)).toBeUndefined();
+  expect(folderVerdict({ ...own, uid: 1001 })).toContain('another user');
+
+  // a folder open to group or others is refused, with the state file absent or at 0600
+  for (const mode of [0o755, 0o777]) {
+    expect(folderVerdict({ ...own, mode }), String(mode)).toContain('open to group or others');
+    expect(folderVerdict({ ...own, mode, fileMode: 0o600 }), String(mode)).toContain('open to group or others');
+  }
+
+  // no modes stored: a folder this run made reading exactly 0777, or a state file made at 0600 reading 0777 or 0666
+  expect(folderVerdict({ ...own, mode: 0o777, madeNow: true })).toBeUndefined();
+  expect(folderVerdict({ ...own, mode: 0o777, fileMode: 0o777 })).toBeUndefined();
+  expect(folderVerdict({ ...own, mode: 0o777, fileMode: 0o666 })).toBeUndefined();
+  // a folder made 0700 that reads 0755 stores modes, so it is open
+  expect(folderVerdict({ ...own, mode: 0o755, madeNow: true })).toContain('open to group or others');
+  // the owner is still checked
+  expect(folderVerdict({ ...own, uid: 1001, mode: 0o777, madeNow: true })).toContain('another user');
+
+  // a link or a file is never a folder of ours
+  expect(folderVerdict({ ...own, isLink: true })).toContain('not a plain folder');
+  expect(folderVerdict({ ...own, isDirectory: false })).toContain('not a plain folder');
+});
+
+// Phase 08.8 D-14 (WR-02): the state file is data from whoever could write the folder, so the hook and `accord debug path` read it only up to a size limit.
+it('risk:resource the state file is read only up to DEBUG_STATE_MAX (D-14)', () => {
+  const stat = (size: number, folder: boolean) => ({ isSymbolicLink: () => false, isDirectory: () => folder, isFile: () => !folder, mode: folder ? 0o40700 : 0o100600, uid: 1000, size, mtimeMs: 1 }) as unknown as Stats;
+  let reads = 0;
+  const deps = (size: number) => ({ platform: 'linux' as const, userUid: 1000, lstat: (p: string) => stat(p.endsWith('.md') ? size : 0, !p.endsWith('.md')), read: () => (reads++, 'x') });
+  expect(readDebugFile('/t/accord-debug-x/a.md', deps(DEBUG_STATE_MAX + 1))).toBeUndefined();
+  expect(reads, 'an over-size file is not read').toBe(0);
+  expect(readDebugFile('/t/accord-debug-x/a.md', deps(DEBUG_STATE_MAX))).toEqual({ text: 'x', mtimeMs: 1 });
+  expect(reads).toBe(1);
+});

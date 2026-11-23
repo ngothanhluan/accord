@@ -1650,3 +1650,24 @@ it('risk:complex-branching a newer report or commit does not hide a failed gate 
   expect(labelOf([log[0], pass, log[1], fail]).failed).toBeUndefined();
   expect(failureOf([log[0], log[1]])).toBeUndefined();
 });
+
+// Phase 08.8.1 W3: at the narrow width every filled stage cell holds a one-space Text, so the stage track keeps its line at the last stage.
+it('risk:regression a narrow stage track keeps a line at the last stage (W3)', async () => {
+  for (const [lane, stage] of [['M', 'verify'], ['S', 'review']] as const) {
+    const h = await paneWith({ lane, stage, tasksDone: 3, tasksTotal: 3 });
+    h.columns = 49;
+    await h.$.ui.invalidate('ui.render');
+    const track = h.nodes('Box').find((b) => b.props.flexDirection === 'row' && b.props.columnGap === 1 && (b.props.children as any[]).every((c) => c.props?.paddingX === 1 && c.props?.flexShrink === 0));
+    expect(track, lane).toBeDefined();
+    const cells = track?.props.children as El[];
+    expect(cells.length, lane).toBeGreaterThanOrEqual(3);
+    for (const c of cells) {
+      const texts = (c.props.children as El[]).filter((x) => x.type === 'Text');
+      expect(texts, lane).toHaveLength(1);
+      expect(texts[0].props.children, lane).toEqual(c.props.backgroundColor ? [' '] : ['·']);
+      if (!c.props.backgroundColor) expect(texts[0].props.dimColor, lane).toBe(true);
+    }
+    expect(cells.some((c) => c.props.backgroundColor), lane).toBe(true);
+    expect(h.texts(), lane).toContain(stage);
+  }
+});

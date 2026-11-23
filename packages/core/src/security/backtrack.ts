@@ -19,6 +19,7 @@ const CAP_POSITIONS = 4000;
 const CAP_SCC_EDGES = 1024; // inside edges of a loop that needs a pair graph
 const CAP_FOLLOW = 50000;
 const CAP_LOOPS = 64;
+const CAP_EXPAND = 256; // most positions an exact count of a fixed-length part may write out (D-12)
 const MAX_WAYS = 16; // most routes that may reach one position after reading one text
 
 // ---------- character sets: sorted, merged [lo, hi] ranges over code units
@@ -228,6 +229,43 @@ function parse(src: string): Tree {
   return alt();
 }
 
+/** Phase 08.8 D-12: the number of positions a part writes out when it holds no repeat with a range and no lookaround (only single characters, groups, choices and exact counts); undefined for any other part. */
+function fixedWidth(n: Tree): number | undefined {
+  switch (n.kind) {
+    case 'set':
+      return 1;
+    case 'assert':
+      return 0;
+    case 'look':
+      return undefined;
+    case 'group':
+      return fixedWidth(n.inner);
+    case 'alt': {
+      let sum = 0;
+      for (const b of n.branches) {
+        const w = fixedWidth(b);
+        if (w === undefined) return undefined;
+        sum += w;
+      }
+      return sum;
+    }
+    case 'seq': {
+      let sum = 0;
+      for (const it of n.items) {
+        const w = fixedWidth(it);
+        if (w === undefined) return undefined;
+        sum += w;
+      }
+      return sum;
+    }
+    case 'q': {
+      if (n.min !== n.max || n.max > CAP_EXPAND) return undefined;
+      const w = fixedWidth(n.atom);
+      return w === undefined ? undefined : w * n.max;
+    }
+  }
+}
+
 // ---------- the position automaton with route counts
 interface Piece {
   first: Map<number, number>;
@@ -311,7 +349,9 @@ function build(tree: Tree, ignoreCase: boolean): Automaton {
           return { first: r.first, last: r.last, nul: 1 };
         }
         if (min === max) {
-          if (min <= K) {
+          // D-12: an exact count of a fixed-length part is written out whole when it stays small, so it is not a loop: (?:a{5}){5} has one way to match a text, not the loop's two
+          const width = min > K ? fixedWidth(atom) : undefined;
+          if (min <= K || (width !== undefined && width * min <= CAP_EXPAND)) {
             let acc = node(atom);
             for (let k = 1; k < min; k++) acc = cat(acc, node(atom));
             return acc;
@@ -380,11 +420,11 @@ const BACKREFERENCE_REASON =
 const SYNTAX_REASON =
   'a group with modifiers such as (?i:...) is not read by the slow-match check, so it cannot be judged; give the whole pattern the i flag, or write it without the modifier group';
 const SIZE_REASON = 'it is too large to check for slow matching; split it into smaller patterns';
-const EXPONENTIAL_REASON =
+export const EXPONENTIAL_REASON =
   'a repeated part can match the same text in more than one way, so a failing line can take exponential time; give each repeat one way to match (a+ for (a+)+, a* for (a|a)*, (?:ab?)* for (a?b?)*)';
-const WAYS_REASON =
-  'it can reach one place by more than 16 routes that read the same text (optional parts or alternatives in a row that can match alike, such as a?a?a?a?a? or (a|a)(a|a)(a|a)(a|a)(a|a)), so one line can take very long; make each choice match different text';
-const CHAIN_REASON =
+export const WAYS_REASON =
+  'it can reach one place by more than 16 routes that read the same text (optional parts or alternatives in a row that can match alike, such as [ab]?[ab]?[ab]?[ab]?[ab]?[ab]?[ab]? or (a|a)(a|a)(a|a)(a|a)(a|a)(a|a)), so one line can take very long; make each choice match different text';
+export const CHAIN_REASON =
   'three or more repeats in a row can match the same text, so a long line can take minutes; merge them into one repeat (\\d{3,9} for \\d{1,3}\\d{1,3}\\d{1,3}), drop a leading or trailing .* ' +
   '(it adds nothing to whether a line matches), or put text between them that they cannot match';
 

@@ -182,7 +182,7 @@ it('risk:resource overlapRepeats is two for an accepted overlapping pattern and 
 it('risk:parsing each refusal reason quotes only patterns the guard refuses with that reason (D-12)', () => {
   const quotes: [string, string[]][] = [
     [r`(a+)+`, [r`(a+)+`, r`(a|a)*`, r`(a?b?)*`]],
-    [r`a?a?a?a?a?`, [r`a?a?a?a?a?`, r`(a|a)(a|a)(a|a)(a|a)(a|a)`]],
+    [r`[ab]?[ab]?[ab]?[ab]?[ab]?[ab]?[ab]?`, [r`[ab]?[ab]?[ab]?[ab]?[ab]?[ab]?[ab]?`, r`(a|a)(a|a)(a|a)(a|a)(a|a)(a|a)`]],
     [r`\d{1,3}\d{1,3}\d{1,3}`, [r`\d{1,3}\d{1,3}\d{1,3}`]],
   ];
   for (const [anchor, examples] of quotes) {

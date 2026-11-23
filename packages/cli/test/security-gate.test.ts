@@ -146,6 +146,40 @@ it('risk:security gate done asks the re-review round after a final review whose 
   }
 }, 180_000);
 
+// Phase 08.8 D-03: with the review stage off, the security review is still asked for and the ticket's ledger records it as `Security: lens security ran at <sha>`. The claim pins the cut-off
+// release (0.16.0, SECURITY_OFF_FROM after Task 2) so the ticket is judged; the CLI here runs as 0.7.0, so the working-tree pin is 0.7.0.
+const LEDGER = 'accord/tickets/T-1/ledger.md';
+const REVIEW_OFF = 'strictness:\n  stages:\n    M:\n      review: "off"\n';
+
+it('risk:security with review off gate done asks for the security review the ledger records (D-03)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, { 'accord/config.yml': pinned('0.16.0') + REVIEW_OFF, 'accord/tickets/T-1.md': laneTicket('T-1'), 'src/run.ts': RUN_BASE });
+    const base = commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    commitMsg(repo, 'claim: T-1', undefined, true);
+    writeFiles(repo, { 'accord/config.yml': pinned('0.7.0') + REVIEW_OFF, 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), 'src/run.ts': RUN_NEW });
+    const code = commitMsg(repo, 'code');
+    writeFiles(repo, { [LEDGER]: `- task 1 done ${code}\n- task 2 done ${code}\n` });
+    const built = commitMsg(repo, 'tasks done');
+
+    const refused = await security(repo);
+    expect(refused).toHaveLength(1);
+    expect(refused[0]).toMatchObject({ level: 'error', file: LEDGER });
+    expect(refused[0].reason).toContain('src/run.ts:3: spawn');
+    expect(refused[0].reason).toContain('accord review-package T-1 --security');
+    expect(refused[0].reason).toContain('Security: lens security ran at <sha>');
+
+    // the ledger records the review at the commit that was reviewed, and the refusal is gone
+    writeFiles(repo, { [LEDGER]: `- task 1 done ${code}\n- task 2 done ${code}\n\n## Security\n\nSecurity: lens security ran at ${built}\n` });
+    commitMsg(repo, 'security review');
+    expect(await security(repo)).toEqual([]);
+  } finally {
+    cleanup(repo);
+  }
+}, 180_000);
+
 const packageRead = (a: string[]): boolean => a.includes('-U10') || a.some((x) => x.includes('...'));
 
 it('risk:complex-branching gate done starts no security-fact git read for a ticket claimed before 0.7.0 and reads them when the rule applies, a failed claim read included (ST-LN-36 36-ac-2)', async () => {

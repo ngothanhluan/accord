@@ -49,6 +49,8 @@ const LOCKED_LIST = [
   'gate.ruleset-missing',
   'gate.section-empty',
   'gate.sections-changed',
+  // Phase 08.8 D-03: the security review is on the floor, so switching the review stage off no longer removes it
+  'gate.security-unreviewed',
   'gate.sensitive-touched',
   'gate.sha-too-short',
   'gate.stale-review',

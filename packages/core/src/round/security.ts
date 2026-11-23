@@ -2,7 +2,8 @@
 // `Security: no pattern matched` or `Security: lens security ran`; from SECURITY_TRIGGER_FROM a round whose package had security triggers needs the second, and every round but a
 // `(final review)` that follows a round which was not one in its stretch (D-10: the final reviewer reads the whole ticket; a lone final review is asked like any round) needs a `Security:` line. ONE rule (securityProblems) that `accord gate done` reads
 // through gate.security-unreviewed and `accord round` reads whole. Pure: the host supplies each round's triggers, recomputed from git (securityFacts), and the claim pin. No code runs at load but constants.
-import { laneTicket, workOf } from '../gate/work.js';
+import { stageOff } from '../gate/floor.js';
+import { laneTicket, ledgerFile, workOf } from '../gate/work.js';
 import type { GateRule } from '../gate/rules.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { SECURITY_FILE, securitySpec } from '../security/spec.js';
@@ -26,6 +27,7 @@ export interface SecurityProblem {
   reason: string;
 }
 
+const RECORD = 'Security: lens security ran at <sha>';
 const LINES = 'write "Security: no pattern matched" or "Security: lens security ran"';
 
 /** The first five triggers, and how many more there are. */
@@ -59,6 +61,7 @@ export function securityExemptRounds(snapshot: RepoSnapshot, id: string): Set<nu
  * round's triggers were computed without that pattern and cannot be trusted until it is fixed; it is returned even when the host supplied no fact.
  */
 export function securityProblems(snapshot: RepoSnapshot, id: string): SecurityProblem[] {
+  if (stageOff(snapshot, id, 'review')) return securityOffProblems(snapshot, id); // Phase 08.8 D-03: the review stage is off, so the ledger holds the record
   const rec = workOf(snapshot, id)?.rounds;
   if (rec === undefined || !securityOn(snapshot, id)) return [];
   const inactive = securitySpec(snapshot).problems.filter((p) => p.pattern === true);
@@ -68,6 +71,7 @@ export function securityProblems(snapshot: RepoSnapshot, id: string): SecurityPr
   const fact = Object.hasOwn(snapshot.securityFacts ?? {}, id) ? snapshot.securityFacts![id] : undefined;
   if (fact === undefined) return [];
   if ('error' in fact) return [{ line: 1, reason: `the security review cannot be checked: ${fact.error}` }];
+  if (!('rounds' in fact)) return [{ line: 1, reason: 'the security review cannot be checked: the host read the triggers of the whole ticket, and review.md records rounds' }];
   const placed = placedRounds(rec);
   if (fact.rounds.length !== placed.length) {
     return [{ line: 1, reason: `the security review cannot be checked: the host read the triggers of ${fact.rounds.length} rounds and review.md records ${placed.length}` }];
@@ -94,8 +98,54 @@ export function securityProblems(snapshot: RepoSnapshot, id: string): SecurityPr
   return out.sort((a, b) => a.line - b.line);
 }
 
-/** gate.security-unreviewed: each security record problem of review.md, from SECURITY_TRIGGER_FROM, in lane M and lane S. */
+/**
+ * Phase 08.8 D-03: the security record problems of a ticket whose review stage is off, in the order a reader fixes them. Applies to a lane M, L or P ticket with `stageOff(review)` that the review checks do not
+ * skip (as for review.md: HEAD on the default branch, or the ticket done in the default ref's records). A team pattern that is not in force comes first, as for the rounds; with no host fact there is nothing
+ * to judge, a fact with `error` is one problem. With triggers in the ticket's whole diff and no `Security: lens security ran at <sha>` line in the ledger's `## Security` section the record is missing; with triggers
+ * since the recorded sha the review is stale; every other line of that section is not read. A ticket whose diff has no trigger needs no line (nobody is there to state it).
+ */
+export function securityOffProblems(snapshot: RepoSnapshot, id: string): SecurityProblem[] {
+  if (laneTicket(snapshot, id) === undefined || !stageOff(snapshot, id, 'review') || skipped(snapshot, id)) return [];
+  const inactive = securitySpec(snapshot).problems.filter((p) => p.pattern === true);
+  if (inactive.length > 0) {
+    return inactive.map((p) => ({ line: 1, reason: `${SECURITY_FILE}:${p.line}: ${p.reason}; the pattern is not in force, so fix the line, then run accord lint` }));
+  }
+  const fact = Object.hasOwn(snapshot.securityFacts ?? {}, id) ? snapshot.securityFacts![id] : undefined;
+  if (fact === undefined) return [];
+  if ('error' in fact) return [{ line: 1, reason: `the security review cannot be checked: ${fact.error}` }];
+  if (!('ticket' in fact)) return [{ line: 1, reason: 'the security review cannot be checked: the host read the triggers of review rounds, and the review stage is off' }];
+  const ledger = workOf(snapshot, id)?.ledger;
+  const out: SecurityProblem[] = [];
+  const { triggers, sinceReview } = fact.ticket;
+  if (triggers.length === 0) return []; // no trigger in the ticket's diff: nothing to review, and no line to read
+  if (ledger?.securityReview === undefined) {
+    out.push({
+      line: 1,
+      reason:
+        `the ticket's changes have security triggers (${listed(triggers)}), the review stage is off, and the ledger records no security review; ` +
+        `run accord review-package ${id} --security, dispatch accord-reviewer with lens security on it, fix what it finds, ` +
+        `write "${RECORD}" under "## Security" in ${ledger?.file ?? ledgerFile(id)} and commit`,
+    });
+  }
+  if (ledger?.securityReview !== undefined && sinceReview !== undefined && sinceReview.length > 0) {
+    out.push({
+      line: ledger.securityReview.line,
+      reason: `the code changed after the security review recorded at ${ledger.securityReview.head}, with security triggers (${listed(sinceReview)}); review it again and write the new commit in "${RECORD}"`,
+    });
+  }
+  for (const u of ledger?.securityUnread ?? []) out.push({ line: u.line, reason: `"${u.text}" is not read; under "## Security" write "${RECORD}"` });
+  return out.sort((a, b) => a.line - b.line);
+}
+
+/**
+ * gate.security-unreviewed: each security record problem of review.md, from SECURITY_TRIGGER_FROM, in lane M and lane S; with the review stage off (Phase 08.8 D-03, lane M, L and P) each problem of the
+ * ledger's `## Security` record instead, reported against the ledger.
+ */
 export const securityUnreviewed: GateRule['check'] = (snapshot, id) => {
+  if (stageOff(snapshot, id, 'review')) {
+    const file = workOf(snapshot, id)?.ledger?.file ?? ledgerFile(id);
+    return securityOffProblems(snapshot, id).map((p) => ({ file, line: p.line, reason: p.reason }));
+  }
   const rec = workOf(snapshot, id)?.rounds;
   if (rec === undefined) return [];
   return securityProblems(snapshot, id).map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));

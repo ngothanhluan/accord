@@ -38,7 +38,10 @@ const FLOOR: Record<string, readonly string[]> = {
     'gate.research-record-missing', 'gate.research-spent-missing', 'gate.research-over-budget', 'gate.research-shipped',
   ],
   // Phase 8.5 R-4: lint.conventions-file guards the trust boundary of product text delivered to agents (D-08)
-  'the security and data-loss rules': ['gate.sensitive-touched', 'gate.out-of-scope', 'gate.interface-sign', 'gate.branch-unknown', 'lint.lane-s-lane-m-records', 'lint.conventions-file'],
+  // Phase 08.8 D-03: gate.security-unreviewed is here, not in STAGE_OF, so switching the review stage off keeps the security review of a lane M, L or P ticket
+  'the security and data-loss rules': [
+    'gate.sensitive-touched', 'gate.out-of-scope', 'gate.interface-sign', 'gate.branch-unknown', 'gate.security-unreviewed', 'lint.lane-s-lane-m-records', 'lint.conventions-file',
+  ],
   'which rules apply, which lane a ticket is in and what the config says': [
     'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor', 'lint.security-file', 'lint.template-section',
   ],
@@ -99,7 +102,6 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.fix-places-missing': 'review',
   'gate.fix-not-addressed': 'review',
   'gate.fix-outside-open': 'review',
-  'gate.security-unreviewed': 'review',
   'gate.slop-unresolved': 'review',
   'gate.review-trailing': 'review',
   'gate.review-uncommitted': 'review',

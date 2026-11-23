@@ -88,7 +88,12 @@ export type RoundFacts =
  * `head` the round's typed head and `triggers` the rendered triggers of the package from the previous round's head (round 1: the first round's base) to it; empty for a final review. `error` when git
  * could not say.
  */
-export type SecurityFacts = { error: string } | { rounds: { head: string; triggers: string[] }[] };
+export type SecurityFacts =
+  | { error: string }
+  | { rounds: { head: string; triggers: string[] }[] }
+  // Phase 08.8 D-03: with the review stage off there are no rounds; `triggers` are those of the ticket's cumulative diff (round-one base to HEAD) and `sinceReview` those of the diff from the commit the
+  // ledger records its security review at to HEAD, absent when the ledger names no commit
+  | { ticket: { triggers: string[]; sinceReview?: string[] } };
 /**
  * Phase 8.5 D-19: one executor fix report (`.accord-reports/<id>/fix-<k>.md`) as the host read it: its file name and each `places checked: <n>: <place>, <place>…` line, `n` the finding's
  * number (`<n>` or `<round>.<n>`) and `places` the listed places as written, trimmed.
@@ -248,6 +253,10 @@ export interface Ledger {
   // the '## Epic lessons' section's non-blank lines with their file line numbers, closed comments removed; a line that opens a comment that never closes is kept as written, so the reader withholds it
   // (ST-LN-28 D-15, Phase 08.8 D-05); absent when there are none
   epicLessons?: Line[];
+  // Phase 08.8 D-03: the record of the security review while the review stage is off: the last `Security: lens security ran at <sha>` line of the first `## Security` section (its file line and the
+  // sha as written), and every other non-blank line of that section, comments stripped, as `securityUnread`; each absent when there is none
+  securityReview?: { line: number; head: string };
+  securityUnread?: { line: number; text: string }[];
 }
 
 export interface Review {

@@ -408,6 +408,8 @@ function deferredRepo(): string {
   doneS(files, 'D-3', DEFERRED_MARK_FROM, ITEMS);
   building(files, 'D-4');
   files[ledgerOf('D-4')] = LEDGER_TASKS + ITEMS;
+  // Phase 08.8 D-07: the queued mark of ITEMS counts only for a ticket that exists on the default branch
+  files[P('ST-9')] = laneTicket('ST-9');
   return sandbox(files, CONFIG, 3);
 }
 
@@ -428,7 +430,7 @@ it('risk:complex-branching accord audit lists undecided items of done tickets cl
   expect(gaps.join('\n')).not.toMatch(/lane/i);
   // the marked Shoulds, the Nice, the ticket claimed before the cut-off and the ticket still at build are not listed
   expect(gaps.some((l) => l.includes('D-2') || l.includes('D-4') || l.includes('ST-9') || l.includes('cache') || l.includes('rename'))).toBe(false);
-  expect(r.lines, r.out).toContain('fact: deferred-marks: 2 done tickets judged; 1 claimed before deferred marks were recorded and 0 whose claim release cannot be read are skipped');
+  expect(r.lines, r.out).toContain('fact: deferred-marks: of 3 done tickets with an undecided Must or Should item, 2 judged, 1 claimed before deferred marks were recorded (' + DEFERRED_MARK_FROM + '), 0 skipped because their claim release cannot be read');
 });
 
 it("risk:complex-branching a done lane S ticket's undecided Must item is listed and its declined mark clears it (D-10)", async () => {
@@ -444,7 +446,7 @@ it("risk:complex-branching a done lane S ticket's undecided Must item is listed 
   expect(gaps[0], r.out).toContain('D-1 has an undecided Must item');
   expect(gaps.some((l) => l.includes('D-3'))).toBe(false);
   // a queued-ticket mark clears the other ticket the same way
-  writeFiles(repo, { [ledgerOf('D-1')]: ITEMS.replace('(Must)', '(Must) → ST-12') });
+  writeFiles(repo, { [ledgerOf('D-1')]: ITEMS.replace('(Must)', '(Must) → ST-12'), [P('ST-12')]: laneTicket('ST-12') });
   commitMsg(repo, 'D-1: decide the deferred item');
   expect(undecided((await audit(repo)).lines)).toEqual([]);
 });
@@ -456,8 +458,35 @@ it('risk:complex-branching a done ticket whose claim release cannot be read is c
   const r = await audit(repo);
   expect(r.code, r.out).toBe(0);
   expect(undecided(r.lines), r.out).toEqual([]);
-  expect(r.lines, r.out).toContain('fact: deferred-marks: 0 done tickets judged; 0 claimed before deferred marks were recorded and 1 whose claim release cannot be read are skipped');
+  expect(r.lines, r.out).toContain('fact: deferred-marks: of 1 done tickets with an undecided Must or Should item, 0 judged, 0 claimed before deferred marks were recorded (' + DEFERRED_MARK_FROM + '), 1 skipped because their claim release cannot be read: D-5');
 });
+
+// Phase 08.8 D-19: the deferred-marks fact says what it counts (the done tickets with an undecided item) and names the tickets it skips, at most ten.
+it('risk:regression the deferred-marks fact counts done tickets with an undecided item and names the ones it skips (D-19)', async () => {
+  const files: Files = {};
+  doneM(files, 'D-1', DEFERRED_MARK_FROM, ITEMS);
+  doneM(files, 'D-2', '0.9.0', ITEMS);
+  doneM(files, 'D-5', undefined, ITEMS);
+  // a done ticket with no undecided item is not counted at all
+  doneM(files, 'D-6', DEFERRED_MARK_FROM, '## Deferred\n- review 1.4: a rename (Nice)\n');
+  files[P('ST-9')] = laneTicket('ST-9');
+  const one = await audit(sandbox(files, CONFIG, 3));
+  expect(one.code, one.out).toBe(0);
+  expect(one.lines, one.out).toContain(
+    `fact: deferred-marks: of 3 done tickets with an undecided Must or Should item, 1 judged, 1 claimed before deferred marks were recorded (${DEFERRED_MARK_FROM}), 1 skipped because their claim release cannot be read: D-5`,
+  );
+
+  // twelve skipped tickets: ten ids are named, then the count of the rest
+  const many: Files = {};
+  const ids = Array.from({ length: 12 }, (_, i) => 'U-' + String(i + 1).padStart(2, '0'));
+  for (const id of ids) doneM(many, id, undefined, ITEMS);
+  many[P('ST-9')] = laneTicket('ST-9');
+  const twelve = await audit(sandbox(many, CONFIG, 3));
+  expect(twelve.code, twelve.out).toBe(0);
+  expect(twelve.lines, twelve.out).toContain(
+    `fact: deferred-marks: of 12 done tickets with an undecided Must or Should item, 0 judged, 0 claimed before deferred marks were recorded (${DEFERRED_MARK_FROM}), 12 skipped because their claim release cannot be read: ${ids.slice(0, 10).join(', ')} and 2 more`,
+  );
+}, 120_000);
 
 it('risk:data-loss accord audit with undecided deferred items writes nothing and leaves every ledger as it was (8.2-ac-8)', async () => {
   const repo = deferredRepo();

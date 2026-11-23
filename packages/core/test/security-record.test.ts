@@ -2,8 +2,10 @@
 // `Security: lens security ran`; from SECURITY_TRIGGER_FROM `accord gate done` refuses a round whose package had security triggers and no `Security: lens security ran` line,
 // and a round (a final review excepted) that records no `Security:` line at all.
 import { expect, it } from 'vitest';
-import { SECURITY_TRIGGER_FROM, gateDone, nextRound, parseRounds } from '../src/index.js';
+import { SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, gateDone, nextRound, parseRounds } from '../src/index.js';
+import { parseLedger } from '../src/load/work.js';
 import type { RepoSnapshot, SecurityFacts } from '../src/index.js';
+import { CONFIG } from '../../../test/helpers/lane.js';
 import { claimedUnder, facts, H, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
 
@@ -247,4 +249,100 @@ it('risk:security a team pattern that is not in force is a gate finding of gate 
   // another problem of the file (a checklist line) stays a lint matter and is not a gate finding
   const checklist = { ...clean, files: { ...clean.files, [SECURITY_FILE]: '## Checklist\n\n- a check with no id\n' } } as RepoSnapshot;
   expect(reasons(checklist)).toEqual([]);
+});
+
+// Phase 08.8 D-03: with the review stage off the security review is read from the ledger's `## Security` section, and the host supplies the triggers of the ticket's whole diff and of the diff since the recorded sha.
+const LEDGER = 'accord/tickets/T-1/ledger.md';
+const OFF = 'strictness:\n  stages:\n    M:\n      review: "off"\n';
+const AT = 'Security: lens security ran at abc1234';
+const section = (...lines: string[]): string => `\n## Security\n\n${lines.join('\n')}\n`;
+const T_A = 'src/a.ts:3: spawn (process spawn)';
+
+/** A lane M ticket with the review stage off (on when `stage` is 'on'), claimed under `pin`, holding the host fact `fact`; `ledger` is appended to the ledger. */
+function offTicket(o: { fact?: SecurityFacts; ledger?: string; pin?: string; claim?: Record<string, unknown>; stage?: 'on' }): RepoSnapshot {
+  const snap = scopeSnapshot({ review: '', config: o.stage === 'on' ? CONFIG : CONFIG + OFF, ...(o.ledger === undefined ? {} : { ledger: o.ledger }) });
+  const claimed = o.claim === undefined ? claimedUnder(snap, o.pin ?? SECURITY_OFF_FROM) : { ...snap, claimPins: { 'T-1': o.claim } };
+  return { ...claimed, ...(o.fact === undefined ? {} : { securityFacts: { 'T-1': o.fact } }) } as RepoSnapshot;
+}
+
+it('risk:security with review off the ledger record is judged against the triggers since its sha (D-03)', () => {
+  // triggers and no record: one problem, at the top of the ledger, naming the command and the line to write
+  const missing = found(offTicket({ fact: { ticket: { triggers: [T_A] } } }));
+  expect(missing).toHaveLength(1);
+  expect(missing[0]).toMatchObject({ file: LEDGER, line: 1, level: 'error' });
+  expect(missing[0].reason).toContain('src/a.ts:3: spawn');
+  expect(missing[0].reason).toContain('accord review-package T-1 --security');
+  expect(missing[0].reason).toContain('Security: lens security ran at <sha>');
+  expect(missing[0].reason).toContain('the review stage is off');
+
+  // a record and nothing since: no problem
+  expect(found(offTicket({ fact: { ticket: { triggers: [T_A], sinceReview: [] } }, ledger: section(AT) }))).toEqual([]);
+
+  // triggers since the recorded sha: the review is stale, one problem at the record's line naming the sha and the new trigger
+  const ledger = section(AT);
+  const stale = found(offTicket({ fact: { ticket: { triggers: [T_A], sinceReview: ['src/b.ts:9: spawn (process spawn)'] } }, ledger }));
+  expect(stale).toHaveLength(1);
+  expect(stale[0]).toMatchObject({ file: LEDGER, level: 'error', line: ('## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n' + ledger).split('\n').indexOf(AT) + 1 });
+  expect(stale[0].reason).toContain('abc1234');
+  expect(stale[0].reason).toContain('src/b.ts:9: spawn');
+
+  // any other line of the section is not read
+  const unread = found(offTicket({ fact: { ticket: { triggers: [T_A], sinceReview: [] } }, ledger: section(AT, 'Security: done') }));
+  expect(unread).toHaveLength(1);
+  expect(unread[0].reason).toContain('"Security: done" is not read');
+
+  // no trigger in the ticket's diff: nothing to review and nothing to read, even with no section
+  expect(found(offTicket({ fact: { ticket: { triggers: [] } } }))).toEqual([]);
+
+  // a host that could not read git is one problem (fail closed); no fact at all is nothing to judge
+  const failed = found(offTicket({ fact: { error: "git failed reading the ticket's diff" } }));
+  expect(failed).toHaveLength(1);
+  expect(failed[0].reason).toContain('cannot be checked');
+  expect(found(offTicket({}))).toEqual([]);
+});
+
+// Phase 08.8 D-03: the ledger's `## Security` section as the loader reads it.
+it('risk:parsing the ledger security record is the last ran-at line of the first Security section (D-03)', () => {
+  const read = (text: string) => parseLedger('l.md', text);
+  expect(read('## Security\n\nSecurity: lens security ran at abc1234\n').securityReview).toEqual({ line: 3, head: 'abc1234' });
+  expect(read('## Security\n- security: LENS SECURITY RAN AT ABCDEF1\n').securityReview).toEqual({ line: 2, head: 'ABCDEF1' });
+  // the last line wins, and an earlier one is no unread line
+  const two = read('## Security\nSecurity: lens security ran at abc1234\nSecurity: lens security ran at def5678\n');
+  expect(two.securityReview).toEqual({ line: 3, head: 'def5678' });
+  expect(two.securityUnread).toBeUndefined();
+  // 7 to 64 hex digits; anything else, and every other non-blank line, is unread with its line
+  for (const bad of ['Security: lens security ran at abc123', 'Security: lens security ran at xyz1234', 'Security: lens security ran', 'Security: done']) {
+    const r = read(`## Security\n${bad}\n`);
+    expect(r.securityReview, bad).toBeUndefined();
+    expect(r.securityUnread, bad).toEqual([{ line: 2, text: bad }]);
+  }
+  // a fence, a comment and a section of another name hold no record
+  expect(read('## Security\n```\nSecurity: lens security ran at abc1234\n```\n<!-- Security: lens security ran at abc1234 -->\n').securityReview).toBeUndefined();
+  expect(read('## Rulings\nSecurity: lens security ran at abc1234\n').securityReview).toBeUndefined();
+  expect(read('- task 1 done abc1234\n').securityUnread).toBeUndefined();
+});
+
+// Phase 08.8 D-03: with the review stage on nothing changes; the ledger's Security section and a ticket-level fact are not read for a ticket that records rounds.
+it('risk:regression with review on the security record rules read review.md as before (D-03)', () => {
+  // the expectations of the first case of this file: a round with triggers and no security review is one problem naming the round, the trigger and the line to write
+  const plain = [[{ lines: [] }]];
+  const triggered = reasons(build({ cycles: plain, triggers: [[TRIGGER]], ledger: section(AT) }));
+  expect(triggered).toHaveLength(1);
+  expect(triggered[0]).toContain('round 1');
+  expect(triggered[0]).toContain('src/run.ts:3: spawn');
+  expect(triggered[0]).toContain('Security: lens security ran');
+  expect(found(build({ cycles: plain, triggers: [[TRIGGER]], ledger: section(AT) }))[0]).toMatchObject({ file: REVIEW, line: 3, level: 'error' });
+  expect(reasons(build({ cycles: [[{ lines: ['No findings', ran] }]], triggers: [[TRIGGER]] }))).toEqual([]);
+  // a review-on ticket with no round record and no fact asks nothing, whatever its ledger holds
+  expect(found(offTicket({ stage: 'on', ledger: section(AT) }))).toEqual([]);
+});
+
+// Phase 08.8 D-03: a ticket claimed before SECURITY_OFF_FROM with review off keeps its answer, as every cut-off.
+it('risk:regression a review-off ticket claimed before SECURITY_OFF_FROM is not asked (D-03)', () => {
+  expect(SECURITY_OFF_FROM).toBe('0.16.0');
+  const fact: SecurityFacts = { ticket: { triggers: [T_A] } };
+  expect(found(offTicket({ fact, pin: '0.15.0' }))).toEqual([]);
+  expect(found(offTicket({ fact, pin: '0.16.0' }))).toHaveLength(1);
+  // a failed claim read is not before the cut-off, so the rule applies
+  expect(found(offTicket({ fact, claim: { error: 'git failed' } }))).toHaveLength(1);
 });

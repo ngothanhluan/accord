@@ -68,9 +68,10 @@ it('risk:complex-branching the slop gate refuses an unresolved hit with the exac
 it('risk:regression the slop gate reads no fact for a ticket the host did not load and leaves with the review stage (D-17)', () => {
   // no fact for the ticket (claimed before SLOP_FROM, no record, no git): nothing to judge
   expect(found(build(lastRound(), undefined))).toEqual([]);
-  // the rule leaves with the review stage, as gate.security-unreviewed does, and is not on the locked floor
+  // the rule leaves with the review stage and is not on the locked floor; Phase 08.8 D-03: gate.security-unreviewed no longer leaves with it, it is on the floor
   expect(STAGE_OF[RULE]).toBe('review');
-  expect(STAGE_OF['gate.security-unreviewed']).toBe('review');
+  expect(LOCKED).toContain('gate.security-unreviewed');
+  expect(STAGE_OF).not.toHaveProperty('gate.security-unreviewed');
   expect(LOCKED).not.toContain(RULE);
   expect(OVERRIDABLE).not.toContain(RULE);
 });

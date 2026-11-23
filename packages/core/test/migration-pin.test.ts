@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, SECURITY_TRIGGER_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { building, CONFIG } from '../../../test/helpers/lane.js';
 
@@ -276,6 +276,9 @@ const PHASE8_2_CUT: string[] = Object.values(PHASE8_2);
 // Phase 8.5 (D-22, D-29): the new task-brief layout of `accord brief` and the executor-report refusal of `accord round` apply only to a ticket claimed at or after the release that ships them; every Phase 8.5 cut-off added later joins this record.
 const PHASE8_5: Record<string, string> = { PRODUCT_TEXT_FROM };
 const PHASE8_5_CUT: string[] = Object.values(PHASE8_5);
+// Phase 08.8 (D-03): the security review that stays on the floor when the review stage is off applies only to a ticket claimed at or after the release that ships it; every Phase 08.8 cut-off added later joins this record.
+const PHASE8_8: Record<string, string> = { SECURITY_OFF_FROM };
+const PHASE8_8_CUT: string[] = Object.values(PHASE8_8);
 
 it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
   expect(PHASE4_CUT.length, 'the list names no constant').toBeGreaterThan(0);
@@ -288,9 +291,9 @@ const SRC_ROOTS = ['packages/core/src', 'packages/cli/src'];
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PIN_FILE = 'packages/core/src/round/pin.ts';
 // ST-LN-36 rel-ac-1: every release a cut-off names. Phase 7's value is read from its constant, so the release PR that moves the constant moves this too.
-const RELEASES = [...new Set(['0.6.0', '0.7.0', ...PHASE7_CUT, ...PHASE8_1_CUT, ...PHASE8_2_CUT, ...PHASE8_5_CUT])].filter((v) => typeof v === 'string');
+const RELEASES = [...new Set(['0.6.0', '0.7.0', ...PHASE7_CUT, ...PHASE8_1_CUT, ...PHASE8_2_CUT, ...PHASE8_5_CUT, ...PHASE8_8_CUT])].filter((v) => typeof v === 'string');
 const LITERAL = new RegExp('([\'"`])(?:' + RELEASES.map((v) => v.replaceAll('.', '\\.')).join('|') + ')\\1', 'g');
-const PHASE_NAMES = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7), ...Object.keys(PHASE8_1), ...Object.keys(PHASE8_2), ...Object.keys(PHASE8_5)];
+const PHASE_NAMES = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7), ...Object.keys(PHASE8_1), ...Object.keys(PHASE8_2), ...Object.keys(PHASE8_5), ...Object.keys(PHASE8_8)];
 const isComment = (line: string): boolean => /^(\/\/|\*|\/\*)/.test(line.trim());
 
 /** True when index `at` of `line` sits between the parentheses of a `<fn>(` call on the same line. */
@@ -397,6 +400,17 @@ it('risk:regression the Phase 8.5 cut-off is 0.13.0 and is read only through cla
   expect(cutOffOffences("  if (claimPinBefore(s, id, '0.13.0')) return legacy();", 'packages/cli/src/x.ts')).toHaveLength(1);
 });
 
+// Phase 08.8 D-03: the cut-off of the security review that stays on the floor with the review stage off is the next minor after 0.15.0, read only through claimPinBefore (the scan of the Phase 4 test above covers every name in PHASE_NAMES).
+it('risk:regression the Phase 08.8 cut-off is 0.16.0 and is read only through claimPinBefore (D-03)', () => {
+  expect(Object.keys(PHASE8_8), 'the record holds exactly one constant').toEqual(['SECURITY_OFF_FROM']);
+  expect(SECURITY_OFF_FROM).toBe('0.16.0');
+  expect(PHASE8_8_CUT).toEqual(['0.16.0']);
+  // a cut-off read outside the claim read is caught; the claim read is not
+  expect(cutOffOffences('  if (claimPinBefore(snapshot, id, SECURITY_OFF_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
+  expect(cutOffOffences('  if (pinBefore(SECURITY_OFF_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences("  if (claimPinBefore(snapshot, id, '0.16.0')) return [];", 'packages/core/src/x.ts')).toHaveLength(1);
+});
+
 // Release 0.9.1 is a patch of Phase 8.1: the CLI is no longer 0.9.0, so the Phase 8.1 cut-offs stay at 0.9.0, and the 0.9.1 fixes (the commit-message length bound, the unscanned slop hits, the audit and conventions-write hardening) have no cut-off of their own.
 it('risk:regression release 0.9.1 adds no cut-off constant: the Phase 8.1 ones stay at 0.9.0 and none names 0.9.1', () => {
   const exported = [...readFileSync(join(REPO_ROOT, PIN_FILE), 'utf8').matchAll(/^export const (\w+_FROM) = '([^']+)';/gm)].map((m) => ({ name: m[1], value: m[2] }));
@@ -407,7 +421,7 @@ it('risk:regression release 0.9.1 adds no cut-off constant: the Phase 8.1 ones s
 // Release 0.8.1 ships Phase 8: the CLI is no longer 0.8.0, so a Phase 7 cut-off is compared with '0.8.0' only, and the 0.8.1 rules (the security-file refusals, D-07 and D-10) have no cut-off of their own.
 it('risk:regression release 0.8.1 adds no cut-off constant: pin.ts holds the Phase 4, 5 and 7 ones and the older ones, none at 0.8.1 (8-ac-13)', () => {
   const exported = [...readFileSync(join(REPO_ROOT, PIN_FILE), 'utf8').matchAll(/^export const (\w+_FROM) = '([^']+)';/gm)].map((m) => ({ name: m[1], value: m[2] }));
-  const known = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7), ...Object.keys(PHASE8_1), ...Object.keys(PHASE8_2), ...Object.keys(PHASE8_5), 'RECORD_V2_FROM', 'PLAN_SIZE_FROM', 'GROUNDS_V2_FROM', 'DISCUSS_FROM', 'APPROACH_CAP_FROM', 'PLAN_FORMAT_FROM', 'PLAN_CAP_FROM', 'PLAN_GROUNDS_FROM', 'RULESET_FROM'];
+  const known = [...Object.keys(PHASE4), ...Object.keys(PHASE5), ...Object.keys(PHASE7), ...Object.keys(PHASE8_1), ...Object.keys(PHASE8_2), ...Object.keys(PHASE8_5), ...Object.keys(PHASE8_8), 'RECORD_V2_FROM', 'PLAN_SIZE_FROM', 'GROUNDS_V2_FROM', 'DISCUSS_FROM', 'APPROACH_CAP_FROM', 'PLAN_FORMAT_FROM', 'PLAN_CAP_FROM', 'PLAN_GROUNDS_FROM', 'RULESET_FROM'];
   expect(exported.map((e) => e.name).sort(), 'a new cut-off constant needs its own release test').toEqual([...known].sort());
   expect(exported.filter((e) => e.value === '0.8.1').map((e) => e.name), 'no cut-off names 0.8.1').toEqual([]);
 });
@@ -438,7 +452,7 @@ it('risk:regression every Phase 4 cut-off is read through claimPinBefore (rel-ac
     .split(/\r?\n/)
     .filter((line) => !isComment(line))
     .flatMap((line) => [...line.matchAll(LITERAL)]);
-  expect(pinLiterals).toHaveLength(PHASE4_CUT.length + PHASE5_CUT.length + PHASE7_CUT.length + PHASE8_1_CUT.length + PHASE8_2_CUT.length + PHASE8_5_CUT.length);
+  expect(pinLiterals).toHaveLength(PHASE4_CUT.length + PHASE5_CUT.length + PHASE7_CUT.length + PHASE8_1_CUT.length + PHASE8_2_CUT.length + PHASE8_5_CUT.length + PHASE8_8_CUT.length);
   // Every use of the cut-offs in source sits inside a claimPinBefore( call: at least one per constant, so the scan is not empty.
   const uses = files.flatMap((f) => readFileSync(join(REPO_ROOT, f), 'utf8').split(/\r?\n/).filter((line) => !isComment(line) && line.includes('claimPinBefore(')));
   for (const name of PHASE_NAMES) expect(uses.some((line) => new RegExp(`\\b${name}\\b`).test(line)), name).toBe(true);

@@ -161,6 +161,13 @@ export const DEFERRED_MARK_FROM = '0.10.0';
  */
 export const PRODUCT_TEXT_FROM = '0.13.0';
 
+/**
+ * Phase 08.8 D-03 and its cut-off Ruling: the release from which `accord gate done` asks for the security review of a lane M, L or P ticket whose review stage is off, recorded as `Security: lens security ran at <sha>`
+ * under `## Security` in the ticket's ledger (gate.security-unreviewed). A ticket claimed under a pin below it answers as before and starts no security read. Read only through claimPinBefore. It is the next minor
+ * after the newest released heading of docs/releases.md at planning, 0.15.0; the release that ships Phase 08.8 sets it to its own version if another release came first, and PHASE8_8 in migration-pin.test.ts follows.
+ */
+export const SECURITY_OFF_FROM = '0.16.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

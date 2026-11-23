@@ -30,6 +30,8 @@ const MARKER = /^\(@ac-[1-9][0-9]*\)$/;
 // ST-LN-57, ST-LN-91 D-12: `- <review|plan|approach> <round>.<n>[ cycle <k>]: <text>[ — failing case: <case>]` under the ledger's first `## Deferred` section.
 const DEFERRED = /^\s*[-*+]\s+(review|plan|approach) ([1-9][0-9]*)\.([1-9][0-9]*)(?: cycle ([1-9][0-9]*))?:\s*\S/;
 const FAILING_CASE = / — failing case:\s*\S/;
+// Phase 08.8 D-03: the ledger's record of the security review while the review stage is off, under the first `## Security` section: `Security: lens security ran at <sha>`, one list marker allowed.
+const SECURITY_RAN = /^(?:[-*+]\s+)?security:\s*lens security ran at ([0-9a-f]{7,64})$/i;
 
 /** A declared path, trimmed, with one pair of surrounding backticks removed. */
 const declared = (t: string): string => {
@@ -255,14 +257,37 @@ export function parseLedger(file: string, text: string): Ledger {
     }
   }
   const epicLessons = epicLessonLines(sections);
+  const security = securityRecord(sections, fences);
   const extra = {
     ...(wordingOnly.length > 0 ? { wordingOnly } : {}),
     ...(deferred.length > 0 ? { deferred } : {}),
     ...(epicLessons.length > 0 ? { epicLessons } : {}),
+    ...(security.review === undefined ? {} : { securityReview: security.review }),
+    ...(security.unread.length > 0 ? { securityUnread: security.unread } : {}),
   };
   if (section === undefined) return { file, done, rulings, ...extra };
   const written = stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');
   return { file, done, rulings, rulingsSection: written, ...extra };
+}
+
+/**
+ * Phase 08.8 D-03: the security review a ticket's ledger records while its review stage is off, read from the first `## Security` section, outside fences and comments: the last
+ * `Security: lens security ran at <sha>` line (one list marker allowed) is the record; every other non-blank line is `unread`, kept with its file line (the rule says it is not read).
+ */
+function securityRecord(sections: readonly Section[], fences: readonly { open: number; close: number }[]): { review?: { line: number; head: string }; unread: { line: number; text: string }[] } {
+  const section = sections.find((s) => headingKey(s.heading) === 'security');
+  const unread: { line: number; text: string }[] = [];
+  let review: { line: number; head: string } | undefined;
+  if (section === undefined) return { unread };
+  const unfenced = section.lines.filter((l) => !fences.some((f) => l.line >= f.open && l.line <= f.close));
+  for (const l of stripHtmlComments(unfenced)) {
+    const text = l.text.trim();
+    if (text === '') continue;
+    const ran = SECURITY_RAN.exec(text);
+    if (ran !== null) review = { line: l.line, head: ran[1] };
+    else unread.push({ line: l.line, text: text.length > 160 ? text.slice(0, 157) + '...' : text });
+  }
+  return { ...(review === undefined ? {} : { review }), unread };
 }
 
 /**

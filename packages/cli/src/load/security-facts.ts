@@ -3,7 +3,7 @@
 // order across cycles, so a round that fixed something is asked only when its fix matches a pattern. The triggers of a package come from packageDiff, the function review-package prints from.
 // Every git failure is an `error` fact, which the rule reports (fail closed); nothing here writes.
 import { execFileSync } from 'node:child_process';
-import { claimPinBefore, normaliseText, reviewSkipped, SECURITY_TRIGGER_FROM, securityExemptRounds, securitySpec, securityTriggers, triggerText, workOf } from '@accord-dev/accord-core';
+import { claimPinBefore, normaliseText, reviewSkipped, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, securityExemptRounds, securitySpec, securityTriggers, stageOff, triggerText, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot, SecurityFacts, SkillFile } from '@accord-dev/accord-core';
 import { defaultRefOf, gitFilesAt, UsageError } from './fs.js';
 import { packageDiff, roundOneBase, why } from './package-diff.js';
@@ -106,16 +106,70 @@ function factsFor(root: string, snapshot: RepoSnapshot, id: string, rendered: ()
   }
 }
 
+/** Whether `sha` is an ancestor of HEAD, by `git merge-base --is-ancestor`: exit 1 is no, any other failure throws. */
+function isAncestorOfHead(root: string, sha: string): boolean {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return true;
+  } catch (e) {
+    if ((e as { status?: number }).status === 1) return false;
+    throw e;
+  }
+}
+
 /**
- * `snapshot` with securityFacts[id] set; `snapshot` itself when the ticket has no lane, no version 2 review record with a round, no git, the review checks are skipped (HEAD on the
- * default branch, or the ticket done there), or the rule does not apply to it: ST-LN-36, Orchestrator Ruling (route a), a ticket whose claim pin is before SECURITY_TRIGGER_FROM answers as
- * before and starts no git read for it. The claim fact is the one the caller already loaded (gate done, accord round); this never calls withClaimPins, so the pin gate adds no git read. A failed
- * claim read is false in claimPinBefore (fail closed), so the facts are read and the rule applies. Each of those is decided on the snapshot, before the first git call.
+ * Phase 08.8 D-03: the security facts of a ticket whose review stage is off: the triggers of its cumulative diff (round-one base to HEAD, as slopFacts reads it: the same package, exempt copies and
+ * generated paths skipped) and, when the ledger records a security review, the triggers of the diff from that commit to HEAD. A commit the ledger names that no commit has, or that is not an
+ * ancestor of HEAD, is an `error` fact naming it, like every git failure and a plan with no baseline (fail closed): nothing here reads "no triggers" off a failed read.
+ */
+export function reviewOffFacts(root: string, snapshot: RepoSnapshot, id: string, rendered: () => readonly SkillFile[]): SecurityFacts {
+  try {
+    const def = defaultRefOf(root);
+    const base = roundOneBase(root, snapshot, id, { defaultRef: def });
+    if (base === undefined) return { error: 'the ticket has no round-one base: the plan records no baseline' };
+    const spec = securitySpec(snapshot);
+    const generated = snapshot.config?.generated ?? [];
+    let list: readonly SkillFile[] | undefined;
+    const once = (): readonly SkillFile[] => (list ??= rendered()); // at most one render per command
+    const triggersFrom = (from: string): string[] => {
+      let pkg;
+      try {
+        pkg = packageDiff(root, { base: from, head: 'HEAD', def, allowPlainLog: false });
+      } catch (e) {
+        throw new Error(`git failed reading the ticket's diff from ${from}: ${e instanceof UsageError ? e.message : why(e)}`, { cause: e });
+      }
+      const exempt = exemptCopies(root, 'HEAD', pkg.changed, once);
+      return securityTriggers(spec, pkg.diff, pkg.changed, { generated, unreadable: pkg.unread, exempt }).map(triggerText);
+    };
+    const triggers = triggersFrom(base);
+    const named = workOf(snapshot, id)?.ledger?.securityReview?.head;
+    if (named === undefined) return { ticket: { triggers } };
+    const resolved = resolveHeads(root, [named.toLowerCase()]);
+    if ('error' in resolved) return resolved;
+    const sha = resolved.shas[0];
+    if (!isAncestorOfHead(root, sha)) return { error: `the security review is recorded at ${named}, which is not an ancestor of HEAD` };
+    return { ticket: { triggers, sinceReview: triggersFrom(sha) } };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'git failed reading the security triggers: ' + whyGit(e) };
+  }
+}
+
+/**
+ * `snapshot` with securityFacts[id] set; `snapshot` itself when the ticket has no lane, no git, the review checks are skipped (HEAD on the default branch, or the ticket done there), the ticket
+ * has neither a version 2 review record with a round nor its review stage off, or the rule does not apply to it: ST-LN-36, Orchestrator Ruling (route a), a ticket whose claim pin is before
+ * SECURITY_TRIGGER_FROM answers as before and starts no git read for it. The claim fact is the one the caller already loaded (gate done, accord round); this never calls withClaimPins, so the pin gate
+ * adds no git read. A failed claim read is false in claimPinBefore (fail closed), so the facts are read and the rule applies. Each of those is decided on the snapshot, before the first git call.
+ * Phase 08.8 D-03: a ticket whose review stage is off (stageOff) has no rounds; its fact is `{ ticket }`, read by reviewOffFacts over the ticket's whole diff.
  * BUG-LN-25 D-16: `rendered` is the files `accord skills sync` writes (renderedFiles of the config), called at most once, so a copy sync just wrote raises no trigger.
  */
 export function withSecurityFacts(root: string, snapshot: RepoSnapshot, id: string, rendered: () => readonly SkillFile[]): RepoSnapshot {
   const rec = workOf(snapshot, id)?.rounds;
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
+  if (lane !== undefined && stageOff(snapshot, id, 'review')) {
+    if (snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;
+    if (claimPinBefore(snapshot, id, SECURITY_OFF_FROM)) return snapshot; // Phase 08.8 D-03: a ticket claimed before the cut-off starts no git read
+    return { ...snapshot, securityFacts: { ...snapshot.securityFacts, [id]: reviewOffFacts(root, snapshot, id, rendered) } };
+  }
   if (lane === undefined || rec === undefined || rec.version !== 2 || rec.cycles.every((c) => c.rounds.length === 0) || snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;
   if (claimPinBefore(snapshot, id, SECURITY_TRIGGER_FROM)) return snapshot;
   return { ...snapshot, securityFacts: { ...snapshot.securityFacts, [id]: factsFor(root, snapshot, id, rendered) } };

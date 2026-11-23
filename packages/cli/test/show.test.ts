@@ -339,3 +339,56 @@ it('risk:complex-branching an uncommitted plan is named and an uncommitted ticke
     cleanup(repo);
   }
 }, 120_000);
+
+// Phase 08.8.1 D-02: a gated plan that the stage holds at plan (dirty, or last committed under another subject) is named, with the done tasks still counted; at build nothing is said and task-done is what refuses.
+it('risk:regression show json and anchor warn when a gated plan changed and is not committed as plan ready and say nothing at build (D-02)', async () => {
+  const PLAN_TEXT = 'plan.md changed after accord gate plan passed: the plan stage reviews the change, passes accord gate plan again and makes its plan-ready commit before the build goes on';
+  const EDITED = PLAN.replace('Quote cells that contain a comma.', 'Quote every cell that contains a comma.');
+  const atBuild = (): string => {
+    const repo = makeLaneRepo(approved());
+    commitAll(repo, 'plan: T-1 ready');
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAll(repo, 'task 1 done');
+    return repo;
+  };
+  // Committed under another subject.
+  const other = atBuild();
+  try {
+    expect(JSON.parse((await run(['show', 'T-1', '--json'], other)).out)).toMatchObject({ stage: 'build', tasksDone: 1 });
+    writeFiles(other,{ 'accord/tickets/T-1/plan.md': EDITED });
+    commitAll(other, 'feat: reword task 2');
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], other)).out);
+    expect(j).toMatchObject({ stage: 'plan', tasksDone: 1 });
+    expect(j.warnings).toEqual([{ kind: 'plan-changed', text: PLAN_TEXT }]);
+    const lines = (await run(['anchor', 'T-1'], other)).out.split('\n');
+    const at = lines.findIndex((l) => l.startsWith('Stage: plan, next: '));
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(lines[at + 1]).toBe(PLAN_TEXT);
+  } finally {
+    cleanup(other);
+  }
+  // Left uncommitted.
+  const dirty = atBuild();
+  try {
+    writeFiles(dirty, { 'accord/tickets/T-1/plan.md': EDITED });
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], dirty)).out);
+    expect(j).toMatchObject({ stage: 'plan', tasksDone: 1 });
+    expect(j.warnings).toEqual([{ kind: 'plan-changed', text: PLAN_TEXT }]);
+  } finally {
+    cleanup(dirty);
+  }
+  // Re-committed under the plan_ready subject: the stage reads build, nothing is said, and task-done refuses.
+  const ready = atBuild();
+  try {
+    writeFiles(ready, { 'accord/tickets/T-1/plan.md': EDITED });
+    commitAll(ready, (await run(['subject', 'plan_ready', 'T-1'], ready)).out.trim());
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], ready)).out);
+    expect(j.stage).toBe('build');
+    expect(Object.hasOwn(j, 'warnings')).toBe(false);
+    const refused = await run(['task-done', 'T-1', '2'], ready);
+    expect(refused.code).not.toBe(0);
+    expect(refused.out + refused.err).toContain('plan.md changed since its plan_hash was recorded');
+  } finally {
+    cleanup(ready);
+  }
+}, 120_000);

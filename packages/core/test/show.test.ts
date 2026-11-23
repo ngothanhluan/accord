@@ -1,8 +1,8 @@
 // ST-LN-6 Task 1: the detail of one lane ticket and the label of each criterion.
 import { expect, it } from 'vitest';
-import { approvalShort, loadSnapshot, ticketDetail, ticketWarnings } from '../src/index.js';
+import { approvalShort, loadSnapshot, taskVerdict, ticketDetail, ticketWarnings } from '../src/index.js';
 import { acHash } from '../src/gate/hash.js';
-import { building, CONFIG, LANE_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { building, CONFIG, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
 const scenario = (n: number, test: boolean) =>
@@ -149,4 +149,47 @@ it('risk:complex-branching ticketWarnings names a ticket whose records git does 
   const early: Files = { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') };
   expect(ticketWarnings(load(early, { 'T-1': { state: 'untracked', path: planPath } }), 'T-1')).toEqual([]);
   expect(Object.hasOwn(ticketDetail(load(early, { 'T-1': { state: 'untracked', path: planPath } }), 'T-1')!, 'warnings')).toBe(false);
+});
+
+// Phase 08.8.1 D-02: a gated plan the stage holds at plan (BUG-LN-2: dirty, or last committed under another subject) is named; a plan the stage reads at build never is, whatever its plan_hash says.
+it('risk:complex-branching the plan-changed warning shows exactly when the stage holds a gated plan at plan and never at build (D-02)', () => {
+  const TEXT =
+    'plan.md changed after accord gate plan passed: the plan stage reviews the change, passes accord gate plan again and makes its plan-ready commit before the build goes on';
+  const plan3 = PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n';
+  const fixture = (plan: string, config = CONFIG): Files => {
+    const files: Files = { 'accord/config.yml': config };
+    building(files, 'T-1');
+    files['accord/tickets/T-1/plan.md'] = plan;
+    files['accord/tickets/T-1/ledger.md'] = '## Tasks\n- task 1 done abc1234\n';
+    return files;
+  };
+  const load = (files: Files, extra: Record<string, unknown> = {}) => loadSnapshot({ files, tree: [], ...extra });
+  const dirty = { planFacts: { 'T-1': { clean: false, subject: 'plan: T-1 ready' } } };
+  const warned = { kind: 'plan-changed', text: TEXT };
+  // (a) plan.md dirty: held at plan, the done task still counts.
+  const a = load(fixture(plan3), dirty);
+  expect(ticketWarnings(a, 'T-1')).toEqual([warned]);
+  expect(ticketDetail(a, 'T-1')).toMatchObject({ stage: 'plan', tasksDone: 1, tasksTotal: 3, warnings: [warned] });
+  // (b) clean, but its last commit subject is not the plan_ready subject.
+  const b = load(fixture(plan3), { planFacts: { 'T-1': { clean: true, subject: 'feat: reword task 2' } } });
+  expect(ticketWarnings(b, 'T-1')).toEqual([warned]);
+  expect(ticketDetail(b, 'T-1')?.stage).toBe('plan');
+  // (c) a body that differs from its plan_hash under a clean plan-ready commit: the stage reads build, no warning; task-done refuses.
+  const c = load(fixture(plan3), { planFacts: { 'T-1': { clean: true, subject: 'plan: T-1 ready' } } });
+  expect(ticketWarnings(c, 'T-1')).toEqual([]);
+  expect(ticketDetail(c, 'T-1')?.stage).toBe('build');
+  expect(Object.hasOwn(ticketDetail(c, 'T-1')!, 'warnings')).toBe(false);
+  expect(taskVerdict(c, 'T-1', 2).reasons[0]).toMatch(/^plan\.md changed since its plan_hash was recorded/);
+  // (d) the first plan, before gate plan ever passed (no plan_hash): held at plan, no warning.
+  const first = load(fixture(plan3.replace(/^plan_hash:.*\n/m, '')), dirty);
+  expect(ticketDetail(first, 'T-1')?.stage).toBe('plan');
+  expect(ticketWarnings(first, 'T-1')).toEqual([]);
+  // (e) the plan stage off for the lane: nothing holds the ticket at plan, no warning.
+  const off = load(fixture(plan3, CONFIG + 'strictness:\n  stages:\n    M:\n      plan: off\n'), dirty);
+  expect(ticketWarnings(off, 'T-1')).toEqual([]);
+  // (f) a host that supplies no plan facts holds nothing at plan.
+  expect(ticketWarnings(load(fixture(plan3)), 'T-1')).toEqual([]);
+  // (g) a ticket whose records git does not hold gets the not-committed entry alone.
+  const g = load(fixture(plan3), { ...dirty, trackFacts: { 'T-1': { state: 'ignored', path: 'accord/tickets/T-1/plan.md' } } });
+  expect(ticketWarnings(g, 'T-1').map((w) => w.kind)).toEqual(['not-committed']);
 });

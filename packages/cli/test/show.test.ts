@@ -276,7 +276,7 @@ it('risk:regression show json adds review and stagesOff only when the ticket has
 const THREE_TASKS =
   PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n';
 const NOT_IGNORED = 'accord/ is not committed in this repository: git ignores accord/tickets/T-1/plan.md, so accord cannot track the stage or the tasks';
-const NOT_COMMITTED = 'accord/tickets/T-1/plan.md is not committed yet: accord cannot track the stage or the tasks until it is';
+const NOT_COMMITTED = 'accord/tickets/T-1/plan.md is not committed yet: the plan stage ends with its plan-ready commit';
 
 it('risk:regression show json and anchor say accord is not committed when git ignores it (D-05 L-05)', async () => {
   const repo = makeLaneRepo({ ...approved(), 'accord/tickets/T-1/plan.md': THREE_TASKS });
@@ -331,10 +331,14 @@ it('risk:complex-branching an uncommitted plan is named and an uncommitted ticke
     commitAll(repo, 'claim: T-1');
     writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN });
     const j = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
-    expect(j.warnings[0]).toEqual({ kind: 'not-committed', text: NOT_COMMITTED });
+    // Phase 08.8.1 review WR-01: an untracked plan.md is the normal plan stage, so the stage and its anchor line stay and the missing commit is named after them.
+    expect(j.stage).toBe('plan');
+    expect(j.warnings).toEqual([{ kind: 'plan-uncommitted', text: NOT_COMMITTED }]);
     const a = await run(['anchor', 'T-1'], repo);
-    expect(a.out.split('\n')).toContain(NOT_COMMITTED);
-    expect(a.out.split('\n').some((l) => l.startsWith('Stage:'))).toBe(false);
+    const lines = a.out.split('\n');
+    const at = lines.findIndex((l) => l.startsWith('Stage: plan, next: '));
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(lines[at + 1]).toBe(NOT_COMMITTED);
   } finally {
     cleanup(repo);
   }
@@ -390,6 +394,23 @@ it('risk:regression show json and anchor warn when a gated plan changed and is n
     expect(refused.out + refused.err).toContain('plan.md changed since its plan_hash was recorded');
   } finally {
     cleanup(ready);
+  }
+}, 120_000);
+
+// Phase 08.8.1 review WR-01: gate plan writes plan_hash into a plan.md that is committed under another subject and not yet committed as ready; that is the first pass, not a change after the gate.
+it('risk:regression the first gate plan pass writing plan_hash into a committed plan.md is not a plan change (WR-01)', async () => {
+  const repo = makeLaneRepo(approved());
+  try {
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('plan_hash: "fnv1a64:9225f0bf1d9c2674"\n', '') });
+    commitAll(repo, 'plan: T-1 round 1, 1 Must, 0 Should');
+    // What a passing gate plan does next: the hash lands in the frontmatter, uncommitted.
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN });
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(j).toMatchObject({ stage: 'plan', tasksDone: 0, tasksTotal: 2 });
+    expect(Object.hasOwn(j, 'warnings')).toBe(false);
+    expect((await run(['anchor', 'T-1'], repo)).out).not.toContain('changed after accord gate plan');
+  } finally {
+    cleanup(repo);
   }
 }, 120_000);
 

@@ -138,7 +138,7 @@ it('risk:complex-branching ticketWarnings names a ticket whose records git does 
     { kind: 'not-committed', text: 'accord/ is not committed in this repository: git ignores accord/tickets/T-1/plan.md, so accord cannot track the stage or the tasks' },
   ]);
   expect(ticketWarnings(load(files, { 'T-1': { state: 'untracked', path: planPath } }), 'T-1')).toEqual([
-    { kind: 'not-committed', text: 'accord/tickets/T-1/plan.md is not committed yet: accord cannot track the stage or the tasks until it is' },
+    { kind: 'plan-uncommitted', text: 'accord/tickets/T-1/plan.md is not committed yet: the plan stage ends with its plan-ready commit' },
   ]);
   const ignored = ticketDetail(load(files, { 'T-1': { state: 'ignored', path: planPath } }), 'T-1');
   expect(ignored?.warnings?.map((w) => w.kind)).toEqual(['not-committed']);
@@ -149,6 +149,35 @@ it('risk:complex-branching ticketWarnings names a ticket whose records git does 
   const early: Files = { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') };
   expect(ticketWarnings(load(early, { 'T-1': { state: 'untracked', path: planPath } }), 'T-1')).toEqual([]);
   expect(Object.hasOwn(ticketDetail(load(early, { 'T-1': { state: 'untracked', path: planPath } }), 'T-1')!, 'warnings')).toBe(false);
+});
+
+// Phase 08.8.1 review WR-01: plan.md is untracked for the whole plan stage (the plan-ready commit comes at Finish), so it is named without taking the stage away; plan-changed is for a real change, not the first gate plan pass.
+it('risk:regression an untracked plan.md is named beside its stage and the first gate plan pass is not a plan change (WR-01)', () => {
+  const PLAN_FIRST = 'accord/tickets/T-1/plan.md is not committed yet: the plan stage ends with its plan-ready commit';
+  const TEXT = 'plan.md changed after accord gate plan passed: the plan stage reviews the change, passes accord gate plan again and makes its plan-ready commit before the build goes on';
+  const plan3 = PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n';
+  const fixture = (plan: string): Files => {
+    const files: Files = { 'accord/config.yml': CONFIG };
+    building(files, 'T-1');
+    files['accord/tickets/T-1/plan.md'] = plan;
+    return files;
+  };
+  const load = (files: Files, extra: Record<string, unknown>) => loadSnapshot({ files, tree: [], ...extra });
+  const untracked = { trackFacts: { 'T-1': { state: 'untracked', path: 'accord/tickets/T-1/plan.md' } } };
+  // (a) untracked, gate plan passed on this very body: the stage and the task count are the real ones, only the commit is missing.
+  const a = load(fixture(PLAN), { ...untracked, planFacts: { 'T-1': { clean: false } } });
+  expect(ticketWarnings(a, 'T-1')).toEqual([{ kind: 'plan-uncommitted', text: PLAN_FIRST }]);
+  expect(ticketDetail(a, 'T-1')).toMatchObject({ stage: 'plan', warnings: [{ kind: 'plan-uncommitted', text: PLAN_FIRST }] });
+  // (b) untracked and edited after the gate passed: both lines.
+  const b = load(fixture(plan3), { ...untracked, planFacts: { 'T-1': { clean: false } } });
+  expect(ticketWarnings(b, 'T-1').map((w) => w.kind)).toEqual(['plan-uncommitted', 'plan-changed']);
+  // (c) committed under another subject, then gate plan wrote plan_hash into it (dirty): the first pass, nothing to warn about.
+  const c = load(fixture(PLAN), { planFacts: { 'T-1': { clean: false, subject: 'wip: plan' } } });
+  expect(ticketDetail(c, 'T-1')?.stage).toBe('plan');
+  expect(ticketWarnings(c, 'T-1')).toEqual([]);
+  // (d) committed as ready, edited, gate plan passed again and not committed yet: the pending commit is still named.
+  const d = load(fixture(PLAN), { planFacts: { 'T-1': { clean: false, subject: 'plan: T-1 ready' } } });
+  expect(ticketWarnings(d, 'T-1')).toEqual([{ kind: 'plan-changed', text: TEXT }]);
 });
 
 // Phase 08.8.1 D-02: a gated plan the stage holds at plan (BUG-LN-2: dirty, or last committed under another subject) is named; a plan the stage reads at build never is, whatever its plan_hash says.

@@ -67,7 +67,7 @@ export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly 
   const lane = ticket.frontmatter?.lane;
   const out = [`# Anchor: ${id} "${ticket.frontmatter?.title ?? ''}"`, ''];
   // Phase 08.8.1 D-05: the session-resume hook prints this text into an agent's context, which must not read `build 0/3` or `plan` as fact for a ticket whose records git does not hold: the
-  // not-committed text takes the place of the Stage line, and any other warning (D-02, a gated plan held at plan) follows it. With none, today's anchor byte for byte.
+  // not-committed text (an ignored accord/ only) takes the place of the Stage line, and any other warning (WR-01 an untracked plan.md, D-02 a gated plan held at plan) follows it. With none, today's anchor byte for byte.
   const warnings = ticketWarnings(snapshot, id);
   const notCommitted = warnings.find((w) => w.kind === 'not-committed');
   const stage = (line: string): string => notCommitted?.text ?? line;

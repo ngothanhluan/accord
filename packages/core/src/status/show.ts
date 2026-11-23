@@ -24,7 +24,7 @@ export interface CriterionDetail {
 /** Phase 08.7 D-04: one line of the ticket's session log; the CLI host fills it from git, the agent report files and the gate run record (08.7-05), core never does. */
 export interface TicketLogEntry { at: number; kind: 'commit' | 'gate' | 'report'; text: string; fail?: true }
 /** Phase 08.8.1 D-05, D-02: one thing the CLI says about a ticket's stage, in the words the pane draws; `kind` lets the pane place it. */
-export interface TicketWarning { kind: 'not-committed' | 'plan-changed'; text: string }
+export interface TicketWarning { kind: 'not-committed' | 'plan-uncommitted' | 'plan-changed'; text: string }
 /** Phase 08.8.1 L-07: one task of the plan for the pane's task list; `covers` holds the criterion ids (`ac-1`) of the task's `covers:` line, nothing else. */
 export interface TicketTask { n: number; title: string; done: boolean; covers: string[] }
 export interface TicketDetail {
@@ -53,24 +53,23 @@ export interface TicketDetail {
  * The host reads that fact from the file listing and `git status` it already runs (`trackFacts`); this says it in one sentence. Only a ticket whose plan.md is on disk and whose stage is past intent is checked: at intent
  * (and before plan.md exists) the stage is read from the ticket file on disk and is right whatever git holds.
  * Phase 08.8.1 D-02: else, a gated plan the stage holds at plan because it changed (`planChanged`) gets the plan-changed entry; a ticket with a not-committed entry gets no other, since that text already names why it is held.
+ * Phase 08.8.1 review WR-01: only an ignored accord/ (CSA-185) is a not-committed entry, which takes the stage's place. A plan.md that is merely untracked is the normal plan stage, because plan.md is committed with the plan-ready commit
+ * at the end of that stage: the stage is the real one, so it gets a plan-uncommitted entry that names the missing commit and takes nothing away (it can come with a plan-changed entry when the plan was edited after its gate passed).
  */
 export function ticketWarnings(snapshot: RepoSnapshot, id: string): TicketWarning[] {
+  const out: TicketWarning[] = [];
   const fact = snapshot.trackFacts !== undefined && Object.hasOwn(snapshot.trackFacts, id) ? snapshot.trackFacts[id] : undefined;
   if (fact !== undefined && workOf(snapshot, id)?.plan !== undefined && Object.hasOwn(snapshot.tickets, id) && progressOf(snapshot, snapshot.tickets[id])?.stage !== 'intent') {
-    const text =
-      fact.state === 'ignored'
-        ? `accord/ is not committed in this repository: git ignores ${fact.path}, so accord cannot track the stage or the tasks`
-        : `${fact.path} is not committed yet: accord cannot track the stage or the tasks until it is`;
-    return [{ kind: 'not-committed', text }];
+    if (fact.state === 'ignored') return [{ kind: 'not-committed', text: `accord/ is not committed in this repository: git ignores ${fact.path}, so accord cannot track the stage or the tasks` }];
+    out.push({ kind: 'plan-uncommitted', text: `${fact.path} is not committed yet: the plan stage ends with its plan-ready commit` });
   }
-  return planChanged(snapshot, id)
-    ? [
-        {
-          kind: 'plan-changed',
-          text: 'plan.md changed after accord gate plan passed: the plan stage reviews the change, passes accord gate plan again and makes its plan-ready commit before the build goes on',
-        },
-      ]
-    : [];
+  if (planChanged(snapshot, id)) {
+    out.push({
+      kind: 'plan-changed',
+      text: 'plan.md changed after accord gate plan passed: the plan stage reviews the change, passes accord gate plan again and makes its plan-ready commit before the build goes on',
+    });
+  }
+  return out;
 }
 
 /** undefined unless `id` is a lane ticket in the snapshot. `blockedBy` is decided on the default branch the host read (`snapshot.defaultRef`), else by `plain`, the checkout-only snapshot (BUG-LN-2 D-04, D-05, BUG-LN-13 D-01). */

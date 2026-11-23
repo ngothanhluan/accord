@@ -160,3 +160,12 @@ it('risk:complex-branching the anchor prints a not-committed warning in place of
   // The sections after the stage position are unchanged.
   expect(lines.slice(3)).toEqual(tracked.slice(3));
 });
+
+// Phase 08.8.1 review WR-01: an untracked plan.md is the normal plan stage; the anchor keeps its Stage line, which the resume and build skills read, and names the missing commit on the line after it.
+it('risk:regression the anchor keeps the stage line for an untracked plan.md and names the missing commit after it (WR-01)', () => {
+  const plan3 = PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n';
+  const files = { ...approved(base, 'T-1'), 'accord/tickets/T-1/plan.md': plan3 };
+  const lines = anchorText(loadSnapshot({ files, tree: [], planFacts: { 'T-1': { clean: false } }, trackFacts: { 'T-1': { state: 'untracked', path: 'accord/tickets/T-1/plan.md' } } }), 'T-1')!.split('\n');
+  expect(lines[2]).toBe('Stage: plan, next: write the plan and pass accord gate plan');
+  expect(lines[3]).toBe('accord/tickets/T-1/plan.md is not committed yet: the plan stage ends with its plan-ready commit');
+});

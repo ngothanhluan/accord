@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
-import { contentHash, markerHash, pluginTargets, withoutMarker } from '../src/index.js';
+import { contentHash, markerHash, pluginTargets, SAFE_ID, withoutMarker } from '../src/index.js';
 
 const PKG = { name: '@accord-dev/accord', version: '9.9.9' };
 const dirs: string[] = [];
@@ -1536,4 +1536,13 @@ it('risk:regression docs/design.md records the panel exception verbatim with its
   expect(panel).toContain('the pane may also listen to subagent events, for display only');
   for (const word of ['Parity exception', 'Desktop Code tab', 'accord show <id> --json']) expect(panel, word).toContain(word);
   expect(read('README.md')).toContain('two tabs');
+});
+
+// Phase 08.8 D-17 (IN-04): the panel is a mod file that cannot import core, so it keeps its own copy of the ticket id pattern; this holds the copy equal to core's, and drift fails here.
+it("risk:security the panel's ticket id pattern is core's SAFE_ID (D-17)", () => {
+  const view = readFileSync(new URL('../panel/view.js', import.meta.url), 'utf8');
+  const literal = /^const SAFE_ID = \/(.+)\/([a-z]*);$/m.exec(view);
+  expect(literal, 'packages/core/panel/view.js holds no `const SAFE_ID = /.../;` line').not.toBeNull();
+  expect(literal?.[1]).toBe(SAFE_ID.source);
+  expect(literal?.[2]).toBe(SAFE_ID.flags);
 });

@@ -144,7 +144,10 @@ export function trackerKeyOk(key: string, ids?: IdsConfig): boolean {
   return ids?.projects === undefined || ids.projects.includes(key.slice(0, key.lastIndexOf('-')));
 }
 
-/** ST-LN-50 D-05: what a legacy_ids entry may be, the ticket schema's own id form. */
+/**
+ * ST-LN-50 D-05: what a legacy_ids entry may be, the ticket schema's own id form. Phase 08.8 D-17 (IN-04): this is the one ticket id shape under packages/core/src and packages/cli/src; audit's `SAFE_ID`
+ * and the CLI's `ID` and `QUEUED_ID` are this object. The panel (packages/core/panel/view.js) cannot import it and keeps a copy that panel.test.ts holds equal.
+ */
 export const LEGACY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const TYPES = ['story', 'bug', 'epic'] as const;
 

@@ -531,12 +531,10 @@ const above = (a: string, b: string): boolean => {
   return false;
 };
 /** The `_FROM` cut-offs in the text of pin.ts that name a version above `version`, as `NAME version`; none while a release is being prepared. */
-const cutOffsAbove = (pinText: string, version: string, preparing: boolean): string[] => {
-  void pinText;
-  void version;
-  void preparing;
-  return [];
-};
+const cutOffsAbove = (pinText: string, version: string, preparing: boolean): string[] =>
+  preparing
+    ? []
+    : [...pinText.matchAll(/^export const (\w+_FROM) = '(\d+\.\d+\.\d+)';/gm)].filter((m) => above(m[2], version)).map((m) => `${m[1]} ${m[2]}`);
 
 it('risk:regression no cut-off is above the package version unless a release is being prepared (D-17)', () => {
   // the check checks itself: a cut-off above the version is reported with no Unreleased section, and is not with one

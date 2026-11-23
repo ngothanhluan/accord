@@ -4,7 +4,7 @@
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Ticket } from '../model/snapshot.js';
 import type { ProductRead, RelatedParts } from '../product/assemble.js';
-import { CONVENTIONS_FILE, lineProblem, notReadLine, trimLineEnd, visibleLines, withheldLine } from '../product/lines.js';
+import { CONVENTIONS_FILE, lineProblem, notReadLine, printable, trimLineEnd, visibleLines, withheldLine } from '../product/lines.js';
 import { similarTickets, ticketFacts } from './similar.js';
 
 /** The sections of a related ticket that are printed, in this order. */
@@ -42,9 +42,6 @@ export function relatedIds(snapshot: RepoSnapshot, id: string, limit = 5): strin
   }
   return ids.slice(0, limit);
 }
-
-/** A title from a file anyone on the team wrote, on one line: every control, format (bidi marks, tag characters) and line or paragraph separator character becomes a space. */
-const printable = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
 
 /** The non-blank lines of one section of `ticket`, comments stripped and each line as written; `(none)` when there are none. */
 function sectionLines(ticket: Ticket, name: string): string[] {

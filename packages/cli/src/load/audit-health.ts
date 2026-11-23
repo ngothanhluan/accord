@@ -1,13 +1,11 @@
 // Phase 8.1 G3b (D-08 group 2, D-18): the facts and gaps about accord's own setup in a repository: the version pin against the running CLI and npm, the CI workflow, the rendered skill, agent and
 // hook files, accord's hooks in .claude/settings.json, the config keys new since the pin, script trust and the security file. It reads, and writes nothing: no config.yml edit, no trust allow, no rendered file.
 import { CONFIG_KEYS, newKeys, pluginDir, securityFile, setKeysOf } from '@accord-dev/accord-core';
-import type { AuditFact, AuditGap } from '@accord-dev/accord-core';
+import type { AccordConfig, AuditFact, AuditGap } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
-import { latestRelease, newer } from '../commands/notice.js';
-import { readRegular, renderHealth } from '../commands/skills.js';
-import { declared } from '../commands/trust.js';
 import type { CommandContext } from '../run.js';
 import { inspect, shown } from './script-trust.js';
+import type { ScriptKind } from './script-trust.js';
 
 const CONFIG = 'accord/config.yml';
 const WORKFLOW = '.github/workflows/accord.yml';
@@ -16,8 +14,43 @@ const FIX_MARK = ' - run: ';
 const PIN_LINE = /^config\.yml pins accord (\S+), running /;
 export const NOT_CHECKED = "config.yml does not pass this CLI's schema";
 
+/** One problem of a rendered hook the audit prints as it is: the text and the command that fixes it. */
+interface HookProblem {
+  text: string;
+  fix: string;
+}
+
+/**
+ * Phase 08.8 D-17 (IN-04): the command-level helpers this loader uses. `accord audit` (packages/cli/src/commands/audit.ts) passes them in, so no loader imports a command (an ESLint rule holds it);
+ * each is typed by the call this file makes, and the audit command's call fails to typecheck when a real helper stops fitting.
+ */
+export interface HealthDeps {
+  /** The newest release the npm registry named at most a day ago (notice.ts `latestRelease`); `observed` is false when nothing answered. */
+  latestRelease: () => Promise<{ latest?: string; observed: boolean }>;
+  /** Whether `a` is a newer plain x.y.z version than `b` (notice.ts `newer`). */
+  newer: (a: string, b: string) => boolean;
+  /** One file read without following a link out of the repository (skills.ts `readRegular`). */
+  readRegular: (root: string, path: string) => { state: 'missing' } | { state: 'skip' } | { state: 'file'; text: string };
+  /** What accord renders for this config against what is on disk (skills.ts `renderHealth`). */
+  renderHealth: (
+    root: string,
+    config: AccordConfig,
+  ) => {
+    checked: number;
+    missing: string[];
+    edited: string[];
+    orphans: string[];
+    retired: string[];
+    hooksMissing: HookProblem[];
+    hooksEdited: HookProblem[];
+    hooksDoubled: HookProblem[];
+  };
+  /** The scripts this repository's config declares (trust.ts `declared`). */
+  declared: (ctx: CommandContext) => Array<{ kind: ScriptKind; command: string }>;
+}
+
 /** The gap for a pin message `pinMessage` built: the first part as the text, and as the fix the command it names, or /accord-upgrade when the running CLI is the newer one. */
-export function pinGap(message: string, running: string): { text: string; fix: string } {
+export function pinGap(message: string, running: string, newer: HealthDeps['newer']): { text: string; fix: string } {
   const at = message.lastIndexOf(FIX_MARK);
   const text = at < 0 ? message : message.slice(0, at);
   const command = at < 0 ? undefined : message.slice(at + FIX_MARK.length);
@@ -30,7 +63,8 @@ export function pinGap(message: string, running: string): { text: string; fix: s
 const FIX_TRUST = (kind: string): string => `run accord trust to read what it runs and its digest, then accord trust ${kind}@<digest> with the digest it shows`;
 
 /** The group 2 facts and gaps (Ruling "group 2 gap ids and fixes"). */
-export async function auditHealth(ctx: CommandContext): Promise<{ facts: AuditFact[]; gaps: AuditGap[] }> {
+export async function auditHealth(ctx: CommandContext, deps: HealthDeps): Promise<{ facts: AuditFact[]; gaps: AuditGap[] }> {
+  const { latestRelease, newer, readRegular, renderHealth, declared } = deps;
   const facts: AuditFact[] = [];
   const gaps: AuditGap[] = [];
   const fact = (name: string, value: string): void => {
@@ -44,7 +78,7 @@ export async function auditHealth(ctx: CommandContext): Promise<{ facts: AuditFa
 
   // the pin against the running CLI (D-18) and against npm
   if (ctx.pinMismatch !== undefined) {
-    const { text, fix } = pinGap(ctx.pinMismatch, pkg.version);
+    const { text, fix } = pinGap(ctx.pinMismatch, pkg.version, newer);
     gap('pin-mismatch', text, fix);
   }
   const configFindings = ctx.snapshot.errors.filter((e) => e.file === CONFIG && e.rule !== 'load.config-missing');

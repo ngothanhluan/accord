@@ -7,12 +7,20 @@ import type { AuditFact, AuditGap } from '@accord-dev/accord-core';
 import { gitDefaultRef, gitTracked } from '../load/fs.js';
 import { machineFacts } from '../load/audit-facts.js';
 import { auditHealth, NOT_CHECKED } from '../load/audit-health.js';
+import type { HealthDeps } from '../load/audit-health.js';
 import { auditHygiene } from '../load/audit-hygiene.js';
+import type { HygieneDeps } from '../load/audit-hygiene.js';
 import type { Found } from '../load/audit-facts.js';
 import { printable } from '../load/detect.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
 import { runTeamCommand } from '../load/team-run.js';
 import type { CommandContext } from '../run.js';
+import { norm } from './leftover.js';
+import { latestRelease, newer } from './notice.js';
+import { readRegular, renderHealth } from './skills.js';
+import { staleReport } from './task-done.js';
+import { declared } from './trust.js';
+import { worktreeClean } from './worktree.js';
 
 const CONVENTIONS = 'accord/product/conventions.md';
 /** The team audit script may run this long and print this much (Ruling "audit.command"): audit tools such as `npm audit` are slower than a pull request script. */
@@ -42,6 +50,10 @@ export function conventionsNotice(root: string): string | undefined {
 
 const tools = (found: readonly Found[]): string => found.map((f) => `${f.tool} (${printable(f.file)})`).join(', ');
 const FIX_QUEUE = (what: string): string => `queue a draft ticket with /accord queue <idea> to ${what}; the audit never changes code or configuration`;
+
+/** Phase 08.8 D-17 (IN-04): the command-level helpers the two audit loaders use, handed to them here so no loader imports a command. */
+const HEALTH: HealthDeps = { latestRelease, newer, readRegular, renderHealth, declared };
+const HYGIENE: HygieneDeps = { norm, staleReport, worktreeClean };
 
 export async function audit(ctx: CommandContext): Promise<number> {
   const config = ctx.snapshot.config;
@@ -98,12 +110,12 @@ export async function audit(ctx: CommandContext): Promise<number> {
   }
 
   // group 2 (D-08, D-18): accord's own setup, after group 1
-  const health = await auditHealth(ctx);
+  const health = await auditHealth(ctx, HEALTH);
   for (const f of health.facts) fact(f.name, f.value);
   for (const g of health.gaps) gap(g.id, g.text, g.fix);
 
   // group 3 (Phase 8.2 D-01..D-08): work hygiene; reads git and files, writes nothing, fetches nothing
-  const hygiene = await auditHygiene(ctx);
+  const hygiene = await auditHygiene(ctx, HYGIENE);
   for (const f of hygiene.facts) fact(f.name, f.value);
   for (const g of hygiene.gaps) gap(g.id, g.text, g.fix);
 

@@ -7,9 +7,6 @@ import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { baselineGap, branchGaps, claimPinBefore, deferredGaps, DEFERRED_MARK_FROM, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, normaliseKey, ownerDeferred, removableBaseline, SAFE_BRANCH, SAFE_ID, statusRows, ticketIdleGaps } from '@accord-dev/accord-core';
 import type { AuditFact, AuditGap, ClaimPin, ClaimRefFact, OldDraft, OwnerDeferred } from '@accord-dev/accord-core';
-import { norm } from '../commands/leftover.js';
-import { staleReport } from '../commands/task-done.js';
-import { worktreeClean } from '../commands/worktree.js';
 import type { CommandContext } from '../run.js';
 import { NOT_CHECKED } from './audit-health.js';
 import { gitClaimFacts } from './claim-facts.js';
@@ -21,6 +18,19 @@ import { whoFor } from './who.js';
 function whoFact(mode: string, value: string | undefined): string {
   if (value === undefined || value === '' || value === 'email' || value === 'initials') return mode;
   return `${mode} (git config accord.who is "${value}", which is neither email nor initials)`;
+}
+
+/**
+ * Phase 08.8 D-17 (IN-04): the command-level helpers this loader uses. `accord audit` (packages/cli/src/commands/audit.ts) passes them in, so no loader imports a command (an ESLint rule holds it);
+ * each is typed by the call this file makes, and the audit command's call fails to typecheck when a real helper stops fitting.
+ */
+export interface HygieneDeps {
+  /** The case-folded, slash-normalised form of a path the worktree list and a clean line are compared by (leftover.ts `norm`). */
+  norm: (path: string) => string;
+  /** The message that says the test report is older than the last commit, or undefined (task-done.ts `staleReport`). */
+  staleReport: (ctx: CommandContext) => string | undefined;
+  /** `accord worktree clean`, run as an offline dry run that prints what a clean would do (worktree.ts `worktreeClean`). */
+  worktreeClean: (ctx: CommandContext, opts: { fetched: 'ok'; dry: 'offline' }) => number;
 }
 
 /** The first non-empty line of an error, for a `not checked` fact. */
@@ -94,7 +104,7 @@ function authorOfSha(root: string, sha: string): string | undefined {
 }
 
 /** The HEAD sha of each worktree of this repository by `norm`ed path, read once (`git worktree list --porcelain`); empty when git cannot say. */
-function worktreeHeads(root: string): Map<string, string> {
+function worktreeHeads(root: string, norm: HygieneDeps['norm']): Map<string, string> {
   const heads = new Map<string, string>();
   try {
     for (const entry of git(root, ['worktree', 'list', '--porcelain']).split(/\r?\n\r?\n/)) {
@@ -127,7 +137,7 @@ function shortRef(ref: string): string {
  * D-03: the lines an offline dry clean prints (it fetches nothing and reports no prune of remote refs), as the lines a real clean would print for the refs already in this clone.
  * `undefined` when the clean threw; the audit then says it did not check.
  */
-function dryCleanLines(ctx: CommandContext): string[] | undefined {
+function dryCleanLines(ctx: CommandContext, worktreeClean: HygieneDeps['worktreeClean']): string[] | undefined {
   let text = '';
   const sink = new Writable({
     write(chunk, _encoding, done) {
@@ -161,8 +171,8 @@ class Lazy<T> {
  * Ruling "worktree-leftover wording": one gap per would-be removal, the author of the commit the line names. `deleted` lines carry `(was <sha>)`; a `removed <path>` line is the HEAD of
  * that worktree. Returns the gaps and the branch names (`t/x`, `origin/t/x`) the lines delete.
  */
-function leftovers(ctx: CommandContext, lines: string[], who: (email: string) => string): { gaps: AuditGap[]; deleted: Set<string> } {
-  const heads = new Lazy(() => worktreeHeads(ctx.root));
+function leftovers(ctx: CommandContext, lines: string[], who: (email: string) => string, norm: HygieneDeps['norm']): { gaps: AuditGap[]; deleted: Set<string> } {
+  const heads = new Lazy(() => worktreeHeads(ctx.root, norm));
   const cut = lines.map((l) => (l.includes(NEXT) ? l.slice(0, l.indexOf(NEXT)) : l));
   const authorOf = (line: string): string | undefined => {
     if (line.startsWith('removed ')) {
@@ -226,7 +236,7 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
 }
 
 /** D-03, D-06: group 3's second half: what a clean would remove, and the claim branches no clean handles (Rulings "worktree-leftover wording", "branch checks", "G2 facts"). */
-function auditBranches(ctx: CommandContext, who: (email: string) => string, staleDays: string, facts: AuditFact[], gaps: AuditGap[]): void {
+function auditBranches(ctx: CommandContext, deps: HygieneDeps, who: (email: string) => string, staleDays: string, facts: AuditFact[], gaps: AuditGap[]): void {
   let deleted = new Set<string>();
   let defaultRef: string | undefined;
   try {
@@ -237,12 +247,12 @@ function auditBranches(ctx: CommandContext, who: (email: string) => string, stal
   if (defaultRef === undefined) {
     facts.push({ name: 'worktree-refs', value: 'no observation (no default branch in this clone)' });
   } else {
-    const lines = dryCleanLines(ctx);
+    const lines = dryCleanLines(ctx, deps.worktreeClean);
     if (lines === undefined) {
       facts.push({ name: 'worktree-refs', value: 'not checked (the offline dry clean could not run)' });
     } else {
       facts.push({ name: 'worktree-refs', value: 'judged against the refs already in this clone; accord worktree clean --dry-run fetches first' });
-      const found = leftovers(ctx, lines, who);
+      const found = leftovers(ctx, lines, who, deps.norm);
       gaps.push(...found.gaps);
       deleted = found.deleted;
     }
@@ -352,7 +362,7 @@ function baselineLines(root: string): Map<string, number[]> {
  * written before the last commit (the staleness guard `accord tests baseline` applies too: this repository's `tests.affected` writes the same path with a subset) the fact says `no observation`,
  * never that none can go. Reads the baseline and the report from the checkout the audit already loaded, writes nothing and calls no model.
  */
-function auditBaseline(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]): void {
+function auditBaseline(ctx: CommandContext, staleReport: HygieneDeps['staleReport'], facts: AuditFact[], gaps: AuditGap[]): void {
   const ids = ctx.snapshot.testsBaseline;
   if (ids === undefined) {
     facts.push({ name: 'tests-baseline', value: 'no accord/tests-baseline.txt' });
@@ -392,7 +402,7 @@ function auditBaseline(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
 }
 
 /** The group 3 facts and gaps (Rulings "group 3 facts, G1", "gap wording"). Every string goes through audit.ts's `fact()` and `gap()` closures, which make it printable. */
-export async function auditHygiene(ctx: CommandContext): Promise<{ facts: AuditFact[]; gaps: AuditGap[] }> {
+export async function auditHygiene(ctx: CommandContext, deps: HygieneDeps): Promise<{ facts: AuditFact[]; gaps: AuditGap[] }> {
   const facts: AuditFact[] = [];
   const gaps: AuditGap[] = [];
   const config = ctx.snapshot.config;
@@ -406,7 +416,7 @@ export async function auditHygiene(ctx: CommandContext): Promise<{ facts: AuditF
     // Phase 08.8 D-17 (IN-02): the two claim checks need the config too, so they are listed as not checked rather than left out
     facts.push({ name: 'claim-unpushed', value: `not checked (${NOT_CHECKED})` });
     facts.push({ name: 'claim-branches', value: `not checked (${NOT_CHECKED})` });
-    auditBaseline(ctx, facts, gaps);
+    auditBaseline(ctx, deps.staleReport, facts, gaps);
     return { facts, gaps };
   }
   const staleDays = config.stale_days ?? '14';
@@ -438,10 +448,10 @@ export async function auditHygiene(ctx: CommandContext): Promise<{ facts: AuditF
     gaps.length = 0; // a failed read leaves no half result: no gap is printed for a check that did not finish
   }
   // D-03, D-06: its own guard, so a failure here never takes group 3's first half with it
-  auditBranches(ctx, who.show, staleDays, facts, gaps);
+  auditBranches(ctx, deps, who.show, staleDays, facts, gaps);
   // D-04, D-06, D-10: its own guard as well
   auditDeferred(ctx, facts, gaps);
   // D-05, D-11: the baseline and the report are read from the checkout, so this check needs no git beyond the report's age
-  auditBaseline(ctx, facts, gaps);
+  auditBaseline(ctx, deps.staleReport, facts, gaps);
   return { facts, gaps };
 }

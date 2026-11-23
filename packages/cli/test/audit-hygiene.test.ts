@@ -13,6 +13,9 @@ import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './he
 import { copy, doneOnRemote, has, makeClone, ticketWorktree, useSandboxes } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
 import * as limit from '../src/commands/fetch-limit.js';
+import { norm } from '../src/commands/leftover.js';
+import { staleReport } from '../src/commands/task-done.js';
+import { worktreeClean } from '../src/commands/worktree.js';
 import { auditHygiene } from '../src/load/audit-hygiene.js';
 import { loadFromFs } from '../src/load/fs.js';
 import type { CommandContext } from '../src/run.js';
@@ -577,7 +580,7 @@ it('risk:regression the tests-baseline fact is printed once when the baseline ca
   const ctx = { root: repo, snapshot: loadSnapshot(loadFromFs(repo)), stdout: new PassThrough(), stderr: new PassThrough(), env: {} } as CommandContext;
   expect(ctx.snapshot.testsBaseline, 'the snapshot must hold the baseline for this case').toHaveLength(5);
   rmSync(resolve(repo, BASELINE));
-  const { facts } = await auditHygiene(ctx);
+  const { facts } = await auditHygiene(ctx, { norm, staleReport, worktreeClean });
   const own = facts.filter((f) => f.name === 'tests-baseline');
   expect(own).toHaveLength(1);
   expect(own[0].value).toContain('removable ones: not checked (accord/tests-baseline.txt could not be read');

@@ -176,3 +176,34 @@ it('risk:resource overlapRepeats is two for an accepted overlapping pattern and 
   expect(overlapRepeats(r`a*a*b`, '')).toBe(2);
   for (const source of [r`a+b+`, r`\bfoo\b`, r`(ab)+`, r`a`]) expect(overlapRepeats(source, ''), source).toBeLessThan(2);
 });
+
+// Phase 08.8 D-12: a refusal text that quotes a pattern as refused must be right. The three lists are the quotes of EXPONENTIAL_REASON, WAYS_REASON and CHAIN_REASON, by hand (a new quote is added here);
+// the reason of each list is what its first pattern is refused with.
+it('risk:parsing each refusal reason quotes only patterns the guard refuses with that reason (D-12)', () => {
+  const quotes: [string, string[]][] = [
+    [r`(a+)+`, [r`(a+)+`, r`(a|a)*`, r`(a?b?)*`]],
+    [r`a?a?a?a?a?`, [r`a?a?a?a?a?`, r`(a|a)(a|a)(a|a)(a|a)(a|a)`]],
+    [r`\d{1,3}\d{1,3}\d{1,3}`, [r`\d{1,3}\d{1,3}\d{1,3}`]],
+  ];
+  for (const [anchor, examples] of quotes) {
+    const reason = backtrackProblem(anchor, '');
+    expect(reason, anchor).toEqual(expect.any(String));
+    for (const example of examples) {
+      expect(reason, example).toContain(example);
+      expect(backtrackProblem(example, ''), example).toBe(reason);
+    }
+  }
+});
+
+// Phase 08.8 D-12: nested fixed counts are one way to match, and a bounded IPv4 pattern has dots between its repeats; both run in linear time on hostile lines of 1000 characters.
+it('risk:security nested fixed counts and a bounded IPv4 are accepted and stay fast on hostile lines (D-12)', () => {
+  const shapes = [r`(?:a{5}){5}`, r`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`, r`(?:ab){10}`, r`(?:a|b){6}c`];
+  const lines = ['a'.repeat(1000), '9'.repeat(1000), '1.1.1.'.repeat(166) + '1', '255.255.255.255.'.repeat(62) + 'x', 'ab'.repeat(500), '1'.repeat(24) + 'b'];
+  for (const source of shapes) {
+    expect(backtrackProblem(source, ''), source).toBeUndefined();
+    const re = new RegExp(source);
+    const start = performance.now();
+    for (const line of lines) re.test(line);
+    expect(performance.now() - start, source).toBeLessThan(500);
+  }
+});

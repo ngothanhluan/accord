@@ -529,8 +529,33 @@ export function ago(at, now) {
 // The CLI orders the log newest first; the view only cuts it. A commit, a report and a gate run draw alike.
 export const LOG_SHOWN = 8;
 
-export function logRows(log, now) {
-  return log.slice(0, LOG_SHOWN).map((e) => ({ age: ago(e.at, now), text: clean(e.text), fail: e.fail === true }));
+// Phase 08.8.1 L-07: the most lines the pane draws, the CLI's own cap (LOG_CAP in the CLI's ticket-log).
+export const LOG_MAX = 50;
+
+// Phase 08.8.1 L-07: entries of the same kind and text merge into the newest of them (the CLI orders newest first, so the first one met is kept in its place); `count` is the length of the list of repeats.
+export function mergeLog(log) {
+  const kept = new Map();
+  for (const e of log) {
+    const key = `${e.kind}\u0000${e.text}`;
+    const seen = kept.get(key);
+    if (seen === undefined) kept.set(key, { ...e, count: 1 });
+    else seen.count += 1;
+  }
+  return [...kept.values()];
+}
+
+// Phase 08.8.1 L-07: merge first, then cut to the room the pane has (at least LOG_SHOWN, at most LOG_MAX), LOG_SHOWN when the room is no usable number; `count` only above 1, `newest` on the first row.
+export function logRows(log, now, room) {
+  const shown = num(room) ? Math.min(LOG_MAX, Math.max(LOG_SHOWN, Math.floor(room))) : LOG_SHOWN;
+  return mergeLog(log)
+    .slice(0, shown)
+    .map((e, i) => ({
+      age: ago(e.at, now),
+      text: clean(e.text),
+      fail: e.fail === true,
+      ...(e.count > 1 ? { count: e.count } : {}),
+      ...(i === 0 ? { newest: true } : {}),
+    }));
 }
 
 // Phase 08.8.1 W4: the newest log entry of kind gate (the CLI orders the log newest first), so a newer report or commit does not hide a gate run.
@@ -544,7 +569,7 @@ export function failureOf(log) {
 
 // The ticket tab: the head (title and stage bar), the failure box, then the review rounds, the criteria checklist and the session log, each only when the JSON holds it.
 // `now` is the epoch second of the draw. A message replaces all of it while the run is loading or failed. An off cell reads `<label> off`.
-export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiting }) {
+export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiting, room }) {
   const s = ticket?.state;
   if (s === undefined) return { message: ['Loading…'] };
   if (s.message !== undefined) return { message: s.message.split(NL).map(clean).filter((l) => l) };
@@ -559,7 +584,7 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
       ...(failure === undefined ? {} : { failure }),
       ...(t.review === undefined ? {} : { review: reviewRows(t.review) }),
       ...(t.criteria.length === 0 ? {} : { criteria: criteriaRows(t.criteria) }),
-      ...(t.log === undefined ? {} : { log: logRows(t.log, now) }),
+      ...(t.log === undefined ? {} : { log: logRows(t.log, now, room) }),
     };
   }
   const cells = pipelineOf(t).map((c) => ({ ...c, text: clean(c.state === 'off' ? `${c.label} off` : c.label) }));
@@ -580,6 +605,6 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
     ...(failure === undefined ? {} : { failure }),
     ...(t.review === undefined ? {} : { review: reviewRows(t.review) }),
     ...(t.criteria.length === 0 ? {} : { criteria: criteriaRows(t.criteria) }),
-    ...(t.log === undefined ? {} : { log: logRows(t.log, now) }),
+    ...(t.log === undefined ? {} : { log: logRows(t.log, now, room) }),
   };
 }

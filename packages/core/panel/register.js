@@ -1,4 +1,4 @@
-import { actionFor, agentRows, answerLine, BACKGROUND, briefTask, clean, currentOf, detailOutcome, detailView, failure, isAccordAgent, layoutOf, outcome, runsAccord, setCustom, setMotion, setPalette, setPlace, setStyle, settingsOf, settingsView, tabLabels, ticketView, toggleEffect, toolLabel, view, widgetView } from './view.js';
+import { actionFor, agentRows, answerLine, BACKGROUND, briefTask, clean, currentOf, detailOutcome, detailView, effectsOf, failure, FRAME_RATE, isAccordAgent, layoutOf, outcome, runsAccord, setCustom, setMotion, setPalette, setPlace, setStyle, settingsOf, settingsView, tabLabels, ticketView, toggleEffect, toolLabel, view, widgetView } from './view.js';
 
 // Phase 08.7 D-02, probe row A3 (headless session of 2026-11-23): the `$.agent.list()` entry joins a subagent event by its `id`, which equals the event's `agentId`.
 const LIST_ID_KEY = 'id';
@@ -27,7 +27,10 @@ let settingsOpen = false;
 // Phase 08.8.1-07 L-02: the text typed into a settings field until it is submitted, by the field's key, and the newest refusal `{ key, text }`
 let drafts = {};
 let notice;
-let tick;
+// Phase 08.8.1-08 D-03: the one redraw timer, `{ timer, ms }`; undefined while nothing runs or plays
+let frame;
+// the surfaces the pane has been drawn on in this session; a draw off the terminal caps the rate at 10 a second
+const drawn = new Set();
 let debounce;
 // whether the host's `$.agent.list()` answered with a list at its last call; the agents block is drawn only then. The host's nouns are only ever called (a call that throws means the host lacks the noun), never read as values.
 let listing = false;
@@ -83,18 +86,24 @@ function noteTool($, e) {
 const shownTab = () => (ticket === undefined ? 'dashboard' : (picked ?? 'ticket'));
 const runningAgents = () => [...roster.values()].filter((a) => a.running).length;
 
-// One 1-second redraw timer while an accord agent runs and the ticket tab is shown; cancelled when none runs or another tab shows. A host without `$.clock` gets no timer.
-function ensureTick($, widget = false) {
-  const want = !widget && shownTab() === 'ticket' && runningAgents() > 0;
-  if (want && tick === undefined) {
+// Phase 08.8.1-08 D-03: the one redraw timer. It exists only while the ticket tab shows (no widget, settings view closed) and an accord agent runs; at FRAME_RATE a second (at most 10 off the terminal) while any effect is on,
+// else once a second for the running agents' clocks. Nothing running means no timer at all. One timer at a time, cancelled when no longer wanted or when its period changes; a host without `$.clock` gets none.
+function ensureFrames($, widget = false) {
+  const surfaces = drawn.size === 0 ? ['terminal'] : [...drawn];
+  const moving = surfaces.some((s) => effectsOf(settings, s).size > 0);
+  const rate = surfaces.some((s) => s !== 'terminal') ? Math.min(FRAME_RATE, 10) : FRAME_RATE;
+  const want = !widget && shownTab() === 'ticket' && !settingsOpen && runningAgents() > 0;
+  const ms = want ? (moving ? Math.round(1000 / rate) : 1000) : undefined;
+  if (frame !== undefined && frame.ms !== ms) {
+    frame.timer.cancel();
+    frame = undefined;
+  }
+  if (ms !== undefined && frame === undefined) {
     try {
-      tick = $.clock.every(1000, () => void $.ui.invalidate('ui.render'));
+      frame = { timer: $.clock.every(ms, () => void $.ui.invalidate('ui.render')), ms };
     } catch {
-      tick = undefined;
+      frame = undefined;
     }
-  } else if (!want && tick !== undefined) {
-    tick.cancel();
-    tick = undefined;
   }
 }
 
@@ -131,7 +140,7 @@ async function noteAgent($, agentId) {
   }
   roster.set(agentId, { type: entry.type, startTime: typeof entry.startTime === 'number' ? entry.startTime : Date.now(), running: true });
   trimRoster();
-  ensureTick($);
+  ensureFrames($);
   await invalidate($);
 }
 
@@ -150,7 +159,7 @@ async function reconcile($) {
       a.endTime = now;
     }
   }
-  ensureTick($);
+  ensureFrames($);
 }
 
 // One `show` refresh after an accord agent ends, debounced 3 seconds so a burst of agents costs one run.
@@ -219,7 +228,7 @@ function syncTicket($) {
 
 function clearRoster($) {
   roster.clear();
-  ensureTick($);
+  ensureFrames($);
 }
 
 // Phase 08.8.1 IN-03: one single-flight loader for both `show` slots, the claimed ticket's and the open detail's.
@@ -404,7 +413,7 @@ export function register(on) {
         agent.running = false;
         agent.durationMs = typeof e.durationMs === 'number' ? e.durationMs : now - agent.startTime;
         agent.endTime = now;
-        ensureTick($);
+        ensureFrames($);
         scheduleTicketRefresh($);
         await invalidate($);
         return;
@@ -431,7 +440,10 @@ export function register(on) {
     const { Box, Text, Button, Input, Progress } = $.ui.resolve(e);
     // D-06: where desktop shows the pane as a widget, clicks may not reach it: the two tab summaries (or the hint and the dashboard summary) as text, no Button
     const widget = e.props?.placement === 'widget';
-    ensureTick($, widget);
+    // Phase 08.8.1-08 D-03: the surface of this draw; a draw off the terminal caps the frame rate (the timer follows at its next check, which is this one)
+    const surface = typeof e.surface === 'string' ? e.surface : 'terminal';
+    drawn.add(surface);
+    ensureFrames($, widget);
     if (widget) return Box({ flexDirection: 'column', children: widgetView({ state, ticket, running: runningAgents() }).map((line) => Text({ children: [line] })) });
     const children = [];
     const redrawNow = () => void $.ui.invalidate('ui.render');
@@ -579,7 +591,7 @@ export function register(on) {
     }
     if (tab === 'ticket') {
       const nowMs = Date.now();
-      const viewArgs = { ticket, now: Math.floor(nowMs / 1000), nowMs, agents: [...roster].map(([key, a]) => ({ key, ...a })), waiting, settings };
+      const viewArgs = { ticket, now: Math.floor(nowMs / 1000), nowMs, agents: [...roster].map(([key, a]) => ({ key, ...a })), waiting, settings, motion: { effects: runningAgents() > 0 ? effectsOf(settings, surface) : new Set() } };
       const tv = ticketView(viewArgs);
       // Phase 08.8.1 L-07: the rows drawn above the LOG block, counted as the blocks are built (a tab row, a bordered block is its rows plus two borders and a heading), so the log can take the rows the pane has left
       let used = ticket !== undefined ? 1 : 0;
@@ -612,7 +624,11 @@ export function register(on) {
         );
         used += 3 + (tv.planChanged === undefined ? 0 : 1) + (narrow && tv.current !== undefined ? 1 : 0) + (tv.now ?? []).length;
         // Phase 08.8.1 L-06: the NOW lines right under the head, the first bold and the second dimmed
-        for (const [i, l] of (tv.now ?? []).entries()) children.push(Text({ ...(i === 0 ? { bold: true, color: l.color } : { dimColor: true }), wrap: 'truncate', children: [l.text] }));
+        // Phase 08.8.1-08 L-01: while the shimmer is on the first line is one coloured Text per character, the glow moving with the frame
+        for (const [i, l] of (tv.now ?? []).entries()) {
+          if (i === 0 && l.run !== undefined) children.push(Text({ bold: true, wrap: 'truncate', children: l.run.map((r) => Text({ color: r.color, children: [r.ch] })) }));
+          else children.push(Text({ ...(i === 0 ? { bold: true, color: l.color } : { dimColor: true }), wrap: 'truncate', children: [l.text] }));
+        }
         // D-04: below the head, in order: the failure box, the review rounds, the criteria checklist and the session log. Nothing here names context, tokens or cost (D-08).
         const block = (heading, rows) => {
           used += 3 + rows.length;

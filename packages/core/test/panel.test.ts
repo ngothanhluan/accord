@@ -2940,3 +2940,20 @@ it('risk:security the pane reaches the host only through the display nouns and r
   expect(runs).toHaveLength(2);
   for (const argv of runs) expect(argv).toMatch(/^\['npx', '--yes', 'ACCORD_PACKAGE_SPEC', '(?:dashboard|show)'/);
 });
+
+// Phase 08.8.1 audit finding (T-08.7-18): `claude plugin validate` refuses a pane whose inner binding is named like the hook continuation, and the settings view's `edit = (next) => ...` shadowed it since 08.8.1-07. This scan mirrors that rule on the source.
+it('risk:regression no function in the pane declares a binding named next, which the plugin validator reads as shadowing the hook continuation (T-08.7-18)', () => {
+  const lines = readFileSync(new URL('../panel/register.js', import.meta.url), 'utf8').split('\n');
+  const found: string[] = [];
+  lines.forEach((line, i) => {
+    if (/^\s*\/\//.test(line)) return;
+    for (const m of line.matchAll(/\(([^()]*)\)\s*=>|\bfunction\s*\w*\s*\(([^()]*)\)|\bcatch\s*\(([^()]*)\)/g)) {
+      const params = (m[1] ?? m[2] ?? m[3] ?? '').split(',').map((p) => p.trim());
+      // a hook callback receives the continuation as its own last parameter: `($, e, next)`
+      const own = params.length === 3 && params[0] === '$' && params[1] === 'e' && params[2] === 'next';
+      if (params.some((p) => /^(?:\.\.\.)?next\b/.test(p) || /\{[^}]*\bnext\b/.test(p)) && !own) found.push(`${i + 1}: ${line.trim()}`);
+    }
+    if (/\bnext\s*=>|\b(?:const|let|var)\s+(?:next\b|[{[][^=]*\bnext\b)/.test(line)) found.push(`${i + 1}: ${line.trim()}`);
+  });
+  expect(found).toEqual([]);
+});

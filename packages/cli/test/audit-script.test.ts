@@ -89,3 +89,14 @@ it('risk:security a config that fails the schema runs no team audit script (D-19
   expect(existsSync(marker)).toBe(false);
   expect(r.lines).toContain("fact: team-audit: not checked (config.yml does not pass this CLI's schema)");
 });
+
+// Phase 08.8 D-16 (IN-05): the team audit line is cut to its length before it is escaped, so an escape sequence is never cut in half.
+it('risk:parsing the team audit line is cut before it is escaped (D-16)', async () => {
+  const { repo } = sandbox("process.stdout.write('a'.repeat(199) + String.fromCharCode(27) + 'more text\\n'); process.exit(1);");
+  expect((await trustAllow(repo, ['audit.command'])).code).toBe(0);
+  const r = await audit(repo);
+  expect(r.code, r.out).toBe(0);
+  const gap = (r.lines.find((l) => l.startsWith('gap: team-audit:')) ?? '').split(' - fix:')[0];
+  // 199 characters and the whole escape: `<U+001B>` is one character of the cut line, never a stub such as `<U+00`
+  expect(gap, r.out).toBe('gap: team-audit: ' + 'a'.repeat(199) + '<U+001B>');
+});

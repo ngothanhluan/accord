@@ -8,6 +8,20 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vite
 import { debugStatePath, readDebugState } from '../src/commands/debug.js';
 import { cleanup, commitAll, gitRun, makeRepo, run } from './helpers/repo.js';
 
+// Phase 08.8 review WR-01: on Windows another account can write in the folder between `mkdir` and the `icacls` run that makes it private. `plant` stands for that account:
+// when set, the folder is made private as usual and then a file of that name appears in it, on every OS (makePrivate is a no-op off Windows, so the window is the same call).
+const race = vi.hoisted(() => ({ plant: undefined as string | undefined }));
+vi.mock('../src/load/debug-folder.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/load/debug-folder.js')>();
+  return {
+    ...real,
+    makePrivate: (dir: string, ...rest: unknown[]) => {
+      (real.makePrivate as (d: string, ...r: unknown[]) => void)(dir, ...rest);
+      if (race.plant !== undefined) writeFileSync(join(dir, race.plant), '## Episode 1\n\nplanted by another account\n');
+    },
+  };
+});
+
 // vitest forks one process per file, so the stub reaches no other file; `tmpdir()` reads TMPDIR, TEMP and TMP when it is called.
 let own = '';
 const stubTmp = (): void => {
@@ -153,6 +167,31 @@ it.runIf(process.platform === 'win32')('risk:security on Windows debug path refu
   expect(refused.err).toContain('TEMP');
   expect(readFileSync(file, 'utf8')).toBe('## Episode 1\n\nthe export drops a row\n');
   expect(readdirSync(folder)).toEqual([file.slice(file.lastIndexOf('/') + 1)]);
+});
+
+// Phase 08.8 review WR-01: a folder accord made this run is empty after makePrivate or refused, and the state file in it is created with the exclusive flag, never adopted.
+it('risk:security accord debug path refuses a folder it just made when a file appears in it before it was private (08.8 REVIEW WR-01)', async () => {
+  const repo = sandbox();
+  const file = debugStatePath(repo);
+  const folder = file.slice(0, file.lastIndexOf('/'));
+  const name = file.slice(file.lastIndexOf('/') + 1);
+  try {
+    for (const plant of [name, 'other.md']) {
+      race.plant = plant;
+      const out = await run(['debug', 'path'], repo);
+      expect(out.code, plant).toBe(2);
+      expect(out.err).toContain(folder);
+      expect(out.out).toBe('');
+      expect(readFileSync(join(folder, plant), 'utf8'), 'the planted file is left as it was').toContain('planted by another account');
+      rmSync(folder, { recursive: true, force: true });
+    }
+  } finally {
+    race.plant = undefined;
+  }
+  // with nothing planted the same run makes the folder and the file
+  const fresh = await run(['debug', 'path'], repo);
+  expect(fresh.code, fresh.err).toBe(0);
+  expect(readFileSync(file, 'utf8')).toBe('');
 });
 
 // Phase 08.8 D-14 (WR-02): a state file over DEBUG_STATE_MAX (1 MiB) is refused, naming the size, and is never read.

@@ -893,6 +893,31 @@ it('risk:security a hand-edited agent or skill Markdown line that matches a patt
   expect(run('docs/guide.md')).toEqual([]);
 });
 
+// Phase 08.8 D-13: lint.security-file stays LOCKED at error, so the parser must not fail a prose heading; a misspelt reader heading and a pattern-shaped line under an unread heading are still caught.
+it('risk:parsing a prose heading of security.md is accepted and a near-miss reader heading is still flagged (D-13)', () => {
+  const base = ['## Patterns', '', '- x: path x/ — y', ''];
+  const make = (heading: string, body: string[]): string => [...base, `## ${heading}`, '', ...body, ''].join('\n');
+  const prose = ['Keep this file short.', 'Ask the owner before a new pattern.'];
+  // a prose heading with prose lines gives no problem, in the parser and in the lint rule
+  expect(parseSecurityFile(make('Notes', prose)).problems).toEqual([]);
+  expect(lintSnapshot(withFile(make('Notes', prose))).findings.filter((f) => f.rule === 'lint.security-file')).toEqual([]);
+  expect(parseSecurityFile(make('Why we have this file', ['- a plain bullet', '- another one'])).problems).toEqual([]);
+  // a near-miss of a reader heading is still flagged at its heading line (line 5), with or without lines
+  for (const heading of ['Pattern', 'Check', 'Removd', 'Checklists', 'Remove']) {
+    const spec = parseSecurityFile(make(heading, prose));
+    expect(spec.problems.map((p) => p.line), heading).toEqual([5]);
+    expect(spec.problems[0].reason, heading).toContain(`"## ${heading}" is not a section accord reads`);
+  }
+  // an unread heading holding a line shaped like a pattern, a check or a removal is flagged: that line would silently do nothing
+  for (const line of ['- z: path z/ — y', '- z: line /a/ — y', '- z: check this', '- Removed: spawn — a reason']) {
+    const spec = parseSecurityFile(make('Notes', [line]));
+    expect(spec.problems.map((p) => p.line), line).toEqual([5]);
+    expect(spec.problems[0].reason, line).toContain('"## Notes" is not a section accord reads');
+  }
+  // the level stays error
+  expect(lintSnapshot(withFile(make('Pattern', prose))).findings.filter((f) => f.rule === 'lint.security-file').map((f) => f.level)).toEqual(['error']);
+});
+
 // D-21 (8-ac-15), lint-only (owner, 2026-11-19): a path entry that can never match and a heading accord never reads are lint.security-file problems that name the fix. None is marked
 // `pattern`, so the gate does not refuse for them, and a line with a bad path entry still reaches spec.patterns as 0.8.0 read it.
 it('risk:security a path entry that can never match is a lint problem naming the fix (8-ac-15)', () => {
@@ -940,7 +965,8 @@ it('risk:security a repeated or unknown section heading of the security file is 
     expect(spec.problems.map((p) => p.line), heading).toEqual([9]);
     expect(spec.problems[0].reason, heading).toContain(`"## ${heading}" is not a section accord reads; use ## Patterns, ## Checklist or ## Removed`);
     expect(spec.problems[0], heading).not.toHaveProperty('pattern');
-    const found = lintSnapshot(withFile(lines([`## ${heading}`]))).findings.filter((f) => f.rule === 'lint.security-file');
+    // Phase 08.8 D-13: `## Notes` is flagged here because its section holds a pattern-shaped line (a bare `## Notes` is prose and is accepted, below)
+    const found = lintSnapshot(withFile(lines([`## ${heading}`, '', '- z: path z/ — y']))).findings.filter((f) => f.rule === 'lint.security-file');
     expect(found.map((f) => [f.level, f.line]), heading).toEqual([['error', 9]]);
   }
   // letter case and spacing of a known heading do not matter, and a heading inside a fence is no heading

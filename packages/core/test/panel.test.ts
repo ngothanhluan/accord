@@ -2121,3 +2121,156 @@ it('risk:regression the settings key opens the view and a saved preset colours t
   const broken = await paneWith({}, (x) => void x.$.store.get.mockRejectedValue(new Error('no store')));
   expect(titleColors(broken)[0]).toBe('#e07a4f');
 });
+
+// ---- Phase 08.8.1-07 task 2: the whole settings view ----
+
+const inputOf = (h: Awaited<ReturnType<typeof host>>, key: string): Record<string, any> => h.nodes('Input').find((n) => n.props.key === key)?.props as Record<string, any>;
+const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 5));
+const buttonOf = (h: Awaited<ReturnType<typeof host>>, key: string): Record<string, any> => h.buttons().find((b) => b.key === key) as Record<string, any>;
+// the pane of a claimed ticket with the settings view open
+async function settingsPane(): Promise<Awaited<ReturnType<typeof host>>> {
+  const h = await paneWith({});
+  press(h, 'settings');
+  await vi.waitFor(() => expect(inputOf(h, 'place:title')).toBeDefined());
+  return h;
+}
+const savedOf = async (h: Awaited<ReturnType<typeof host>>): Promise<Record<string, any>> => {
+  press(h, 'save');
+  await flush();
+  return h.store.get('settings') as Record<string, any>;
+};
+const REFUSAL = 'a colour is #rrggbb, e.g. #e07a4f';
+
+// Phase 08.8.1 L-02 (T-08.8.1-21, T-08.8.1-22): a colour that is not #rrggbb is refused and the old value kept; a failure or waiting colour under 3:1 is refused and that place reset to auto, so the store never holds a faint colour.
+it('risk:security a colour that is not rrggbb is refused and a faint failure or waiting colour is refused (L-02)', async () => {
+  const { contrastOk, setPlace, setCustom, settingsOf, FIXED, BACKGROUND } = await loadView();
+  expect(contrastOk('#0c0d11', '#0b0c10')).toBe(false);
+  expect(contrastOk('#ff5f6d', '#0b0c10')).toBe(true);
+  expect(contrastOk('blue', '#0b0c10')).toBe(false);
+  for (const preset of Object.values(FIXED) as Record<string, string>[]) for (const c of Object.values(preset)) expect(contrastOk(c, BACKGROUND), c).toBe(true);
+  const base = settingsOf(undefined);
+  expect(setPlace(base, 'title', ' #3EC6E0 ', BACKGROUND).settings.places).toEqual({ title: '#3ec6e0' });
+  expect(setPlace({ ...base, places: { title: '#3ec6e0' } }, 'title', 'auto', BACKGROUND).settings.places).toEqual({});
+  for (const bad of ['#zzz', 'blue', '#12345', '#1234567', '']) {
+    const got = setPlace({ ...base, places: { title: '#3ec6e0' } }, 'title', bad, BACKGROUND);
+    if (bad === '') expect(got.settings.places).toEqual({});
+    else expect(got, bad).toEqual({ refused: REFUSAL });
+  }
+  expect(setCustom(base, 0, '#zzz')).toEqual({ refused: REFUSAL });
+  expect(setCustom(base, 1, '#00FF00').settings.custom[1]).toBe('#00ff00');
+  expect(setCustom(base, 1, '#00FF00').settings.palette).toBe('custom');
+  const faint = setPlace({ ...base, places: { fail: '#ff5f6d' } }, 'fail', '#0c0d11', BACKGROUND);
+  expect(faint.settings.places).toEqual({});
+  expect(faint.refused).toContain('#0b0c10');
+  expect(faint.refused).toContain(FIXED.aurora.fail);
+  expect(setPlace(base, 'wait', '#0c0d11', BACKGROUND).settings.places).toEqual({});
+  // a faint colour of any other place is a choice, not a refusal
+  expect(setPlace(base, 'title', '#0c0d11', BACKGROUND)).toEqual({ settings: { ...base, places: { title: '#0c0d11' } } });
+  // read from the store, a faint wait or fail colour is auto
+  expect(settingsOf({ v: 1, places: { wait: '#0c0d11', fail: '#0c0d11', title: '#0c0d11' } }).places).toEqual({ title: '#0c0d11' });
+  // in the pane: after each refusal the held and the stored settings are unchanged
+  const h = await settingsPane();
+  inputOf(h, 'place:title').onSubmit('#3ec6e0');
+  await flush();
+  expect((await savedOf(h)).places).toEqual({ title: '#3ec6e0' });
+  for (const bad of ['#zzz', 'blue', '#12345', '#1234567']) {
+    inputOf(h, 'place:title').onSubmit(bad);
+    await flush();
+    expect(h.texts(), bad).toContain(REFUSAL);
+    expect(inputOf(h, 'place:title').value, bad).toBe('#3ec6e0');
+    expect((await savedOf(h)).places, bad).toEqual({ title: '#3ec6e0' });
+  }
+  inputOf(h, 'place:title').onSubmit('auto');
+  await flush();
+  expect(inputOf(h, 'place:title').value).toBe('auto');
+  expect((await savedOf(h)).places).toEqual({});
+  inputOf(h, 'place:fail').onSubmit('#ff5f6d');
+  await flush();
+  expect((await savedOf(h)).places).toEqual({ fail: '#ff5f6d' });
+  inputOf(h, 'place:fail').onSubmit('#0c0d11');
+  await flush();
+  expect(h.texts().some((x) => x.includes('#0b0c10') && x.includes('preset'))).toBe(true);
+  expect(inputOf(h, 'place:fail').value).toBe('auto');
+  const stored = await savedOf(h);
+  expect(Object.hasOwn(stored.places, 'fail')).toBe(false);
+  expect(JSON.stringify(stored)).not.toContain('#0c0d11');
+  expect(JSON.stringify(stored)).not.toContain('#ff5f6d');
+  inputOf(h, 'custom:0').onSubmit('#zzz');
+  await flush();
+  expect(h.texts()).toContain(REFUSAL);
+  expect((await savedOf(h)).custom[0]).toBe('#e07a4f');
+});
+
+// Phase 08.8.1 L-02 L-01: the view holds every choice the sketch's Lab holds, and Default resets them all.
+it('risk:regression the settings view holds the presets the style the places the motion level and the twelve switches and Default resets them (L-02 L-01)', async () => {
+  const { settingsView, settingsOf } = await loadView();
+  const sw = settingsView(settingsOf({ v: 1, palette: 'ember' }));
+  expect(sw.palettes.map((p: any) => p.name)).toEqual(['aurora', 'ember', 'ocean', 'forest', 'sunset', 'mono', 'contrast', 'custom']);
+  expect(sw.palettes.find((p: any) => p.name === 'ember').swatch).toHaveLength(5);
+  expect(sw.palettes.find((p: any) => p.name === 'ember').swatch[0]).toEqual({ ch: '█', color: '#ff7a45' });
+  expect(sw.palettes.find((p: any) => p.name === 'ember').selected).toBe(true);
+  expect(sw.places.map((p: any) => p.label)).toEqual(['title', 'stage track', 'live line', 'agents', 'progress bar', 'criteria', 'log', 'done tick', 'waiting for you', 'failure']);
+  expect(sw.places.every((p: any) => p.value === 'auto' && /^#[0-9a-f]{6}$/.test(p.color))).toBe(true);
+  const h = await settingsPane();
+  for (const i of [0, 1, 2]) expect(inputOf(h, `custom:${i}`)).toBeDefined();
+  expect(['style:gradient', 'style:solid'].map((k) => buttonOf(h, k)?.label)).toEqual(['gradient', 'one colour']);
+  const keys = ['title', 'stage', 'now', 'agents', 'bar', 'criteria', 'log', 'tick', 'wait', 'fail'];
+  expect(keys.map((k) => inputOf(h, `place:${k}`)?.label)).toEqual(['title', 'stage track', 'live line', 'agents', 'progress bar', 'criteria', 'log', 'done tick', 'waiting for you', 'failure']);
+  expect([0, 1, 2].map((i) => inputOf(h, `custom:${i}`).label)).toEqual(['from', 'via', 'to']);
+  expect(['lively', 'mission', 'calm', 'off'].map((k) => buttonOf(h, `motion:${k}`)?.label)).toEqual(['lively', 'mission', 'calm', 'off']);
+  const on = (): string[] => h.texts().filter((x) => x.startsWith('[x] '));
+  const all = (): string[] => h.texts().filter((x) => x.startsWith('[x] ') || x.startsWith('[ ] '));
+  expect(all()).toHaveLength(12);
+  expect(on()).toHaveLength(8);
+  expect(h.texts()).not.toContain('mine');
+  press(h, 'motion:calm');
+  await flush();
+  expect(on()).toEqual(['[x] shimmer on the live line', '[x] rolling counter']);
+  expect(buttonOf(h, 'motion:calm').variant).toBe('primary');
+  press(h, 'effect:comet');
+  await flush();
+  expect(on()).toHaveLength(3);
+  expect(h.texts()).toContain('mine');
+  expect(buttonOf(h, 'motion:calm').variant).toBe('secondary');
+  press(h, 'style:solid');
+  await flush();
+  expect(buttonOf(h, 'style:solid').variant).toBe('primary');
+  const saved = await savedOf(h);
+  expect(saved).toMatchObject({ v: 1, style: 'solid', motion: 'mine', palette: 'aurora' });
+  expect(saved.effects).toEqual({ shimmer: true, roll: true, comet: true });
+  press(h, 'default');
+  await flush();
+  expect(on()).toHaveLength(8);
+  const reset = await savedOf(h);
+  expect(reset).toEqual(settingsOf(undefined));
+  press(h, 'settings:back');
+  await flush();
+  expect(inputOf(h, 'place:title')).toBeUndefined();
+  expect(h.texts()).toContain('ST-1 Login form');
+});
+
+// Phase 08.8.1 L-03 (Ruling: the focus rule): the settings key is a Button hotkey, never a key handler of the pane's own, so an s typed into a focused field is text.
+it('risk:regression the settings key never takes an s typed into the search field or a settings field (L-03)', async () => {
+  const h = await claimedPane();
+  press(h, 'tab:dashboard');
+  await vi.waitFor(() => expect(h.input()).toBeDefined());
+  expect(h.input()?.autoFocus).toBeUndefined();
+  expect(buttonOf(h, 'settings')).toMatchObject({ hotkey: 's' });
+  expect(buttonOf(h, 'settings').autoFocus).toBeUndefined();
+  h.input()?.onInput('as');
+  await flush();
+  expect(h.input()?.value).toBe('as');
+  expect(tabs(h)['tab:dashboard'].variant).toBe('primary');
+  expect(h.buttons().some((b) => String(b.key).startsWith('palette:'))).toBe(false);
+  for (const b of h.buttons()) if (b.key !== 'settings') expect(b.hotkey, String(b.key)).not.toBe('s');
+  press(h, 'settings');
+  await vi.waitFor(() => expect(inputOf(h, 'place:title')).toBeDefined());
+  inputOf(h, 'place:title').onInput('s');
+  await flush();
+  expect(inputOf(h, 'place:title').value).toBe('s');
+  expect(h.buttons().some((b) => String(b.key).startsWith('palette:'))).toBe(true);
+  expect(h.$.store.set).not.toHaveBeenCalled();
+  expect((await savedOf(h)).places).toEqual({});
+  expect(marked(h)).toEqual([]);
+  for (const b of h.buttons()) if (b.key !== 'settings') expect(b.hotkey, String(b.key)).not.toBe('s');
+});

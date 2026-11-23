@@ -883,7 +883,7 @@ it('risk:security a hand-edited agent or skill Markdown line that matches a patt
     expect(run(path)[0], path).toContain(`${path}:1: secret-name`);
     // an exact copy sync wrote, and a generated path, raise nothing
     expect(run(path, { generated: [], exempt: [path] }), path).toEqual([]);
-    expect(run(path, { generated: ['.claude/**'] }), path).toEqual([]);
+    expect(run(path, { generated: ['.claude/'] }), path).toEqual([]);
     // the hunk the reviewer is shown carries the line
     const blocks = matchedHunks(DEFAULT_SECURITY, SECTION(path, ['@@ -0,0 +1 @@', line], added).join('\n'), [path], { generated: [] });
     expect(blocks, path).toHaveLength(1);

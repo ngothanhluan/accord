@@ -243,17 +243,19 @@ export const copyGeneratedOrMarkdown = (path: string, generated: readonly string
   exempt.includes(path) || generated.some((e) => matches(e, path)) || MARKDOWN.test(path);
 
 /**
- * Content patterns are not run over Markdown, test files, the repository's generated paths or a path in `exempt` (exactly an unmodified copy `accord skills sync`
- * writes, decided by the caller). No folder is skipped as a whole: a file accord does not write, or a copy changed by hand, is scanned.
- * D-22: a test-named file under an agent-loaded folder (AGENT_FOLDERS) is not skipped as a test, because an agent session can run it; Markdown there stays skipped, and an
- * exempt copy or a generated path is skipped first.
+ * Content patterns are not run over Markdown outside the agent folders, test files outside them, the repository's generated paths or a path in `exempt` (exactly an
+ * unmodified copy `accord skills sync` writes, decided by the caller). No folder is skipped as a whole: a file accord does not write, or a copy changed by hand, is scanned.
+ * D-22: a test-named file under an agent-loaded folder (AGENT_FOLDERS) is not skipped as a test, because an agent session can run it.
+ * Phase 08.8 D-11: Markdown under those folders is scanned too, because a skill or agent file is the instruction an agent follows; an exempt copy or a generated path is skipped first.
  */
 const contentSkipped = (path: string, generated: readonly string[], exempt: readonly string[]): boolean =>
-  copyGeneratedOrMarkdown(path, generated, exempt) || (isTestFile(path) && !underAgentFolder(path));
+  exempt.includes(path) ||
+  generated.some((e) => matches(e, path)) ||
+  ((MARKDOWN.test(path) || isTestFile(path)) && !underAgentFolder(path));
 
 /**
  * The triggers of a package: path patterns over every changed path (both sides of a rename); content patterns over the added and removed lines of
- * files that are not binary, not Markdown, not test files, not generated and not an exact `exempt` path (nothing is exempt when absent); one `cannot` trigger for each changed path the diff text does not
+ * files that are not binary, not Markdown or test files outside the agent folders, not generated and not an exact `exempt` path (nothing is exempt when absent); one `cannot` trigger for each changed path the diff text does not
  * show. Deduplicated and sorted by path, then line, then pattern id.
  */
 export function securityTriggers(spec: SecuritySpec, diffText: string, changed: readonly string[], options: { generated: readonly string[]; unreadable?: readonly string[]; exempt?: readonly string[] }): Trigger[] {

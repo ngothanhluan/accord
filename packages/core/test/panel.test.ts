@@ -1602,7 +1602,8 @@ it('risk:complex-branching a not-committed warning replaces the stage track and 
   const { view: nc } = await ticketOf(csa);
   const keys = Object.keys(nc);
   expect(keys).toEqual(expect.arrayContaining(['title', 'notCommitted']));
-  for (const k of keys) expect(['title', 'notCommitted', 'failure', 'review', 'criteria', 'log']).toContain(k);
+  // Phase 08.8.1-07 L-01: the title's colours and the places' colours are display keys; no stage, task or progress key joins them
+  for (const k of keys) expect(['title', 'titleRun', 'colors', 'notCommitted', 'failure', 'review', 'criteria', 'log']).toContain(k);
   expect(nc.notCommitted).toBe(NOT_COMMITTED);
   const held = await paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3, warnings: [{ kind: 'plan-changed', text: PLAN_CHANGED }] });
   const ht = held.texts();
@@ -1968,7 +1969,8 @@ it('risk:regression the ticket tab draws a tasks block with a progress bar betwe
   expect(kids(h.row('Alpha'))).toEqual(['✓', '1', 'Alpha']);
   expect(kids(h.row('Beta'))).toEqual(['▸', '2', 'Beta']);
   expect(kids(h.row('Gamma'))).toEqual(['·', '3', 'Gamma']);
-  expect(h.cell('✓').text.color).toBe('green');
+  // Phase 08.8.1-07 L-01: the done tick takes the person's tick colour, aurora's by default
+  expect(h.cell('✓').text.color).toBe('#6fd39a');
   expect(h.cell('▸').text.bold).toBe(true);
   const bars = h.nodes('Progress');
   expect(bars).toHaveLength(1);

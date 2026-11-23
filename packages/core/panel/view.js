@@ -290,7 +290,7 @@ export function pipelineOf(t) {
 // D-03: each tab label carries a live summary. `ticket` is the pane's `{ id, state }` of the claimed ticket, `running` the count of accord agents the mod holds.
 const rowCount = (s) => (plain(s) && Array.isArray(s.rows) ? s.rows.length : 0) + (plain(s) && num(s.more) ? s.more : 0);
 
-export function tabLabels({ state, ticket, running }) {
+export function tabLabels({ state, ticket, running, settings = DEFAULT_SETTINGS }) {
   const d = state?.dashboard;
   const summary = d === undefined ? '' : `${rowCount(d.yours)} yours · ${rowCount(d.ready)} ready · ${rowCount(d.team)} team`;
   const t = ticket?.state?.ticket;
@@ -303,7 +303,9 @@ export function tabLabels({ state, ticket, running }) {
   // Phase 08.8.1 W4: the newest gate run decides the mark, not the newest entry of any kind
   const newest = newestGate(t?.log);
   const failed = plain(newest) && newest.fail === true;
-  const stageColor = t !== undefined && !untracked && Object.hasOwn(STAGE_COLOR, t.stage) ? STAGE_COLOR[t.stage] : undefined;
+  // Phase 08.8.1-07 L-01: the stage word takes the live line's colour, never a colour per stage (the dashboard keeps its own); a not-tracked ticket has none
+  const paint = (place) => drawColor(colorOf(place, settings, 0));
+  const stageColor = t !== undefined && !untracked && stage !== '' ? paint('now') : undefined;
   const label = ['1 ticket', id, stage, review, agents === undefined ? '' : `◐${agents}`, failed ? 'gate failed' : ''].filter((p) => p).join(' ');
   return {
     ticket: {
@@ -312,8 +314,8 @@ export function tabLabels({ state, ticket, running }) {
       stage,
       ...(stageColor === undefined ? {} : { stageColor }),
       ...(review === undefined ? {} : { review }),
-      ...(agents === undefined ? {} : { running: agents }),
-      ...(failed ? { failed: true } : {}),
+      ...(agents === undefined ? {} : { running: agents, agentsColor: paint('agents') }),
+      ...(failed ? { failed: true, failColor: paint('fail') } : {}),
     },
     dashboard: { label: summary === '' ? '2 dashboard' : `2 dashboard ${summary}`, summary },
   };
@@ -569,33 +571,44 @@ export function failureOf(log) {
 
 // The ticket tab: the head (title and stage bar), the failure box, then the review rounds, the criteria checklist and the session log, each only when the JSON holds it.
 // `now` is the epoch second of the draw. A message replaces all of it while the run is loading or failed. An off cell reads `<label> off`.
-export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiting, room }) {
+export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiting, room, settings = DEFAULT_SETTINGS }) {
   const s = ticket?.state;
   if (s === undefined) return { message: ['Loading…'] };
   if (s.message !== undefined) return { message: s.message.split(NL).map(clean).filter((l) => l) };
   const t = s.ticket;
   const failure = failureOf(t.log);
   const warned = warningRows(t.warnings);
+  // Phase 08.8.1-07 L-01, L-02: the person's colours for each place of the tab, every one through drawColor; the stage track, the title and the criteria ids take a gradient where the style says so
+  const paint = (place, p) => drawColor(colorOf(place, settings, p));
+  const colors = { now: paint('now', 0), agents: paint('agents', 0), bar: paint('bar', 0), log: paint('log', 0), tick: paint('tick', 0), wait: paint('wait', 0), fail: paint('fail', 0) };
+  const title = clean(`${t.id} ${t.title}`);
+  const criteria = t.criteria.length === 0 ? undefined : criteriaRows(t.criteria).map((c, i, all) => ({ ...c, idColor: paint('criteria', i / all.length) }));
   // Phase 08.8.1 D-05: a not-committed ticket draws no stage, task count, progress bar or task row (the CLI's count is read from files git does not hold); a block a later plan adds goes into the tracked branch only.
   if (warned.notCommitted !== undefined) {
     return {
-      title: clean(`${t.id} ${t.title}`),
+      title,
+      titleRun: placeRun('title', title, settings),
+      colors,
       notCommitted: warned.notCommitted,
       ...(failure === undefined ? {} : { failure }),
       ...(t.review === undefined ? {} : { review: reviewRows(t.review) }),
-      ...(t.criteria.length === 0 ? {} : { criteria: criteriaRows(t.criteria) }),
+      ...(criteria === undefined ? {} : { criteria }),
       ...(t.log === undefined ? {} : { log: logRows(t.log, now, room) }),
     };
   }
-  const cells = pipelineOf(t).map((c) => ({ ...c, text: clean(c.state === 'off' ? `${c.label} off` : c.label) }));
+  // L-01: the stage track's cells take the stage track's gradient, not the stage's own colour
+  const cells = pipelineOf(t).map((c, i, all) => ({ ...c, color: paint('stage', i / all.length), text: clean(c.state === 'off' ? `${c.label} off` : c.label) }));
   const current = cells.find((c) => c.state === 'current');
   const rows = taskRows(t.tasks, t.now?.task);
   const bar = buildProgress(t);
+  const isWaiting = plain(waiting) && num(waiting.since);
   return {
-    title: clean(`${t.id} ${t.title}`),
+    title,
+    titleRun: placeRun('title', title, settings),
+    colors,
     cells,
-    // Phase 08.8.1 L-06: the NOW lines, in the tracked branch only
-    now: nowLines({ ticket: t, agents, waiting, now: nowMs }),
+    // Phase 08.8.1 L-06: the NOW lines, in the tracked branch only; the first line is the waiting colour while the main loop waits for the person, else the live line's
+    now: nowLines({ ticket: t, agents, waiting, now: nowMs }).map((l, i) => (i === 0 ? { ...l, color: isWaiting ? colors.wait : colors.now } : l)),
     ...(current === undefined ? {} : { current: current.text }),
     // Phase 08.8.1 L-07: the task list and the build bar, in the tracked branch only (D-05: a not-committed ticket gets neither)
     ...(rows.length === 0 ? {} : { tasks: rows }),
@@ -604,7 +617,7 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
     ...(warned.planChanged === undefined ? {} : { planChanged: warned.planChanged }),
     ...(failure === undefined ? {} : { failure }),
     ...(t.review === undefined ? {} : { review: reviewRows(t.review) }),
-    ...(t.criteria.length === 0 ? {} : { criteria: criteriaRows(t.criteria) }),
+    ...(criteria === undefined ? {} : { criteria }),
     ...(t.log === undefined ? {} : { log: logRows(t.log, now, room) }),
   };
 }

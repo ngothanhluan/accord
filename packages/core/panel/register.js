@@ -1,4 +1,4 @@
-import { actionFor, agentRows, answerLine, BACKGROUND, briefTask, clean, currentOf, detailOutcome, detailView, failure, isAccordAgent, layoutOf, outcome, placeRun, runsAccord, setCustom, setMotion, setPalette, setPlace, setStyle, settingsOf, settingsView, tabLabels, ticketView, toggleEffect, toolLabel, view, widgetView } from './view.js';
+import { actionFor, agentRows, answerLine, BACKGROUND, briefTask, clean, currentOf, detailOutcome, detailView, failure, isAccordAgent, layoutOf, outcome, runsAccord, setCustom, setMotion, setPalette, setPlace, setStyle, settingsOf, settingsView, tabLabels, ticketView, toggleEffect, toolLabel, view, widgetView } from './view.js';
 
 // Phase 08.7 D-02, probe row A3 (headless session of 2026-11-23): the `$.agent.list()` entry joins a subagent event by its `id`, which equals the event's `agentId`.
 const LIST_ID_KEY = 'id';
@@ -541,12 +541,12 @@ export function register(on) {
       void $.ui.invalidate('ui.render');
     };
     if (ticket !== undefined) {
-      const labels = tabLabels({ state, ticket, running: runningAgents() });
+      const labels = tabLabels({ state, ticket, running: runningAgents(), settings });
       const t = labels.ticket;
       const ticketParts = [Text({ bold: true, children: ['1 ticket'] }), Text({ children: [' ' + t.id] })];
       if (t.stage !== '') ticketParts.push(Text({ ...(t.stageColor ? { color: t.stageColor } : {}), children: [' ' + t.stage + (t.review ? ' ' + t.review : '')] }));
-      if (t.running) ticketParts.push(Text({ color: 'merged', children: [' ◐' + t.running] }));
-      if (t.failed) ticketParts.push(Text({ color: 'red', children: [' gate failed'] }));
+      if (t.running) ticketParts.push(Text({ color: t.agentsColor, children: [' ◐' + t.running] }));
+      if (t.failed) ticketParts.push(Text({ color: t.failColor, children: [' gate failed'] }));
       const dashParts = [Text({ bold: true, children: ['2 dashboard'] })];
       if (labels.dashboard.summary !== '') dashParts.push(Text({ dimColor: true, children: [' ' + labels.dashboard.summary] }));
       // both tab Buttons keep their hotkeys on both tabs and neither takes focus by itself
@@ -579,7 +579,7 @@ export function register(on) {
     }
     if (tab === 'ticket') {
       const nowMs = Date.now();
-      const viewArgs = { ticket, now: Math.floor(nowMs / 1000), nowMs, agents: [...roster].map(([key, a]) => ({ key, ...a })), waiting };
+      const viewArgs = { ticket, now: Math.floor(nowMs / 1000), nowMs, agents: [...roster].map(([key, a]) => ({ key, ...a })), waiting, settings };
       const tv = ticketView(viewArgs);
       // Phase 08.8.1 L-07: the rows drawn above the LOG block, counted as the blocks are built (a tab row, a bordered block is its rows plus two borders and a heading), so the log can take the rows the pane has left
       let used = ticket !== undefined ? 1 : 0;
@@ -600,7 +600,7 @@ export function register(on) {
             borderColor: 'claude',
             children: [
               // Phase 08.8.1-07 L-01, L-02: the title in the person's colours, one Text per character inside one Text
-              Text({ bold: true, wrap: 'truncate', children: placeRun('title', tv.title, settings).map((r) => Text({ color: r.color, children: [r.ch] })) }),
+              Text({ bold: true, wrap: 'truncate', children: tv.titleRun.map((r) => Text({ color: r.color, children: [r.ch] })) }),
               // Phase 08.8.1 D-05: the CLI's not-committed line takes the stage track's place; D-02: a plan-changed line goes right under the track
               ...(tv.notCommitted === undefined
                 ? [Box({ flexDirection: 'row', columnGap: 1, children: tv.cells.map(cellBox) })]
@@ -612,7 +612,7 @@ export function register(on) {
         );
         used += 3 + (tv.planChanged === undefined ? 0 : 1) + (narrow && tv.current !== undefined ? 1 : 0) + (tv.now ?? []).length;
         // Phase 08.8.1 L-06: the NOW lines right under the head, the first bold and the second dimmed
-        for (const [i, l] of (tv.now ?? []).entries()) children.push(Text({ ...(i === 0 ? { bold: true } : { dimColor: true }), wrap: 'truncate', children: [l.text] }));
+        for (const [i, l] of (tv.now ?? []).entries()) children.push(Text({ ...(i === 0 ? { bold: true, color: l.color } : { dimColor: true }), wrap: 'truncate', children: [l.text] }));
         // D-04: below the head, in order: the failure box, the review rounds, the criteria checklist and the session log. Nothing here names context, tokens or cost (D-08).
         const block = (heading, rows) => {
           used += 3 + rows.length;
@@ -625,14 +625,14 @@ export function register(on) {
             tv.progress === undefined
               ? []
               : typeof Progress === 'function'
-                ? [Progress({ label: 'build tasks done', ...tv.progress, color: 'green' })]
+                ? [Progress({ label: 'build tasks done', ...tv.progress, color: tv.colors.bar })]
                 : [Text({ children: [tv.progress.valueText] })];
           const taskBoxes = tv.tasks.map((r) =>
             Box({
               flexDirection: 'row',
               columnGap: 1,
               children: [
-                Text({ ...(r.state === 'done' ? { color: 'green' } : r.state === 'current' ? { bold: true } : { dimColor: true }), children: [r.mark] }),
+                Text({ ...(r.state === 'done' ? { color: tv.colors.tick } : r.state === 'current' ? { bold: true, color: tv.colors.now } : { dimColor: true }), children: [r.mark] }),
                 Text({ dimColor: r.state === 'todo', children: [String(r.n)] }),
                 Box({ flexGrow: 1, flexShrink: 1, children: [Text({ wrap: 'truncate', ...(r.state === 'current' ? { bold: true } : {}), ...(r.state === 'todo' ? { dimColor: true } : {}), children: [r.title] })] }),
               ],
@@ -646,8 +646,8 @@ export function register(on) {
             Box({
               flexDirection: 'column',
               borderStyle: 'round',
-              borderColor: 'red',
-              children: [Text({ bold: true, color: 'red', children: ['Gate failed'] }), Text({ wrap: 'wrap', children: [tv.failure.text] })],
+              borderColor: tv.colors.fail,
+              children: [Text({ bold: true, color: tv.colors.fail, children: ['Gate failed'] }), Text({ wrap: 'wrap', children: [tv.failure.text] })],
             }),
           );
         }
@@ -662,7 +662,7 @@ export function register(on) {
               flexDirection: 'row',
               columnGap: 1,
               children: [
-                Text({ color: a.running ? 'merged' : 'green', children: [(a.running ? '◐ ' : '✓ ') + a.name] }),
+                Text({ color: a.running ? tv.colors.agents : tv.colors.tick, children: [(a.running ? '◐ ' : '✓ ') + a.name] }),
                 Text({ dimColor: true, children: [a.time] }),
                 // Phase 08.8.1 L-06: the task the mod saw the agent read or write a report for
                 ...(a.task === undefined ? [] : [Text({ dimColor: true, children: ['task ' + a.task] })]),
@@ -674,7 +674,7 @@ export function register(on) {
             Box({
               flexDirection: 'column',
               borderStyle: 'round',
-              borderColor: 'merged',
+              borderColor: tv.colors.agents,
               children: [Text({ bold: true, children: ['AGENTS'] }), ...(rows.length > 0 ? rows : [Text({ dimColor: true, children: ['none running'] })])],
             }),
           );
@@ -696,7 +696,7 @@ export function register(on) {
               flexDirection: 'row',
               columnGap: 1,
               children: [
-                Box({ width: idWidth, flexShrink: 0, children: [Text({ bold: true, children: [c.id] })] }),
+                Box({ width: idWidth, flexShrink: 0, children: [Text({ bold: true, color: c.idColor, children: [c.id] })] }),
                 // Phase 08.8.1 L-07: no flexGrow, so the label and the verifier cell follow the title and do not sit at the far right
                 Box({ flexShrink: 1, children: [Text({ wrap: 'truncate', children: [c.title] })] }),
                 Box({
@@ -726,7 +726,7 @@ export function register(on) {
               children: [
                 Box({ width: ageWidth, flexShrink: 0, children: [Text({ dimColor: true, children: [l.age] })] }),
                 // Phase 08.8.1 L-07: the newest line bold and undimmed, a repeated line with its count
-                Box({ flexGrow: 1, flexShrink: 1, children: [Text({ wrap: 'truncate', ...(l.fail ? { color: 'red' } : {}), ...(l.newest ? { bold: true } : {}), children: [l.count > 1 ? `${l.text} ×${l.count}` : l.text] })] }),
+                Box({ flexGrow: 1, flexShrink: 1, children: [Text({ wrap: 'truncate', ...(l.fail ? { color: tv.colors.fail } : l.newest ? { color: tv.colors.log } : {}), ...(l.newest ? { bold: true } : {}), children: [l.count > 1 ? `${l.text} ×${l.count}` : l.text] })] }),
               ],
             }),
           );

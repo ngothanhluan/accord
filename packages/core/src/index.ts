@@ -169,7 +169,7 @@ export { anchorText } from './status/anchor.js';
 export { EPIC_LESSONS, EPIC_ROLES, epicBlock } from './status/epic.js';
 export { ticketDetail, ticketWarnings } from './status/show.js';
 export { approvalShort, approvalView } from './status/approval.js';
-export type { CriterionDetail, CriterionLabel, TicketDetail, TicketLogEntry, TicketWarning } from './status/show.js';
+export type { CriterionDetail, CriterionLabel, TicketDetail, TicketLogEntry, TicketTask, TicketWarning } from './status/show.js';
 // Phase 08.7 D-04: the review rounds of one ticket, counted for the flightdeck pane.
 export { reviewSummary } from './status/review.js';
 export type { FindingTally, ReviewRoundSummary, ReviewSummary } from './status/review.js';

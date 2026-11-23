@@ -1,4 +1,5 @@
 // ST-LN-6: the full detail of one lane ticket, the one shape the text output, the JSON and the panel read.
+import { stageOff } from '../gate/floor.js';
 import { acHash } from '../gate/hash.js';
 import { workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
@@ -24,6 +25,8 @@ export interface CriterionDetail {
 export interface TicketLogEntry { at: number; kind: 'commit' | 'gate' | 'report'; text: string; fail?: true }
 /** Phase 08.8.1 D-05, D-02: one thing the CLI says about a ticket's stage, in the words the pane draws; `kind` lets the pane place it. */
 export interface TicketWarning { kind: 'not-committed' | 'plan-changed'; text: string }
+/** Phase 08.8.1 L-07: one task of the plan for the pane's task list; `covers` holds the criterion ids (`ac-1`) of the task's `covers:` line, nothing else. */
+export interface TicketTask { n: number; title: string; done: boolean; covers: string[] }
 export interface TicketDetail {
   id: string;
   title: string;
@@ -41,6 +44,8 @@ export interface TicketDetail {
   review?: ReviewSummary; // Phase 08.7 D-04: the review rounds counted per round and severity; absent without a review record
   log?: TicketLogEntry[]; // Phase 08.7 D-04: filled by the CLI host (08.7-05), never by core
   warnings?: TicketWarning[]; // Phase 08.8.1 D-05, D-02: why the stage cannot be trusted; absent when there is none
+  now?: { task: number; title: string }; // Phase 08.8.1 L-06: at build only, the lowest task without a done line, the one `accord anchor` names as next
+  tasks?: TicketTask[]; // Phase 08.8.1 L-07: the plan's tasks in order; absent at intent, with no plan task, or with the plan stage off
 }
 
 /**
@@ -100,11 +105,25 @@ export function ticketDetail(snapshot: RepoSnapshot, id: string, plain?: RepoSna
   });
   const review = reviewSummary(snapshot, id);
   const warnings = ticketWarnings(snapshot, id);
+  // Phase 08.8.1 L-06, L-07: lane M only, and not at intent (there the stage is read from the ticket file, whatever plan.md holds on disk). `now` is the same lowest open task `progressOf` gives the anchor; with
+  // the plan stage off the build is one task, task 1, the whole ticket. `covers` keeps only the `@ac-n` tokens, without the `@`.
+  const progress = progressOf(snapshot, ticket);
+  const work = workOf(snapshot, id);
+  const planOff = stageOff(snapshot, id, 'plan');
+  const past = row.lane === 'M' && progress !== undefined && progress.stage !== 'intent';
+  const done = work?.ledger?.done ?? {};
+  const planTasks = past && !planOff ? [...(work?.plan?.tasks ?? [])].sort((a, b) => a.n - b.n) : [];
+  const tasks: TicketTask[] = planTasks.map((t) => ({
+    n: t.n, title: t.title, done: Object.hasOwn(done, String(t.n)), covers: t.covers.filter((c) => /^@ac-[0-9]+$/.test(c)).map((c) => c.slice(1)),
+  }));
+  const next = past && progress.stage === 'build' ? progress.next : undefined;
+  const now = next === undefined ? undefined : { task: next, title: planOff ? (row.title ?? '') : (planTasks.find((t) => t.n === next)?.title ?? '') };
   return {
     id, title: row.title ?? '', stage: row.stage, lane: row.lane,
     tasksDone: row.tasksDone ?? 0, tasksTotal: row.tasksTotal ?? 0, branch: row.branch ?? '',
     holder: row.claimedBy ?? null, blockedBy: row.blockedBy ?? [], intent, ...(laneR ? { question: lines('Question') } : {}), criteria,
     ...(row.stagesOff === undefined ? {} : { stagesOff: row.stagesOff }), ...(review === undefined ? {} : { review }),
     ...(warnings.length === 0 ? {} : { warnings }),
+    ...(now === undefined ? {} : { now }), ...(tasks.length === 0 ? {} : { tasks }),
   };
 }

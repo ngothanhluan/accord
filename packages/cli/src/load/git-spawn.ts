@@ -5,6 +5,7 @@
 import { execFileSync } from 'node:child_process';
 import type { ExecFileSyncOptionsWithStringEncoding } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { win32 } from 'node:path';
 import { UsageError } from './fs.js';
 
 /** A Git Bash drive form: `/c` or `/c/rest`, one letter after the first slash and nothing else in that segment. */
@@ -23,16 +24,60 @@ function pathEntries(path: string, platform: NodeJS.Platform): string[] {
   return path.split(sep).filter((e) => e !== '');
 }
 
+/** An environment value by its name in any case, as Windows reads it. */
+const envValue = (env: NodeJS.ProcessEnv, name: string): string | undefined => {
+  const key = Object.keys(env).find((k) => k.toLowerCase() === name.toLowerCase());
+  const value = key === undefined ? undefined : env[key];
+  return value === undefined || value === '' ? undefined : value;
+};
+
 /**
- * A Git Bash PATH (`/c/Program Files/Git/cmd:/usr/bin`) as a Windows one (`C:\Program Files\Git\cmd`) on Windows: each `/x/...` entry becomes `X:\...`, an entry with no
- * drive letter cannot be placed and is dropped. A `;`-separated PATH, a PATH that starts with a drive and every other platform are returned as given.
+ * The Windows folder Git for Windows maps to `/` (Phase 08.8 review WR-03), or undefined: the first of EXEPATH and its parent (Git Bash sets it to its `bin` folder, or to the root
+ * through git-bash.exe), the parent of MSYSTEM_PREFIX, the folder above the shell's bash.exe, and the standard install folders, that holds `usr\bin`.
  */
-export function windowsPathList(path: string, platform: NodeJS.Platform = process.platform): string {
+function msysRoot(env: NodeJS.ProcessEnv, exists: (path: string) => boolean): string | undefined {
+  const win = (p: string): string => win32.normalize(windowsForm(p, 'win32'));
+  const candidates: string[] = [];
+  const exe = envValue(env, 'EXEPATH');
+  if (exe !== undefined) candidates.push(win(exe), win32.dirname(win(exe)));
+  const prefix = envValue(env, 'MSYSTEM_PREFIX');
+  if (prefix !== undefined && /^[A-Za-z]:/.test(win(prefix))) candidates.push(win32.dirname(win(prefix)));
+  const shell = envValue(env, 'SHELL');
+  if (shell !== undefined && /\bbash\.exe$/i.test(shell)) {
+    const dir = win32.dirname(win(shell));
+    candidates.push(win32.dirname(dir), win32.dirname(win32.dirname(dir)));
+  }
+  for (const base of ['ProgramFiles', 'ProgramW6432']) {
+    const v = envValue(env, base);
+    if (v !== undefined) candidates.push(win32.join(win(v), 'Git'));
+  }
+  const local = envValue(env, 'LOCALAPPDATA');
+  if (local !== undefined) candidates.push(win32.join(win(local), 'Programs', 'Git'));
+  return candidates.find((c) => /^[A-Za-z]:/.test(c) && exists(win32.join(c, 'usr', 'bin')));
+}
+
+/**
+ * A Git Bash PATH (`/c/Program Files/Git/cmd:/usr/bin`) as a Windows one (`C:\Program Files\Git\cmd;C:\Program Files\Git\usr\bin`) on Windows: each `/x/...` entry becomes `X:\...`,
+ * and a root-relative entry (`/cmd`, `/usr/bin`, `/ucrt64/bin`; `/bin` is mounted on `/usr/bin`) is placed under the Git for Windows root, where git.exe lives (Phase 08.8 review
+ * WR-03). An entry that cannot be placed (no root found, or `//host/...`) is dropped. A `;`-separated PATH, a PATH that starts with a drive and every other platform are returned as given.
+ */
+export function windowsPathList(
+  path: string,
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+  exists: (path: string) => boolean = existsSync,
+): string {
   if (platform !== 'win32' || path.includes(';') || /^[A-Za-z]:/.test(path)) return path;
+  let root: string | null | undefined = null; // null: not looked up yet
   return pathEntries(path, platform)
     .flatMap((e) => {
       const m = DRIVE_FORM.exec(e);
-      return m === null ? [] : [`${(m[1] as string).toUpperCase()}:\\${(m[2] ?? '').replace(/\//g, '\\')}`];
+      if (m !== null) return [`${(m[1] as string).toUpperCase()}:\\${(m[2] ?? '').replace(/\//g, '\\')}`];
+      if (!e.startsWith('/') || e.startsWith('//')) return [];
+      if (root === null) root = msysRoot(env, exists);
+      if (root === undefined) return [];
+      const rel = e.replace(/^\/bin(?=\/|$)/, '/usr/bin').replace(/^\/lib(?=\/|$)/, '/usr/lib');
+      return [win32.join(root, ...rel.split('/').filter((s) => s !== ''))];
     })
     .join(';');
 }
@@ -68,7 +113,9 @@ export type GitSpawn = ExecFileSyncOptionsWithStringEncoding & { cwd: string };
 
 /**
  * Runs `git <args>` in `opts.cwd` and returns its output. A Git Bash folder form is converted first; on Windows an ENOENT in a folder that exists, with a PATH written the Git Bash
- * way, is retried once with that PATH in Windows form. A remaining ENOENT becomes `gitStartFailure`; any other error is thrown as it came, for the caller's own wording.
+ * way, is retried once with that PATH in Windows form. When that retry ran with the process environment and git started, the Windows form replaces the process PATH, so every later
+ * git spawn of this process, which reads `process.env`, finds git too (Phase 08.8 review WR-04). A remaining ENOENT becomes `gitStartFailure`; any other error is thrown as it came,
+ * for the caller's own wording.
  */
 export function runGitSync(args: readonly string[], opts: GitSpawn): string {
   const cwd = windowsForm(opts.cwd);
@@ -79,10 +126,12 @@ export function runGitSync(args: readonly string[], opts: GitSpawn): string {
     const env = opts.env ?? process.env;
     if (process.platform === 'win32' && existsSync(cwd)) {
       const key = Object.keys(env).find((k) => k.toLowerCase() === 'path');
-      const fixed = key === undefined ? '' : windowsPathList(env[key] ?? '');
+      const fixed = key === undefined ? '' : windowsPathList(env[key] ?? '', 'win32', env);
       if (key !== undefined && fixed !== '' && fixed !== env[key]) {
         try {
-          return execFileSync('git', [...args], { ...opts, cwd, env: { ...env, [key]: fixed } });
+          const out = execFileSync('git', [...args], { ...opts, cwd, env: { ...env, [key]: fixed } });
+          if (opts.env === undefined) process.env[key] = fixed;
+          return out;
         } catch (again) {
           if ((again as { code?: string }).code !== 'ENOENT') throw again;
         }

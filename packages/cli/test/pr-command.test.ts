@@ -197,6 +197,17 @@ it('risk:security accord pr refuses a percent title end to end (D-16)', async ()
   expect(ok.out).toContain("title: A-1: Don't stop\n");
 }, 120_000);
 
+// Phase 08.8 review WR-08: `accord pr` on an epic in a repository with no PR template writes its Intent as the body, and the at-names there must notify nobody.
+it('risk:security accord pr quotes the mentions of an epic body written with no template (REVIEW WR-08)', async () => {
+  const repo = sandbox({
+    'accord/tickets/E-2.md': ['---', 'id: "E-2"', 'title: "Reporting"', 'type: epic', 'status: draft', 'lane: L', 'ui: false', '---', '', '## Intent', 'Teams see every export, asked by @alice.', ''].join('\n'),
+  });
+  const r = await run(['pr', 'E-2'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(r.out).toContain('template: none\n');
+  expect(readFileSync(bodyFile(repo, 'E-2'), 'utf8')).toBe('Teams see every export, asked by `@alice`.\n');
+}, 120_000);
+
 // Phase 08.8 D-16 (item 9, IN-06): the `remaining:` lines name the visible heading and skip a heading held by a comment.
 it('risk:regression remaining lines name the visible heading (D-16)', async () => {
   const template = ['## Description', '<!-- what -->', '', '## Screenshots <!-- add screenshots -->', '', '<!--', '## Hidden', '-->', ''].join('\n');

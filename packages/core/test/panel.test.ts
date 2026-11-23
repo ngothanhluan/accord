@@ -1168,20 +1168,21 @@ it('risk:complex-branching a newest failed gate run shows the failure block and 
   const now = Math.floor(Date.now() / 1000);
   const gate = { at: now - 20, kind: 'gate', text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true };
   const h = await paneWith({ log: [gate, { at: now - 60, kind: 'commit', text: 'build: export' }] });
-  const box = h.nodes('Box').find((b) => b.props.borderColor === 'red');
+  const box = h.nodes('Box').find((b) => b.props.borderColor === '#ff6b6b');
   expect(box?.props.borderStyle).toBe('round');
   expect(textsIn(box)).toEqual(['Gate failed', gate.text]);
   const heading = (box?.props.children as any[]).find((c) => c.type === 'Text' && c.props.children[0] === 'Gate failed');
-  expect(heading.props).toMatchObject({ bold: true, color: 'red' });
+  // Phase 08.8.1-07 L-01 L-02: the failure box takes the person's failure colour, aurora's by default
+  expect(heading.props).toMatchObject({ bold: true, color: '#ff6b6b' });
   expect(tabs(h)['tab:ticket'].label).toContain('gate failed');
   // Phase 08.8.1 W4 (08.7 review WR-04): a newer commit no longer hides the failed gate run; only a newer gate run does
   const later = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'fix: header' }, gate] });
-  expect(later.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(true);
+  expect(later.nodes('Box').some((b) => b.props.borderColor === '#ff6b6b')).toBe(true);
   expect(later.texts()).toContain('Gate failed');
   expect(tabs(later)['tab:ticket'].label).toContain('gate failed');
   expect(later.texts()).toContain('LOG');
   const passed = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate done PASS' }, gate] });
-  expect(passed.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(false);
+  expect(passed.nodes('Box').some((b) => b.props.borderColor === '#ff6b6b')).toBe(false);
   expect(tabs(passed)['tab:ticket'].label).not.toContain('gate failed');
 });
 
@@ -2273,4 +2274,71 @@ it('risk:regression the settings key never takes an s typed into the search fiel
   expect((await savedOf(h)).places).toEqual({});
   expect(marked(h)).toEqual([]);
   for (const b of h.buttons()) if (b.key !== 'settings') expect(b.hotkey, String(b.key)).not.toBe('s');
+});
+
+// ---- Phase 08.8.1-07 task 3: every place of the ticket tab takes the person's colours ----
+
+// Phase 08.8.1 L-01 L-02: the ticket tab has no colour per stage; each place takes the person's colours, one gradient system or one colour per place. The dashboard tab keeps its stage colours.
+it("risk:regression the ticket tab takes the person's colours with no colour per stage (L-01 L-02)", async () => {
+  const { gradientAt, PALETTES, ticketView, pipelineOf, settingsOf } = await loadView();
+  const aurora = PALETTES.aurora as string[];
+  const STAGE = ['blue', 'cyan', 'yellow', 'magenta', 'green'];
+  const now = Math.floor(Date.now() / 1000);
+  const over = {
+    stage: 'build',
+    tasksDone: 1,
+    tasksTotal: 3,
+    now: { task: 2, title: 'Beta' },
+    tasks: [taskOf(1, 'Alpha', true), taskOf(2, 'Beta'), taskOf(3, 'Gamma')],
+    criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing')],
+    log: [{ at: now - 5, kind: 'gate', text: 'gate done FAIL: red', fail: true }, { at: now - 9, kind: 'commit', text: 'build: x' }],
+  };
+  const h = await paneWith(over, (x) => void (x.rows = 40));
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('turn.start', subStart('a1'));
+  await vi.waitFor(() => expect(h.texts()).toContain('◐ executor'));
+  const at = (place: number, p = 0): string => gradientAt(aurora, place + p);
+  // the stage track: gradient cells at its position, none of the stage names
+  ['intent/approach', 'plan', 'build 1/3'].forEach((label, i) => expect(h.cell(label).box.backgroundColor, label).toBe(at(0.15, i / 5)));
+  for (const label of ['review', 'verify']) expect(h.cell(label).box.backgroundColor, label).toBeUndefined();
+  for (const n of h.nodes('Box')) expect(STAGE).not.toContain(n.props.backgroundColor);
+  // the tab-1 label's stage word is the live line's colour, its agent count the agents', its failure mark the failure colour
+  expect(h.cell(' build').text.color).toBe(at(0.3));
+  expect(h.cell(' ◐1').text.color).toBe(at(0.62));
+  expect(h.cell(' gate failed').text.color).toBe('#ff6b6b');
+  // the places of the tab
+  expect(h.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
+  expect(h.cell('✓').text.color).toBe('#6fd39a');
+  expect(h.cell('▸').text.color).toBe(at(0.3));
+  expect(h.nodes('Progress')[0].props.color).toBe(at(0.45));
+  expect(h.cell('◐ executor').text.color).toBe(at(0.62));
+  expect(h.cell('ac-1').text.color).toBe(at(0.8, 0));
+  expect(h.cell('ac-2').text.color).toBe(at(0.8, 0.5));
+  // the failure box and the log both hold the gate line; the log's is the last
+  expect(h.nodes('Text').filter((n) => flat(n.props.children) === 'gate done FAIL: red').at(-1)?.props.color).toBe('#ff6b6b');
+  const box = h.nodes('Box').find((b) => b.props.borderColor === '#ff6b6b');
+  expect(textsIn(box)[0]).toBe('Gate failed');
+  expect(h.cell('Gate failed').text.color).toBe('#ff6b6b');
+  // the newest log line takes the log's colour when it did not fail
+  const calm = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'newest one' }, { at: now - 9, kind: 'commit', text: 'older one' }] });
+  expect(calm.cell('newest one').text.color).toBe(at(0.55));
+  expect(calm.cell('older one').text.color).toBeUndefined();
+  // a main-loop turn that ended draws the waiting line in the waiting colour
+  await calm.fire('turn.complete', { reason: 'answer', answer: 'done' });
+  await vi.waitFor(() => expect(calm.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
+  expect(calm.cell(calm.texts().find((x) => x.startsWith('Waiting for you')) as string).text.color).toBe('#e07a4f');
+  // one colour per place: the person's own colours win, the other places take the palette's colour at the place's position
+  const own = { v: 1, style: 'solid', places: { title: '#3ec6e0', agents: '#ff5f6d' } };
+  const solid = await paneWith({ stage: 'build', now: { task: 2, title: 'Beta' } }, (x) => void x.store.set('settings', own));
+  solid.agents = [agentOf('a1', 'accord-executor')];
+  await solid.fire('turn.start', subStart('a1'));
+  await vi.waitFor(() => expect(solid.texts()).toContain('◐ executor'));
+  expect(new Set(titleColors(solid))).toEqual(new Set(['#3ec6e0']));
+  expect(solid.cell('◐ executor').text.color).toBe('#ff5f6d');
+  expect(solid.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
+  expect(solid.cell(' build').text.color).toBe(at(0.3));
+  // the pure view gives hex colours for the stage track and keeps the dashboard's stage names in pipelineOf
+  const t = ticketView({ ticket: { id: 'ST-1', state: { ticket: detailOf(over) } }, now, settings: settingsOf(undefined) });
+  expect(t.cells.map((c: any) => c.color)).toEqual([0, 1, 2, 3, 4].map((i) => at(0.15, i / 5)));
+  expect(pipelineOf({ lane: 'M', stage: 'build' }).map((c: any) => c.color)).toEqual(STAGE);
 });

@@ -1,10 +1,10 @@
 // ST-LN-22 D-09: what the scout at intent and the critic at approach are given about the tickets related to one ticket: the
 // Vetoes and Decisions those tickets hold. Built here, by the CLI's `accord related <id>`, so no skill sends an agent to
 // open other tickets. Pure: no node import, no filesystem; the CLI hands it the snapshot it loaded (working tree plus default branch).
-import { headingKey, stripHtmlComments } from '../load/sections.js';
+import { headingKey } from '../load/sections.js';
 import type { RepoSnapshot, Ticket } from '../model/snapshot.js';
 import type { ProductRead, RelatedParts } from '../product/assemble.js';
-import { CONVENTIONS_FILE, lineProblem, notReadLine, trimLineEnd, visibleLines, withheldLine } from '../product/lines.js';
+import { CONVENTIONS_FILE, lineProblem, notReadLine, printable, ticketLines, trimLineEnd, visibleLines, withheldLine } from '../product/lines.js';
 import { similarTickets, ticketFacts } from './similar.js';
 
 /** The sections of a related ticket that are printed, in this order. */
@@ -43,13 +43,13 @@ export function relatedIds(snapshot: RepoSnapshot, id: string, limit = 5): strin
   return ids.slice(0, limit);
 }
 
-/** A title from a file anyone on the team wrote, on one line: every control, format (bidi marks, tag characters) and line or paragraph separator character becomes a space. */
-const printable = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
-
-/** The non-blank lines of one section of `ticket`, comments stripped and each line as written; `(none)` when there are none. */
+/**
+ * The non-blank lines of one section of `ticket`, closed comments removed and each line as written; `(none)` when there are none. Phase 08.8 D-05: every line passes the line check of
+ * product/lines.ts at TICKET_MAX_LINE first, and a refused line, or one that opens a comment that never closes, prints `withheldTicketLine(ticket.file, <its line>)` in its place.
+ */
 function sectionLines(ticket: Ticket, name: string): string[] {
   const section = ticket.sections.find((s) => headingKey(s.heading) === headingKey(name));
-  const lines = section === undefined ? [] : stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');
+  const lines = section === undefined ? [] : ticketLines(section.lines, ticket.file);
   return lines.length === 0 ? ['(none)'] : lines;
 }
 
@@ -80,7 +80,8 @@ export function rejectedLines(conventions: string | ProductRead | undefined): st
 
 /**
  * What `relatedText` and the related block of `productBlocks` share: the lines under `# Related tickets of <id>`, one block `## <id> "<title>" (<status>)` per related
- * ticket with a blank line between two, or `(none)`. undefined when `id` is no ticket of the snapshot.
+ * ticket with a blank line between two, or `(none)`. undefined when `id` is no ticket of the snapshot. Phase 08.8 D-05: the Vetoes and Decisions lines are checked (`sectionLines`) and a title has its
+ * control, format and separator characters replaced by spaces, so a hostile line of a related ticket reaches no subagent's brief.
  */
 export function relatedParts(snapshot: RepoSnapshot, id: string): RelatedParts | undefined {
   if (copyOf(snapshot, id) === undefined) return undefined;
@@ -99,7 +100,7 @@ export function relatedParts(snapshot: RepoSnapshot, id: string): RelatedParts |
 
 /**
  * The text `accord related <id>` prints: `# Related tickets of <id>`, then for each of `relatedIds` a block `## <id> "<title>" (<status>)` with
- * its `### Vetoes` and `### Decisions` lines as written, or `(none)` under the header when nothing is related, then `## Rejected` with every
+ * its `### Vetoes` and `### Decisions` lines as written (each checked, Phase 08.8 D-05), or `(none)` under the header when nothing is related, then `## Rejected` with every
  * `Rejected:` line of `conventions` (the text of accord/product/conventions.md, or what the CLI read of it; absent when there is no file)
  * as written, or `(none)`. undefined when `id` is no ticket of the snapshot.
  */

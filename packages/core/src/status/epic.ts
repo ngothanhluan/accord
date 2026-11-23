@@ -1,7 +1,8 @@
 // ST-LN-28 D-13: the rules of an epic reach each of its stories as input the CLI builds, never as an instruction to go and read the epic.
 // Pure: the host reads the default branch's copy of the tickets (snapshot.defaultRef); this builds the text.
-import { sectionLines } from '../load/sections.js';
+import { headingKey } from '../load/sections.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { printable, ticketLines } from '../product/lines.js';
 import { cmpId } from './dashboard.js';
 
 /** The heading of the epic block's third part: what the epic's other stories learned, taken from their ledgers on the default branch (D-15). */
@@ -20,6 +21,8 @@ export const EPIC_ROLES: readonly string[] = ['accord-scout', 'accord-planner', 
  * `parent <id> is not an epic in this clone`. undefined for a story without `parent:` (and for an id that is no ticket).
  * ST-LN-28 D-15: `### Epic lessons` holds `- <sibling id>: <line>` for every `## Epic lessons` line in the ledger of each other story of the epic (same `parent:`), read
  * from the default branch only, siblings in the dashboard's id order and lines in ledger order; a lesson not yet on the default branch is not shown. No shared file is read.
+ * Phase 08.8 D-05: the epic's Vetoes and Decisions lines and the title pass the line check of product/lines.ts (`ticketLines`, `printable`) at TICKET_MAX_LINE before any subagent reads them; a refused
+ * line prints `withheldTicketLine(<epic file>, <line>)` in its place. Every reader (the hook, the anchor, `accord related`, the review package) calls this one builder, so they stay byte-equal (D-06).
  */
 export function epicBlock(snapshot: RepoSnapshot, id: string): string | undefined {
   if (!Object.hasOwn(snapshot.tickets, id)) return undefined;
@@ -30,18 +33,22 @@ export function epicBlock(snapshot: RepoSnapshot, id: string): string | undefine
   const epic = found ?? (Object.hasOwn(snapshot.tickets, parent) ? snapshot.tickets[parent] : undefined);
   if (epic?.frontmatter?.type !== 'epic') return `parent ${parent} is not an epic in this clone`;
   const part = (name: string): string[] => {
-    const lines = sectionLines(epic.sections, name);
+    const section = epic.sections.find((s) => headingKey(s.heading) === headingKey(name));
+    const lines = section === undefined ? [] : ticketLines(section.lines, epic.file);
     return ['### ' + name, ...(lines.length === 0 ? ['(none)'] : lines)];
   };
   const lessons = siblingLessons(snapshot.defaultRef?.snapshot, parent, id);
-  return [`## Epic ${parent} "${epic.frontmatter.title}"`, ...part('Vetoes'), ...part('Decisions'), '### ' + EPIC_LESSONS, ...(lessons.length === 0 ? ['(none)'] : lessons)].join('\n');
+  return [`## Epic ${parent} "${printable(epic.frontmatter.title)}"`, ...part('Vetoes'), ...part('Decisions'), '### ' + EPIC_LESSONS, ...(lessons.length === 0 ? ['(none)'] : lessons)].join('\n');
 }
 
-/** The lessons of every story of `epic` but `self` on the default branch, as `- <id>: <line>`. */
+/** The lessons of every story of `epic` but `self` on the default branch, as `- <id>: <line>`, each line checked like the epic's own (Phase 08.8 D-05; a refused one names the sibling's ledger line). */
 function siblingLessons(def: RepoSnapshot | undefined, epic: string, self: string): string[] {
   if (def === undefined) return [];
   return Object.keys(def.tickets)
     .filter((sibling) => sibling !== self && def.tickets[sibling].frontmatter?.parent === epic)
     .sort(cmpId)
-    .flatMap((sibling) => (def.work?.[sibling]?.ledger?.epicLessons ?? []).map((line) => '- ' + sibling + ': ' + line));
+    .flatMap((sibling) => {
+      const ledger = def.work?.[sibling]?.ledger;
+      return ledger?.epicLessons === undefined ? [] : ticketLines(ledger.epicLessons, ledger.file).map((line) => '- ' + sibling + ': ' + line);
+    });
 }

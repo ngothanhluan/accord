@@ -2,13 +2,15 @@
 // Delivery (the briefs, packages and related files built in assemble.ts), `accord lint` (lint.conventions-file), `accord conventions write`, the `accord upgrade`
 // listing and the `--fix` findings file of 08.5-03 all call it, so a line is judged the same way wherever it is read. Pure: no I/O, no `node:` import.
 import type { Finding } from '../model/finding.js';
-import type { RepoSnapshot } from '../model/snapshot.js';
+import type { Line, RepoSnapshot } from '../model/snapshot.js';
 
 export const CONVENTIONS_FILE = 'accord/product/conventions.md';
 /** D-10: a line is at most this many UTF-16 code units, measured before any expression runs on it. */
 export const PRODUCT_MAX_LINE = 300;
 /** Review 08.5 WR-01: a finding, a pasted pull request comment or a CI log line is longer than a convention rule, so the findings file of `--fix` is judged at this length. */
 export const FINDING_MAX_LINE = 4000;
+/** Phase 08.8 D-05: ticket Vetoes and Decisions are longer than a convention rule (this repository holds 681 such lines, 173 over 300 and none over 4000), so ticket text is judged at the findings length. */
+export const TICKET_MAX_LINE = FINDING_MAX_LINE;
 
 /** D-01 and R-3: the line starts the CLI itself writes in a brief, in the order D-01 then R-3 list them; matched case-insensitively after whitespace, blockquote and list markers. */
 export const RESERVED_PREFIXES = ['Work dir:', 'Report file:', 'Test command:', '---', 'Commit rule:', 'Example that passes:', 'Test only:'] as const;
@@ -252,10 +254,41 @@ export function commentProblems(text: string): LineProblem[] {
 
 /** D-09: what stands in the place of a refused line; it never quotes the line. */
 export const withheldLine = (file: string, n: number): string => `(accord withheld line ${n} of ${file}: it breaks a delivery rule; run accord lint)`;
+/**
+ * Phase 08.8 D-05: what stands in the place of a refused line of a ticket (an epic's or a related ticket's Vetoes, Decisions and lessons). Same position and form as `withheldLine`; only the repair
+ * instruction differs, because no lint rule reports a ticket line, so "run accord lint" would send the reader to a command that finds nothing. It never quotes the line.
+ */
+export const withheldTicketLine = (file: string, n: number): string => `(accord withheld line ${n} of ${file}: it breaks a delivery rule; fix that line of the file)`;
 /** The same for the findings file of `accord brief --fix` (08.5-03); it has no name a person can open. */
 export const withheldFindingLine = (n: number): string => `(accord withheld line ${n} of the findings file: it breaks a delivery rule)`;
 /** D-01: what stands in the place of a file that is a link or not a regular file; it names no byte of the target. */
 export const notReadLine = (file: string): string => `(accord did not read ${file}: it is a link or not a regular file)`;
+
+/** A title from a file anyone on the team wrote, on one line: every control, format (bidi marks, tag characters) and line or paragraph separator character becomes a space. */
+export const printable = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
+
+/**
+ * Phase 08.8 D-05: the lines of one section of a ticket (an epic's or a related ticket's Vetoes and Decisions, a sibling's Epic lessons) as a subagent may read them, each through
+ * `lineProblem` at `TICKET_MAX_LINE`. `lines` are the section's raw lines with their file line numbers; `file` is the ticket's repository path. A line with no comment is kept exactly as
+ * written, one with a closed comment is kept without it; a blank line is dropped. A refused line, and a line holding a `<!--` that never closes, becomes `withheldTicketLine(file, <its file line>)`
+ * in its place; every later line is read again from the start (P7, through `visibleLines`), so one hostile opener hides nothing after it.
+ */
+export function ticketLines(lines: readonly Line[], file: string): string[] {
+  const raw = lines.map((l) => l.text);
+  const { visible, unclosed } = visibleLines(raw);
+  const out: string[] = [];
+  raw.forEach((text, i) => {
+    if (unclosed.has(i)) {
+      out.push(withheldTicketLine(file, lines[i].line));
+      return;
+    }
+    if (visible[i].trim() === '') return;
+    // a line with a comment on it is kept without the comment; a line with none exactly as written
+    const shown = visible[i] === text ? text : trimLineEnd(visible[i]);
+    out.push(lineProblem(trimLineEnd(shown), TICKET_MAX_LINE) !== undefined ? withheldTicketLine(file, lines[i].line) : shown);
+  });
+  return out;
+}
 
 /** Every unsafe line of a conventions file in line order, one entry per line: what checkProductText refuses and what a comment hides from it. Lint and `accord upgrade` both list these. */
 export function conventionsProblems(text: string): LineProblem[] {

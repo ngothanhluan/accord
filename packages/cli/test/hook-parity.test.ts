@@ -27,9 +27,9 @@ afterEach(() => {
 });
 
 /** E-1 and the sibling story S-3 (with its Epic lesson) on main; story S-1 (parent E-1) in its own worktree on t/S-1. `repo` stays on main, where the hook is launched. */
-function storyWorktree(): { repo: string; story: string } {
+function storyWorktree(epicText: string = epicTicket): { repo: string; story: string } {
   const repo = makeLaneRepo({
-    'accord/tickets/E-1.md': epicTicket,
+    'accord/tickets/E-1.md': epicText,
     'accord/tickets/S-1.md': laneTicket('S-1', { frontmatter: ['parent: "E-1"'] }),
     'accord/tickets/S-3.md': laneTicket('S-3', { frontmatter: ['parent: "E-1"'] }),
     'accord/tickets/S-3/ledger.md': ['## Rulings', '(none)', '', '## Epic lessons', LESSON, ''].join('\n'),
@@ -65,6 +65,29 @@ describe('the hook and the CLI files carry one ruleset and one epic block (08.5-
     expect(file).toContain(EPIC + '\n' + EPIC_DUTY);
     const version = (text: string): string => text.split(pkg.version).join('<version>');
     await expect(['--- hook subagent-start, accord-planner ---', version(context), '--- accord related S-1 --for planner --out ---', version(file)].join('\n')).toMatchFileSnapshot('./__golden__/hook-parity.txt');
+  });
+
+  // Phase 08.8 D-06: the epic block is checked where `epicBlock` builds it, so the hook and the CLI file, which both call it, hold the same placeholder for a hostile epic line.
+  it('risk:security the hook and the CLI file carry the same checked epic block for a hostile line (D-06)', async () => {
+    const hostile = '- Never ship ‮ this way.';
+    const epicText = epicTicket.replace('- No emoji.', hostile);
+    const n = epicText.split('\n').findIndex((l) => l === hostile) + 1;
+    expect(n).toBeGreaterThan(0);
+    const placeholder = `(accord withheld line ${n} of accord/tickets/E-1.md: it breaks a delivery rule; fix that line of the file)`;
+    const checked = EPIC.replace('- No emoji.', placeholder);
+    const { repo, story } = storyWorktree(epicText);
+    const hook = await run(['hook', 'subagent-start'], repo, {}, JSON.stringify({ hook_event_name: 'SubagentStart', agent_type: 'accord-planner', cwd: story }));
+    expect(hook.code).toBe(0);
+    const context = (JSON.parse(hook.out) as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput.additionalContext;
+    expect(context).toBe(RULES + '\n\n' + checked);
+    expect(context).not.toContain('‮');
+    const out = await run(['related', 'S-1', '--for', 'planner', '--out', 'planner-input.md'], story);
+    expect(out.code, out.err).toBe(0);
+    const path = /^file: (.+)\n$/.exec(out.out)?.[1];
+    expect(path).toBeDefined();
+    const file = readFileSync(path as string, 'utf8');
+    expect(file).toContain(checked + '\n' + EPIC_DUTY);
+    expect(file).not.toContain('‮');
   });
 
   it('risk:regression one source builds both texts (D-18)', () => {

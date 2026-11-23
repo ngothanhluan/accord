@@ -2,11 +2,12 @@
 // review.md under accord/tickets/<id>/, and accord/tests-baseline.txt. Pure string work; every parser
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
-import type { Debug, Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
+import type { Debug, Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review, Section } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
+import { trimLineEnd, visibleLines } from '../product/lines.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
 import { unfinishedEpisode, unfinishedLine } from './unfinished.js';
-import { headingKey, LIST_MARKER, scan, sectionLines, stripHtmlComments, taskBlocks } from './sections.js';
+import { headingKey, LIST_MARKER, scan, stripHtmlComments, taskBlocks } from './sections.js';
 import { parseYamlMap } from './yaml.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
@@ -253,7 +254,7 @@ export function parseLedger(file: string, text: string): Ledger {
       });
     }
   }
-  const epicLessons = sectionLines(sections, 'Epic lessons');
+  const epicLessons = epicLessonLines(sections);
   const extra = {
     ...(wordingOnly.length > 0 ? { wordingOnly } : {}),
     ...(deferred.length > 0 ? { deferred } : {}),
@@ -262,6 +263,22 @@ export function parseLedger(file: string, text: string): Ledger {
   if (section === undefined) return { file, done, rulings, ...extra };
   const written = stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');
   return { file, done, rulings, rulingsSection: written, ...extra };
+}
+
+/**
+ * Phase 08.8 D-05: the lines of the `## Epic lessons` section that hold text, each with its file line. A closed comment is removed (the line is kept without it); a line that opens a comment that
+ * never closes is kept as written and is not read as a comment, so the lessons after it stay visible (P7, `visibleLines`); the reader (`ticketLines`) withholds that line and checks the rest.
+ */
+function epicLessonLines(sections: readonly Section[]): Line[] {
+  const section = sections.find((s) => headingKey(s.heading) === headingKey('Epic lessons'));
+  if (section === undefined) return [];
+  const { visible, unclosed, commented } = visibleLines(section.lines.map((l) => l.text));
+  const kept: Line[] = [];
+  section.lines.forEach((l, i) => {
+    if (unclosed.has(i)) kept.push(l);
+    else if (visible[i].trim() !== '') kept.push(commented.has(i) ? { line: l.line, text: trimLineEnd(visible[i]) } : l);
+  });
+  return kept;
 }
 
 /** The last `verdict:` line decides; a record with none has no verdict. The last `## Round` also yields its declaration lines. */

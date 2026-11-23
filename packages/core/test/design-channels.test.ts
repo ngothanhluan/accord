@@ -54,7 +54,9 @@ describe('docs/design.md states the product-text channels (8.5-ac-20)', () => {
       'through no channel',
     ])
       expect(text, `the Product text part lacks: ${phrase}`).toContain(phrase);
-    expect(text).toMatch(/ticket text, delivered unchecked[\s\S]{0,400}?backlog 999\.(?!51\b)\d+/);
+    // Phase 08.8 D-05, D-06: ticket text is line-checked by the two builders both channels share, so the design no longer names it as an unchecked gap
+    expect(text).toMatch(/Ticket text \(R-12\) is line-checked too[\s\S]{0,1400}?`epicBlock` and `relatedParts`/);
+    expect(text).not.toContain('delivered unchecked');
 
     const hooks = part('**Hooks.**', '## 10.');
     expect(hooks).toContain('`accord anchor` prints the same ruleset first on every tool but Claude Code');

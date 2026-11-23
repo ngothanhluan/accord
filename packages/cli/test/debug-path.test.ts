@@ -155,6 +155,19 @@ it.runIf(process.platform === 'win32')('risk:security on Windows debug path refu
   expect(readdirSync(folder)).toEqual([file.slice(file.lastIndexOf('/') + 1)]);
 });
 
+// Phase 08.8 D-14 (WR-02): a state file over DEBUG_STATE_MAX (1 MiB) is refused, naming the size, and is never read.
+it('risk:resource accord debug path refuses a state file over the size limit (D-14)', async () => {
+  const repo = sandbox();
+  const file = pathOf((await run(['debug', 'path'], repo)).out);
+  writeFileSync(file, 'x'.repeat(1024 * 1024 + 1));
+  const out = await run(['debug', 'path'], repo);
+  expect(out.code).toBe(2);
+  expect(out.err).toContain(file);
+  expect(out.err).toContain('1048577');
+  expect(out.out).toBe('');
+  expect(lstatSync(file).size).toBe(1024 * 1024 + 1);
+});
+
 it('risk:security accord debug path refuses a state file that is not a regular file (D-06)', async () => {
   const repo = sandbox();
   const file = debugStatePath(repo);

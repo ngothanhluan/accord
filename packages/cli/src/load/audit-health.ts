@@ -67,7 +67,7 @@ export async function auditHealth(ctx: CommandContext): Promise<{ facts: AuditFa
   if (workflow.state === 'missing') gap('workflow-missing', `${WORKFLOW} does not exist, so no pull request is checked by accord`, 'accord init (it writes only the files that are missing)');
   else if (workflow.state === 'file') {
     const versions = new Set<string>();
-    for (const m of workflow.text.matchAll(/npx --yes (\S+?)@(\S+)/g)) if (m[1] === pkg.name) versions.add(m[2] as string);
+    for (const m of workflow.text.matchAll(/npx --yes (\S+?)@(\S+)/g)) if (m[1] === pkg.name) versions.add((m[2] as string).replace(/["',;]+$/, '')); // Phase 08.8 D-16 (IN-05): a closing quote, comma or semicolon is not part of the version
     const others = [...versions].filter((v) => v !== pinned);
     if (pinned !== undefined && others.length > 0) {
       gap('workflow-pin', `${WORKFLOW} runs accord ${others.join(', ')}, and config.yml pins ${pinned}`, `set the version in the workflow's npx --yes ${pkg.name}@<version> lines to ${pinned}`);

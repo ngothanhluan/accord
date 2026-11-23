@@ -124,7 +124,8 @@ export async function audit(ctx: CommandContext): Promise<number> {
     else if (r.code === 0) fact('team-audit', 'passed');
     else {
       const said = first(r.stdout) ?? first(r.stderr);
-      const text = said === undefined ? (r.code === null ? `audit.command was killed${r.signal === null ? '' : ' by ' + r.signal}` : `audit.command exited ${r.code} and printed nothing`) : shown(said).slice(0, TEAM_LINE_MAX);
+      // Phase 08.8 D-16 (IN-05): cut the raw line first, then escape it, so an escape such as `<U+001B>` is never cut in half
+      const text = said === undefined ? (r.code === null ? `audit.command was killed${r.signal === null ? '' : ' by ' + r.signal}` : `audit.command exited ${r.code} and printed nothing`) : shown([...said].slice(0, TEAM_LINE_MAX).join(''));
       gap('team-audit', text, fix);
     }
   }

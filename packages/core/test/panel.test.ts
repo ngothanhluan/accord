@@ -9,11 +9,17 @@ import { contentHash, markerHash, pluginTargets, SAFE_ID, withoutMarker } from '
 
 const PKG = { name: '@accord-dev/accord', version: '9.9.9' };
 const dirs: string[] = [];
+// Phase 08.8.1-08: a test may patch the generated view.js text (the one constant the build fixes from a probe row) for the panel it loads next
+let viewPatch: ((text: string) => string) | undefined;
 afterEach(() => {
+  viewPatch = undefined;
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
+const textOf = (f: { path: string; text: string }): string => (viewPatch !== undefined && f.path.endsWith('hooks/view.js') ? viewPatch(f.text) : f.text);
 
 type El = { type: string; props: Record<string, any> };
+// Phase 08.8.1-07: a Text may hold nested Texts (one per character of a gradient title); its text is the joined text of its children, and a Text nested in a Text is not a node of its own
+const flat = (children: unknown): string => (Array.isArray(children) ? children : [children]).map((c: any) => (c && typeof c === 'object' ? flat(c.props?.children) : String(c ?? ''))).join('');
 type Handler = (...a: any[]) => any;
 type Result = { exitCode: number; stdout: string; stderr: string };
 
@@ -23,7 +29,7 @@ async function loadPanel(): Promise<{ register: (on: Handler) => void }> {
   for (const f of pluginTargets({ runtimes: ['claude'] }, PKG)) {
     const p = join(dir, ...f.path.split('/'));
     mkdirSync(dirname(p), { recursive: true });
-    writeFileSync(p, f.text);
+    writeFileSync(p, textOf(f));
   }
   return import(/* @vite-ignore */ pathToFileURL(join(dir, '.claude/accord-panel/plugin/hooks/register.js')).href);
 }
@@ -34,7 +40,7 @@ async function loadView(): Promise<{ view: (state: unknown, query: string) => an
   for (const f of pluginTargets({ runtimes: ['claude'] }, PKG)) {
     const p = join(dir, ...f.path.split('/'));
     mkdirSync(dirname(p), { recursive: true });
-    writeFileSync(p, f.text);
+    writeFileSync(p, textOf(f));
   }
   return import(/* @vite-ignore */ pathToFileURL(join(dir, '.claude/accord-panel/plugin/hooks/view.js')).href);
 }
@@ -47,7 +53,10 @@ async function host(mod: { register: (on: Handler) => void }) {
   const runs: { res: (r: Result) => void; rej: (e: unknown) => void }[] = [];
   let tree: El | undefined;
   let inputText = '';
+  // Phase 08.8.1-07: the plugin's own store, a Map a test can seed with an earlier session's value; set keeps JSON data as the host does
+  const stored = new Map<string, unknown>();
   const h = {
+    store: stored,
     placed: true,
     // Phase 08.7: the surface a draw reports, the pane's width (undefined draws no props), the agents `$.agent.list` gives, the surfaces `$.session.surfaces` gives and the timers `$.clock` was asked for
     surface: 'terminal' as string,
@@ -57,7 +66,7 @@ async function host(mod: { register: (on: Handler) => void }) {
     placement: undefined as string | undefined,
     agents: [] as Record<string, unknown>[],
     surfaces: [] as unknown[],
-    timers: [] as { ms: number; fn: () => unknown; cancelled: boolean }[],
+    timers: [] as { ms: number; fn: () => unknown; cancelled: boolean; kind: string }[],
     tree: () => tree,
     // Phase 08.8.1-05: `last` stands for the host's own step at the end of the chain (a tool call that runs); its result is what the chain resolves with
     async fire(event: string, e: any, last?: Handler): Promise<any> {
@@ -74,17 +83,19 @@ async function host(mod: { register: (on: Handler) => void }) {
       const walk = (n: any): void => {
         if (!n || typeof n !== 'object') return;
         if (n.type === type) out.push(n);
+        if (n.type === 'Text') return;
         for (const c of n.props?.children ?? []) walk(c);
       };
       walk(tree);
       return out;
     },
     // first Text whose joined children equal s: its props, its direct parent Box's props, and that box's parent's props
-    cell: (s: string): { text: Record<string, any>; box: Record<string, any>; row: Record<string, any> } => {
+    cell: (s: string | RegExp): { text: Record<string, any>; box: Record<string, any>; row: Record<string, any> } => {
       let found: any;
       const walk = (n: any, parent?: any, grand?: any): void => {
         if (!n || typeof n !== 'object' || found) return;
-        if (n.type === 'Text' && (n.props.children as unknown[]).join('') === s) found = { text: n.props, box: parent?.props, row: grand?.props };
+        if (n.type === 'Text' && (typeof s === 'string' ? flat(n.props.children) === s : s.test(flat(n.props.children)))) found = { text: n.props, box: parent?.props, row: grand?.props };
+        if (n.type === 'Text') return;
         for (const c of n.props?.children ?? []) walk(c, n, parent);
       };
       walk(tree);
@@ -95,7 +106,7 @@ async function host(mod: { register: (on: Handler) => void }) {
       let found: any;
       const walk = (n: any, stack: any[]): void => {
         if (!n || typeof n !== 'object' || found) return;
-        if (n.type === 'Text' && (n.props.children as unknown[]).join('') === s) {
+        if (n.type === 'Text' && flat(n.props.children) === s) {
           found = [...stack].reverse().find((a) => a.type === 'Box' && a.props.flexDirection === 'row')?.props;
           return;
         }
@@ -114,7 +125,7 @@ async function host(mod: { register: (on: Handler) => void }) {
       walk(tree);
       return found && { ...found, children: undefined };
     },
-    texts: () => h.nodes('Text').map((n) => (n.props.children as unknown[]).join('')),
+    texts: () => h.nodes('Text').map((n) => flat(n.props.children)),
     buttons: () => h.nodes('Button').map((n) => n.props),
     input: () => h.nodes('Input')[0]?.props,
     field: () => inputText,
@@ -126,15 +137,19 @@ async function host(mod: { register: (on: Handler) => void }) {
     if (r && r.type) tree = r;
     inputText = h.input()?.value ?? '';
   };
-  const timer = (ms: number, fn: () => unknown): { cancel: () => void } => {
-    const t = { ms, fn, cancelled: false };
+  const timer = (kind: string) => (ms: number, fn: () => unknown): { cancel: () => void } => {
+    const t = { ms, fn, cancelled: false, kind };
     h.timers.push(t);
     return { cancel: () => void (t.cancelled = true) };
   };
   const $: any = {
     agent: { list: vi.fn(async () => h.agents) },
-    clock: { after: vi.fn(timer), every: vi.fn(timer) },
+    clock: { after: vi.fn(timer('after')), every: vi.fn(timer('every')) },
     session: { surfaces: vi.fn(async () => h.surfaces) },
+    store: {
+      get: vi.fn(async (k: string) => (stored.has(k) ? JSON.parse(JSON.stringify(stored.get(k))) : undefined)),
+      set: vi.fn(async (k: string, v: unknown) => void stored.set(k, JSON.parse(JSON.stringify(v)))),
+    },
     process: { run: vi.fn(() => new Promise<Result>((res, rej) => runs.push({ res, rej }))) },
     command: { register: vi.fn(async () => ({})), run: vi.fn(async () => ({})) },
     ui: {
@@ -654,7 +669,7 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
     expect(h.cell(heading).box.marginTop).toBe(1);
   }
   for (const w of ['ID', 'LANE', 'STAGE', 'TITLE']) {
-    const hs = h.nodes('Text').filter((n) => (n.props.children as unknown[]).join('') === w);
+    const hs = h.nodes('Text').filter((n) => flat(n.props.children) === w);
     expect(hs).toHaveLength(4);
     for (const n of hs) expect(n.props.dimColor).toBe(true);
   }
@@ -728,7 +743,7 @@ it('ac-5 the detail view wraps long text whole while the table keeps its cut', a
   h.settle({ stdout: JSON.stringify(detailOf({ title: LONG, criteria: [{ ...(detailOf().criteria as any[])[0], steps: [STEP], test: TEST }] })) });
   await vi.waitFor(() => expect(h.texts()).toContain(STEP));
   for (const [s, kids] of [[LONG, [LONG]], [STEP, [STEP]], ['Test: ' + TEST, ['Test: ' + TEST]]] as [string, string[]][]) {
-    const ns = h.nodes('Text').filter((n) => (n.props.children as unknown[]).join('') === s);
+    const ns = h.nodes('Text').filter((n) => flat(n.props.children) === s);
     expect(ns, s).toHaveLength(1);
     expect(ns[0].props.children).toEqual(kids);
     expect(ns[0].props.wrap).toBe('wrap');
@@ -1085,7 +1100,10 @@ const textsIn = (el: any): string[] => {
   const out: string[] = [];
   const walk = (n: any): void => {
     if (!n || typeof n !== 'object') return;
-    if (n.type === 'Text') out.push((n.props.children as unknown[]).join(''));
+    if (n.type === 'Text') {
+      out.push(flat(n.props.children));
+      return;
+    }
     for (const c of n.props?.children ?? []) walk(c);
   };
   walk(el);
@@ -1154,20 +1172,21 @@ it('risk:complex-branching a newest failed gate run shows the failure block and 
   const now = Math.floor(Date.now() / 1000);
   const gate = { at: now - 20, kind: 'gate', text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true };
   const h = await paneWith({ log: [gate, { at: now - 60, kind: 'commit', text: 'build: export' }] });
-  const box = h.nodes('Box').find((b) => b.props.borderColor === 'red');
+  const box = h.nodes('Box').find((b) => b.props.borderColor === '#ff6b6b');
   expect(box?.props.borderStyle).toBe('round');
   expect(textsIn(box)).toEqual(['Gate failed', gate.text]);
   const heading = (box?.props.children as any[]).find((c) => c.type === 'Text' && c.props.children[0] === 'Gate failed');
-  expect(heading.props).toMatchObject({ bold: true, color: 'red' });
+  // Phase 08.8.1-07 L-01 L-02: the failure box takes the person's failure colour, aurora's by default
+  expect(heading.props).toMatchObject({ bold: true, color: '#ff6b6b' });
   expect(tabs(h)['tab:ticket'].label).toContain('gate failed');
   // Phase 08.8.1 W4 (08.7 review WR-04): a newer commit no longer hides the failed gate run; only a newer gate run does
   const later = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'fix: header' }, gate] });
-  expect(later.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(true);
+  expect(later.nodes('Box').some((b) => b.props.borderColor === '#ff6b6b')).toBe(true);
   expect(later.texts()).toContain('Gate failed');
   expect(tabs(later)['tab:ticket'].label).toContain('gate failed');
   expect(later.texts()).toContain('LOG');
   const passed = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate done PASS' }, gate] });
-  expect(passed.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(false);
+  expect(passed.nodes('Box').some((b) => b.props.borderColor === '#ff6b6b')).toBe(false);
   expect(tabs(passed)['tab:ticket'].label).not.toContain('gate failed');
 });
 
@@ -1234,6 +1253,11 @@ const agentOf = (id: string, type: string, over: Record<string, unknown> = {}): 
   ...over,
 });
 const subStart = (id: string): Record<string, unknown> => ({ turnId: 't-' + id, text: 'x', agentId: id });
+// Phase 08.8.1-08 L-07: a running agent's mark is a spinner, so its row reads one of four glyphs before the name; the frame timer's period is the probe's rate
+const spun = (name: string): RegExp => new RegExp(`^[◐◓◑◒] ${name}$`);
+const isRunning = (h: Awaited<ReturnType<typeof host>>, name: string): boolean => h.texts().some((x) => spun(name).test(x));
+const everyTimers = (h: Awaited<ReturnType<typeof host>>): Awaited<ReturnType<typeof host>>['timers'] => h.timers.filter((t) => t.kind === 'every');
+const framePeriod = async (): Promise<number> => Math.round(1000 / (await loadView()).FRAME_RATE);
 
 // Phase 08.7 D-01, D-02, D-03: the agents block lists the accord agents the mod saw start, a timer while one runs and its own time when it ends; the tab label counts the running ones.
 it('risk:regression the agents block shows running accord agents with timers and finished ones with their time (D-01 D-02)', async () => {
@@ -1243,14 +1267,14 @@ it('risk:regression the agents block shows running accord agents with timers and
   expect(h.cell('none running').text.dimColor).toBe(true);
   h.agents = [agentOf('a1', 'accord-executor')];
   await h.fire('turn.start', subStart('a1'));
-  expect(h.texts()).toContain('◐ executor');
+  expect(isRunning(h, 'executor')).toBe(true);
   expect(h.texts()).toContain('1:05');
   expect(h.texts()).not.toContain('none running');
   expect(tabs(h)['tab:ticket'].label).toContain('◐1');
   await h.fire('turn.complete', { agentId: 'a1', durationMs: 125000, reason: 'answer' });
   expect(h.texts()).toContain('✓ executor');
   expect(h.texts()).toContain('2:05');
-  expect(h.texts()).not.toContain('◐ executor');
+  expect(isRunning(h, 'executor')).toBe(false);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   // the block sits between the failure box and the review rounds
   const now = Math.floor(Date.now() / 1000);
@@ -1303,8 +1327,9 @@ it('risk:concurrency subagent turns start no accord run and an accord subagent e
   await h.fire('turn.start', subStart('a2'));
   await h.fire('turn.start', subStart('g1'));
   expect(calls()).toBe(base);
+  // Phase 08.8.1-08 D-03: the one timer is the frame timer, at the probe's rate, in place of the 1-second tick
   expect(h.$.clock.every).toHaveBeenCalledTimes(1);
-  expect(h.$.clock.every).toHaveBeenCalledWith(1000, expect.any(Function));
+  expect(h.$.clock.every).toHaveBeenCalledWith(await framePeriod(), expect.any(Function));
   expect(h.$.clock.after).not.toHaveBeenCalled();
   await h.fire('turn.complete', { agentId: 'g1', durationMs: 10, reason: 'answer' });
   expect(h.$.clock.after).not.toHaveBeenCalled();
@@ -1312,7 +1337,7 @@ it('risk:concurrency subagent turns start no accord run and an accord subagent e
   expect(h.$.clock.after).toHaveBeenCalledTimes(1);
   expect(h.$.clock.after).toHaveBeenLastCalledWith(3000, expect.any(Function));
   expect(calls()).toBe(base);
-  const ticks = h.timers.filter((t) => t.ms === 1000);
+  const ticks = everyTimers(h);
   expect(ticks).toHaveLength(1);
   expect(ticks[0].cancelled).toBe(false);
   await h.fire('turn.complete', { agentId: 'a2', durationMs: 10, reason: 'answer' });
@@ -1335,7 +1360,7 @@ it('risk:security a non-accord subagent and a type that only looks like one are 
   for (let i = 0; i < types.length; i++) await h.fire('turn.start', subStart('s' + i));
   expect(h.texts()).toContain('AGENTS');
   expect(h.texts()).toContain('none running');
-  expect(h.texts().some((x) => /^[◐✓] /.test(x))).toBe(false);
+  expect(h.texts().some((x) => /^[◐◓◑◒✓] /.test(x))).toBe(false);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   for (const x of h.texts()) {
     expect(x).not.toContain('secret label');
@@ -1347,7 +1372,7 @@ it('risk:security a non-accord subagent and a type that only looks like one are 
   expect(h.texts()).toContain('none running');
   // an accord agent shows by its type alone
   await h.fire('turn.start', subStart('b1'));
-  expect(h.texts()).toContain('◐ executor');
+  expect(isRunning(h, 'executor')).toBe(true);
   for (const x of h.texts()) {
     expect(x).not.toContain('secret');
   }
@@ -1367,7 +1392,7 @@ it('risk:complex-branching without agent list or clock the pane hides the agents
   bare.agents = [agentOf('a1', 'accord-executor')];
   await bare.fire('turn.start', subStart('a1'));
   expect(bare.timers).toEqual([]);
-  expect(bare.texts()).toContain('◐ executor');
+  expect(isRunning(bare, 'executor')).toBe(true);
   const base = bare.$.process.run.mock.calls.length;
   await bare.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' });
   expect(bare.$.process.run.mock.calls.length).toBe(base + 1);
@@ -1547,6 +1572,9 @@ it('risk:regression docs/design.md records the panel exception verbatim with its
   expect(panel).toContain('the pane may also listen to subagent events, for display only');
   // Phase 08.8.1 IN-02: the widening of the tool-call events is recorded in the same paragraph
   expect(panel).toContain('tool-call events, for display only');
+  // Phase 08.8.1-09 L-02 L-03 D-03: each person's colours and motion live in the mod's own store on their machine, and motion runs within a measured budget and stops when idle
+  expect(panel).toContain('never in the repository');
+  expect(panel).toContain('stops when nothing does');
   for (const word of ['Parity exception', 'Desktop Code tab', 'accord show <id> --json']) expect(panel, word).toContain(word);
   expect(read('README.md')).toContain('two tabs');
 });
@@ -1587,7 +1615,8 @@ it('risk:complex-branching a not-committed warning replaces the stage track and 
   const { view: nc } = await ticketOf(csa);
   const keys = Object.keys(nc);
   expect(keys).toEqual(expect.arrayContaining(['title', 'notCommitted']));
-  for (const k of keys) expect(['title', 'notCommitted', 'failure', 'review', 'criteria', 'log']).toContain(k);
+  // Phase 08.8.1-07 L-01: the title's colours and the places' colours are display keys; no stage, task or progress key joins them
+  for (const k of keys) expect(['title', 'titleRun', 'colors', 'notCommitted', 'failure', 'review', 'criteria', 'log']).toContain(k);
   expect(nc.notCommitted).toBe(NOT_COMMITTED);
   const held = await paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3, warnings: [{ kind: 'plan-changed', text: PLAN_CHANGED }] });
   const ht = held.texts();
@@ -1847,13 +1876,14 @@ it('risk:complex-branching the now line says waiting for you after a main turn e
 
 // Phase 08.8.1 W5 (08.7 review WR-05): the roster is reconciled with the host's agent list at each main-loop turn end and refresh, and a change of ticket clears it.
 it('risk:concurrency an agent the host no longer lists as running is marked finished at the next main turn end and its timer stops (W5)', async () => {
-  const h = await claimedPane();
+  // Phase 08.8.1-09: this person has motion off, so the waiting line after the main turn end blinks nothing and no timer outlives the agents (the blink is in the resource case of 08.8.1-09)
+  const h = await paneWith({}, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
   h.agents = [agentOf('a1', 'accord-executor'), agentOf('a2', 'accord-planner')];
   await h.fire('turn.start', subStart('a1'));
   await h.fire('turn.start', subStart('a2'));
-  expect(h.texts()).toContain('◐ executor');
-  expect(h.texts()).toContain('◐ planner');
-  const ticks = h.timers.filter((t) => t.ms === 1000);
+  expect(isRunning(h, 'executor')).toBe(true);
+  expect(isRunning(h, 'planner')).toBe(true);
+  const ticks = everyTimers(h);
   expect(ticks).toHaveLength(1);
   expect(ticks[0].cancelled).toBe(false);
   // a1 is gone from the list and a2 is listed with another status; neither raised its own turn.complete
@@ -1861,9 +1891,9 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   await h.fire('turn.complete', { reason: 'answer' });
   await vi.waitFor(() => expect(h.texts()).toContain('✓ executor'));
   expect(h.texts()).toContain('✓ planner');
-  expect(h.texts()).not.toContain('◐ executor');
+  expect(isRunning(h, 'executor')).toBe(false);
   expect(ticks.every((t) => t.cancelled)).toBe(true);
-  expect(h.timers.filter((t) => t.ms === 1000 && !t.cancelled)).toHaveLength(0);
+  expect(everyTimers(h).filter((t) => !t.cancelled)).toHaveLength(0);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   // a change of the dashboard's current id clears the roster
   h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
@@ -1953,7 +1983,8 @@ it('risk:regression the ticket tab draws a tasks block with a progress bar betwe
   expect(kids(h.row('Alpha'))).toEqual(['✓', '1', 'Alpha']);
   expect(kids(h.row('Beta'))).toEqual(['▸', '2', 'Beta']);
   expect(kids(h.row('Gamma'))).toEqual(['·', '3', 'Gamma']);
-  expect(h.cell('✓').text.color).toBe('green');
+  // Phase 08.8.1-07 L-01: the done tick takes the person's tick colour, aurora's by default
+  expect(h.cell('✓').text.color).toBe('#6fd39a');
   expect(h.cell('▸').text.bold).toBe(true);
   const bars = h.nodes('Progress');
   expect(bars).toHaveLength(1);
@@ -2056,4 +2087,825 @@ it('risk:regression criteria labels sit next to their titles and the newest log 
   // repeated lines draw once with their count
   const twice = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate plan PASS' }, { at: now - 9, kind: 'commit', text: 'c' }, { at: now - 60, kind: 'gate', text: 'gate plan PASS' }] });
   expect(twice.texts().filter((x) => x.startsWith('gate plan PASS'))).toEqual(['gate plan PASS ×2']);
+});
+
+// ---- Phase 08.8.1-07 L-03 L-02 L-01: each person's settings, kept in the mod's own store and never in the repository ----
+
+// Phase 08.8.1 L-03: a stored settings value that is missing, from another version or hand-edited into anything invalid reads as the defaults field by field.
+it('risk:parsing stored settings read as the defaults field by field when missing or invalid (L-03)', async () => {
+  const { settingsOf, DEFAULT_SETTINGS } = await loadView();
+  const d = DEFAULT_SETTINGS;
+  expect(settingsOf(undefined)).toEqual(d);
+  expect(d).toMatchObject({ v: 1, palette: 'aurora', style: 'gradient', motion: 'lively', places: {} });
+  expect(d.effects).toEqual({ shimmer: true, flow: true, comet: true, eq: true, typing: true, confetti: true, roll: true, breathe: true });
+  expect(settingsOf({ v: 1, palette: 'ember', style: 'solid', motion: 'calm' })).toMatchObject({ palette: 'ember', style: 'solid', motion: 'calm', effects: { shimmer: true, roll: true } });
+  expect(settingsOf({ v: 1, palette: 'neon', style: 'solid' })).toMatchObject({ palette: 'aurora', style: 'solid' });
+  expect(settingsOf({ v: 1, palette: 'ember', style: 'x' })).toMatchObject({ palette: 'ember', style: 'gradient' });
+  expect(settingsOf({ v: 1, motion: 'frantic' })).toMatchObject({ motion: 'lively' });
+  expect(settingsOf({ v: 1, places: { title: 'blue', agents: '#3EC6E0', nowhere: '#ffffff' } }).places).toEqual({ agents: '#3ec6e0' });
+  expect(settingsOf({ v: 1, custom: ['#12345', '#00ff00', 5] }).custom).toEqual([d.custom[0], '#00ff00', d.custom[2]]);
+  for (const bad of [{ v: 2, palette: 'ember' }, [], 'ember', 7, null, true]) expect(settingsOf(bad)).toEqual(d);
+  // the defaults are never shared: a read value changes nothing of them
+  settingsOf(undefined).places.title = '#ffffff';
+  expect(settingsOf(undefined).places).toEqual({});
+});
+
+// the colour of each character of the title (the ticket head's first Text), as drawn
+const titleColors = (h: Awaited<ReturnType<typeof host>>): string[] => h.cell('ST-1 Login form').text.children.map((c: any) => c.props.color);
+
+// Phase 08.8.1 L-03 L-02: key s opens the view, Save keeps the choice in the person's store, and a new session draws the title in it; a session with an empty store is aurora.
+it('risk:regression the settings key opens the view and a saved preset colours the title in a new session (L-03 L-02)', async () => {
+  const first = await paneWith({});
+  expect(titleColors(first)[0]).toBe('#e07a4f');
+  const button = first.buttons().find((b) => b.key === 'settings') as Record<string, any>;
+  expect(button).toMatchObject({ hotkey: 's' });
+  expect(button.autoFocus).toBeUndefined();
+  press(first, 'settings');
+  await vi.waitFor(() => expect(first.buttons().filter((b) => String(b.key).startsWith('palette:')).map((b) => b.label)).toEqual(['aurora', 'ember', 'ocean', 'forest', 'sunset', 'mono', 'contrast', 'custom']));
+  press(first, 'palette:ember');
+  await vi.waitFor(() => expect(first.buttons().find((b) => b.key === 'palette:ember')?.variant).toBe('primary'));
+  expect(first.$.store.set).not.toHaveBeenCalled();
+  press(first, 'save');
+  await vi.waitFor(() => expect(first.$.store.set).toHaveBeenCalledWith('settings', expect.objectContaining({ v: 1, palette: 'ember' })));
+  expect(first.$.ui.toast).toHaveBeenCalledWith('saved for you only');
+  const saved = first.store.get('settings');
+  const again = await paneWith({}, (x) => void x.store.set('settings', saved));
+  expect(titleColors(again)[0]).toBe('#ff7a45');
+  const fresh = await paneWith({});
+  expect(titleColors(fresh)[0]).toBe('#e07a4f');
+  expect(fresh.$.store.set).not.toHaveBeenCalled();
+  // a store that throws is the defaults
+  const broken = await paneWith({}, (x) => void x.$.store.get.mockRejectedValue(new Error('no store')));
+  expect(titleColors(broken)[0]).toBe('#e07a4f');
+});
+
+// ---- Phase 08.8.1-07 task 2: the whole settings view ----
+
+const inputOf = (h: Awaited<ReturnType<typeof host>>, key: string): Record<string, any> => h.nodes('Input').find((n) => n.props.key === key)?.props as Record<string, any>;
+const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 5));
+const buttonOf = (h: Awaited<ReturnType<typeof host>>, key: string): Record<string, any> => h.buttons().find((b) => b.key === key) as Record<string, any>;
+// the pane of a claimed ticket with the settings view open
+async function settingsPane(): Promise<Awaited<ReturnType<typeof host>>> {
+  const h = await paneWith({});
+  press(h, 'settings');
+  await vi.waitFor(() => expect(inputOf(h, 'place:title')).toBeDefined());
+  return h;
+}
+const savedOf = async (h: Awaited<ReturnType<typeof host>>): Promise<Record<string, any>> => {
+  press(h, 'save');
+  await flush();
+  return h.store.get('settings') as Record<string, any>;
+};
+const REFUSAL = 'a colour is #rrggbb, e.g. #e07a4f';
+
+// Phase 08.8.1 L-02 (T-08.8.1-21, T-08.8.1-22): a colour that is not #rrggbb is refused and the old value kept; a failure or waiting colour under 3:1 is refused and that place reset to auto, so the store never holds a faint colour.
+it('risk:security a colour that is not rrggbb is refused and a faint failure or waiting colour is refused (L-02)', async () => {
+  const { contrastOk, setPlace, setCustom, settingsOf, FIXED, BACKGROUND } = await loadView();
+  expect(contrastOk('#0c0d11', '#0b0c10')).toBe(false);
+  expect(contrastOk('#ff5f6d', '#0b0c10')).toBe(true);
+  expect(contrastOk('blue', '#0b0c10')).toBe(false);
+  for (const preset of Object.values(FIXED) as Record<string, string>[]) for (const c of Object.values(preset)) expect(contrastOk(c, BACKGROUND), c).toBe(true);
+  const base = settingsOf(undefined);
+  expect(setPlace(base, 'title', ' #3EC6E0 ', BACKGROUND).settings.places).toEqual({ title: '#3ec6e0' });
+  expect(setPlace({ ...base, places: { title: '#3ec6e0' } }, 'title', 'auto', BACKGROUND).settings.places).toEqual({});
+  for (const bad of ['#zzz', 'blue', '#12345', '#1234567', '']) {
+    const got = setPlace({ ...base, places: { title: '#3ec6e0' } }, 'title', bad, BACKGROUND);
+    if (bad === '') expect(got.settings.places).toEqual({});
+    else expect(got, bad).toEqual({ refused: REFUSAL });
+  }
+  expect(setCustom(base, 0, '#zzz')).toEqual({ refused: REFUSAL });
+  expect(setCustom(base, 1, '#00FF00').settings.custom[1]).toBe('#00ff00');
+  expect(setCustom(base, 1, '#00FF00').settings.palette).toBe('custom');
+  const faint = setPlace({ ...base, places: { fail: '#ff5f6d' } }, 'fail', '#0c0d11', BACKGROUND);
+  expect(faint.settings.places).toEqual({});
+  expect(faint.refused).toContain('#0b0c10');
+  expect(faint.refused).toContain(FIXED.aurora.fail);
+  expect(setPlace(base, 'wait', '#0c0d11', BACKGROUND).settings.places).toEqual({});
+  // a faint colour of any other place is a choice, not a refusal
+  expect(setPlace(base, 'title', '#0c0d11', BACKGROUND)).toEqual({ settings: { ...base, places: { title: '#0c0d11' } } });
+  // read from the store, a faint wait or fail colour is auto
+  expect(settingsOf({ v: 1, places: { wait: '#0c0d11', fail: '#0c0d11', title: '#0c0d11' } }).places).toEqual({ title: '#0c0d11' });
+  // in the pane: after each refusal the held and the stored settings are unchanged
+  const h = await settingsPane();
+  inputOf(h, 'place:title').onSubmit('#3ec6e0');
+  await flush();
+  expect((await savedOf(h)).places).toEqual({ title: '#3ec6e0' });
+  for (const bad of ['#zzz', 'blue', '#12345', '#1234567']) {
+    inputOf(h, 'place:title').onSubmit(bad);
+    await flush();
+    expect(h.texts(), bad).toContain(REFUSAL);
+    expect(inputOf(h, 'place:title').value, bad).toBe('#3ec6e0');
+    expect((await savedOf(h)).places, bad).toEqual({ title: '#3ec6e0' });
+  }
+  inputOf(h, 'place:title').onSubmit('auto');
+  await flush();
+  expect(inputOf(h, 'place:title').value).toBe('auto');
+  expect((await savedOf(h)).places).toEqual({});
+  inputOf(h, 'place:fail').onSubmit('#ff5f6d');
+  await flush();
+  expect((await savedOf(h)).places).toEqual({ fail: '#ff5f6d' });
+  inputOf(h, 'place:fail').onSubmit('#0c0d11');
+  await flush();
+  expect(h.texts().some((x) => x.includes('#0b0c10') && x.includes('preset'))).toBe(true);
+  expect(inputOf(h, 'place:fail').value).toBe('auto');
+  const stored = await savedOf(h);
+  expect(Object.hasOwn(stored.places, 'fail')).toBe(false);
+  expect(JSON.stringify(stored)).not.toContain('#0c0d11');
+  expect(JSON.stringify(stored)).not.toContain('#ff5f6d');
+  inputOf(h, 'custom:0').onSubmit('#zzz');
+  await flush();
+  expect(h.texts()).toContain(REFUSAL);
+  expect((await savedOf(h)).custom[0]).toBe('#e07a4f');
+});
+
+// Phase 08.8.1 L-02 L-01: the view holds every choice the sketch's Lab holds, and Default resets them all.
+it('risk:regression the settings view holds the presets the style the places the motion level and the twelve switches and Default resets them (L-02 L-01)', async () => {
+  const { settingsView, settingsOf } = await loadView();
+  const sw = settingsView(settingsOf({ v: 1, palette: 'ember' }));
+  expect(sw.palettes.map((p: any) => p.name)).toEqual(['aurora', 'ember', 'ocean', 'forest', 'sunset', 'mono', 'contrast', 'custom']);
+  expect(sw.palettes.find((p: any) => p.name === 'ember').swatch).toHaveLength(5);
+  expect(sw.palettes.find((p: any) => p.name === 'ember').swatch[0]).toEqual({ ch: '█', color: '#ff7a45' });
+  expect(sw.palettes.find((p: any) => p.name === 'ember').selected).toBe(true);
+  expect(sw.places.map((p: any) => p.label)).toEqual(['title', 'stage track', 'live line', 'agents', 'progress bar', 'criteria', 'log', 'done tick', 'waiting for you', 'failure']);
+  expect(sw.places.every((p: any) => p.value === 'auto' && /^#[0-9a-f]{6}$/.test(p.color))).toBe(true);
+  const h = await settingsPane();
+  for (const i of [0, 1, 2]) expect(inputOf(h, `custom:${i}`)).toBeDefined();
+  expect(['style:gradient', 'style:solid'].map((k) => buttonOf(h, k)?.label)).toEqual(['gradient', 'one colour']);
+  const keys = ['title', 'stage', 'now', 'agents', 'bar', 'criteria', 'log', 'tick', 'wait', 'fail'];
+  expect(keys.map((k) => inputOf(h, `place:${k}`)?.label)).toEqual(['title', 'stage track', 'live line', 'agents', 'progress bar', 'criteria', 'log', 'done tick', 'waiting for you', 'failure']);
+  expect([0, 1, 2].map((i) => inputOf(h, `custom:${i}`).label)).toEqual(['from', 'via', 'to']);
+  expect(['lively', 'mission', 'calm', 'off'].map((k) => buttonOf(h, `motion:${k}`)?.label)).toEqual(['lively', 'mission', 'calm', 'off']);
+  const on = (): string[] => h.texts().filter((x) => x.startsWith('[x] '));
+  const all = (): string[] => h.texts().filter((x) => x.startsWith('[x] ') || x.startsWith('[ ] '));
+  expect(all()).toHaveLength(12);
+  expect(on()).toHaveLength(8);
+  expect(h.texts()).not.toContain('mine');
+  press(h, 'motion:calm');
+  await flush();
+  expect(on()).toEqual(['[x] shimmer on the live line', '[x] rolling counter']);
+  expect(buttonOf(h, 'motion:calm').variant).toBe('primary');
+  press(h, 'effect:comet');
+  await flush();
+  expect(on()).toHaveLength(3);
+  expect(h.texts()).toContain('mine');
+  expect(buttonOf(h, 'motion:calm').variant).toBe('secondary');
+  press(h, 'style:solid');
+  await flush();
+  expect(buttonOf(h, 'style:solid').variant).toBe('primary');
+  const saved = await savedOf(h);
+  expect(saved).toMatchObject({ v: 1, style: 'solid', motion: 'mine', palette: 'aurora' });
+  expect(saved.effects).toEqual({ shimmer: true, roll: true, comet: true });
+  press(h, 'default');
+  await flush();
+  expect(on()).toHaveLength(8);
+  const reset = await savedOf(h);
+  expect(reset).toEqual(settingsOf(undefined));
+  press(h, 'settings:back');
+  await flush();
+  expect(inputOf(h, 'place:title')).toBeUndefined();
+  expect(h.texts()).toContain('ST-1 Login form');
+});
+
+// Phase 08.8.1 L-03 (Ruling: the focus rule): the settings key is a Button hotkey, never a key handler of the pane's own, so an s typed into a focused field is text.
+it('risk:regression the settings key never takes an s typed into the search field or a settings field (L-03)', async () => {
+  const h = await claimedPane();
+  press(h, 'tab:dashboard');
+  await vi.waitFor(() => expect(h.input()).toBeDefined());
+  expect(h.input()?.autoFocus).toBeUndefined();
+  expect(buttonOf(h, 'settings')).toMatchObject({ hotkey: 's' });
+  expect(buttonOf(h, 'settings').autoFocus).toBeUndefined();
+  h.input()?.onInput('as');
+  await flush();
+  expect(h.input()?.value).toBe('as');
+  expect(tabs(h)['tab:dashboard'].variant).toBe('primary');
+  expect(h.buttons().some((b) => String(b.key).startsWith('palette:'))).toBe(false);
+  for (const b of h.buttons()) if (b.key !== 'settings') expect(b.hotkey, String(b.key)).not.toBe('s');
+  press(h, 'settings');
+  await vi.waitFor(() => expect(inputOf(h, 'place:title')).toBeDefined());
+  inputOf(h, 'place:title').onInput('s');
+  await flush();
+  expect(inputOf(h, 'place:title').value).toBe('s');
+  expect(h.buttons().some((b) => String(b.key).startsWith('palette:'))).toBe(true);
+  expect(h.$.store.set).not.toHaveBeenCalled();
+  expect((await savedOf(h)).places).toEqual({});
+  expect(marked(h)).toEqual([]);
+  for (const b of h.buttons()) if (b.key !== 'settings') expect(b.hotkey, String(b.key)).not.toBe('s');
+});
+
+// ---- Phase 08.8.1-07 task 3: every place of the ticket tab takes the person's colours ----
+
+// Phase 08.8.1 L-01 L-02: the ticket tab has no colour per stage; each place takes the person's colours, one gradient system or one colour per place. The dashboard tab keeps its stage colours.
+it("risk:regression the ticket tab takes the person's colours with no colour per stage (L-01 L-02)", async () => {
+  const { gradientAt, PALETTES, ticketView, pipelineOf, settingsOf } = await loadView();
+  const aurora = PALETTES.aurora as string[];
+  const STAGE = ['blue', 'cyan', 'yellow', 'magenta', 'green'];
+  const now = Math.floor(Date.now() / 1000);
+  const over = {
+    stage: 'build',
+    tasksDone: 1,
+    tasksTotal: 3,
+    now: { task: 2, title: 'Beta' },
+    tasks: [taskOf(1, 'Alpha', true), taskOf(2, 'Beta'), taskOf(3, 'Gamma')],
+    criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing')],
+    log: [{ at: now - 5, kind: 'gate', text: 'gate done FAIL: red', fail: true }, { at: now - 9, kind: 'commit', text: 'build: x' }],
+  };
+  // Phase 08.8.1-08: this case reads the colour of each place, so its person has motion off (a moving effect repaints the places frame by frame)
+  const still = { v: 1, motion: 'off', effects: {} };
+  const h = await paneWith(over, (x) => {
+    x.rows = 40;
+    void x.store.set('settings', still);
+  });
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('turn.start', subStart('a1'));
+  await vi.waitFor(() => expect(isRunning(h, 'executor')).toBe(true));
+  const at = (place: number, p = 0): string => gradientAt(aurora, place + p);
+  // the stage track: gradient cells at its position, none of the stage names
+  ['intent/approach', 'plan', 'build 1/3'].forEach((label, i) => expect(h.cell(label).box.backgroundColor, label).toBe(at(0.15, i / 5)));
+  for (const label of ['review', 'verify']) expect(h.cell(label).box.backgroundColor, label).toBeUndefined();
+  for (const n of h.nodes('Box')) expect(STAGE).not.toContain(n.props.backgroundColor);
+  // the tab-1 label's stage word is the live line's colour, its agent count the agents', its failure mark the failure colour
+  expect(h.cell(' build').text.color).toBe(at(0.3));
+  expect(h.cell(' ◐1').text.color).toBe(at(0.62));
+  expect(h.cell(' gate failed').text.color).toBe('#ff6b6b');
+  // the places of the tab
+  expect(h.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
+  expect(h.cell('✓').text.color).toBe('#6fd39a');
+  expect(h.cell('▸').text.color).toBe(at(0.3));
+  expect(h.nodes('Progress')[0].props.color).toBe(at(0.45));
+  expect(h.cell(spun('executor')).text.color).toBe(at(0.62));
+  expect(h.cell('ac-1').text.color).toBe(at(0.8, 0));
+  expect(h.cell('ac-2').text.color).toBe(at(0.8, 0.5));
+  // the failure box and the log both hold the gate line; the log's is the last
+  expect(h.nodes('Text').filter((n) => flat(n.props.children) === 'gate done FAIL: red').at(-1)?.props.color).toBe('#ff6b6b');
+  const box = h.nodes('Box').find((b) => b.props.borderColor === '#ff6b6b');
+  expect(textsIn(box)[0]).toBe('Gate failed');
+  expect(h.cell('Gate failed').text.color).toBe('#ff6b6b');
+  // the newest log line takes the log's colour when it did not fail
+  // Phase 08.8.1-09: the waiting line glows toward white while it blinks, so this check of the waiting colour keeps motion off
+  const calm = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'newest one' }, { at: now - 9, kind: 'commit', text: 'older one' }] }, (x) => void x.store.set('settings', still));
+  expect(calm.cell('newest one').text.color).toBe(at(0.55));
+  expect(calm.cell('older one').text.color).toBeUndefined();
+  // a main-loop turn that ended draws the waiting line in the waiting colour
+  await calm.fire('turn.complete', { reason: 'answer', answer: 'done' });
+  await vi.waitFor(() => expect(calm.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
+  expect(calm.cell(calm.texts().find((x) => x.startsWith('Waiting for you')) as string).text.color).toBe('#e07a4f');
+  // one colour per place: the person's own colours win, the other places take the palette's colour at the place's position
+  const own = { ...still, style: 'solid', places: { title: '#3ec6e0', agents: '#ff5f6d' } };
+  const solid = await paneWith({ stage: 'build', now: { task: 2, title: 'Beta' } }, (x) => void x.store.set('settings', own));
+  solid.agents = [agentOf('a1', 'accord-executor')];
+  await solid.fire('turn.start', subStart('a1'));
+  await vi.waitFor(() => expect(isRunning(solid, 'executor')).toBe(true));
+  expect(new Set(titleColors(solid))).toEqual(new Set(['#3ec6e0']));
+  expect(solid.cell(spun('executor')).text.color).toBe('#ff5f6d');
+  expect(solid.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
+  expect(solid.cell(' build').text.color).toBe(at(0.3));
+  // the pure view gives hex colours for the stage track and keeps the dashboard's stage names in pipelineOf
+  const t = ticketView({ ticket: { id: 'ST-1', state: { ticket: detailOf(over) } }, now, settings: settingsOf(undefined) });
+  expect(t.cells.map((c: any) => c.color)).toEqual([0, 1, 2, 3, 4].map((i) => at(0.15, i / 5)));
+  expect(pipelineOf({ lane: 'M', stage: 'build' }).map((c: any) => c.color)).toEqual(STAGE);
+});
+
+// ---- Phase 08.8.1-08: the motion engine (D-03) and the lively preset (L-01, L-07) ----
+
+const MOVING = { stage: 'build', tasksDone: 1, tasksTotal: 3, now: { task: 2, title: 'Beta' }, tasks: [taskOf(1, 'Alpha', true, ['ac-1']), taskOf(2, 'Beta', false, ['ac-2']), taskOf(3, 'Gamma')], criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing')] };
+// the live timers of the host: the ones `$.clock.every` was asked for and nobody cancelled
+const liveTimers = (h: Awaited<ReturnType<typeof host>>): number[] => everyTimers(h).filter((t) => !t.cancelled).map((t) => t.ms);
+// the colour of each character of the first Text whose joined text is `text`, or undefined when that Text holds a plain string
+const runColors = (h: Awaited<ReturnType<typeof host>>, text: string): string[] | undefined => {
+  const kidsOf = h.cell(text)?.text.children as unknown[];
+  return kidsOf.every((c: any) => c && typeof c === 'object') ? kidsOf.map((c: any) => c.props.color) : undefined;
+};
+const startExecutor = async (h: Awaited<ReturnType<typeof host>>): Promise<void> => {
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('turn.start', subStart('a1'));
+};
+
+// Phase 08.8.1 D-03: one frame timer redraws at the probe's rate only while the ticket tab shows, motion is not off and an accord agent runs; none when idle or on another view; off keeps only the 1-second agent clock; off the terminal the rate is at most 10 a second and a still Desktop (P7) has no frame timer
+it('risk:resource one frame timer runs at the probe rate only while something runs and none when idle (D-03)', async () => {
+  const period = await framePeriod();
+  const h = await paneWith(MOVING);
+  expect(liveTimers(h)).toEqual([]);
+  expect(runColors(h, 'task 2 of 3 · Beta')).toBeUndefined();
+  await startExecutor(h);
+  expect(liveTimers(h)).toEqual([period]);
+  // the live line is one coloured text per character while the timer runs
+  expect(runColors(h, 'task 2 of 3 · Beta')?.every((c) => /^#[0-9a-f]{6}$/.test(c))).toBe(true);
+  // another view stops the timer and coming back starts one again: the dashboard tab, the widget placement, the settings view
+  press(h, 'tab:dashboard');
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([]));
+  press(h, 'tab:ticket');
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([period]));
+  h.columns = 100;
+  h.placement = 'widget';
+  await h.$.ui.invalidate('ui.render');
+  expect(liveTimers(h)).toEqual([]);
+  h.placement = 'dock';
+  await h.$.ui.invalidate('ui.render');
+  expect(liveTimers(h)).toEqual([period]);
+  press(h, 'settings');
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([]));
+  press(h, 'settings');
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([period]));
+  // the agent ends: no timer is left and the live line is plain again
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 10, reason: 'answer' });
+  expect(liveTimers(h)).toEqual([]);
+  expect(runColors(h, 'task 2 of 3 · Beta')).toBeUndefined();
+  // motion off keeps only the 1-second clock of the agents' times
+  const off = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
+  await startExecutor(off);
+  expect(liveTimers(off)).toEqual([1000]);
+  expect(runColors(off, 'task 2 of 3 · Beta')).toBeUndefined();
+  // off the terminal the pane redraws at most 10 a second
+  const desk = await paneWith(MOVING, (x) => void (x.surface = 'desktop'));
+  await startExecutor(desk);
+  expect(liveTimers(desk)).toHaveLength(1);
+  expect(liveTimers(desk)[0]).toBeGreaterThanOrEqual(100);
+  // P7 static: the Desktop draws the person's colours and no effect, and no frame timer runs there
+  viewPatch = (text) => text.replace('export const DESKTOP_MOTION = true', 'export const DESKTOP_MOTION = false');
+  const still = await paneWith(MOVING, (x) => void (x.surface = 'desktop'));
+  viewPatch = undefined;
+  await startExecutor(still);
+  expect(liveTimers(still)).toEqual([1000]);
+  const before = titleColors(still);
+  await flush();
+  await still.$.ui.invalidate('ui.render');
+  expect(titleColors(still)).toEqual(before);
+  expect(runColors(still, 'task 2 of 3 · Beta')).toBeUndefined();
+});
+
+// Phase 08.8.1 L-01: the shimmer is a pure function of the frame time: one `#rrggbb` per code point, a glow that moves between frames, the same colours for the same time
+it('risk:parsing the shimmer moves a glow across the live line frame by frame (L-01)', async () => {
+  const { shimmer, PALETTES } = await loadView();
+  const stops = [PALETTES.aurora[0], PALETTES.aurora[3]];
+  const a = shimmer('Reviewing', 0, stops);
+  const b = shimmer('Reviewing', 500, stops);
+  expect(a.map((r: any) => r.ch)).toEqual([...'Reviewing']);
+  for (const r of [...a, ...b]) expect(r.color).toMatch(/^#[0-9a-f]{6}$/);
+  expect(b.some((r: any, i: number) => r.color !== a[i].color)).toBe(true);
+  expect(shimmer('Reviewing', 500, stops)).toEqual(b);
+  expect(shimmer('', 500, stops)).toEqual([]);
+});
+
+// Phase 08.8.1 L-01 L-07: each lively effect and the spinner is a pure function of the frame time; every colour is `#rrggbb`
+it('risk:parsing each lively effect is a pure function of the frame time (L-01 L-07)', async () => {
+  const { flowRun, comet, equalizer, typed, sparkles, rolling, breathe, spinner, PALETTES, isHex } = await loadView();
+  const stops = PALETTES.aurora;
+  const hex = (colors: string[]): void => colors.forEach((c) => expect(isHex(c), c).toBe(c));
+  const sum = (c: string): number => [1, 3, 5].reduce((a, i) => a + parseInt(c.slice(i, i + 2), 16), 0);
+  // the flowing title shifts the gradient with the time and gives the same colours for the same time
+  const f0 = flowRun('Login form', stops, 0);
+  const f1 = flowRun('Login form', stops, 2000);
+  expect(f0.map((r: any) => r.ch)).toEqual([...'Login form']);
+  hex([...f0, ...f1].map((r: any) => r.color));
+  expect(f1.some((r: any, i: number) => r.color !== f0[i].color)).toBe(true);
+  expect(flowRun('Login form', stops, 2000)).toEqual(f1);
+  // the comet: 20 cells, the first 10 filled with a bright head that moves, the rest an empty track
+  const c0 = comet(0.5, 20, 0, stops);
+  const c1 = comet(0.5, 20, 250, stops);
+  expect(c0).toHaveLength(20);
+  expect(c0.slice(0, 10).every((c: any) => c.ch === '━')).toBe(true);
+  expect(c0.slice(10).every((c: any) => c.ch === '─')).toBe(true);
+  hex([...c0, ...c1].map((c: any) => c.color));
+  const brightest = (cells: any[]): number => cells.slice(0, 10).reduce((best: number, c: any, i: number) => (sum(c.color) > sum(cells[best].color) ? i : best), 0);
+  expect([brightest(c0), brightest(c1)]).toEqual([0, 4]);
+  expect(comet(0.5, 20, 250, stops)).toEqual(c1);
+  // the equalizer: glyphs from the seven bars that change with the time
+  const e0 = equalizer(0, 6, 1);
+  expect([...e0]).toHaveLength(6);
+  expect([...e0, ...equalizer(400, 6, 1)].every((g) => '▁▂▃▄▅▆▇'.includes(g))).toBe(true);
+  expect(equalizer(400, 6, 1)).not.toBe(e0);
+  expect(equalizer(0, 6, 1)).toBe(e0);
+  // typed text: a character every 28 ms and a cursor until it is whole
+  expect(typed('reading the brief', 0, 280)).toBe('reading th▌');
+  expect(typed('reading the brief', 0, 28 * 17)).toBe('reading the brief');
+  expect(typed('reading the brief', 500, 100)).toBe('▌');
+  // sparkles: particles inside the width, none after 1.2 seconds, the same for the same seed
+  const burst = { at: 0, seed: 7 };
+  const s = sparkles(burst, 600, 40);
+  expect(s.length).toBeGreaterThan(0);
+  for (const p of s) {
+    expect('✦✧⋆·*+˚').toContain(p.ch);
+    expect(p.x).toBeGreaterThanOrEqual(0);
+    expect(p.x).toBeLessThan(40);
+    expect(p.y).toBeGreaterThanOrEqual(0);
+    expect(p.y).toBeLessThan(3);
+  }
+  expect(sparkles(burst, 600, 40)).toEqual(s);
+  expect(sparkles({ at: 0, seed: 8 }, 600, 40)).not.toEqual(s);
+  expect(sparkles(burst, 1200, 40)).toEqual([]);
+  expect(sparkles(burst, -5, 40)).toEqual([]);
+  // the rolling counter: changing digits for 700 ms, then the number
+  const digits = new Set([0, 50, 100, 150, 200, 250, 300, 350].map((now) => rolling(3, 4, 0, now)));
+  expect(digits.size).toBeGreaterThan(1);
+  for (const d of digits) expect(d).toMatch(/^[0-9] of 4$/);
+  expect(rolling(3, 4, 0, 800)).toBe('3 of 4');
+  expect(rolling(3, 4, undefined, 10)).toBe('3 of 4');
+  // breathing: stays a colour and comes back to its start after one period
+  const base = '#6cc7d9';
+  const b = [0, 200, 550, 900].map((t) => breathe(base, t));
+  hex(b);
+  expect(new Set(b).size).toBeGreaterThan(1);
+  expect(breathe(base, 1100)).toBe(breathe(base, 0));
+  // the spinner's four marks
+  expect([0, 125, 250, 375, 500].map(spinner)).toEqual(['◐', '◓', '◑', '◒', '◐']);
+  // no effect reads a clock of its own: the same arguments give the same frame (checked above) and the source holds no call to one
+  expect(readFileSync(new URL('../panel/view.js', import.meta.url), 'utf8').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')).not.toMatch(/Date\.now|performance\./);
+});
+
+// ---- Phase 08.8.1-08 task 3: the lively and calm presets on the ticket tab, the burst of a finished task and the cut effects ----
+
+// The tasks of a four-task plan with `done` of them done, the task in flight the next one; each task covers one criterion
+const planOf = (done: number): Record<string, unknown> => ({
+  stage: 'build',
+  tasksDone: done,
+  tasksTotal: 4,
+  now: { task: done + 1, title: `Task ${done + 1}` },
+  tasks: [1, 2, 3, 4].map((n) => taskOf(n, `Task ${n}`, n <= done, [`ac-${n}`])),
+  criteria: [1, 2, 3, 4].map((n) => critOf(`ac-${n}`, `Criterion ${n}`, 'untested')),
+});
+// the pane after one more `show` result: an accord agent ends, its debounced refresh runs and `show` answers with these keys
+async function reshow(h: Awaited<ReturnType<typeof host>>, over: Record<string, unknown>, id: string): Promise<void> {
+  h.agents = [...h.agents, agentOf(id, 'accord-planner')];
+  await h.fire('turn.start', subStart(id));
+  await h.fire('turn.complete', { agentId: id, durationMs: 10, reason: 'answer' });
+  await h.timers.filter((t) => t.kind === 'after' && !t.cancelled).at(-1)?.fn();
+  await vi.waitFor(() => expect(h.inflight()).toBe(1));
+  h.settle({ stdout: JSON.stringify(detailOf(over)) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(0));
+}
+const sparkBox = (h: Awaited<ReturnType<typeof host>>): El | undefined => h.nodes('Box').find((b) => b.props.position === 'absolute');
+const counterOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^\d of 4$/.test(x));
+const barText = (h: Awaited<ReturnType<typeof host>>): El | undefined => h.nodes('Text').find((n) => /^[━─╸]{8,}$/.test(flat(n.props.children)));
+const eqText = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[▁▂▃▄▅▆▇]{4,}$/.test(x));
+const childColors = (n: El | undefined): string[] => ((n?.props.children ?? []) as any[]).map((c) => c.props.color);
+
+// Phase 08.8.1 L-01 D-03: a finished task starts one burst (sparkles and a rolling counter, about 1.2 seconds) and the lively preset draws its effects while an agent runs; calm moves only the shimmer and the counter, and under mine only the switched effects move
+it('risk:complex-branching a task finished plays sparkles and the rolling counter once and the lively preset draws its effects (L-01 D-03)', async () => {
+  const h = await paneWith(planOf(2), (x) => void (x.rows = 40));
+  // a fixed clock: the comet head runs on the clock, and from some real times both frames sit past the filled part and look alike (a flake)
+  const T = 1_800_000_000_000;
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(T);
+  try {
+    await startExecutor(h);
+    await h.fire('tool.call', { agentId: 'a1', tool: 'Edit', file_path: 'src/view.js' });
+    // no burst yet: the same count again starts none, and the frame holds no sparkle
+    await reshow(h, planOf(2), 'p1');
+    expect(sparkBox(h)).toBeUndefined();
+    await reshow(h, planOf(3), 'p2');
+    // inside the burst: sparkle glyphs in the overlay, the counter digit rolling
+    const frame = async (ms: number): Promise<void> => {
+      clock.mockReturnValue(T + ms);
+      await h.$.ui.invalidate('ui.render');
+    };
+    await frame(100);
+    const glyphs = '✦✧⋆·*+˚';
+    expect([...textsIn(sparkBox(h)).join('')].some((ch) => glyphs.includes(ch))).toBe(true);
+    const first = counterOf(h);
+    const titleA = titleColors(h);
+    const barA = childColors(barText(h));
+    const eqA = eqText(h);
+    const typedA = h.texts().find((x) => x.startsWith('Ed'));
+    const critA = h.cell('ac-4').text.color;
+    const stillA = h.cell('ac-1').text.color;
+    await frame(350);
+    expect(first).toMatch(/^\d of 4$/);
+    expect(first).not.toBe('3 of 4');
+    expect(counterOf(h)).not.toBe(first);
+    // the flowing title, the comet, the equalizer, the typed line and the breathing criterion each changed with the frame time
+    expect(titleColors(h)).not.toEqual(titleA);
+    expect(childColors(barText(h))).not.toEqual(barA);
+    expect(eqText(h)).not.toBe(eqA);
+    expect(typedA).toBeDefined();
+    expect(h.texts().find((x) => x.startsWith('Ed'))).not.toBe(typedA);
+    expect(h.cell('ac-4').text.color).not.toBe(critA);
+    // a criterion the task in flight does not cover keeps its colour
+    expect(h.cell('ac-1').text.color).toBe(stillA);
+    // after the burst: the number, no sparkle
+    await frame(1300);
+    expect(counterOf(h)).toBe('3 of 4');
+    expect(sparkBox(h)).toBeUndefined();
+    // a new ticket id starts none, even with a higher count
+    const next = JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } }));
+    await h.fire('turn.start', { turnId: 'm', text: 'x' });
+    await h.fire('turn.complete', { reason: 'answer' });
+    await vi.waitFor(() => expect(h.inflight()).toBe(1));
+    h.settle({ stdout: next });
+    await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
+    clock.mockReturnValue(T + 5000);
+    h.settle({ stdout: JSON.stringify(detailOf({ ...planOf(4), id: 'ST-2', title: 'Export' })) });
+    await vi.waitFor(() => expect(h.texts()).toContain('ST-2 Export'));
+    expect(sparkBox(h)).toBeUndefined();
+  } finally {
+    clock.mockRestore();
+  }
+  // calm: the shimmer and the counter move, nothing else
+  const calm = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'calm', effects: { shimmer: true, roll: true } }));
+  // a fixed clock again: the glow and the comet head run on it
+  const c0 = 1_800_000_001_000;
+  const spy = vi.spyOn(Date, 'now').mockReturnValue(c0);
+  try {
+    await startExecutor(calm);
+    const grab = async (ms: number): Promise<{ title: string[]; now: string[] | undefined; bar: boolean; eq: string | undefined }> => {
+      spy.mockReturnValue(c0 + ms);
+      await calm.$.ui.invalidate('ui.render');
+      return { title: titleColors(calm), now: runColors(calm, 'task 3 of 4 · Task 3'), bar: barText(calm) !== undefined, eq: eqText(calm) };
+    };
+    const a = await grab(100);
+    const b = await grab(350);
+    expect(b.title).toEqual(a.title);
+    expect(a.now).toBeDefined();
+    expect(b.now).not.toEqual(a.now);
+    expect(a.bar).toBe(false);
+    expect(calm.nodes('Progress')).toHaveLength(1);
+    expect(a.eq).toBeUndefined();
+  } finally {
+    spy.mockRestore();
+  }
+  // mine with only the comet on: only the comet moves
+  const mine = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
+  const m0 = 1_800_000_001_000;
+  const spy2 = vi.spyOn(Date, 'now').mockReturnValue(m0);
+  try {
+    await startExecutor(mine);
+    spy2.mockReturnValue(m0 + 100);
+    await mine.$.ui.invalidate('ui.render');
+    const t1 = titleColors(mine);
+    const bar1 = childColors(barText(mine));
+    spy2.mockReturnValue(m0 + 350);
+    await mine.$.ui.invalidate('ui.render');
+    expect(titleColors(mine)).toEqual(t1);
+    expect(childColors(barText(mine))).not.toEqual(bar1);
+    expect(runColors(mine, 'task 3 of 4 · Task 3')).toBeUndefined();
+    expect(eqText(mine)).toBeUndefined();
+  } finally {
+    spy2.mockRestore();
+  }
+});
+
+// Phase 08.8.1 D-03: an effect the probe cut is never drawn, whatever the person switched on
+it('risk:regression the effects the probe cut are never drawn (D-03)', async () => {
+  viewPatch = (text) => text.replace('export const CUT_EFFECTS = [];', "export const CUT_EFFECTS = ['comet'];");
+  const { effectsOf, CUT_EFFECTS } = await loadView();
+  expect(CUT_EFFECTS).toEqual(['comet']);
+  expect([...effectsOf({ motion: 'lively', effects: {} })]).not.toContain('comet');
+  expect([...effectsOf({ motion: 'mine', effects: { comet: true, eq: true } })]).toEqual(['eq']);
+  const mine = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
+  viewPatch = undefined;
+  await startExecutor(mine);
+  expect(barText(mine)).toBeUndefined();
+  expect(mine.nodes('Progress')).toHaveLength(1);
+  // the same pane without the cut draws the comet
+  const open = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
+  await startExecutor(open);
+  expect(barText(open)).toBeDefined();
+});
+
+// ---- Phase 08.8.1-09 task 1: the mission preset draws a heartbeat and a train (L-01) ----
+
+// Phase 08.8.1 L-01: the heartbeat and the train are pure functions of the frame time; the heartbeat is `width` cells with a beat that moves and a taller glyph where a log event happened inside its span; the train rides only the current stage cell
+it('risk:parsing the heartbeat and the train are pure functions of the frame time (L-01)', async () => {
+  const { heartbeat, train, PALETTES, isHex } = await loadView();
+  const stops = PALETTES.aurora;
+  const t = 1_800_000_000_000;
+  const event = { at: t / 1000 - 2 };
+  const a = heartbeat(60, t, [event], t, stops);
+  const b = heartbeat(60, t + 500, [event], t + 500, stops);
+  expect(a).toHaveLength(60);
+  for (const c of [...a, ...b]) {
+    expect('─╱╲‾▇').toContain(c.ch);
+    expect(isHex(c.color), c.color).toBe(c.color);
+  }
+  const beats = (cells: any[]): number[] => cells.flatMap((c, i) => ('╱╲‾'.includes(c.ch) ? [i] : []));
+  expect(beats(a).length).toBeGreaterThan(0);
+  expect(beats(b)).not.toEqual(beats(a));
+  // an event inside the span is one taller glyph that moves left as it ages, one older than the span draws none, and the same arguments give the same frame
+  expect(a.filter((c: any) => c.ch === '▇')).toHaveLength(1);
+  expect(b.findIndex((c: any) => c.ch === '▇')).toBeLessThan(a.findIndex((c: any) => c.ch === '▇'));
+  expect(heartbeat(60, t, [{ at: t / 1000 - 30 }], t, stops).some((c: any) => c.ch === '▇')).toBe(false);
+  expect(heartbeat(60, t, [event], t, stops)).toEqual(a);
+  expect(heartbeat(0, t, [], t)).toEqual([]);
+  // the train: only the current cell holds it, one cell a step, the same for the same time
+  const cells = [
+    { text: 'intent/approach', state: 'done', color: '#e07a4f' },
+    { text: 'build 1/3', state: 'current', color: '#f0907a' },
+    { text: 'review', state: 'todo', color: '#d98ad0' },
+  ];
+  const t0 = train(cells, 0);
+  const t1 = train(cells, 500);
+  expect(t0.map((r: any[]) => r.length)).toEqual([15, 9, 6]);
+  for (const i of [0, 2]) expect(t0[i].every((c: any) => c.ch === ' ')).toBe(true);
+  expect(t0[1].every((c: any) => '━▶┄'.includes(c.ch))).toBe(true);
+  expect(t0[1].filter((c: any) => c.ch === '▶')).toHaveLength(1);
+  expect([t0[1].findIndex((c: any) => c.ch === '▶'), t1[1].findIndex((c: any) => c.ch === '▶')]).toEqual([0, 3]);
+  expect(train(cells, 500)).toEqual(t1);
+  expect(train(cells.map((c) => ({ ...c, state: 'todo' })), 0).flat().every((c: any) => c.ch === ' ')).toBe(true);
+});
+
+// Phase 08.8.1 L-01: under the mission preset the first row of the ticket tab is the heartbeat and the current stage cell holds the train while an agent runs; lively draws neither
+it('risk:regression the mission preset draws the heartbeat and the train on the ticket tab (L-01)', async () => {
+  const heart = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[─╱╲‾▇]{20,}$/.test(x));
+  const trainOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[━┄]*▶[━┄]*$/.test(x));
+  const mission = await paneWith(MOVING, (x) => {
+    x.columns = 100;
+    void x.store.set('settings', { v: 1, motion: 'mission', effects: {} });
+  });
+  // an idle pane draws still colours: no heartbeat, no train
+  expect(heart(mission)).toBeUndefined();
+  const T = Date.now();
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(T);
+  try {
+    await startExecutor(mission);
+    const frame = async (ms: number): Promise<{ heart: string | undefined; train: string | undefined }> => {
+      clock.mockReturnValue(T + ms);
+      await mission.$.ui.invalidate('ui.render');
+      return { heart: heart(mission), train: trainOf(mission) };
+    };
+    const a = await frame(0);
+    expect(a.heart).toBeDefined();
+    // the first row under the tab buttons is the heartbeat line, every cell its own coloured text
+    const top = (mission.tree()?.props.children as any[])[1];
+    expect(top.type).toBe('Text');
+    expect(flat(top.props.children)).toBe(a.heart);
+    expect(top.props.children.every((c: any) => /^#[0-9a-f]{6}$/.test(c.props.color))).toBe(true);
+    // the current stage cell holds the train: as wide as its label
+    expect(a.train).toHaveLength('build 1/3'.length);
+    const b = await frame(400);
+    expect(b.heart).not.toBe(a.heart);
+    expect(b.train).not.toBe(a.train);
+  } finally {
+    clock.mockRestore();
+  }
+  // lively draws neither
+  const lively = await paneWith(MOVING, (x) => void (x.columns = 100));
+  await startExecutor(lively);
+  expect(heart(lively)).toBeUndefined();
+  expect(trainOf(lively)).toBeUndefined();
+});
+
+// ---- Phase 08.8.1-09 task 2: orbiting marks, the log ticker, twelve switches, the waiting blink and the failure flash ----
+
+// Phase 08.8.1 L-01 L-06: orbit, ticker, the blink and the failure flash are pure functions of the frame time; the blink ends for good after ten minutes of waiting
+it('risk:parsing orbit ticker and blink are pure functions of the frame time (L-01)', async () => {
+  const { orbit, ticker, blinkOn, flashOn, BLINK_MS, FLASH_MS } = await loadView();
+  // the orbit: four marks, eight steps a second, one step further for each next agent
+  expect([0, 125, 250, 375, 500].map((t) => orbit(t, 0))).toEqual([...'◜◝◞◟◜']);
+  expect([orbit(0, 1), orbit(0, 5), orbit(0, 2)]).toEqual(['◝', '◝', '◞']);
+  // the ticker: exactly `width` characters of the joined lines that scroll with the time, the same for the same time
+  const lines = ['3s commit one', '9s report two'];
+  const a = ticker(lines, 20, 0);
+  const b = ticker(lines, 20, 500);
+  expect([...a]).toHaveLength(20);
+  expect([...b]).toHaveLength(20);
+  expect(b).not.toBe(a);
+  expect(ticker(lines, 20, 500)).toBe(b);
+  expect([...ticker([], 10, 0)]).toHaveLength(10);
+  expect([...ticker(['x'], 40, 700)]).toHaveLength(40);
+  // control and bidi characters in a line never reach the scrolled text
+  const bad = [...ticker(['a\u202eb\u0007c\u001bd'], 30, 0)].filter((ch) => {
+    const c = ch.codePointAt(0) as number;
+    return c < 0x20 || (c >= 0x7f && c <= 0x9f) || (c >= 0x202a && c <= 0x202e);
+  });
+  expect(bad).toEqual([]);
+  // the blink: lit and dark twice a second, then steady lit once the wait passes ten minutes
+  const since = 1_000_000;
+  expect([0, 250, 500, 750, 1000].map((d) => blinkOn(since + d, since, since + d))).toEqual([true, true, false, false, true]);
+  expect(BLINK_MS).toBe(600_000);
+  expect(blinkOn(since + BLINK_MS - 500, since, since + BLINK_MS - 500)).toBe(false);
+  expect(blinkOn(since + BLINK_MS + 500, since, since + BLINK_MS + 500)).toBe(true);
+  // the failure flash: six toggles a second for FLASH_MS from the time the failure appeared, then none
+  expect(FLASH_MS).toBe(1500);
+  expect([0, 100, 200, 300, 1300, 1500, 3000].map((d) => flashOn(5000 + d, 5000))).toEqual([true, true, false, false, false, false, false]);
+  expect(flashOn(4000, 5000)).toBe(false);
+  expect(flashOn(5000, undefined)).toBe(false);
+});
+
+const GATE_RED = { kind: 'gate', text: 'gate done FAIL: red', fail: true };
+// the diamond of the waiting line, and the border colour of the failure box
+const diamondOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[◆◇]$/.test(x));
+const failBorder = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.nodes('Box').find((b) => b.props.borderStyle === 'round' && textsIn(b)[0] === 'Gate failed')?.props.borderColor;
+
+// Phase 08.8.1 D-03 L-06: while the main loop waits for the person the diamond blinks on the frame timer for ten minutes and then stays lit with no timer left; a newly appearing failed gate flashes the failure box red for 1.5 seconds and a shown failure does not flash again; motion off blinks and flashes nothing and starts no timer
+it('risk:resource the waiting blink and the failure flash run on the frame timer and stop on time (D-03 L-06)', async () => {
+  const period = await framePeriod();
+  const T = 1_800_000_000_000;
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(T);
+  const at = async (h: Awaited<ReturnType<typeof host>>, ms: number): Promise<void> => {
+    clock.mockReturnValue(T + ms);
+    await h.$.ui.invalidate('ui.render');
+  };
+  const waitingText = (h: Awaited<ReturnType<typeof host>>): string => h.texts().find((x) => x.startsWith('Waiting for you')) as string;
+  try {
+    // the blink
+    const h = await paneWith(MOVING);
+    expect(liveTimers(h)).toEqual([]);
+    await h.fire('turn.complete', { reason: 'answer', answer: 'ok' });
+    await vi.waitFor(() => expect(h.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
+    expect(liveTimers(h)).toEqual([period]);
+    const frames: { diamond: string | undefined; color: string }[] = [];
+    for (const ms of [0, 250, 500, 750]) {
+      await at(h, ms);
+      frames.push({ diamond: diamondOf(h), color: h.cell(waitingText(h)).text.color });
+    }
+    expect(frames.map((f) => f.diamond)).toEqual(['◆', '◆', '◇', '◇']);
+    // the line glows toward white while it blinks
+    expect(frames[1].color).not.toBe(frames[0].color);
+    expect(liveTimers(h)).toEqual([period]);
+    // after ten minutes the diamond stays lit in the waiting colour and no timer is left
+    await at(h, 600_500);
+    expect(diamondOf(h)).toBe('◆');
+    expect(h.cell(waitingText(h)).text.color).toBe('#e07a4f');
+    expect(liveTimers(h)).toEqual([]);
+    await h.fire('turn.start', { turnId: 'next', text: 'yes' });
+    expect(liveTimers(h)).toEqual([]);
+    // the failure flash
+    clock.mockReturnValue(T);
+    const f = await paneWith(MOVING);
+    expect(liveTimers(f)).toEqual([]);
+    const failing = { ...MOVING, log: [{ at: Math.floor(T / 1000) - 5, ...GATE_RED }] };
+    await reshow(f, failing, 'p1');
+    expect(liveTimers(f)).toEqual([period]);
+    const borders: (string | undefined)[] = [];
+    for (const ms of [0, 200, 400]) {
+      await at(f, ms);
+      borders.push(failBorder(f));
+    }
+    expect(borders).toEqual(['red', '#ff6b6b', 'red']);
+    await at(f, 1600);
+    expect(failBorder(f)).toBe('#ff6b6b');
+    expect(liveTimers(f)).toEqual([]);
+    // a failure already shown does not flash again, on a redraw or on the next show of the same entry
+    await at(f, 5000);
+    expect(failBorder(f)).toBe('#ff6b6b');
+    await reshow(f, failing, 'p2');
+    expect(failBorder(f)).toBe('#ff6b6b');
+    expect(liveTimers(f)).toEqual([]);
+    // motion off: no blink, no flash and no timer, the diamond lit and the box in the failure colour
+    clock.mockReturnValue(T);
+    const off = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
+    await off.fire('turn.complete', { reason: 'answer' });
+    await vi.waitFor(() => expect(off.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
+    expect(liveTimers(off)).toEqual([]);
+    for (const ms of [0, 500]) {
+      await at(off, ms);
+      expect(diamondOf(off)).toBe('◆');
+    }
+    off.settle({ stdout: claimed });
+    await vi.waitFor(() => expect(off.inflight()).toBe(1));
+    off.settle({ stdout: JSON.stringify(detailOf(failing)) });
+    await vi.waitFor(() => expect(off.inflight()).toBe(0));
+    await at(off, 0);
+    expect(failBorder(off)).toBe('#ff6b6b');
+    expect(liveTimers(off)).toEqual([]);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+// Phase 08.8.1 L-01 D-03: every one of the twelve effects is its own switch: alone under mine it draws that effect and no other; an effect the probe cut reads cut for speed in the settings view and is never drawn
+it('risk:regression every one of the twelve effects is its own switch and a cut effect is never drawn (L-01 D-03)', async () => {
+  const { EFFECTS, effectsOf, ticketView, agentRows, agentMotion, settingsOf } = await loadView();
+  expect(EFFECTS.map((e: any) => e.key).sort()).toEqual(['breathe', 'comet', 'confetti', 'ecg', 'eq', 'flow', 'orbit', 'roll', 'shimmer', 'ticker', 'train', 'typing']);
+  const T = 1_800_000_000_000;
+  const ticket = { id: 'ST-1', state: { ticket: detailOf({ ...planOf(2), log: [{ at: T / 1000 - 3, kind: 'commit', text: 'build: x' }, { at: T / 1000 - 9, kind: 'report', text: 'executor report' }] }) } };
+  const roster = [{ key: 'a1', type: 'accord-executor', startTime: T - 65000, running: true, tool: 'Edit', toolAt: T - 1000 }];
+  const frame = (key: string, ms: number): { view: any; look: any } => {
+    const settings = settingsOf({ v: 1, motion: 'mine', effects: key === 'none' ? {} : { [key]: true } });
+    const effects = effectsOf(settings);
+    const view = ticketView({ ticket, now: Math.floor((T + ms) / 1000), nowMs: T + ms, agents: roster, settings, motion: { effects, burst: { at: T, seed: 3 }, columns: 100 } });
+    const row = agentRows(roster, T + ms)[0];
+    return { view, look: agentMotion(row, roster[0], effects, T + ms, 0) };
+  };
+  const drawn = (key: string): string[] => {
+    const a = frame(key, 100);
+    const b = frame(key, 350);
+    const differ = (x: unknown, y: unknown): boolean => JSON.stringify(x) !== JSON.stringify(y);
+    const seen: Record<string, boolean> = {
+      shimmer: a.view.now[0].run !== undefined,
+      flow: differ(a.view.titleRun, b.view.titleRun),
+      comet: a.view.barRow !== undefined && differ(a.view.barRow.cells, b.view.barRow.cells),
+      eq: a.look.eq !== undefined,
+      typing: a.look.typed !== undefined,
+      confetti: a.view.sparks !== undefined,
+      roll: a.view.barRow !== undefined && a.view.barRow.counter !== a.view.progress.valueText,
+      ecg: a.view.heartbeat !== undefined,
+      train: a.view.train !== undefined,
+      orbit: '◜◝◞◟'.includes(a.look.mark),
+      ticker: a.view.log?.[0]?.ticker !== undefined,
+      breathe: differ(a.view.criteria.map((c: any) => c.idColor), b.view.criteria.map((c: any) => c.idColor)),
+    };
+    return Object.keys(seen).filter((k) => seen[k]);
+  };
+  for (const { key } of EFFECTS) expect(drawn(key), key).toEqual([key]);
+  // nothing switched on draws none of them
+  expect(drawn('none')).toEqual([]);
+  // an effect the probe cut: its switch reads cut for speed and it is never drawn
+  viewPatch = (text) => text.replace('export const CUT_EFFECTS = [];', "export const CUT_EFFECTS = ['ticker'];");
+  const cut = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { ticker: true, orbit: true } }));
+  const patched = await loadView();
+  viewPatch = undefined;
+  expect([...patched.effectsOf(patched.settingsOf({ v: 1, motion: 'mine', effects: { ticker: true, orbit: true } }))]).toEqual(['orbit']);
+  press(cut, 'settings');
+  await vi.waitFor(() => expect(cut.texts().some((x) => x.includes('cut for speed'))).toBe(true));
+  expect(cut.texts().filter((x) => x.includes('cut for speed'))).toEqual(['[ ] scrolling log ticker · cut for speed']);
+  expect(cut.texts()).toContain('[x] orbiting agent marks');
 });

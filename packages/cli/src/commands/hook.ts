@@ -10,7 +10,7 @@ import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
 import { pinMessage, versionOnDisk } from '../pin.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
-import { readDebugFile } from '../load/debug-folder.js';
+import { DEBUG_EPISODE_DAYS, readDebugFile } from '../load/debug-folder.js';
 import { debugStatePath } from './debug.js';
 import { cleanBudgetMs } from './fetch-limit.js';
 import { activeTicket, anchorOf, epicSnapshot } from './anchor.js';
@@ -81,7 +81,9 @@ function unfinishedLine(root: string): string {
   try {
     const file = debugStatePath(root);
     const read = readDebugFile(file);
-    return read !== undefined && debugOpen(read.text) ? `Unfinished: ${file}: resume the debugger with /accord-debug\n` : '';
+    // D-14 IN-05: a file untouched for more than DEBUG_EPISODE_DAYS days is an investigation nobody is coming back to; `accord debug path` still reports it and /accord-debug resumes it
+    if (read === undefined || Date.now() - read.mtimeMs > DEBUG_EPISODE_DAYS * 86_400_000) return '';
+    return debugOpen(read.text) ? `Unfinished: ${file}: resume the debugger with /accord-debug\n` : '';
   } catch {
     return '';
   }

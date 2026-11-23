@@ -108,33 +108,88 @@ function currentSid(): string {
   return sid;
 }
 
-/** What a caller may inject to test without a Windows host. */
+/** A state file larger than this is data nobody investigating by hand wrote: the hook gives no line and `accord debug path` refuses it. */
+export const DEBUG_STATE_MAX = 1024 * 1024;
+
+/** The session hook stops announcing an episode whose state file was last written more than this many days ago (`accord debug path` still reports it open). */
+export const DEBUG_EPISODE_DAYS = 7;
+
+/** What is known about a folder; `folderVerdict` judges it without touching the disk. */
+export interface FolderFacts {
+  isLink: boolean;
+  isDirectory: boolean;
+  /** The folder's owner and the person's id, where the OS has them (never on Windows). */
+  uid?: number;
+  userUid?: number;
+  mode: number;
+  /** True when this run created the folder (with mode 0700). */
+  madeNow: boolean;
+  /** The state file's mode, when it exists (accord creates it 0600). */
+  fileMode?: number;
+  /** False where modes mean nothing (Windows): the owner and the mode are then not judged. */
+  modes?: boolean;
+}
+
+/**
+ * Why the folder is not the person's own, or undefined (read as "<dir> is <reason>"). Link, plain folder, owner, then mode. A filesystem that stores no POSIX modes (WSL on /mnt/c)
+ * reads everything 0777: a folder this run made 0700 that reads exactly 0777, or a state file accord made 0600 that reads 0777 or 0666, shows that, and the folder is then accepted
+ * for its owner; on a filesystem with modes a folder open to group or others is refused.
+ */
+export function folderVerdict(f: FolderFacts): string | undefined {
+  if (f.isLink || !f.isDirectory) return 'not a plain folder (a link or a file)';
+  if (f.modes === false) return undefined;
+  if (f.uid !== undefined && f.userUid !== undefined && f.uid !== f.userUid) return 'owned by another user';
+  const mode = f.mode & 0o777;
+  if ((mode & 0o077) === 0) return undefined;
+  const storesNoModes = (f.madeNow && mode === 0o777) || f.fileMode === 0o777 || f.fileMode === 0o666;
+  return storesNoModes ? undefined : 'open to group or others';
+}
+
+/** What a caller may inject to test without the real disk or a Windows host. */
 export interface FolderDeps {
   platform?: NodeJS.Platform;
   /** The text `icacls /save` wrote for the folder. */
   acl?: (dir: string) => string;
   userSid?: () => string;
+  userUid?: number;
+  lstat?: (path: string) => Stats | undefined;
+  read?: (path: string) => string;
+  /** This run created the folder. */
+  madeNow?: boolean;
+  /** The state file's mode, when it exists. */
+  fileMode?: number;
 }
+
+const defaultLstat = (path: string): Stats | undefined => lstatSync(path, { throwIfNoEntry: false });
 
 export type FolderCheck = { state: 'ok' } | { state: 'absent' } | { state: 'refused'; reason: string };
 
 /** `ok` when `dir` is a plain folder only the person can use, `absent` when it does not exist, else `refused` with the reason (read as "<dir> is <reason>"). Never creates or changes anything. */
 export function checkDebugFolder(dir: string, deps: FolderDeps = {}): FolderCheck {
   const refused = (reason: string): FolderCheck => ({ state: 'refused', reason });
+  const windows = (deps.platform ?? process.platform) === 'win32';
   let found: Stats | undefined;
   try {
-    found = lstatSync(dir, { throwIfNoEntry: false });
+    found = (deps.lstat ?? defaultLstat)(dir);
   } catch (e) {
     return refused(`unreadable (${(e as NodeJS.ErrnoException).code ?? 'error'})`);
   }
   if (found === undefined) return { state: 'absent' };
-  if (found.isSymbolicLink() || !found.isDirectory()) return refused('not a plain folder (a link or a file)');
-  if ((deps.platform ?? process.platform) === 'win32') {
+  const facts: FolderFacts = { isLink: found.isSymbolicLink(), isDirectory: found.isDirectory(), mode: found.mode, madeNow: deps.madeNow === true, modes: !windows };
+  if (!windows) {
+    facts.uid = found.uid;
+    const userUid = deps.userUid ?? (typeof process.getuid === 'function' ? process.getuid() : undefined);
+    if (userUid !== undefined) facts.userUid = userUid;
+  }
+  if (deps.fileMode !== undefined) facts.fileMode = deps.fileMode;
+  const why = folderVerdict(facts);
+  if (why !== undefined) return refused(why);
+  if (windows) {
     try {
       const read = sddlAces((deps.acl ?? savedAcl)(dir));
       if ('error' in read) return refused(`not checkable: ${read.error}`);
-      const why = windowsVerdict(read.aces, (deps.userSid ?? currentSid)());
-      if (why !== undefined) return refused(why);
+      const listed = windowsVerdict(read.aces, (deps.userSid ?? currentSid)());
+      if (listed !== undefined) return refused(listed);
     } catch (e) {
       return refused(`not checkable: ${(e as Error).message}`);
     }
@@ -157,11 +212,25 @@ export function folderOf(path: string): string {
   return path.slice(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
 }
 
-/** The state file's text and last write time when it is a regular file; anything else (absent, a link, a folder, unreadable) is undefined. Never throws; the folder is not checked here. */
-export function readStateFile(path: string): { text: string; mtimeMs: number } | undefined {
+/** The mode (permission bits) of the state file when it is a regular file, else undefined; the folder check reads it to tell a filesystem that stores no modes. Never throws. */
+export function fileModeOf(path: string, deps: Pick<FolderDeps, 'lstat'> = {}): number | undefined {
   try {
-    const found = lstatSync(path, { throwIfNoEntry: false });
-    return found !== undefined && found.isFile() ? { text: readFileSync(path, 'utf8'), mtimeMs: found.mtimeMs } : undefined;
+    const found = (deps.lstat ?? defaultLstat)(path);
+    return found?.isFile() === true ? found.mode & 0o777 : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The state file's text and last write time when it is a regular file of at most `DEBUG_STATE_MAX` bytes; anything else (absent, a link, a folder, too large, unreadable) is
+ * undefined, and a file over the limit is not read. Never throws; the folder is not checked here.
+ */
+export function readStateFile(path: string, deps: Pick<FolderDeps, 'lstat' | 'read'> = {}): { text: string; mtimeMs: number } | undefined {
+  try {
+    const found = (deps.lstat ?? defaultLstat)(path);
+    if (found === undefined || !found.isFile() || found.size > DEBUG_STATE_MAX) return undefined;
+    return { text: (deps.read ?? ((p: string) => readFileSync(p, 'utf8')))(path), mtimeMs: found.mtimeMs };
   } catch {
     return undefined;
   }
@@ -170,7 +239,9 @@ export function readStateFile(path: string): { text: string; mtimeMs: number } |
 /** The state file read only through the folder check: a folder that is absent or refused gives undefined. Never throws, never creates. */
 export function readDebugFile(path: string, deps: FolderDeps = {}): { text: string; mtimeMs: number } | undefined {
   try {
-    return checkDebugFolder(folderOf(path), deps).state === 'ok' ? readStateFile(path) : undefined;
+    const fileMode = fileModeOf(path, deps);
+    const folder = checkDebugFolder(folderOf(path), fileMode === undefined ? deps : { ...deps, fileMode });
+    return folder.state === 'ok' ? readStateFile(path, deps) : undefined;
   } catch {
     return undefined;
   }

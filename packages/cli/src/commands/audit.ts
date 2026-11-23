@@ -1,5 +1,5 @@
-// Phase 8.1 G3a (D-08, D-09, D-10, D-11): `accord audit` reports what a machine can see about a repository's conventions. It reads files only, spends no model call, and exits 0
-// whenever it ran, whatever it found: it is a report, and no gate runs it (D-10, D-12). The notice the dashboard and `accord new ticket` print names it once when the conventions file is empty.
+// Phase 8.1 G3a (D-08, D-09, D-10, D-11): `accord audit` reports what a machine can see about a repository's conventions. It reads files and asks the npm registry at most once a day for the
+// latest accord release, spends no model call, and exits 0 whenever it ran, whatever it found: it is a report, and no gate runs it (D-10, D-12). The notice the dashboard and `accord new ticket` print names it once when the conventions file is empty.
 import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { auditLines, CONVENTIONS_THIN, conventionLines, conventionsEmpty, commitRuleOf, findTemplate, subjectRuleProblems } from '@accord-dev/accord-core';
@@ -64,6 +64,8 @@ export async function audit(ctx: CommandContext): Promise<number> {
   fact('formatter', m.formatters.length === 0 ? 'none' : tools(m.formatters));
   fact('typecheck', m.typechecks.length === 0 ? 'none found' : m.typechecks.map((t) => `${printable(t.file)} ${t.what}`).join(', '));
   fact('tests', m.tests.length === 0 ? 'none found' : m.tests.join(', '));
+  // Phase 08.8 D-16 (IN-03): when the read cap left config files unread, the linter, type-check and test facts above are partial; say so.
+  if (m.reads.total > m.reads.read) fact('config-files-read', `${m.reads.read} of ${m.reads.total}`);
 
   // D-01 (plan check W1): a set pr.command replaces the template entirely, so it leaves no PR-template gap; an unreadable config cannot say.
   const found = findTemplate(tracked, config?.pr?.template);

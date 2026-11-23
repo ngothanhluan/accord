@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { loadSnapshot, parseSecurityFile, pluginTargets, SECURITY_OFF_FROM } from '@accord-dev/accord-core';
+import { loadSnapshot, parseSecurityFile, pluginTargets, SECURITY_OFF_FROM, setFrontmatterKey } from '@accord-dev/accord-core';
 import type { RepoSnapshot, SkillFile } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { renderedFiles } from '../src/commands/branch-fact.js';
@@ -14,8 +14,9 @@ import { loadFromFs } from '../src/load/fs.js';
 import { exemptCopies, withSecurityFacts } from '../src/load/security-facts.js';
 import { countedSync } from './helpers/git-spawns.js';
 import { counted } from './helpers/runs.js';
-import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { LANE_S_BODY, laneTicket, PLAN, pinned } from '../../../test/helpers/lane.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
+import { AC, approve, LANE_S_BODY, laneTicket, P, PLAN, pinned } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 vi.mock('../package.json', async (orig) => {
@@ -201,6 +202,35 @@ it('risk:regression with review off a ticket claimed before SECURITY_OFF_FROM is
     expect(failed).toHaveLength(1);
     expect(failed[0].reason).toContain('cannot be checked');
     expect(failed[0].reason).toContain(`names no commit`);
+  } finally {
+    cleanup(t.repo);
+  }
+}, 180_000);
+
+// Phase 08.8 review CR-02 (D-03): the review-off security rule skips a ticket done in the default ref's records, or gated with HEAD on the default branch, as the review-on rule does. Here T-1 is
+// merged into main with a merge commit, a later ticket's commit adds a trigger on main, and T-1 is gated again on main and from a later branch that archives it (the CI loop gates every ticket a
+// pull request touches): both pass, though the later trigger lies after the security review the ledger recorded.
+it('risk:regression with review off a ticket done on the default ref passes gate done again on main and from a later branch (REVIEW CR-02)', async () => {
+  const t = reviewOff(SECURITY_OFF_FROM);
+  try {
+    const files: Files = { [P('T-1')]: laneTicket('T-1') };
+    approve(files, 'T-1');
+    const ticket = setFrontmatterKey(setFrontmatterKey(files[P('T-1')], 'verified', ['ac-1', 'ac-2']), 'verified_hash', AC);
+    writeFiles(t.repo, { [P('T-1')]: ticket, [LEDGER]: `- task 1 done ${t.code}\n- task 2 done ${t.code}\n\n## Security\n\nSecurity: lens security ran at ${t.built}\n` });
+    commitMsg(t.repo, 'verify: T-1');
+    expect(await security(t.repo)).toEqual([]);
+
+    gitRun(t.repo, 'switch', '-q', 'main');
+    mergeMsg(t.repo, 't/T-1', 'merge: t/T-1');
+    writeFiles(t.repo, { 'src/later.ts': "spawnSync('git', ['status']);\n" });
+    commitMsg(t.repo, 'a later ticket');
+    gitRun(t.repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    expect(await security(t.repo)).toEqual([]);
+
+    gitRun(t.repo, 'switch', '-q', '-c', 'archive/T-1');
+    writeFiles(t.repo, { [P('T-1')]: ticket + '\n## Closed\n\nArchived.\n' });
+    commitMsg(t.repo, 'archive: T-1');
+    expect(await security(t.repo)).toEqual([]);
   } finally {
     cleanup(t.repo);
   }

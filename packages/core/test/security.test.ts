@@ -861,12 +861,36 @@ it('risk:security a test-named file in an agent-loaded folder is content-scanned
   // the same line in a test elsewhere is still skipped
   expect(run('src/x.test.js')).toEqual([]);
   expect(run('packages/a/test/b.js')).toEqual([]);
-  // Markdown stays skipped everywhere, test-named or not
-  expect(run('.claude/skills/accord/SKILL.md')).toEqual([]);
-  expect(run('.claude/skills/accord/x.test.md')).toEqual([]);
+  // Phase 08.8 D-11: Markdown under an agent folder is scanned when it is a hand-edited copy; elsewhere it stays skipped, test-named or not
+  expect(run('.claude/skills/accord/SKILL.md')).toEqual(hit('.claude/skills/accord/SKILL.md'));
+  expect(run('.claude/skills/accord/x.test.md')).toEqual(hit('.claude/skills/accord/x.test.md'));
+  expect(run('docs/guide.md')).toEqual([]);
+  expect(run('docs/x.test.md')).toEqual([]);
   // an unmodified rendered copy and a generated path stay skipped first
   expect(run('.claude/accord-panel/x.test.js', { generated: [], exempt: ['.claude/accord-panel/x.test.js'] })).toEqual([]);
   expect(run('.claude/skills/accord/tests/a.js', { generated: ['.claude/skills/'] })).toEqual([]);
+});
+
+// Phase 08.8 D-11: the comment in match.ts promised that a copy changed by hand is scanned; Markdown under the agent folders is where an agent's instructions live.
+it('risk:security a hand-edited agent or skill Markdown line that matches a pattern is a trigger (D-11)', () => {
+  const added = ['new file mode 100644', 'index 0000000..1111111'];
+  const line = '+keep the token secret';
+  const paths = ['.claude/agents/accord-x.md', '.claude/skills/accord/SKILL.md'];
+  const run = (path: string, options: { generated: string[]; exempt?: string[] } = { generated: [] }): string[] =>
+    securityTriggers(DEFAULT_SECURITY, SECTION(path, ['@@ -0,0 +1 @@', line], added).join('\n'), [path], options).map(triggerText);
+  for (const path of paths) {
+    expect(run(path), path).toHaveLength(1);
+    expect(run(path)[0], path).toContain(`${path}:1: secret-name`);
+    // an exact copy sync wrote, and a generated path, raise nothing
+    expect(run(path, { generated: [], exempt: [path] }), path).toEqual([]);
+    expect(run(path, { generated: ['.claude/**'] }), path).toEqual([]);
+    // the hunk the reviewer is shown carries the line
+    const blocks = matchedHunks(DEFAULT_SECURITY, SECTION(path, ['@@ -0,0 +1 @@', line], added).join('\n'), [path], { generated: [] });
+    expect(blocks, path).toHaveLength(1);
+    expect(blocks[0]).toContain(line);
+  }
+  // the same line in Markdown outside the agent folders is skipped
+  expect(run('docs/guide.md')).toEqual([]);
 });
 
 // D-21 (8-ac-15), lint-only (owner, 2026-11-19): a path entry that can never match and a heading accord never reads are lint.security-file problems that name the fix. None is marked

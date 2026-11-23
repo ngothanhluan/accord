@@ -34,7 +34,7 @@ const planReady = (snapshot: RepoSnapshot, facts: NonNullable<RepoSnapshot['plan
 /**
  * Phase 08.8.1 D-02: true exactly when `progressOf`'s BUG-LN-2 line holds a ticket whose plan.md carries a `plan_hash` (accord gate plan passed at least once) at plan, because plan.md is dirty or its last commit's subject is not the
  * `plan_ready` subject. Display only: it reads the same facts the same way and calls `planReady` itself, so the CLI and the pane say the same stage and the stage rule is not touched. A body that differs from its plan_hash under a
- * clean plan-ready commit is not this: the stage reads build, and `accord task-done` refuses the next task (gate/task.ts: plan.md changed since its plan_hash was recorded).
+ * clean plan-ready commit is not this (and, WR-01, neither is the first gate plan pass, whose plan_hash matches the body): the stage reads build, and `accord task-done` refuses the next task (gate/task.ts: plan.md changed since its plan_hash was recorded).
  */
 export function planChanged(snapshot: RepoSnapshot, id: string): boolean {
   const ticket = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id] : undefined;
@@ -45,7 +45,12 @@ export function planChanged(snapshot: RepoSnapshot, id: string): boolean {
   const work = workOf(snapshot, id);
   if (work?.plan?.planHash === undefined) return false;
   const done = work.ledger?.done ?? {};
-  return work.plan.tasks.some((t) => !Object.hasOwn(done, String(t.n))) && !planReady(snapshot, snapshot.planFacts, id);
+  if (!work.plan.tasks.some((t) => !Object.hasOwn(done, String(t.n))) || planReady(snapshot, snapshot.planFacts, id)) return false;
+  // Phase 08.8.1 review WR-01: the first `gate plan` pass writes plan_hash into a plan.md that is dirty or committed under another subject, and that is the normal end of the plan stage, not a change. It is a change when the body no
+  // longer matches the recorded plan_hash, or when the plan was committed as ready before (its last commit subject is the plan_ready subject) and is dirty again.
+  const fact = Object.hasOwn(snapshot.planFacts, id) ? snapshot.planFacts[id] : undefined;
+  const wasReady = fact?.subject !== undefined && matchesSubject(snapshot.config, 'plan_ready', id, fact.subject);
+  return work.plan.bodyHash !== work.plan.planHash || wasReady;
 }
 
 const NEXT: Record<Exclude<Stage, 'build' | 'intent' | 'research'>, string> = {

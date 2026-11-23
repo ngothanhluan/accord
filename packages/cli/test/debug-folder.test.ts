@@ -1,8 +1,12 @@
 // Phase 08.8 D-14: the one folder check that `accord debug path` and the session hook's `Unfinished:` line share. The parser and the verdicts are pure and run on every OS;
 // the Windows access list read from a real folder is proven by the `runIf` cases of debug-path.test.ts and hook.test.ts.
 import { expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Stats } from 'node:fs';
-import { DEBUG_STATE_MAX, folderVerdict, readDebugFile, sddlAces, windowsVerdict } from '../src/load/debug-folder.js';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import * as folder from '../src/load/debug-folder.js';
+import { checkDebugFolder, DEBUG_STATE_MAX, folderVerdict, readDebugFile, sddlAces, windowsVerdict } from '../src/load/debug-folder.js';
 
 const USER = 'S-1-5-21-1-2-3-1001';
 
@@ -69,8 +73,8 @@ it('risk:security the POSIX verdict refuses another owner and an open folder unl
 
   // no modes stored: a folder this run made reading exactly 0777, or a state file made at 0600 reading 0777 or 0666
   expect(folderVerdict({ ...own, mode: 0o777, madeNow: true })).toBeUndefined();
-  expect(folderVerdict({ ...own, mode: 0o777, fileMode: 0o777 })).toBeUndefined();
-  expect(folderVerdict({ ...own, mode: 0o777, fileMode: 0o666 })).toBeUndefined();
+  expect(folderVerdict({ ...own, mode: 0o777, fileMode: 0o777, fileUid: 1000 })).toBeUndefined();
+  expect(folderVerdict({ ...own, mode: 0o777, fileMode: 0o666, fileUid: 1000 })).toBeUndefined();
   // a folder made 0700 that reads 0755 stores modes, so it is open
   expect(folderVerdict({ ...own, mode: 0o755, madeNow: true })).toContain('open to group or others');
   // the owner is still checked
@@ -79,6 +83,69 @@ it('risk:security the POSIX verdict refuses another owner and an open folder unl
   // a link or a file is never a folder of ours
   expect(folderVerdict({ ...own, isLink: true })).toContain('not a plain folder');
   expect(folderVerdict({ ...own, isDirectory: false })).toContain('not a plain folder');
+});
+
+// Phase 08.8 review CR-01: the owner of a Windows folder keeps READ_CONTROL and WRITE_DAC whatever its access list says, so a folder another account created and then
+// narrowed to SYSTEM, Administrators and the person still belongs to that account. The owner (`O:` of the security descriptor) is judged beside the access list (`D:`).
+it('risk:security on Windows a debug folder or state file owned by another account is refused (08.8 REVIEW CR-01)', () => {
+  const OTHER = 'S-1-5-21-1-2-3-1002';
+  const dacl = `D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;${USER})`;
+  const stat = (dir: boolean) => ({ isSymbolicLink: () => false, isDirectory: () => dir, isFile: () => !dir, mode: dir ? 0o40666 : 0o100666, size: 1, mtimeMs: 1 }) as unknown as Stats;
+  const dir = 'C:/t/accord-debug-x';
+  const file = dir + '/a.md';
+  const deps = (owners: Record<string, string>) => ({
+    platform: 'win32' as const,
+    userSid: () => USER,
+    lstat: (p: string) => stat(p === dir),
+    sddl: (paths: readonly string[]) => paths.map((p) => `O:${owners[p] ?? USER}${dacl}`),
+    read: () => 'x',
+  });
+
+  // the folder: the person's own SID, or SYSTEM or Administrators (the owner an elevated session gives), passes; another account is refused and named
+  expect(checkDebugFolder(dir, deps({}))).toEqual({ state: 'ok' });
+  expect(checkDebugFolder(dir, deps({ [dir]: 'BA' }))).toEqual({ state: 'ok' });
+  const theirs = checkDebugFolder(dir, deps({ [dir]: OTHER }));
+  expect(theirs).toEqual({ state: 'refused', reason: expect.stringContaining('owned by another account') });
+  expect(JSON.stringify(theirs)).toContain(OTHER);
+  // a descriptor with no owner cannot be judged: refused, never trusted
+  expect(checkDebugFolder(dir, { ...deps({}), sddl: (paths: readonly string[]) => paths.map(() => dacl) })).toMatchObject({ state: 'refused' });
+
+  // the state file inside a folder of the person's own: another owner, or an entry for another account, is refused and its text never read
+  expect(checkDebugFolder(dir, { ...deps({ [file]: OTHER }), stateFile: file })).toEqual({ state: 'refused', reason: expect.stringContaining('owned by another account') });
+  expect(readDebugFile(file, deps({ [file]: OTHER }))).toBeUndefined();
+  const granted = { ...deps({}), sddl: (paths: readonly string[]) => paths.map((p) => `O:${USER}${dacl}` + (p === file ? `(A;;FA;;;${OTHER})` : '')) };
+  expect(checkDebugFolder(dir, { ...granted, stateFile: file })).toEqual({ state: 'refused', reason: expect.stringContaining(OTHER) });
+  expect(readDebugFile(file, deps({}))).toEqual({ text: 'x', mtimeMs: 1 });
+});
+
+// Phase 08.8 review CR-01: the descriptor is read from the real folder through a System32 program, owner included (icacls /save writes no owner).
+it.runIf(process.platform === 'win32')('risk:security on Windows the security descriptor read from a real folder names its owner (08.8 REVIEW CR-01)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'p88-owner-'));
+  try {
+    writeFileSync(join(dir, 'a.md'), 'x');
+    const read = folder.securityDescriptors([dir, join(dir, 'a.md')]);
+    expect(read).toHaveLength(2);
+    for (const sddl of read) expect(sddl).toMatch(/^O:(?:[A-Z]{2}|S-1-[0-9-]+)(?:G:\S+?)?D:/);
+    expect(checkDebugFolder(dir, { stateFile: join(dir, 'a.md') })).toEqual({ state: 'ok' });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Phase 08.8 review WR-02: a state file reading 0666 or 0777 shows a filesystem that stores no modes only when it is the person's own file in a folder reading exactly 0777;
+// another account's file, or a folder with real modes such as 0775, is never taken as that sign.
+it('risk:security the no-modes sign counts only a state file of the person in a folder reading 0777 (08.8 REVIEW WR-02)', () => {
+  const own = { isLink: false, isDirectory: true, uid: 1000, userUid: 1000, mode: 0o777, madeNow: false };
+  expect(folderVerdict({ ...own, fileMode: 0o666, fileUid: 1000 })).toBeUndefined();
+  expect(folderVerdict({ ...own, fileMode: 0o777, fileUid: 1000 })).toBeUndefined();
+  expect(folderVerdict({ ...own, fileMode: 0o666, fileUid: 1001 })).toContain('open to group or others');
+  expect(folderVerdict({ ...own, fileMode: 0o666 })).toContain('open to group or others');
+  expect(folderVerdict({ ...own, mode: 0o775, fileMode: 0o666, fileUid: 1000 })).toContain('open to group or others');
+
+  // through the read the hook makes: a world-writable folder holding another account's 0666 file gives nothing
+  const stat = (p: string) =>
+    (p.endsWith('.md') ? { isSymbolicLink: () => false, isDirectory: () => false, isFile: () => true, mode: 0o100666, uid: 1001, size: 1, mtimeMs: 1 } : { isSymbolicLink: () => false, isDirectory: () => true, isFile: () => false, mode: 0o40777, uid: 1000, size: 0, mtimeMs: 1 }) as unknown as Stats;
+  expect(readDebugFile('/t/accord-debug-x/a.md', { platform: 'linux', userUid: 1000, lstat: stat, read: () => 'planted' })).toBeUndefined();
 });
 
 // Phase 08.8 D-14 (WR-02): the state file is data from whoever could write the folder, so the hook and `accord debug path` read it only up to a size limit.

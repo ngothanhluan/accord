@@ -189,6 +189,8 @@ export type { Split, SplitStory } from './tickets/split.js';
 export type { SimilarFact, SimilarTicket } from './tickets/similar.js';
 export type { Dashboard, DashboardSection, DashboardSummary, EpicRow } from './status/dashboard.js';
 export type { Stage } from './status/stage.js';
+// Phase 08.8.1 D-02: true when the BUG-LN-2 hold keeps a gated plan at plan; display only, the stage rule is unchanged.
+export { planChanged } from './status/stage.js';
 export type { StatusRow } from './status/rows.js';
 export { renderText } from './lint/render.js';
 export { validate, schemaIds } from './validate/index.js';

@@ -6,7 +6,7 @@ import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { reviewSummary } from './review.js';
 import type { ReviewSummary } from './review.js';
 import { statusRows } from './rows.js';
-import { progressOf } from './stage.js';
+import { planChanged, progressOf } from './stage.js';
 import type { Stage } from './stage.js';
 
 export type CriterionLabel = 'failing' | 'blocked' | 'verified' | 'passing' | 'not run' | 'untested';
@@ -47,16 +47,25 @@ export interface TicketDetail {
  * Phase 08.8.1 D-05: a ticket whose plan.md is on disk but that git does not hold (git ignores it, or lists it untracked) has no plan-ready commit and no task-done line, so its stage reads `plan 0/<n>` whatever the work.
  * The host reads that fact from the file listing and `git status` it already runs (`trackFacts`); this says it in one sentence. Only a ticket whose plan.md is on disk and whose stage is past intent is checked: at intent
  * (and before plan.md exists) the stage is read from the ticket file on disk and is right whatever git holds.
+ * Phase 08.8.1 D-02: else, a gated plan the stage holds at plan because it changed (`planChanged`) gets the plan-changed entry; a ticket with a not-committed entry gets no other, since that text already names why it is held.
  */
 export function ticketWarnings(snapshot: RepoSnapshot, id: string): TicketWarning[] {
   const fact = snapshot.trackFacts !== undefined && Object.hasOwn(snapshot.trackFacts, id) ? snapshot.trackFacts[id] : undefined;
-  if (fact === undefined || workOf(snapshot, id)?.plan === undefined) return [];
-  if (!Object.hasOwn(snapshot.tickets, id) || progressOf(snapshot, snapshot.tickets[id])?.stage === 'intent') return [];
-  const text =
-    fact.state === 'ignored'
-      ? `accord/ is not committed in this repository: git ignores ${fact.path}, so accord cannot track the stage or the tasks`
-      : `${fact.path} is not committed yet: accord cannot track the stage or the tasks until it is`;
-  return [{ kind: 'not-committed', text }];
+  if (fact !== undefined && workOf(snapshot, id)?.plan !== undefined && Object.hasOwn(snapshot.tickets, id) && progressOf(snapshot, snapshot.tickets[id])?.stage !== 'intent') {
+    const text =
+      fact.state === 'ignored'
+        ? `accord/ is not committed in this repository: git ignores ${fact.path}, so accord cannot track the stage or the tasks`
+        : `${fact.path} is not committed yet: accord cannot track the stage or the tasks until it is`;
+    return [{ kind: 'not-committed', text }];
+  }
+  return planChanged(snapshot, id)
+    ? [
+        {
+          kind: 'plan-changed',
+          text: 'plan.md changed after accord gate plan passed: the plan stage reviews the change, passes accord gate plan again and makes its plan-ready commit before the build goes on',
+        },
+      ]
+    : [];
 }
 
 /** undefined unless `id` is a lane ticket in the snapshot. `blockedBy` is decided on the default branch the host read (`snapshot.defaultRef`), else by `plain`, the checkout-only snapshot (BUG-LN-2 D-04, D-05, BUG-LN-13 D-01). */

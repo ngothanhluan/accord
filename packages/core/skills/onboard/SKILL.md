@@ -22,8 +22,8 @@ repository. `accord init` only proposes: it writes nothing to `accord/config.yml
 4. Go through the proposals one proposal at a time, in the order printed. Never ask about two at once, and never skip one without asking. Say whether it came from `accord init` or
    the scan, as its `[init]` or `[scan]` marker says, never from its evidence text, and walk each one as `./walk.md` says, with the proposal as the recommendation: a key that declares a script is walked the same way, and `./walk.md` says that nothing
    runs until the person runs `accord trust`. A key with no proposal is not walked here: a later change of any value, or a key accord proposed nothing for, is `/accord-config`.
-5. When the last proposal is answered, finish as `./walk.md` says. This skill commits nothing.
-6. Ask one question that stands alone, as `./ask.md` says: whether to run `accord audit` now. Say what it does: it reads
+5. When the last proposal is answered, finish as `./walk.md` says: this skill commits nothing. Then go on to step 6.
+6. Ask one question that stands alone, as `./ask.md` says (in plain chat, the recommended answer first, every id glossed): whether to run `accord audit` now. Say what it does: it reads
    the repository's files and reports what a machine can see about its conventions and its accord setup, each gap with
    its fix, and it changes nothing. On no, run nothing, and say that `/accord-audit` runs it any time. On yes, run
    `accord audit` and show each `gap:` line with its `- fix:`; when a `conventions-empty` or `conventions-thin` gap is

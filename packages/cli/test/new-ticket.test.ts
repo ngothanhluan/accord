@@ -329,6 +329,22 @@ it('ac-5 without the initials table nothing changes', async () => {
   expect(rules).not.toContain('lint.initials-duplicate');
 });
 
+// Phase 08.8 D-09: a ticket written from the role-free templates holds no job title in its comments, and lint reads it
+// as before: exit 0, and the six findings (all warnings) the old template's ticket drew.
+it('risk:regression a ticket written from the new templates passes lint (D-09)', async () => {
+  const repo = sandbox();
+  const made = await run(['new', 'ticket', 'TCK-1'], repo);
+  expect(made.code).toBe(0);
+  const text = readFileSync(ticket(repo, 'TCK-1'), 'utf8');
+  const comments = [...text.matchAll(/<!--[\s\S]*?-->/g)].map((m) => m[0]).concat(text.split('\n').filter((l) => l.trimStart().startsWith('#')));
+  expect(comments.filter((c) => /\bBA\b|[Dd]eveloper|[Dd]esigner\b/.test(c))).toEqual([]);
+  const lint = await run(['lint', '--json'], repo);
+  expect(lint.code).toBe(0);
+  const mine = (JSON.parse(lint.out).findings as { file?: string; level: string }[]).filter((f) => f.file === 'accord/tickets/TCK-1.md');
+  expect(mine).toHaveLength(6);
+  expect(mine.filter((f) => f.level === 'error')).toEqual([]);
+});
+
 it('risk:complex-branching a shallow clone refuses new ticket and writes nothing', async () => {
   const origin = sandbox();
   addPeople(origin);

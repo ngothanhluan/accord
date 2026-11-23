@@ -165,3 +165,10 @@ it('risk:security lint writes the rendered subject without a control or bidi cha
   expect(row?.reason).toContain('<U+001B>');
   expect(row?.reason).toContain('<U+202E>');
 });
+
+// Phase 08.8 D-16 (IN-01): the revert exemption is git's own shape `Revert "<text>"` and nothing that only starts like it.
+it('risk:security only git\'s own revert subject is exempt from the commit rule (D-16)', () => {
+  const rule = inForce(withMessage({ pattern: '^[a-z]+: ', example: 'feat: x' }));
+  expect(commitRuleProblem(rule, 'Revert "feat: x"\n\nThis reverts commit abc.')).toBeUndefined();
+  for (const bad of ['Revert "wip', 'Revert "x" and more', 'Revert "']) expect(commitRuleProblem(rule, bad), bad).toContain('does not match');
+});

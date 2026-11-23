@@ -40,6 +40,9 @@ export function commitRuleOf(config: Pick<AccordConfig, 'commits'> | undefined):
   return { regex, text, example: m.example ?? '' };
 }
 
+/** The subject git writes for `git revert`: the word, then the reverted subject in double quotes, closing the line. */
+const GIT_REVERT = /^Revert ".+"$/;
+
 /** The first line of a message: a byte order mark dropped, CRLF read as LF. The body is free. */
 const firstLine = (message: string): string => message.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split('\n')[0] ?? '';
 
@@ -48,11 +51,11 @@ export const visible = (text: string): string => text.replace(/[\p{Cc}\p{Cf}\p{Z
 
 /**
  * Why `message` breaks `rule`, or undefined when it passes. Merge commits and commits already on the default branch are exempt by the caller (they are never offered here);
- * a subject that starts `Revert "` is git's own revert subject and passes, so the executor's `git revert` of its own fix never blocks task-done.
+ * a subject that is exactly `Revert "<text>"` is git's own revert subject and passes, so the executor's `git revert` of its own fix never blocks task-done (a subject that only starts that way, `Revert "wip` or `Revert "x" and more`, is judged: D-16 IN-01).
  */
 export function commitRuleProblem(rule: CommitRule, message: string): string | undefined {
   const subject = firstLine(message);
-  if (subject.startsWith('Revert "')) return undefined;
+  if (GIT_REVERT.test(subject)) return undefined;
   // CR-01 (T-08.1-03): the backtracking guard accepts shapes that are polynomial, which is safe only on a bounded line (the scans cut a line at SCAN_LINE_LIMIT).
   // A subject over the same bound is never matched; it fails the rule, so a hostile first line cannot hang a gate, and the message prints its length, not its text.
   if (subject.length > SCAN_LINE_LIMIT) {

@@ -113,3 +113,33 @@ it('risk:security a title that would break the quoted gh argument is refused and
   expect(todaysBody(['claim: T-1', 'feat: add x'])).toBe('- claim: T-1\n- feat: add x\n');
   expect(epicBody(['Teams see every export.', 'No new dependency.'])).toBe('Teams see every export.\nNo new dependency.\n');
 });
+
+// Phase 08.8 D-16 (item 7, session Ruling 2): the title check adds only `%`, which cmd.exe expands inside the double-quoted --title; `'`, `!`, `;` and `&` are literal there and still pass.
+it('risk:security the title check refuses a percent sign and lets literal shell characters through (D-16)', () => {
+  expect(prTitleProblem(prTitle('T-1', 'Fix 100% CPU'))).toContain('percent sign');
+  expect(prTitleProblem(prTitle('T-1', "Don't break & fix; now!"))).toBeUndefined();
+  for (const bad of ['Say "hi"', 'run `x`', 'pay $5', 'a\b', 'two\nlines', 'bell\u0007']) expect(prTitleProblem(prTitle('T-1', bad)), bad).toContain('title');
+});
+
+// Phase 08.8 D-16 (item 9, IN-06): `remaining` names the heading a reader sees, and a heading inside an HTML comment is no section.
+it('risk:parsing template headings are read as a reader sees them and a heading inside a comment is no section (D-16)', () => {
+  const template = ['## Summary ##', '', '## Testing <!-- how you tested -->', '', '<!--', '## Hidden', '-->', '', '## Notes', 'Some words.', ''].join('\n');
+  expect(templateSections(template).map((s) => s.heading)).toEqual(['Summary', 'Testing', 'Notes']);
+  const { body, remaining } = fillTemplate(template, { ...FACTS, evidence: [] });
+  expect(remaining).toEqual(['Testing']);
+  const lines = template.split('\n');
+  let at = -1;
+  for (const line of lines.filter((l) => l !== '')) {
+    const next = body.split('\n').indexOf(line, at + 1);
+    expect(next, `the line ${line} is kept in order`).toBeGreaterThan(at);
+    at = next;
+  }
+});
+
+// Phase 08.8 D-16 (IN-06): an at-name in the title or the Intent lines must not notify anyone, so it goes into a code span.
+it('risk:security mentions in the title and intent reach the body inside code spans (D-16)', () => {
+  const { body } = fillTemplate('## Description\n\n## Screenshots\n', { ...FACTS, title: 'Ask @alice', intent: ['cc @bob-x and @ac-1'] });
+  expect(body).toContain('**T-1: Ask `@alice`**');
+  expect(body).toContain('cc `@bob-x` and `@ac-1`');
+  expect(body).not.toMatch(/(^|[^`\w])@(alice|bob-x)/);
+});

@@ -23,6 +23,8 @@ const NOT_INTERFACE = /^Not an interface:\s+(\S.*?)\s+—\s+(.*\S)$/;
 // Phase 8.1 D-17: `slop:<kind> <path>:<line> — <reason>`, the justification of a slop hit, with or without a list marker (as WORDING above): the path is everything up to the last `:<line> — `, so a path
 // may hold a colon or spaces. Exported for the test; the last `## Round` loop below reads it.
 export const SLOP_OK = /^\s*(?:(?:[-*+]|\d+\.)\s+)?slop:([a-z0-9][a-z0-9-]*)\s+(\S.*?):([1-9][0-9]*)\s+—\s+(.*\S)\s*$/;
+// Phase 08.8 D-16 (IN-02): a justification clears its hit only when its reason holds a letter or digit (as the reasons of slop/spec.ts do).
+const HAS_WORD = /[\p{L}\p{N}]/u;
 // Spec §10: the verdict is the first token; accepted-by-owner carries the owner's sentence after it.
 const VERDICT = /^verdict:\s*(\S+)(?:\s.*)?$/;
 
@@ -328,7 +330,7 @@ export function parseReview(file: string, text: string): Review {
     const n = NOT_INTERFACE.exec(t);
     if (n) notInterface.push(declared(n[1]));
     const o = SLOP_OK.exec(t);
-    if (o) slopJustified.push({ kind: o[1], path: o[2], line: Number(o[3]), reason: o[4] });
+    if (o && HAS_WORD.test(o[4])) slopJustified.push({ kind: o[1], path: o[2], line: Number(o[3]), reason: o[4] });
   }
   if (confirmed.length > 0) review = { ...review, confirmed };
   if (notInterface.length > 0) review = { ...review, notInterface };

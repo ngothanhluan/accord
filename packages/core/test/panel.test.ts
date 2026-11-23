@@ -359,6 +359,18 @@ it('ac-4 pressing a row id opens its detail view with its button and back', asyn
   expect(h.$.process.run.mock.calls.length).toBe(calls);
 });
 
+// Phase 08.8 plan 08 (D-14 IN-04): search text that starts with a command word must never run that typed form from the New request button.
+it('risk:security the New request button sends the text behind a lead-in no typed form matches (D-14)', async () => {
+  const { view } = await loadView();
+  const state = { dashboard: board({ yours: { rows: [{ id: 'T-1', title: 'One' }], more: 0 } }) };
+  for (const text of ['queue fix login', 'continue ST-1', 'pick-up ST-1', 'upgrade', 'add dark mode']) {
+    const v = view(state, text);
+    expect(v.newRequest, text).toMatchObject({ key: 'new-request', label: 'New request', command: 'accord', args: 'new request: ' + text });
+    expect(v.newRequest.args.startsWith(text), text).toBe(false);
+  }
+  expect(view(state, 'zzz').noMatch).toContain('Press New request');
+});
+
 it('risk:security the panel buttons run /accord with the action and a safe id (D-03)', async () => {
   const { view } = await loadView();
   const state = {
@@ -376,7 +388,7 @@ it('risk:security the panel buttons run /accord with the action and a safe id (D
   expect(rowOf('READY', 'T 5').open).toBeUndefined();
   expect(rowOf('READY', 'T-6;x').open).toBeUndefined();
   expect(view(state, 'zzz').noMatch).toContain('/accord.');
-  expect(view(state, 'zzz').newRequest).toMatchObject({ key: 'new-request', label: 'New request', command: 'accord', args: 'zzz' });
+  expect(view(state, 'zzz').newRequest).toMatchObject({ key: 'new-request', label: 'New request', command: 'accord', args: 'new request: zzz' });
   expect(view(state, '').newRequest).toBeUndefined();
   const h = await host(await loadPanel());
   await h.fire('session.start', start);

@@ -1525,7 +1525,7 @@ it('risk:regression the lane S and approach skills wait for a prerequisite merge
 
 it('risk:regression a lane M ticket that gate ready refuses is never planned from approach or continue', () => {
   const G = "Else, at any stage but `intent`, first run `accord gate ready <id>`; when it fails, show the owner what it prints and stop; when it changes the ticket, commit the ticket.";
-  const H = "6. Next: `./plan.md`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord continue <id>` plans the ticket once the gate passes.";
+  const H = "6. Next: `./plan.md`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that asking to continue `<id>` plans the ticket once the gate passes.";
   const tickets: Files = { 'accord/config.yml': CONFIG, [P('A')]: laneTicket('A'), [P('B')]: laneTicket('B', { frontmatter: ['depends_on: ["A"]'] }) };
   approve(tickets, 'B');
   const snap = loadSnapshot({ files: tickets, tree: Object.keys(tickets) });
@@ -2332,7 +2332,7 @@ it('risk:regression no rendered skill reference names an old typed command (ST-L
   for (const f of copies('failure.md')) expect(f.text, f.path).toContain('in place of steps 3 and 4 of the Continue steps of `/accord`');
   for (const f of [...resolve, ...copies('failure.md')]) expect(f.text, f.path).not.toContain('accord-continue');
   expect(copies('ids.md').length).toBeGreaterThan(0);
-  for (const f of copies('ids.md')) expect(f.text, f.path).toContain('follow `/accord continue <id>` and go on at its step 2');
+  for (const f of copies('ids.md')) expect(f.text, f.path).toContain('follow the Continue steps of `/accord` for `<id>` and go on at its step 2');
 });
 
 // ST-LN-83 7-ac-3 (07-07, D-05): a review of code or a pull request accord did not build is read-only, takes its reviewers from accord-review's size rule, and posts only on the owner's yes.
@@ -2509,7 +2509,8 @@ it('risk:regression the new skill judges the candidates and asks one question on
       'it exits 2 and writes nothing',
       'judge which really match the request',
       'ask the owner one question as `./ask.md` says',
-      'continue the existing ticket',
+      'continue the existing ticket by asking to continue `<id>`',
+      'or to pick up `<id>` for a ticket nobody has claimed',
       'merge this request into it',
       'create a new ticket linked to it',
       '`--related <id>`',
@@ -3204,4 +3205,27 @@ it('risk:regression with review off the build stage runs the security review bef
     }
   }
   expect(bad).toEqual([]);
+});
+
+// Phase 08.8 plan 08 (D-14 IN-04, D-15): a skill line whose reader stays in the same session says it in words, the new-session line keeps its typed form, and route.md reads the panel's `new request: ` lead-in.
+it('risk:regression same-session skill lines say it in plain words and route.md reads the panel lead-in (D-14 D-15)', () => {
+  const typed = /\/accord (?:continue|pick-up)/;
+  for (const name of ['similar.md', 'approach.md', 'ids.md']) {
+    const rows = flat('/' + name);
+    expect(rows.length, name).toBeGreaterThan(0);
+    for (const [path, text] of rows) expect(text, path).not.toMatch(typed);
+  }
+  for (const [path, text] of flat('/similar.md')) expect(text, path).toContain('`<id>`');
+  for (const [path, text] of flat('/approach.md')) expect(text, path).toContain('asking to continue `<id>`');
+  for (const [path, text] of flat('/ids.md')) expect(text, path).toContain('`<id>`');
+  const routes = flat('/route.md');
+  expect(routes.length).toBeGreaterThan(0);
+  for (const [path, text] of routes) {
+    expect(text, path).toContain('`new request: `');
+    expect(text, path).toContain('is routed by its meaning');
+  }
+  // the line whose reader opens a new session keeps the copy-paste form
+  const epics = flat('/new-epic.md');
+  expect(epics.length).toBeGreaterThan(0);
+  for (const [path, text] of epics) expect(text, path).toContain('`/accord pick-up <id>`');
 });

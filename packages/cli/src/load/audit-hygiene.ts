@@ -314,7 +314,7 @@ function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
     const judged: { id: string; items: OwnerDeferred[] }[] = [];
     for (const id of finished) {
       const text = ledgers[`accord/tickets/${id}/ledger.md`];
-      const items = text === undefined ? [] : ownerDeferred(text);
+      const items = text === undefined ? [] : ownerDeferred(text, (mark) => Object.hasOwn(onRef.tickets, mark));
       if (items.length === 0) continue;
       let release: ClaimPin | undefined;
       try {

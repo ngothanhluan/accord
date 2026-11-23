@@ -1069,8 +1069,9 @@ const logOf = (): Record<string, unknown>[] => {
   );
 };
 // the pane of a claimed ticket after `show` settled with these keys on top of detailOf()
-async function paneWith(over: Record<string, unknown>): Promise<Awaited<ReturnType<typeof host>>> {
+async function paneWith(over: Record<string, unknown>, tweak?: (h: Awaited<ReturnType<typeof host>>) => void): Promise<Awaited<ReturnType<typeof host>>> {
   const h = await host(await loadPanel());
+  tweak?.(h);
   await h.fire('session.start', start);
   h.settle({ stdout: claimed });
   await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));

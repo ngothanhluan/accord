@@ -2,6 +2,18 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+The flightdeck pane's data: `accord show <id> --json` and `accord anchor` say when a ticket's stage cannot be trusted, and `show --json` gains the task in flight and the plan's task list. Tickets in flight: no ticket is refused for something new and no gate reads anything that changed; every new key is left out when it has nothing to say, so a ticket without the data keeps its JSON as it was, and the text output of `accord show` does not change. A pinned repository gets these with `accord upgrade`.
+
+- `accord show <id> --json` and `accord anchor` now say when a ticket that has a plan is not committed (an `accord/` that git ignores, or a plan.md that was never committed) as `warnings` entries of kind `not-committed`. The anchor, which the session-resume hook prints, shows that text in place of its `Stage:` line, so no stage or task count is given for such a ticket instead of a wrong `plan 0/3`. The stage is still read from the records git holds; an `accord/` kept only on the machine is not supported yet.
+- A plan.md that changed after `accord gate plan` passed and is not committed as plan ready, which keeps the ticket at plan, is named as a `plan-changed` warning in `show --json` and on the anchor line after `Stage:`. A ticket the stage reads at build never carries it.
+- A change after the ready commit is not a warning (D-02): a plan.md body edited and committed again under the `plan: <id> ready` subject is a deliberate re-ready, the stage rule is unchanged, and `accord task-done` refuses the next task with `plan.md changed since its plan_hash was recorded`, which is what you see.
+- `accord show <id> --json` adds `now` (at build only: the task in flight, the lowest task without a done line, with its plan title, the same task `accord anchor` names as next) and `tasks` (each plan task in order with its done state and the criteria its `covers:` line names, such as `ac-1`). A ticket at intent, with no plan task or with the plan stage off has no `tasks`; only a ticket at build has `now`.
+- In a clone without an `origin` remote, the `log` of `accord show <id> --json` now lists the ticket's commits on its branch, read against the local main or master; before, it listed none there.
+- An unreadable report folder or gate log (a folder the process cannot read, a file another program locks) no longer makes `accord show <id> --json` fail: the log simply leaves those entries out and the ticket is shown.
+- A gate run with `CI` set in its environment (any value but empty, `0` or `false`) no longer writes `.accord-reports/<id>/gate.log`; nothing in CI reads the file, and a read-only workspace no longer prints a stderr line on every gate run.
+
 ## 0.16.0 — 2026-11-23
 
 Release 0.16.0 closes the leftovers of the earlier phases' reviews and live checks. Tickets in flight: no ticket is refused for something new. A hand-edited skill or agent file can now ask for a security-lens round (below), `accord lint` accepts a prose heading in the security file, and a team pattern with two overlapping repeats is run on a package only up to a fixed budget, after which the scan reports the rest as not fully scanned (below); no gate reads anything else that changed. A ticket with the review stage off that was claimed before 0.16.0 is not asked for a security review (below). A deferred item marked ` → <id>` to an id that is no ticket is listed again by `accord deferred` and the audit (below). A repository pinned to an older accord gets these changes with `accord upgrade`.

@@ -9,6 +9,8 @@ export const CONVENTIONS_FILE = 'accord/product/conventions.md';
 export const PRODUCT_MAX_LINE = 300;
 /** Review 08.5 WR-01: a finding, a pasted pull request comment or a CI log line is longer than a convention rule, so the findings file of `--fix` is judged at this length. */
 export const FINDING_MAX_LINE = 4000;
+/** Phase 08.8 D-05: ticket Vetoes and Decisions are longer than a convention rule (this repository holds 681 such lines, 173 over 300 and none over 4000), so ticket text is judged at the findings length. */
+export const TICKET_MAX_LINE = FINDING_MAX_LINE;
 
 /** D-01 and R-3: the line starts the CLI itself writes in a brief, in the order D-01 then R-3 list them; matched case-insensitively after whitespace, blockquote and list markers. */
 export const RESERVED_PREFIXES = ['Work dir:', 'Report file:', 'Test command:', '---', 'Commit rule:', 'Example that passes:', 'Test only:'] as const;
@@ -252,6 +254,11 @@ export function commentProblems(text: string): LineProblem[] {
 
 /** D-09: what stands in the place of a refused line; it never quotes the line. */
 export const withheldLine = (file: string, n: number): string => `(accord withheld line ${n} of ${file}: it breaks a delivery rule; run accord lint)`;
+/**
+ * Phase 08.8 D-05: what stands in the place of a refused line of a ticket (an epic's or a related ticket's Vetoes, Decisions and lessons). Same position and form as `withheldLine`; only the repair
+ * instruction differs, because no lint rule reports a ticket line, so "run accord lint" would send the reader to a command that finds nothing. It never quotes the line.
+ */
+export const withheldTicketLine = (file: string, n: number): string => `(accord withheld line ${n} of ${file}: it breaks a delivery rule; fix that line of the file)`;
 /** The same for the findings file of `accord brief --fix` (08.5-03); it has no name a person can open. */
 export const withheldFindingLine = (n: number): string => `(accord withheld line ${n} of the findings file: it breaks a delivery rule)`;
 /** D-01: what stands in the place of a file that is a link or not a regular file; it names no byte of the target. */

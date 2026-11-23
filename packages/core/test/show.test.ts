@@ -2,7 +2,7 @@
 import { expect, it } from 'vitest';
 import { approvalShort, loadSnapshot, taskVerdict, ticketDetail, ticketWarnings } from '../src/index.js';
 import { acHash } from '../src/gate/hash.js';
-import { building, CONFIG, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
+import { building, CONFIG, LANE_BODY, LANE_S_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
 const scenario = (n: number, test: boolean) =>
@@ -192,4 +192,60 @@ it('risk:complex-branching the plan-changed warning shows exactly when the stage
   // (g) a ticket whose records git does not hold gets the not-committed entry alone.
   const g = load(fixture(plan3), { ...dirty, trackFacts: { 'T-1': { state: 'ignored', path: 'accord/tickets/T-1/plan.md' } } });
   expect(ticketWarnings(g, 'T-1').map((w) => w.kind)).toEqual(['not-committed']);
+});
+
+// Phase 08.8.1 L-06 L-07: the pane names the task in flight (build only) and draws the plan's tasks from show; a ticket at intent, without a plan task, with the plan stage off, or in lane S has no `tasks`.
+it('risk:parsing show detail names the task in flight and lists the plan tasks with done state and covers (L-06 L-07)', () => {
+  const plan3 =
+    PLAN.replace('covers: @ac-2', 'covers: @ac-1, D-02') +
+    '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n';
+  const fixture = (plan: string, ledger: string | undefined, config = CONFIG): Files => {
+    const files: Files = { 'accord/config.yml': config };
+    building(files, 'T-1');
+    files['accord/tickets/T-1/plan.md'] = plan;
+    if (ledger !== undefined) files['accord/tickets/T-1/ledger.md'] = ledger;
+    return files;
+  };
+  const load = (files: Files, extra: Record<string, unknown> = {}) => loadSnapshot({ files, tree: [], ...extra });
+  // Build, task 1 done: the lowest open task is task 2, and its covers keep only the criteria.
+  const build = ticketDetail(load(fixture(plan3, '## Tasks\n- task 1 done abc1234\n')), 'T-1')!;
+  expect(build.stage).toBe('build');
+  expect(build.now).toEqual({ task: 2, title: 'Escaping' });
+  expect(build.tasks).toEqual([
+    { n: 1, title: 'Writer csv mode', done: true, covers: ['ac-1'] },
+    { n: 2, title: 'Escaping', done: false, covers: ['ac-1'] },
+    { n: 3, title: 'Docs', done: false, covers: ['ac-1'] },
+  ]);
+  // The new keys come after every key the detail had before.
+  expect(Object.keys(build).slice(-2)).toEqual(['now', 'tasks']);
+  // Plan stage (the host holds an unready plan at plan): the list is there, nothing is in flight.
+  const atPlan = ticketDetail(load(fixture(plan3, undefined), { planFacts: { 'T-1': { clean: false, subject: 'plan: T-1 ready' } } }), 'T-1')!;
+  expect(atPlan.stage).toBe('plan');
+  expect(Object.hasOwn(atPlan, 'now')).toBe(false);
+  expect(atPlan.tasks?.map((t) => t.done)).toEqual([false, false, false]);
+  // Every task done (review): the list stays, nothing is in flight.
+  const reviewed = ticketDetail(load(fixture(PLAN, '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n')), 'T-1')!;
+  expect(reviewed.stage).toBe('review');
+  expect(Object.hasOwn(reviewed, 'now')).toBe(false);
+  expect(reviewed.tasks?.map((t) => t.done)).toEqual([true, true]);
+  // A ticket not yet approved is at intent: neither key (its plan.md is not what the stage reads).
+  const early: Files = { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1'), 'accord/tickets/T-1/plan.md': plan3 };
+  const intent = ticketDetail(load(early), 'T-1')!;
+  expect(intent.stage).toBe('intent');
+  expect(Object.hasOwn(intent, 'now')).toBe(false);
+  expect(Object.hasOwn(intent, 'tasks')).toBe(false);
+  // No plan task: no `tasks`, and no `now` (the stage is plan).
+  const empty = ticketDetail(load(fixture('---\nbaseline: abc1234\n---\n\n# Plan\n', undefined)), 'T-1')!;
+  expect(Object.hasOwn(empty, 'tasks')).toBe(false);
+  expect(Object.hasOwn(empty, 'now')).toBe(false);
+  // The plan stage off: the build is one task, the whole ticket, and the plan holds no list.
+  const off = ticketDetail(load(fixture(plan3, undefined, CONFIG + 'strictness:\n  stages:\n    M:\n      plan: off\n')), 'T-1')!;
+  expect(off.stage).toBe('build');
+  expect(off.now).toEqual({ task: 1, title: 'Export' });
+  expect(Object.hasOwn(off, 'tasks')).toBe(false);
+  // Lane S has neither key.
+  const laneS: Files = { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1', { lane: 'S', body: LANE_S_BODY }) };
+  const s = ticketDetail(load(laneS), 'T-1')!;
+  expect(Object.hasOwn(s, 'now')).toBe(false);
+  expect(Object.hasOwn(s, 'tasks')).toBe(false);
 });

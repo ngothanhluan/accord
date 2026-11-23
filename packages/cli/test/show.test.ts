@@ -392,3 +392,42 @@ it('risk:regression show json and anchor warn when a gated plan changed and is n
     cleanup(ready);
   }
 }, 120_000);
+
+// Phase 08.8.1 L-06 L-07: show --json names the task in flight (the one `accord anchor` calls next) and lists the plan's tasks; the text output of `accord show` does not change.
+it('risk:regression show json adds now and tasks for a ticket at build and its text output is unchanged (L-06 L-07)', async () => {
+  // A task title with a bidi override reaches the JSON as one space; the plan's own text is not touched.
+  const plan = PLAN.replace('Escaping', 'Esc\u202eaping');
+  const repo = makeLaneRepo({ ...approved(), 'accord/tickets/T-1/plan.md': plan });
+  try {
+    commitAll(repo, 'plan: T-1 ready');
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAll(repo, 'task 1 done');
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(j.stage).toBe('build');
+    const next = /next: task (\d+) /.exec((await run(['anchor', 'T-1'], repo)).out);
+    expect(next).not.toBeNull();
+    expect(j.now).toEqual({ task: Number(next?.[1]), title: 'Esc aping' });
+    expect(j.tasks).toEqual([
+      { n: 1, title: 'Writer csv mode', done: true, covers: ['ac-1'] },
+      { n: 2, title: 'Esc aping', done: false, covers: ['ac-2'] },
+    ]);
+    // The new keys follow the keys the detail had; the log, when there is one, comes last.
+    const keys = Object.keys(j);
+    expect(keys.indexOf('now')).toBeGreaterThan(keys.indexOf('criteria'));
+    // The text is what it was before the keys existed: no task, no `now`.
+    const text = await run(['show', 'T-1'], repo);
+    expect(text.code).toBe(0);
+    expect(text.out).toBe(
+      [
+        'T-1 Export', 'Stage: build', 'Lane: M', 'Tasks: 1/2', 'Branch: t/T-1', 'Holder: none', 'Blocked by: none', '',
+        'Intent:', 'Owners can export their report as CSV.', 'Expected size: 5 tasks', '',
+        'ac-1 export writes a csv', '  Given a report', '  When the owner exports it', '  Then a csv file is written',
+        '  State: passing', '  Test: export#writes-csv', '  Test result: passed', '  Ticked: no', '  Verification: none', '',
+        'ac-2 commas are escaped', '  Given a cell with a comma', '  When the owner exports it', '  Then the cell is quoted',
+        '  State: passing', '  Test: export#escapes-commas', '  Test result: passed', '  Ticked: no', '  Verification: none', '',
+      ].join('\n'),
+    );
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

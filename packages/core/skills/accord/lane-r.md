@@ -54,7 +54,7 @@ main checkout. It has no approach, plan, critic, code review or verification, an
    `git push -u origin <branch>`, then run `accord pr <id>`; on exit 2 show its message and stop. Write each section a
    `remaining:` line names into the body file it printed, from the record and nothing more. When `gh` is available open the
    pull request with the `title:` and `body-file:` lines it printed:
-   `gh pr create --title "<title>" --body-file <body-file>`, otherwise
+   `gh pr create --title "<title>" --body-file "<body-file>"`, otherwise
    ask the owner to open it with that title and body. It waits for the owner's merge; the ticket is done once the record merges, by a merge
    commit, a squash or a rebase. Report the finish as `./finish.md` says.
 

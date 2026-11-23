@@ -16,8 +16,8 @@ ui: false
 #   - { text: "...", confirmed: false }
 # Written by `gate ready`; never edit by hand.
 # ac_hash:
-# Developer self-test ticks, e.g. [ac-1, ac-2]. Only the developer writes it.
-# Always the last key so developer hunks stay far from BA hunks.
+# Self-test ticks, e.g. [ac-1, ac-2]. Written at build, not at intent.
+# Always the last key so build edits stay far from intent edits.
 # verified: []
 # The AC hash the ticks above were made against, copied from ac_hash at the moment of ticking.
 # verified_hash:
@@ -26,16 +26,16 @@ ui: false
 ---
 
 ## Intent
-<!-- BA. Why, for whom, how success is measured, and explicit non-goals. About five lines.
+<!-- Why, for whom, how success is measured, and explicit non-goals. About five lines.
 Describe observable behaviour in business language; never name tables, endpoints, libraries, or screens.
 Terms go in product/glossary.md; rules already decided go in product/business-rules.md.
 If the story has a screen, set ui: true in the frontmatter. Ready then requires a design link in design:. -->
 
 ## Requirements
-<!-- BA. One EARS line per requirement: WHEN <trigger> the system SHALL <response>, and its siblings. 5 to 15 lines. -->
+<!-- One EARS line per requirement: WHEN <trigger> the system SHALL <response>, and its siblings. 5 to 15 lines. -->
 
 ## Acceptance criteria
-<!-- BA. One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
+<!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
 A bug is written as Given the situation, When the action, Then the correct result.
 A scenario that is not @ui also carries one @test:<id> tag, where <id> is the case id from the test report (classname#name, spaces as -); add it after Ready, it is outside the AC hash. -->
 ```gherkin
@@ -49,11 +49,11 @@ Feature: TICKET-ID
 ```
 
 ## Open questions
-<!-- BA. `- [ ]` items; Ready stays blocked while any is unchecked. -->
+<!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
 
 ## Plan
-<!-- Developer fills this in. BA leaves it empty.
+<!-- Filled in at build. Leave it empty at intent.
 A short plan only. Evidence goes to tickets/<id>/verification.md, written by the fresh review context, not by the agent that wrote the code. -->
 
 ## Verification notes
-<!-- Developer, at Done. One "### @ac-n <scenario name>" block per ticked scenario, a few lines each: what was run and what was seen. This section stays last; evidence with a result lives in tickets/<id>/verification.md. -->
+<!-- Filled in at done; leave it empty before. One "### @ac-n <scenario name>" block per ticked scenario, a few lines each: what was run and what was seen. This section stays last; evidence with a result lives in tickets/<id>/verification.md. -->

@@ -17,14 +17,14 @@ ui: false
 ---
 
 ## Intent
-<!-- BA. Why, for whom, how success is measured, and explicit non-goals. About five lines.
+<!-- Why, for whom, how success is measured, and explicit non-goals. About five lines.
 Describe observable behaviour in business language; never name tables, endpoints, libraries, or screens.
 Terms go in product/glossary.md; rules already decided go in product/business-rules.md.
 An epic is never gated; design: may hold the epic-level design link for its child stories. -->
 
 ## Requirements
-<!-- BA. One EARS line per requirement: WHEN <trigger> the system SHALL <response>, and its siblings. 5 to 15 lines.
+<!-- One EARS line per requirement: WHEN <trigger> the system SHALL <response>, and its siblings. 5 to 15 lines.
 Ordering of child stories, when needed, is prose here in v0.1 (ticket dependencies are deferred). -->
 
 ## Open questions
-<!-- BA. `- [ ]` items; Ready stays blocked while any is unchecked. -->
+<!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

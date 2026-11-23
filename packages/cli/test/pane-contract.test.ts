@@ -151,6 +151,39 @@ it('risk:regression the pane draws the real cli warning and no stage or task cou
     const text = JSON.stringify(shown);
     expect(text).not.toContain('0/3');
     expect(text).not.toContain('0 of 3');
+    // Phase 08.8.1-06 L-07 D-05: the plan's three task titles are not drawn either, and the count helpers do return a `0 of 3`, so the absence is the allow-list's doing and not a missing count
+    for (const title of ['Writer csv mode', 'Escaping', 'Docs']) expect(text).not.toContain(title);
+    const { buildProgress, taskRows } = await loadView();
+    expect(buildProgress(got.ticket)).toEqual({ value: 0, max: 3, valueText: '0 of 3' });
+    expect(taskRows(got.ticket.tasks, got.ticket.now?.task)).toHaveLength(3);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8.1-06 L-07: the real `show --json` of a claimed ticket at build with task 1 done, read by the real view.js: one row per plan task, task 1 done and the task `now` names in flight.
+it('risk:regression the pane reads the real cli task list and draws one row per plan task (L-07)', async () => {
+  const files: Files = { [P('T-1')]: laneTicket('T-1') };
+  approve(files, 'T-1');
+  const repo = makeLaneRepo({ ...files, 'accord/tickets/T-1/plan.md': PLAN });
+  try {
+    commitAll(repo, 'plan: T-1 ready');
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAll(repo, 'task 1 done');
+    const show = await run(['show', 'T-1', '--json'], repo);
+    expect(show.code).toBe(0);
+    const json = JSON.parse(show.out);
+    expect(json.stage).toBe('build');
+    const { detailOutcome, ticketView } = await loadView();
+    const got = detailOutcome({ exitCode: 0, stdout: show.out, stderr: '' });
+    expect(got.ticket).toBeDefined();
+    const shown = ticketView({ ticket: { id: 'T-1', state: got }, now: Math.floor(Date.now() / 1000) });
+    expect(shown.tasks).toHaveLength(json.tasks.length);
+    expect(shown.tasks).toHaveLength(2);
+    expect(shown.tasks[0]).toMatchObject({ n: 1, state: 'done', mark: '✓' });
+    const current = shown.tasks.find((r: any) => r.state === 'current');
+    expect(current?.n).toBe(json.now.task);
+    expect(shown.progress).toEqual({ value: json.tasksDone, max: json.tasksTotal, valueText: `${json.tasksDone} of ${json.tasksTotal}` });
   } finally {
     cleanup(repo);
   }

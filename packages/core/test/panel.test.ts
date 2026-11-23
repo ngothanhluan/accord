@@ -1918,3 +1918,81 @@ it('risk:concurrency a new ticket id starts one show run and not two (IN-03)', a
   await vi.waitFor(() => expect(h.inflight()).toBe(0));
   expect(showsOf(h, 'ST-2')).toBe(2);
 });
+
+// ---- Phase 08.8.1-06 L-07: the task list with a build progress bar in the ticket tab's lower half ----
+
+const taskOf = (n: number, title: string, done = false, covers: string[] = []): Record<string, unknown> => ({ n, title, done, covers });
+
+// Phase 08.8.1 L-07: one row per task with a mark, the task in flight is current, and the bar reads the json's own counts.
+it('risk:parsing task rows mark done the task in flight and the rest and the bar reads the json counts (L-07)', async () => {
+  const { taskRows, buildProgress } = await loadView();
+  const rows = taskRows([taskOf(1, 'A', true), taskOf(2, 'B', false, ['ac-1']), taskOf(3, 'Ev\u202eil\u0007 C')], 2);
+  expect(rows.map((r: any) => [r.mark, r.state, r.n, r.title])).toEqual([['✓', 'done', 1, 'A'], ['▸', 'current', 2, 'B'], ['·', 'todo', 3, 'Ev il C']]);
+  // a done task stays done even when `now` names it; no current task leaves only done and todo
+  expect(taskRows([taskOf(1, 'A', true)], 1)[0].state).toBe('done');
+  expect(taskRows([taskOf(1, 'A')], undefined)[0].state).toBe('todo');
+  expect(buildProgress({ tasksDone: 1, tasksTotal: 3 })).toEqual({ value: 1, max: 3, valueText: '1 of 3' });
+  expect(buildProgress({ tasksDone: 0, tasksTotal: 0 })).toBeUndefined();
+  expect(buildProgress({ tasksDone: '1', tasksTotal: 3 })).toBeUndefined();
+  expect(buildProgress({ tasksTotal: 3 })).toBeUndefined();
+});
+
+// Phase 08.8.1 L-07: the TASKS block sits after the NOW line and before REVIEW; an engine without Progress draws the count as text; a ticket without `tasks` draws no block.
+it('risk:regression the ticket tab draws a tasks block with a progress bar between the now line and review (L-07)', async () => {
+  const tasks = [taskOf(1, 'Alpha', true), taskOf(2, 'Beta'), taskOf(3, 'Gamma')];
+  const over = { stage: 'build', tasksDone: 1, tasksTotal: 3, now: { task: 2, title: 'Beta' }, tasks, review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')] };
+  const h = await paneWith(over);
+  const t = h.texts();
+  const now = t.indexOf('task 2 of 3 · Beta');
+  expect(now).toBeGreaterThan(-1);
+  expect(t.indexOf('TASKS')).toBeGreaterThan(now);
+  expect(t.indexOf('TASKS')).toBeLessThan(t.findIndex((x) => x.startsWith('REVIEW')));
+  expect(kids(h.row('Alpha'))).toEqual(['✓', '1', 'Alpha']);
+  expect(kids(h.row('Beta'))).toEqual(['▸', '2', 'Beta']);
+  expect(kids(h.row('Gamma'))).toEqual(['·', '3', 'Gamma']);
+  expect(h.cell('✓').text.color).toBe('green');
+  expect(h.cell('▸').text.bold).toBe(true);
+  const bars = h.nodes('Progress');
+  expect(bars).toHaveLength(1);
+  expect(bars[0].props).toMatchObject({ value: 1, max: 3, valueText: '1 of 3' });
+  const plain = await paneWith(over, (x) => {
+    const full = x.$.ui.resolve;
+    x.$.ui.resolve = () => {
+      const { Progress: _gone, ...rest } = full();
+      return rest;
+    };
+  });
+  expect(plain.nodes('Progress')).toHaveLength(0);
+  expect(plain.texts()).toContain('1 of 3');
+  const none = await paneWith({ stage: 'build', now: { task: 2, title: 'Beta' } });
+  expect(none.texts()).not.toContain('TASKS');
+  expect(none.nodes('Progress')).toHaveLength(0);
+});
+
+// Phase 08.8.1 D-05 L-07: a ticket whose records git does not hold draws its warning and no TASKS block, no bar, no count and no task row.
+it('risk:complex-branching a not-committed ticket draws no tasks block no bar and no task row (D-05 L-07)', async () => {
+  const tasks = [taskOf(1, 'A'), taskOf(2, 'B'), taskOf(3, 'C')];
+  const warned = { stage: 'build', tasksDone: 0, tasksTotal: 3, now: { task: 1, title: 'A' }, tasks, warnings: [{ kind: 'not-committed', text: 'accord/ is not committed here' }] };
+  const h = await paneWith(warned);
+  const t = h.texts();
+  expect(t).toContain('accord/ is not committed here');
+  expect(t).not.toContain('TASKS');
+  expect(h.nodes('Progress')).toHaveLength(0);
+  for (const x of t) {
+    expect(x).not.toContain('0 of 3');
+    expect(x).not.toContain('0/3');
+    expect(['A', 'B', 'C']).not.toContain(x);
+  }
+  const { detailOutcome, ticketView } = await loadView();
+  const shownOf = (json: Record<string, unknown>) => ticketView({ ticket: { id: 'ST-1', state: detailOutcome({ exitCode: 0, stdout: JSON.stringify(detailOf(json)), stderr: '' }) }, now: 1000 });
+  const w = shownOf(warned);
+  expect(Object.hasOwn(w, 'tasks')).toBe(false);
+  expect(Object.hasOwn(w, 'progress')).toBe(false);
+  const { warnings: _w, ...tracked } = warned;
+  const ok = shownOf(tracked);
+  expect(ok.tasks).toHaveLength(3);
+  expect(ok.progress).toEqual({ value: 0, max: 3, valueText: '0 of 3' });
+  const clean = await paneWith(tracked);
+  expect(clean.texts()).toContain('TASKS');
+  expect(clean.nodes('Progress')).toHaveLength(1);
+});

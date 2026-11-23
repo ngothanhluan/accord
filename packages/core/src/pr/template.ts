@@ -1,12 +1,12 @@
 // Phase 8.1 D-01, D-03: a pull request's body is the team's PR template with every heading kept and what the ticket already knows filled in; the title is `<id>: <title>`.
 // Pure: the host reads the template file and writes the body file. A heading line is never rewritten or moved, so the fill only inserts lines.
 import type { Ticket, Verification } from '../model/snapshot.js';
-import { headingKey, sectionLines, stripHtmlComments } from '../load/sections.js';
+import { headingKey, sectionLines } from '../load/sections.js';
 
 /** One heading of a template (ATX, levels 1-6) and the lines under it up to the next heading of any level. */
 export interface TemplateSection {
   level: number; // 1-6
-  heading: string; // the text after the #s, trailing #s and spaces dropped
+  heading: string; // the text a reader sees after the #s: inline comments, trailing #s and spaces dropped
   line: number; // 0-based index of the heading line in the text as split (BOM and CRLF dropped)
   bodyStart: number; // index of the first line under the heading
   bodyEnd: number; // index one past the last line under it
@@ -30,30 +30,62 @@ const BOM = new RegExp('^\uFEFF');
 /** The template text as lines: a byte order mark dropped, CRLF read as LF. */
 const linesOf = (text: string): string[] => text.replace(BOM, '').replace(/\r\n/g, '\n').split('\n');
 
-/** Every ATX heading outside a fenced block, with its body range. A line inside a fence is never a heading. */
-export function templateSections(text: string): TemplateSection[] {
-  const lines = linesOf(text);
+/**
+ * One pass over the template lines: for each line the text a reader sees (an HTML comment removed, one that spans lines included, one still open at the end hiding the rest; a line inside a
+ * fenced block is kept as written, since a fence holds text), and every ATX heading outside a fence and outside a comment, with its visible text as the heading (Phase 08.8 D-16, IN-06).
+ */
+function scan(lines: string[]): { visible: string[]; sections: TemplateSection[] } {
+  const visible: string[] = [];
   const out: TemplateSection[] = [];
   let fence: string | undefined;
+  let inComment = false;
   lines.forEach((l, i) => {
-    const f = FENCE.exec(l);
     if (fence !== undefined) {
+      const f = FENCE.exec(l);
       if (f !== null && f[1][0] === fence[0] && f[1].length >= fence.length && l.slice(f[0].length).trim() === '') fence = undefined;
+      visible.push(l);
       return;
     }
+    let seen = '';
+    let rest = l;
+    while (rest.length > 0) {
+      if (inComment) {
+        const end = rest.indexOf('-->');
+        if (end < 0) rest = '';
+        else {
+          rest = rest.slice(end + 3);
+          inComment = false;
+        }
+      } else {
+        const start = rest.indexOf('<!--');
+        if (start < 0) {
+          seen += rest;
+          rest = '';
+        } else {
+          seen += rest.slice(0, start);
+          rest = rest.slice(start + 4);
+          inComment = true;
+        }
+      }
+    }
+    visible.push(seen);
+    const f = FENCE.exec(seen);
     if (f !== null) {
       // CommonMark: a backtick fence's info string may not hold a backtick
-      if (!(f[1][0] === '`' && l.slice(f[0].length).includes('`'))) fence = f[1];
+      if (!(f[1][0] === '`' && seen.slice(f[0].length).includes('`'))) fence = f[1];
       return;
     }
-    const h = ATX.exec(l);
+    const h = ATX.exec(seen);
     if (h !== null) out.push({ level: h[1].length, heading: h[2].trim(), line: i, bodyStart: i + 1, bodyEnd: lines.length });
   });
   out.forEach((s, k) => {
     if (k + 1 < out.length) s.bodyEnd = out[k + 1].line;
   });
-  return out;
+  return { visible, sections: out };
 }
+
+/** Every ATX heading outside a fenced block and outside an HTML comment, with its body range. A line inside a fence or a comment is never a heading; the heading text is what a reader sees. */
+export const templateSections = (text: string): TemplateSection[] => scan(linesOf(text)).sections;
 
 /** The slot a heading names: lower case, punctuation dropped, whitespace collapsed (Ruling "fill"). */
 const SLOTS = {
@@ -76,6 +108,12 @@ const slotOf = (heading: string): Slot | undefined => {
  */
 const plain = (line: string): string => line.replace(/^( {0,3})(#{1,6}[ \t]|`{3,}|~{3,})/, (_m, indent: string, mark: string) => `${indent}\\${mark}`);
 
+// A GitHub login (letters, digits, single hyphens) or an organisation team (`@org/team`), not preceded by a word character, so an e-mail address is no mention.
+const MENTION = /(?<![\p{L}\p{N}_])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*(?:\/[A-Za-z0-9_.-]+)?)/gu;
+
+/** Ticket text with every `@name` outside a code span put into one, so the body notifies nobody (Phase 08.8 D-16, IN-06). */
+const quoteMentions = (text: string): string => text.split(/(`[^`]*`)/).map((part, i) => (i % 2 === 1 ? part : part.replace(MENTION, '`@$1`'))).join('');
+
 /**
  * The template with the ticket's facts in it, and the headings of the sections nobody filled.
  *
@@ -86,11 +124,10 @@ const plain = (line: string): string => line.replace(/^( {0,3})(#{1,6}[ \t]|`{3,
  */
 export function fillTemplate(template: string, facts: PrFacts): { body: string; remaining: string[] } {
   const lines = linesOf(template);
-  const sections = templateSections(template);
-  const empty = (s: TemplateSection): boolean =>
-    stripHtmlComments(lines.slice(s.bodyStart, s.bodyEnd).map((text, i) => ({ line: s.bodyStart + i, text }))).every((l) => l.text.trim() === '');
+  const { visible, sections } = scan(lines);
+  const empty = (s: TemplateSection): boolean => visible.slice(s.bodyStart, s.bodyEnd).every((l) => l.trim() === '');
 
-  const text: Record<Slot, string[]> = { intent: facts.intent, criteria: facts.criteria, evidence: facts.evidence };
+  const text: Record<Slot, string[]> = { intent: facts.intent.map(quoteMentions), criteria: facts.criteria.map(quoteMentions), evidence: facts.evidence.map(quoteMentions) };
   const taken = new Map<Slot, TemplateSection>();
   const remaining: string[] = [];
   sections.forEach((s, k) => {
@@ -104,7 +141,7 @@ export function fillTemplate(template: string, facts: PrFacts): { body: string; 
     if (!container) remaining.push(s.heading);
   });
 
-  const opening: string[] = [`**${facts.id}: ${facts.title}**`, ''];
+  const opening: string[] = [`**${facts.id}: ${quoteMentions(facts.title)}**`, ''];
   for (const slot of SLOT_ORDER) {
     if (taken.has(slot) || text[slot].length === 0) continue;
     opening.push(OPENING_LABEL[slot], ...text[slot].map(plain), '');

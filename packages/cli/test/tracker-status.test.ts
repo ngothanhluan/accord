@@ -325,13 +325,16 @@ function configureGithub(repo: string): void {
   );
 }
 
-/** An environment that fails the test the moment anything reads it: a property, a key test, or a key listing. */
+/**
+ * An environment that fails the test the moment anything reads it: a property, a key test, or a key listing.
+ * Phase 08.8.1 IN-04: the one property read allowed is `CI` (answered as unset): a gate run reads it to skip its display-only gate log, and it is no tracker setting.
+ */
 function untouchableEnv(): NodeJS.ProcessEnv {
   const fail = (what: string): never => {
     throw new Error('adapter none read the environment: ' + what);
   };
   return new Proxy({} as NodeJS.ProcessEnv, {
-    get: (_t, key) => fail('get ' + String(key)),
+    get: (_t, key) => (key === 'CI' ? undefined : fail('get ' + String(key))),
     has: (_t, key) => fail('has ' + String(key)),
     ownKeys: () => fail('ownKeys'),
     getOwnPropertyDescriptor: (_t, key) => fail('descriptor ' + String(key)),

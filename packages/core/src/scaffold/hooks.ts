@@ -41,17 +41,48 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 const SUBCOMMANDS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
 
 /**
+ * Phase 08.8 D-10: the words of a command line as a shell reads them. Whitespace outside quotes separates words; a run in
+ * double or single quotes is part of one word with its quotes removed, so `"C:\Users\A B\cli.js"` is one word; an unclosed
+ * quote takes the rest of the text. No escape, variable or glob is read: this only finds word boundaries.
+ */
+function commandTokens(c: string): string[] {
+  const tokens: string[] = [];
+  let word = '';
+  let inWord = false;
+  let quote = '';
+  for (const ch of c) {
+    if (quote !== '') {
+      if (ch === quote) quote = '';
+      else word += ch;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      inWord = true;
+    } else if (/\s/.test(ch)) {
+      if (inWord) tokens.push(word);
+      word = '';
+      inWord = false;
+    } else {
+      word += ch;
+      inWord = true;
+    }
+  }
+  if (inWord) tokens.push(word);
+  return tokens;
+}
+
+/**
  * D-16: the subcommand when `c` runs `accord hook <subcommand>` in any form an owner may have edited it into: `accord`
  * itself, an npx package spec whose name is `accord` or ends with `/accord` (with or without `@<version>`), or a path
  * ending `cli.js`, followed by `hook` and one of the five subcommands, then any arguments. `undefined` for anything else.
+ * Phase 08.8 D-10: the program may be quoted and may hold a space (`node "C:\Users\A B\cli.js" hook session-start`).
  */
 export function runsAccordHook(c: string): string | undefined {
-  const tokens = c.trim().split(/\s+/);
+  const tokens = commandTokens(c);
   for (let i = 1; i + 1 < tokens.length; i++) {
     if (tokens[i] !== 'hook') continue;
     const sub = SUBCOMMANDS.find((s) => s === tokens[i + 1]);
     if (sub === undefined) continue;
-    const program = (tokens[i - 1] ?? '').replace(/^(["'])(.*)\1$/, '$2');
+    const program = tokens[i - 1] ?? '';
     const base = program.slice(Math.max(program.lastIndexOf('/'), program.lastIndexOf('\\')) + 1);
     const name = base.replace(/@[^@]*$/, '').replace(/\.(cmd|exe|ps1)$/, '');
     if (name === 'accord' || base === 'cli.js') return sub;

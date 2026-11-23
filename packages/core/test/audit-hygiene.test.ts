@@ -12,7 +12,7 @@ const same = (email: string): string => email;
 it('risk:complex-branching a claimed ticket idle past stale_days is one ticket-idle gap naming its claimer and days (8.2-ac-1)', () => {
   const gaps = ticketIdleGaps([row({ id: 'T-1', claimedBy: 'a@x.io', idleDays: 20 })], '14', same);
   expect(gaps).toEqual([
-    { id: 'ticket-idle', text: 'T-1 claimed by a@x.io has had no activity for 20 days (stale_days 14)', fix: '/accord continue T-1, or accord drop T-1 --reason "<why>"' },
+    { id: 'ticket-idle', text: 'T-1 claimed by a@x.io has had no activity for 20 days (stale_days 14)', fix: 'ask to continue T-1, or accord drop T-1 --reason "<why>"' },
   ]);
   // a claimed row with no idleDays, and an unclaimed row with idleDays, are not idle claims
   expect(ticketIdleGaps([row({ claimedBy: 'a@x.io' }), row({ id: 'T-2', idleDays: 40 })], '14', same)).toEqual([]);
@@ -59,7 +59,7 @@ it('risk:regression isOpenWork is the dashboard open definition (D-01)', () => {
 it('risk:complex-branching an unclaimed draft past stale_draft_days is one draft-stale gap naming its creator (8.2-ac-2)', () => {
   const draft = { id: 'T-3', days: 100, creator: 'c@x.io' };
   expect(draftStaleGaps([draft], '90', same)).toEqual([
-    { id: 'draft-stale', text: 'T-3 created by c@x.io has not been touched for 100 days (stale_draft_days 90)', fix: '/accord pick-up T-3, or accord drop T-3 --reason "<why>"' },
+    { id: 'draft-stale', text: 'T-3 created by c@x.io has not been touched for 100 days (stale_draft_days 90)', fix: 'ask to pick up T-3, or accord drop T-3 --reason "<why>"' },
   ]);
   expect(draftStaleGaps([draft], '120', same)).toEqual([]);
   expect(draftStaleGaps([{ ...draft, days: 90 }], '90', same)).toEqual([]);
@@ -70,15 +70,33 @@ it('risk:complex-branching an unclaimed draft past stale_draft_days is one draft
     {
       id: 'draft-stale',
       text: 'T-3 created by c@x.io has waited on backlog/t-3-2026-08-12, not merged, for 100 days (stale_draft_days 90)',
-      fix: 'merge backlog/t-3-2026-08-12 into the default branch first, then /accord pick-up T-3 or accord drop T-3 --reason "<why>"',
+      fix: 'the owner merges the pull request of backlog/t-3-2026-08-12 first, then ask to pick up T-3 or accord drop T-3 --reason "<why>"',
     },
   ]);
   // an id or a branch a shell would read gets no command
   for (const odd of [{ ...draft, id: 'T 3' }, { ...draft, queued: 'backlog/t;3' }]) {
     const [gap] = draftStaleGaps([odd], '90', same);
     expect(gap.fix).toContain('no command is printed');
-    expect(gap.fix).not.toContain('/accord pick-up');
-    expect(gap.fix).not.toContain('merge backlog');
+    expect(gap.fix).not.toContain('ask to pick up');
+    expect(gap.fix).not.toContain('merges the pull request');
+  }
+});
+
+// Phase 08.8 D-15, D-17: the idle and stale fixes tell a person what to ask, in words, and leave the merge of a queued draft's pull request to the owner
+it('risk:regression the idle and stale fixes say what to ask and leave merging to the owner (D-15 D-17)', () => {
+  const fixes = [
+    ...ticketIdleGaps([row({ id: 'T-1', claimedBy: 'a@x.io', idleDays: 20 })], '14', same),
+    ...draftStaleGaps([{ id: 'T-3', days: 100, creator: 'c@x.io' }, { id: 'T-4', days: 100, creator: 'c@x.io', queued: 'backlog/t-4-2026-08-12' }], '90', same),
+  ].map((g) => g.fix);
+  expect(fixes).toEqual([
+    'ask to continue T-1, or accord drop T-1 --reason "<why>"',
+    'ask to pick up T-3, or accord drop T-3 --reason "<why>"',
+    'the owner merges the pull request of backlog/t-4-2026-08-12 first, then ask to pick up T-4 or accord drop T-4 --reason "<why>"',
+  ]);
+  for (const fix of fixes) {
+    expect(fix).not.toContain('/accord continue');
+    expect(fix).not.toContain('/accord pick-up');
+    expect(fix).not.toMatch(/(^|[ ,])merge [a-z]/);
   }
 });
 

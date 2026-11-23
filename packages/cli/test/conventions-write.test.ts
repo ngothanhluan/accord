@@ -159,3 +159,17 @@ it('risk:security accord conventions write refuses a conventions subject the quo
   }
   expect(c.git('rev-parse', 'HEAD')).toBe(before);
 });
+
+// Phase 08.8 D-17: the hint for a branch already in this clone deletes only the tip the command read (accord/product/conventions.md line 9), never `git branch -D`
+it('risk:data-loss an existing branch is refused with a tip-pinned delete hint (D-17)', async () => {
+  const c = clone();
+  const branch = `conventions/${today()}`;
+  c.git('branch', branch);
+  const tip = c.git('rev-parse', `refs/heads/${branch}`).trim();
+  expect(tip).toMatch(/^[0-9a-f]{40,64}$/);
+  const r = await run(['conventions', 'write', accepted(`${A}\n`)], c.root);
+  expect(r.code, r.out + r.err).toBe(2);
+  expect(r.err).toContain(`git update-ref -d refs/heads/${branch} ${tip}`);
+  expect(r.err).not.toContain('git branch -D');
+  expect(gitRun(c.remote, 'branch', '--list', 'conventions/*').trim()).toBe('');
+});

@@ -8,7 +8,7 @@ import { lineProblem, prTitleProblem, renderSubject, templates } from '@accord-d
 import { gitDefaultRef, gitFilesAt, UsageError } from '../load/fs.js';
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
-import { forgetRegistration, utcDate } from './queue.js';
+import { existingBranchRefusal, forgetRegistration, utcDate } from './queue.js';
 import { git, gitNoPrompt, gitOk } from './worktree.js';
 
 const NOTHING = ' - nothing was written or pushed';
@@ -81,9 +81,8 @@ export function conventionsWrite(ctx: CommandContext, file: string, cwd: string)
   if (onOrigin !== '') {
     throw new UsageError(`${branch} already exists on origin - merge or close that pull request first, or delete the branch with git push origin --delete ${branch}, then try again` + NOTHING);
   }
-  if (gitOk(root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch])) {
-    throw new UsageError(`${branch} already exists in this clone - delete it with git branch -D ${branch}, then try again` + NOTHING);
-  }
+  const here = existingBranchRefusal(root, branch, NOTHING);
+  if (here !== undefined) throw new UsageError(here);
 
   // the file as the default branch has it (the template when the default branch has none), never this checkout's copy
   const onDefault = gitFilesAt(root, ref, [CONVENTIONS])[CONVENTIONS];

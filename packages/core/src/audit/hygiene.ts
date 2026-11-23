@@ -31,7 +31,8 @@ export function ticketIdleGaps(open: readonly StatusRow[], staleDays: string, wh
     .map((r) => ({
       id: 'ticket-idle',
       text: `${r.id} claimed by ${who(r.claimedBy as string)} has had no activity for ${r.idleDays} days (stale_days ${staleDays})`,
-      fix: SAFE_ID.test(r.id) ? `/accord continue ${r.id}, or accord drop ${r.id} --reason "<why>"` : NO_COMMAND,
+      // Phase 08.8 D-15: the fix says what to ask in words, not a typed form
+      fix: SAFE_ID.test(r.id) ? `ask to continue ${r.id}, or accord drop ${r.id} --reason "<why>"` : NO_COMMAND,
     }));
 }
 
@@ -61,7 +62,7 @@ export interface OldDraft {
 
 /**
  * D-02, D-06: one `draft-stale` gap per draft older than `stale_draft_days` (strictly), in id code-point order, naming its creator. A draft only a backlog branch holds cannot be
- * dropped (`accord drop` refuses it), so its fix says to merge that branch first.
+ * dropped (`accord drop` refuses it), so its fix says the owner merges that branch's pull request first.
  */
 export function draftStaleGaps(drafts: readonly OldDraft[], staleDraftDays: string, who: (email: string) => string): AuditGap[] {
   return drafts
@@ -74,13 +75,14 @@ export function draftStaleGaps(drafts: readonly OldDraft[], staleDraftDays: stri
         return {
           id: 'draft-stale',
           text: `${d.id} created by ${by} has not been touched for ${d.days} days ${limit}`,
-          fix: SAFE_ID.test(d.id) ? `/accord pick-up ${d.id}, or accord drop ${d.id} --reason "<why>"` : NO_COMMAND,
+          fix: SAFE_ID.test(d.id) ? `ask to pick up ${d.id}, or accord drop ${d.id} --reason "<why>"` : NO_COMMAND,
         };
       }
       return {
         id: 'draft-stale',
         text: `${d.id} created by ${by} has waited on ${d.queued}, not merged, for ${d.days} days ${limit}`,
-        fix: !SAFE_ID.test(d.id) ? NO_COMMAND : !SAFE_BRANCH.test(d.queued) ? NO_COMMAND_BRANCH : `merge ${d.queued} into the default branch first, then /accord pick-up ${d.id} or accord drop ${d.id} --reason "<why>"`,
+        // Phase 08.8 D-16, D-17: pull requests are merged by the owner; the fix names the wait, never an instruction to merge
+        fix: !SAFE_ID.test(d.id) ? NO_COMMAND : !SAFE_BRANCH.test(d.queued) ? NO_COMMAND_BRANCH : `the owner merges the pull request of ${d.queued} first, then ask to pick up ${d.id} or accord drop ${d.id} --reason "<why>"`,
       };
     });
 }

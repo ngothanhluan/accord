@@ -1004,15 +1004,10 @@ packages/core/test/snapshot.test.ts#fixture-wrong-plan->-does-not-mutate-its-inp
 packages/core/test/snapshot.test.ts#fixture-wrong-plan->-emits-no-backslash-in-any-path-(STACK-Decision-7)
 packages/core/test/snapshot.test.ts#fixture-wrong-plan->-matches-the-golden
 packages/core/test/status.test.ts#status-case-archived->-is-sorted-by-parent-then-id-(D-92)-and-carries-no-undefined-or-null-value-(D-54)
-packages/core/test/status.test.ts#status-case-archived->-matches-its-golden
 packages/core/test/status.test.ts#status-case-frontmatter-errors->-is-sorted-by-parent-then-id-(D-92)-and-carries-no-undefined-or-null-value-(D-54)
-packages/core/test/status.test.ts#status-case-frontmatter-errors->-matches-its-golden
 packages/core/test/status.test.ts#status-case-gate-done->-is-sorted-by-parent-then-id-(D-92)-and-carries-no-undefined-or-null-value-(D-54)
-packages/core/test/status.test.ts#status-case-gate-done->-matches-its-golden
 packages/core/test/status.test.ts#status-case-gate-ready->-is-sorted-by-parent-then-id-(D-92)-and-carries-no-undefined-or-null-value-(D-54)
-packages/core/test/status.test.ts#status-case-gate-ready->-matches-its-golden
 packages/core/test/status.test.ts#status-case-valid-build->-is-sorted-by-parent-then-id-(D-92)-and-carries-no-undefined-or-null-value-(D-54)
-packages/core/test/status.test.ts#status-case-valid-build->-matches-its-golden
 packages/core/test/status.test.ts#status-edge-cases-a-golden-cannot-express->-gives-a-ticket-whose-frontmatter-failed-the-schema-a-row-with-its-id,-its-errors,-and-no-type-key
 packages/core/test/status.test.ts#status-edge-cases-a-golden-cannot-express->-keeps-an-archived-ticket-in-the-result;-filtering-is-the-caller-(D-93)
 packages/core/test/status.test.ts#status-edge-cases-a-golden-cannot-express->-sorts-a-parentless-ticket-by-its-own-id,-not-into-a-block-above-every-child-(D-92)

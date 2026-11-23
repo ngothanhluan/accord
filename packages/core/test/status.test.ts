@@ -77,7 +77,7 @@ for (const row of CASES) {
       rows = statusRows(loadSnapshot(row.input()));
     });
 
-    it('matches its golden', async () => {
+    it('risk:regression status matches its golden', async () => {
       await expect(stableJson(rows)).toMatchFileSnapshot('./__golden__/' + row.name + '.status.json');
     });
 

@@ -1,4 +1,5 @@
 // `accord hook <event>` end to end, in-process through runCli, on a lane repo.
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -116,6 +117,37 @@ describe('accord hook', () => {
       const ticket = await resume();
       expect(ticket).toContain('Owners can export their report as CSV.');
       expect(ticket).not.toContain('Unfinished:');
+    } finally {
+      vi.unstubAllEnvs();
+      cleanup(own);
+    }
+  }, 60_000);
+
+  // Phase 08.8 D-14 (WR-02): the hook reads the state file only through the folder check `accord debug path` makes; on Windows a folder one more account can use is ignored.
+  it.runIf(process.platform === 'win32')('risk:security on Windows the session hook gives no Unfinished line for a folder open to another account (D-14)', async () => {
+    const own = mkdtempSync(join(tmpdir(), 'p88-hook-tmp-'));
+    try {
+      vi.stubEnv('TMPDIR', own);
+      vi.stubEnv('TEMP', own);
+      vi.stubEnv('TMP', own);
+      const repo = makeLaneRepo();
+      commitAll(repo);
+      const made = await run(['debug', 'path'], repo);
+      expect(made.code, made.err).toBe(0);
+      const file = debugStatePath(repo);
+      const folder = file.slice(0, file.lastIndexOf('/'));
+      writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
+      const resume = async (): Promise<string> => {
+        const r = await run(['hook', 'session-resume'], repo);
+        expect(r.code, r.err).toBe(0);
+        return r.out;
+      };
+      expect(await resume()).toContain(`Unfinished: ${file}: resume the debugger with /accord-debug\n`);
+
+      execFileSync(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'icacls.exe'), [folder.replace(/\//g, '\\'), '/grant', '*S-1-5-32-545:(OI)(CI)(R)'], { windowsHide: true });
+      const after = await resume();
+      expect(after).toMatch(SESSION_LINE);
+      expect(after).not.toContain('Unfinished:');
     } finally {
       vi.unstubAllEnvs();
       cleanup(own);

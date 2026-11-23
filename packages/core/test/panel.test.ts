@@ -2440,3 +2440,69 @@ it('risk:parsing the shimmer moves a glow across the live line frame by frame (L
   expect(shimmer('Reviewing', 500, stops)).toEqual(b);
   expect(shimmer('', 500, stops)).toEqual([]);
 });
+
+// Phase 08.8.1 L-01 L-07: each lively effect and the spinner is a pure function of the frame time; every colour is `#rrggbb`
+it('risk:parsing each lively effect is a pure function of the frame time (L-01 L-07)', async () => {
+  const { flowRun, comet, equalizer, typed, sparkles, rolling, breathe, spinner, PALETTES, isHex } = await loadView();
+  const stops = PALETTES.aurora;
+  const hex = (colors: string[]): void => colors.forEach((c) => expect(isHex(c), c).toBe(c));
+  const sum = (c: string): number => [1, 3, 5].reduce((a, i) => a + parseInt(c.slice(i, i + 2), 16), 0);
+  // the flowing title shifts the gradient with the time and gives the same colours for the same time
+  const f0 = flowRun('Login form', stops, 0);
+  const f1 = flowRun('Login form', stops, 2000);
+  expect(f0.map((r: any) => r.ch)).toEqual([...'Login form']);
+  hex([...f0, ...f1].map((r: any) => r.color));
+  expect(f1.some((r: any, i: number) => r.color !== f0[i].color)).toBe(true);
+  expect(flowRun('Login form', stops, 2000)).toEqual(f1);
+  // the comet: 20 cells, the first 10 filled with a bright head that moves, the rest an empty track
+  const c0 = comet(0.5, 20, 0, stops);
+  const c1 = comet(0.5, 20, 250, stops);
+  expect(c0).toHaveLength(20);
+  expect(c0.slice(0, 10).every((c: any) => c.ch === '━')).toBe(true);
+  expect(c0.slice(10).every((c: any) => c.ch === '─')).toBe(true);
+  hex([...c0, ...c1].map((c: any) => c.color));
+  const brightest = (cells: any[]): number => cells.slice(0, 10).reduce((best: number, c: any, i: number) => (sum(c.color) > sum(cells[best].color) ? i : best), 0);
+  expect([brightest(c0), brightest(c1)]).toEqual([0, 4]);
+  expect(comet(0.5, 20, 250, stops)).toEqual(c1);
+  // the equalizer: glyphs from the seven bars that change with the time
+  const e0 = equalizer(0, 6, 1);
+  expect([...e0]).toHaveLength(6);
+  expect([...e0, ...equalizer(400, 6, 1)].every((g) => '▁▂▃▄▅▆▇'.includes(g))).toBe(true);
+  expect(equalizer(400, 6, 1)).not.toBe(e0);
+  expect(equalizer(0, 6, 1)).toBe(e0);
+  // typed text: a character every 28 ms and a cursor until it is whole
+  expect(typed('reading the brief', 0, 280)).toBe('reading th▌');
+  expect(typed('reading the brief', 0, 28 * 17)).toBe('reading the brief');
+  expect(typed('reading the brief', 500, 100)).toBe('▌');
+  // sparkles: particles inside the width, none after 1.2 seconds, the same for the same seed
+  const burst = { at: 0, seed: 7 };
+  const s = sparkles(burst, 600, 40);
+  expect(s.length).toBeGreaterThan(0);
+  for (const p of s) {
+    expect('✦✧⋆·*+˚').toContain(p.ch);
+    expect(p.x).toBeGreaterThanOrEqual(0);
+    expect(p.x).toBeLessThan(40);
+    expect(p.y).toBeGreaterThanOrEqual(0);
+    expect(p.y).toBeLessThan(3);
+  }
+  expect(sparkles(burst, 600, 40)).toEqual(s);
+  expect(sparkles({ at: 0, seed: 8 }, 600, 40)).not.toEqual(s);
+  expect(sparkles(burst, 1200, 40)).toEqual([]);
+  expect(sparkles(burst, -5, 40)).toEqual([]);
+  // the rolling counter: changing digits for 700 ms, then the number
+  const digits = new Set([0, 50, 100, 150, 200, 250, 300, 350].map((now) => rolling(3, 4, 0, now)));
+  expect(digits.size).toBeGreaterThan(1);
+  for (const d of digits) expect(d).toMatch(/^[0-9] of 4$/);
+  expect(rolling(3, 4, 0, 800)).toBe('3 of 4');
+  expect(rolling(3, 4, undefined, 10)).toBe('3 of 4');
+  // breathing: stays a colour and comes back to its start after one period
+  const base = '#6cc7d9';
+  const b = [0, 200, 550, 900].map((t) => breathe(base, t));
+  hex(b);
+  expect(new Set(b).size).toBeGreaterThan(1);
+  expect(breathe(base, 1100)).toBe(breathe(base, 0));
+  // the spinner's four marks
+  expect([0, 125, 250, 375, 500].map(spinner)).toEqual(['◐', '◓', '◑', '◒', '◐']);
+  // no effect reads a clock of its own: the same arguments give the same frame (checked above) and the source holds no call to one
+  expect(readFileSync(new URL('../panel/view.js', import.meta.url), 'utf8').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')).not.toMatch(/Date\.now|performance\./);
+});

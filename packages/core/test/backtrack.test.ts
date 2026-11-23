@@ -1,7 +1,8 @@
 // 8-ac-3 (D-07): the static guard `backtrackProblem(source, flags)` refuses a team line pattern that can backtrack catastrophically. Every test asserts only the guard's verdict:
 // a refused regex is never run on any input here (a hang would be the failure the guard exists to prevent).
 import { expect, it } from 'vitest';
-import { backtrackProblem } from '../src/security/backtrack.js';
+import { DEFAULT_SECURITY, DEFAULT_SLOP } from '../src/index.js';
+import { backtrackProblem, overlapRepeats } from '../src/security/backtrack.js';
 
 const r = String.raw;
 
@@ -168,4 +169,15 @@ it('risk:security the guard refuses a modifier group it cannot read, so (?i:a+)+
   for (const source of [r`(?:ab)+`, r`(?=a)b`, r`(?!a)b`, r`(?<=a)b`, r`(?<!a)b`, r`(?<n>ab)+`]) {
     expect(backtrackProblem(source, ''), source).toBeUndefined();
   }
+});
+
+// Phase 08.8 D-12: the scans budget the patterns the guard accepts with two overlapping repeats, so the guard says how many a pattern has.
+it('risk:resource overlapRepeats is two for an accepted overlapping pattern and below two for a linear one (D-12)', () => {
+  expect(overlapRepeats(r`.*a.*b`, '')).toBe(2);
+  expect(overlapRepeats(r`a*a*b`, '')).toBe(2);
+  for (const source of [r`a+b+`, r`\bfoo\b`, r`(ab)+`, r`a`]) expect(overlapRepeats(source, ''), source).toBeLessThan(2);
+  // every default line pattern of security.md and slop.md is linear and is never budgeted
+  const defaults = [...DEFAULT_SECURITY.patterns.filter((p) => p.kind === 'line'), ...DEFAULT_SLOP.patterns];
+  expect(defaults.length).toBeGreaterThan(10);
+  for (const p of defaults) expect(overlapRepeats(p.source as string, p.flags ?? ''), p.id).toBeLessThan(2);
 });

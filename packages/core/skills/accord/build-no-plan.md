@@ -40,4 +40,4 @@ its Ruling goes into the ledger commit of step 4.
    there goes to the owner, and after a change of course (step 6) the new yes is followed by `accord brief <id> 1`
    again.
 
-6. Next: `./review.md`, or `./verify.md` when `accord anchor` names review off.
+6. Next: `./review.md`. When `accord anchor` names review off, follow the section `With the review stage off` of `./review-security.md`, then `./verify.md`.

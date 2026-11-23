@@ -1,6 +1,6 @@
 {
   "config": {
-    "accord": "0.16.0",
+    "accord": "0.17.0",
     "design": {
       "tokens": "src/missing.css"
     },

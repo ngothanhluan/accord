@@ -1,8 +1,9 @@
 // ST-LN-6 Task 1: the detail of one lane ticket and the label of each criterion.
 import { expect, it } from 'vitest';
-import { approvalShort, loadSnapshot, ticketDetail } from '../src/index.js';
+import { approvalShort, loadSnapshot, ticketDetail, ticketWarnings } from '../src/index.js';
 import { acHash } from '../src/gate/hash.js';
-import { CONFIG, LANE_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { building, CONFIG, LANE_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 
 const scenario = (n: number, test: boolean) =>
   [`  @ac-${n}${test ? ` @test:t#c${n}` : ''}`, `  Scenario: criterion ${n}`, '    Given a thing', '    Then it holds', ''].join('\n');
@@ -124,4 +125,28 @@ it('risk:complex-branching the short approval view prints exactly the intent, on
   // An empty part prints none under its heading.
   const bare = approvalShort(ticket('## Intent\n\n## Acceptance criteria\n\n## Decisions\n<!-- none yet -->\n'), []);
   expect(bare.split('\n')).toEqual(['## Intent', '', 'none', '', '## Criteria', '', 'none', '', '## Decisions', '', 'none', '', '## Risks', '', 'none', '', 'Full ticket: accord/tickets/X-1.md', '']);
+});
+
+// Phase 08.8.1 D-05: a ticket whose plan.md is on disk but git does not hold it gets one not-committed warning; a committed one, and a ticket with no plan.md yet, get none.
+it('risk:complex-branching ticketWarnings names a ticket whose records git does not hold and nothing for a committed one (D-05)', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  building(files, 'T-1');
+  const planPath = 'accord/tickets/T-1/plan.md';
+  const load = (f: Files, trackFacts?: Record<string, { state: 'ignored' | 'untracked'; path: string }>) =>
+    loadSnapshot({ files: f, tree: [], ...(trackFacts === undefined ? {} : { trackFacts }) });
+  expect(ticketWarnings(load(files, { 'T-1': { state: 'ignored', path: planPath } }), 'T-1')).toEqual([
+    { kind: 'not-committed', text: 'accord/ is not committed in this repository: git ignores accord/tickets/T-1/plan.md, so accord cannot track the stage or the tasks' },
+  ]);
+  expect(ticketWarnings(load(files, { 'T-1': { state: 'untracked', path: planPath } }), 'T-1')).toEqual([
+    { kind: 'not-committed', text: 'accord/tickets/T-1/plan.md is not committed yet: accord cannot track the stage or the tasks until it is' },
+  ]);
+  const ignored = ticketDetail(load(files, { 'T-1': { state: 'ignored', path: planPath } }), 'T-1');
+  expect(ignored?.warnings?.map((w) => w.kind)).toEqual(['not-committed']);
+  // No trackFacts entry: no warning, and the detail has no `warnings` key.
+  expect(ticketWarnings(load(files), 'T-1')).toEqual([]);
+  expect(Object.hasOwn(ticketDetail(load(files), 'T-1')!, 'warnings')).toBe(false);
+  // The same entry for a ticket with no plan.md on disk (still at intent or approach): quiet.
+  const early: Files = { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') };
+  expect(ticketWarnings(load(early, { 'T-1': { state: 'untracked', path: planPath } }), 'T-1')).toEqual([]);
+  expect(Object.hasOwn(ticketDetail(load(early, { 'T-1': { state: 'untracked', path: planPath } }), 'T-1')!, 'warnings')).toBe(false);
 });

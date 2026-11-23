@@ -1,4 +1,6 @@
 // ST-LN-6 task 2: `accord show <id> [--json]`, in-process through runCli on a fixture repository.
+import { appendFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { cleanup, commitAll, commitMsg, copyRepo, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { laneRHash, loadSnapshot } from '@accord-dev/accord-core';
@@ -269,3 +271,71 @@ it('risk:regression show json adds review and stagesOff only when the ticket has
     cleanup(bare);
   }
 });
+
+// Phase 08.8.1 D-05 L-05: CSA-185's shape. accord/ is git-ignored, so plan.md has no ready commit and the ledger no done line: show --json and the anchor say why, in place of a wrong `plan 0/3`.
+const THREE_TASKS =
+  PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n';
+const NOT_IGNORED = 'accord/ is not committed in this repository: git ignores accord/tickets/T-1/plan.md, so accord cannot track the stage or the tasks';
+const NOT_COMMITTED = 'accord/tickets/T-1/plan.md is not committed yet: accord cannot track the stage or the tasks until it is';
+
+it('risk:regression show json and anchor say accord is not committed when git ignores it (D-05 L-05)', async () => {
+  const repo = makeLaneRepo({ ...approved(), 'accord/tickets/T-1/plan.md': THREE_TASKS });
+  try {
+    commitAll(repo, 'plan: T-1 ready');
+    // A tracked ticket: no warnings key, and the anchor keeps its Stage line.
+    const tracked = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(tracked).toMatchObject({ stage: 'build', tasksDone: 0, tasksTotal: 3 });
+    expect(Object.hasOwn(tracked, 'warnings')).toBe(false);
+    const trackedAnchor = (await run(['anchor', 'T-1'], repo)).out;
+    expect(trackedAnchor).not.toContain('is not committed');
+    expect(trackedAnchor.split('\n').some((l) => l.startsWith('Stage: build 0/3'))).toBe(true);
+    // CSA-185: accord/ leaves the index and is git-excluded.
+    appendFileSync(join(repo, '.git', 'info', 'exclude'), 'accord/\n');
+    gitRun(repo, 'rm', '-r', '-q', '--cached', 'accord');
+    commitMsg(repo, 'chore: stop tracking accord');
+    const shown = await run(['show', 'T-1', '--json'], repo);
+    expect(shown.code).toBe(0);
+    const json = JSON.parse(shown.out);
+    expect(json.stage).toBe('plan');
+    expect(json.warnings).toHaveLength(1);
+    expect(json.warnings[0].kind).toBe('not-committed');
+    expect(json.warnings[0].text).toBe(NOT_IGNORED);
+    expect(json.warnings[0].text).toContain('git ignores accord/');
+    const anchored = await run(['anchor', 'T-1'], repo);
+    expect(anchored.code).toBe(0);
+    const lines = anchored.out.split('\n');
+    expect(lines).toContain(json.warnings[0].text);
+    expect(lines.some((l) => l.startsWith('Stage:'))).toBe(false);
+    expect(anchored.out).not.toContain('build 0/3');
+    expect(anchored.out).not.toContain('plan, next:');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8.1 D-05: the warning fires only when tracking matters: a ticket still at intent says nothing; a plan.md git lists as untracked is named.
+it('risk:complex-branching an uncommitted plan is named and an uncommitted ticket still at intent says nothing (D-05)', async () => {
+  const early = makeLaneRepo({ [P('T-2')]: laneTicket('T-2') });
+  try {
+    const j = JSON.parse((await run(['show', 'T-2', '--json'], early)).out);
+    expect(Object.hasOwn(j, 'warnings')).toBe(false);
+    const a = (await run(['anchor', 'T-2'], early)).out;
+    expect(a).not.toContain('is not committed');
+    expect(a.split('\n').some((l) => l.startsWith('Stage:'))).toBe(true);
+  } finally {
+    cleanup(early);
+  }
+  const repo = makeLaneRepo(approved());
+  try {
+    rmSync(join(repo, 'accord', 'tickets', 'T-1', 'plan.md'));
+    commitAll(repo, 'claim: T-1');
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN });
+    const j = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(j.warnings[0]).toEqual({ kind: 'not-committed', text: NOT_COMMITTED });
+    const a = await run(['anchor', 'T-1'], repo);
+    expect(a.out.split('\n')).toContain(NOT_COMMITTED);
+    expect(a.out.split('\n').some((l) => l.startsWith('Stage:'))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

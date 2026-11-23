@@ -4,6 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
+import { appendGateRun, readGateRuns } from '../src/load/ticket-log.js';
 import { cleanup, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { discussFor, discussPath, P, ready } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
@@ -316,3 +317,29 @@ it('risk:regression a gate run with CI set writes no gate log (IN-04)', async ()
     cleanup(repo);
   }
 }, 120_000);
+
+// Phase 08.8.1 audit of Phase 08.7 (T-08.7-05, D-04): a gate log of any size costs `show` one bounded read: only its last 64 KiB are read, and the reason a failing run is recorded with is cut to 200 code points
+// with control code points turned into spaces. Read straight from the loader: a sandbox repository adds nothing to what these two bounds prove.
+it('risk:resource the gate log is read from its last 64 KiB only and a recorded reason is cut to 200 code points (D-04)', () => {
+  const root = mkdtempSync(join(tmpdir(), 'accord-gatelog-'));
+  try {
+    const folder = join(root, '.accord-reports', 'T-1');
+    mkdirSync(folder, { recursive: true });
+    const oldRun = '1700000000\tdone\tfail\told run\n';
+    const junk = ('x'.repeat(99) + '\n').repeat(700); // 70000 bytes that are no gate line
+    writeFileSync(join(folder, 'gate.log'), oldRun + junk);
+    expect(readGateRuns(root, 'T-1')).toEqual([]); // the run lies before the last 64 KiB: it is never read
+    writeFileSync(join(folder, 'gate.log'), junk + oldRun);
+    expect(readGateRuns(root, 'T-1')).toEqual([{ at: 1700000000, kind: 'gate', text: 'gate done FAIL: old run', fail: true }]);
+    const long = 'é'.repeat(300) + '\u0007\n\t'.repeat(3);
+    appendGateRun(root, 'T-2', { gate: 'done', ticket: 'T-2', verdict: 'fail', findings: [{ file: 'accord/tickets/T-2.md', rule: 'lint.x', reason: long, level: 'error' }] }, 1700000002);
+    const line = readFileSync(join(root, '.accord-reports', 'T-2', 'gate.log'), 'utf8');
+    expect(line.endsWith('\n')).toBe(true);
+    expect(line.split('\n')).toHaveLength(2); // one line: the line breaks of the reason became spaces
+    const reason = line.trimEnd().split('\t')[3];
+    expect([...reason]).toHaveLength(200);
+    expect(reason).not.toMatch(/\p{Cc}/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

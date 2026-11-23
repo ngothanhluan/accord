@@ -47,6 +47,6 @@ export const slopUnresolved: GateRule['check'] = (snapshot, id) => {
     .filter((h) => !named.some((n) => n.kind === h.kind && n.path === h.path && n.line === h.line))
     .map((h) => {
       const hit = visible(`slop:${h.kind} ${h.path}:${h.line}`);
-      return { file, reason: `${hit} is neither fixed nor justified; write "${hit} — <reason>" in the last ## Round of review.md, or fix it` };
+      return { file, reason: `${hit} is neither fixed nor justified; write "${hit} — <reason>" in the last ## Round of review.md (the path and line are those of the ticket's final diff, and the reason says why the code is right, in words), or fix it` };
     });
 };

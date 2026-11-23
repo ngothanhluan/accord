@@ -330,7 +330,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   const commit = program.command('commit').description("check a commit message against the team's commit rule (commits.message in accord/config.yml)");
   commit
     .command('check <file>')
-    .description('read the first line of a commit message file and judge it against commits.message: exit 0 when it passes or no rule is set, exit 1 naming the rule and a message that passes, exit 2 when the file cannot be read or the configured pattern is not in force; merge commits and Revert subjects are exempt at the gates, not here')
+    .description('read the first line of a commit message file and judge it against commits.message: exit 0 when it passes or no rule is set, exit 1 naming the rule and a message that passes, exit 2 when the file cannot be read or the configured pattern is not in force; the same merge-commit and Revert "<text>" exemptions apply here as at the gates')
     .action((file: string) => {
       setCode(commitCheck(preflight(opts), file, opts.cwd));
     });

@@ -2,7 +2,7 @@
 // (`/c/Work/x`, `/c/...:/usr/bin`) is neither a folder nor a path list Node can use. These cases pin the one helper both git spawn sites go through.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { basename, delimiter, dirname, join } from 'node:path';
+import { delimiter, dirname, join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { UsageError } from '../src/load/fs.js';
 import { gitStartFailure, runGitSync, windowsForm, windowsPathList } from '../src/load/git-spawn.js';
@@ -98,8 +98,11 @@ describe('git lookup (D-15)', () => {
   it.runIf(process.platform === 'win32')('risk:regression runGitSync finds git through a root-relative Git Bash PATH entry on Windows (REVIEW WR-03)', () => {
     const gitDir = (process.env.PATH ?? process.env.Path ?? '').split(delimiter).find((d) => d !== '' && existsSync(join(d, 'git.exe')));
     expect(gitDir, 'git.exe is on this host PATH').toBeDefined();
-    const root = dirname(gitDir as string);
-    const entry = '/' + basename(gitDir as string);
+    // the Git for Windows root is the nearest folder above git.exe that holds usr\bin (`cmd\git.exe` or `ucrt64\bin\git.exe`)
+    let root = dirname(gitDir as string);
+    while (!existsSync(join(root, 'usr', 'bin')) && dirname(root) !== root) root = dirname(root);
+    expect(existsSync(join(root, 'usr', 'bin')), 'git.exe sits under a Git for Windows root').toBe(true);
+    const entry = '/' + relative(root, gitDir as string).replace(/\\/g, '/');
     const sandbox = makeLaneRepo();
     repos.push(sandbox);
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !['path', 'exepath', 'shell', 'msystem_prefix'].includes(k.toLowerCase())));

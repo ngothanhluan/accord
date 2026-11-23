@@ -30,9 +30,27 @@ const BOM = new RegExp('^\uFEFF');
 /** The template text as lines: a byte order mark dropped, CRLF read as LF. */
 const linesOf = (text: string): string[] => text.replace(BOM, '').replace(/\r\n/g, '\n').split('\n');
 
+/** A line with every HTML comment that closes on it removed; an `<!--` with no `-->` after it on the line is literal text, as CommonMark reads an inline comment. */
+function stripInlineComments(line: string): string {
+  let seen = '';
+  let at = 0;
+  for (;;) {
+    const start = line.indexOf('<!--', at);
+    const end = start < 0 ? -1 : line.indexOf('-->', start + 4);
+    // no comment left that closes on this line: the rest, any `<!--` in it included, is text
+    if (end < 0) return seen + line.slice(at);
+    seen += line.slice(at, start);
+    at = end + 3;
+  }
+}
+
+// CommonMark HTML block type 2: a line that begins (after up to three spaces) with `<!--` opens a comment that ends on the first line holding `-->`, and that whole line belongs to it.
+const COMMENT_BLOCK = /^ {0,3}<!--/;
+
 /**
- * One pass over the template lines: for each line the text a reader sees (an HTML comment removed, one that spans lines included, one still open at the end hiding the rest; a line inside a
- * fenced block is kept as written, since a fence holds text), and every ATX heading outside a fence and outside a comment, with its visible text as the heading (Phase 08.8 D-16, IN-06).
+ * One pass over the template lines: for each line the text a reader sees (an HTML comment removed; a comment that begins its line runs to the line holding `-->`, one still open at
+ * the end hiding the rest; a line inside a fenced block is kept as written, since a fence holds text), and every ATX heading outside a fence and outside a comment, with its visible
+ * text as the heading (Phase 08.8 D-16, IN-06). An unclosed `<!--` inside a line never hides the lines after it (Phase 08.8 review IN-01). A line of a comment block is never a heading.
  */
 function scan(lines: string[]): { visible: string[]; sections: TemplateSection[] } {
   const visible: string[] = [];
@@ -46,28 +64,14 @@ function scan(lines: string[]): { visible: string[]; sections: TemplateSection[]
       visible.push(l);
       return;
     }
-    let seen = '';
-    let rest = l;
-    while (rest.length > 0) {
-      if (inComment) {
-        const end = rest.indexOf('-->');
-        if (end < 0) rest = '';
-        else {
-          rest = rest.slice(end + 3);
-          inComment = false;
-        }
-      } else {
-        const start = rest.indexOf('<!--');
-        if (start < 0) {
-          seen += rest;
-          rest = '';
-        } else {
-          seen += rest.slice(0, start);
-          rest = rest.slice(start + 4);
-          inComment = true;
-        }
-      }
+    if (inComment || COMMENT_BLOCK.test(l)) {
+      const rest = inComment ? l : l.slice(l.indexOf('<!--') + 4);
+      const end = rest.indexOf('-->');
+      inComment = end < 0;
+      visible.push(inComment ? '' : stripInlineComments(rest.slice(end + 3)));
+      return;
     }
+    const seen = stripInlineComments(l);
     visible.push(seen);
     const f = FENCE.exec(seen);
     if (f !== null) {
@@ -108,11 +112,72 @@ const slotOf = (heading: string): Slot | undefined => {
  */
 const plain = (line: string): string => line.replace(/^( {0,3})(#{1,6}[ \t]|`{3,}|~{3,})/, (_m, indent: string, mark: string) => `${indent}\\${mark}`);
 
-// A GitHub login (letters, digits, single hyphens) or an organisation team (`@org/team`), not preceded by a word character, so an e-mail address is no mention.
-const MENTION = /(?<![\p{L}\p{N}_])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*(?:\/[A-Za-z0-9_.-]+)?)/gu;
+// A GitHub login (letters, digits, single hyphens) or an organisation team (`@org/team`), not preceded by a letter or digit, so an e-mail address is no mention; `_` may precede it,
+// since `_@name_` is emphasis around a mention (Phase 08.8 review WR-07).
+const MENTION = /(?<![\p{L}\p{N}])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*(?:\/[A-Za-z0-9_.-]+)?)/gu;
 
-/** Ticket text with every `@name` outside a code span put into one, so the body notifies nobody (Phase 08.8 D-16, IN-06). */
-const quoteMentions = (text: string): string => text.split(/(`[^`]*`)/).map((part, i) => (i % 2 === 1 ? part : part.replace(MENTION, '`@$1`'))).join('');
+/**
+ * A line as CommonMark reads its backticks (Phase 08.8 review WR-07): code spans kept as written, where a backtick run closes only on the next run of the same length; the text
+ * between them with a backslash escape kept as written and every unmatched backtick escaped, so no backtick added later can pair with it.
+ */
+function codeSpans(text: string): { span: boolean; text: string }[] {
+  const out: { span: boolean; text: string }[] = [];
+  let plainText = '';
+  let i = 0;
+  const runAt = (at: number): number => {
+    let n = 0;
+    while (text[at + n] === '`') n += 1;
+    return n;
+  };
+  while (i < text.length) {
+    if (text[i] === '\\' && i + 1 < text.length) {
+      plainText += text.slice(i, i + 2);
+      i += 2;
+    } else if (text[i] !== '`') {
+      plainText += text[i];
+      i += 1;
+    } else {
+      const n = runAt(i);
+      let close = -1;
+      for (let j = i + n; j < text.length; ) {
+        const m = runAt(j);
+        if (m === n) {
+          close = j;
+          break;
+        }
+        j += Math.max(m, 1);
+      }
+      if (close < 0) {
+        plainText += '\\`'.repeat(n);
+        i += n;
+      } else {
+        out.push({ span: false, text: plainText }, { span: true, text: text.slice(i, close + n) });
+        plainText = '';
+        i = close + n;
+      }
+    }
+  }
+  out.push({ span: false, text: plainText });
+  return out;
+}
+
+/**
+ * Ticket text with every `@name` outside a code span put into one, so the body notifies nobody (Phase 08.8 D-16, IN-06; review WR-07). A name right beside a code span is set
+ * apart from it by a space, since two touching backtick runs would read as one.
+ */
+const quoteMentions = (text: string): string => {
+  const parts = codeSpans(text);
+  return parts
+    .map((p, k) => {
+      if (p.span) return p.text;
+      return p.text.replace(MENTION, (m: string, name: string, at: number) => {
+        const before = at === 0 && k > 0 ? ' ' : '';
+        const after = at + m.length === p.text.length && k + 1 < parts.length ? ' ' : '';
+        return `${before}\`@${name}\`${after}`;
+      });
+    })
+    .join('');
+};
 
 /**
  * The template with the ticket's facts in it, and the headings of the sections nobody filled.
@@ -213,8 +278,8 @@ export function findTemplate(tracked: readonly string[], configured?: string): {
 /** Today's body for a ticket pull request with no template and no script (Ruling "today's body"): one `- <subject>` line per commit, in the order given. */
 export const todaysBody = (subjects: readonly string[]): string => subjects.map((s) => `- ${s}\n`).join('');
 
-/** Today's body for an epic pull request: its Intent text, as the epic skill passed it to `gh pr create --body`. */
-export const epicBody = (intent: readonly string[]): string => intent.map((l) => `${l}\n`).join('');
+/** Today's body for an epic pull request: its Intent text, as the epic skill passed it to `gh pr create --body`, with its `@name`s in code spans (Phase 08.8 review WR-08). */
+export const epicBody = (intent: readonly string[]): string => intent.map((l) => `${quoteMentions(l)}\n`).join('');
 
 /** The lines of `## <name>` of a ticket as written, comments and blank lines dropped; empty when the section is absent. */
 const linesUnder = (ticket: Ticket, name: string): string[] => sectionLines(ticket.sections, name);

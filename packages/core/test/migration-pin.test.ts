@@ -521,3 +521,34 @@ it('risk:regression the plan-large cut-off is read only through claimPinBefore (
   expect(plan.some((line) => !isComment(line) && line.includes('claimPinBefore(snapshot, id, PLAN_LARGE_FROM)'))).toBe(true);
   expect(plan.filter((line) => !isComment(line) && line.includes('PLAN_LARGE_FROM') && !/^import\s/.test(line.trim()) && !line.includes('claimPinBefore(snapshot, id, PLAN_LARGE_FROM)'))).toEqual([]);
 });
+
+// Phase 08.8 D-17 (IN-05): the check the release checklist was asked for, as a test: no cut-off of pin.ts names a version above packages/cli/package.json's, except while
+// docs/releases.md holds `## Unreleased`, when a cut-off may name the coming release; the release pull request renames that section, so each guess must then match what ships.
+const above = (a: string, b: string): boolean => {
+  const x = a.split('.').map(Number);
+  const y = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
+};
+/** The `_FROM` cut-offs in the text of pin.ts that name a version above `version`, as `NAME version`; none while a release is being prepared. */
+const cutOffsAbove = (pinText: string, version: string, preparing: boolean): string[] => {
+  void pinText;
+  void version;
+  void preparing;
+  return [];
+};
+
+it('risk:regression no cut-off is above the package version unless a release is being prepared (D-17)', () => {
+  // the check checks itself: a cut-off above the version is reported with no Unreleased section, and is not with one
+  const fixture = "export const OLD_FROM = '0.15.0';\nexport const NEW_FROM = '0.16.0';\n";
+  expect(cutOffsAbove(fixture, '0.15.0', false)).toEqual(['NEW_FROM 0.16.0']);
+  expect(cutOffsAbove(fixture, '0.15.0', true)).toEqual([]);
+  expect(cutOffsAbove(fixture, '0.16.0', false)).toEqual([]);
+  expect(above('0.10.0', '0.9.1')).toBe(true);
+  expect(above('0.9.1', '0.10.0')).toBe(false);
+
+  const version = (JSON.parse(readFileSync(join(REPO_ROOT, 'packages/cli/package.json'), 'utf8')) as { version: string }).version;
+  const preparing = /^## Unreleased\s*$/m.test(readFileSync(join(REPO_ROOT, 'docs/releases.md'), 'utf8'));
+  const pinText = readFileSync(join(REPO_ROOT, PIN_FILE), 'utf8');
+  expect(cutOffsAbove(pinText, version, preparing), `package ${version}, ${preparing ? 'with' : 'without'} an Unreleased section: a cut-off above the version is for the release being prepared only`).toEqual([]);
+});

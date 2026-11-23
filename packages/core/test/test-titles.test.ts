@@ -15,20 +15,7 @@ import { expect, it } from 'vitest';
  * The 13 titles that were already defined in two files before Phase 8 (found at origin/main fd2cb1d4). They are out of D-13, which names the
  * Phase 7 titles, and they stay as they are; every other title found in two files fails the check. Sorted by code point.
  */
-const KNOWN_OLDER_DUPLICATES: readonly string[] = [
-  'LF and no BOM on disk',
-  'declares both runtimes and an empty design.tokens (D-134 as amended)',
-  'fixture ',
-  'generated module',
-  'has files to check',
-  'is built',
-  'matches the golden',
-  'prints a backslashed tests.report with forward slashes (D-51)',
-  'risk:complex-branching makes one request for a key two rows share and keeps first-seen order (ST-LN-97 t3-ac-1)',
-  'risk:complex-branching never has more than 8 requests in flight for 20 keys (ST-LN-97 t3-ac-2)',
-  'risk:complex-branching shows the key, state, title and labels in the ticket row and exits 0 (ST-LN-97 t3-ac-1)',
-  'risk:security never rejects when every request fails (ST-LN-97 t3-ac-2)',
-];
+const KNOWN_OLDER_DUPLICATES: readonly string[] = [];
 
 const TEST_ROOTS = ['../../core/test', '../../cli/test'].map((p) => fileURLToPath(new URL(p, import.meta.url)));
 const SKIPPED = new Set(['fixtures', '__golden__', 'node_modules']);
@@ -68,7 +55,7 @@ it('risk:regression no test title is defined in two test files except the 13 old
   expect(found.size, 'the scan found test titles').toBeGreaterThan(1000);
   const twice = [...found].filter(([, files]) => files.size > 1).map(([title]) => title).sort();
   const expected = [...KNOWN_OLDER_DUPLICATES].sort();
-  expect(KNOWN_OLDER_DUPLICATES.length, 'the older list holds 12 titles').toBe(12);
+  expect(KNOWN_OLDER_DUPLICATES.length, 'the older list is empty').toBe(0);
   expect(
     twice.filter((t) => !expected.includes(t)),
     'a title defined in two test files: rename one so each title is unique (add a risk: kind or the criterion it checks)',

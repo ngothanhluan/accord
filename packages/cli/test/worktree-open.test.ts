@@ -329,7 +329,7 @@ it('risk:regression the CLI messages name the new commands in the worktree open 
   c.git('fetch', '-q', 'origin');
   const r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
-  expect(r.err).toContain('to work on it with them, type /accord continue ST-9');
+  expect(r.err).toContain('to work on it with them, ask to continue ST-9');
 });
 
 it('risk:complex-branching pick up refuses a branch another person claimed', async () => {

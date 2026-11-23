@@ -2736,3 +2736,164 @@ it('risk:regression the mission preset draws the heartbeat and the train on the 
   expect(heart(lively)).toBeUndefined();
   expect(trainOf(lively)).toBeUndefined();
 });
+
+// ---- Phase 08.8.1-09 task 2: orbiting marks, the log ticker, twelve switches, the waiting blink and the failure flash ----
+
+// Phase 08.8.1 L-01 L-06: orbit, ticker, the blink and the failure flash are pure functions of the frame time; the blink ends for good after ten minutes of waiting
+it('risk:parsing orbit ticker and blink are pure functions of the frame time (L-01)', async () => {
+  const { orbit, ticker, blinkOn, flashOn, BLINK_MS, FLASH_MS } = await loadView();
+  // the orbit: four marks, eight steps a second, one step further for each next agent
+  expect([0, 125, 250, 375, 500].map((t) => orbit(t, 0))).toEqual([...'◜◝◞◟◜']);
+  expect([orbit(0, 1), orbit(0, 5), orbit(0, 2)]).toEqual(['◝', '◝', '◞']);
+  // the ticker: exactly `width` characters of the joined lines that scroll with the time, the same for the same time
+  const lines = ['3s commit one', '9s report two'];
+  const a = ticker(lines, 20, 0);
+  const b = ticker(lines, 20, 500);
+  expect([...a]).toHaveLength(20);
+  expect([...b]).toHaveLength(20);
+  expect(b).not.toBe(a);
+  expect(ticker(lines, 20, 500)).toBe(b);
+  expect([...ticker([], 10, 0)]).toHaveLength(10);
+  expect([...ticker(['x'], 40, 700)]).toHaveLength(40);
+  // control and bidi characters in a line never reach the scrolled text
+  expect(ticker(['a‮b\u0007c\u001bd'], 30, 0)).not.toMatch(/[\u0000-\u001f\u007f-\u009f‪-‮]/);
+  // the blink: lit and dark twice a second, then steady lit once the wait passes ten minutes
+  const since = 1_000_000;
+  expect([0, 250, 500, 750, 1000].map((d) => blinkOn(since + d, since, since + d))).toEqual([true, true, false, false, true]);
+  expect(BLINK_MS).toBe(600_000);
+  expect(blinkOn(since + BLINK_MS - 500, since, since + BLINK_MS - 500)).toBe(false);
+  expect(blinkOn(since + BLINK_MS + 500, since, since + BLINK_MS + 500)).toBe(true);
+  // the failure flash: six toggles a second for FLASH_MS from the time the failure appeared, then none
+  expect(FLASH_MS).toBe(1500);
+  expect([0, 100, 200, 300, 1400, 1500, 3000].map((d) => flashOn(5000 + d, 5000))).toEqual([true, true, false, false, false, false, false]);
+  expect(flashOn(4000, 5000)).toBe(false);
+  expect(flashOn(5000, undefined)).toBe(false);
+});
+
+const GATE_RED = { kind: 'gate', text: 'gate done FAIL: red', fail: true };
+// the diamond of the waiting line, and the border colour of the failure box
+const diamondOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[◆◇]$/.test(x));
+const failBorder = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.nodes('Box').find((b) => b.props.borderStyle === 'round' && textsIn(b)[0] === 'Gate failed')?.props.borderColor;
+
+// Phase 08.8.1 D-03 L-06: while the main loop waits for the person the diamond blinks on the frame timer for ten minutes and then stays lit with no timer left; a newly appearing failed gate flashes the failure box red for 1.5 seconds and a shown failure does not flash again; motion off blinks and flashes nothing and starts no timer
+it('risk:resource the waiting blink and the failure flash run on the frame timer and stop on time (D-03 L-06)', async () => {
+  const period = await framePeriod();
+  const T = 1_800_000_000_000;
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(T);
+  const at = async (h: Awaited<ReturnType<typeof host>>, ms: number): Promise<void> => {
+    clock.mockReturnValue(T + ms);
+    await h.$.ui.invalidate('ui.render');
+  };
+  const waitingText = (h: Awaited<ReturnType<typeof host>>): string => h.texts().find((x) => x.startsWith('Waiting for you')) as string;
+  try {
+    // the blink
+    const h = await paneWith(MOVING);
+    expect(liveTimers(h)).toEqual([]);
+    await h.fire('turn.complete', { reason: 'answer', answer: 'ok' });
+    await vi.waitFor(() => expect(h.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
+    expect(liveTimers(h)).toEqual([period]);
+    const frames: { diamond: string | undefined; color: string }[] = [];
+    for (const ms of [0, 250, 500, 750]) {
+      await at(h, ms);
+      frames.push({ diamond: diamondOf(h), color: h.cell(waitingText(h)).text.color });
+    }
+    expect(frames.map((f) => f.diamond)).toEqual(['◆', '◆', '◇', '◇']);
+    // the line glows toward white while it blinks
+    expect(frames[1].color).not.toBe(frames[0].color);
+    expect(liveTimers(h)).toEqual([period]);
+    // after ten minutes the diamond stays lit in the waiting colour and no timer is left
+    await at(h, 600_500);
+    expect(diamondOf(h)).toBe('◆');
+    expect(h.cell(waitingText(h)).text.color).toBe('#e07a4f');
+    expect(liveTimers(h)).toEqual([]);
+    await h.fire('turn.start', { turnId: 'next', text: 'yes' });
+    expect(liveTimers(h)).toEqual([]);
+    // the failure flash
+    clock.mockReturnValue(T);
+    const f = await paneWith(MOVING);
+    expect(liveTimers(f)).toEqual([]);
+    const failing = { ...MOVING, log: [{ at: Math.floor(T / 1000) - 5, ...GATE_RED }] };
+    await reshow(f, failing, 'p1');
+    expect(liveTimers(f)).toEqual([period]);
+    const borders: (string | undefined)[] = [];
+    for (const ms of [0, 200, 400]) {
+      await at(f, ms);
+      borders.push(failBorder(f));
+    }
+    expect(borders).toEqual(['red', '#ff6b6b', 'red']);
+    await at(f, 1600);
+    expect(failBorder(f)).toBe('#ff6b6b');
+    expect(liveTimers(f)).toEqual([]);
+    // a failure already shown does not flash again, on a redraw or on the next show of the same entry
+    await at(f, 5000);
+    expect(failBorder(f)).toBe('#ff6b6b');
+    await reshow(f, failing, 'p2');
+    expect(failBorder(f)).toBe('#ff6b6b');
+    expect(liveTimers(f)).toEqual([]);
+    // motion off: no blink, no flash and no timer, the diamond lit and the box in the failure colour
+    clock.mockReturnValue(T);
+    const off = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
+    await off.fire('turn.complete', { reason: 'answer' });
+    await vi.waitFor(() => expect(off.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
+    expect(liveTimers(off)).toEqual([]);
+    for (const ms of [0, 500]) {
+      await at(off, ms);
+      expect(diamondOf(off)).toBe('◆');
+    }
+    await reshow(off, failing, 'p3');
+    await at(off, 0);
+    expect(failBorder(off)).toBe('#ff6b6b');
+    expect(liveTimers(off)).toEqual([]);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+// Phase 08.8.1 L-01 D-03: every one of the twelve effects is its own switch: alone under mine it draws that effect and no other; an effect the probe cut reads cut for speed in the settings view and is never drawn
+it('risk:regression every one of the twelve effects is its own switch and a cut effect is never drawn (L-01 D-03)', async () => {
+  const { EFFECTS, effectsOf, ticketView, agentRows, agentMotion, settingsOf } = await loadView();
+  expect(EFFECTS.map((e: any) => e.key).sort()).toEqual(['breathe', 'comet', 'confetti', 'ecg', 'eq', 'flow', 'orbit', 'roll', 'shimmer', 'ticker', 'train', 'typing']);
+  const T = 1_800_000_000_000;
+  const ticket = { id: 'ST-1', state: { ticket: detailOf({ ...planOf(2), log: [{ at: T / 1000 - 3, kind: 'commit', text: 'build: x' }, { at: T / 1000 - 9, kind: 'report', text: 'executor report' }] }) } };
+  const roster = [{ key: 'a1', type: 'accord-executor', startTime: T - 65000, running: true, tool: 'Edit', toolAt: T - 1000 }];
+  const frame = (key: string, ms: number): { view: any; look: any } => {
+    const settings = settingsOf({ v: 1, motion: 'mine', effects: key === 'none' ? {} : { [key]: true } });
+    const effects = effectsOf(settings);
+    const view = ticketView({ ticket, now: Math.floor((T + ms) / 1000), nowMs: T + ms, agents: roster, settings, motion: { effects, burst: { at: T, seed: 3 }, columns: 100 } });
+    const row = agentRows(roster, T + ms)[0];
+    return { view, look: agentMotion(row, roster[0], effects, T + ms, 0) };
+  };
+  const drawn = (key: string): string[] => {
+    const a = frame(key, 100);
+    const b = frame(key, 350);
+    const differ = (x: unknown, y: unknown): boolean => JSON.stringify(x) !== JSON.stringify(y);
+    const seen: Record<string, boolean> = {
+      shimmer: a.view.now[0].run !== undefined,
+      flow: differ(a.view.titleRun, b.view.titleRun),
+      comet: a.view.barRow !== undefined && differ(a.view.barRow.cells, b.view.barRow.cells),
+      eq: a.look.eq !== undefined,
+      typing: a.look.typed !== undefined,
+      confetti: a.view.sparks !== undefined,
+      roll: a.view.barRow !== undefined && a.view.barRow.counter !== a.view.progress.valueText,
+      ecg: a.view.heartbeat !== undefined,
+      train: a.view.train !== undefined,
+      orbit: '◜◝◞◟'.includes(a.look.mark),
+      ticker: a.view.log?.[0]?.ticker !== undefined,
+      breathe: differ(a.view.criteria.map((c: any) => c.idColor), b.view.criteria.map((c: any) => c.idColor)),
+    };
+    return Object.keys(seen).filter((k) => seen[k]);
+  };
+  for (const { key } of EFFECTS) expect(drawn(key), key).toEqual([key]);
+  // nothing switched on draws none of them
+  expect(drawn('none')).toEqual([]);
+  // an effect the probe cut: its switch reads cut for speed and it is never drawn
+  viewPatch = (text) => text.replace('export const CUT_EFFECTS = [];', "export const CUT_EFFECTS = ['ticker'];");
+  const cut = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { ticker: true, orbit: true } }));
+  const patched = await loadView();
+  viewPatch = undefined;
+  expect([...patched.effectsOf(patched.settingsOf({ v: 1, motion: 'mine', effects: { ticker: true, orbit: true } }))]).toEqual(['orbit']);
+  press(cut, 'settings');
+  await vi.waitFor(() => expect(cut.texts().some((x) => x.includes('cut for speed'))).toBe(true));
+  expect(cut.texts().filter((x) => x.includes('cut for speed'))).toEqual(['[ ] scrolling log ticker · cut for speed']);
+  expect(cut.texts()).toContain('[x] orbiting agent marks');
+});

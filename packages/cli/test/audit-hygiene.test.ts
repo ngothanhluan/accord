@@ -88,7 +88,7 @@ it('risk:complex-branching accord audit reports a ticket idle 20 days with its c
   expect(r.code, r.out).toBe(0);
   const idle = r.lines.filter((l) => l.startsWith('gap: ticket-idle:'));
   expect(idle, r.out).toHaveLength(1);
-  for (const part of ['T-1', 'a@x.io', '20 days', '/accord continue T-1', 'accord drop T-1 --reason']) expect(idle[0], r.out).toContain(part);
+  for (const part of ['T-1', 'a@x.io', '20 days', 'ask to continue T-1', 'accord drop T-1 --reason']) expect(idle[0], r.out).toContain(part);
   expect(r.lines.filter((l) => l.startsWith('gap: ticket-idle:') && l.includes('T-2'))).toEqual([]);
   expect(r.lines).toContain('fact: who: email');
   expect(r.lines.filter((l) => l.startsWith('fact: work-ages:'))).toHaveLength(1);
@@ -194,7 +194,7 @@ it('risk:complex-branching accord audit reports a draft untouched 100 days with 
   expect(r.code, r.out).toBe(0);
   const old = draftLines(r.lines);
   expect(old, r.out).toHaveLength(1);
-  for (const part of ['T-3', 'c@x.io', '100 days', '/accord pick-up T-3', 'accord drop T-3 --reason']) expect(old[0], r.out).toContain(part);
+  for (const part of ['T-3', 'c@x.io', '100 days', 'ask to pick up T-3', 'accord drop T-3 --reason']) expect(old[0], r.out).toContain(part);
   expect(r.lines.find((l) => l.startsWith('fact: work-ages:')), r.out).toContain('stale_draft_days');
 
   const wide = sandbox(files, CONFIG + "stale_draft_days: '120'\n", 100, 'c@x.io');
@@ -230,7 +230,7 @@ it('risk:complex-branching a draft queued on an unmerged backlog branch is aged 
   expect(r.code, r.out).toBe(0);
   const old = draftLines(r.lines);
   expect(old, r.out).toHaveLength(1);
-  for (const part of ['ST-9', 'c@x.io', branch, `${days} days`, `merge ${branch} into the default branch first`]) expect(old[0], r.out).toContain(part);
+  for (const part of ['ST-9', 'c@x.io', branch, `${days} days`, `the owner merges the pull request of ${branch} first`]) expect(old[0], r.out).toContain(part);
 });
 
 it('risk:resource the creator is read only for drafts past the threshold (D-02)', async () => {

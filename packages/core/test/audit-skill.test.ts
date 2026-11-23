@@ -1,7 +1,7 @@
 // Phase 8.1 G3a (D-08): the /accord-audit skill is one source and is rendered for all four tools.
 import { readdirSync, readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { installedName, skills, skillTargets, STAGES } from '../src/index.js';
+import { commitRuleOf, commitRuleProblem, installedName, prTitleProblem, renderSubject, skills, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig, SkillKey } from '../src/index.js';
 
 const config = (runtime: AccordConfig['runtimes'][number]): AccordConfig => ({
@@ -104,8 +104,6 @@ it('risk:regression the audit skill names each work-hygiene gap\'s fix and runs 
       'claim-unpushed',
       'deferred-undecided',
       'baseline-removable',
-      '`/accord continue <id>`',
-      '`/accord pick-up <id>`',
       '`accord drop <id> --reason "<why>"`',
       '`accord worktree clean --dry-run`',
       '`accord worktree clean`',
@@ -178,4 +176,38 @@ it('risk:regression the draft asks for breaking examples only when there are any
   expect(s5).toContain('options with the recommended one first');
   expect(s5).toContain('yes (recommended when the evidence holds)');
   expect(s5).toContain('an edited line');
+});
+
+// Phase 08.8 D-15, D-16 (999.39 item 5, merge half), D-17 (IN-06): the two idle and stale lines speak in words, and pull requests are merged by the owner
+it('risk:regression the audit skill speaks in plain words and the owner merges (D-15 D-16 D-17)', () => {
+  const bad: string[] = [];
+  for (const { runtime, text, raw } of renderedAudit()) {
+    const line = (gap: string): string => raw.split(String.fromCharCode(10)).find((l) => l.startsWith('   - `' + gap + '`: ')) ?? '';
+    const idle = line('ticket-idle');
+    const stale = line('draft-stale');
+    if (idle === '') bad.push(runtime + ': no ticket-idle line');
+    if (stale === '') bad.push(runtime + ': no draft-stale line');
+    for (const l of [idle, stale]) if (/\/accord (continue|pick-up)/.test(l)) bad.push(runtime + ' still types a form: ' + l);
+    if (!idle.includes('ask to continue')) bad.push(runtime + ': ticket-idle does not say to ask to continue');
+    if (!stale.includes('ask to pick')) bad.push(runtime + ': draft-stale does not say to ask to pick up');
+    if (!stale.includes('waits until the owner merges that pull request')) bad.push(runtime + ': draft-stale does not say the pull request waits for the owner');
+    if (!text.includes('Pull requests are merged by the owner.')) bad.push(runtime + ' lacks: Pull requests are merged by the owner.');
+    if (/has that pull request merged first|Never merge a pull request/.test(text)) bad.push(runtime + ' still holds the old merge wording');
+    if (Buffer.byteLength(raw, 'utf8') > 6000) bad.push(runtime + ' is over 6000 bytes');
+    if (raw.split(String.fromCharCode(10)).length > 120) bad.push(runtime + ' is over 120 lines');
+  }
+  expect(bad).toEqual([]);
+});
+
+// Phase 08.8 D-16 and 999.39 item 5 (title half): the default conventions pull request title already passes the conventional preset that `accord audit` suggests and the title check; this keeps it so
+it('risk:regression the default conventions title passes the conventional preset the audit suggests (D-16)', () => {
+  const title = renderSubject(undefined, 'conventions', '2026-11-23');
+  expect(title).toBe('conventions: 2026-11-23');
+  const rule = commitRuleOf({ commits: { message: { preset: 'conventional' } } });
+  expect(rule, 'the preset is in force').toEqual(expect.objectContaining({ regex: expect.any(RegExp) }));
+  if (rule === undefined || 'problem' in rule) throw new Error('the conventional preset is not in force');
+  expect(commitRuleProblem(rule, title)).toBeUndefined();
+  expect(prTitleProblem(title)).toBeUndefined();
+  // control: a title without the colon is a problem under the same rule, so this test cannot pass for any string
+  expect(commitRuleProblem(rule, 'conventions 2026-11-23')).toBeDefined();
 });

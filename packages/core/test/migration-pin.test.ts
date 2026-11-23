@@ -313,6 +313,8 @@ function outsideClaimPinBefore(line: string, name: string): number[] {
   const out: number[] = [];
   const calls = Object.hasOwn(PHASE7, name) ? ['claimPinBefore', 'rulesetFrom'] : ['claimPinBefore'];
   for (const m of line.matchAll(new RegExp(`\\b${name}\\b`, 'g'))) {
+    // Phase 08.8 D-19: a bare `${NAME}` placeholder only prints the release (the deferred-marks fact names its cut-off); any call or comparison around the name is still an offence.
+    if (line.slice(m.index - 2, m.index) === '${' && line[m.index + name.length] === '}') continue;
     if (!calls.some((fn) => insideCall(line, fn, m.index))) out.push(m.index);
   }
   return out;
@@ -387,6 +389,9 @@ it('risk:regression the Phase 8.2 cut-off is 0.10.0 and is read only through cla
   expect(cutOffOffences('  if (claimPinBefore(judged, id, DEFERRED_MARK_FROM)) skipped++;', 'packages/cli/src/x.ts')).toEqual([]);
   expect(cutOffOffences('  if (pinBefore(DEFERRED_MARK_FROM, pin)) skipped++;', 'packages/cli/src/x.ts')).toHaveLength(1);
   expect(cutOffOffences("  if (claimPinBefore(judged, id, '0.10.0')) skipped++;", 'packages/cli/src/x.ts')).toHaveLength(1);
+  // Phase 08.8 D-19: printing the cut-off in a message is no read of it, but a call or comparison inside the placeholder still is
+  expect(cutOffOffences('  const text = `claimed before (${DEFERRED_MARK_FROM})`;', 'packages/cli/src/x.ts')).toEqual([]);
+  expect(cutOffOffences('  const text = `${pinBefore(DEFERRED_MARK_FROM, pin)}`;', 'packages/cli/src/x.ts')).toHaveLength(1);
 });
 
 // Phase 8.5 D-22, D-29: the cut-off of the new task-brief layout is the next minor after 0.12.2, read only through claimPinBefore (the scan of the Phase 4 test above covers every name in PHASE_NAMES).

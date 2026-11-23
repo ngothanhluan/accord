@@ -143,3 +143,32 @@ it('risk:security mentions in the title and intent reach the body inside code sp
   expect(body).toContain('cc `@bob-x` and `@ac-1`');
   expect(body).not.toMatch(/(^|[^`\w])@(alice|bob-x)/);
 });
+
+// Phase 08.8 review WR-07: one unbalanced backtick, an escaped backtick, emphasis around the name or a code span right beside it must not leave an at-name outside a code span.
+// Backtick runs pair the CommonMark way (a run closes only on a run of the same length); an unmatched one is escaped so it can pair with nothing.
+it('risk:security mentions stay quoted past an unbalanced backtick and inside emphasis (REVIEW WR-07)', () => {
+  const cases: [string, string][] = [
+    ['use ` then @alice', 'use \\` then `@alice`'],
+    ['a ``code ` span`` then @bob', 'a ``code ` span`` then `@bob`'],
+    ['cc _@carol_ and *@dave*', 'cc _`@carol`_ and *`@dave`*'],
+    ['`@ac-1` already quoted and @erin', '`@ac-1` already quoted and `@erin`'],
+    ['x\\` then @frank `y`', 'x\\` then `@frank` `y`'],
+    ['see `code`@gina', 'see `code` `@gina`'],
+  ];
+  const { body } = fillTemplate('## Description\n', { ...FACTS, intent: cases.map(([line]) => line) });
+  const lines = body.split('\n');
+  for (const [line, quoted] of cases) expect(lines, line).toContain(quoted);
+});
+
+// Phase 08.8 review WR-08: with no PR template an epic's body is its Intent text, and its at-names reach that body inside code spans too.
+it('risk:security an epic body with no template carries its Intent mentions quoted (REVIEW WR-08)', () => {
+  const body = epicBody(['Teams see every export.', 'cc @alice and @org/team']);
+  expect(body).toBe('Teams see every export.\ncc `@alice` and `@org/team`\n');
+});
+
+// Phase 08.8 review IN-01: a comment that spans lines starts only where `<!--` begins the line (an HTML block); an unclosed `<!--` inside a heading is literal text, as GitHub shows it.
+it('risk:parsing an unclosed comment inside a heading hides no later heading (REVIEW IN-01)', () => {
+  expect(templateSections('## A <!-- x\n## B\n--> ## C\n## D').map((s) => s.heading)).toEqual(['A <!-- x', 'B', 'D']);
+  // a comment that begins its line still hides the lines up to its end, and one closed on its line is dropped from the heading
+  expect(templateSections('## A <!-- note -->\n<!--\n## Hidden\n-->\n## B').map((s) => s.heading)).toEqual(['A', 'B']);
+});

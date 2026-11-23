@@ -56,6 +56,21 @@ it('risk:parsing accord commit check names accord lint when the configured patte
   expect(r.err).toContain('accord lint');
 });
 
+// Phase 08.8 review IN-02: commit check exempts only a Revert "<text>" subject; a merge commit is exempt at the gates, not here, and its help says so.
+it('risk:regression the commit check help claims no merge-commit exemption the command lacks (REVIEW IN-02)', async () => {
+  const repo = sandbox(PRESET);
+  const merge = await run(['commit', 'check', message("Merge branch 'side'\n")], repo);
+  expect(merge.code, merge.out + merge.err).toBe(1);
+  const revert = await run(['commit', 'check', message('Revert "feat(cart): add coupon field"\n')], repo);
+  expect(revert.code, revert.out + revert.err).toBe(0);
+  const help = await run(['commit', 'check', '--help'], repo);
+  expect(help.code, help.out + help.err).toBe(0);
+  // commander wraps the description at the terminal width, so compare on whitespace-collapsed text
+  const text = help.out.replace(/\s+/g, ' ');
+  expect(text).not.toContain('the same merge-commit and Revert');
+  expect(text).toContain('merge commits are exempt at the gates only');
+});
+
 it('risk:security accord commit check fails an 80000-character first line at once under a quadratic team pattern (CR-01)', async () => {
   const repo = sandbox(CONFIG + 'commits:\n  message:\n    pattern: ' + JSON.stringify(String.raw`\(.*\): .+`) + "\n    example: '(x): y'\n");
   const started = Date.now();

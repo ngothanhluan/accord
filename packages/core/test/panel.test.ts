@@ -1137,7 +1137,8 @@ it('risk:parsing review rows criteria rows and log rows are built from the json 
   const shown = logRows(log, 1010);
   expect(shown.map((r: any) => r.text)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7']);
   expect(shown[1]).toEqual({ age: '11s', text: 't1', fail: true });
-  expect(failureOf(log)).toBeUndefined();
+  // Phase 08.8.1 W4: the newest gate run (t1, failed) shows although a newer commit (t0) sits above it
+  expect(failureOf(log)).toEqual({ text: 't1' });
   expect(failureOf([log[1]])).toEqual({ text: 't1' });
   expect(failureOf(undefined)).toBeUndefined();
 });

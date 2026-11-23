@@ -414,7 +414,16 @@ export function register(on) {
               children: [
                 Box({ width: idWidth, flexShrink: 0, children: [Text({ bold: true, children: [c.id] })] }),
                 Box({ flexGrow: 1, flexShrink: 1, children: [Text({ wrap: 'truncate', children: [c.title] })] }),
-                Box({ flexShrink: 0, children: [Text({ ...(c.color === 'dim' ? { dimColor: true } : { color: c.color }), children: [c.label] })] }),
+                Box({
+                  flexShrink: 0,
+                  flexDirection: 'row',
+                  columnGap: 1,
+                  children: [
+                    Text({ ...(c.color === 'dim' ? { dimColor: true } : { color: c.color }), children: [c.label] }),
+                    // Phase 08.8.1 D-06: the verifier's result beside the label
+                    ...(c.verification ? [Text({ color: c.verification.color, children: [c.verification.text] })] : []),
+                  ],
+                }),
               ],
             }),
           );

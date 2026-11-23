@@ -294,7 +294,8 @@ export function tabLabels({ state, ticket, running }) {
   const stage = t === undefined ? '' : untracked ? 'not tracked' : clean(t.stage);
   const review = t !== undefined && !untracked && t.stage === 'review' && plain(t.review) && num(t.review.round) && num(t.review.cap) ? `r${t.review.round}/${t.review.cap}` : undefined;
   const agents = num(running) && running > 0 ? running : undefined;
-  const newest = Array.isArray(t?.log) ? t.log[0] : undefined;
+  // Phase 08.8.1 W4: the newest gate run decides the mark, not the newest entry of any kind
+  const newest = newestGate(t?.log);
   const failed = plain(newest) && newest.fail === true;
   const stageColor = t !== undefined && !untracked && Object.hasOwn(STAGE_COLOR, t.stage) ? STAGE_COLOR[t.stage] : undefined;
   const label = ['1 ticket', id, stage, review, agents === undefined ? '' : `◐${agents}`, failed ? 'gate failed' : ''].filter((p) => p).join(' ');
@@ -376,12 +377,16 @@ export function reviewRows(review) {
 
 const LABEL_COLOR = { failing: 'red', blocked: 'red', verified: 'green', passing: 'green', 'not run': 'yellow', untested: 'dim' };
 
+// Phase 08.8.1 D-06: the verifier's own result, one cell beside the label; any other value draws none.
+const VERIFY_COLOR = { pass: 'green', fail: 'red', blocked: 'red' };
+
 export function criteriaRows(criteria) {
   return criteria.map((c) => ({
     id: str(c.id) ? clean(c.id) : '',
     title: clean(c.title),
     label: clean(c.label),
     color: Object.hasOwn(LABEL_COLOR, c.label) ? LABEL_COLOR[c.label] : 'dim',
+    ...(str(c.verification) && Object.hasOwn(VERIFY_COLOR, c.verification) ? { verification: { text: 'verify ' + c.verification, color: VERIFY_COLOR[c.verification] } } : {}),
   }));
 }
 
@@ -402,9 +407,12 @@ export function logRows(log, now) {
   return log.slice(0, LOG_SHOWN).map((e) => ({ age: ago(e.at, now), text: clean(e.text), fail: e.fail === true }));
 }
 
-// The failure box: the newest log entry only, when it is a failed gate run.
+// Phase 08.8.1 W4: the newest log entry of kind gate (the CLI orders the log newest first), so a newer report or commit does not hide a gate run.
+const newestGate = (log) => (Array.isArray(log) ? log.find((e) => plain(e) && e.kind === 'gate') : undefined);
+
+// The failure box: the newest gate run, when it failed.
 export function failureOf(log) {
-  const newest = Array.isArray(log) ? log[0] : undefined;
+  const newest = newestGate(log);
   return plain(newest) && newest.fail === true && str(newest.text) ? { text: clean(newest.text) } : undefined;
 }
 

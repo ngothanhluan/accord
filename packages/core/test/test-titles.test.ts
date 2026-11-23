@@ -22,7 +22,6 @@ const KNOWN_OLDER_DUPLICATES: readonly string[] = [
   'generated module',
   'has files to check',
   'is built',
-  'matches its golden',
   'matches the golden',
   'prints a backslashed tests.report with forward slashes (D-51)',
   'risk:complex-branching makes one request for a key two rows share and keeps first-seen order (ST-LN-97 t3-ac-1)',
@@ -69,7 +68,7 @@ it('risk:regression no test title is defined in two test files except the 13 old
   expect(found.size, 'the scan found test titles').toBeGreaterThan(1000);
   const twice = [...found].filter(([, files]) => files.size > 1).map(([title]) => title).sort();
   const expected = [...KNOWN_OLDER_DUPLICATES].sort();
-  expect(KNOWN_OLDER_DUPLICATES.length, 'the older list holds 13 titles').toBe(13);
+  expect(KNOWN_OLDER_DUPLICATES.length, 'the older list holds 12 titles').toBe(12);
   expect(
     twice.filter((t) => !expected.includes(t)),
     'a title defined in two test files: rename one so each title is unique (add a risk: kind or the criterion it checks)',

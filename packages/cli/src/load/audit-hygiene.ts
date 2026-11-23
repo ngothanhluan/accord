@@ -285,9 +285,17 @@ function claimRelease(fact: ClaimFacts | undefined, own: string | undefined): Cl
   return undefined;
 }
 
+/** Phase 08.8 D-19: the skipped ids the fact names (`: a, b`), at most ten in code-point order, then `and <k> more`; nothing when none was skipped. Every id passed SAFE_ID when it was listed. */
+const SKIPPED_SHOWN = 10;
+function skippedIds(ids: string[]): string {
+  if (ids.length === 0) return '';
+  const rest = ids.length - SKIPPED_SHOWN;
+  return ': ' + [...ids].sort().slice(0, SKIPPED_SHOWN).join(', ') + (rest > 0 ? ` and ${rest} more` : '');
+}
+
 /**
  * D-04, D-06, D-10: the Must and Should items no owner decided, of every ticket done on the default ref, whoever claimed it and whatever its lane (the lane is never read). Only a ticket claimed at or
- * after DEFERRED_MARK_FROM is judged; one claimed before, or whose claim release cannot be read, is counted in the fact and never listed. The claim fact is read only for a ticket that has an item.
+ * after DEFERRED_MARK_FROM is judged; one claimed before, or whose claim release cannot be read, is counted in the fact and never listed (Phase 08.8 D-19: the fact counts the done tickets with an undecided item and names the ones it skipped). The claim fact is read only for a ticket that has an item.
  * Reads git (the ref's tree, blobs and claim commits), writes nothing and fetches nothing.
  */
 function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]): void {
@@ -310,12 +318,14 @@ function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
     const ledgers = gitFilesAt(ctx.root, ref, finished.map((id) => `accord/tickets/${id}/ledger.md`));
     let judgedCount = 0;
     let before = 0;
-    let unreadable = 0;
+    const unreadable: string[] = [];
+    let withItems = 0;
     const judged: { id: string; items: OwnerDeferred[] }[] = [];
     for (const id of finished) {
       const text = ledgers[`accord/tickets/${id}/ledger.md`];
-      const items = text === undefined ? [] : ownerDeferred(text);
+      const items = text === undefined ? [] : ownerDeferred(text, (mark) => Object.hasOwn(onRef.tickets, mark));
       if (items.length === 0) continue;
+      withItems++;
       let release: ClaimPin | undefined;
       try {
         release = claimRelease(gitClaimFacts(ctx.root, id, ctx.snapshot.config), onRef.tickets[id]?.frontmatter?.ruleset);
@@ -323,7 +333,7 @@ function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
         release = undefined; // a failed read skips this ticket into the unreadable count
       }
       if (release === undefined) {
-        unreadable++;
+        unreadable.push(id);
         continue;
       }
       if (claimPinBefore({ ...onRef, claimPins: { [id]: release } }, id, DEFERRED_MARK_FROM)) {
@@ -335,7 +345,7 @@ function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
     }
     facts.push({
       name: 'deferred-marks',
-      value: `${judgedCount} done tickets judged; ${before} claimed before deferred marks were recorded and ${unreadable} whose claim release cannot be read are skipped`,
+      value: `of ${withItems} done tickets with an undecided Must or Should item, ${judgedCount} judged, ${before} claimed before deferred marks were recorded (${DEFERRED_MARK_FROM}), ${unreadable.length} skipped because their claim release cannot be read${skippedIds(unreadable)}`,
     });
     gaps.push(...deferredGaps(judged));
   } catch (err) {

@@ -24,6 +24,7 @@ ui: false
 # verified_commit:
 approved_hash: "fnv1a64:ac560715912e06dd"
 ac_hash: "fnv1a64:d112f951cb144e0d"
+ruleset: "0.1.0"
 verified_hash: "fnv1a64:d112f951cb144e0d"
 verified_commit: "debd399c21bc61470da80c103405282c4999ebc0"
 verified:

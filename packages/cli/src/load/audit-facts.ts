@@ -152,6 +152,8 @@ export function machineFacts(root: string, tracked: readonly string[]): MachineF
     else if (STYLELINT.test(base)) linter('stylelint', rel);
     else if (GOLANGCI.test(base)) linter('golangci-lint', rel);
     else if (TSCONFIG.test(base)) {
+      // Phase 08.8 D-16 (IN-03): a solution-style config (`references`, no `compilerOptions`) sets nothing itself; the configs it points at are judged on their own, so this one is skipped.
+      if (/"references"\s*:/.test(text) && !/"compilerOptions"\s*:/.test(text)) continue;
       const explicit = /"strict"\s*:\s*(true|false)/.exec(text);
       if (explicit !== null) typechecks.push({ file: rel, strict: explicit[1] === 'true', what: explicit[1] === 'true' ? 'strict' : 'not strict' });
       else if (/"extends"\s*:/.test(text)) typechecks.push({ file: rel, strict: true, what: 'extends another config' });

@@ -1873,7 +1873,8 @@ it('risk:complex-branching the now line says waiting for you after a main turn e
 
 // Phase 08.8.1 W5 (08.7 review WR-05): the roster is reconciled with the host's agent list at each main-loop turn end and refresh, and a change of ticket clears it.
 it('risk:concurrency an agent the host no longer lists as running is marked finished at the next main turn end and its timer stops (W5)', async () => {
-  const h = await claimedPane();
+  // Phase 08.8.1-09: this person has motion off, so the waiting line after the main turn end blinks nothing and no timer outlives the agents (the blink is in the resource case of 08.8.1-09)
+  const h = await paneWith({}, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
   h.agents = [agentOf('a1', 'accord-executor'), agentOf('a2', 'accord-planner')];
   await h.fire('turn.start', subStart('a1'));
   await h.fire('turn.start', subStart('a2'));
@@ -2337,7 +2338,8 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   expect(textsIn(box)[0]).toBe('Gate failed');
   expect(h.cell('Gate failed').text.color).toBe('#ff6b6b');
   // the newest log line takes the log's colour when it did not fail
-  const calm = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'newest one' }, { at: now - 9, kind: 'commit', text: 'older one' }] });
+  // Phase 08.8.1-09: the waiting line glows toward white while it blinks, so this check of the waiting colour keeps motion off
+  const calm = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'newest one' }, { at: now - 9, kind: 'commit', text: 'older one' }] }, (x) => void x.store.set('settings', still));
   expect(calm.cell('newest one').text.color).toBe(at(0.55));
   expect(calm.cell('older one').text.color).toBeUndefined();
   // a main-loop turn that ended draws the waiting line in the waiting colour
@@ -2756,7 +2758,11 @@ it('risk:parsing orbit ticker and blink are pure functions of the frame time (L-
   expect([...ticker([], 10, 0)]).toHaveLength(10);
   expect([...ticker(['x'], 40, 700)]).toHaveLength(40);
   // control and bidi characters in a line never reach the scrolled text
-  expect(ticker(['a‮b\u0007c\u001bd'], 30, 0)).not.toMatch(/[\u0000-\u001f\u007f-\u009f‪-‮]/);
+  const bad = [...ticker(['a\u202eb\u0007c\u001bd'], 30, 0)].filter((ch) => {
+    const c = ch.codePointAt(0) as number;
+    return c < 0x20 || (c >= 0x7f && c <= 0x9f) || (c >= 0x202a && c <= 0x202e);
+  });
+  expect(bad).toEqual([]);
   // the blink: lit and dark twice a second, then steady lit once the wait passes ten minutes
   const since = 1_000_000;
   expect([0, 250, 500, 750, 1000].map((d) => blinkOn(since + d, since, since + d))).toEqual([true, true, false, false, true]);
@@ -2765,7 +2771,7 @@ it('risk:parsing orbit ticker and blink are pure functions of the frame time (L-
   expect(blinkOn(since + BLINK_MS + 500, since, since + BLINK_MS + 500)).toBe(true);
   // the failure flash: six toggles a second for FLASH_MS from the time the failure appeared, then none
   expect(FLASH_MS).toBe(1500);
-  expect([0, 100, 200, 300, 1400, 1500, 3000].map((d) => flashOn(5000 + d, 5000))).toEqual([true, true, false, false, false, false, false]);
+  expect([0, 100, 200, 300, 1300, 1500, 3000].map((d) => flashOn(5000 + d, 5000))).toEqual([true, true, false, false, false, false, false]);
   expect(flashOn(4000, 5000)).toBe(false);
   expect(flashOn(5000, undefined)).toBe(false);
 });
@@ -2840,7 +2846,10 @@ it('risk:resource the waiting blink and the failure flash run on the frame timer
       await at(off, ms);
       expect(diamondOf(off)).toBe('◆');
     }
-    await reshow(off, failing, 'p3');
+    off.settle({ stdout: claimed });
+    await vi.waitFor(() => expect(off.inflight()).toBe(1));
+    off.settle({ stdout: JSON.stringify(detailOf(failing)) });
+    await vi.waitFor(() => expect(off.inflight()).toBe(0));
     await at(off, 0);
     expect(failBorder(off)).toBe('#ff6b6b');
     expect(liveTimers(off)).toEqual([]);

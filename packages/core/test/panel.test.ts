@@ -2654,3 +2654,85 @@ it('risk:regression the effects the probe cut are never drawn (D-03)', async () 
   await startExecutor(open);
   expect(barText(open)).toBeDefined();
 });
+
+// ---- Phase 08.8.1-09 task 1: the mission preset draws a heartbeat and a train (L-01) ----
+
+// Phase 08.8.1 L-01: the heartbeat and the train are pure functions of the frame time; the heartbeat is `width` cells with a beat that moves and a taller glyph where a log event happened inside its span; the train rides only the current stage cell
+it('risk:parsing the heartbeat and the train are pure functions of the frame time (L-01)', async () => {
+  const { heartbeat, train, PALETTES, isHex } = await loadView();
+  const stops = PALETTES.aurora;
+  const t = 1_800_000_000_000;
+  const event = { at: t / 1000 - 2 };
+  const a = heartbeat(60, t, [event], t, stops);
+  const b = heartbeat(60, t + 500, [event], t + 500, stops);
+  expect(a).toHaveLength(60);
+  for (const c of [...a, ...b]) {
+    expect('─╱╲‾▇').toContain(c.ch);
+    expect(isHex(c.color), c.color).toBe(c.color);
+  }
+  const beats = (cells: any[]): number[] => cells.flatMap((c, i) => ('╱╲‾'.includes(c.ch) ? [i] : []));
+  expect(beats(a).length).toBeGreaterThan(0);
+  expect(beats(b)).not.toEqual(beats(a));
+  // an event inside the span is one taller glyph that moves left as it ages, one older than the span draws none, and the same arguments give the same frame
+  expect(a.filter((c: any) => c.ch === '▇')).toHaveLength(1);
+  expect(b.findIndex((c: any) => c.ch === '▇')).toBeLessThan(a.findIndex((c: any) => c.ch === '▇'));
+  expect(heartbeat(60, t, [{ at: t / 1000 - 30 }], t, stops).some((c: any) => c.ch === '▇')).toBe(false);
+  expect(heartbeat(60, t, [event], t, stops)).toEqual(a);
+  expect(heartbeat(0, t, [], t)).toEqual([]);
+  // the train: only the current cell holds it, one cell a step, the same for the same time
+  const cells = [
+    { text: 'intent/approach', state: 'done', color: '#e07a4f' },
+    { text: 'build 1/3', state: 'current', color: '#f0907a' },
+    { text: 'review', state: 'todo', color: '#d98ad0' },
+  ];
+  const t0 = train(cells, 0);
+  const t1 = train(cells, 500);
+  expect(t0.map((r: any[]) => r.length)).toEqual([15, 9, 6]);
+  for (const i of [0, 2]) expect(t0[i].every((c: any) => c.ch === ' ')).toBe(true);
+  expect(t0[1].every((c: any) => '━▶┄'.includes(c.ch))).toBe(true);
+  expect(t0[1].filter((c: any) => c.ch === '▶')).toHaveLength(1);
+  expect([t0[1].findIndex((c: any) => c.ch === '▶'), t1[1].findIndex((c: any) => c.ch === '▶')]).toEqual([0, 3]);
+  expect(train(cells, 500)).toEqual(t1);
+  expect(train(cells.map((c) => ({ ...c, state: 'todo' })), 0).flat().every((c: any) => c.ch === ' ')).toBe(true);
+});
+
+// Phase 08.8.1 L-01: under the mission preset the first row of the ticket tab is the heartbeat and the current stage cell holds the train while an agent runs; lively draws neither
+it('risk:regression the mission preset draws the heartbeat and the train on the ticket tab (L-01)', async () => {
+  const heart = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[─╱╲‾▇]{20,}$/.test(x));
+  const trainOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[━┄]*▶[━┄]*$/.test(x));
+  const mission = await paneWith(MOVING, (x) => {
+    x.columns = 100;
+    void x.store.set('settings', { v: 1, motion: 'mission', effects: {} });
+  });
+  // an idle pane draws still colours: no heartbeat, no train
+  expect(heart(mission)).toBeUndefined();
+  const T = Date.now();
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(T);
+  try {
+    await startExecutor(mission);
+    const frame = async (ms: number): Promise<{ heart: string | undefined; train: string | undefined }> => {
+      clock.mockReturnValue(T + ms);
+      await mission.$.ui.invalidate('ui.render');
+      return { heart: heart(mission), train: trainOf(mission) };
+    };
+    const a = await frame(0);
+    expect(a.heart).toBeDefined();
+    // the first row under the tab buttons is the heartbeat line, every cell its own coloured text
+    const top = (mission.tree()?.props.children as any[])[1];
+    expect(top.type).toBe('Text');
+    expect(flat(top.props.children)).toBe(a.heart);
+    expect(top.props.children.every((c: any) => /^#[0-9a-f]{6}$/.test(c.props.color))).toBe(true);
+    // the current stage cell holds the train: as wide as its label
+    expect(a.train).toHaveLength('build 1/3'.length);
+    const b = await frame(400);
+    expect(b.heart).not.toBe(a.heart);
+    expect(b.train).not.toBe(a.train);
+  } finally {
+    clock.mockRestore();
+  }
+  // lively draws neither
+  const lively = await paneWith(MOVING, (x) => void (x.columns = 100));
+  await startExecutor(lively);
+  expect(heart(lively)).toBeUndefined();
+  expect(trainOf(lively)).toBeUndefined();
+});

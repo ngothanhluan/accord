@@ -152,7 +152,7 @@ describe('bundled references', () => {
   });
 });
 
-describe('generated module', () => {
+describe('risk:regression skills generated module', () => {
   it('generated module matches skills/ (drift)', () => {
     const onDisk = readdirSync(skillsDir, { recursive: true, withFileTypes: true })
       .filter((d) => d.isFile() && /\.md$/.test(d.name))
@@ -413,7 +413,7 @@ it('risk:regression the accord skill names its typed forms (D-03)', () => {
 });
 
 describe('render output invariants', () => {
-  it('has files to check', () => {
+  it('risk:regression skills has files to check', () => {
     // A silently empty render would make every assertion below vacuous.
     expect(output.length).toBeGreaterThan(0);
     expect(skillFiles.length).toBeGreaterThan(0);

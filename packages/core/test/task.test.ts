@@ -35,7 +35,7 @@ describe('taskVerdict', () => {
     });
   });
 
-  it('prints a backslashed tests.report with forward slashes (D-51)', () => {
+  it('risk:regression taskVerdict prints a backslashed tests.report with forward slashes (D-51)', () => {
     const s = snap({
       'accord/config.yml': CONFIG.replace(`report: ${REPORT}`, 'report: "out\\\\report.xml"'),
       'out/report.xml': junit({ 'export#writes-csv': 'skipped' }),

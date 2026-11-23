@@ -198,7 +198,7 @@ describe('accord init — the first run', () => {
   // D-134 as amended 2026-09-17: both runtimes, so `skills sync` resolves .claude/skills and .agents/skills
   // alike and neither directory's copies are reported as orphans; and an empty tokens path, so a fresh
   // repository does not carry a standing lint warning on its first minute.
-  it('declares both runtimes and an empty design.tokens (D-134 as amended)', async () => {
+  it('risk:regression init declares both runtimes and an empty design.tokens (D-134 as amended)', async () => {
     const repo = sandbox();
     await run(['init'], repo);
     const config = parsed(repo);

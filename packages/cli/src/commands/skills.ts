@@ -29,6 +29,7 @@ import {
   pluginDir,
   pluginTargets,
   RETIRED_FILES,
+  RETIRED_SKILL_FOLDERS,
   runsAccordHook,
   skillTargets,
   withoutMarker,
@@ -166,9 +167,13 @@ export function writeHooks(root: string, plan: HooksPlan | undefined, out: Repor
  * removal emptied, that this render does not produce, and that is a real folder under real folders, is removed with a
  * non-recursive `rmdirSync` and reported `removed` after the file rows. A folder that still holds a file (an edited copy, or
  * a file of the team's own) stays, whatever the reason, and the orphan scan then lists it; a failure adds no row.
+ *
+ * Phase 08.8 D-14 (IN-03, 08.3 review): that removal can fail (EBUSY or EPERM while an editor or antivirus holds the folder), and the next run found no retired file, so the emptied
+ * folder was never tried again. Every run therefore also tries each folder of `RETIRED_SKILL_FOLDERS` (under each skill directory) that exists and holds no entry, with the same checks
+ * (a real folder under real folders, not one this render produces, non-recursive `rmdirSync`); a folder that holds any file stays. Only a retired accord name is ever retried.
  */
 function removeRetired(root: string, out: ReportRow[], config: AccordConfig): void {
-  const emptied = new Set<string>();
+  const candidates = new Set<string>(); // folders a removal of this run emptied, and the retired folders an earlier run may have emptied
   for (const path of RETIRED_FILES) {
     const parent = path.slice(0, path.lastIndexOf('/'));
     if (!scannable(root, parent)) continue;
@@ -178,14 +183,15 @@ function removeRetired(root: string, out: ReportRow[], config: AccordConfig): vo
       if (!isIntactRender(readFileSync(file, 'utf8'))) continue;
       rmSync(file);
       out.push({ status: 'removed', path });
-      emptied.add(parent);
+      candidates.add(parent);
     } catch {
       // left where it is; the orphan scan reports it
     }
   }
   const rendered = new Set(skillTargets(config).map((t) => t.path.slice(0, t.path.lastIndexOf('/'))));
   const skillDirs = allSkillDirs();
-  for (const folder of [...emptied].sort()) {
+  for (const dir of skillDirs) for (const name of Object.keys(RETIRED_SKILL_FOLDERS)) candidates.add(dir + '/' + name);
+  for (const folder of [...candidates].sort()) {
     const dir = skillDirs.find((d) => folder.startsWith(d + '/accord-') && !folder.slice(d.length + 1).includes('/'));
     if (dir === undefined || rendered.has(folder) || !scannable(root, folder)) continue;
     try {

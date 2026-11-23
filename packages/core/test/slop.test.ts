@@ -205,4 +205,7 @@ it('risk:resource the slop scan stops an overlapping team pattern at the budget 
   const same = slopHits(slopSpec(snapshot()), ordinary, { generated: [] });
   expect(same.length).toBeGreaterThan(0);
   expect(slopHits(slopSpec(snapshot()), ordinary, { generated: [], overlapBudget: Infinity })).toEqual(same);
+  // a shipped default is never budgeted, even at a budget of one: empty-catch reads all 100 lines
+  const spaced = added('src/z.ts', Array.from({ length: 100 }, () => 'catch' + ' '.repeat(900)));
+  expect(slopHits(slopSpec(snapshot()), spaced, { generated: [], overlapBudget: 1 })).toEqual([]);
 });

@@ -395,6 +395,25 @@ const CHAIN_REASON =
  * Every caller must bound the text the same way: the commit rule fails a first line over SCAN_LINE_LIMIT before it matches (commits/rule.ts).
  */
 export function backtrackProblem(source: string, flags: string): string | undefined {
+  return check(source, flags);
+}
+
+/**
+ * Phase 08.8 D-12: how many repeats in a row of an ACCEPTED pattern can match the same text: 2 for `.*a.*b` and `a*a*b`, 1 for one repeat, 0 for none. The scans give a pattern with two a budget
+ * of total cost per package (SCAN_OVERLAP_BUDGET), because its cost on one line grows with the square of the line's length. It is the longest run the chain check below computes. A pattern the guard
+ * refuses never reaches a scan, so it counts 0 here, and so does one that does not parse: this never throws.
+ */
+export function overlapRepeats(source: string, flags: string): number {
+  const seen = { chain: 0 };
+  try {
+    if (check(source, flags, seen) !== undefined) return 0;
+  } catch {
+    return 0;
+  }
+  return seen.chain;
+}
+
+function check(source: string, flags: string, seen?: { chain: number }): string | undefined {
   let auto: Automaton;
   try {
     auto = build(parse(source), flags.includes('i'));
@@ -533,6 +552,7 @@ export function backtrackProblem(source: string, flags: string): string | undefi
       if (chainable(s, t)) best = Math.max(best, (run.get(s.k) ?? 1) + 1);
     }
     run.set(t.k, best);
+    if (seen !== undefined) seen.chain = Math.max(seen.chain, best);
     if (best >= 3) return CHAIN_REASON;
   }
   return undefined;

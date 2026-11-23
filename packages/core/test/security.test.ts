@@ -566,10 +566,11 @@ it('risk:resource many long changed lines run each line pattern once per line on
     return original.call(this, input);
   });
   try {
-    const triggers = securityTriggers(spec, diff, ['src/data.js'], { generated: [] });
+    // Phase 08.8 D-12: these three team patterns each hold two overlapping repeats, so the package budget would stop them after 13 of the 100 lines; this case is about the per-line bound (D-09), so the budget is out of reach
+    const triggers = securityTriggers(spec, diff, ['src/data.js'], { generated: [], overlapBudget: Infinity });
     const scan = { ...lengths };
     lengths = {};
-    const hunks = matchedHunks(spec, diff, ['src/data.js'], { generated: [] });
+    const hunks = matchedHunks(spec, diff, ['src/data.js'], { generated: [], overlapBudget: Infinity });
     const hunkRuns = { ...lengths };
     spy.mockRestore();
 
@@ -1000,4 +1001,6 @@ it('risk:resource a package of long hostile lines stops an overlapping pattern a
   expect(same.length).toBeGreaterThan(0);
   expect(securityTriggers(DEFAULT_SECURITY, ordinary, ['src/y.ts'], { generated: [], overlapBudget: Infinity })).toEqual(same);
   expect(securityTriggers(spec, ordinary, ['src/y.ts'], { generated: [], overlapBudget: Infinity }).map((t) => t.cannot)).not.toContain(true);
+  // a shipped default is never budgeted, even at a budget of one: built-path reads all 100 hostile lines
+  expect(securityTriggers(DEFAULT_SECURITY, diff, ['src/x.ts'], { generated: [], overlapBudget: 1 })).toEqual([]);
 });

@@ -1,6 +1,7 @@
 // Phase 8.1 D-14, D-20: which added lines of a package's diff text match the slop patterns. Pure: it reads the `-U10` diff text the host already produced, never git.
 // Every added line of every changed text file is judged, test files included; only Markdown, generated files and dependency lockfiles are skipped (copyGeneratedOrMarkdown, LOCKFILES).
-import { copyGeneratedOrMarkdown, diffFiles, KNOWN_BINARY, SCAN_LINE_LIMIT } from '../security/match.js';
+import { budgetLabel, copyGeneratedOrMarkdown, diffFiles, KNOWN_BINARY, overlapMeter, SCAN_LINE_LIMIT, SCAN_OVERLAP_BUDGET } from '../security/match.js';
+import { DEFAULT_SLOP } from './spec.js';
 import type { SlopPattern, SlopSpec } from './spec.js';
 
 /**
@@ -92,14 +93,17 @@ const BINARY_FILE = 'binary file, its lines were not scanned';
  * The slop hits of a package: each pattern of `spec` over the added lines of every changed text file its scope allows. A line is matched on its first SCAN_LINE_LIMIT characters (which bounds the time
  * a pattern may take); a longer line, and a file git calls binary that is not a known image, font or archive and has no text section of the same path, are an `unscanned` hit (WR-02), never silence.
  */
-export function slopHits(spec: SlopSpec, diffText: string, options: { generated: readonly string[]; exempt?: readonly string[] }): SlopHit[] {
+export function slopHits(spec: SlopSpec, diffText: string, options: { generated: readonly string[]; exempt?: readonly string[]; overlapBudget?: number }): SlopHit[] {
   const res = compile(spec);
+  // Phase 08.8 D-12: a pattern accepted with two overlapping repeats has a total budget over the package (SCAN_OVERLAP_BUDGET); past it the pattern stops and one `unscanned` hit marks the first line it left unread
+  const allow = overlapMeter(res.map(({ re }) => re), options.overlapBudget ?? SCAN_OVERLAP_BUDGET, DEFAULT_SLOP.patterns);
+  const budgetReported = new Set<number>();
   const hits: SlopHit[] = [];
   const files = diffFiles(diffText);
   for (const f of files) {
     if (f.path === undefined || slopSkipped(f.path, options.generated, options.exempt ?? [])) continue;
     const ext = extensionOf(f.path);
-    const scoped = res.filter(({ p }) => p.exts === undefined || p.exts.includes(ext));
+    const scoped = res.map((r, i) => ({ ...r, i })).filter(({ p }) => p.exts === undefined || p.exts.includes(ext));
     if (scoped.length === 0) continue;
     if (f.binary) {
       if (!KNOWN_BINARY.has(ext.slice(1)) && !files.some((g) => !g.binary && g.path === f.path)) hits.push({ kind: UNSCANNED, path: f.path, line: 1, label: BINARY_FILE });
@@ -109,7 +113,14 @@ export function slopHits(spec: SlopSpec, diffText: string, options: { generated:
       const long = l.text.length > SCAN_LINE_LIMIT;
       const head = long ? l.text.slice(0, SCAN_LINE_LIMIT) : l.text;
       if (long) hits.push({ kind: UNSCANNED, path: f.path, line: l.line, label: LONG_LINE });
-      for (const { p, re } of scoped) if (re.test(head)) hits.push({ kind: p.id, path: f.path, line: l.line, label: p.label });
+      for (const { p, re, i } of scoped) {
+        if (!allow(i, head.length)) {
+          if (!budgetReported.has(i)) {
+            budgetReported.add(i);
+            hits.push({ kind: UNSCANNED, path: f.path, line: l.line, label: budgetLabel(p.id) });
+          }
+        } else if (re.test(head)) hits.push({ kind: p.id, path: f.path, line: l.line, label: p.label });
+      }
     }
   }
   return sortHits(hits);

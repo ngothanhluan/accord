@@ -39,4 +39,13 @@ export default tseslint.config(
       }],
     },
   },
+  // Phase 08.8 D-17 (IN-04): loaders never import commands. A command hands a loader the helpers it needs; the direction of imports is commands -> load, never the other way.
+  {
+    files: ['packages/cli/src/load/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{ group: ['**/commands/**'], message: 'a loader never imports a command: the command passes the helper in (Phase 08.8 D-17)' }],
+      }],
+    },
+  },
 );

@@ -2957,3 +2957,91 @@ it('risk:regression no function in the pane declares a binding named next, which
   });
   expect(found).toEqual([]);
 });
+
+// ---- Phase 08.8.1 review warnings WR-01 to WR-04 ----
+
+// Phase 08.8.1 review WR-01: a plan.md that is only untracked is the normal plan stage, so the stage track stays and the CLI's line goes under it; only an ignored accord/ takes the track's place.
+it('risk:regression a plan-uncommitted warning keeps the stage track and draws its line under it (WR-01)', async () => {
+  const UNTRACKED = 'accord/tickets/ST-1/plan.md is not committed yet: the plan stage ends with its plan-ready commit';
+  const warnings = [{ kind: 'plan-uncommitted', text: UNTRACKED }];
+  const h = await paneWith({ stage: 'plan', tasksDone: 0, tasksTotal: 3, tasks: planTasks, warnings });
+  const t = h.texts();
+  expect(t).toContain('plan');
+  expect(t).toContain(UNTRACKED);
+  expect(h.cell(UNTRACKED).text).toMatchObject({ bold: true, color: 'warning', wrap: 'wrap' });
+  expect(t.indexOf(UNTRACKED)).toBeGreaterThan(t.indexOf('plan'));
+  expect(tabs(h)['tab:ticket'].label).toBe('1 ticket ST-1 plan');
+  const { view } = await ticketOf({ stage: 'plan', warnings });
+  expect(view.planUncommitted).toBe(UNTRACKED);
+  expect(view.notCommitted).toBeUndefined();
+  expect(view.cells.length).toBeGreaterThan(0);
+  // the text is cleaned like every pane string
+  const dirty = await paneWith({ stage: 'plan', warnings: [{ kind: 'plan-uncommitted', text: 'bad‮\u0007text' }] });
+  expect(dirty.texts()).toContain('bad text');
+});
+
+// Phase 08.8.1 review WR-02: the 12 Hz frame timer redraws through the guarded helper, so a host that rejects or throws on invalidate never makes an unhandled rejection.
+it('risk:concurrency the frame timer swallows a redraw the host rejects or throws on (WR-02)', async () => {
+  const h = await paneWith({}, (x) => void x.store.set('settings', { v: 1, motion: 'lively', effects: {} }));
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('turn.start', subStart('a1'));
+  const tick = everyTimers(h).find((t) => !t.cancelled);
+  expect(tick).toBeDefined();
+  const unhandled: unknown[] = [];
+  const on = (r: unknown): number => unhandled.push(r);
+  process.on('unhandledRejection', on);
+  try {
+    h.$.ui.invalidate.mockImplementation(() => Promise.reject(new Error('pane closed')));
+    expect(tick!.fn()).toBeUndefined();
+    h.$.ui.invalidate.mockImplementation(() => {
+      throw new Error('no such call');
+    });
+    expect(tick!.fn()).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 30));
+  } finally {
+    process.off('unhandledRejection', on);
+  }
+  expect(unhandled).toEqual([]);
+});
+
+// Phase 08.8.1 review WR-03 (probe row P1 note): the engine's own SubagentHandback call is not an agent's tool; the label and the NOW line keep the last real tool, and the call passes unchanged.
+it('risk:regression the engine SubagentHandback call is not shown as an agent tool (WR-03)', async () => {
+  const { toolLabel } = await loadView();
+  expect(toolLabel({ tool: 'SubagentHandback' })).toBeUndefined();
+  expect(toolLabel({ tool: 'SubagentHandback', agentId: 'a1' })).toBeUndefined();
+  expect(toolLabel({ tool: 'SubagentHandbackX' })).toBe('SubagentHandbackX');
+  const h = await paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3, now: { task: 2, title: 'Beta' } }, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
+  h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('tool.call', { tool: 'Edit', file_path: 'src/view.js', agentId: 'a1' });
+  await vi.waitFor(() => expect(h.texts().some((x) => /^executor · 1:0[0-9] · Edit view\.js$/.test(x))).toBe(true));
+  const handback = { tool: 'SubagentHandback', agentId: 'a1' };
+  expect(await h.fire('tool.call', handback)).toBe(handback);
+  await new Promise((r) => setTimeout(r, 10));
+  expect(h.texts().join('\n')).not.toContain('SubagentHandback');
+  expect(h.texts().some((x) => /^executor · 1:0[0-9] · Edit view\.js$/.test(x))).toBe(true);
+});
+
+// Phase 08.8.1 review WR-04: the host documents the agent statuses pending, running, waiting, idle, completed, failed and killed; an agent is finished when its entry is gone or its status is completed, failed or killed, never on another word.
+it('risk:regression reconcile finishes an agent only on a documented terminal status or a missing entry (WR-04)', async () => {
+  const off = (x: Awaited<ReturnType<typeof host>>): void => void x.store.set('settings', { v: 1, motion: 'off', effects: {} });
+  // the roster shows six rows: five agents the host lists with a status that is not terminal, one that failed
+  const live = ['waiting', 'idle', 'pending', 'in_progress', 'active'];
+  const types = ['accord-w', 'accord-i', 'accord-p', 'accord-g', 'accord-a', 'accord-f'];
+  const h = await paneWith({}, off);
+  h.agents = types.map((type, i) => agentOf('a' + i, type));
+  for (let i = 0; i < types.length; i++) await h.fire('turn.start', subStart('a' + i));
+  h.agents = [...live.map((status, i) => agentOf('a' + i, types[i], { status })), agentOf('a5', 'accord-f', { status: 'failed' })];
+  await h.fire('turn.complete', { reason: 'answer' });
+  await vi.waitFor(() => expect(h.texts()).toContain('✓ f'));
+  for (const name of ['w', 'i', 'p', 'g', 'a']) expect(isRunning(h, name), name).toBe(true);
+  // an agent that was killed, and one the host no longer lists, are finished; one that waits is not
+  const k = await paneWith({}, off);
+  k.agents = [agentOf('b0', 'accord-k'), agentOf('b1', 'accord-m'), agentOf('b2', 'accord-w')];
+  for (const id of ['b0', 'b1', 'b2']) await k.fire('turn.start', subStart(id));
+  k.agents = [agentOf('b0', 'accord-k', { status: 'killed' }), agentOf('b2', 'accord-w', { status: 'waiting' })];
+  await k.fire('turn.complete', { reason: 'answer' });
+  await vi.waitFor(() => expect(k.texts()).toContain('✓ m'));
+  expect(k.texts()).toContain('✓ k');
+  expect(isRunning(k, 'w')).toBe(true);
+});

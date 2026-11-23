@@ -113,7 +113,8 @@ function ensureFrames($, widget = false) {
   }
   if (ms !== undefined && frame === undefined) {
     try {
-      frame = { timer: $.clock.every(ms, () => void $.ui.invalidate('ui.render')), ms };
+      // Phase 08.8.1 review WR-02: through the guarded redraw, so a host that rejects or throws on a tick never raises an unhandled rejection 12 times a second
+      frame = { timer: $.clock.every(ms, () => redraw($)), ms };
     } catch {
       frame = undefined;
     }
@@ -157,7 +158,9 @@ async function noteAgent($, agentId) {
   await invalidate($);
 }
 
-// Phase 08.8.1 W5 (08.7 review WR-05): marks a running roster entry the host's list no longer shows as running, or lists with another status, as finished with its own time, so no agent and no redraw timer outlives a missed `turn.complete`.
+const TERMINAL_STATUS = ['completed', 'failed', 'killed'];
+
+// Phase 08.8.1 W5 (08.7 review WR-05): marks a running roster entry the host's list no longer shows, or lists with a terminal status, as finished with its own time, so no agent and no redraw timer outlives a missed `turn.complete`.
 async function reconcile($) {
   if (!active || runningAgents() === 0) return;
   const list = await readList($);
@@ -166,7 +169,8 @@ async function reconcile($) {
   for (const [id, a] of roster) {
     if (!a.running) continue;
     const entry = list.find((x) => typeof x === 'object' && x !== null && x[LIST_ID_KEY] === id);
-    if (entry === undefined || (typeof entry.status === 'string' && entry.status !== 'running')) {
+    // Phase 08.8.1 review WR-04: the host's AgentStatus is pending, running, waiting, idle, completed, failed or killed; only a missing entry or a terminal status ends an agent, never another word
+    if (entry === undefined || TERMINAL_STATUS.includes(entry.status)) {
       a.running = false;
       a.durationMs = now - a.startTime;
       a.endTime = now;
@@ -681,11 +685,12 @@ export function register(on) {
                   ]
                 : [Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.notCommitted] })]),
               ...(narrow && tv.current !== undefined ? [Text({ children: [tv.current] })] : []),
+              ...(tv.planUncommitted === undefined ? [] : [Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planUncommitted] })]),
               ...(tv.planChanged === undefined ? [] : [Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planChanged] })]),
             ],
           }),
         );
-        used += 3 + (tv.planChanged === undefined ? 0 : 1) + (narrow && tv.current !== undefined ? 1 : 0) + (tv.train === undefined ? 0 : 1) + (tv.now ?? []).length;
+        used += 3 + (tv.planUncommitted === undefined ? 0 : 1) + (tv.planChanged === undefined ? 0 : 1) + (narrow && tv.current !== undefined ? 1 : 0) + (tv.train === undefined ? 0 : 1) + (tv.now ?? []).length;
         // Phase 08.8.1 L-06: the NOW lines right under the head, the first bold and the second dimmed
         // Phase 08.8.1-08 L-01: while the shimmer is on the first line is one coloured Text per character, the glow moving with the frame
         for (const [i, l] of (tv.now ?? []).entries()) {

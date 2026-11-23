@@ -2,6 +2,16 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+Fixes from the review of the 0.17.0 ticket tab. Tickets in flight: no ticket is refused for something new and no gate reads anything that changed; a ticket whose plan.md is not committed yet now keeps its stage in `accord anchor` and `accord show --json`. A repository pinned to 0.17.0 gets the fixes with `accord upgrade`, which moves the pin and refreshes the committed pane.
+
+- A plan.md that is only untracked, which is the normal state for the whole plan stage because it is committed with the plan-ready commit at the end of it, no longer hides the stage. `accord anchor`, and the session-resume hook that prints it, keep their `Stage: plan, ...` line and add a line after it saying the plan.md is not committed yet; `accord show <id> --json` carries that as a `plan-uncommitted` entry in `warnings`, and the pane draws it under the stage track instead of `not tracked`. Only an `accord/` that git ignores still replaces the stage with the `not-committed` text.
+- The `plan-changed` warning no longer shows right after the first `accord gate plan` pass wrote `plan_hash` into a plan.md that is not committed as ready yet. It shows when the plan body differs from the recorded `plan_hash`, or when a plan that was committed as ready is changed again and not committed.
+- The pane no longer risks an unhandled error on every redraw tick when the host refuses a redraw.
+- The pane's tool line and NOW line no longer show the engine's own `SubagentHandback` call as an agent's tool.
+- The pane marks an agent finished only when the host stops listing it or lists it as `completed`, `failed` or `killed`; an agent the host lists as `waiting`, `idle` or `pending` stays running.
+
 ## 0.17.0 — 2026-11-24
 
 Release 0.17.0 ships the live ticket tab of the flightdeck pane. Its data: `accord show <id> --json` and `accord anchor` say when a ticket's stage cannot be trusted, and `show --json` gains the task in flight and the plan's task list. The ticket tab of the Claude Code pane reads them: it tells the truth about the stage, names what runs now, lists the plan's tasks and fills the pane. It also takes each person's colours and motion from a settings view; these change only how the pane looks. Tickets in flight: no ticket is refused for something new and no gate reads anything that changed; every new key is left out when it has nothing to say, so a ticket without the data keeps its JSON as it was, and the text output of `accord show` does not change. A pinned repository gets these with `accord upgrade`; until it does, its committed pane runs the older CLI, which lacks the new keys, and draws as before. The cost of the pane's motion was not measured on a real terminal before this release (12 frames a second is not measured): the pane animates at 12 frames a second only while something runs, and each person can turn motion off in the pane's settings view (key `s`).

@@ -2,7 +2,8 @@
 // and the critic at approach. The ticket's own `related:` ids come first, then the tickets the similarity search finds for
 // its title and Intent; never the ticket itself; at most five.
 import { describe, expect, it } from 'vitest';
-import { loadSnapshot, relatedIds, relatedText } from '../src/index.js';
+import { loadSnapshot, productBlocks, relatedIds, relatedParts, relatedText } from '../src/index.js';
+import { withheldTicketLine } from '../src/product/lines.js';
 import { CONFIG } from '../../../test/helpers/lane.js';
 
 /** A lane M ticket file: title, status, optional `related:` ids, then the given body. */
@@ -152,5 +153,35 @@ describe('relatedText', () => {
     const alone = tree({ 'accord/tickets/N-1.md': tk('N-1', 'Zebra crossing paint', 'open', intent('Stripes.')) });
     expect(relatedText(alone, 'N-1', '- Rejected: x — y\n')).toBe('# Related tickets of N-1\n\n(none)\n\n## Rejected\n- Rejected: x — y\n');
     expect(relatedText(alone, 'NOPE', '- Rejected: x — y\n')).toBeUndefined();
+  });
+
+  // Phase 08.8 D-05: a related ticket's Vetoes and Decisions pass the same line check as the epic block, in the print and in the product block alike.
+  it('risk:security a hostile related Veto or Decision line is withheld in relatedParts and relatedText (D-05)', () => {
+    const zws = '- Hidden ​ gap here.';
+    const long = '- D-03 ' + 'z'.repeat(4001 - 7);
+    const text = tk('R-1', 'Zebra paint', 'open', intent('Paint stripes.') + sections('- No new dependency.\n' + zws, '- D-01 Use the existing writer\n' + long));
+    const at = (needle: string): number => text.split('\n').findIndex((l) => l === needle) + 1;
+    const snap = tree({ 'accord/tickets/N-1.md': tk('N-1', 'Export reports to CSV', 'open', intent('Owners export csv files.'), ['R-1']), 'accord/tickets/R-1.md': text });
+    const file = 'accord/tickets/R-1.md';
+    const placeholders = [withheldTicketLine(file, at(zws)), withheldTicketLine(file, at(long))];
+    const expected = ['## R-1 "Zebra paint" (open)', '### Vetoes', '- No new dependency.', placeholders[0], '### Decisions', '- D-01 Use the existing writer', placeholders[1]];
+    const shown = relatedText(snap, 'N-1') as string;
+    expect(shown).toContain(expected.join('\n'));
+    expect(shown).not.toContain('​');
+    expect(shown).not.toContain('zzzz');
+    expect(shown).not.toContain('run accord lint');
+    // the product block of a scout holds the same lines, built from the same parts
+    const block = productBlocks('scout', { related: relatedParts(snap, 'N-1') }).join('\n\n');
+    expect(block).toContain(expected.join('\n'));
+    expect(block).not.toContain('​');
+  });
+
+  // Phase 08.8 D-05, P7: an unclosed comment opener is withheld on its own line and hides no later line of the section.
+  it('risk:security an unclosed comment in a related ticket hides no later line (D-05)', () => {
+    const text = tk('R-1', 'Zebra paint', 'open', intent('Paint stripes.') + sections('- No new dependency.', '<!-- open\n- D-02 A decision after the opener'));
+    const n = text.split('\n').findIndex((l) => l === '<!-- open') + 1;
+    const snap = tree({ 'accord/tickets/N-1.md': tk('N-1', 'Export reports to CSV', 'open', intent('Owners export csv files.'), ['R-1']), 'accord/tickets/R-1.md': text });
+    const shown = relatedText(snap, 'N-1') as string;
+    expect(shown).toContain(['### Decisions', withheldTicketLine('accord/tickets/R-1.md', n), '- D-02 A decision after the opener'].join('\n'));
   });
 });

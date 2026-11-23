@@ -57,9 +57,10 @@ async function host(mod: { register: (on: Handler) => void }) {
     surfaces: [] as unknown[],
     timers: [] as { ms: number; fn: () => unknown; cancelled: boolean }[],
     tree: () => tree,
-    async fire(event: string, e: any): Promise<any> {
+    // Phase 08.8.1-05: `last` stands for the host's own step at the end of the chain (a tool call that runs); its result is what the chain resolves with
+    async fire(event: string, e: any, last?: Handler): Promise<any> {
       const chain = hooks.filter((x) => x.event === event && Object.entries(x.matcher).every(([k, v]) => e[k] === v));
-      const run = (i: number): Promise<any> => (i >= chain.length ? Promise.resolve(e) : Promise.resolve(chain[i].fn($, e, () => run(i + 1))));
+      const run = (i: number): Promise<any> => (i >= chain.length ? Promise.resolve(last ? last(e) : e) : Promise.resolve(chain[i].fn($, e, () => run(i + 1))));
       return run(0);
     },
     settle: (r: Partial<Result>) => (runs.shift() as { res: (r: Result) => void }).res({ exitCode: 0, stdout: '', stderr: '', ...r }),
@@ -1718,4 +1719,121 @@ it('risk:regression the ticket tab draws the now line under the head (L-06)', as
   expect(odd.texts().filter((x) => x === 'build 1/3')).toHaveLength(1);
   expect(odd.texts()).toContain('build');
   expect(odd.texts().some((x) => x.startsWith('task '))).toBe(false);
+});
+
+// Phase 08.8.1 D-01 L-06 T-08.8.1-14 T-08.8.1-15 (probe row P1 held): the tool line is a tool name plus a base name or a program name, never arguments; a task number comes only from the fixed report path shape of the shown ticket.
+it('risk:security the tool line shows a tool name and a base name or program name and never arguments (D-01)', async () => {
+  const { toolLabel, briefTask } = await loadView();
+  expect(toolLabel({ tool: 'Edit', file_path: 'C:/w/packages/core/panel/view.js' })).toBe('Edit view.js');
+  expect(toolLabel({ tool: 'Read', file_path: 'C:\\w\\notes.md' })).toBe('Read notes.md');
+  expect(toolLabel({ tool: 'Bash', command: 'npx vitest run --project core TOKEN=abc' })).toBe('Bash vitest');
+  expect(toolLabel({ tool: 'Bash', command: 'npx --yes @accord-dev/accord@0.17.0 task-done ST-1 3' })).toBe('Bash accord');
+  expect(toolLabel({ tool: 'Bash', command: 'npm exec -- vitest run' })).toBe('Bash vitest');
+  expect(toolLabel({ tool: 'Bash', command: 'SECRET=hunter2 TOKEN=abc git push' })).toBe('Bash git');
+  expect(toolLabel({ tool: 'Bash', command: 'C:\\x\\node.exe build.js' })).toBe('Bash node');
+  expect(toolLabel({ tool: 'Bash', command: '"C:\\Program Files\\nodejs\\node.exe" --token=abc' })).toBe('Bash node');
+  expect(toolLabel({ tool: 'PowerShell', command: 'Get-ChildItem -Recurse' })).toBe('PowerShell Get-ChildItem');
+  expect(toolLabel({ tool: 'Grep', pattern: 'secret' })).toBe('Grep');
+  expect(toolLabel({ tool: 'mcp__x__y', file_path: 'a/b.txt', command: 'rm -rf' })).toBe('mcp__x__y');
+  expect(toolLabel({ tool: 'Bash', command: 7 })).toBe('Bash');
+  expect(toolLabel({ tool: 'Bash', command: 'ba$(d)=1; rm' })).toBe('Bash');
+  expect(toolLabel({})).toBeUndefined();
+  expect(toolLabel({ tool: 7 })).toBeUndefined();
+  const dirty = toolLabel({ tool: 'Edit', file_path: 'C:/w/vi\u202eew\u0007.js' }) as string;
+  expect(dirty).toBe('Edit vi ew .js');
+  for (const ch of dirty) expect(ch.codePointAt(0)).toBeGreaterThanOrEqual(0x20);
+  expect([...(toolLabel({ tool: 'Edit', file_path: 'x/' + 'a'.repeat(100) + '.js' }) as string)].length).toBeLessThanOrEqual(40);
+  expect(briefTask('.accord-reports/ST-1/brief-3.md', 'ST-1')).toBe(3);
+  expect(briefTask('C:/w/.accord-reports/ST-1/task-2.md', 'ST-1')).toBe(2);
+  expect(briefTask('C:\\w\\.accord-reports\\ST-1\\task-12.md', 'ST-1')).toBe(12);
+  for (const path of ['.accord-reports/ST-2/brief-3.md', 'x.accord-reports/ST-1/brief-3.md', '.accord-reports/ST-1/brief-0.md', '.accord-reports/ST-1/brief-3.md.bak', '.accord-reports/ST-1/other-3.md', '.accord-reports/ST-1/sub/brief-3.md', 7, undefined]) {
+    expect(briefTask(path, 'ST-1'), String(path)).toBeUndefined();
+  }
+  expect(briefTask('.accord-reports/a b/brief-3.md', 'a b')).toBeUndefined();
+  expect(briefTask('.accord-reports/AxB/brief-3.md', 'A.B')).toBeUndefined();
+});
+
+// Phase 08.8.1 D-01 L-06 L-05 T-08.8.1-07 (probe rows P1 and P2 held): a subagent tool call sets its row's tool and task, a main-loop accord command schedules one refresh after it ran, and the hook never changes a call.
+it("risk:complex-branching a subagent tool call sets its row's tool and task and a main-loop accord command refreshes show after it ran (D-01 L-06 L-05)", async () => {
+  const h = await claimedPane();
+  h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
+  await h.fire('turn.start', subStart('a1'));
+  const read = { tool: 'Read', file_path: '.accord-reports/ST-1/brief-3.md', agentId: 'a1' };
+  expect(await h.fire('tool.call', read)).toBe(read);
+  await vi.waitFor(() => expect(h.texts()).toContain('task 3'));
+  const edit = { tool: 'Edit', file_path: 'src/view.js', agentId: 'a1', old_string: 'secret one', new_string: 'secret two' };
+  await h.fire('tool.call', edit);
+  await vi.waitFor(() => expect(h.texts().some((x) => /^executor · 1:0[0-9] · Edit view\.js$/.test(x))).toBe(true));
+  expect(h.texts().join('\n')).not.toContain('secret');
+  expect(edit).toEqual({ tool: 'Edit', file_path: 'src/view.js', agentId: 'a1', old_string: 'secret one', new_string: 'secret two' });
+  // a call of another ticket's report, and a call of an agent the roster does not hold, change nothing
+  await h.fire('tool.call', { tool: 'Read', file_path: '.accord-reports/ST-9/brief-7.md', agentId: 'a1' });
+  await h.fire('tool.call', { tool: 'Read', file_path: '.accord-reports/ST-1/brief-8.md', agentId: 'zz' });
+  await new Promise((r) => setTimeout(r, 10));
+  expect(h.texts()).not.toContain('task 7');
+  expect(h.texts()).not.toContain('task 8');
+  // a main-loop accord command schedules one debounced show refresh after the call ran; another command schedules none
+  expect(h.$.clock.after).not.toHaveBeenCalled();
+  let ran = false;
+  const result = await h.fire('tool.call', { tool: 'Bash', command: 'npx --yes @accord-dev/accord@0.17.0 task-done ST-1 3' }, async () => {
+    expect(h.$.clock.after).not.toHaveBeenCalled();
+    ran = true;
+    return 'RESULT';
+  });
+  expect(result).toBe('RESULT');
+  expect(ran).toBe(true);
+  expect(h.$.clock.after).toHaveBeenCalledTimes(1);
+  expect(h.$.clock.after).toHaveBeenLastCalledWith(3000, expect.any(Function));
+  await h.fire('tool.call', { tool: 'Bash', command: 'git status' });
+  await h.fire('tool.call', { tool: 'Read', file_path: 'accord/config.yml' });
+  expect(h.$.clock.after).toHaveBeenCalledTimes(1);
+  const base = h.$.process.run.mock.calls.length;
+  await h.timers.filter((t) => t.ms === 3000 && !t.cancelled).at(-1)?.fn();
+  expect(h.$.process.run.mock.calls.length).toBe(base + 1);
+  expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 });
+  // a hook whose roster write throws still returns what the call returned
+  const bad = {
+    tool: 'Read',
+    agentId: 'a1',
+    get file_path(): string {
+      throw new Error('boom');
+    },
+  };
+  expect(await h.fire('tool.call', bad, async () => 'STILL')).toBe('STILL');
+  // a session that never opened the pane records nothing and still passes the call on
+  const cold = await host(await loadPanel());
+  expect(await cold.fire('tool.call', { tool: 'Bash', command: 'accord gate ready ST-1' }, async () => 'COLD')).toBe('COLD');
+  expect(cold.$.clock.after).not.toHaveBeenCalled();
+});
+
+// Phase 08.8.1 L-06 (probe row P8 held): after a main-loop turn ends the NOW line reads waiting for you with the turn's last answer line; an open AskUserQuestion call reads the same; the next main-loop turn clears it.
+it('risk:complex-branching the now line says waiting for you after a main turn ends and clears when the next turn starts (L-06)', async () => {
+  const h = await claimedPane();
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('turn.complete', { agentId: 'a1', answer: 'sub answer', durationMs: 10, reason: 'answer' });
+  expect(h.texts().some((x) => x.startsWith('Waiting for you'))).toBe(false);
+  await h.fire('turn.complete', { answer: 'Done.\nKeep it? Answer in the chat.\n\n', reason: 'answer' });
+  await vi.waitFor(() => expect(h.texts()).toContain('Waiting for you · 0:00'));
+  const t = h.texts();
+  expect(t[t.indexOf('Waiting for you · 0:00') + 1]).toBe('Keep it? Answer in the chat.');
+  expect(h.cell('Waiting for you · 0:00').text.bold).toBe(true);
+  await h.fire('turn.start', { turnId: 'next', text: 'yes' });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.startsWith('Waiting for you'))).toBe(false));
+  // an answer line is cleaned; an answer that is not a string adds no second line
+  await h.fire('turn.complete', { answer: 'ok\u202e\u0007bad', reason: 'answer' });
+  await vi.waitFor(() => expect(h.texts()).toContain('ok bad'));
+  await h.fire('turn.start', { turnId: 'n2', text: 'x' });
+  await h.fire('turn.complete', { answer: 42, reason: 'answer' });
+  await vi.waitFor(() => expect(h.texts()).toContain('Waiting for you · 0:00'));
+  const u = h.texts();
+  expect(u[u.indexOf('Waiting for you · 0:00') + 1]).not.toBe('42');
+  await h.fire('turn.start', { turnId: 'n3', text: 'x' });
+  // an open AskUserQuestion call reads waiting while it is pending and clears when it returns
+  let release: (v: string) => void = () => undefined;
+  const pending = h.fire('tool.call', { tool: 'AskUserQuestion' }, () => new Promise<string>((res) => (release = res)));
+  await vi.waitFor(() => expect(h.texts()).toContain('Waiting for you · 0:00'));
+  release('ANSWER');
+  expect(await pending).toBe('ANSWER');
+  await vi.waitFor(() => expect(h.texts().some((x) => x.startsWith('Waiting for you'))).toBe(false));
 });

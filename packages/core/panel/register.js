@@ -1,4 +1,4 @@
-import { actionFor, agentRows, answerLine, briefTask, clean, currentOf, detailOutcome, detailView, failure, isAccordAgent, layoutOf, outcome, runsAccord, tabLabels, ticketView, toolLabel, view, widgetView } from './view.js';
+import { actionFor, agentRows, answerLine, briefTask, clean, currentOf, detailOutcome, detailView, failure, isAccordAgent, layoutOf, outcome, PALETTE_NAMES, placeRun, runsAccord, settingsOf, tabLabels, ticketView, toolLabel, view, widgetView } from './view.js';
 
 // Phase 08.7 D-02, probe row A3 (headless session of 2026-11-23): the `$.agent.list()` entry joins a subagent event by its `id`, which equals the event's `agentId`.
 const LIST_ID_KEY = 'id';
@@ -20,10 +20,23 @@ let commandReady = false;
 const roster = new Map();
 // Phase 08.8.1 L-06: set while the main loop waits for the person (its turn ended, or its AskUserQuestion call is open), `{ since, line? }`; display only
 let waiting;
+// Phase 08.8.1-07 L-03: this person's settings, read from the mod's own `$.store` when the pane opens (the defaults when it holds none or the read fails); the settings view edits this value and Save keeps it
+let settings = settingsOf(undefined);
+// whether the settings view shows in place of the tab's content
+let settingsOpen = false;
 let tick;
 let debounce;
 // whether the host's `$.agent.list()` answered with a list at its last call; the agents block is drawn only then. The host's nouns are only ever called (a call that throws means the host lacks the noun), never read as values.
 let listing = false;
+
+// Phase 08.8.1-07 L-03, L-04: one read of the person's settings; a store that is missing, throws or holds anything invalid gives the defaults, field by field
+async function loadSettings($) {
+  try {
+    settings = settingsOf(await $.store.get('settings'));
+  } catch {
+    settings = settingsOf(undefined);
+  }
+}
 
 // Redraws without ever throwing into a hook
 function redraw($) {
@@ -191,6 +204,7 @@ function syncTicket($) {
     if (ticket !== undefined) clearRoster($);
     ticket = undefined;
     picked = undefined;
+    settingsOpen = false;
     return;
   }
   if (ticket?.id === id) return;
@@ -285,6 +299,7 @@ async function start($) {
   opening = true;
   try {
     await readList($);
+    await loadSettings($);
     await $.ui.open({ id: 'accord-panel', title: 'accord' });
     active = true;
   } finally {
@@ -320,6 +335,7 @@ export function register(on) {
 
   on('command.run', { command: 'accord-panel' }, async ($) => {
     await readList($);
+    await loadSettings($);
     const opened = await $.ui.open({ id: 'accord-panel', title: 'accord', focus: true });
     active = true;
     const pane = (await $.ui.panes()).find((p) => p.id === 'accord-panel');
@@ -415,11 +431,64 @@ export function register(on) {
     ensureTick($, widget);
     if (widget) return Box({ flexDirection: 'column', children: widgetView({ state, ticket, running: runningAgents() }).map((line) => Text({ children: [line] })) });
     const children = [];
+    const redrawNow = () => void $.ui.invalidate('ui.render');
+    // Phase 08.8.1-07 L-03, L-02: the settings view; a first form with the colour presets, Save and Back (the whole view follows in the next task)
+    const settingsParts = () => [
+      Box({
+        flexDirection: 'column',
+        borderStyle: 'round',
+        children: [
+          Text({ bold: true, children: ['settings'] }),
+          Text({ dimColor: true, children: ['yours only · kept on this machine, not in the repo'] }),
+          Box({
+            flexDirection: 'row',
+            columnGap: 2,
+            children: PALETTE_NAMES.map((name) =>
+              Button({
+                key: 'palette:' + name,
+                label: name,
+                variant: settings.palette === name ? 'primary' : 'secondary',
+                onPress: () => {
+                  settings = { ...settings, palette: name };
+                  redrawNow();
+                },
+              }),
+            ),
+          }),
+          Box({
+            flexDirection: 'row',
+            columnGap: 2,
+            children: [
+              Button({
+                key: 'save',
+                label: 'Save',
+                variant: 'primary',
+                onPress: () => {
+                  void guarded(async () => {
+                    await $.store.set('settings', settings);
+                    $.ui.toast('saved for you only');
+                  });
+                },
+              }),
+              Button({
+                key: 'settings:back',
+                label: 'Back',
+                onPress: () => {
+                  settingsOpen = false;
+                  redrawNow();
+                },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const run = (action) => () => void $.command.run({ command: action.command, args: action.args });
     // D-03: the ticket tab shows while a ticket is in flight, unless the person picked the dashboard; with none in flight the pane is the dashboard alone
     const tab = shownTab();
     const pick = (which) => () => {
       picked = which;
+      settingsOpen = false;
       void $.ui.invalidate('ui.render');
     };
     if (ticket !== undefined) {
@@ -439,9 +508,25 @@ export function register(on) {
           children: [
             Button({ key: 'tab:ticket', hotkey: '1', variant: tab === 'ticket' ? 'primary' : 'secondary', label: t.label, onPress: pick('ticket'), children: ticketParts }),
             Button({ key: 'tab:dashboard', hotkey: '2', variant: tab === 'dashboard' ? 'primary' : 'secondary', label: labels.dashboard.label, onPress: pick('dashboard'), children: dashParts }),
+            // Phase 08.8.1-07 L-03 (Ruling): the one `s` key; it takes no focus by itself and the pane has no key handler of its own, so an `s` typed into a focused field is text
+            Button({
+              key: 'settings',
+              hotkey: 's',
+              variant: settingsOpen ? 'primary' : 'secondary',
+              label: 'settings',
+              onPress: () => {
+                settingsOpen = !settingsOpen;
+                void $.ui.invalidate('ui.render');
+              },
+              children: [Text({ bold: true, children: ['settings'] })],
+            }),
           ],
         }),
       );
+    }
+    if (ticket !== undefined && settingsOpen) {
+      children.push(...settingsParts());
+      return Box({ flexDirection: 'column', children });
     }
     if (tab === 'ticket') {
       const nowMs = Date.now();
@@ -465,7 +550,8 @@ export function register(on) {
             borderStyle: 'round',
             borderColor: 'claude',
             children: [
-              Text({ bold: true, wrap: 'truncate', children: [tv.title] }),
+              // Phase 08.8.1-07 L-01, L-02: the title in the person's colours, one Text per character inside one Text
+              Text({ bold: true, wrap: 'truncate', children: placeRun('title', tv.title, settings).map((r) => Text({ color: r.color, children: [r.ch] })) }),
               // Phase 08.8.1 D-05: the CLI's not-committed line takes the stage track's place; D-02: a plan-changed line goes right under the track
               ...(tv.notCommitted === undefined
                 ? [Box({ flexDirection: 'row', columnGap: 1, children: tv.cells.map(cellBox) })]

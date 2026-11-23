@@ -608,3 +608,170 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
     ...(t.log === undefined ? {} : { log: logRows(t.log, now, room) }),
   };
 }
+
+// ---- Phase 08.8.1-07 L-01, L-02, L-03, L-04: each person's colours. The settings live in the mod's own `$.store` (probe row P3: persists), never in the repository. ----
+
+// Sketch 004's presets: each is one gradient used as a single system. `custom` is the person's own three colours (from, via, to).
+export const PALETTES = {
+  aurora: ['#e07a4f', '#f0907a', '#f08ca0', '#d98ad0', '#b49af2', '#8fb0f5', '#6cc7d9'],
+  ember: ['#ff7a45', '#ff5f6d', '#ff8c5a', '#ffb347', '#ffd36e'],
+  ocean: ['#3ec6e0', '#4f8ef7', '#7b6cf6', '#b58cf9'],
+  forest: ['#9be15d', '#46c98b', '#2bb3a3', '#5fc4d6'],
+  sunset: ['#ff9a8b', '#ff6a88', '#d66bd9', '#8f6bff'],
+  mono: ['#e07a4f', '#e8936f', '#c9ccd8', '#9ea2b5'],
+  contrast: ['#ffd400', '#ffffff', '#00e5ff'],
+};
+export const PALETTE_NAMES = [...Object.keys(PALETTES), 'custom'];
+
+// The places a colour goes, with the gradient position each takes (sketch 004's ROLES); the done tick, the waiting line and the failure have no position, they take a fixed colour per preset.
+export const PLACES = [
+  { key: 'title', label: 'title', at: 0 },
+  { key: 'stage', label: 'stage track', at: 0.15 },
+  { key: 'now', label: 'live line', at: 0.3 },
+  { key: 'agents', label: 'agents', at: 0.62 },
+  { key: 'bar', label: 'progress bar', at: 0.45 },
+  { key: 'criteria', label: 'criteria', at: 0.8 },
+  { key: 'log', label: 'log', at: 0.55 },
+  { key: 'tick', label: 'done tick' },
+  { key: 'wait', label: 'waiting for you' },
+  { key: 'fail', label: 'failure' },
+];
+
+export const MOTIONS = ['lively', 'mission', 'calm', 'off', 'mine'];
+
+export const EFFECTS = [
+  { key: 'shimmer', label: 'shimmer on the live line' },
+  { key: 'flow', label: 'flowing gradient title' },
+  { key: 'comet', label: 'comet progress bar' },
+  { key: 'eq', label: 'agent equalizer' },
+  { key: 'typing', label: 'typed log lines' },
+  { key: 'confetti', label: 'sparkles on a finished task' },
+  { key: 'roll', label: 'rolling counter' },
+  { key: 'ecg', label: 'heartbeat line' },
+  { key: 'train', label: 'train on the stage track' },
+  { key: 'orbit', label: 'orbiting agent marks' },
+  { key: 'ticker', label: 'scrolling log ticker' },
+  { key: 'breathe', label: 'breathing criteria' },
+];
+
+// The effects each motion level switches on (sketch 004's MOTIONS); `off` and `mine` start with none.
+export const PRESET_EFFECTS = {
+  lively: ['shimmer', 'flow', 'comet', 'eq', 'typing', 'confetti', 'roll', 'breathe'],
+  mission: ['ecg', 'train', 'orbit', 'ticker', 'confetti', 'roll', 'shimmer'],
+  calm: ['shimmer', 'roll'],
+  off: [],
+};
+const effectsOf = (level) => Object.fromEntries((PRESET_EFFECTS[level] ?? []).map((k) => [k, true]));
+
+// L-02 (Ruling): the pane's background for the contrast check; the mod API offers no theme getter, so this is sketch 004's own.
+export const BACKGROUND = '#0b0c10';
+
+// The colour of the places that take no gradient position, per preset (each contrast-checked against BACKGROUND by a test).
+export const FIXED = {
+  aurora: { tick: '#6fd39a', wait: '#e07a4f', fail: '#ff6b6b' },
+  ember: { tick: '#8fd694', wait: '#ffb347', fail: '#ff5f6d' },
+  ocean: { tick: '#5fd3a0', wait: '#7bd0f5', fail: '#ff6b7a' },
+  forest: { tick: '#9be15d', wait: '#f0c75e', fail: '#ff7a7a' },
+  sunset: { tick: '#7ee0b0', wait: '#ffb08a', fail: '#ff6a88' },
+  mono: { tick: '#9fd8b0', wait: '#e8936f', fail: '#ff7b7b' },
+  contrast: { tick: '#00ff88', wait: '#ffd400', fail: '#ff5252' },
+};
+const FIXED_PLACES = ['tick', 'wait', 'fail'];
+// the two places a person must always be able to see: a gate failure and a question waiting for them
+const MUST_SHOW = ['fail', 'wait'];
+
+// A colour is `#rrggbb` after trimming; the lower-case value comes back, anything else is undefined. Only this or the fixed tables above reach a Text.
+export function isHex(v) {
+  if (typeof v !== 'string') return undefined;
+  const t = v.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(t) ? t.toLowerCase() : undefined;
+}
+
+const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const toHex = (c) => '#' + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const channel = (v) => {
+  const c = v / 255;
+  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+const luminance = (hex) => {
+  const [r, g, b] = rgbOf(hex);
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+};
+
+// L-02 (Ruling): WCAG's contrast ratio of two `#rrggbb` colours, at least 3:1 (the figure for large and graphical text); anything that is no colour fails.
+export function contrastOk(fg, bg = BACKGROUND) {
+  const a = isHex(fg);
+  const b = isHex(bg);
+  if (a === undefined || b === undefined) return false;
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05) >= 3;
+}
+
+const defaults = () => ({ v: 1, palette: 'aurora', custom: ['#e07a4f', '#d98ad0', '#6cc7d9'], style: 'gradient', places: {}, motion: 'lively', effects: effectsOf('lively') });
+export const DEFAULT_SETTINGS = defaults();
+
+// L-03, L-04 (T-08.8.1-20): the stored value read field by field. Anything missing, from another version or hand-edited into something invalid reads as that field's default; a failure or waiting colour that is too faint reads as `auto` (absent).
+export function settingsOf(raw) {
+  const d = defaults();
+  if (!plain(raw) || raw.v !== 1) return d;
+  const places = {};
+  if (plain(raw.places)) {
+    for (const { key } of PLACES) {
+      const hex = Object.hasOwn(raw.places, key) ? isHex(raw.places[key]) : undefined;
+      if (hex !== undefined && (!MUST_SHOW.includes(key) || contrastOk(hex, BACKGROUND))) places[key] = hex;
+    }
+  }
+  const motion = MOTIONS.includes(raw.motion) ? raw.motion : d.motion;
+  const effects = plain(raw.effects) ? Object.fromEntries(EFFECTS.filter(({ key }) => Object.hasOwn(raw.effects, key) && raw.effects[key] === true).map(({ key }) => [key, true])) : effectsOf(motion);
+  return {
+    v: 1,
+    palette: PALETTE_NAMES.includes(raw.palette) ? raw.palette : d.palette,
+    custom: d.custom.map((own, i) => (Array.isArray(raw.custom) ? (isHex(raw.custom[i]) ?? own) : own)),
+    style: raw.style === 'gradient' || raw.style === 'solid' ? raw.style : d.style,
+    places,
+    motion,
+    effects,
+  };
+}
+
+// The colour stops of the person's palette.
+export const stopsOf = (settings) => (settings.palette === 'custom' ? settings.custom : PALETTES[settings.palette]);
+
+// The colour at position p of a gradient, wrapping at 1, mixed linearly between the stops.
+export function gradientAt(stops, p) {
+  const q = num(p) ? ((p % 1) + 1) % 1 : 0;
+  const x = q * (stops.length - 1);
+  const i = Math.floor(x);
+  const a = rgbOf(stops[i]);
+  const b = rgbOf(stops[Math.min(i + 1, stops.length - 1)]);
+  return toHex(a.map((v, k) => v + (b[k] - v) * (x - i)));
+}
+
+// One `{ ch, color }` per code point of text, the colours spread over the whole text from `offset`.
+export function gradientRun(text, stops, offset = 0) {
+  const chars = [...text];
+  return chars.map((ch, i) => ({ ch, color: gradientAt(stops, offset + i / chars.length) }));
+}
+
+// The colour of a place: the person's own `#rrggbb` first, else the fixed colour of the places that take no position, else the palette at the place's position (plus `p` with the gradient style).
+export function colorOf(place, settings, p) {
+  if (Object.hasOwn(settings.places, place)) return settings.places[place];
+  if (FIXED_PLACES.includes(place)) return (FIXED[settings.palette] ?? FIXED.aurora)[place];
+  const at = PLACES.find((x) => x.key === place)?.at ?? 0;
+  return gradientAt(stopsOf(settings), settings.style === 'gradient' ? at + (num(p) ? p : 0) : at);
+}
+
+// Probe row P4 (hex: drawn, 2026-11-23): a Text with `color: '#rrggbb'` validates on `terminal` and `desktop`, so a checked hex colour is drawn as it is. Probe row P5 (signals: none in the API): no terminal is told apart, so there is no named-colour branch.
+// Every coloured Text of the ticket tab passes its colour through here: only a `#rrggbb` gets through, anything else draws no colour (T-08.8.1-21).
+export const drawColor = (hex) => isHex(hex);
+
+// A text drawn in a place's colour: one `{ ch, color }` per code point, the gradient spread over the text; one colour when the person gave the place one, chose the solid style or the place is a fixed one.
+export function placeRun(place, text, settings, offset = 0) {
+  const own = Object.hasOwn(settings.places, place);
+  if (settings.style === 'gradient' && !own && !FIXED_PLACES.includes(place)) {
+    const at = PLACES.find((x) => x.key === place)?.at ?? 0;
+    return gradientRun(text, stopsOf(settings), at + offset).map(({ ch, color }) => ({ ch, color: drawColor(color) }));
+  }
+  const color = drawColor(colorOf(place, settings, offset));
+  return [...text].map((ch) => ({ ch, color }));
+}

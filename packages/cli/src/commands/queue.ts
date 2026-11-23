@@ -33,6 +33,22 @@ export function forgetRegistration(root: string, wt: string): void {
   }
 }
 
+/**
+ * The refusal text for a branch that already exists in this clone, or undefined when it does not. Phase 08.8 D-17: the delete hint is the repository's own
+ * (accord/product/conventions.md line 9), `git update-ref -d refs/heads/<branch> <sha>` with the sha read here, so a commit made after this check is never
+ * lost; a value that is not a 40 or 64 digit hash gets no command (as the audit's NO_COMMAND_TIP does). `nothing` is the command's closing phrase.
+ */
+export function existingBranchRefusal(root: string, branch: string, nothing: string): string | undefined {
+  let tip: string;
+  try {
+    tip = git(root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]).trim();
+  } catch {
+    return undefined;
+  }
+  const how = /^([0-9a-f]{40}|[0-9a-f]{64})$/.test(tip) ? `delete it with git update-ref -d refs/heads/${branch} ${tip}` : 'delete it by hand (its tip could not be read as a hash, so no command is printed)';
+  return `${branch} already exists in this clone - ${how}, then try again${nothing}`;
+}
+
 const listsKey = (people: Record<string, string> | undefined, key: string): boolean =>
   people !== undefined && Object.keys(people).some((k) => k.toLowerCase() === key.toLowerCase());
 
@@ -70,9 +86,8 @@ export function queueTicket(ctx: CommandContext, id: string, files: Record<strin
   if (onOrigin !== '') {
     throw new UsageError(`${branch} already exists on origin - pick another id, or delete it with git push origin --delete ${branch}, then try again` + NOTHING);
   }
-  if (gitOk(root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch])) {
-    throw new UsageError(`${branch} already exists in this clone - delete it with git branch -D ${branch}, then try again` + NOTHING);
-  }
+  const here = existingBranchRefusal(root, branch, NOTHING);
+  if (here !== undefined) throw new UsageError(here);
   for (const rel of rels) {
     if (gitOk(root, ['cat-file', '-e', `${ref}:${rel}`])) throw new UsageError(`${rel} already exists on ${short}` + NOTHING);
   }

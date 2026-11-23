@@ -1000,8 +1000,10 @@ it('risk:complex-branching keys 1 and 2 switch tabs a picked tab stays and the i
   expect(h.input()?.autoFocus).toBeUndefined();
   expect(marked(h)).toEqual([]);
   await h.fire('turn.complete', { reason: 'answer' });
-  await vi.waitFor(() => expect(h.inflight()).toBe(2));
+  // Phase 08.8.1 IN-03: the dashboard run settles first and the ticket's show follows it (it was two runs in flight at once before)
+  await vi.waitFor(() => expect(h.inflight()).toBe(1));
   h.settle({ stdout: claimed });
+  await vi.waitFor(() => expect(h.inflight()).toBe(1));
   h.settle({ stdout: JSON.stringify(detailOf({ title: 'Renamed' })) });
   await vi.waitFor(() => expect(h.inflight()).toBe(0));
   await new Promise((r) => setTimeout(r, 10));

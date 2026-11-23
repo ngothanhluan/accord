@@ -424,7 +424,7 @@ it('ac-2 search narrows the rows and each button runs its accord command', async
   });
   press(h, 'new-request');
   expect(h.$.command.run).toHaveBeenCalledTimes(1);
-  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'login' });
+  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'new request: login' }); // Phase 08.8 D-14 IN-04: behind the lead-in
   h.input()?.onSubmit('login', {});
   expect(h.$.command.run).toHaveBeenCalledTimes(1);
   h.type('st-2');

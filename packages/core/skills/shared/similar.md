@@ -10,7 +10,7 @@ Follow this before a ticket is created on the change and queue routes. The creat
 2. Run the creating command with `--title "<title>"`. It prints up to five `similar: <id> "<title>" (<status>)` lines, or `similar: none`, and the `title rule:` line. The title follows that line: the command refuses a title that breaks it and writes nothing, so reword the title as the line says and run the command again. With `similar: none` it has created the ticket: go on. With candidates it exits 2 and writes nothing.
 3. Read each candidate's title and status, open its ticket file when the title is not enough, and judge which really match the request: the same outcome wanted, not only shared words.
 4. On a match, ask the owner one question as `./ask.md` says, with three options and what each does:
-   - continue the existing ticket: `/accord continue <id>`, or `/accord pick-up <id>` for a ticket nobody has claimed;
+   - continue the existing ticket by asking to continue `<id>`, or to pick up `<id>` for a ticket nobody has claimed;
    - merge this request into it: add the request to that ticket as the existing-ticket route of `/accord` says;
    - create a new ticket linked to it: run the creating command again with `--related <id>`.
 5. On no match, run the creating command again with `--related none` and ask the owner nothing.

@@ -135,7 +135,8 @@ export function view(state, query, columns) {
     // Phase 08.7 D-10: a loaded dashboard that names no claimed ticket says so in one line
     ...(currentOf(state) === undefined ? { hint: HINT } : {}),
     ...(noMatch ? { noMatch } : {}),
-    ...(args ? { newRequest: { key: 'new-request', label: 'New request', command: 'accord', args } } : {}),
+    // Phase 08.8 D-14 IN-04: the lead-in matches no typed form of /accord, so search text such as `queue x` is routed by its meaning (route.md) and never runs a typed form
+    ...(args ? { newRequest: { key: 'new-request', label: 'New request', command: 'accord', args: 'new request: ' + args } } : {}),
   };
 }
 

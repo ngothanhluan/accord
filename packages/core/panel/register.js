@@ -495,8 +495,8 @@ export function register(on) {
     // Phase 08.8.1-07 L-03, L-02, L-01: the settings view. A field holds what its person typed until Enter; a refusal keeps the old value and says why under the row. `s` typed into a field is text: the pane has no key handler of its own.
     const settingsParts = () => {
       const sv = settingsView(settings);
-      const edit = (next) => {
-        settings = next;
+      const edit = (value) => {
+        settings = value;
         redrawNow();
       };
       const submit = (key, apply) => (text) => {

@@ -351,8 +351,12 @@ export function register(on) {
             borderColor: 'claude',
             children: [
               Text({ bold: true, wrap: 'truncate', children: [tv.title] }),
-              Box({ flexDirection: 'row', columnGap: 1, children: tv.cells.map(cellBox) }),
+              // Phase 08.8.1 D-05: the CLI's not-committed line takes the stage track's place; D-02: a plan-changed line goes right under the track
+              ...(tv.notCommitted === undefined
+                ? [Box({ flexDirection: 'row', columnGap: 1, children: tv.cells.map(cellBox) })]
+                : [Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.notCommitted] })]),
               ...(narrow && tv.current !== undefined ? [Text({ children: [tv.current] })] : []),
+              ...(tv.planChanged === undefined ? [] : [Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planChanged] })]),
             ],
           }),
         );

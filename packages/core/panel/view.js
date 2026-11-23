@@ -177,16 +177,38 @@ export function detailOutcome({ exitCode, stdout, stderr }) {
 }
 
 // Phase 08.7 D-04, D-07: the optional keys `review`, `log` and `stagesOff` are kept only when well formed, so a malformed one is drawn as absent and the base ticket still shows.
+// Phase 08.8.1 D-05, D-02: `warnings` is kept the same way, only its entries of the two kinds the CLI names, each with a string text.
 const num = (v) => typeof v === 'number' && Number.isFinite(v);
 const tallyOk = (t) => plain(t) && num(t.open) && num(t.fixed) && num(t.deferred);
 const roundOk = (r) => plain(r) && num(r.n) && plain(r.findings) && tallyOk(r.findings.Must) && tallyOk(r.findings.Should) && tallyOk(r.findings.Nice);
 const reviewOk = (r) => plain(r) && num(r.cycle) && num(r.round) && num(r.cap) && Array.isArray(r.rounds) && r.rounds.every(roundOk);
 const LOG_KINDS = ['commit', 'gate', 'report'];
 const logOk = (e) => plain(e) && num(e.at) && LOG_KINDS.includes(e.kind) && str(e.text);
+const WARNING_KINDS = ['not-committed', 'plan-changed'];
+const warningOk = (w) => plain(w) && WARNING_KINDS.includes(w.kind) && str(w.text);
 function optionalKeys(d) {
-  const { review, log, stagesOff, ...base } = d;
+  const { review, log, stagesOff, warnings, ...base } = d;
   const entries = Array.isArray(log) ? log.filter(logOk) : [];
-  return { ...base, ...(reviewOk(review) ? { review } : {}), ...(entries.length > 0 ? { log: entries } : {}), ...(strs(stagesOff) ? { stagesOff } : {}) };
+  const notes = Array.isArray(warnings) ? warnings.filter(warningOk) : [];
+  return {
+    ...base,
+    ...(reviewOk(review) ? { review } : {}),
+    ...(entries.length > 0 ? { log: entries } : {}),
+    ...(strs(stagesOff) ? { stagesOff } : {}),
+    ...(notes.length > 0 ? { warnings: notes } : {}),
+  };
+}
+
+// Phase 08.8.1 D-05, D-02: the text of the first warning of each kind, cleaned; the CLI wrote it, the pane only draws it.
+export function warningRows(warnings) {
+  const list = Array.isArray(warnings) ? warnings.filter(warningOk) : [];
+  const text = (kind) => {
+    const w = list.find((x) => x.kind === kind);
+    return w === undefined ? undefined : clean(w.text);
+  };
+  const notCommitted = text('not-committed');
+  const planChanged = text('plan-changed');
+  return { ...(notCommitted === undefined ? {} : { notCommitted }), ...(planChanged === undefined ? {} : { planChanged }) };
 }
 
 const orNone = (v) => (v === null || v === undefined || v === '' ? 'none' : v);
@@ -267,12 +289,14 @@ export function tabLabels({ state, ticket, running }) {
   const summary = d === undefined ? '' : `${rowCount(d.yours)} yours · ${rowCount(d.ready)} ready · ${rowCount(d.team)} team`;
   const t = ticket?.state?.ticket;
   const id = clean(ticket?.id ?? '');
-  const stage = t === undefined ? '' : clean(t.stage);
-  const review = t !== undefined && t.stage === 'review' && plain(t.review) && num(t.review.round) && num(t.review.cap) ? `r${t.review.round}/${t.review.cap}` : undefined;
+  // Phase 08.8.1 D-05: a ticket the CLI says is not committed shows `not tracked` where its stage word would be, and no stage colour
+  const untracked = t !== undefined && warningRows(t.warnings).notCommitted !== undefined;
+  const stage = t === undefined ? '' : untracked ? 'not tracked' : clean(t.stage);
+  const review = t !== undefined && !untracked && t.stage === 'review' && plain(t.review) && num(t.review.round) && num(t.review.cap) ? `r${t.review.round}/${t.review.cap}` : undefined;
   const agents = num(running) && running > 0 ? running : undefined;
   const newest = Array.isArray(t?.log) ? t.log[0] : undefined;
   const failed = plain(newest) && newest.fail === true;
-  const stageColor = t !== undefined && Object.hasOwn(STAGE_COLOR, t.stage) ? STAGE_COLOR[t.stage] : undefined;
+  const stageColor = t !== undefined && !untracked && Object.hasOwn(STAGE_COLOR, t.stage) ? STAGE_COLOR[t.stage] : undefined;
   const label = ['1 ticket', id, stage, review, agents === undefined ? '' : `◐${agents}`, failed ? 'gate failed' : ''].filter((p) => p).join(' ');
   return {
     ticket: {
@@ -391,13 +415,27 @@ export function ticketView({ ticket, now }) {
   if (s === undefined) return { message: ['Loading…'] };
   if (s.message !== undefined) return { message: s.message.split(NL).map(clean).filter((l) => l) };
   const t = s.ticket;
+  const failure = failureOf(t.log);
+  const warned = warningRows(t.warnings);
+  // Phase 08.8.1 D-05: a not-committed ticket draws no stage, task count, progress bar or task row (the CLI's count is read from files git does not hold); a block a later plan adds goes into the tracked branch only.
+  if (warned.notCommitted !== undefined) {
+    return {
+      title: clean(`${t.id} ${t.title}`),
+      notCommitted: warned.notCommitted,
+      ...(failure === undefined ? {} : { failure }),
+      ...(t.review === undefined ? {} : { review: reviewRows(t.review) }),
+      ...(t.criteria.length === 0 ? {} : { criteria: criteriaRows(t.criteria) }),
+      ...(t.log === undefined ? {} : { log: logRows(t.log, now) }),
+    };
+  }
   const cells = pipelineOf(t).map((c) => ({ ...c, text: clean(c.state === 'off' ? `${c.label} off` : c.label) }));
   const current = cells.find((c) => c.state === 'current');
-  const failure = failureOf(t.log);
   return {
     title: clean(`${t.id} ${t.title}`),
     cells,
     ...(current === undefined ? {} : { current: current.text }),
+    // Phase 08.8.1 D-02: a plan changed after its gate passed keeps the stage track and shows its warning under it
+    ...(warned.planChanged === undefined ? {} : { planChanged: warned.planChanged }),
     ...(failure === undefined ? {} : { failure }),
     ...(t.review === undefined ? {} : { review: reviewRows(t.review) }),
     ...(t.criteria.length === 0 ? {} : { criteria: criteriaRows(t.criteria) }),

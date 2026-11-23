@@ -333,13 +333,16 @@ function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
   }
 }
 
-/** The 1-based line of each id in accord/tests-baseline.txt as written (BOM and CRLF dropped), the first line holding it. */
-function baselineLines(root: string): Map<string, number> {
+/** The 1-based lines of each id in accord/tests-baseline.txt as written (BOM and CRLF dropped), every line holding it in file order (Phase 08.8 D-17 IN-03: a deleted id must go from all of them). */
+function baselineLines(root: string): Map<string, number[]> {
   const text = readFileSync(join(root, 'accord', 'tests-baseline.txt'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
-  const lines = new Map<string, number>();
+  const lines = new Map<string, number[]>();
   text.split('\n').forEach((l, i) => {
     const id = l.trim();
-    if (id !== '' && !lines.has(id)) lines.set(id, i + 1);
+    if (id === '') return;
+    const at = lines.get(id);
+    if (at === undefined) lines.set(id, [i + 1]);
+    else at.push(i + 1);
   });
   return lines;
 }
@@ -373,18 +376,19 @@ function auditBaseline(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
   }
   const found = removableBaseline(ctx.snapshot);
   if (found === undefined) return none(`${rel} was not found; run tests.full`);
-  facts.push({ name: 'tests-baseline', value: found.notJudged > 0 ? `${head}, ${found.notJudged} not judged: their files have no case in the report` : head });
+  const summary = found.notJudged > 0 ? `${head}, ${found.notJudged} not judged: their files have no case in the report` : head;
+  // Phase 08.8 D-17 (IN-01): the lines are read before the fact is pushed, so a read failure gives one fact that carries the summary and the failure, never two.
+  let at: Map<string, number[]>;
   try {
-    const at = baselineLines(ctx.root);
-    const listed = found.removable.flatMap((r) => {
-      const line = at.get(r.id);
-      return line === undefined ? [] : [{ id: r.id, why: r.why, line }];
-    });
-    const gap = baselineGap(listed, ids.length);
-    if (gap !== undefined) gaps.push(gap);
+    at = baselineLines(ctx.root);
   } catch (err) {
-    facts.push({ name: 'tests-baseline', value: `removable ones: not checked (accord/tests-baseline.txt could not be read: ${firstLine(err)})` });
+    facts.push({ name: 'tests-baseline', value: `${summary}; removable ones: not checked (accord/tests-baseline.txt could not be read: ${firstLine(err)})` });
+    return;
   }
+  facts.push({ name: 'tests-baseline', value: summary });
+  const listed = found.removable.flatMap((r) => (at.get(r.id) ?? []).map((line) => ({ id: r.id, why: r.why, line })));
+  const gap = baselineGap(listed, ids.length);
+  if (gap !== undefined) gaps.push(gap);
 }
 
 /** The group 3 facts and gaps (Rulings "group 3 facts, G1", "gap wording"). Every string goes through audit.ts's `fact()` and `gap()` closures, which make it printable. */
@@ -399,6 +403,9 @@ export async function auditHygiene(ctx: CommandContext): Promise<{ facts: AuditF
     facts.push({ name: 'work-ages', value: `not checked (${NOT_CHECKED})` });
     facts.push({ name: 'worktree-refs', value: `not checked (${NOT_CHECKED})` });
     facts.push({ name: 'deferred-marks', value: `not checked (${NOT_CHECKED})` });
+    // Phase 08.8 D-17 (IN-02): the two claim checks need the config too, so they are listed as not checked rather than left out
+    facts.push({ name: 'claim-unpushed', value: `not checked (${NOT_CHECKED})` });
+    facts.push({ name: 'claim-branches', value: `not checked (${NOT_CHECKED})` });
     auditBaseline(ctx, facts, gaps);
     return { facts, gaps };
   }

@@ -198,19 +198,32 @@ export const BASELINE_LISTED = 10;
 const WHY: Record<'test' | 'risk' | 'absent', string> = { test: 'named by @test:', risk: 'carries risk:', absent: 'not in the report' };
 
 /**
- * D-05, D-11: one `baseline-removable` gap for the baseline ids that can go, the first BASELINE_LISTED in line order, each with its 1-based line of accord/tests-baseline.txt and its reason, and the
- * fix that names those lines (deleting is allowed: the baseline only shrinks); `(+K more)` and "run accord audit again" when more were found than listed. Undefined for an empty list.
+ * D-05, D-11: one `baseline-removable` gap for the baseline ids that can go, the first BASELINE_LISTED ids in line order, each with its 1-based line of accord/tests-baseline.txt and its reason, and the
+ * fix that names those lines (deleting is allowed: the baseline only shrinks); `(+K more)` and "run accord audit again" when more ids were found than listed. Undefined for an empty list.
  * `total` is the number of ids in the baseline.
+ * Phase 08.8 D-17 (IN-03): `found` holds one entry per line, so an id written on two lines is listed with both and the fix names every one of them, highest line first: deleting them in that order never
+ * shifts a number still to be deleted, and no copy of the id stays behind.
  */
 export function baselineGap(found: readonly { id: string; why: 'test' | 'risk' | 'absent'; line: number }[], total: number): AuditGap | undefined {
   if (found.length === 0) return undefined;
-  const sorted = [...found].sort((a, b) => a.line - b.line);
-  const listed = sorted.slice(0, BASELINE_LISTED);
-  const more = sorted.length - listed.length;
-  const items = listed.map((f) => `${f.id} (line ${f.line}: ${WHY[f.why]})`).join(', ');
+  const byId = new Map<string, { why: 'test' | 'risk' | 'absent'; lines: number[] }>();
+  for (const f of [...found].sort((a, b) => a.line - b.line)) {
+    const entry = byId.get(f.id);
+    if (entry === undefined) byId.set(f.id, { why: f.why, lines: [f.line] });
+    else entry.lines.push(f.line);
+  }
+  const ids = [...byId.entries()];
+  const listed = ids.slice(0, BASELINE_LISTED);
+  const more = ids.length - listed.length;
+  const at = (lines: readonly number[]): string => {
+    const named = lines.map((n) => `line ${n}`);
+    return named.length < 2 ? named.join('') : `${named.slice(0, -1).join(', ')} and ${named[named.length - 1]}`;
+  };
+  const items = listed.map(([id, e]) => `${id} (${at(e.lines)}: ${WHY[e.why]})`).join(', ');
+  const bottomUp = listed.flatMap(([, e]) => e.lines).sort((a, b) => b - a);
   return {
     id: 'baseline-removable',
-    text: `${sorted.length} of ${total} ids in accord/tests-baseline.txt can be removed: ${items}${more > 0 ? `, (+${more} more)` : ''}`,
-    fix: `delete lines ${listed.map((f) => f.line).join(', ')} of accord/tests-baseline.txt (the baseline only shrinks, so deleting is allowed)${more > 0 ? '; run accord audit again for the rest' : ''}`,
+    text: `${ids.length} of ${total} ids in accord/tests-baseline.txt can be removed: ${items}${more > 0 ? `, (+${more} more)` : ''}`,
+    fix: `delete lines ${bottomUp.join(', ')} of accord/tests-baseline.txt, from the bottom up, (the baseline only shrinks, so deleting is allowed)${more > 0 ? '; run accord audit again for the rest' : ''}`,
   };
 }

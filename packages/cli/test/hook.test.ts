@@ -190,8 +190,9 @@ describe('accord hook', () => {
 
   // Phase 8.3 D-04: after /clear or compaction the resume hook names the accord file of the ticket's stage, from a fixed map and never from repository text.
   describe('after /clear the session names the file for the ticket stage', () => {
-    const line = (file: string): string => `stage file: ./${file} of the /accord skill; read it and go on at the step the anchor names`;
-    /** A claim branch of T-1 in a sandbox holding `extra`, the hook's output on it. */
+    // Phase 08.8 D-15: the line names the file's real path; `resumed` writes the sandbox's repository root as `<root>`, so the expected text is the same on every host.
+    const line = (file: string): string => `stage file: <root>/.claude/skills/accord/${file}, next to the /accord skill's SKILL.md; read it and go on at the step the anchor names`;
+    /** A claim branch of T-1 in a sandbox holding `extra`, the hook's output on it, with the repository root (git's own spelling) written as `<root>`. */
     async function resumed(extra: Record<string, string>, branch = 't/T-1'): Promise<string> {
       const repo = makeLaneRepo(extra);
       try {
@@ -199,7 +200,7 @@ describe('accord hook', () => {
         gitRun(repo, 'checkout', '-b', branch);
         const r = await run(['hook', 'session-resume'], repo);
         expect(r.code).toBe(0);
-        return r.out;
+        return r.out.split(gitRun(repo, 'rev-parse', '--show-toplevel').trim()).join('<root>');
       } finally {
         cleanup(repo);
       }
@@ -249,6 +250,23 @@ describe('accord hook', () => {
         expect(/^Stage: (\w+)/m.exec(out)?.[1], `${name}: the anchor prints its stage`).toBe(stage);
         expect(out.endsWith(line('verify.md') + '\n'), `${name} names ./verify.md`).toBe(true);
         expect(out.split('stage file:').length - 1, name).toBe(1);
+      }
+    }, 60_000);
+
+    // Phase 08.8 D-15: the live check searched ~/.claude for the relative name twice; the line now names `<repository root>/.claude/skills/accord/<file>` and says it sits next to SKILL.md.
+    it("risk:regression the stage file line names the file's real path next to the skill's SKILL.md (D-15)", async () => {
+      const repo = makeLaneRepo();
+      try {
+        commitAll(repo);
+        gitRun(repo, 'checkout', '-b', 't/T-1');
+        const root = gitRun(repo, 'rev-parse', '--show-toplevel').trim();
+        const r = await run(['hook', 'session-resume'], repo);
+        expect(r.code, r.err).toBe(0);
+        expect(/^Stage: (\w+)/m.exec(r.out)?.[1]).toBe('intent');
+        expect(r.out.endsWith(`stage file: ${root}/.claude/skills/accord/intent.md, next to the /accord skill's SKILL.md; read it and go on at the step the anchor names\n`)).toBe(true);
+        expect(r.out, 'a forward-slash path, never a backslash').not.toMatch(/stage file: [^\n]*\\/);
+      } finally {
+        cleanup(repo);
       }
     }, 60_000);
   });

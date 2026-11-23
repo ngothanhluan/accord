@@ -1546,3 +1546,62 @@ it("risk:security the panel's ticket id pattern is core's SAFE_ID (D-17)", () =>
   expect(literal?.[1]).toBe(SAFE_ID.source);
   expect(literal?.[2]).toBe(SAFE_ID.flags);
 });
+
+// ---- Phase 08.8.1-04: the ticket tab draws the CLI's warnings, the verifier's result and the newest gate run ----
+
+const NOT_COMMITTED = 'accord/ is not committed in this repository: git ignores accord/tickets/ST-1/plan.md, so accord cannot track the stage or the tasks';
+const PLAN_CHANGED = 'plan.md changed after accord gate plan passed: run accord gate plan again before building on it';
+const planTasks = [1, 2, 3].map((n) => ({ n, title: `Plan task ${n}`, done: false, covers: ['ac-1'] }));
+const ticketOf = async (over: Record<string, unknown>): Promise<{ view: any; mod: Record<string, any> }> => {
+  const mod = await loadView();
+  const got = mod.detailOutcome({ exitCode: 0, stdout: JSON.stringify(detailOf(over)), stderr: '' });
+  return { mod, view: mod.ticketView({ ticket: { id: 'ST-1', state: got }, now: 100 }) };
+};
+
+// Phase 08.8.1 D-05 D-02: a not-committed warning takes the stage track's place with no count, bar or task row; a plan-changed warning shows under the held stage.
+it('risk:complex-branching a not-committed warning replaces the stage track and a plan-changed warning shows under it (D-05 D-02)', async () => {
+  const csa = { stage: 'plan', tasksDone: 0, tasksTotal: 3, tasks: planTasks, warnings: [{ kind: 'not-committed', text: NOT_COMMITTED }] };
+  const h = await paneWith(csa);
+  const t = h.texts();
+  expect(t).toContain(NOT_COMMITTED);
+  expect(h.cell(NOT_COMMITTED).text).toMatchObject({ bold: true, color: 'warning' });
+  expect(t).not.toContain('plan');
+  expect(t.some((x) => x.startsWith('build '))).toBe(false);
+  expect(t.some((x) => /0\/3|0 of 3/.test(x))).toBe(false);
+  expect(t.some((x) => x.startsWith('Plan task'))).toBe(false);
+  expect(t).toContain('ST-1 Login form');
+  expect(tabs(h)['tab:ticket'].label).toBe('1 ticket ST-1 not tracked');
+  const { view: nc } = await ticketOf(csa);
+  const keys = Object.keys(nc);
+  expect(keys).toEqual(expect.arrayContaining(['title', 'notCommitted']));
+  for (const k of keys) expect(['title', 'notCommitted', 'failure', 'review', 'criteria', 'log']).toContain(k);
+  expect(nc.notCommitted).toBe(NOT_COMMITTED);
+  const held = await paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3, warnings: [{ kind: 'plan-changed', text: PLAN_CHANGED }] });
+  const ht = held.texts();
+  expect(ht).toContain('build 1/3');
+  expect(ht).toContain(PLAN_CHANGED);
+  expect(held.cell(PLAN_CHANGED).text).toMatchObject({ bold: true, color: 'warning', wrap: 'wrap' });
+  expect(ht.indexOf(PLAN_CHANGED)).toBeGreaterThan(ht.indexOf('build 1/3'));
+  const { view: pc } = await ticketOf({ warnings: [{ kind: 'plan-changed', text: PLAN_CHANGED }] });
+  expect(pc.planChanged).toBe(PLAN_CHANGED);
+  expect(pc.notCommitted).toBeUndefined();
+  expect(pc.cells.length).toBeGreaterThan(0);
+  // an unknown kind, a non-string text and a non-array `warnings` are drawn as absent; the rest of the ticket shows
+  for (const warnings of [[{ kind: 'mystery', text: 'x' }], [{ kind: 'not-committed', text: 7 }], 'oops', { kind: 'not-committed', text: 'x' }, [null, 3]]) {
+    const odd = await paneWith({ stage: 'build', warnings });
+    expect(odd.texts()).toContain('build 1/3');
+    expect(odd.texts()).toContain('CRITERIA');
+    expect(tabs(odd)['tab:ticket'].label).toBe('1 ticket ST-1 build');
+  }
+});
+
+// Phase 08.8.1 D-05: a warning text is cleaned like every other string that reaches the pane.
+it('risk:security a warning text cannot put control characters into the pane (D-05)', async () => {
+  const h = await paneWith({ warnings: [{ kind: 'not-committed', text: 'bad‮\u0007text' }] });
+  expect(h.texts()).toContain('bad text');
+  const g = await paneWith({ warnings: [{ kind: 'plan-changed', text: 'ev⁦il\u0007plan' }] });
+  expect(g.texts()).toContain('ev il plan');
+  const bad = (c: number): boolean =>
+    c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x61c || c === 0x200e || c === 0x200f || c === 0x2028 || c === 0x2029 || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
+  for (const s of [...h.texts(), ...g.texts()]) for (const ch of s) expect(bad(ch.codePointAt(0) as number)).toBe(false);
+});

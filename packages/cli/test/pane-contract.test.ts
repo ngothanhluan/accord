@@ -1,14 +1,15 @@
 // Phase 08.7 D-02, D-10: the contract between the CLI's JSON and the pane's view. The real CLI runs in a claimed sandbox, and the real generated view.js reads what it printed.
 /* eslint-disable @typescript-eslint/no-explicit-any -- the generated view.js is an untyped module */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { pluginTargets } from '@accord-dev/accord-core';
 import { afterEach, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
-import { cleanup, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { laneTicket } from '../../../test/helpers/lane.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { approve, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 import { v2Review } from '../../../test/helpers/review-v2.js';
 
 const dirs: string[] = [];
@@ -118,6 +119,38 @@ it('risk:regression the dashboard tab draws a bar for every real dashboard row (
     expect(epics?.rows.length).toBeGreaterThanOrEqual(1);
     for (const row of epics.rows) expect(row.progress).toEqual({ label: row.id + ' children done', value: expect.any(Number), max: expect.any(Number), valueText: expect.stringMatching(/^\d+\/\d+ done$/) });
     expect(shown.widths.bar).toBeGreaterThanOrEqual(1);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8.1-04 D-05 L-05: CSA-185's shape through the real CLI and the real view: accord/ is git-ignored, the json still counts three open tasks, and the pane draws the warning and no count.
+it('risk:regression the pane draws the real cli warning and no stage or task count for a repository that ignores accord (D-05 L-05)', async () => {
+  const files: Files = { [P('T-1')]: laneTicket('T-1') };
+  approve(files, 'T-1');
+  const repo = makeLaneRepo({
+    ...files,
+    'accord/tickets/T-1/plan.md': PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv (@ac-1)\nafter: 2\nDocument the csv mode.\n',
+  });
+  try {
+    commitAll(repo, 'plan: T-1 ready');
+    appendFileSync(join(repo, '.git', 'info', 'exclude'), 'accord/\n');
+    gitRun(repo, 'rm', '-r', '-q', '--cached', 'accord');
+    commitMsg(repo, 'chore: stop tracking accord');
+    const show = await run(['show', 'T-1', '--json'], repo);
+    expect(show.code).toBe(0);
+    const json = JSON.parse(show.out);
+    expect(json.warnings[0].kind).toBe('not-committed');
+    expect([json.tasksTotal, json.tasksDone, json.tasks.length]).toEqual([3, 0, 3]);
+    const { detailOutcome, ticketView } = await loadView();
+    const got = detailOutcome({ exitCode: 0, stdout: show.out, stderr: '' });
+    expect(got.ticket).toBeDefined();
+    const shown = ticketView({ ticket: { id: 'T-1', state: got }, now: Math.floor(Date.now() / 1000) });
+    expect(shown.notCommitted).toBe(json.warnings[0].text);
+    for (const key of ['cells', 'current', 'tasks', 'progress', 'now']) expect(Object.hasOwn(shown, key), key).toBe(false);
+    const text = JSON.stringify(shown);
+    expect(text).not.toContain('0/3');
+    expect(text).not.toContain('0 of 3');
   } finally {
     cleanup(repo);
   }

@@ -4,6 +4,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
+import { skillTargets } from '../src/index.js';
+import type { AccordConfig } from '../src/index.js';
 
 const skillsDir = fileURLToPath(new URL('../skills/', import.meta.url));
 
@@ -69,4 +71,33 @@ it('risk:regression every gh pr create site in the skill sources is a D-02 site 
   expect([...listed].filter((path) => !found.has(path)).sort()).toEqual([]);
   // each fixed-body site equals its expected line exactly: neither the fill flag nor an inline body of its own can appear there unseen
   for (const [path, expected] of Object.entries(EXEMPT)) expect(found.get(path)?.lines, `${path} changed`).toEqual([expected]);
+});
+
+// Phase 08.8 D-16 (item 6): the path `accord pr` prints can hold a space, so every `--body-file` a skill writes is followed by a double-quoted path, in the sources and in every rendered copy.
+it('risk:security every body file a skill passes to gh is quoted (D-16)', () => {
+  const flat = (text: string): string => text.replace(/\s+/g, ' ');
+  const unquoted = (text: string): string[] => [...flat(text).matchAll(/--body-file(?! "[^"]+")[^ ]*(?: \S+)?/g)].map((m) => m[0]);
+  const bad: string[] = [];
+  let seen = 0;
+  const sources = readdirSync(skillsDir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile());
+  expect(sources.length, 'nothing was scanned').toBeGreaterThan(0);
+  for (const e of sources) {
+    const path = relative(skillsDir, join(e.parentPath, e.name)).split(sep).join('/');
+    const text = readFileSync(join(e.parentPath, e.name), 'utf8');
+    seen += flat(text).split('--body-file').length - 1;
+    for (const hit of unquoted(text)) bad.push(`source ${path}: ${hit}`);
+  }
+  // the five sites the UAT named each hold a quoted body file, so a rename cannot empty the scan
+  for (const path of [...FOLLOW, 'review-pr/SKILL.md']) {
+    if (!flat(readFileSync(join(skillsDir, path), 'utf8')).includes('--body-file "')) bad.push(`source ${path}: holds no quoted --body-file`);
+  }
+  expect(seen, 'no source holds a --body-file').toBeGreaterThanOrEqual(5);
+  const rendered = skillTargets({ accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev', 'review-pr'], runtimes: ['claude', 'cursor', 'codex', 'copilot'] } as AccordConfig);
+  let renderedSeen = 0;
+  for (const file of rendered) {
+    renderedSeen += flat(file.text).split('--body-file').length - 1;
+    for (const hit of unquoted(file.text)) bad.push(`rendered ${file.path}: ${hit}`);
+  }
+  expect(renderedSeen, 'no rendered copy holds a --body-file').toBeGreaterThanOrEqual(5);
+  expect(bad).toEqual([]);
 });

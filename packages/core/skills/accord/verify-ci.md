@@ -24,7 +24,7 @@ reported as CI not checked, with the reason.
    checked, with its message; skip the rest of Start. Write each section a
    `remaining:` line names into the body file it printed, from what the
    ticket did and nothing more. Then run
-   `gh pr create --draft --title "<title>" --body-file <body-file>`
+   `gh pr create --draft --title "<title>" --body-file "<body-file>"`
    with the `title:` and `body-file:` lines it printed. A pull
    request already open is left as it is. Never merge it: merging waits
    for the owner.

@@ -157,3 +157,25 @@ it('risk:regression the audit skill\'s deferred route holds for every lane (D-10
   }
   expect(bad).toEqual([]);
 });
+
+// Phase 08.8 D-16 (items 3 and 4): the draft asks for a breaking example only when something breaks the line, names an `enforced by:` rule id only when the linter turns it on, and asks with options and a recommended one first.
+it('risk:regression the draft asks for breaking examples only when there are any and names only real rule ids (D-16)', () => {
+  const draft = flat(skills['audit/draft.md' as SkillKey] ?? '');
+  expect(draft).not.toBe('');
+  const at = (n: number): string => draft.slice(draft.indexOf(`${n}. `), draft.indexOf(`${n + 1}. `));
+  const [s3, s4, s5] = [at(3), at(4), at(5)];
+  expect(s3, 'step 3 not found').toContain('Propose');
+  expect(s4, 'step 4 not found').toContain('`enforced by:`');
+  expect(s5, 'step 5 not found').toContain('one line at a time');
+  // step 3: a breaking `file:line` only when the count of breaking files is above zero
+  expect(s3).toContain('only when the count of breaking files is more than zero');
+  expect(s3).toContain('`file:line`');
+  // step 4: a rule id only from the `linter-rules` fact of step 1, else prose
+  expect(s4).toContain('only when that id is in the `linter-rules` fact read in step 1');
+  expect(s4).toContain('Otherwise write `prose`');
+  // step 5: ask.md's three rules and options, the recommended one first
+  expect(s5).toContain('in plain chat, the recommended answer first, every id glossed');
+  expect(s5).toContain('options with the recommended one first');
+  expect(s5).toContain('yes (recommended when the evidence holds)');
+  expect(s5).toContain('an edited line');
+});

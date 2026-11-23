@@ -19,6 +19,8 @@ function reviewedRepo(): string {
   const files: Record<string, string> = {
     'accord/config.yml': CONFIG,
     [P('S-1')]: laneTicket('S-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' }),
+    // Phase 08.8 D-07: a mark counts only for a ticket that exists, so the ticket a mark below names is in the base commit
+    [P('ST-9')]: laneTicket('ST-9', { lane: 'S', body: LANE_S_BODY }),
     'src/a.ts': 'a\n',
     [REPORT]: junit({ 'a#b': 'passed' }),
   };
@@ -117,6 +119,24 @@ it('risk:regression accord deferred hides marked items and gate done passes with
     // an ASCII arrow is not a mark: the item is asked about again
     writeFiles(repo, { [LEDGER]: DEFERRED_LEDGER.replace('(Must)', '(Must) -> declined') });
     expect((await run(['deferred', 'S-1'], repo)).out).toContain('Must: review 1.3');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8 D-07: a team whose ticket ids are bare numbers can mark a deferred item queued; a prose arrow that names no ticket stays listed.
+it('risk:regression accord deferred hides an item marked to a bare-number ticket and lists a prose arrow (D-07)', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      [P('42')]: laneTicket('42', { lane: 'S', body: LANE_S_BODY }),
+      [P('T-1')]: laneTicket('T-1', { lane: 'S', body: LANE_S_BODY }),
+      'accord/tickets/T-1/ledger.md': ['## Deferred', '- (Must) the export drops a comma → 42', '- (Must) the version moved 0.9 → 0.10', ''].join('\n'),
+    });
+    const r = await run(['deferred', 'T-1'], repo);
+    expect(r.code, r.err).toBe(0);
+    expect(r.out).toBe('Must: (Must) the version moved 0.9 → 0.10\n');
   } finally {
     cleanup(repo);
   }

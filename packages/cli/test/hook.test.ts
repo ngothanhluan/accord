@@ -97,7 +97,8 @@ describe('accord hook', () => {
       expect(readdirSync(own)).toEqual(before);
 
       // an open episode: the line follows the session line, names the file and holds none of its text
-      mkdirSync(folder, { recursive: true });
+      // Phase 08.8 D-14: the hook reads only through the folder check, so the folder is made 0700 as `accord debug path` makes it (a default mkdir reads 0755 and is refused)
+      mkdirSync(folder, { recursive: true, mode: 0o700 });
       writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
       const open = await resume();
       expect(open.endsWith(unfinished), 'the line closes the output').toBe(true);

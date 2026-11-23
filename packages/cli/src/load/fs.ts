@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
 import type { BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitStartFailure, runGitSync } from './git-spawn.js';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
@@ -1929,8 +1929,8 @@ export function withDefaultRef(root: string, snapshot: RepoSnapshot, known?: Def
   return { ...snapshot, defaultRef: { ref, snapshot: snapshotAt(root, ref, [...ids]) } };
 }
 
-/** The ticket id shape every id of accord/tickets/ has (the same as ticket-shared.ts ID). */
-const QUEUED_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** The ticket id shape every id of accord/tickets/ has: core's one id shape (Phase 08.8 D-17 IN-04). */
+const QUEUED_ID = SAFE_ID;
 
 /** ST-LN-16: every remote-tracking ref with its sha, one line each; a change between two reads means a fetch moved something. undefined when git could not say. */
 export function remoteRefs(root: string): string | undefined {

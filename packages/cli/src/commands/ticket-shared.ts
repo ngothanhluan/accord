@@ -3,15 +3,14 @@
 // out of new-ticket.ts unchanged so split.ts can use them without importing new-ticket.ts, which imports split.ts.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_PATTERN, initialsHolder, initialsOnRefs, loadSnapshot, similarTickets, ticketFacts } from '@accord-dev/accord-core';
+import { DEFAULT_PATTERN, initialsHolder, initialsOnRefs, loadSnapshot, SAFE_ID, similarTickets, ticketFacts } from '@accord-dev/accord-core';
 import { doneRef, gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, loadRefInput, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 
 export type Snapshot = CommandContext['snapshot'];
 
-// The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json). Duplicated as a
-// literal rather than read out of the schema so it is visible at the one call site that matters.
-export const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json), written once in core (`LEGACY_ID`, exported as `SAFE_ID`; Phase 08.8 D-17 IN-04).
+export const ID = SAFE_ID;
 export const PLACEHOLDER = 'TICKET-ID';
 
 /** The default branch as the clone holds it, read from git with no checkout, for the tickets a working tree may not have yet (`accord related` reads it too). */

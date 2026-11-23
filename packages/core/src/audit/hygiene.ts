@@ -1,12 +1,13 @@
 // Phase 8.2 group 3 (work hygiene, D-01..D-06, D-10): the gaps `accord audit` prints about claimed tickets that went quiet, drafts nobody touched, and deferred items nobody decided. Pure: no node import, no
 // filesystem, no git; the CLI hands it rows and ages it already read, and the function that shows a person (D-08).
+import { LEGACY_ID } from '../lint/ids.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import type { StatusRow } from '../status/rows.js';
 import type { OwnerDeferred } from '../tickets/deferred.js';
 import type { AuditGap } from './conventions.js';
 
-/** The ticket id shape a command may be printed for: the same as the CLI's `ID` (packages/cli/src/commands/worktree.ts) and the panel's SAFE_ID. Ruling "ids in fix commands". */
-export const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** The ticket id shape a command may be printed for: the one id shape of lint (`LEGACY_ID`), also the CLI's `ID` and `QUEUED_ID` and held equal to the panel's copy by a test (Phase 08.8 D-17 IN-04). Ruling "ids in fix commands". */
+export const SAFE_ID = LEGACY_ID;
 
 /** The branch name shape a command may be printed for, and a git argument built from (Ruling "ids in fix commands"). */
 export const SAFE_BRANCH = /^[A-Za-z0-9._/-]+$/;

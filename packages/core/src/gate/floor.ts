@@ -1,9 +1,10 @@
 // ST-LN-50 D-01, D-08, D-09, GATE-06: the one list that says which rules a team may lower. Every gate and lint rule id is in exactly one class:
 //   LOCKED      the floor: intent and acceptance criteria before code, independent verification before done, the security and data-loss rules, and the
 //               integrity of the ruleset, the lane and the config. No key lowers or turns off a LOCKED rule, and none raises it either: each is an error already.
+//               The security review is on the floor for every lane M, L and P ticket (`gate.security-unreviewed`): read from the rounds of review.md while the review stage
+//               runs, and from the `## Security` line of the ticket's ledger when `strictness.stages.<lane>.review` is off (Phase 08.8 D-03, D-04).
 //   STAGE_OWNED belongs to discuss, approach, plan or review. It takes no level; it leaves only with its stage switch (`strictness.stages`), so `status` always
-//               names what is off. `gate.security-unreviewed` is one of them (STAGE_OF: review), not LOCKED: it reads the review record, so switching the review
-//               stage off (`strictness.stages.<lane>.review: off`) removes the security review of a lane M, L or P ticket. Decided and documented in Phase 8 (D-24).
+//               names what is off.
 //   OVERRIDABLE its level may be set to error, warning or off with `strictness.levels.<rule id>`. The three Ready-promoted hygiene rules (NO_OFF) take error or
 //               warning, never off, because Ready blocks on them.
 // A rule added to a table without a class here fails packages/core/test/strictness.test.ts, and that test names the LOCKED list as a literal, so a change to the

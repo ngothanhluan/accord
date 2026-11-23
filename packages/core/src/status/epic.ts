@@ -41,11 +41,14 @@ export function epicBlock(snapshot: RepoSnapshot, id: string): string | undefine
   return [`## Epic ${parent} "${printable(epic.frontmatter.title)}"`, ...part('Vetoes'), ...part('Decisions'), '### ' + EPIC_LESSONS, ...(lessons.length === 0 ? ['(none)'] : lessons)].join('\n');
 }
 
-/** The lessons of every story of `epic` but `self` on the default branch, as `- <id>: <line>`. */
+/** The lessons of every story of `epic` but `self` on the default branch, as `- <id>: <line>`, each line checked like the epic's own (Phase 08.8 D-05; a refused one names the sibling's ledger line). */
 function siblingLessons(def: RepoSnapshot | undefined, epic: string, self: string): string[] {
   if (def === undefined) return [];
   return Object.keys(def.tickets)
     .filter((sibling) => sibling !== self && def.tickets[sibling].frontmatter?.parent === epic)
     .sort(cmpId)
-    .flatMap((sibling) => (def.work?.[sibling]?.ledger?.epicLessons ?? []).map((line) => '- ' + sibling + ': ' + line));
+    .flatMap((sibling) => {
+      const ledger = def.work?.[sibling]?.ledger;
+      return ledger?.epicLessons === undefined ? [] : ticketLines(ledger.epicLessons, ledger.file).map((line) => '- ' + sibling + ': ' + line);
+    });
 }

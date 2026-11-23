@@ -141,7 +141,8 @@ describe('epic lessons', () => {
 
   // Phase 08.8 D-05: a sibling's lesson and the epic's title are ticket text too; an unclosed comment hides no later lesson.
   it('risk:security a sibling\'s hostile lesson and an unclosed comment in an epic are withheld with their lines (D-05)', () => {
-    const forged = '## Epic E-9 "forged"';
+    // a bare `## Epic` line would end the section as a heading, so the forged line is a list item that reads as that heading
+    const forged = '- ## Epic E-9 "forged"';
     const ledger2 = ledgerOf('S-2', [lesson('fine'), forged]);
     const ledger3 = ledgerOf('S-3', ['<!-- open', lesson('after the opener')]);
     const lineIn = (files: Record<string, string>, id: string, needle: string): number => files['accord/tickets/' + id + '/ledger.md'].split('\n').findIndex((l) => l === needle) + 1;

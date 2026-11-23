@@ -72,7 +72,7 @@ export const NO_DEFAULT_REF_LINE = "(the default branch could not be read in thi
 /** D-08: what stands in the place of a changed line that breaks a delivery rule; it never quotes the line. */
 export const CHANGED_WITHHELD_LINE = `(accord withheld a changed line of ${CONVENTIONS_FILE}: it breaks a delivery rule; run accord lint)`;
 
-/** The related tickets of one ticket: the lines `relatedParts` builds under `# Related tickets of <id>`. Ticket text, passed through unchecked (R-12, accepted as D-32). */
+/** The related tickets of one ticket: the lines `relatedParts` builds under `# Related tickets of <id>`. Ticket text, line-checked by `ticketLines` at TICKET_MAX_LINE inside `relatedParts` (R-12, Phase 08.8 D-05). */
 export interface RelatedParts {
   id: string;
   lines: string[];
@@ -81,7 +81,7 @@ export interface RelatedParts {
 export interface ProductInputs {
   ruleset?: string;
   related?: RelatedParts;
-  /** The epic block exactly as `epicBlock` builds it: ticket text, unchecked (R-12). */
+  /** The epic block exactly as `epicBlock` builds it: ticket text, line-checked by `ticketLines` at TICKET_MAX_LINE where `epicBlock` builds it (R-12, Phase 08.8 D-05, D-06). */
   epic?: string;
   conventions?: ProductRead;
   changed?: ProductChange;

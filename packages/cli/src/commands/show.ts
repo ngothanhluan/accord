@@ -88,7 +88,7 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
   // Phase 8.2 D-07, D-08: the Holder line shows the person through the one display function; the JSON keeps `holder` the email and adds `holderShown` beside it in initials mode only.
   const who = whoFor(ctx.root, ctx.snapshot.config);
   // Phase 08.7 D-04: the session log (commits, agent reports, gate runs) is read for the JSON only; the text output never reads it (D-09). Each text is cleaned as the text output cleans a line.
-  const log = options.json === true ? ticketLog(ctx.root, id).map((e) => ({ ...e, text: clean(e.text) })) : [];
+  const log = options.json === true ? ticketLog(ctx.root, id, ctx.snapshot.defaultRef?.ref).map((e) => ({ ...e, text: clean(e.text) })) : [];
   // Phase 08.8.1 D-05, D-02: a warning text carries a ticket key and a record path, cleaned as every other string the JSON holds.
   // Phase 08.8.1 L-06, L-07: so do the plan's task titles, which a teammate or an agent wrote (T-08.8.1-08); each key keeps its place.
   const warned: TicketDetail = {

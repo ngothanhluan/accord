@@ -9,7 +9,7 @@ import { SAFE_ID } from '@accord-dev/accord-core';
 import type { GateResult, TicketLogEntry } from '@accord-dev/accord-core';
 import { assertNoLink } from '../guard.js';
 import { MAX_REPORTS } from './fix-reports.js';
-import { gitDefaultRef, UsageError } from './fs.js';
+import { doneRef, UsageError } from './fs.js';
 import { REPORT_DIR } from './report.js';
 
 /** T-08.7-05: the log holds at most this many entries, newest first. */
@@ -28,10 +28,11 @@ const REPORT_NAME = /^(task|fix)-([1-9][0-9]{0,8})\.md$/;
 /**
  * The commits since the default branch that touch the ticket's file or folder, newest first, as `{ at, kind: 'commit', text }` (`at` the committer time in epoch seconds, `text` the subject).
  * An id that is no safe id, no default ref or any git failure gives none. T-08.7-04: an argv array, no shell, literal pathspecs, the id checked first.
+ * Phase 08.8.1 W1: the ref is `known`, the default ref the caller's load already resolved (no git spawn), else `doneRef`: origin's, and in a clone with no `origin` remote the local main or master.
  */
-export function ticketCommits(root: string, id: string): TicketLogEntry[] {
+export function ticketCommits(root: string, id: string, known?: string): TicketLogEntry[] {
   if (!SAFE_ID.test(id)) return [];
-  const ref = gitDefaultRef(root);
+  const ref = known ?? doneRef(root);
   if (ref === undefined) return [];
   let raw: string;
   try {
@@ -148,7 +149,18 @@ export function appendGateRun(root: string, id: string, result: GateResult, at: 
   appendFileSync(join(root, ...rel.split('/')), `${at}\t${result.gate}\t${result.verdict}\t${gateReason(result)}\n`, 'utf8');
 }
 
-/** The ticket's session log: its gate runs, agent reports and commits, newest first, at most LOG_CAP; on equal `at` a gate run comes first, then a report, then a commit. */
-export function ticketLog(root: string, id: string): TicketLogEntry[] {
-  return [...readGateRuns(root, id), ...ticketReports(root, id), ...ticketCommits(root, id)].sort((a, b) => b.at - a.at).slice(0, LOG_CAP);
+/**
+ * The ticket's session log: its gate runs, agent reports and commits, newest first, at most LOG_CAP; on equal `at` a gate run comes first, then a report, then a commit.
+ * Phase 08.8.1 W2: the log is display only, so it never fails the command that shows it: a reader that throws (a report folder or gate log the process cannot read, a file locked by another program) adds no entries and the
+ * others still list. `known` is the default ref the caller's load resolved, handed to the commit reader (W1).
+ */
+export function ticketLog(root: string, id: string, known?: string): TicketLogEntry[] {
+  const safe = (read: () => TicketLogEntry[]): TicketLogEntry[] => {
+    try {
+      return read();
+    } catch {
+      return [];
+    }
+  };
+  return [...safe(() => readGateRuns(root, id)), ...safe(() => ticketReports(root, id)), ...safe(() => ticketCommits(root, id, known))].sort((a, b) => b.at - a.at).slice(0, LOG_CAP);
 }

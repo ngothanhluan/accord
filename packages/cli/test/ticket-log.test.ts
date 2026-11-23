@@ -1,6 +1,6 @@
 // Phase 08.7 D-02, D-04, A-03: `accord show <id> --json` carries the ticket's session log `log`: its commits since the default branch, its executor and fix reports by name and time
 // (never their text), and each `accord gate` run from the git-ignored gate log. The CLI is the one source; no gate reads the record; the text output stays as it was (D-09).
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -242,6 +242,76 @@ it('risk:complex-branching a gate for an unknown ticket writes no gate log and a
     const again = await run(['gate', 'ready', 'T-1'], repo);
     expect(again.code).toBe(0);
     expect(again.err).toBe('');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8.1 W1 (08.7 review WR-01): a clone with no `origin` remote reads its commits against the local main, so the log of a ticket on its branch lists them; on main itself it lists none.
+it('risk:regression a clone without origin lists the branch commits of the ticket against the local main (W1)', async () => {
+  const repo = makeLaneRepo();
+  try {
+    commitMsg(repo, 'chore: base', T1);
+    gitRun(repo, 'branch', '-M', 'main');
+    expect(gitRun(repo, 'remote').trim()).toBe('');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(repo, { 'accord/tickets/T-1.md': readTicket(repo) + '\n<!-- claim -->\n' });
+    commitMsg(repo, 'claim: T-1', T1);
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': readPlan(repo) + '\n<!-- plan -->\n' });
+    commitMsg(repo, 'plan: T-1 ready', T2);
+    writeFiles(repo, { 'src/export.ts': 'export const write = 2;\n' });
+    commitMsg(repo, 'chore: src', T3);
+    const { code, out } = await run(['show', 'T-1', '--json'], repo);
+    expect(code).toBe(0);
+    expect(logOf(out)).toEqual([
+      { at: secs(T2), kind: 'commit', text: 'plan: T-1 ready' },
+      { at: secs(T1), kind: 'commit', text: 'claim: T-1' },
+    ]);
+    gitRun(repo, 'switch', '-q', 'main');
+    expect(logOf((await run(['show', 'T-1', '--json'], repo)).out)).toBeUndefined();
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8.1 W2 (08.7 review WR-02): the log is display only, so a report folder or gate log the process cannot read leaves the log without those entries and the ticket is still shown. Needs a mode 000 folder: not on Windows, not as root.
+it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('risk:regression an unreadable report folder and gate log leave the log without them and show json still exits 0 (W2)', async () => {
+  const repo = threeCommits();
+  const dir = join(repo, '.accord-reports', 'T-1');
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(repo, '.accord-reports', '.gitignore'), '*\n');
+    writeFileSync(join(dir, 'task-1.md'), 'text\n');
+    writeFileSync(join(dir, 'gate.log'), '1700000000\tdone\tpass\t\n');
+    chmodSync(dir, 0o000);
+    const { code, out } = await run(['show', 'T-1', '--json'], repo);
+    expect(code).toBe(0);
+    expect((JSON.parse(out) as { id: string }).id).toBe('T-1');
+    expect(logOf(out)).toEqual([
+      { at: secs(T2), kind: 'commit', text: 'plan: T-1 ready' },
+      { at: secs(T1), kind: 'commit', text: 'claim: T-1' },
+    ]);
+  } finally {
+    chmodSync(dir, 0o755);
+    cleanup(repo);
+  }
+}, 120_000);
+
+// Phase 08.8.1 IN-04 (08.7 review): nothing in CI reads the display-only gate log, so a gate run with CI set writes none; the verdict and the exit code stay.
+it('risk:regression a gate run with CI set writes no gate log (IN-04)', async () => {
+  const repo = gateRepo();
+  const file = join(repo, '.accord-reports', 'T-1', 'gate.log');
+  try {
+    const ci = await run(['gate', 'ready', 'T-1'], repo, { CI: 'true' });
+    expect(ci.code).toBe(0);
+    expect(ci.err).toBe('');
+    expect(existsSync(file)).toBe(false);
+    // a person's own CI=false (or 0, or empty) is no CI: the line is written
+    for (const value of ['false', '0', '']) {
+      rmSync(join(repo, '.accord-reports'), { recursive: true, force: true });
+      expect((await run(['gate', 'ready', 'T-1'], repo, { CI: value })).code).toBe(0);
+      expect(existsSync(file)).toBe(true);
+    }
   } finally {
     cleanup(repo);
   }

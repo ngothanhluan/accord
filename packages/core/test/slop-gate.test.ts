@@ -124,3 +124,15 @@ it('risk:regression the reviewer reports or justifies each slop line and checks 
   expect(record).toContain('`slop:<kind> <path>:<line> — <reason>`');
   expect(record).toContain('copied verbatim');
 });
+
+// Phase 08.8 D-16 (IN-02): a justification clears its hit only when its reason holds a letter or digit; the refusal says the line is the one of the ticket's final diff.
+it('risk:security a slop justification needs a reason with a word (D-16)', () => {
+  const hit = { kind: 'any-type', path: 'src/a.ts', line: 12, label: 'any' };
+  const hits = { hits: [hit], unread: 0 };
+  expect(found(build(lastRound('slop:any-type src/a.ts:12 — x9'), hits))).toEqual([]);
+  for (const reason of ['.', '---']) {
+    const refused = found(build(lastRound(`slop:any-type src/a.ts:12 — ${reason}`), hits));
+    expect(refused, reason).toHaveLength(1);
+    expect(refused[0].reason, reason).toContain("final diff");
+  }
+});

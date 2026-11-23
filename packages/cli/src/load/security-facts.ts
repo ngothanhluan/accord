@@ -106,10 +106,10 @@ function factsFor(root: string, snapshot: RepoSnapshot, id: string, rendered: ()
   }
 }
 
-/** Whether `sha` is an ancestor of HEAD, by `git merge-base --is-ancestor`: exit 1 is no, any other failure throws. */
-function isAncestorOfHead(root: string, sha: string): boolean {
+/** Whether `from` is `to` or an ancestor of it, by `git merge-base --is-ancestor`: exit 1 is no, any other failure throws. */
+function isAncestor(root: string, from: string, to: string): boolean {
   try {
-    execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', ['merge-base', '--is-ancestor', from, to], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     return true;
   } catch (e) {
     if ((e as { status?: number }).status === 1) return false;
@@ -121,10 +121,13 @@ function isAncestorOfHead(root: string, sha: string): boolean {
  * Phase 08.8 D-03: the security facts of a ticket whose review stage is off: the triggers of its cumulative diff (round-one base to HEAD, as slopFacts reads it: the same package, exempt copies and
  * generated paths skipped) and, when the ledger records a security review, the triggers of the diff from that commit to HEAD. A commit the ledger names that no commit has, or that is not an
  * ancestor of HEAD, is an `error` fact naming it, like every git failure and a plan with no baseline (fail closed): nothing here reads "no triggers" off a failed read.
+ * Phase 08.8 review CR-02: undefined when HEAD is on the default branch (the default ref holds it), the skip the review rounds take as `skip: 'on-default'` (round-facts.ts), so a review-off
+ * ticket gated on the default branch is not judged on the default branch's later commits.
  */
-export function reviewOffFacts(root: string, snapshot: RepoSnapshot, id: string, rendered: () => readonly SkillFile[]): SecurityFacts {
+export function reviewOffFacts(root: string, snapshot: RepoSnapshot, id: string, rendered: () => readonly SkillFile[]): SecurityFacts | undefined {
   try {
     const def = defaultRefOf(root);
+    if (def !== undefined && isAncestor(root, 'HEAD', def)) return undefined;
     const base = roundOneBase(root, snapshot, id, { defaultRef: def });
     if (base === undefined) return { error: 'the ticket has no round-one base: the plan records no baseline' };
     const spec = securitySpec(snapshot);
@@ -147,7 +150,7 @@ export function reviewOffFacts(root: string, snapshot: RepoSnapshot, id: string,
     const resolved = resolveHeads(root, [named.toLowerCase()]);
     if ('error' in resolved) return resolved;
     const sha = resolved.shas[0];
-    if (!isAncestorOfHead(root, sha)) return { error: `the security review is recorded at ${named}, which is not an ancestor of HEAD` };
+    if (!isAncestor(root, sha, 'HEAD')) return { error: `the security review is recorded at ${named}, which is not an ancestor of HEAD` };
     return { ticket: { triggers, sinceReview: triggersFrom(sha) } };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'git failed reading the security triggers: ' + whyGit(e) };
@@ -168,7 +171,8 @@ export function withSecurityFacts(root: string, snapshot: RepoSnapshot, id: stri
   if (lane !== undefined && stageOff(snapshot, id, 'review')) {
     if (snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;
     if (claimPinBefore(snapshot, id, SECURITY_OFF_FROM)) return snapshot; // Phase 08.8 D-03: a ticket claimed before the cut-off starts no git read
-    return { ...snapshot, securityFacts: { ...snapshot.securityFacts, [id]: reviewOffFacts(root, snapshot, id, rendered) } };
+    const fact = reviewOffFacts(root, snapshot, id, rendered);
+    return fact === undefined ? snapshot : { ...snapshot, securityFacts: { ...snapshot.securityFacts, [id]: fact } }; // undefined: HEAD on the default branch (CR-02)
   }
   if (lane === undefined || rec === undefined || rec.version !== 2 || rec.cycles.every((c) => c.rounds.length === 0) || snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;
   if (claimPinBefore(snapshot, id, SECURITY_TRIGGER_FROM)) return snapshot;

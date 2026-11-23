@@ -909,8 +909,8 @@ it('risk:parsing a prose heading of security.md is accepted and a near-miss read
     expect(spec.problems.map((p) => p.line), heading).toEqual([5]);
     expect(spec.problems[0].reason, heading).toContain(`"## ${heading}" is not a section accord reads`);
   }
-  // an unread heading holding a line shaped like a pattern, a check or a removal is flagged: that line would silently do nothing
-  for (const line of ['- z: path z/ — y', '- z: line /a/ — y', '- z: check this', '- Removed: spawn — a reason']) {
+  // an unread heading holding a line shaped like a pattern or a removal is flagged: that line would silently do nothing (review WR-06: a check's shape is any `- key: text` prose line, so it is not)
+  for (const line of ['- z: path z/ — y', '- z: line /a/ — y', '- Removed: spawn — a reason']) {
     const spec = parseSecurityFile(make('Notes', [line]));
     expect(spec.problems.map((p) => p.line), line).toEqual([5]);
     expect(spec.problems[0].reason, line).toContain('"## Notes" is not a section accord reads');
@@ -925,7 +925,7 @@ it('risk:parsing ordinary prose headings of security.md never fail the locked li
   const base = ['## Patterns', '', '- x: path x/ — y', ''];
   const make = (heading: string, body: string[]): string => [...base, `## ${heading}`, '', ...body, ''].join('\n');
   const lintOf = (text: string) => lintSnapshot(withFile(text)).findings.filter((f) => f.rule === 'lint.security-file');
-  for (const heading of ['Checkout flow', 'Pattern library', 'Removal history', 'Revoked', 'Patterns we rejected', 'Checks and balances']) {
+  for (const heading of ['Checkout flow', 'Pattern library', 'Removal history', 'Revoked', 'Remote', 'Patterns we rejected', 'Checks and balances']) {
     expect(parseSecurityFile(make(heading, ['Keep this file short.'])).problems, heading).toEqual([]);
     expect(lintOf(make(heading, ['Keep this file short.'])), heading).toEqual([]);
   }

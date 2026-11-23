@@ -2537,7 +2537,8 @@ const childColors = (n: El | undefined): string[] => ((n?.props.children ?? []) 
 // Phase 08.8.1 L-01 D-03: a finished task starts one burst (sparkles and a rolling counter, about 1.2 seconds) and the lively preset draws its effects while an agent runs; calm moves only the shimmer and the counter, and under mine only the switched effects move
 it('risk:complex-branching a task finished plays sparkles and the rolling counter once and the lively preset draws its effects (L-01 D-03)', async () => {
   const h = await paneWith(planOf(2), (x) => void (x.rows = 40));
-  const T = Date.now();
+  // a fixed clock: the comet head runs on the clock, and from some real times both frames sit past the filled part and look alike (a flake)
+  const T = 1_800_000_000_000;
   const clock = vi.spyOn(Date, 'now').mockReturnValue(T);
   try {
     await startExecutor(h);
@@ -2594,7 +2595,8 @@ it('risk:complex-branching a task finished plays sparkles and the rolling counte
   }
   // calm: the shimmer and the counter move, nothing else
   const calm = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'calm', effects: { shimmer: true, roll: true } }));
-  const c0 = Date.now();
+  // a fixed clock again: the glow and the comet head run on it
+  const c0 = 1_800_000_001_000;
   const spy = vi.spyOn(Date, 'now').mockReturnValue(c0);
   try {
     await startExecutor(calm);
@@ -2616,7 +2618,7 @@ it('risk:complex-branching a task finished plays sparkles and the rolling counte
   }
   // mine with only the comet on: only the comet moves
   const mine = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
-  const m0 = Date.now();
+  const m0 = 1_800_000_001_000;
   const spy2 = vi.spyOn(Date, 'now').mockReturnValue(m0);
   try {
     await startExecutor(mine);

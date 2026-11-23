@@ -125,8 +125,9 @@ export const prTitle = (id: string, title: string): string => `${id}: ${title}`;
 
 /**
  * Why a pull request title cannot go through the quoted `--title "<title>"` argument the skills write, or undefined when it can (Ruling "title"). A double quote, a backtick, `$` and a backslash
- * mean something to bash and PowerShell inside double quotes; a control character, a line break or an invisible format character would show as one thing and be another.
- * The text names the character and the fix.
+ * mean something to bash and PowerShell inside double quotes, and `%` is expanded by cmd.exe there (D-16 item 7); a control character, a line break or an invisible format character would
+ * show as one thing and be another. `'`, `!`, `;` and `&` pass on purpose (Phase 08.8 session Ruling 2): they are literal inside double quotes in cmd.exe, PowerShell and non-interactive bash, and
+ * 22 of the 132 ticket titles of this repository hold `'`. The text names the character and the fix.
  */
 export function prTitleProblem(title: string): string | undefined {
   const fix = 'fix: rename the ticket without it (accord/tickets), or have pr.command print a title without it';
@@ -136,6 +137,7 @@ export function prTitleProblem(title: string): string | undefined {
       : ch === '`' ? 'a backtick'
       : ch === '$' ? 'a dollar sign ($)'
       : ch === '\\' ? 'a backslash'
+      : ch === '%' ? 'a percent sign (%), which cmd.exe expands inside double quotes'
       : ch === '\n' || ch === '\r' ? 'a line break'
       : /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(ch) ? `a control or invisible character (<U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}>)`
       : undefined;

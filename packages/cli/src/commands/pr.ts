@@ -89,6 +89,10 @@ export function pr(ctx: CommandContext, id: string): number {
   const snapshot = Object.hasOwn(ctx.snapshot.tickets, id) ? ctx.snapshot : withQueued(ctx.root, ctx.snapshot);
   if (!Object.hasOwn(snapshot.tickets, id)) throw new UsageError(`no ticket ${id} in accord/tickets/ or on a backlog branch - give the id of a ticket of this checkout or one queued with accord new ticket --queue`);
   const ticket = snapshot.tickets[id];
+  // Phase 08.8 D-16 item 8: with no parsed frontmatter the title is unknown, and the pull request would be titled with the id and carry no Intent
+  if (ticket.frontmatter === undefined) {
+    throw new UsageError(`ticket ${id}: the frontmatter of ${ticket.file} does not parse, so its title is unknown - fix it (accord lint names the problem), then run accord pr again`);
+  }
   const facts: PrFacts = prFacts(ticket, snapshot.verifications[id]);
   const config = ctx.snapshot.config;
   const where = resolve(ctx.root, git(ctx.root, ['rev-parse', '--git-path', `accord-pr-${id}.md`]).trim());

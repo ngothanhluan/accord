@@ -1961,7 +1961,8 @@ it('risk:regression the ticket tab draws a tasks block with a progress bar betwe
   const plain = await paneWith(over, (x) => {
     const full = x.$.ui.resolve;
     x.$.ui.resolve = () => {
-      const { Progress: _gone, ...rest } = full();
+      const rest = { ...full() };
+      delete rest.Progress;
       return rest;
     };
   });
@@ -1991,7 +1992,7 @@ it('risk:complex-branching a not-committed ticket draws no tasks block no bar an
   const w = shownOf(warned);
   expect(Object.hasOwn(w, 'tasks')).toBe(false);
   expect(Object.hasOwn(w, 'progress')).toBe(false);
-  const { warnings: _w, ...tracked } = warned;
+  const tracked = { ...warned, warnings: undefined };
   const ok = shownOf(tracked);
   expect(ok.tasks).toHaveLength(3);
   expect(ok.progress).toEqual({ value: 0, max: 3, valueText: '0 of 3' });

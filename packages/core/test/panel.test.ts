@@ -52,6 +52,8 @@ async function host(mod: { register: (on: Handler) => void }) {
     // Phase 08.7: the surface a draw reports, the pane's width (undefined draws no props), the agents `$.agent.list` gives, the surfaces `$.session.surfaces` gives and the timers `$.clock` was asked for
     surface: 'terminal' as string,
     columns: undefined as number | undefined,
+    // Phase 08.8.1-06: the rows the pane's room reports as `scroll.bodyRows`; undefined draws no scroll prop
+    rows: undefined as number | undefined,
     placement: undefined as string | undefined,
     agents: [] as Record<string, unknown>[],
     surfaces: [] as unknown[],
@@ -119,7 +121,7 @@ async function host(mod: { register: (on: Handler) => void }) {
     type: (text: string) => ((inputText = text), h.input()?.onInput(text, {})),
   };
   const draw = async (): Promise<void> => {
-    const props = h.columns === undefined ? {} : { bodyColumns: h.columns, placement: h.placement ?? 'dock' };
+    const props = { ...(h.columns === undefined ? {} : { bodyColumns: h.columns, placement: h.placement ?? 'dock' }), ...(h.rows === undefined ? {} : { scroll: { bodyRows: h.rows } }) };
     const r = await h.fire('ui.render', { component: 'Pane', requestId: 'accord-panel', surface: h.surface, props });
     if (r && r.type) tree = r;
     inputText = h.input()?.value ?? '';
@@ -1996,4 +1998,61 @@ it('risk:complex-branching a not-committed ticket draws no tasks block no bar an
   const clean = await paneWith(tracked);
   expect(clean.texts()).toContain('TASKS');
   expect(clean.nodes('Progress')).toHaveLength(1);
+});
+
+// ---- Phase 08.8.1-06 L-07: the log merges repeats and fills the room, criteria labels follow their titles ----
+
+// Phase 08.8.1 L-07: CSA-185's interleaved repeats read as one line each with a count; the newest row is marked; the room sizes the cut.
+it('risk:parsing repeated log lines merge into the newest with a count and the newest is marked (L-07)', async () => {
+  const { mergeLog, logRows, LOG_SHOWN } = await loadView();
+  const now = 3000;
+  const log = [
+    { at: now - 660, kind: 'gate', text: 'gate plan PASS' },
+    { at: now - 670, kind: 'gate', text: 'gate ready PASS' },
+    { at: now - 1080, kind: 'gate', text: 'gate plan PASS' },
+    { at: now - 1090, kind: 'gate', text: 'gate ready PASS' },
+    { at: now - 1200, kind: 'report', text: 'executor report task 2' },
+  ];
+  const merged = mergeLog(log);
+  expect(merged.map((e: any) => [e.text, e.count, e.at])).toEqual([['gate plan PASS', 2, now - 660], ['gate ready PASS', 2, now - 670], ['executor report task 2', 1, now - 1200]]);
+  const rows = logRows(log, now);
+  expect(rows).toEqual([
+    { age: '11m', text: 'gate plan PASS', fail: false, count: 2, newest: true },
+    { age: '11m', text: 'gate ready PASS', fail: false, count: 2 },
+    { age: '20m', text: 'executor report task 2', fail: false },
+  ]);
+  // the same text under another kind is another line; a failed run keeps its mark
+  const kinds = logRows([{ at: 10, kind: 'gate', text: 'x', fail: true }, { at: 9, kind: 'commit', text: 'x' }], 20);
+  expect(kinds).toEqual([{ age: '10s', text: 'x', fail: true, newest: true }, { age: '11s', text: 'x', fail: false }]);
+  const many = Array.from({ length: 60 }, (_, i) => ({ at: 1000 - i, kind: 'commit', text: `c${i}` }));
+  expect(logRows(many.slice(0, 30), 1010, 20)).toHaveLength(20);
+  expect(logRows(many.slice(0, 30), 1010, 3)).toHaveLength(LOG_SHOWN);
+  expect(logRows(many.slice(0, 30), 1010)).toHaveLength(LOG_SHOWN);
+  expect(logRows(many, 1010, 500)).toHaveLength(50);
+  for (const room of ['x', NaN, Infinity, -4, null]) expect(logRows(many, 1010, room), String(room)).toHaveLength(LOG_SHOWN);
+  expect(logRows([], 1010, 20)).toEqual([]);
+});
+
+// Phase 08.8.1 L-07: criteria labels sit right after their titles, the newest log line is bold and undimmed, and the log takes the rows the pane has left.
+it('risk:regression criteria labels sit next to their titles and the newest log line is bold (L-07)', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const log = Array.from({ length: 30 }, (_, i) => ({ at: now - 30 - i * 40, kind: 'commit', text: `commit number ${i}` }));
+  const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log }, (x) => void (x.rows = 40));
+  expect(h.cell('Logs in').box.flexGrow).toBeUndefined();
+  expect(kids(h.row('Logs in'))).toEqual(['ac-1', 'Logs in', 'passing']);
+  expect(h.cell('commit number 0').text.bold).toBe(true);
+  expect(h.cell('commit number 0').text.dimColor).toBeUndefined();
+  expect(h.cell('commit number 1').text.bold).toBeUndefined();
+  const t = h.texts();
+  const rows = (t.length - t.indexOf('LOG') - 1) / 2;
+  expect(rows).toBeGreaterThan(8);
+  expect(rows).toBeLessThanOrEqual(30);
+  // a short pane keeps the eight lines, and no rows reported keeps them too
+  const short = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log }, (x) => void (x.rows = 10));
+  expect(short.texts().length - short.texts().indexOf('LOG') - 1).toBe(16);
+  const unknown = await paneWith({ log });
+  expect(unknown.texts().length - unknown.texts().indexOf('LOG') - 1).toBe(16);
+  // repeated lines draw once with their count
+  const twice = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate plan PASS' }, { at: now - 9, kind: 'commit', text: 'c' }, { at: now - 60, kind: 'gate', text: 'gate plan PASS' }] });
+  expect(twice.texts().filter((x) => x.startsWith('gate plan PASS'))).toEqual(['gate plan PASS ×2']);
 });

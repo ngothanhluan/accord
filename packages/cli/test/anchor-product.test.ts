@@ -142,6 +142,8 @@ describe('accord anchor and the lane S conventions (08.5-09)', () => {
     expect(r.out.split('## Conventions').length - 1).toBe(1);
     expect(r.out).toContain('\n\n' + DELIVERED);
     // the stage-file line still closes the output, right after the anchor
-    expect(r.out.endsWith('stage file: ./lane-s.md of the /accord skill; read it and go on at the step the anchor names\n')).toBe(true);
+    // Phase 08.8 D-15: the line names the file's real path, next to the /accord skill's SKILL.md
+    const root = gitRun(repo, 'rev-parse', '--show-toplevel').trim();
+    expect(r.out.endsWith(`stage file: ${root}/.claude/skills/accord/lane-s.md, next to the /accord skill's SKILL.md; read it and go on at the step the anchor names\n`)).toBe(true);
   });
 });

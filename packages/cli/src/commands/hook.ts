@@ -2,7 +2,8 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
-import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, loadSnapshot, sessionLine, stageFile, statusRows, subagentContext } from '@accord-dev/accord-core';
+import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, loadSnapshot, sessionLine, skillDirs, stageFile, statusRows, subagentContext } from '@accord-dev/accord-core';
+import type { AccordConfig } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
 import { cliRuleset } from '../load/product.js';
@@ -48,7 +49,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
       } else {
         const id = activeTicket(root, ctx.snapshot, branchFor(root, ctx));
         const anchored = id === undefined ? undefined : anchorOf(ctx, id);
-        body = anchored === undefined ? body : anchored + stageLine(rows.find((r) => r.id === id));
+        body = anchored === undefined ? body : anchored + stageLine(rows.find((r) => r.id === id), root, ctx.snapshot.config);
         if (id === undefined) body += unfinishedLine(root);
       }
     } catch (e) {
@@ -63,12 +64,17 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
 
 /**
  * Phase 8.3 D-04: after the anchor of an active lane ticket, the one line that names the file of the /accord skill for the ticket's lane and stage, so a session cleared or compacted
- * reads it without recalling the stage. The name comes from core's fixed map (`stageFile`), never from repository text, and no directory is named, so the line holds in every checkout.
+ * reads it without recalling the stage. The name comes from core's fixed map (`stageFile`), never from repository text.
+ * Phase 08.8 D-15: the line names the file's real path, `<repository root>/<Claude Code's skill directory>/accord/<file>`, forward slashes, and says it sits next to the /accord skill's
+ * SKILL.md; the live check printed `./<file>` and the session searched `~/.claude` for it twice. The directory is the one core's targets give for Claude Code (`skillDirs` of a
+ * claude-only roster), `.claude/skills` when the repository's config is not readable; the root is the git top-level the hook already resolved.
  * '' for a ticket with no lane and for a lane M stage the map has no entry for yet.
  */
-function stageLine(row: { lane?: string; stage?: string } | undefined): string {
+function stageLine(row: { lane?: string; stage?: string } | undefined, root: string, config: AccordConfig | undefined): string {
   const file = stageFile(row?.lane, row?.stage);
-  return file === undefined ? '' : `stage file: ./${file} of the /accord skill; read it and go on at the step the anchor names\n`;
+  if (file === undefined) return '';
+  const dir = (config === undefined ? undefined : skillDirs({ ...config, runtimes: ['claude'] })[0]) ?? '.claude/skills';
+  return `stage file: ${root}/${dir}/accord/${file}, next to the /accord skill's SKILL.md; read it and go on at the step the anchor names\n`;
 }
 
 /**

@@ -5,6 +5,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
 import type { BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
+import { gitStartFailure, runGitSync } from './git-spawn.js';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -20,17 +21,16 @@ export class UsageError extends Error {
 function gitTree(root: string): string[] {
   let out: string;
   try {
-    out = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+    out = runGitSync(['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
     });
   } catch (err) {
-    const e = err as { code?: string; stderr?: string };
-    if (e.code === 'ENOENT') throw new UsageError('git is required but was not found on PATH');
-    const stderr = String(e.stderr ?? '').trim();
-    throw new UsageError('not a git repository (or git failed): ' + root + '\n' + stderr);
+    // Phase 08.8 D-15: the same sentences `repoRoot` prints, from one function.
+    if (err instanceof UsageError) throw err;
+    throw gitStartFailure(err, root);
   }
   return [...new Set(out.split('\0').filter((p) => p !== ''))].sort();
 }

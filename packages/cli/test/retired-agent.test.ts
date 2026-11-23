@@ -290,3 +290,33 @@ it.skipIf(process.platform === 'win32')('risk:data-loss sync never removes a fol
   for (const f of held) expect(readFileSync(join(outside, f), 'utf8'), f).toBe(oldCopy());
   expect(r.out).not.toContain(folder);
 }, 120_000);
+
+// Phase 08.8 D-14 (IN-03): a retired folder that an earlier sync emptied but could not remove (EBUSY, a held handle) is removed by the next sync, whether or not that run removed a file;
+// a folder holding any file is a person's and stays, listed as an orphan.
+it('risk:data-loss sync removes an empty retired folder left by a failed removal and keeps one that holds a file (D-14)', async () => {
+  const repo = sandbox('[claude, codex]');
+  const first = await run(['skills', 'sync'], repo);
+  expect(first.code, first.err).toBe(0);
+
+  const names = Object.keys(RETIRED_SKILL_FOLDERS);
+  expect(names, 'the two retired folders the case uses are listed').toEqual(expect.arrayContaining(['accord-queue', 'accord-plan']));
+  const emptied = '.claude/skills/accord-queue';
+  const held = '.agents/skills/accord-plan';
+  mkdirSync(at(repo, emptied), { recursive: true });
+  mkdirSync(at(repo, held), { recursive: true });
+  writeFileSync(at(repo, held + '/notes.txt'), 'a file of the team\'s own\n');
+
+  const second = await run(['skills', 'sync'], repo);
+  expect(second.code, second.err).toBe(0);
+  expect(second.out.split('\n')).toContain('removed ' + emptied);
+  expect(existsSync(at(repo, emptied))).toBe(false);
+  expect(existsSync(at(repo, held + '/notes.txt'))).toBe(true);
+  expect(readFileSync(at(repo, held + '/notes.txt'), 'utf8')).toBe('a file of the team\'s own\n');
+  expect(second.out.split('\n')).not.toContain('removed ' + held);
+  expect(second.err).toContain('orphan ' + held);
+
+  const third = await run(['skills', 'sync'], repo);
+  expect(third.code, third.err).toBe(0);
+  expect(third.out).not.toContain('removed');
+  expect(existsSync(at(repo, held + '/notes.txt'))).toBe(true);
+}, 120_000);

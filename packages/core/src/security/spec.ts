@@ -63,6 +63,35 @@ function idProblem(t: string): string | undefined {
   return m === null || ID_ONLY.test(m[1]) ? undefined : `the id "${m[1]}" must be lower case and match ^[a-z0-9][a-z0-9-]*$`;
 }
 
+/** The number of single-character edits between two short strings. */
+function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+/**
+ * Phase 08.8 D-13: a heading key that looks like a misspelling of `patterns`, `checklist` or `removed`: after folding a trailing `s` it starts with `pattern`, `check` or `remov`,
+ * or it is two edits or fewer from one of the three names.
+ */
+function nearMiss(key: string): boolean {
+  const folded = key.endsWith('s') ? key.slice(0, -1) : key;
+  if (['pattern', 'check', 'remov'].some((stem) => folded.startsWith(stem))) return true;
+  return [...SECTIONS].some((name) => editDistance(key, name) <= 2);
+}
+
+/** Phase 08.8 D-13: a section of a heading the reader does not know holds a list line shaped like a pattern, a check or a removal. */
+function holdsReaderLine(lines: ReturnType<typeof scan>['sections'][number]['lines']): boolean {
+  return stripHtmlComments(lines).some(({ text }) => {
+    const t = text.trimEnd();
+    return t.startsWith('- ') && t.length <= MAX_PATTERN_LINE && (PATTERN.test(t) || REMOVED.test(t) || CHECK.test(t));
+  });
+}
+
 /** Read a security file. A list line that does not read is a problem naming its line; text that is not a list line is prose and is ignored. */
 export function parseSecurityFile(text: string): SecuritySpec {
   const body = (text.startsWith(BOM) ? text.slice(1) : text).replace(/\r\n/g, '\n');
@@ -172,11 +201,15 @@ export function parseSecurityFile(text: string): SecuritySpec {
 
   // D-21, lint only: the reader takes the first section of each of the three names, so a repeated heading is ignored and a heading it does not know (a misspelling such as
   // `## Pattern`) silently does nothing. Neither problem is marked `pattern`: the gate does not refuse for them.
+  // Phase 08.8 D-13: lint.security-file is LOCKED at error, so a prose heading such as `## Notes` must not fail it. A heading the reader does not know is a problem only when it
+  // looks like a misspelling of one it does (nearMiss) or when its section holds a list line one of the three readers would have taken, since that line silently does nothing.
   const headings = new Set<string>();
   for (const s of sections) {
     const key = headingKey(s.heading);
     if (headings.has(key)) problem(s.line, `the section "## ${s.heading}" appears twice; only the first is read, so move its lines into the first one`);
-    else if (!SECTIONS.has(key)) problem(s.line, `"## ${s.heading}" is not a section accord reads; use ## Patterns, ## Checklist or ## Removed`);
+    else if (!SECTIONS.has(key) && (nearMiss(key) || holdsReaderLine(s.lines))) {
+      problem(s.line, `"## ${s.heading}" is not a section accord reads; use ## Patterns, ## Checklist or ## Removed`);
+    }
     headings.add(key);
   }
   return spec;

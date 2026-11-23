@@ -175,3 +175,12 @@ it('risk:data-loss an accord hook in the shape sync wrote is replaced with no no
   expect(runsAccordHook('accord hook pre-tool-use')).toBe('pre-tool-use');
   expect(runsAccordHook('"C:/tools/accord.cmd" hook session-resume --x')).toBe('session-resume');
 });
+
+// Phase 08.8 D-10: a program path in quotes may hold a space; the tokens are read the way a shell reads them.
+it('risk:regression runsAccordHook reads a quoted program path that holds a space (D-10)', () => {
+  expect(runsAccordHook('node "C:\\Users\\A B\\cli.js" hook session-start')).toBe('session-start');
+  expect(runsAccordHook('"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\A B\\cli.js" hook subagent-start')).toBe('subagent-start');
+  expect(runsAccordHook("node '/home/a b/cli.js' hook pre-tool-use")).toBe('pre-tool-use');
+  expect(runsAccordHook('node "C:\\x\\other.js" hook session-start')).toBeUndefined();
+  expect(runsAccordHook('node "C:\\Users\\A B\\cli.js" hook unknown-event')).toBeUndefined();
+});

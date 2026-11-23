@@ -2,6 +2,14 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+Tickets in flight: no ticket is refused for something new. A hand-edited skill or agent file can now ask for a security-lens round (below), and `accord lint` accepts a prose heading in the security file; no gate reads anything else that changed. A repository pinned to an older accord gets these changes with `accord upgrade`.
+
+- `accord skills sync` no longer adds a second hook set when an accord hook was edited into a quoted program path that holds a space, such as `node "C:\Users\A B\cli.js" hook session-start`: the edited hook is kept and sync adds none beside it.
+- A hand-edited skill or agent file under `.claude/` or `.agents/` is now scanned for security triggers like any other changed file, so such an edit can ask for a security-lens round. The files `accord skills sync` writes unchanged, and paths listed under `generated:`, stay quiet, and Markdown outside those folders is still not scanned.
+- A prose heading such as `## Notes` in `accord/product/security.md` no longer fails `lint.security-file`, which stays an error. A misspelt reader heading such as `## Pattern` still fails it, and so does an unread heading whose section holds a list line shaped like a pattern, a check or a removal, since that line would do nothing.
+
 ## 0.15.0 — 2026-11-23
 
 Release 0.15.0 adds the flightdeck pane to Claude Code. Tickets in flight: no ticket is refused for something new, and `accord gate ready` and `accord gate done` give the same answers, since no gate reads the pane or the gate record it adds. A repository pinned to 0.14.0 gets the change with `accord upgrade`, which also moves the pin and the panel plugin. The accord pane in Claude Code gets two tabs. The ticket tab shows the ticket this worktree claimed with its stage bar, the accord agents running now, its review rounds, its criteria and a session log, and the dashboard tab draws a mini stage bar per row, a progress bar per epic and boxed sections, with columns that follow the width the dock gives. The pane also opens in a Desktop Code tab session and `/accord-panel` opens it on every surface; the live check of the Desktop Code tab has not run yet and is part of the release's acceptance checks. The pane is display only, and the CLI keys below are additive: a ticket or dashboard without the data prints the same JSON as before, and the text output of every command is unchanged.

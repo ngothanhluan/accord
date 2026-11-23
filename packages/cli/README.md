@@ -62,7 +62,7 @@ npx --yes @accord-dev/accord@0.14.0 init
 - `accord/product/glossary.md`, `accord/product/business-rules.md` and `accord/product/conventions.md`, from templates.
 - `.github/workflows/accord.yml`, a GitHub Actions workflow that runs `lint` and `gate done` on the tickets a pull request changes, with the same pinned version.
 - The skills: `/accord`, whose stage files (`intent.md`, `approach.md`, `plan.md`, `build.md`, `review.md`, `verify.md`) hold the six lane M stages, and the seven commands a person calls on their own, `/accord-upgrade`, `/accord-audit`, `/accord-debug`, `/accord-onboard`, `/accord-config`, `/accord-resolve-pr` and `/accord-review-pr`, plus `accord-designer`, which is opt-in: it is installed only when `roles` lists `designer` (see Daily use). Claude Code reads them from `.claude/skills/`, Codex from `.agents/skills/`.
-- For Claude Code only: the accord agents in `.claude/agents/`, the dashboard pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks, one that lets only the `accord-verifier` subagent write `verification.md`, and the keys that enable the pane. Existing settings are kept.
+- For Claude Code only: the accord agents in `.claude/agents/`, the accord pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks, one that lets only the `accord-verifier` subagent write `verification.md`, and the keys that enable the pane. Existing settings are kept.
 - A short accord block appended to `AGENTS.md` and `CLAUDE.md`, or those files created.
 
 When `init` detects values for your settings (the merge style, the commit wording, the test commands), it prints each as a `proposal:` line and a `proposals:` count, writes none of them, and ends by naming `/accord-onboard`, which confirms them one by one, each only on your yes. When it detects nothing, the closing line is `proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings`, and the scan is what looks for them.
@@ -127,7 +127,7 @@ A request moves from S to M when it changes a public interface or schema, touche
 
 Each ticket is worked in its own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands listed in `config.yml`. `accord worktree open <id>` prints the folder and the `/accord continue <id>` line to type in a session opened there. Tickets done on the remote main branch have their worktree and branches removed by `accord worktree clean`, which `/accord` runs.
 
-In Claude Code, the pane shows the dashboard beside the chat.
+In Claude Code, the pane beside the chat has two tabs: the ticket this worktree claimed, with its stages, running agents, review rounds, criteria and log, and the dashboard. It is built for the terminal and for the Desktop Code tab; the Desktop Code tab has not yet been checked in a live session.
 
 ### 6. Other runtimes
 

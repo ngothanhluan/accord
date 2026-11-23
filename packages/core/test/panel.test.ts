@@ -1,6 +1,6 @@
 // The generated Claude Code pane: the real register.js driven through a fake host that follows claude-code.d.ts.
 /* eslint-disable @typescript-eslint/no-explicit-any -- the fake host mirrors an untyped mod API */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -28,7 +28,7 @@ async function loadPanel(): Promise<{ register: (on: Handler) => void }> {
   return import(/* @vite-ignore */ pathToFileURL(join(dir, '.claude/accord-panel/plugin/hooks/register.js')).href);
 }
 
-async function loadView(): Promise<{ view: (state: unknown, query: string) => any }> {
+async function loadView(): Promise<{ view: (state: unknown, query: string) => any; [name: string]: any }> {
   const dir = mkdtempSync(join(tmpdir(), 'accord-panel-view-'));
   dirs.push(dir);
   for (const f of pluginTargets({ runtimes: ['claude'] }, PKG)) {
@@ -49,6 +49,13 @@ async function host(mod: { register: (on: Handler) => void }) {
   let inputText = '';
   const h = {
     placed: true,
+    // Phase 08.7: the surface a draw reports, the pane's width (undefined draws no props), the agents `$.agent.list` gives, the surfaces `$.session.surfaces` gives and the timers `$.clock` was asked for
+    surface: 'terminal' as string,
+    columns: undefined as number | undefined,
+    placement: undefined as string | undefined,
+    agents: [] as Record<string, unknown>[],
+    surfaces: [] as unknown[],
+    timers: [] as { ms: number; fn: () => unknown; cancelled: boolean }[],
     tree: () => tree,
     async fire(event: string, e: any): Promise<any> {
       const chain = hooks.filter((x) => x.event === event && Object.entries(x.matcher).every(([k, v]) => e[k] === v));
@@ -111,11 +118,20 @@ async function host(mod: { register: (on: Handler) => void }) {
     type: (text: string) => ((inputText = text), h.input()?.onInput(text, {})),
   };
   const draw = async (): Promise<void> => {
-    const r = await h.fire('ui.render', { component: 'Pane', requestId: 'accord-panel', surface: 'terminal' });
+    const props = h.columns === undefined ? {} : { bodyColumns: h.columns, placement: h.placement ?? 'dock' };
+    const r = await h.fire('ui.render', { component: 'Pane', requestId: 'accord-panel', surface: h.surface, props });
     if (r && r.type) tree = r;
     inputText = h.input()?.value ?? '';
   };
+  const timer = (ms: number, fn: () => unknown): { cancel: () => void } => {
+    const t = { ms, fn, cancelled: false };
+    h.timers.push(t);
+    return { cancel: () => void (t.cancelled = true) };
+  };
   const $: any = {
+    agent: { list: vi.fn(async () => h.agents) },
+    clock: { after: vi.fn(timer), every: vi.fn(timer) },
+    session: { surfaces: vi.fn(async () => h.surfaces) },
     process: { run: vi.fn(() => new Promise<Result>((res, rej) => runs.push({ res, rej }))) },
     command: { register: vi.fn(async () => ({})), run: vi.fn(async () => ({})) },
     ui: {
@@ -133,6 +149,7 @@ async function host(mod: { register: (on: Handler) => void }) {
         Text: (p: any) => ({ type: 'Text', props: p }),
         Button: (p: any) => ({ type: 'Button', props: p }),
         Input: (p: any) => ({ type: 'Input', props: { ...p, value: p.value ?? '' } }),
+        Progress: (p: any) => ({ type: 'Progress', props: p }),
       }),
     },
   };
@@ -215,14 +232,47 @@ it('risk:parsing every panel file carries one marker whose hash recomputes', () 
   expect(pluginTargets({ runtimes: ['codex'] }, PKG)).toEqual([]);
 });
 
-it('risk:complex-branching the pane opens only in an interactive terminal and an unplaced pane names its command', async () => {
-  for (const e of [{ ...start, isInteractive: false, surface: null }, { ...start, surface: 'desktop' }]) {
-    const h = await host(await loadPanel());
-    await h.fire('session.start', e);
-    expect(h.$.command.register).not.toHaveBeenCalled();
-    expect(h.$.ui.open).not.toHaveBeenCalled();
-    expect(h.$.process.run).not.toHaveBeenCalled();
+// Phase 08.7 D-06: the start gate keys on the render surface of a client that places panes (an interactive terminal or the Desktop Code tab); the terminal-only start test is replaced by this one.
+// Every surface gets the command, a headless session registers it and nothing else, and a vscode or mobile client attaching opens nothing unasked.
+it('risk:complex-branching the pane opens on an interactive terminal and a desktop client while a headless session only registers the command (D-06)', async () => {
+  const headless = await host(await loadPanel());
+  headless.agents = [{ id: 'a1', type: 'accord-executor', status: 'running', startTime: Date.now() }];
+  await headless.fire('session.start', { ...start, isInteractive: false, surface: null });
+  expect(headless.$.command.register).toHaveBeenCalledTimes(1);
+  expect(headless.$.command.register).toHaveBeenCalledWith({ name: 'accord-panel', description: 'Open the accord pane' });
+  expect(headless.$.ui.open).not.toHaveBeenCalled();
+  expect(headless.$.process.run).not.toHaveBeenCalled();
+  await headless.fire('turn.start', { turnId: 't1', text: 'x', agentId: 'a1' });
+  expect(headless.$.agent.list).not.toHaveBeenCalled();
+  expect(headless.$.process.run).not.toHaveBeenCalled();
+  // a desktop client attaching later opens the pane once and runs the dashboard once; the command is not registered again
+  await headless.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' });
+  expect(headless.$.command.register).toHaveBeenCalledTimes(1);
+  expect(headless.$.ui.open).toHaveBeenCalledTimes(1);
+  expect(headless.$.process.run).toHaveBeenCalledTimes(1);
+  expect(headless.$.process.run).toHaveBeenCalledWith(['npx', '--yes', '@accord-dev/accord@9.9.9', 'dashboard', '--json'], { timeoutMs: 120000 });
+  await headless.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' });
+  expect(headless.$.ui.open).toHaveBeenCalledTimes(1);
+  expect(headless.$.process.run).toHaveBeenCalledTimes(1);
+  // an interactive desktop session start opens the pane once, and a later attach adds nothing
+  const desktop = await host(await loadPanel());
+  await desktop.fire('session.start', { ...start, surface: 'desktop' });
+  expect(desktop.$.command.register).toHaveBeenCalledTimes(1);
+  expect(desktop.$.ui.open).toHaveBeenCalledTimes(1);
+  expect(desktop.$.process.run).toHaveBeenCalledTimes(1);
+  await desktop.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' });
+  expect(desktop.$.command.register).toHaveBeenCalledTimes(1);
+  expect(desktop.$.ui.open).toHaveBeenCalledTimes(1);
+  // vscode and mobile get the command and no unasked open, at a session start and at an attach
+  for (const surface of ['vscode', 'mobile']) {
+    const other = await host(await loadPanel());
+    await other.fire('session.start', { ...start, surface });
+    await other.fire('session.attach', { surface, clientId: surface + ':1' });
+    expect(other.$.command.register).toHaveBeenCalledTimes(1);
+    expect(other.$.ui.open).not.toHaveBeenCalled();
+    expect(other.$.process.run).not.toHaveBeenCalled();
   }
+  // the terminal keeps its behaviour: an unplaced unasked open names the command once, a placed one says nothing
   const unplaced = await host(await loadPanel());
   unplaced.placed = false;
   await unplaced.fire('session.start', start);
@@ -231,6 +281,7 @@ it('risk:complex-branching the pane opens only in an interactive terminal and an
   const placed = await host(await loadPanel());
   await placed.fire('session.start', start);
   expect(placed.$.ui.toast).not.toHaveBeenCalled();
+  expect(placed.$.ui.open).toHaveBeenCalledTimes(1);
 });
 
 const twoRows = JSON.stringify(
@@ -578,6 +629,8 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
     return rest;
   };
   const idBox = { width: 5, flexShrink: 0 };
+  // Phase 08.7-04 D-05: the bar column holds the longest mini stage bar (five cells) between the id and the lane
+  const barBox = { width: 5, flexShrink: 0, flexDirection: 'row' };
   const laneBox = { width: 4, flexShrink: 0 };
   const stageBox = { width: 12, flexShrink: 0 };
   const titleBox = { flexGrow: 1, flexShrink: 1 };
@@ -599,17 +652,19 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   const widthsHold = (): void => {
     const kids = h.row('ST-3').children as { props: Record<string, any> }[];
     expect(bare(kids[0].props)).toEqual(idBox);
-    expect(bare(kids[1].props)).toEqual(laneBox);
-    expect(bare(kids[2].props)).toEqual(stageBox);
+    expect(bare(kids[1].props)).toEqual(barBox);
+    expect(bare(kids[2].props)).toEqual(laneBox);
+    expect(bare(kids[3].props)).toEqual(stageBox);
   };
   expect(h.cell('ST-3').text.bold).toBe(true);
   expect(h.row('ST-3')).toMatchObject({ flexDirection: 'row', columnGap: 2 });
   widthsHold();
   const kids = h.row('ST-3').children as { props: Record<string, any> }[];
-  expect(bare(kids[3].props)).toEqual(titleBox);
-  expect(Object.keys(kids[3].props)).not.toContain('width');
-  expect(Object.keys(kids[3].props)).not.toContain('minWidth');
-  expect((kids[1].props.children[0] as { props: { children: string[] } }).props.children).toEqual(['M']);
+  expect(kids).toHaveLength(5);
+  expect(bare(kids[4].props)).toEqual(titleBox);
+  expect(Object.keys(kids[4].props)).not.toContain('width');
+  expect(Object.keys(kids[4].props)).not.toContain('minWidth');
+  expect((kids[2].props.children[0] as { props: { children: string[] } }).props.children).toEqual(['M']);
   expect(bare(h.cell('LANE').box)).toEqual(laneBox);
   expect(bare(h.cell('ID').box)).toEqual(idBox);
   expect(bare(h.cell('STAGE').box)).toEqual(stageBox);
@@ -632,7 +687,7 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   const walk = (n: any): void => {
     if (!n || typeof n !== 'object') return;
     const first = n.props?.children?.[0];
-    if (n.type === 'Box' && n.props.flexDirection === 'row' && first?.type === 'Box' && !(first.props.children?.length > 0)) {
+    if (n.type === 'Box' && n.props.flexDirection === 'row' && n.props.columnGap === 2 && first?.type === 'Box' && !(first.props.children?.length > 0)) {
       second.push((n.props.children as any[]).slice(1).map((c) => c.props.children.join('')));
     }
     for (const c of n.props?.children ?? []) walk(c);
@@ -827,4 +882,646 @@ it('risk:security the detail view prints holderShown as the Holder and falls bac
   expect(holder({ holder: 'a@x.io', holderShown: 5 })).toBe('Holder: a@x.io');
   expect(holder({ holder: 'a@x.io', holderShown: 'A\u202eX' })).toBe('Holder: A X');
   expect(holder({ holder: null })).toBe('Holder: none');
+});
+
+// Phase 08.7 D-07, A-02: one stage reader draws the bar for every lane; Phase 10's stage table replaces it.
+it('risk:parsing pipelineOf maps lanes M S and R and every stage to cells with turned-off stages marked (D-07)', async () => {
+  const { pipelineOf } = await loadView();
+  const cols = (cells: any[], k: string): unknown[] => cells.map((c) => c[k]);
+  const m = pipelineOf({ lane: 'M', stage: 'build', tasksDone: 2, tasksTotal: 5 });
+  expect(cols(m, 'key')).toEqual(['intent', 'plan', 'build', 'review', 'verify']);
+  expect(cols(m, 'label')).toEqual(['intent/approach', 'plan', 'build 2/5', 'review', 'verify']);
+  expect(cols(m, 'state')).toEqual(['done', 'done', 'current', 'todo', 'todo']);
+  expect(cols(m, 'color')).toEqual(['blue', 'cyan', 'yellow', 'magenta', 'green']);
+  expect(cols(pipelineOf({ lane: 'M', stage: 'done', tasksDone: 5, tasksTotal: 5 }), 'state')).toEqual(['done', 'done', 'done', 'done', 'done']);
+  const s = pipelineOf({ lane: 'S', stage: 'review' });
+  expect(cols(s, 'key')).toEqual(['intent', 'build', 'review']);
+  expect(cols(s, 'state')).toEqual(['done', 'done', 'current']);
+  expect(cols(s, 'label')[1]).toBe('build');
+  const r = pipelineOf({ lane: 'R', stage: 'research' });
+  expect(cols(r, 'key')).toEqual(['intent', 'research']);
+  expect(cols(r, 'state')).toEqual(['done', 'current']);
+  expect(cols(r, 'color')).toEqual(['blue', 'cyan']);
+  for (const lane of ['L', 'P']) expect(cols(pipelineOf({ lane, stage: 'plan' }), 'key')).toEqual(cols(m, 'key'));
+  expect(cols(pipelineOf({ lane: 'L', stage: 'plan' }), 'label')[0]).toBe('intent/approach');
+  expect(cols(pipelineOf({ lane: 'M', stage: 'build', tasksDone: 2, tasksTotal: 5, stagesOff: ['plan'] }), 'state')).toEqual(['done', 'off', 'current', 'todo', 'todo']);
+  expect(cols(pipelineOf({ lane: 'M', stage: 'constructor' }), 'state')).toEqual(['todo', 'todo', 'todo', 'todo', 'todo']);
+  expect(cols(pipelineOf({ lane: 'M', stage: 'review', review: { round: 2, cap: 5 } }), 'label')[3]).toBe('review r2/5');
+});
+
+// Phase 08.7 D-03: a tab label carries a number only when the JSON holds it.
+it("risk:parsing tab labels read the json's own numbers (D-03)", async () => {
+  const { tabLabels } = await loadView();
+  const state = {
+    dashboard: board({
+      yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 },
+      ready: { rows: [{ id: 'ST-2', title: 'Export' }, { id: 'ST-3', title: 'Import' }], more: 0 },
+      team: { rows: [{ id: 'ST-4', title: 'A' }, { id: 'ST-5', title: 'B' }], more: 1 },
+    }),
+  };
+  const labels = (t: Record<string, unknown>, running = 0) => tabLabels({ state, ticket: { id: 'ST-1', state: { ticket: detailOf(t) } }, running });
+  expect(labels({}).dashboard.summary).toBe('1 yours · 2 ready · 3 team');
+  expect(labels({}).dashboard.label).toBe('2 dashboard 1 yours · 2 ready · 3 team');
+  expect(labels({ stage: 'build' }).ticket.label).toBe('1 ticket ST-1 build');
+  expect(labels({ stage: 'review', review: { cycle: 1, round: 2, cap: 5, rounds: [] } }).ticket.label).toBe('1 ticket ST-1 review r2/5');
+  expect(labels({}, 3).ticket.label).toContain('◐3');
+  expect(labels({}, 0).ticket.label).not.toContain('◐');
+  expect(labels({ log: [{ at: 5, kind: 'gate', text: 'gate done FAIL: red', fail: true }] }).ticket.label).toContain('gate failed');
+  expect(labels({ log: [{ at: 5, kind: 'gate', text: 'gate done PASS' }] }).ticket.label).not.toContain('gate failed');
+});
+
+const claimed = JSON.stringify(
+  board({
+    current: 'ST-1',
+    yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 },
+    ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 },
+  }),
+);
+const SHOW = (id: string): string[] => ['npx', '--yes', '@accord-dev/accord@9.9.9', 'show', id, '--json'];
+// the pane of a ticket worktree after its dashboard and its ticket `show` both settled
+async function claimedPane(): Promise<Awaited<ReturnType<typeof host>>> {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: claimed });
+  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));
+  h.settle({ stdout: JSON.stringify(detailOf()) });
+  await vi.waitFor(() => expect(h.texts()).toContain('build 1/3'));
+  return h;
+}
+const marked = (h: Awaited<ReturnType<typeof host>>): El[] => ['Box', 'Text', 'Button', 'Input'].flatMap((t) => h.nodes(t)).filter((n) => n.props.autoFocus === true);
+const tabs = (h: Awaited<ReturnType<typeof host>>): Record<string, any> => Object.fromEntries(h.buttons().filter((b) => String(b.key).startsWith('tab:')).map((b) => [b.key, b]));
+
+// Phase 08.7 D-03, D-10: the pane opens on the ticket tab for the ticket this worktree claimed and on the dashboard with one hint line otherwise.
+it('risk:regression the pane opens on the ticket tab for the claimed ticket and on the dashboard with one hint line otherwise (D-03 D-10)', async () => {
+  const h = await claimedPane();
+  expect(tabs(h)['tab:ticket']).toMatchObject({ hotkey: '1', variant: 'primary' });
+  expect(tabs(h)['tab:dashboard']).toMatchObject({ hotkey: '2', variant: 'secondary' });
+  expect(h.texts()).toContain('ST-1 Login form');
+  expect(h.texts()).toContain('build 1/3');
+  expect(h.input()).toBeUndefined();
+  expect(marked(h)).toEqual([]);
+  const other = await host(await loadPanel());
+  await other.fire('session.start', start);
+  other.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(other.texts().some((x) => x.includes('ST-2'))).toBe(true));
+  expect(Object.keys(tabs(other))).toEqual([]);
+  const t = other.texts();
+  expect(t.indexOf('No ticket in flight in this worktree')).toBeGreaterThanOrEqual(0);
+  expect(t.indexOf('No ticket in flight in this worktree')).toBeLessThan(t.indexOf('YOURS'));
+  expect(other.cell('No ticket in flight in this worktree').text.dimColor).toBe(true);
+  expect(other.input()?.autoFocus).toBe(true);
+  expect(other.$.process.run).toHaveBeenCalledTimes(1);
+});
+
+// Phase 08.7 D-03, A-04 (probe row A4 `keys: field takes digits`, read so by A-09): a picked tab stays, the in-flight id jumps, and the search field takes focus only when clicked while a ticket is in flight.
+it('risk:complex-branching keys 1 and 2 switch tabs a picked tab stays and the in-flight id jumps to the ticket tab (D-03)', async () => {
+  const h = await claimedPane();
+  const calls = (): number => h.$.process.run.mock.calls.length;
+  press(h, 'tab:dashboard');
+  await vi.waitFor(() => expect(h.input()).toBeDefined());
+  expect(h.texts()).toContain('ST-2');
+  expect(tabs(h)['tab:dashboard'].variant).toBe('primary');
+  expect(tabs(h)['tab:ticket'].variant).toBe('secondary');
+  expect(tabs(h)['tab:ticket'].hotkey).toBe('1');
+  expect(tabs(h)['tab:dashboard'].hotkey).toBe('2');
+  expect(h.input()?.autoFocus).toBeUndefined();
+  expect(marked(h)).toEqual([]);
+  await h.fire('turn.complete', { reason: 'answer' });
+  await vi.waitFor(() => expect(h.inflight()).toBe(2));
+  h.settle({ stdout: claimed });
+  h.settle({ stdout: JSON.stringify(detailOf({ title: 'Renamed' })) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(0));
+  await new Promise((r) => setTimeout(r, 10));
+  expect(h.input()).toBeDefined();
+  expect(tabs(h)['tab:dashboard'].variant).toBe('primary');
+  const before = calls();
+  press(h, 'show:ST-1');
+  await vi.waitFor(() => expect(h.texts()).toContain('ST-1 Renamed'));
+  expect(calls()).toBe(before);
+  expect(h.input()).toBeUndefined();
+  expect(tabs(h)['tab:ticket'].hotkey).toBe('1');
+  expect(tabs(h)['tab:dashboard'].hotkey).toBe('2');
+  press(h, 'tab:dashboard');
+  await vi.waitFor(() => expect(h.input()).toBeDefined());
+  press(h, 'show:ST-2');
+  expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 });
+  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toContain('back'));
+  expect(Object.keys(tabs(h))).toEqual(['tab:ticket', 'tab:dashboard']);
+  // a dashboard that no longer names a claimed ticket drops the tab strip and the ticket
+  press(h, 'back');
+  await h.fire('turn.complete', { reason: 'answer' });
+  await vi.waitFor(() => expect(h.inflight()).toBeGreaterThanOrEqual(1));
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(Object.keys(tabs(h))).toEqual([]));
+  expect(h.texts()).toContain('No ticket in flight in this worktree');
+  expect(h.input()?.autoFocus).toBe(true);
+});
+
+// Phase 08.7 D-10: an id out of the JSON becomes an argv element, so only a safe id may reach `show`.
+it('risk:security a current id that is not a safe id never reaches a command (D-10)', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: JSON.stringify(board({ current: 'ST 1|x', yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true));
+  await new Promise((r) => setTimeout(r, 10));
+  expect(Object.keys(tabs(h))).toEqual([]);
+  expect(h.texts()).toContain('No ticket in flight in this worktree');
+  expect(h.$.process.run).toHaveBeenCalledTimes(1);
+  expect(h.$.process.run.mock.calls.some((c: any[]) => c[0].includes('show'))).toBe(false);
+});
+
+// ---- Phase 08.7-07: the ticket tab's review rounds, criteria, session log and failure box (D-04, D-08, D-02) ----
+
+const tally = (open = 0, fixed = 0, deferred = 0): Record<string, number> => ({ open, fixed, deferred });
+const reviewOf = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  cycle: 1,
+  round: 2,
+  cap: 5,
+  verdict: 'converged',
+  rounds: [
+    { n: 1, findings: { Must: tally(1, 2), Should: tally(0, 0, 1), Nice: tally() } },
+    { n: 2, final: true, security: 'ran', findings: { Must: tally(), Should: tally(), Nice: tally() } },
+  ],
+  ...over,
+});
+const critOf = (id: string, title: string, label: string): Record<string, unknown> => ({ id, title, steps: [], label, test: null, testResult: null, ticked: false, verification: null });
+// ten log entries newest first, the third one an executor report; `at` counts back from now so the ages read as seconds and minutes
+const logOf = (): Record<string, unknown>[] => {
+  const now = Math.floor(Date.now() / 1000);
+  return Array.from({ length: 10 }, (_, i) =>
+    i === 2 ? { at: now - 30 - i * 40, kind: 'report', text: 'executor report task 1' } : { at: now - 30 - i * 40, kind: 'commit', text: `commit number ${i}` },
+  );
+};
+// the pane of a claimed ticket after `show` settled with these keys on top of detailOf()
+async function paneWith(over: Record<string, unknown>): Promise<Awaited<ReturnType<typeof host>>> {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: claimed });
+  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));
+  h.settle({ stdout: JSON.stringify(detailOf(over)) });
+  await vi.waitFor(() => expect(h.texts()).toContain('ST-1 Login form'));
+  return h;
+}
+const textsIn = (el: any): string[] => {
+  const out: string[] = [];
+  const walk = (n: any): void => {
+    if (!n || typeof n !== 'object') return;
+    if (n.type === 'Text') out.push((n.props.children as unknown[]).join(''));
+    for (const c of n.props?.children ?? []) walk(c);
+  };
+  walk(el);
+  return out;
+};
+const kids = (row: Record<string, any>): string[] => (row.children as any[]).flatMap((c) => textsIn(c));
+
+// Phase 08.7 D-04 (as amended by A-01): the review block reads per round and per severity; the criteria and the log come from the same JSON.
+it('risk:regression the ticket tab draws the review rounds the criteria and the session log from show json (D-04)', async () => {
+  const log = logOf();
+  const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing'), critOf('ac-3', 'Remembers me', 'untested')], log });
+  const t = h.texts();
+  expect(t).toContain('REVIEW r2/5 converged');
+  expect(kids(h.row('r1/5'))).toEqual(['r1/5', 'Must 1 open 2 fixed', 'Should 1 deferred']);
+  expect(kids(h.row('r2/5 final'))).toEqual(['r2/5 final', 'no findings', 'security lens ran']);
+  expect(h.cell('r1/5').text.bold).toBe(true);
+  expect(t).toContain('CRITERIA');
+  for (const [id, title, label] of [['ac-1', 'Logs in', 'passing'], ['ac-2', 'Logs out', 'failing'], ['ac-3', 'Remembers me', 'untested']]) {
+    expect(kids(h.row(title))).toEqual([id, title, label]);
+    expect(h.cell(title).text.wrap).toBe('truncate');
+  }
+  expect(h.cell('passing').text.color).toBe('green');
+  expect(h.cell('failing').text.color).toBe('red');
+  expect(h.cell('untested').text.dimColor).toBe(true);
+  expect(t).toContain('LOG');
+  const rest = t.slice(t.indexOf('LOG') + 1);
+  expect(rest).toHaveLength(16);
+  for (let i = 0; i < 8; i++) {
+    expect(rest[2 * i]).toMatch(/^[0-9]+[smhd]$/);
+    expect(rest[2 * i + 1]).toBe(log[i].text);
+  }
+  expect(rest).toContain('executor report task 1');
+  expect(rest).not.toContain('commit number 8');
+});
+
+// Phase 08.7 D-04: the rows are built from the JSON alone, nothing is counted in the view.
+it('risk:parsing review rows criteria rows and log rows are built from the json alone (D-04)', async () => {
+  const { reviewRows, criteriaRows, ago, logRows, failureOf, LOG_SHOWN } = await loadView();
+  const zero = { Must: tally(), Should: tally(), Nice: tally() };
+  const two = reviewRows({ cycle: 2, round: 1, cap: 5, rounds: [{ n: 1, added: true, security: 'none', findings: zero }] });
+  expect(two.heading).toBe('REVIEW cycle 2 r1/5');
+  expect(two.rounds).toEqual([{ head: 'r1/5 added', parts: ['no findings'], security: 'no security pattern' }]);
+  const rows = reviewRows(reviewOf());
+  expect(rows.heading).toBe('REVIEW r2/5 converged');
+  expect(rows.rounds[0]).toEqual({ head: 'r1/5', parts: ['Must 1 open 2 fixed', 'Should 1 deferred'], security: undefined });
+  expect(rows.rounds[1]).toMatchObject({ head: 'r2/5 final', parts: ['no findings'], security: 'security lens ran' });
+  const sev = reviewRows({ cycle: 1, round: 3, cap: 5, rounds: [{ n: 3, findings: { Must: tally(0, 0, 4), Should: tally(5), Nice: tally(0, 6) } }] });
+  expect(sev.rounds[0].parts).toEqual(['Must 4 deferred', 'Should 5 open', 'Nice 6 fixed']);
+  const colors = criteriaRows([critOf('a', 'A', 'failing'), critOf('b', 'B', 'blocked'), critOf('c', 'C', 'verified'), critOf('d', 'D', 'passing'), critOf('e', 'E', 'not run'), critOf('f', 'F', 'untested')]);
+  expect(colors.map((c: any) => c.color)).toEqual(['red', 'red', 'green', 'green', 'yellow', 'dim']);
+  expect(colors[0]).toEqual({ id: 'a', title: 'A', label: 'failing', color: 'red' });
+  expect([ago(100, 90), ago(0, 59), ago(0, 60), ago(0, 3599), ago(0, 3600), ago(0, 86399), ago(0, 86400)]).toEqual(['0s', '59s', '1m', '59m', '1h', '23h', '1d']);
+  const log = Array.from({ length: 12 }, (_, i) => ({ at: 1000 - i, kind: i === 1 ? 'gate' : 'commit', text: `t${i}`, ...(i === 1 ? { fail: true } : {}) }));
+  expect(LOG_SHOWN).toBe(8);
+  const shown = logRows(log, 1010);
+  expect(shown.map((r: any) => r.text)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7']);
+  expect(shown[1]).toEqual({ age: '11s', text: 't1', fail: true });
+  expect(failureOf(log)).toBeUndefined();
+  expect(failureOf([log[1]])).toEqual({ text: 't1' });
+  expect(failureOf(undefined)).toBeUndefined();
+});
+
+// Phase 08.7 D-04: only the newest log entry decides the failure box, and the tab label follows it.
+it('risk:complex-branching a newest failed gate run shows the failure block and the tab label says gate failed (D-04)', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const gate = { at: now - 20, kind: 'gate', text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true };
+  const h = await paneWith({ log: [gate, { at: now - 60, kind: 'commit', text: 'build: export' }] });
+  const box = h.nodes('Box').find((b) => b.props.borderColor === 'red');
+  expect(box?.props.borderStyle).toBe('round');
+  expect(textsIn(box)).toEqual(['Gate failed', gate.text]);
+  const heading = (box?.props.children as any[]).find((c) => c.type === 'Text' && c.props.children[0] === 'Gate failed');
+  expect(heading.props).toMatchObject({ bold: true, color: 'red' });
+  expect(tabs(h)['tab:ticket'].label).toContain('gate failed');
+  const later = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'fix: header' }, gate] });
+  expect(later.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(false);
+  expect(later.texts()).not.toContain('Gate failed');
+  expect(tabs(later)['tab:ticket'].label).not.toContain('gate failed');
+  expect(later.texts()).toContain('LOG');
+});
+
+// Phase 08.7 D-08: the context, tokens and cost block is backlog 999.59; the tab draws none of it.
+it('risk:regression the ticket tab draws no context token or cost block (D-08)', async () => {
+  const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log: logOf() });
+  const t = h.texts();
+  for (const heading of ['CRITERIA', 'LOG']) expect(t).toContain(heading);
+  expect(t.some((x) => x.startsWith('REVIEW'))).toBe(true);
+  expect(t.filter((x) => /\b(tokens?|cost|context)\b/i.test(x))).toEqual([]);
+});
+
+// Phase 08.7 D-04, T-08.7-12: every drawn string passes the view's clean, so no control or bidi code point reaches the pane.
+it('risk:security log lines criterion titles and stage text cannot put control characters into the pane (D-04)', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const h = await paneWith({
+    stage: 'build\u0007',
+    criteria: [critOf('ac-1', 'Lo⁦gs in', 'passing')],
+    log: [{ at: now - 5, kind: 'commit', text: 'evil‮\u0007subject' }],
+  });
+  const t = h.texts();
+  expect(t).toContain('evil subject');
+  expect(t).toContain('Lo gs in');
+  const bad = (c: number): boolean =>
+    c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x61c || c === 0x200e || c === 0x200f || c === 0x2028 || c === 0x2029 || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
+  for (const s of [...t, ...h.buttons().map((b) => String(b.label ?? ''))]) for (const ch of s) expect(bad(ch.codePointAt(0) as number)).toBe(false);
+});
+
+// Phase 08.7 D-02, T-08.7-24: a malformed review or log key is drawn as absent and the rest of the ticket still shows.
+it('risk:complex-branching a malformed review or log key is drawn as absent and the rest of the ticket still shows (D-02)', async () => {
+  const bad = await paneWith({ review: { round: 'x' }, criteria: [critOf('ac-1', 'Logs in', 'passing')] });
+  expect(bad.texts().some((x) => x.startsWith('REVIEW'))).toBe(false);
+  expect(bad.texts()).toContain('CRITERIA');
+  expect(bad.texts()).toContain('Logs in');
+  const text = await paneWith({ log: 'x', criteria: [critOf('ac-1', 'Logs in', 'passing')] });
+  expect(text.texts()).not.toContain('LOG');
+  expect(text.texts()).toContain('CRITERIA');
+  const now = Math.floor(Date.now() / 1000);
+  const mixed = await paneWith({
+    log: [
+      { at: 'x', kind: 'commit', text: 'bad at' },
+      { at: now - 9, kind: 'x', text: 'bad kind' },
+      { at: now - 8, kind: 'commit', text: 'good one' },
+      { at: now - 7, kind: 'commit', text: 12 },
+      { at: now - 6, kind: 'report', text: 'good two' },
+    ],
+    criteria: [critOf('ac-1', 'Logs in', 'passing')],
+  });
+  const t = mixed.texts();
+  expect(t).toContain('LOG');
+  expect(t.slice(t.indexOf('LOG') + 1).filter((x) => !/^[0-9]+[smhd]$/.test(x))).toEqual(['good one', 'good two']);
+});
+
+// ---- Phase 08.7-06: the agents block and the roster (D-01, D-02, D-03) ----
+
+// each fake `$.agent.list()` entry carries the join key `id` (probe row A3), a label and a description the pane must never draw
+const agentOf = (id: string, type: string, over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  id,
+  type,
+  status: 'running',
+  startTime: Date.now() - 65500,
+  label: 'secret label ' + id,
+  description: 'secret description ' + id,
+  ...over,
+});
+const subStart = (id: string): Record<string, unknown> => ({ turnId: 't-' + id, text: 'x', agentId: id });
+
+// Phase 08.7 D-01, D-02, D-03: the agents block lists the accord agents the mod saw start, a timer while one runs and its own time when it ends; the tab label counts the running ones.
+it('risk:regression the agents block shows running accord agents with timers and finished ones with their time (D-01 D-02)', async () => {
+  const h = await claimedPane();
+  expect(h.texts()).toContain('AGENTS');
+  expect(h.texts()).toContain('none running');
+  expect(h.cell('none running').text.dimColor).toBe(true);
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('turn.start', subStart('a1'));
+  expect(h.texts()).toContain('◐ executor');
+  expect(h.texts()).toContain('1:05');
+  expect(h.texts()).not.toContain('none running');
+  expect(tabs(h)['tab:ticket'].label).toContain('◐1');
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 125000, reason: 'answer' });
+  expect(h.texts()).toContain('✓ executor');
+  expect(h.texts()).toContain('2:05');
+  expect(h.texts()).not.toContain('◐ executor');
+  expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
+  // the block sits between the failure box and the review rounds
+  const now = Math.floor(Date.now() / 1000);
+  const ordered = await paneWith({ stage: 'review', review: reviewOf(), log: [{ at: now - 20, kind: 'gate', text: 'gate done FAIL: red', fail: true }] });
+  const t = ordered.texts();
+  expect(t.indexOf('Gate failed')).toBeGreaterThanOrEqual(0);
+  expect(t.indexOf('AGENTS')).toBeGreaterThan(t.indexOf('Gate failed'));
+  expect(t.indexOf('AGENTS')).toBeLessThan(t.indexOf('REVIEW r2/5 converged'));
+});
+
+// Phase 08.7 D-01, D-02: the pure row builders keep accord agents only, running first, at most six rows.
+it('risk:parsing agent rows keep accord agents only rank running first and cap at six (D-01 D-02)', async () => {
+  const { agentRows, isAccordAgent, mmss, AGENTS_SHOWN, ACCORD_AGENT } = await loadView();
+  expect(AGENTS_SHOWN).toBe(6);
+  expect(ACCORD_AGENT.test('accord-executor')).toBe(true);
+  expect(['accord-executor', 'accord-x', 'accord-a-b'].map(isAccordAgent)).toEqual([true, true, true]);
+  expect(['accord-', 'accord-Executor', 'xaccord-executor', 'accord-1', 'accord-x‮', 'accord-x\n', 'general-purpose', 'accord-' + 'a'.repeat(32), undefined, 7].map(isAccordAgent)).toEqual(Array(10).fill(false));
+  expect([mmss(0), mmss(65000), mmss(125999), mmss(-5), mmss(NaN), mmss(Infinity), mmss(3600000)]).toEqual(['0:00', '1:05', '2:05', '0:00', '0:00', '0:00', '60:00']);
+  const rows = agentRows(
+    [
+      { key: 'f1', type: 'accord-planner', running: false, startTime: 0, endTime: 5000, durationMs: 4000 },
+      { key: 'r1', type: 'accord-executor', running: true, startTime: 1000 },
+      { key: 'r2', type: 'accord-reviewer', running: true, startTime: 3000 },
+      { key: 'f2', type: 'accord-critic', running: false, startTime: 0, endTime: 9000, durationMs: 9000 },
+      { key: 'x', type: 'general-purpose', running: true, startTime: 4000 },
+    ],
+    11000,
+  );
+  expect(rows).toEqual([
+    { key: 'r2', name: 'reviewer', running: true, time: '0:08' },
+    { key: 'r1', name: 'executor', running: true, time: '0:10' },
+    { key: 'f2', name: 'critic', running: false, time: '0:09' },
+    { key: 'f1', name: 'planner', running: false, time: '0:04' },
+  ]);
+  const many = agentRows(
+    Array.from({ length: 9 }, (_, i) => ({ key: 'k' + i, type: 'accord-executor', running: true, startTime: i * 1000 })),
+    20000,
+  );
+  expect(many).toHaveLength(6);
+  expect(many.map((r: any) => r.key)).toEqual(['k8', 'k7', 'k6', 'k5', 'k4', 'k3']);
+});
+
+// Phase 08.7 D-02: a subagent turn start runs no command; an accord subagent's end schedules one `show` refresh, debounced 3 seconds; one 1-second timer runs while an accord agent runs.
+it('risk:concurrency subagent turns start no accord run and an accord subagent end schedules one debounced show refresh (D-02)', async () => {
+  const h = await claimedPane();
+  const calls = (): number => h.$.process.run.mock.calls.length;
+  const base = calls();
+  h.agents = [agentOf('a1', 'accord-executor'), agentOf('a2', 'accord-planner'), agentOf('g1', 'general-purpose')];
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('turn.start', subStart('a2'));
+  await h.fire('turn.start', subStart('g1'));
+  expect(calls()).toBe(base);
+  expect(h.$.clock.every).toHaveBeenCalledTimes(1);
+  expect(h.$.clock.every).toHaveBeenCalledWith(1000, expect.any(Function));
+  expect(h.$.clock.after).not.toHaveBeenCalled();
+  await h.fire('turn.complete', { agentId: 'g1', durationMs: 10, reason: 'answer' });
+  expect(h.$.clock.after).not.toHaveBeenCalled();
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 10, reason: 'answer' });
+  expect(h.$.clock.after).toHaveBeenCalledTimes(1);
+  expect(h.$.clock.after).toHaveBeenLastCalledWith(3000, expect.any(Function));
+  expect(calls()).toBe(base);
+  const ticks = h.timers.filter((t) => t.ms === 1000);
+  expect(ticks).toHaveLength(1);
+  expect(ticks[0].cancelled).toBe(false);
+  await h.fire('turn.complete', { agentId: 'a2', durationMs: 10, reason: 'answer' });
+  const waits = h.timers.filter((t) => t.ms === 3000);
+  expect(waits.map((t) => t.cancelled)).toEqual([true, false]);
+  expect(ticks[0].cancelled).toBe(true);
+  expect(calls()).toBe(base);
+  await waits[1].fn();
+  expect(calls()).toBe(base + 1);
+  expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 });
+  h.settle({ stdout: JSON.stringify(detailOf()) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(0));
+});
+
+// Phase 08.7 D-01, T-08.7-13, T-08.7-16: the filter reads the type from the list entry, never a label or a description, and a type that only looks like an accord agent never passes.
+it('risk:security a non-accord subagent and a type that only looks like one are never shown (D-01)', async () => {
+  const h = await claimedPane();
+  const types = ['general-purpose', 'Explore', 'accord-', 'accord-Executor', 'xaccord-executor', 'accord-x‮'];
+  h.agents = types.map((t, i) => agentOf('s' + i, t));
+  for (let i = 0; i < types.length; i++) await h.fire('turn.start', subStart('s' + i));
+  expect(h.texts()).toContain('AGENTS');
+  expect(h.texts()).toContain('none running');
+  expect(h.texts().some((x) => /^[◐✓] /.test(x))).toBe(false);
+  expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
+  for (const x of h.texts()) {
+    expect(x).not.toContain('secret label');
+    expect(x).not.toContain('secret description');
+  }
+  // the join key is the entry's id: an event whose agentId matches no entry shows nothing
+  h.agents = [agentOf('b1', 'accord-executor')];
+  await h.fire('turn.start', subStart('zz'));
+  expect(h.texts()).toContain('none running');
+  // an accord agent shows by its type alone
+  await h.fire('turn.start', subStart('b1'));
+  expect(h.texts()).toContain('◐ executor');
+  for (const x of h.texts()) {
+    expect(x).not.toContain('secret');
+  }
+});
+
+// Phase 08.7 D-02: without `$.agent.list` the block is not drawn and nothing throws; without `$.clock` an accord agent's end refreshes the ticket at once.
+it('risk:complex-branching without agent list or clock the pane hides the agents block and still refreshes (D-02)', async () => {
+  const none = await claimedPane();
+  delete none.$.agent;
+  await none.fire('turn.start', subStart('a1'));
+  await none.$.ui.invalidate('ui.render');
+  expect(none.texts()).not.toContain('AGENTS');
+  expect(none.texts()).not.toContain('none running');
+  expect(none.texts()).toContain('build 1/3');
+  const bare = await claimedPane();
+  delete bare.$.clock;
+  bare.agents = [agentOf('a1', 'accord-executor')];
+  await bare.fire('turn.start', subStart('a1'));
+  expect(bare.timers).toEqual([]);
+  expect(bare.texts()).toContain('◐ executor');
+  const base = bare.$.process.run.mock.calls.length;
+  await bare.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' });
+  expect(bare.$.process.run.mock.calls.length).toBe(base + 1);
+  expect(bare.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 });
+  expect(bare.timers).toEqual([]);
+  bare.settle({ stdout: JSON.stringify(detailOf()) });
+  await vi.waitFor(() => expect(bare.inflight()).toBe(0));
+});
+
+// Phase 08.7 D-02, T-08.7-17: a session that never opened the pane reads no agent list, runs no command and asks for no timer.
+it('risk:concurrency a session that never opened the pane calls no agent list (D-02)', async () => {
+  const h = await host(await loadPanel());
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('session.start', { cwd: '.', surface: null, isInteractive: false });
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' });
+  expect(h.$.agent.list).not.toHaveBeenCalled();
+  expect(h.$.process.run).not.toHaveBeenCalled();
+  expect(h.$.clock.after).not.toHaveBeenCalled();
+  expect(h.$.clock.every).not.toHaveBeenCalled();
+});
+
+// ---- Phase 08.7-06: the desktop entry (D-06) ----
+
+// Phase 08.7 D-06: where desktop shows the pane as a widget its clicks may not arrive, so it draws the two tab summaries as plain text and no Button.
+it('risk:regression a widget placement draws only the two tab summaries (D-06)', async () => {
+  const h = await claimedPane();
+  h.columns = 100;
+  h.placement = 'widget';
+  await h.$.ui.invalidate('ui.render');
+  expect(h.buttons()).toEqual([]);
+  expect(h.nodes('Input')).toEqual([]);
+  expect(h.texts()).toEqual(['1 ticket ST-1 build', '2 dashboard 1 yours · 1 ready · 0 team']);
+  // a widget cannot be told apart by its width alone: a dock placement of the same pane still draws its buttons
+  h.placement = 'dock';
+  await h.$.ui.invalidate('ui.render');
+  expect(Object.keys(tabs(h))).toEqual(['tab:ticket', 'tab:dashboard']);
+  // with no ticket in flight the widget is the hint line and the dashboard's summary line
+  const none = await host(await loadPanel());
+  none.columns = 100;
+  none.placement = 'widget';
+  await none.fire('session.start', start);
+  none.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(none.texts()).toEqual(['No ticket in flight in this worktree', '0 in progress, 0 ready, 0 blocked, 0 backlog, 0 done']));
+  expect(none.buttons()).toEqual([]);
+  expect(none.nodes('Input')).toEqual([]);
+});
+
+// Phase 08.7 D-06, T-08.7-20: when an asked open stays unplaced and a desktop client is attached, the toast names the engine's reason, cleaned; without one it is today's terminal text.
+it('risk:complex-branching an asked open that desktop cannot place names the reason (D-06)', async () => {
+  const h = await host(await loadPanel());
+  h.surfaces = ['terminal', 'desktop'];
+  h.placed = false;
+  const open = h.$.ui.open.getMockImplementation() as (a: unknown) => Promise<void>;
+  h.$.ui.open.mockImplementation(async (a: unknown) => {
+    await open(a);
+    return { isPlaced: false, reason: 'no room\u0007 for‮ a pane' };
+  });
+  await h.fire('command.run', { command: 'accord-panel', args: '' });
+  expect(h.$.ui.toast).toHaveBeenCalledTimes(1);
+  expect(h.$.ui.toast).toHaveBeenCalledWith('The accord pane could not be placed here: no room for a pane');
+  const terminal = await host(await loadPanel());
+  terminal.surfaces = ['terminal'];
+  terminal.placed = false;
+  await terminal.fire('command.run', { command: 'accord-panel', args: '' });
+  expect(terminal.$.ui.toast).toHaveBeenCalledTimes(1);
+  expect(terminal.$.ui.toast).toHaveBeenCalledWith('The terminal is too narrow for the accord pane: it needs 110 columns');
+});
+
+// ---- Phase 08.7-04: the dashboard tab's mini stage bars, epic bars, boxed sections and width-picked columns (D-03, D-05) ----
+
+const barBoard = JSON.stringify(
+  board({
+    yours: { rows: [{ id: 'ST-1', title: 'Y', lane: 'M', stage: 'plan' }], more: 0 },
+    team: { rows: [{ id: 'ST-3', lane: 'M', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5 }], more: 0 },
+    ready: { rows: [{ id: 'ST-5', lane: 'S', title: 'Small', stage: 'review' }, { id: 'ST-6', lane: 'R', title: 'Look', stage: 'research' }, { id: 'ST-8', title: 'No stage' }], more: 0 },
+    upNext: { rows: [{ id: 'ST-7', title: 'Later', lane: 'M', stage: 'intent' }], more: 0 },
+    epics: { rows: [{ id: 'EP-1', title: 'E', done: 1, total: 3 }], more: 0 },
+  }),
+);
+async function barPane(columns?: number): Promise<Awaited<ReturnType<typeof host>>> {
+  const h = await host(await loadPanel());
+  h.columns = columns;
+  await h.fire('session.start', start);
+  h.settle({ stdout: barBoard });
+  await vi.waitFor(() => expect(h.texts()).toContain('Later'));
+  return h;
+}
+const rowKids = (h: Awaited<ReturnType<typeof host>>, id: string): { props: Record<string, any> }[] => h.row(id).children as { props: Record<string, any> }[];
+const cellsOf = (box: { props: Record<string, any> }): (string | undefined)[] => (box.props.children as { props: Record<string, any> }[]).map((c) => c.props.backgroundColor);
+
+// Phase 08.7 D-05: every lane row draws one 1-column Box per stage cell, coloured for done and current cells, every epic row a Progress, every section a round Box led by its heading.
+it('risk:regression the dashboard tab draws a mini stage bar per row an epic progress bar and boxed sections (D-05)', async () => {
+  const h = await barPane();
+  const bar = rowKids(h, 'ST-3')[1];
+  expect(bar.props).toMatchObject({ width: 5, flexShrink: 0 });
+  expect(cellsOf(bar)).toEqual(['blue', 'cyan', 'yellow', undefined, undefined]);
+  for (const c of bar.props.children as { props: Record<string, any> }[]) expect(c.props.width).toBe(1);
+  expect(cellsOf(rowKids(h, 'ST-5')[1])).toEqual(['blue', 'yellow', 'magenta']);
+  expect(cellsOf(rowKids(h, 'ST-6')[1])).toEqual(['blue', 'cyan']);
+  // a row with no stage draws an empty bar cell of the same width, so the columns stay aligned
+  expect(rowKids(h, 'ST-8')[1].props).toMatchObject({ width: 5 });
+  expect(cellsOf(rowKids(h, 'ST-8')[1])).toEqual([]);
+  const progress = h.nodes('Progress');
+  expect(progress).toHaveLength(1);
+  expect(progress[0].props).toMatchObject({ label: 'EP-1 children done', value: 1, max: 3, valueText: '1/3 done', color: 'green' });
+  for (const heading of ['YOURS', 'TEAM', 'READY', 'UP NEXT', 'EPICS']) {
+    const section = h.nodes('Box').find((n) => ((n.props.children ?? []) as any[])[0]?.props?.children?.[0] === heading);
+    expect(section?.props, heading).toMatchObject({ borderStyle: 'round', marginTop: 1, flexDirection: 'column', paddingX: 1 });
+    expect((section?.props.children as any[])[0].props).toMatchObject({ bold: true, color: 'cyan' });
+  }
+});
+
+// Phase 08.7 D-03, D-05: the row columns follow the width the pane reports; the ticket tab's stage bar drops its labels at narrow.
+it('risk:complex-branching the row columns follow the pane width the pane reports (D-03 D-05)', async () => {
+  const widths: [number | undefined, string[]][] = [
+    [undefined, ['ID', 'LANE', 'STAGE', 'TITLE']],
+    [200, ['ID', 'LANE', 'STAGE', 'TITLE']],
+    [80, ['ID', 'LANE', 'STAGE', 'TITLE']],
+    [79, ['ID', 'STAGE', 'TITLE']],
+    [56, ['ID', 'STAGE', 'TITLE']],
+    [55, ['ID', 'TITLE']],
+    [24, ['ID', 'TITLE']],
+  ];
+  for (const [columns, headers] of widths) {
+    const h = await barPane(columns);
+    const label = String(columns);
+    // header row: the bar column's header is an empty Box, so a header row holds one more child than it has header texts
+    expect(h.row('ID').children, label).toHaveLength(headers.length + 1);
+    for (const w of ['LANE', 'STAGE', 'TITLE']) expect(h.texts().includes(w), label + ' ' + w).toBe(headers.includes(w));
+    const kids = rowKids(h, 'ST-3');
+    expect(kids, label).toHaveLength(headers.length + 1);
+    expect(kids[1].props.width, label).toBe(5);
+    expect(kids.some((k) => (k.props.children as any[])?.[0]?.props?.children?.[0] === 'M'), label).toBe(headers.includes('LANE'));
+    expect(kids.some((k) => (k.props.children as any[])?.[0]?.props?.children?.[0] === 'build 2/5'), label).toBe(headers.includes('STAGE'));
+    expect(h.texts().includes('build 2/5'), label).toBe(headers.includes('STAGE'));
+    // the epic row keeps its id, its progress box and its title; the stage count text goes with the stage column
+    const epic = h.row('EP-1').children as any[];
+    expect(epic, label).toHaveLength(headers.includes('STAGE') ? 4 : 3);
+    expect(epic[1].props.children[0].type, label).toBe('Progress');
+    expect(h.texts().includes('1/3 done'), label).toBe(headers.includes('STAGE'));
+  }
+  // the ticket tab below NARROW drops the stage labels and names the current stage once
+  for (const [columns, labelled] of [[100, true], [55, false]] as [number, boolean][]) {
+    const h = await claimedPane();
+    h.columns = columns;
+    await h.$.ui.invalidate('ui.render');
+    expect(h.texts().includes('intent/approach'), String(columns)).toBe(labelled);
+    expect(h.texts().filter((t) => t === 'build 1/3'), String(columns)).toHaveLength(1);
+  }
+});
+
+// Phase 08.7 D-05: an engine that gives no Progress element still shows the epic's count, as text, and nothing throws.
+it('risk:complex-branching an engine without Progress draws the epic count as text (D-05)', async () => {
+  const h = await host(await loadPanel());
+  const resolve = h.$.ui.resolve;
+  h.$.ui.resolve = (e: unknown) => {
+    const { Progress, ...rest } = resolve(e) as Record<string, unknown>;
+    void Progress;
+    return rest;
+  };
+  await h.fire('session.start', start);
+  h.settle({ stdout: barBoard });
+  await vi.waitFor(() => expect(h.texts()).toContain('Later'));
+  expect(h.nodes('Progress')).toEqual([]);
+  expect(h.texts().filter((t) => t === '1/3 done')).toHaveLength(2);
+  expect(cellsOf(rowKids(h, 'ST-3')[1])).toEqual(['blue', 'cyan', 'yellow', undefined, undefined]);
+});
+
+// Phase 08.7-04 D-02, D-06: docs/design.md records the 2026-10-14 panel exception word for word with the owner's widening and the Claude-Code-only scope, and README.md says the pane has two tabs.
+it('risk:regression docs/design.md records the panel exception verbatim with its widening and its parity exception (D-02 D-06)', () => {
+  const read = (path: string): string => readFileSync(new URL('../../../' + path, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const paragraphs = read('docs/design.md').split('\n').filter((l) => l.startsWith('**Panel.**'));
+  expect(paragraphs).toHaveLength(1);
+  const panel = paragraphs[0];
+  expect(panel).toContain('The panel must hold no logic or gate; it reads `status --json` only.');
+  expect(panel).toContain('the pane may also listen to subagent events, for display only');
+  for (const word of ['Parity exception', 'Desktop Code tab', 'accord show <id> --json']) expect(panel, word).toContain(word);
+  expect(read('README.md')).toContain('two tabs');
 });

@@ -9,6 +9,7 @@ import type { RepoSnapshot } from '../model/snapshot.js';
 import { productBlocks } from '../product/assemble.js';
 import type { ProductRead } from '../product/assemble.js';
 import { epicBlock } from './epic.js';
+import { ticketWarnings } from './show.js';
 import { laneRNext, laneSNext, nextStep, progressOf } from './stage.js';
 import type { LaneRStage, LaneSStage } from './stage.js';
 
@@ -65,10 +66,16 @@ export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly 
   }
   const lane = ticket.frontmatter?.lane;
   const out = [`# Anchor: ${id} "${ticket.frontmatter?.title ?? ''}"`, ''];
-  if (lane === 'S') out.push('Lane: S', `Stage: ${progress.stage}, next: ${laneSNext(progress.stage as LaneSStage)}`);
+  // Phase 08.8.1 D-05: the session-resume hook prints this text into an agent's context, which must not read `build 0/3` or `plan` as fact for a ticket whose records git does not hold: the
+  // not-committed text takes the place of the Stage line, and any other warning (D-02, a gated plan held at plan) follows it. With none, today's anchor byte for byte.
+  const warnings = ticketWarnings(snapshot, id);
+  const notCommitted = warnings.find((w) => w.kind === 'not-committed');
+  const stage = (line: string): string => notCommitted?.text ?? line;
+  if (lane === 'S') out.push('Lane: S', stage(`Stage: ${progress.stage}, next: ${laneSNext(progress.stage as LaneSStage)}`));
   // ST-LN-94 94-ac-5: lane R prints its own stage and the three sections gate ready hashed.
-  else if (lane === 'R') out.push('Lane: R', `Stage: ${progress.stage}, next: ${laneRNext(progress.stage as LaneRStage)}`);
-  else out.push(`Stage: ${where}`);
+  else if (lane === 'R') out.push('Lane: R', stage(`Stage: ${progress.stage}, next: ${laneRNext(progress.stage as LaneRStage)}`));
+  else out.push(stage(`Stage: ${where}`));
+  out.push(...warnings.filter((w) => w.kind !== 'not-committed').map((w) => w.text));
   if (progress.base !== undefined) out.push(`Review base: ${progress.base}`);
   out.push(...header, ...unfinishedLines(snapshot, id));
   const optional = (names: string[]) => names.filter((n) => has(ticket, n));

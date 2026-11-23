@@ -220,6 +220,7 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(input.claimBranches === undefined ? {} : { claimBranches: input.claimBranches }),
     ...(input.claimTemplate === undefined ? {} : { claimTemplate: input.claimTemplate }),
     ...(input.planFacts === undefined ? {} : { planFacts: input.planFacts }),
+    ...(input.trackFacts === undefined ? {} : { trackFacts: input.trackFacts }),
     ...(input.afterVerify === undefined ? {} : { afterVerify: input.afterVerify }),
     ...(input.reviewFacts === undefined ? {} : { reviewFacts: input.reviewFacts }),
     ...(input.branchFacts === undefined ? {} : { branchFacts: input.branchFacts }),

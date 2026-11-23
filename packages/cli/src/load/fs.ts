@@ -149,8 +149,8 @@ function gitFacts(
   return { commit, authors, activity, planSubjects };
 }
 
-/** BUG-LN-2: the paths under accord/tickets with an uncommitted change: staged, unstaged or untracked. */
-function gitDirty(root: string): Set<string> {
+/** BUG-LN-2: the paths under accord/tickets with an uncommitted change: staged, unstaged or untracked. Phase 08.8.1 D-05: `untracked` is the part git lists as `??`, the same read, no more spawn. */
+function gitDirty(root: string): { dirty: Set<string>; untracked: Set<string> } {
   let out: string;
   try {
     out = execFileSync('git', ['--no-optional-locks', 'status', '--porcelain', '-z', '-uall', '--', 'accord/tickets'], {
@@ -165,11 +165,14 @@ function gitDirty(root: string): Set<string> {
     throw new UsageError('git status failed reading the plan files' + (stderr === '' ? '' : '\n' + stderr));
   }
   const dirty = new Set<string>();
+  const untracked = new Set<string>();
   for (const token of out.split('\0')) {
     if (token === '') continue;
-    dirty.add(/^.. /.test(token) ? token.slice(3) : token); // a rename's source is a bare path
+    const path = /^.. /.test(token) ? token.slice(3) : token; // a rename's source is a bare path
+    dirty.add(path);
+    if (token.startsWith('?? ')) untracked.add(path);
   }
-  return dirty;
+  return { dirty, untracked };
 }
 
 /**
@@ -1209,14 +1212,23 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
     });
   }
   let planFacts: Record<string, { subject?: string; clean: boolean }> | undefined;
+  // Phase 08.8.1 D-05: for a ticket whose plan.md is on disk, the first of its plan.md and ledger.md that git's tree lacks (git ignores it), else its plan.md when git status lists it untracked. A ledger.md that is
+  // untracked is the normal state after `accord task-done`, which leaves the line uncommitted, and its done lines are read from disk, so only an ignored ledger.md is named. The listing and the status are
+  // the ones this load already reads, so `show` and `anchor` spawn nothing more.
+  const trackFacts: Record<string, { state: 'ignored' | 'untracked'; path: string }> = {};
   if (stage) {
-    const dirty = gitDirty(root);
+    const { dirty, untracked } = gitDirty(root);
+    const held = new Set(tree);
     planFacts = {};
     for (const path of Object.keys(files)) {
       const id = /^accord\/tickets\/([^/]+)\/plan\.md$/.exec(path)?.[1];
       if (id === undefined) continue;
       const subject = facts?.planSubjects[id];
       planFacts[id] = { ...(subject === undefined ? {} : { subject }), clean: !dirty.has(path) };
+      const records = [path, `accord/tickets/${id}/ledger.md`].filter((r) => Object.hasOwn(files, r));
+      const ignored = records.find((r) => !held.has(r));
+      if (ignored !== undefined) trackFacts[id] = { state: 'ignored', path: ignored };
+      else if (untracked.has(path)) trackFacts[id] = { state: 'untracked', path };
     }
   }
   // ST-LN-94 CR-01: a lane R ticket is done only on a record its branch changed since the claim, which git says; none of this runs without one.
@@ -1226,6 +1238,7 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
     tree,
     ...(researchFacts === undefined ? {} : { researchFacts }),
     ...(planFacts === undefined ? {} : { planFacts }),
+    ...(Object.keys(trackFacts).length === 0 ? {} : { trackFacts }),
     ...(branchTemplates.length === 1 ? {} : { branchTemplates }),
     ...(git === undefined ? {} : { git }),
     // Omitted when empty, so a repository with no ticket branch loads exactly as before.
@@ -1382,11 +1395,14 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   }
   const files = { ...bare.files };
   const planFacts = { ...bare.planFacts };
+  // Phase 08.8.1 D-05: the checkout's track facts stay for the checkout's own tickets; a ticket read from its claim branch holds its records in git, so it has none.
+  const trackFacts = { ...bare.trackFacts };
   const planJobs: { id: string; ref: string; planPath: string }[] = [];
   const overlaid = new Set<string>();
   for (const [id, ref] of candidates) {
     if (read.get(ref + ':' + recordPaths(id)[0]) === undefined) continue;
     overlaid.add(id);
+    delete trackFacts[id];
     const planPath = 'accord/tickets/' + id + '/plan.md';
     if (read.get(ref + ':' + planPath) === undefined) delete planFacts[id];
     else {
@@ -1466,7 +1482,10 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
     ...withAfter(candidateEntries, lists.slice(checkoutEntries.length)),
   };
-  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(researchFacts).length === 0 ? {} : { researchFacts }), ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch, ...(refs === undefined ? {} : { refs }) };
+  const view: SnapshotInput = { ...bare, files, planFacts, ...(Object.keys(researchFacts).length === 0 ? {} : { researchFacts }), ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
+  if (Object.keys(trackFacts).length === 0) delete view.trackFacts;
+  else view.trackFacts = trackFacts;
+  return { checkout, view, branch, ...(refs === undefined ? {} : { refs }) };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */

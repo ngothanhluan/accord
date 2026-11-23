@@ -35,6 +35,9 @@ export interface SnapshotInput {
   // Ticket id -> the subject of the last commit that touched its plan.md and whether plan.md has no uncommitted
   // change. A plan is ready when clean and the subject is exactly the `plan_ready` subject of the id (`plan: <id> ready`, or the current or a legacy template). Absent when the host supplies none.
   planFacts?: Record<string, { subject?: string; clean: boolean }>;
+  // Phase 08.8.1 D-05: ticket id -> the first of its folder's plan.md and ledger.md that is on disk but git ignores (`ignored`), else its plan.md when git lists it as untracked (`untracked`; an untracked ledger.md is the normal state after task-done), for a ticket whose plan.md is on disk.
+  // A ticket whose plan.md and ledger.md git holds has no entry. Absent when the host supplies none.
+  trackFacts?: Record<string, { state: 'ignored' | 'untracked'; path: string }>;
   // Ticket id -> the commits after its start commit (verified_commit, else verification.md's commit) on its own tip
   // that the default ref does not hold, oldest first. Present only for a ticket whose start commit is not on the default ref.
   afterVerify?: Record<string, AfterVerifyCommit[]>;
@@ -404,6 +407,7 @@ export interface RepoSnapshot {
   claimBranches?: Record<string, string>; // carried through from SnapshotInput
   claimTemplate?: string; // carried through from SnapshotInput
   planFacts?: Record<string, { subject?: string; clean: boolean }>; // carried through from SnapshotInput
+  trackFacts?: Record<string, { state: 'ignored' | 'untracked'; path: string }>; // Phase 08.8.1 D-05: carried through from SnapshotInput
   afterVerify?: Record<string, AfterVerifyCommit[]>; // carried through from SnapshotInput
   reviewFacts?: Record<string, { clean: boolean; files?: string[] }>; // carried through from SnapshotInput
   branchFacts?: Record<string, BranchFact>; // carried through from SnapshotInput

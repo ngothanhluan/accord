@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { loadSnapshot, parseSecurityFile, pluginTargets } from '@accord-dev/accord-core';
+import { loadSnapshot, parseSecurityFile, pluginTargets, SECURITY_OFF_FROM } from '@accord-dev/accord-core';
 import type { RepoSnapshot, SkillFile } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { renderedFiles } from '../src/commands/branch-fact.js';
@@ -146,25 +146,29 @@ it('risk:security gate done asks the re-review round after a final review whose 
   }
 }, 180_000);
 
-// Phase 08.8 D-03: with the review stage off, the security review is still asked for and the ticket's ledger records it as `Security: lens security ran at <sha>`. The claim pins the cut-off
-// release (0.16.0, SECURITY_OFF_FROM after Task 2) so the ticket is judged; the CLI here runs as 0.7.0, so the working-tree pin is 0.7.0.
+// Phase 08.8 D-03: with the review stage off, the security review is still asked for and the ticket's ledger records it as `Security: lens security ran at <sha>`. The claim pins `claim`; the CLI here
+// runs as 0.7.0, so the working-tree pin is 0.7.0.
 const LEDGER = 'accord/tickets/T-1/ledger.md';
 const REVIEW_OFF = 'strictness:\n  stages:\n    M:\n      review: "off"\n';
 
-it('risk:security with review off gate done asks for the security review the ledger records (D-03)', async () => {
+/** A lane M ticket with the review stage off, claimed under `claim`, whose code commit adds a spawn line and whose ledger records both tasks done; `built` is the last commit. */
+function reviewOff(claim: string): { repo: string; code: string; built: string } {
   const repo = makeEmptyRepo();
-  try {
-    writeFiles(repo, { 'accord/config.yml': pinned('0.16.0') + REVIEW_OFF, 'accord/tickets/T-1.md': laneTicket('T-1'), 'src/run.ts': RUN_BASE });
-    const base = commitMsg(repo, 'base');
-    gitRun(repo, 'branch', '-M', 'main');
-    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
-    commitMsg(repo, 'claim: T-1', undefined, true);
-    writeFiles(repo, { 'accord/config.yml': pinned('0.7.0') + REVIEW_OFF, 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), 'src/run.ts': RUN_NEW });
-    const code = commitMsg(repo, 'code');
-    writeFiles(repo, { [LEDGER]: `- task 1 done ${code}\n- task 2 done ${code}\n` });
-    const built = commitMsg(repo, 'tasks done');
+  writeFiles(repo, { 'accord/config.yml': pinned(claim) + REVIEW_OFF, 'accord/tickets/T-1.md': laneTicket('T-1'), 'src/run.ts': RUN_BASE });
+  const base = commitMsg(repo, 'base');
+  gitRun(repo, 'branch', '-M', 'main');
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  commitMsg(repo, 'claim: T-1', undefined, true);
+  writeFiles(repo, { 'accord/config.yml': pinned('0.7.0') + REVIEW_OFF, 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base), 'src/run.ts': RUN_NEW });
+  const code = commitMsg(repo, 'code');
+  writeFiles(repo, { [LEDGER]: `- task 1 done ${code}\n- task 2 done ${code}\n` });
+  return { repo, code, built: commitMsg(repo, 'tasks done') };
+}
 
-    const refused = await security(repo);
+it('risk:security with review off gate done asks for the security review the ledger records (D-03)', async () => {
+  const t = reviewOff(SECURITY_OFF_FROM);
+  try {
+    const refused = await security(t.repo);
     expect(refused).toHaveLength(1);
     expect(refused[0]).toMatchObject({ level: 'error', file: LEDGER });
     expect(refused[0].reason).toContain('src/run.ts:3: spawn');
@@ -172,11 +176,33 @@ it('risk:security with review off gate done asks for the security review the led
     expect(refused[0].reason).toContain('Security: lens security ran at <sha>');
 
     // the ledger records the review at the commit that was reviewed, and the refusal is gone
-    writeFiles(repo, { [LEDGER]: `- task 1 done ${code}\n- task 2 done ${code}\n\n## Security\n\nSecurity: lens security ran at ${built}\n` });
-    commitMsg(repo, 'security review');
-    expect(await security(repo)).toEqual([]);
+    writeFiles(t.repo, { [LEDGER]: `- task 1 done ${t.code}\n- task 2 done ${t.code}\n\n## Security\n\nSecurity: lens security ran at ${t.built}\n` });
+    commitMsg(t.repo, 'security review');
+    expect(await security(t.repo)).toEqual([]);
   } finally {
-    cleanup(repo);
+    cleanup(t.repo);
+  }
+}, 180_000);
+
+// Phase 08.8 D-03: a ticket claimed before SECURITY_OFF_FROM keeps its answer with review off (tickets in flight), and a ledger that names a commit the repository does not have is an error, never "no triggers".
+it('risk:regression with review off a ticket claimed before SECURITY_OFF_FROM is not asked and a sha that names no commit fails closed (D-03)', async () => {
+  const old = reviewOff('0.15.0');
+  try {
+    expect(await security(old.repo)).toEqual([]);
+  } finally {
+    cleanup(old.repo);
+  }
+
+  const t = reviewOff(SECURITY_OFF_FROM);
+  try {
+    writeFiles(t.repo, { [LEDGER]: `- task 1 done ${t.code}\n- task 2 done ${t.code}\n\n## Security\n\nSecurity: lens security ran at ${'f'.repeat(40)}\n` });
+    commitMsg(t.repo, 'security review at a commit that does not exist');
+    const failed = await security(t.repo);
+    expect(failed).toHaveLength(1);
+    expect(failed[0].reason).toContain('cannot be checked');
+    expect(failed[0].reason).toContain(`names no commit`);
+  } finally {
+    cleanup(t.repo);
   }
 }, 180_000);
 

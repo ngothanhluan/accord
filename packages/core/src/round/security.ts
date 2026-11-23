@@ -7,7 +7,7 @@ import { laneTicket, ledgerFile, workOf } from '../gate/work.js';
 import type { GateRule } from '../gate/rules.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { SECURITY_FILE, securitySpec } from '../security/spec.js';
-import { SECURITY_TRIGGER_FROM, claimPinBefore } from './pin.js';
+import { SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, claimPinBefore } from './pin.js';
 import { allowancesOf } from './next.js';
 import { placedRounds, skipped, stretchOf } from './scope.js';
 
@@ -106,6 +106,7 @@ export function securityProblems(snapshot: RepoSnapshot, id: string): SecurityPr
  */
 export function securityOffProblems(snapshot: RepoSnapshot, id: string): SecurityProblem[] {
   if (laneTicket(snapshot, id) === undefined || !stageOff(snapshot, id, 'review') || skipped(snapshot, id)) return [];
+  if (claimPinBefore(snapshot, id, SECURITY_OFF_FROM)) return []; // a ticket in flight before the cut-off answers as before; a failed claim read is not before it (fail closed)
   const inactive = securitySpec(snapshot).problems.filter((p) => p.pattern === true);
   if (inactive.length > 0) {
     return inactive.map((p) => ({ line: 1, reason: `${SECURITY_FILE}:${p.line}: ${p.reason}; the pattern is not in force, so fix the line, then run accord lint` }));

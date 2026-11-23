@@ -3,7 +3,7 @@
 // order across cycles, so a round that fixed something is asked only when its fix matches a pattern. The triggers of a package come from packageDiff, the function review-package prints from.
 // Every git failure is an `error` fact, which the rule reports (fail closed); nothing here writes.
 import { execFileSync } from 'node:child_process';
-import { claimPinBefore, normaliseText, reviewSkipped, SECURITY_TRIGGER_FROM, securityExemptRounds, securitySpec, securityTriggers, stageOff, triggerText, workOf } from '@accord-dev/accord-core';
+import { claimPinBefore, normaliseText, reviewSkipped, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, securityExemptRounds, securitySpec, securityTriggers, stageOff, triggerText, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot, SecurityFacts, SkillFile } from '@accord-dev/accord-core';
 import { defaultRefOf, gitFilesAt, UsageError } from './fs.js';
 import { packageDiff, roundOneBase, why } from './package-diff.js';
@@ -167,6 +167,7 @@ export function withSecurityFacts(root: string, snapshot: RepoSnapshot, id: stri
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
   if (lane !== undefined && stageOff(snapshot, id, 'review')) {
     if (snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;
+    if (claimPinBefore(snapshot, id, SECURITY_OFF_FROM)) return snapshot; // Phase 08.8 D-03: a ticket claimed before the cut-off starts no git read
     return { ...snapshot, securityFacts: { ...snapshot.securityFacts, [id]: reviewOffFacts(root, snapshot, id, rendered) } };
   }
   if (lane === undefined || rec === undefined || rec.version !== 2 || rec.cycles.every((c) => c.rounds.length === 0) || snapshot.git === undefined || reviewSkipped(snapshot, id)) return snapshot;

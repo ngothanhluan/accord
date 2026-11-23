@@ -1671,3 +1671,50 @@ it('risk:regression a narrow stage track keeps a line at the last stage (W3)', a
     expect(h.texts(), lane).toContain(stage);
   }
 });
+
+// ---- Phase 08.8.1-05: the NOW line, the tool line, the waiting line and the reconciled roster ----
+
+// Phase 08.8.1 L-06: the first NOW line names the task in flight (build), the review round (review) or the stage; the second names the accord agent on it with its running time.
+it('risk:parsing the now line names the task in flight the review round or the stage and the agent on it (L-06)', async () => {
+  const { nowLines } = await loadView();
+  const t0 = 5_000_000;
+  const exec = [{ key: 'a1', type: 'accord-executor', running: true, startTime: t0 - 72000 }];
+  const build = { id: 'ST-1', stage: 'build', lane: 'M', tasksDone: 2, tasksTotal: 4, now: { task: 3, title: 'Settings view' } };
+  expect(nowLines({ ticket: build, agents: exec, waiting: undefined, now: t0 })).toEqual([{ text: 'task 3 of 4 · Settings view' }, { text: 'executor · 1:12' }]);
+  const review = { id: 'ST-1', stage: 'review', lane: 'M', tasksDone: 4, tasksTotal: 4, review: { cycle: 1, round: 2, cap: 5, rounds: [] } };
+  expect(nowLines({ ticket: review, agents: exec, waiting: undefined, now: t0 })[0]).toEqual({ text: 'review round 2 of 5' });
+  expect(nowLines({ ticket: { id: 'ST-1', stage: 'verify', lane: 'M', tasksDone: 4, tasksTotal: 4 }, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'verify' }]);
+  // a build ticket with no `now` key reads its stage label, and a finished agent or a non-accord agent adds no second line
+  const plain = { id: 'ST-1', stage: 'build', lane: 'M', tasksDone: 1, tasksTotal: 3 };
+  const idle = [
+    { key: 'f1', type: 'accord-executor', running: false, startTime: 1, endTime: 2, durationMs: 1000 },
+    { key: 'g1', type: 'general-purpose', running: true, startTime: 1 },
+  ];
+  expect(nowLines({ ticket: plain, agents: idle, waiting: undefined, now: t0 })).toEqual([{ text: 'build 1/3' }]);
+  // every text is cleaned
+  const dirty = { ...build, now: { task: 3, title: 'bad‮\u0007title' } };
+  expect(nowLines({ ticket: dirty, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'task 3 of 4 · bad title' }]);
+});
+
+// Phase 08.8.1 L-06: the NOW lines sit under the head and above the AGENTS block; a malformed `now` key is dropped.
+it('risk:regression the ticket tab draws the now line under the head (L-06)', async () => {
+  const h = await paneWith({ stage: 'build', tasksDone: 2, tasksTotal: 4, now: { task: 3, title: 'Settings view' } });
+  h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
+  await h.fire('turn.start', subStart('a1'));
+  const t = h.texts();
+  const first = t.indexOf('task 3 of 4 · Settings view');
+  const second = t.findIndex((x) => /^executor · 1:0[0-9]$/.test(x));
+  expect(first).toBeGreaterThan(t.indexOf('ST-1 Login form'));
+  expect(second).toBe(first + 1);
+  expect(first).toBeLessThan(t.indexOf('AGENTS'));
+  expect(h.cell('task 3 of 4 · Settings view').text.bold).toBe(true);
+  expect(h.cell(t[second]).text.dimColor).toBe(true);
+  const mod = await loadView();
+  for (const now of [{ task: '3', title: 'x' }, { task: 3, title: 7 }, 'oops', null]) {
+    const got = mod.detailOutcome({ exitCode: 0, stdout: JSON.stringify(detailOf({ now })), stderr: '' });
+    expect(got.ticket.now, JSON.stringify(now)).toBeUndefined();
+  }
+  const odd = await paneWith({ stage: 'build', now: { task: '3', title: 7 } });
+  expect(odd.texts().filter((x) => x === 'build 1/3')).toHaveLength(2);
+  expect(odd.texts().some((x) => x.startsWith('task '))).toBe(false);
+});

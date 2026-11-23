@@ -14,6 +14,8 @@ afterEach(() => {
 });
 
 type El = { type: string; props: Record<string, any> };
+// Phase 08.8.1-07: a Text may hold nested Texts (one per character of a gradient title); its text is the joined text of its children, and a Text nested in a Text is not a node of its own
+const flat = (children: unknown): string => (Array.isArray(children) ? children : [children]).map((c: any) => (c && typeof c === 'object' ? flat(c.props?.children) : String(c ?? ''))).join('');
 type Handler = (...a: any[]) => any;
 type Result = { exitCode: number; stdout: string; stderr: string };
 
@@ -47,7 +49,10 @@ async function host(mod: { register: (on: Handler) => void }) {
   const runs: { res: (r: Result) => void; rej: (e: unknown) => void }[] = [];
   let tree: El | undefined;
   let inputText = '';
+  // Phase 08.8.1-07: the plugin's own store, a Map a test can seed with an earlier session's value; set keeps JSON data as the host does
+  const stored = new Map<string, unknown>();
   const h = {
+    store: stored,
     placed: true,
     // Phase 08.7: the surface a draw reports, the pane's width (undefined draws no props), the agents `$.agent.list` gives, the surfaces `$.session.surfaces` gives and the timers `$.clock` was asked for
     surface: 'terminal' as string,
@@ -74,6 +79,7 @@ async function host(mod: { register: (on: Handler) => void }) {
       const walk = (n: any): void => {
         if (!n || typeof n !== 'object') return;
         if (n.type === type) out.push(n);
+        if (n.type === 'Text') return;
         for (const c of n.props?.children ?? []) walk(c);
       };
       walk(tree);
@@ -84,7 +90,8 @@ async function host(mod: { register: (on: Handler) => void }) {
       let found: any;
       const walk = (n: any, parent?: any, grand?: any): void => {
         if (!n || typeof n !== 'object' || found) return;
-        if (n.type === 'Text' && (n.props.children as unknown[]).join('') === s) found = { text: n.props, box: parent?.props, row: grand?.props };
+        if (n.type === 'Text' && flat(n.props.children) === s) found = { text: n.props, box: parent?.props, row: grand?.props };
+        if (n.type === 'Text') return;
         for (const c of n.props?.children ?? []) walk(c, n, parent);
       };
       walk(tree);
@@ -95,7 +102,7 @@ async function host(mod: { register: (on: Handler) => void }) {
       let found: any;
       const walk = (n: any, stack: any[]): void => {
         if (!n || typeof n !== 'object' || found) return;
-        if (n.type === 'Text' && (n.props.children as unknown[]).join('') === s) {
+        if (n.type === 'Text' && flat(n.props.children) === s) {
           found = [...stack].reverse().find((a) => a.type === 'Box' && a.props.flexDirection === 'row')?.props;
           return;
         }
@@ -114,7 +121,7 @@ async function host(mod: { register: (on: Handler) => void }) {
       walk(tree);
       return found && { ...found, children: undefined };
     },
-    texts: () => h.nodes('Text').map((n) => (n.props.children as unknown[]).join('')),
+    texts: () => h.nodes('Text').map((n) => flat(n.props.children)),
     buttons: () => h.nodes('Button').map((n) => n.props),
     input: () => h.nodes('Input')[0]?.props,
     field: () => inputText,
@@ -135,6 +142,10 @@ async function host(mod: { register: (on: Handler) => void }) {
     agent: { list: vi.fn(async () => h.agents) },
     clock: { after: vi.fn(timer), every: vi.fn(timer) },
     session: { surfaces: vi.fn(async () => h.surfaces) },
+    store: {
+      get: vi.fn(async (k: string) => (stored.has(k) ? JSON.parse(JSON.stringify(stored.get(k))) : undefined)),
+      set: vi.fn(async (k: string, v: unknown) => void stored.set(k, JSON.parse(JSON.stringify(v)))),
+    },
     process: { run: vi.fn(() => new Promise<Result>((res, rej) => runs.push({ res, rej }))) },
     command: { register: vi.fn(async () => ({})), run: vi.fn(async () => ({})) },
     ui: {
@@ -654,7 +665,7 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
     expect(h.cell(heading).box.marginTop).toBe(1);
   }
   for (const w of ['ID', 'LANE', 'STAGE', 'TITLE']) {
-    const hs = h.nodes('Text').filter((n) => (n.props.children as unknown[]).join('') === w);
+    const hs = h.nodes('Text').filter((n) => flat(n.props.children) === w);
     expect(hs).toHaveLength(4);
     for (const n of hs) expect(n.props.dimColor).toBe(true);
   }
@@ -728,7 +739,7 @@ it('ac-5 the detail view wraps long text whole while the table keeps its cut', a
   h.settle({ stdout: JSON.stringify(detailOf({ title: LONG, criteria: [{ ...(detailOf().criteria as any[])[0], steps: [STEP], test: TEST }] })) });
   await vi.waitFor(() => expect(h.texts()).toContain(STEP));
   for (const [s, kids] of [[LONG, [LONG]], [STEP, [STEP]], ['Test: ' + TEST, ['Test: ' + TEST]]] as [string, string[]][]) {
-    const ns = h.nodes('Text').filter((n) => (n.props.children as unknown[]).join('') === s);
+    const ns = h.nodes('Text').filter((n) => flat(n.props.children) === s);
     expect(ns, s).toHaveLength(1);
     expect(ns[0].props.children).toEqual(kids);
     expect(ns[0].props.wrap).toBe('wrap');
@@ -1085,7 +1096,10 @@ const textsIn = (el: any): string[] => {
   const out: string[] = [];
   const walk = (n: any): void => {
     if (!n || typeof n !== 'object') return;
-    if (n.type === 'Text') out.push((n.props.children as unknown[]).join(''));
+    if (n.type === 'Text') {
+      out.push(flat(n.props.children));
+      return;
+    }
     for (const c of n.props?.children ?? []) walk(c);
   };
   walk(el);
@@ -2056,4 +2070,54 @@ it('risk:regression criteria labels sit next to their titles and the newest log 
   // repeated lines draw once with their count
   const twice = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate plan PASS' }, { at: now - 9, kind: 'commit', text: 'c' }, { at: now - 60, kind: 'gate', text: 'gate plan PASS' }] });
   expect(twice.texts().filter((x) => x.startsWith('gate plan PASS'))).toEqual(['gate plan PASS ×2']);
+});
+
+// ---- Phase 08.8.1-07 L-03 L-02 L-01: each person's settings, kept in the mod's own store and never in the repository ----
+
+// Phase 08.8.1 L-03: a stored settings value that is missing, from another version or hand-edited into anything invalid reads as the defaults field by field.
+it('risk:parsing stored settings read as the defaults field by field when missing or invalid (L-03)', async () => {
+  const { settingsOf, DEFAULT_SETTINGS } = await loadView();
+  const d = DEFAULT_SETTINGS;
+  expect(settingsOf(undefined)).toEqual(d);
+  expect(d).toMatchObject({ v: 1, palette: 'aurora', style: 'gradient', motion: 'lively', places: {} });
+  expect(d.effects).toEqual({ shimmer: true, flow: true, comet: true, eq: true, typing: true, confetti: true, roll: true, breathe: true });
+  expect(settingsOf({ v: 1, palette: 'ember', style: 'solid', motion: 'calm' })).toMatchObject({ palette: 'ember', style: 'solid', motion: 'calm', effects: { shimmer: true, roll: true } });
+  expect(settingsOf({ v: 1, palette: 'neon', style: 'solid' })).toMatchObject({ palette: 'aurora', style: 'solid' });
+  expect(settingsOf({ v: 1, palette: 'ember', style: 'x' })).toMatchObject({ palette: 'ember', style: 'gradient' });
+  expect(settingsOf({ v: 1, motion: 'frantic' })).toMatchObject({ motion: 'lively' });
+  expect(settingsOf({ v: 1, places: { title: 'blue', agents: '#3EC6E0', nowhere: '#ffffff' } }).places).toEqual({ agents: '#3ec6e0' });
+  expect(settingsOf({ v: 1, custom: ['#12345', '#00ff00', 5] }).custom).toEqual([d.custom[0], '#00ff00', d.custom[2]]);
+  for (const bad of [{ v: 2, palette: 'ember' }, [], 'ember', 7, null, true]) expect(settingsOf(bad)).toEqual(d);
+  // the defaults are never shared: a read value changes nothing of them
+  settingsOf(undefined).places.title = '#ffffff';
+  expect(settingsOf(undefined).places).toEqual({});
+});
+
+// the colour of each character of the title (the ticket head's first Text), as drawn
+const titleColors = (h: Awaited<ReturnType<typeof host>>): string[] => h.cell('ST-1 Login form').text.children.map((c: any) => c.props.color);
+
+// Phase 08.8.1 L-03 L-02: key s opens the view, Save keeps the choice in the person's store, and a new session draws the title in it; a session with an empty store is aurora.
+it('risk:regression the settings key opens the view and a saved preset colours the title in a new session (L-03 L-02)', async () => {
+  const first = await paneWith({});
+  expect(titleColors(first)[0]).toBe('#e07a4f');
+  const button = first.buttons().find((b) => b.key === 'settings') as Record<string, any>;
+  expect(button).toMatchObject({ hotkey: 's' });
+  expect(button.autoFocus).toBeUndefined();
+  press(first, 'settings');
+  await vi.waitFor(() => expect(first.buttons().filter((b) => String(b.key).startsWith('palette:')).map((b) => b.label)).toEqual(['aurora', 'ember', 'ocean', 'forest', 'sunset', 'mono', 'contrast', 'custom']));
+  press(first, 'palette:ember');
+  await vi.waitFor(() => expect(first.buttons().find((b) => b.key === 'palette:ember')?.variant).toBe('primary'));
+  expect(first.$.store.set).not.toHaveBeenCalled();
+  press(first, 'save');
+  await vi.waitFor(() => expect(first.$.store.set).toHaveBeenCalledWith('settings', expect.objectContaining({ v: 1, palette: 'ember' })));
+  expect(first.$.ui.toast).toHaveBeenCalledWith('saved for you only');
+  const saved = first.store.get('settings');
+  const again = await paneWith({}, (x) => void x.store.set('settings', saved));
+  expect(titleColors(again)[0]).toBe('#ff7a45');
+  const fresh = await paneWith({});
+  expect(titleColors(fresh)[0]).toBe('#e07a4f');
+  expect(fresh.$.store.set).not.toHaveBeenCalled();
+  // a store that throws is the defaults
+  const broken = await paneWith({}, (x) => void x.$.store.get.mockRejectedValue(new Error('no store')));
+  expect(titleColors(broken)[0]).toBe('#e07a4f');
 });

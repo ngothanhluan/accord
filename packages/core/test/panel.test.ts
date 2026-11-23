@@ -9,9 +9,13 @@ import { contentHash, markerHash, pluginTargets, SAFE_ID, withoutMarker } from '
 
 const PKG = { name: '@accord-dev/accord', version: '9.9.9' };
 const dirs: string[] = [];
+// Phase 08.8.1-08: a test may patch the generated view.js text (the one constant the build fixes from a probe row) for the panel it loads next
+let viewPatch: ((text: string) => string) | undefined;
 afterEach(() => {
+  viewPatch = undefined;
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
+const textOf = (f: { path: string; text: string }): string => (viewPatch !== undefined && f.path.endsWith('hooks/view.js') ? viewPatch(f.text) : f.text);
 
 type El = { type: string; props: Record<string, any> };
 // Phase 08.8.1-07: a Text may hold nested Texts (one per character of a gradient title); its text is the joined text of its children, and a Text nested in a Text is not a node of its own
@@ -25,7 +29,7 @@ async function loadPanel(): Promise<{ register: (on: Handler) => void }> {
   for (const f of pluginTargets({ runtimes: ['claude'] }, PKG)) {
     const p = join(dir, ...f.path.split('/'));
     mkdirSync(dirname(p), { recursive: true });
-    writeFileSync(p, f.text);
+    writeFileSync(p, textOf(f));
   }
   return import(/* @vite-ignore */ pathToFileURL(join(dir, '.claude/accord-panel/plugin/hooks/register.js')).href);
 }
@@ -36,7 +40,7 @@ async function loadView(): Promise<{ view: (state: unknown, query: string) => an
   for (const f of pluginTargets({ runtimes: ['claude'] }, PKG)) {
     const p = join(dir, ...f.path.split('/'));
     mkdirSync(dirname(p), { recursive: true });
-    writeFileSync(p, f.text);
+    writeFileSync(p, textOf(f));
   }
   return import(/* @vite-ignore */ pathToFileURL(join(dir, '.claude/accord-panel/plugin/hooks/view.js')).href);
 }
@@ -62,7 +66,7 @@ async function host(mod: { register: (on: Handler) => void }) {
     placement: undefined as string | undefined,
     agents: [] as Record<string, unknown>[],
     surfaces: [] as unknown[],
-    timers: [] as { ms: number; fn: () => unknown; cancelled: boolean }[],
+    timers: [] as { ms: number; fn: () => unknown; cancelled: boolean; kind: string }[],
     tree: () => tree,
     // Phase 08.8.1-05: `last` stands for the host's own step at the end of the chain (a tool call that runs); its result is what the chain resolves with
     async fire(event: string, e: any, last?: Handler): Promise<any> {
@@ -86,11 +90,11 @@ async function host(mod: { register: (on: Handler) => void }) {
       return out;
     },
     // first Text whose joined children equal s: its props, its direct parent Box's props, and that box's parent's props
-    cell: (s: string): { text: Record<string, any>; box: Record<string, any>; row: Record<string, any> } => {
+    cell: (s: string | RegExp): { text: Record<string, any>; box: Record<string, any>; row: Record<string, any> } => {
       let found: any;
       const walk = (n: any, parent?: any, grand?: any): void => {
         if (!n || typeof n !== 'object' || found) return;
-        if (n.type === 'Text' && flat(n.props.children) === s) found = { text: n.props, box: parent?.props, row: grand?.props };
+        if (n.type === 'Text' && (typeof s === 'string' ? flat(n.props.children) === s : s.test(flat(n.props.children)))) found = { text: n.props, box: parent?.props, row: grand?.props };
         if (n.type === 'Text') return;
         for (const c of n.props?.children ?? []) walk(c, n, parent);
       };
@@ -133,14 +137,14 @@ async function host(mod: { register: (on: Handler) => void }) {
     if (r && r.type) tree = r;
     inputText = h.input()?.value ?? '';
   };
-  const timer = (ms: number, fn: () => unknown): { cancel: () => void } => {
-    const t = { ms, fn, cancelled: false };
+  const timer = (kind: string) => (ms: number, fn: () => unknown): { cancel: () => void } => {
+    const t = { ms, fn, cancelled: false, kind };
     h.timers.push(t);
     return { cancel: () => void (t.cancelled = true) };
   };
   const $: any = {
     agent: { list: vi.fn(async () => h.agents) },
-    clock: { after: vi.fn(timer), every: vi.fn(timer) },
+    clock: { after: vi.fn(timer('after')), every: vi.fn(timer('every')) },
     session: { surfaces: vi.fn(async () => h.surfaces) },
     store: {
       get: vi.fn(async (k: string) => (stored.has(k) ? JSON.parse(JSON.stringify(stored.get(k))) : undefined)),
@@ -1249,6 +1253,11 @@ const agentOf = (id: string, type: string, over: Record<string, unknown> = {}): 
   ...over,
 });
 const subStart = (id: string): Record<string, unknown> => ({ turnId: 't-' + id, text: 'x', agentId: id });
+// Phase 08.8.1-08 L-07: a running agent's mark is a spinner, so its row reads one of four glyphs before the name; the frame timer's period is the probe's rate
+const spun = (name: string): RegExp => new RegExp(`^[◐◓◑◒] ${name}$`);
+const isRunning = (h: Awaited<ReturnType<typeof host>>, name: string): boolean => h.texts().some((x) => spun(name).test(x));
+const everyTimers = (h: Awaited<ReturnType<typeof host>>): Awaited<ReturnType<typeof host>>['timers'] => h.timers.filter((t) => t.kind === 'every');
+const framePeriod = async (): Promise<number> => Math.round(1000 / (await loadView()).FRAME_RATE);
 
 // Phase 08.7 D-01, D-02, D-03: the agents block lists the accord agents the mod saw start, a timer while one runs and its own time when it ends; the tab label counts the running ones.
 it('risk:regression the agents block shows running accord agents with timers and finished ones with their time (D-01 D-02)', async () => {
@@ -1258,14 +1267,14 @@ it('risk:regression the agents block shows running accord agents with timers and
   expect(h.cell('none running').text.dimColor).toBe(true);
   h.agents = [agentOf('a1', 'accord-executor')];
   await h.fire('turn.start', subStart('a1'));
-  expect(h.texts()).toContain('◐ executor');
+  expect(isRunning(h, 'executor')).toBe(true);
   expect(h.texts()).toContain('1:05');
   expect(h.texts()).not.toContain('none running');
   expect(tabs(h)['tab:ticket'].label).toContain('◐1');
   await h.fire('turn.complete', { agentId: 'a1', durationMs: 125000, reason: 'answer' });
   expect(h.texts()).toContain('✓ executor');
   expect(h.texts()).toContain('2:05');
-  expect(h.texts()).not.toContain('◐ executor');
+  expect(isRunning(h, 'executor')).toBe(false);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   // the block sits between the failure box and the review rounds
   const now = Math.floor(Date.now() / 1000);
@@ -1318,8 +1327,9 @@ it('risk:concurrency subagent turns start no accord run and an accord subagent e
   await h.fire('turn.start', subStart('a2'));
   await h.fire('turn.start', subStart('g1'));
   expect(calls()).toBe(base);
+  // Phase 08.8.1-08 D-03: the one timer is the frame timer, at the probe's rate, in place of the 1-second tick
   expect(h.$.clock.every).toHaveBeenCalledTimes(1);
-  expect(h.$.clock.every).toHaveBeenCalledWith(1000, expect.any(Function));
+  expect(h.$.clock.every).toHaveBeenCalledWith(await framePeriod(), expect.any(Function));
   expect(h.$.clock.after).not.toHaveBeenCalled();
   await h.fire('turn.complete', { agentId: 'g1', durationMs: 10, reason: 'answer' });
   expect(h.$.clock.after).not.toHaveBeenCalled();
@@ -1327,7 +1337,7 @@ it('risk:concurrency subagent turns start no accord run and an accord subagent e
   expect(h.$.clock.after).toHaveBeenCalledTimes(1);
   expect(h.$.clock.after).toHaveBeenLastCalledWith(3000, expect.any(Function));
   expect(calls()).toBe(base);
-  const ticks = h.timers.filter((t) => t.ms === 1000);
+  const ticks = everyTimers(h);
   expect(ticks).toHaveLength(1);
   expect(ticks[0].cancelled).toBe(false);
   await h.fire('turn.complete', { agentId: 'a2', durationMs: 10, reason: 'answer' });
@@ -1350,7 +1360,7 @@ it('risk:security a non-accord subagent and a type that only looks like one are 
   for (let i = 0; i < types.length; i++) await h.fire('turn.start', subStart('s' + i));
   expect(h.texts()).toContain('AGENTS');
   expect(h.texts()).toContain('none running');
-  expect(h.texts().some((x) => /^[◐✓] /.test(x))).toBe(false);
+  expect(h.texts().some((x) => /^[◐◓◑◒✓] /.test(x))).toBe(false);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   for (const x of h.texts()) {
     expect(x).not.toContain('secret label');
@@ -1362,7 +1372,7 @@ it('risk:security a non-accord subagent and a type that only looks like one are 
   expect(h.texts()).toContain('none running');
   // an accord agent shows by its type alone
   await h.fire('turn.start', subStart('b1'));
-  expect(h.texts()).toContain('◐ executor');
+  expect(isRunning(h, 'executor')).toBe(true);
   for (const x of h.texts()) {
     expect(x).not.toContain('secret');
   }
@@ -1382,7 +1392,7 @@ it('risk:complex-branching without agent list or clock the pane hides the agents
   bare.agents = [agentOf('a1', 'accord-executor')];
   await bare.fire('turn.start', subStart('a1'));
   expect(bare.timers).toEqual([]);
-  expect(bare.texts()).toContain('◐ executor');
+  expect(isRunning(bare, 'executor')).toBe(true);
   const base = bare.$.process.run.mock.calls.length;
   await bare.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' });
   expect(bare.$.process.run.mock.calls.length).toBe(base + 1);
@@ -1867,9 +1877,9 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   h.agents = [agentOf('a1', 'accord-executor'), agentOf('a2', 'accord-planner')];
   await h.fire('turn.start', subStart('a1'));
   await h.fire('turn.start', subStart('a2'));
-  expect(h.texts()).toContain('◐ executor');
-  expect(h.texts()).toContain('◐ planner');
-  const ticks = h.timers.filter((t) => t.ms === 1000);
+  expect(isRunning(h, 'executor')).toBe(true);
+  expect(isRunning(h, 'planner')).toBe(true);
+  const ticks = everyTimers(h);
   expect(ticks).toHaveLength(1);
   expect(ticks[0].cancelled).toBe(false);
   // a1 is gone from the list and a2 is listed with another status; neither raised its own turn.complete
@@ -1877,9 +1887,9 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   await h.fire('turn.complete', { reason: 'answer' });
   await vi.waitFor(() => expect(h.texts()).toContain('✓ executor'));
   expect(h.texts()).toContain('✓ planner');
-  expect(h.texts()).not.toContain('◐ executor');
+  expect(isRunning(h, 'executor')).toBe(false);
   expect(ticks.every((t) => t.cancelled)).toBe(true);
-  expect(h.timers.filter((t) => t.ms === 1000 && !t.cancelled)).toHaveLength(0);
+  expect(everyTimers(h).filter((t) => !t.cancelled)).toHaveLength(0);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   // a change of the dashboard's current id clears the roster
   h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
@@ -2295,10 +2305,15 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
     criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing')],
     log: [{ at: now - 5, kind: 'gate', text: 'gate done FAIL: red', fail: true }, { at: now - 9, kind: 'commit', text: 'build: x' }],
   };
-  const h = await paneWith(over, (x) => void (x.rows = 40));
+  // Phase 08.8.1-08: this case reads the colour of each place, so its person has motion off (a moving effect repaints the places frame by frame)
+  const still = { v: 1, motion: 'off', effects: {} };
+  const h = await paneWith(over, (x) => {
+    x.rows = 40;
+    void x.store.set('settings', still);
+  });
   h.agents = [agentOf('a1', 'accord-executor')];
   await h.fire('turn.start', subStart('a1'));
-  await vi.waitFor(() => expect(h.texts()).toContain('◐ executor'));
+  await vi.waitFor(() => expect(isRunning(h, 'executor')).toBe(true));
   const at = (place: number, p = 0): string => gradientAt(aurora, place + p);
   // the stage track: gradient cells at its position, none of the stage names
   ['intent/approach', 'plan', 'build 1/3'].forEach((label, i) => expect(h.cell(label).box.backgroundColor, label).toBe(at(0.15, i / 5)));
@@ -2313,7 +2328,7 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   expect(h.cell('✓').text.color).toBe('#6fd39a');
   expect(h.cell('▸').text.color).toBe(at(0.3));
   expect(h.nodes('Progress')[0].props.color).toBe(at(0.45));
-  expect(h.cell('◐ executor').text.color).toBe(at(0.62));
+  expect(h.cell(spun('executor')).text.color).toBe(at(0.62));
   expect(h.cell('ac-1').text.color).toBe(at(0.8, 0));
   expect(h.cell('ac-2').text.color).toBe(at(0.8, 0.5));
   // the failure box and the log both hold the gate line; the log's is the last
@@ -2330,17 +2345,98 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   await vi.waitFor(() => expect(calm.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
   expect(calm.cell(calm.texts().find((x) => x.startsWith('Waiting for you')) as string).text.color).toBe('#e07a4f');
   // one colour per place: the person's own colours win, the other places take the palette's colour at the place's position
-  const own = { v: 1, style: 'solid', places: { title: '#3ec6e0', agents: '#ff5f6d' } };
+  const own = { ...still, style: 'solid', places: { title: '#3ec6e0', agents: '#ff5f6d' } };
   const solid = await paneWith({ stage: 'build', now: { task: 2, title: 'Beta' } }, (x) => void x.store.set('settings', own));
   solid.agents = [agentOf('a1', 'accord-executor')];
   await solid.fire('turn.start', subStart('a1'));
-  await vi.waitFor(() => expect(solid.texts()).toContain('◐ executor'));
+  await vi.waitFor(() => expect(isRunning(solid, 'executor')).toBe(true));
   expect(new Set(titleColors(solid))).toEqual(new Set(['#3ec6e0']));
-  expect(solid.cell('◐ executor').text.color).toBe('#ff5f6d');
+  expect(solid.cell(spun('executor')).text.color).toBe('#ff5f6d');
   expect(solid.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
   expect(solid.cell(' build').text.color).toBe(at(0.3));
   // the pure view gives hex colours for the stage track and keeps the dashboard's stage names in pipelineOf
   const t = ticketView({ ticket: { id: 'ST-1', state: { ticket: detailOf(over) } }, now, settings: settingsOf(undefined) });
   expect(t.cells.map((c: any) => c.color)).toEqual([0, 1, 2, 3, 4].map((i) => at(0.15, i / 5)));
   expect(pipelineOf({ lane: 'M', stage: 'build' }).map((c: any) => c.color)).toEqual(STAGE);
+});
+
+// ---- Phase 08.8.1-08: the motion engine (D-03) and the lively preset (L-01, L-07) ----
+
+const MOVING = { stage: 'build', tasksDone: 1, tasksTotal: 3, now: { task: 2, title: 'Beta' }, tasks: [taskOf(1, 'Alpha', true, ['ac-1']), taskOf(2, 'Beta', false, ['ac-2']), taskOf(3, 'Gamma')], criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing')] };
+// the live timers of the host: the ones `$.clock.every` was asked for and nobody cancelled
+const liveTimers = (h: Awaited<ReturnType<typeof host>>): number[] => everyTimers(h).filter((t) => !t.cancelled).map((t) => t.ms);
+// the colour of each character of the first Text whose joined text is `text`, or undefined when that Text holds a plain string
+const runColors = (h: Awaited<ReturnType<typeof host>>, text: string): string[] | undefined => {
+  const kidsOf = h.cell(text)?.text.children as unknown[];
+  return kidsOf.every((c: any) => c && typeof c === 'object') ? kidsOf.map((c: any) => c.props.color) : undefined;
+};
+const startExecutor = async (h: Awaited<ReturnType<typeof host>>): Promise<void> => {
+  h.agents = [agentOf('a1', 'accord-executor')];
+  await h.fire('turn.start', subStart('a1'));
+};
+
+// Phase 08.8.1 D-03: one frame timer redraws at the probe's rate only while the ticket tab shows, motion is not off and an accord agent runs; none when idle or on another view; off keeps only the 1-second agent clock; off the terminal the rate is at most 10 a second and a still Desktop (P7) has no frame timer
+it('risk:resource one frame timer runs at the probe rate only while something runs and none when idle (D-03)', async () => {
+  const period = await framePeriod();
+  const h = await paneWith(MOVING);
+  expect(liveTimers(h)).toEqual([]);
+  expect(runColors(h, 'task 2 of 3 · Beta')).toBeUndefined();
+  await startExecutor(h);
+  expect(liveTimers(h)).toEqual([period]);
+  // the live line is one coloured text per character while the timer runs
+  expect(runColors(h, 'task 2 of 3 · Beta')?.every((c) => /^#[0-9a-f]{6}$/.test(c))).toBe(true);
+  // another view stops the timer and coming back starts one again: the dashboard tab, the widget placement, the settings view
+  press(h, 'tab:dashboard');
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([]));
+  press(h, 'tab:ticket');
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([period]));
+  h.columns = 100;
+  h.placement = 'widget';
+  await h.$.ui.invalidate('ui.render');
+  expect(liveTimers(h)).toEqual([]);
+  h.placement = 'dock';
+  await h.$.ui.invalidate('ui.render');
+  expect(liveTimers(h)).toEqual([period]);
+  press(h, 'settings');
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([]));
+  press(h, 'settings');
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([period]));
+  // the agent ends: no timer is left and the live line is plain again
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 10, reason: 'answer' });
+  expect(liveTimers(h)).toEqual([]);
+  expect(runColors(h, 'task 2 of 3 · Beta')).toBeUndefined();
+  // motion off keeps only the 1-second clock of the agents' times
+  const off = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
+  await startExecutor(off);
+  expect(liveTimers(off)).toEqual([1000]);
+  expect(runColors(off, 'task 2 of 3 · Beta')).toBeUndefined();
+  // off the terminal the pane redraws at most 10 a second
+  const desk = await paneWith(MOVING, (x) => void (x.surface = 'desktop'));
+  await startExecutor(desk);
+  expect(liveTimers(desk)).toHaveLength(1);
+  expect(liveTimers(desk)[0]).toBeGreaterThanOrEqual(100);
+  // P7 static: the Desktop draws the person's colours and no effect, and no frame timer runs there
+  viewPatch = (text) => text.replace('export const DESKTOP_MOTION = true', 'export const DESKTOP_MOTION = false');
+  const still = await paneWith(MOVING, (x) => void (x.surface = 'desktop'));
+  viewPatch = undefined;
+  await startExecutor(still);
+  expect(liveTimers(still)).toEqual([1000]);
+  const before = titleColors(still);
+  await flush();
+  await still.$.ui.invalidate('ui.render');
+  expect(titleColors(still)).toEqual(before);
+  expect(runColors(still, 'task 2 of 3 · Beta')).toBeUndefined();
+});
+
+// Phase 08.8.1 L-01: the shimmer is a pure function of the frame time: one `#rrggbb` per code point, a glow that moves between frames, the same colours for the same time
+it('risk:parsing the shimmer moves a glow across the live line frame by frame (L-01)', async () => {
+  const { shimmer, PALETTES } = await loadView();
+  const stops = [PALETTES.aurora[0], PALETTES.aurora[3]];
+  const a = shimmer('Reviewing', 0, stops);
+  const b = shimmer('Reviewing', 500, stops);
+  expect(a.map((r: any) => r.ch)).toEqual([...'Reviewing']);
+  for (const r of [...a, ...b]) expect(r.color).toMatch(/^#[0-9a-f]{6}$/);
+  expect(b.some((r: any, i: number) => r.color !== a[i].color)).toBe(true);
+  expect(shimmer('Reviewing', 500, stops)).toEqual(b);
+  expect(shimmer('', 500, stops)).toEqual([]);
 });

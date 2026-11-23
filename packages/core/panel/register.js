@@ -341,7 +341,8 @@ export function register(on) {
         const narrow = layoutOf(e.props?.bodyColumns) === 'narrow';
         const cellBox = (c) => {
           const filled = c.state === 'done' || c.state === 'current';
-          const label = narrow ? (filled ? [] : [Text({ dimColor: true, children: ['·'] })]) : [Text({ ...(c.state === 'current' ? { bold: true } : {}), ...(filled ? {} : { dimColor: true }), children: [c.text] })];
+          // Phase 08.8.1 W3: a filled cell at narrow holds a one-space Text, since an empty Box can collapse to no height (engine-dependent) and the track would lose its line at the last stage
+          const label = narrow ? (filled ? [Text({ children: [' '] })] : [Text({ dimColor: true, children: ['·'] })]) : [Text({ ...(c.state === 'current' ? { bold: true } : {}), ...(filled ? {} : { dimColor: true }), children: [c.text] })];
           return Box({ paddingX: 1, flexShrink: 0, ...(filled ? { backgroundColor: c.color } : {}), children: label });
         };
         children.push(

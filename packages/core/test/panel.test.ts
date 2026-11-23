@@ -1153,11 +1153,15 @@ it('risk:complex-branching a newest failed gate run shows the failure block and 
   const heading = (box?.props.children as any[]).find((c) => c.type === 'Text' && c.props.children[0] === 'Gate failed');
   expect(heading.props).toMatchObject({ bold: true, color: 'red' });
   expect(tabs(h)['tab:ticket'].label).toContain('gate failed');
+  // Phase 08.8.1 W4 (08.7 review WR-04): a newer commit no longer hides the failed gate run; only a newer gate run does
   const later = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'fix: header' }, gate] });
-  expect(later.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(false);
-  expect(later.texts()).not.toContain('Gate failed');
-  expect(tabs(later)['tab:ticket'].label).not.toContain('gate failed');
+  expect(later.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(true);
+  expect(later.texts()).toContain('Gate failed');
+  expect(tabs(later)['tab:ticket'].label).toContain('gate failed');
   expect(later.texts()).toContain('LOG');
+  const passed = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate done PASS' }, gate] });
+  expect(passed.nodes('Box').some((b) => b.props.borderColor === 'red')).toBe(false);
+  expect(tabs(passed)['tab:ticket'].label).not.toContain('gate failed');
 });
 
 // Phase 08.7 D-08: the context, tokens and cost block is backlog 999.59; the tab draws none of it.
@@ -1604,4 +1608,44 @@ it('risk:security a warning text cannot put control characters into the pane (D-
   const bad = (c: number): boolean =>
     c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x61c || c === 0x200e || c === 0x200f || c === 0x2028 || c === 0x2029 || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
   for (const s of [...h.texts(), ...g.texts()]) for (const ch of s) expect(bad(ch.codePointAt(0) as number)).toBe(false);
+});
+
+// Phase 08.8.1 D-06: each criterion row shows the verifier's result beside its label, so a criterion the verifier passed never reads only untested.
+it('risk:parsing criteria rows show the verifier result beside the label (D-06)', async () => {
+  const { criteriaRows } = await loadView();
+  const rows = criteriaRows([
+    { ...critOf('ac-1', 'One', 'untested'), verification: 'pass' },
+    { ...critOf('ac-2', 'Two', 'failing'), verification: 'fail' },
+    { ...critOf('ac-3', 'Three', 'untested'), verification: 'blocked' },
+    { ...critOf('ac-4', 'Four', 'untested'), verification: null },
+    { ...critOf('ac-5', 'Five', 'untested'), verification: 'weird' },
+  ]);
+  expect(rows[0].verification).toEqual({ text: 'verify pass', color: 'green' });
+  expect(rows[1].verification).toEqual({ text: 'verify fail', color: 'red' });
+  expect(rows[2].verification).toEqual({ text: 'verify blocked', color: 'red' });
+  expect(Object.hasOwn(rows[3], 'verification')).toBe(false);
+  expect(Object.hasOwn(rows[4], 'verification')).toBe(false);
+  // CSA-185's shape: four criteria the verifier passed, all labelled untested
+  const four = ['One', 'Two', 'Three', 'Four'].map((title, i) => ({ ...critOf('ac-' + (i + 1), title, 'untested'), verification: 'pass' }));
+  const h = await paneWith({ criteria: four });
+  expect(h.texts().filter((x) => x === 'verify pass')).toHaveLength(4);
+  for (const [i, title] of ['One', 'Two', 'Three', 'Four'].entries()) expect(kids(h.row(title)), title).toEqual(['ac-' + (i + 1), title, 'untested', 'verify pass']);
+  expect(h.cell('verify pass').text.color).toBe('green');
+  expect(h.cell('untested').text.dimColor).toBe(true);
+});
+
+// Phase 08.8.1 W4: the failure box and the gate failed mark follow the newest log entry of kind gate, not the newest entry of any kind.
+it('risk:complex-branching a newer report or commit does not hide a failed gate run (W4)', async () => {
+  const { failureOf, tabLabels } = await loadView();
+  const fail = { kind: 'gate', at: 10, text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true };
+  const log = [{ kind: 'report', at: 30, text: 'fix report 1' }, { kind: 'commit', at: 20, text: 'fix: x' }, fail];
+  expect(failureOf(log)).toEqual({ text: fail.text });
+  const labelOf = (l: unknown[]): any =>
+    tabLabels({ state: { dashboard: board() }, ticket: { id: 'ST-1', state: { ticket: detailOf({ log: l }) } }, running: 0 }).ticket;
+  expect(labelOf(log).failed).toBe(true);
+  expect(labelOf(log).label).toContain('gate failed');
+  const pass = { kind: 'gate', at: 25, text: 'gate done PASS' };
+  expect(failureOf([log[0], pass, log[1], fail])).toBeUndefined();
+  expect(labelOf([log[0], pass, log[1], fail]).failed).toBeUndefined();
+  expect(failureOf([log[0], log[1]])).toBeUndefined();
 });

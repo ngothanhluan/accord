@@ -1,6 +1,6 @@
 // Phase 2 goldens: one per fixture folder under test/fixtures/ that has an accord/ directory.
-// Each fixture's describe is named `fixture <name>` so a plan can regenerate only its own golden
-// with `npm test -- --project core snapshot -u -t "fixture <name>"`.
+// Each fixture's describe is named `risk:regression snapshot fixture <name>` so a plan can regenerate only its own golden
+// with `npm test -- --project core snapshot -u -t "snapshot fixture <name>"`.
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +17,7 @@ const fixtures = readdirSync(fixturesDir, { withFileTypes: true })
   .sort();
 
 for (const name of fixtures) {
-  describe('fixture ' + name, () => {
+  describe('risk:regression snapshot fixture ' + name, () => {
     let v: Variants;
     // Read inside the hook, never at collection time, so a `-t` filter never touches sibling fixtures.
     beforeAll(() => {
@@ -45,7 +45,7 @@ for (const name of fixtures) {
       expect(second).toBe(first);
     });
 
-    it('matches the golden', async () => {
+    it('risk:regression snapshot matches the golden', async () => {
       await expect(stableJson(loadSnapshot(v.lf))).toMatchFileSnapshot('./__golden__/' + name + '.snapshot.json');
     });
   });

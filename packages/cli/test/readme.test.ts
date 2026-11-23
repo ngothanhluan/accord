@@ -44,7 +44,7 @@ describe('generated README', () => {
     }
   });
 
-  it('LF and no BOM on disk', () => {
+  it('risk:regression the CLI README is LF with no BOM on disk', () => {
     const raw = readFileSync(generated, 'utf8');
     expect(raw, 'packages/cli/README.md has CR').not.toContain('\r');
     expect(raw.startsWith(BOM), 'packages/cli/README.md has BOM').toBe(false);

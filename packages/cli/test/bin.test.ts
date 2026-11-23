@@ -18,7 +18,7 @@ afterAll(() => {
 });
 
 describe('accord bin', () => {
-  it('is built', () => {
+  it('risk:regression the CLI bin is built', () => {
     expect(existsSync(cli), 'run npm run build first').toBe(true);
   });
 

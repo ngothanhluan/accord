@@ -110,7 +110,7 @@ describe('fetchLinear facts (ST-LN-97 t3-ac-1)', () => {
     expect(result.issues).toEqual({ 'ENG-7': { title: 'Fix the export bug', state: 'In Progress', labels: ['bug', 'ui'] } });
   });
 
-  it('risk:complex-branching makes one request for a key two rows share and keeps first-seen order (ST-LN-97 t3-ac-1)', async () => {
+  it('risk:complex-branching makes one request for a key two rows share and keeps first-seen order for Linear (ST-LN-97 t3-ac-1)', async () => {
     const { impl, calls } = fakeFetch((key) => issueBody(key));
     const result = await fetchLinear(['ENG-9', 'ENG-7', 'ENG-9', 'ENG-7'], ENV, impl);
     expect(calls.map((c) => c.body.variables.id)).toEqual(['ENG-9', 'ENG-7']);
@@ -128,7 +128,7 @@ describe('fetchLinear facts (ST-LN-97 t3-ac-1)', () => {
     expect(facts.title).toContain('bad');
   });
 
-  it('risk:complex-branching never has more than 8 requests in flight for 20 keys (ST-LN-97 t3-ac-2)', async () => {
+  it('risk:complex-branching never has more than 8 requests in flight for 20 keys for Linear (ST-LN-97 t3-ac-2)', async () => {
     let inFlight = 0;
     let peak = 0;
     const { impl, calls } = fakeFetch(async (key) => {
@@ -173,7 +173,7 @@ describe('fetchLinear failures are one warning (ST-LN-97 t3-ac-2)', () => {
     });
   }
 
-  it('risk:security never rejects when every request fails (ST-LN-97 t3-ac-2)', async () => {
+  it('risk:security never rejects when every request fails for Linear (ST-LN-97 t3-ac-2)', async () => {
     const { impl } = fakeFetch(() => new Error('offline'));
     const result = await fetchLinear(['ENG-7', 'ENG-9'], ENV, impl);
     expect(result.issues).toEqual({});

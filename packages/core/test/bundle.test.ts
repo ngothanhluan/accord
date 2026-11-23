@@ -26,7 +26,7 @@ const forbidden = [
 ];
 
 describe('built core bundle', () => {
-  it('is built', () => {
+  it('risk:regression the core bundle is built', () => {
     expect(() => assertBuilt(distDir)).not.toThrow();
   });
 

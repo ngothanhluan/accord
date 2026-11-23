@@ -108,7 +108,7 @@ function configureLinear(repo: string, idsMode?: 'tracker'): void {
 const cellOf = (out: string, id: string): string => out.split('\n').find((l) => l.startsWith(id)) ?? '';
 
 describe('accord status with tracker.adapter: linear (ST-LN-97 t3-ac-1)', () => {
-  it('risk:complex-branching shows the key, state, title and labels in the ticket row and exits 0 (ST-LN-97 t3-ac-1)', async () => {
+  it('risk:complex-branching shows the key, state, title and labels in the ticket row and exits 0 for Linear status (ST-LN-97 t3-ac-1)', async () => {
     const repo = makeRepo('valid-build');
     try {
       configureLinear(repo);

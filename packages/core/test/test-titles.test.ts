@@ -12,8 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
 /**
- * The 13 titles that were already defined in two files before Phase 8 (found at origin/main fd2cb1d4). They are out of D-13, which names the
- * Phase 7 titles, and they stay as they are; every other title found in two files fails the check. Sorted by code point.
+ * The titles allowed in two files. It held the 13 that were already defined in two files before Phase 8 (found at origin/main fd2cb1d4); Phase 08.8
+ * D-18 renamed them, so it is empty and every title found in two files fails the check. A title is added here only with a reason written beside it.
  */
 const KNOWN_OLDER_DUPLICATES: readonly string[] = [];
 
@@ -50,7 +50,7 @@ function titlesByFile(): Map<string, Set<string>> {
   return found;
 }
 
-it('risk:regression no test title is defined in two test files except the 13 older ones this test lists (8-ac-7)', () => {
+it('risk:regression no test title is defined in two test files (8-ac-7)', () => {
   const found = titlesByFile();
   expect(found.size, 'the scan found test titles').toBeGreaterThan(1000);
   const twice = [...found].filter(([, files]) => files.size > 1).map(([title]) => title).sort();

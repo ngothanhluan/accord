@@ -775,3 +775,58 @@ export function placeRun(place, text, settings, offset = 0) {
   const color = drawColor(colorOf(place, settings, offset));
   return [...text].map((ch) => ({ ch, color }));
 }
+
+// ---- Phase 08.8.1-07 task 2: the checked edits of the settings and the rows the view draws ----
+
+const REFUSED = 'a colour is #rrggbb, e.g. #e07a4f';
+
+// L-02 (T-08.8.1-21, T-08.8.1-22): a person's text for one place. `{ settings }` is the new value, `{ refused }` alone leaves the settings as they were (not `#rrggbb`), and a failure or waiting colour under 3:1 against `bg` gives both: the place is reset to `auto`, so neither the faint colour nor an earlier custom one is kept.
+export function setPlace(settings, key, text, bg = BACKGROUND) {
+  const t = String(text ?? '').trim().toLowerCase();
+  const rest = Object.fromEntries(Object.entries(settings.places).filter(([k]) => k !== key));
+  if (t === '' || t === 'auto') return { settings: { ...settings, places: rest } };
+  const hex = isHex(t);
+  if (hex === undefined) return { refused: REFUSED };
+  if (MUST_SHOW.includes(key) && !contrastOk(hex, bg)) {
+    const preset = (FIXED[settings.palette] ?? FIXED.aurora)[key];
+    return { settings: { ...settings, places: rest }, refused: `too faint on this background (${bg}); using the preset's ${preset}` };
+  }
+  return { settings: { ...settings, places: { ...settings.places, [key]: hex } } };
+}
+
+// L-02: one of the custom palette's three colours (from, via, to); a good one makes `custom` the palette.
+export function setCustom(settings, i, text) {
+  const hex = isHex(text);
+  if (hex === undefined || !(i >= 0 && i < settings.custom.length)) return { refused: REFUSED };
+  return { settings: { ...settings, palette: 'custom', custom: settings.custom.map((c, j) => (j === i ? hex : c)) } };
+}
+
+export const setPalette = (settings, name) => (PALETTE_NAMES.includes(name) ? { ...settings, palette: name } : settings);
+export const setStyle = (settings, style) => (style === 'gradient' || style === 'solid' ? { ...settings, style } : settings);
+
+// L-01, L-03: a motion level sets the effects to its set; `mine` is only ever reached by switching a single effect.
+export const setMotion = (settings, level) => (Object.hasOwn(PRESET_EFFECTS, level) ? { ...settings, motion: level, effects: effectsOf(level) } : settings);
+
+export function toggleEffect(settings, key) {
+  if (!EFFECTS.some((e) => e.key === key)) return settings;
+  const effects = Object.fromEntries(Object.entries(settings.effects).filter(([k]) => k !== key));
+  if (settings.effects[key] !== true) effects[key] = true;
+  return { ...settings, effects, motion: 'mine' };
+}
+
+// The rows the settings view draws, all from the settings: each palette with five swatch cells, the three custom colours, the style choice, each place's current colour or `auto`, the motion levels and the twelve switches.
+export function settingsView(settings) {
+  const swatch = (stops) => Array.from({ length: 5 }, (_, i) => ({ ch: '█', color: drawColor(gradientAt(stops, Math.min(i / 4, 0.9999))) }));
+  return {
+    palettes: PALETTE_NAMES.map((name) => ({ name, selected: settings.palette === name, swatch: swatch(name === 'custom' ? settings.custom : PALETTES[name]) })),
+    custom: settings.custom.map((value, i) => ({ key: `custom:${i}`, label: ['from', 'via', 'to'][i], value, color: drawColor(value) })),
+    styles: [
+      { key: 'gradient', label: 'gradient', selected: settings.style === 'gradient' },
+      { key: 'solid', label: 'one colour', selected: settings.style === 'solid' },
+    ],
+    places: PLACES.map(({ key, label }) => ({ key, label, value: Object.hasOwn(settings.places, key) ? settings.places[key] : 'auto', color: drawColor(colorOf(key, settings, 0.5)) })),
+    motions: ['lively', 'mission', 'calm', 'off'].map((name) => ({ name, selected: settings.motion === name })),
+    mine: settings.motion === 'mine',
+    effects: EFFECTS.map(({ key, label }) => ({ key, label, on: settings.effects[key] === true })),
+  };
+}

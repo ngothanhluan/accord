@@ -126,7 +126,8 @@ export function branchIdCandidates(name: string, template: string): string[] {
   const right = sideRegex(suf);
   const starts: number[] = [];
   const ends: number[] = [];
-  for (let i = 1; i < name.length; i++) {
+  // CR-01: both ends are tested too, so a template whose {id} starts or ends the name (`{id}-{slug}`, `fix/{slug}-{id}`) is read; the id is never empty (e > s below)
+  for (let i = 0; i <= name.length; i++) {
     if (left.test(name.slice(0, i))) starts.push(i);
     if (right.test(name.slice(i))) ends.push(i);
   }

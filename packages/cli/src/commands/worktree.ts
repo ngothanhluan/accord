@@ -59,12 +59,27 @@ export function branchOf(snapshot: RepoSnapshot, id: string, fields?: { title?: 
   return renderBranch(snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE, { id, ...(title === undefined ? {} : { title }), ...(change === undefined ? {} : { change }) }, snapshot.config);
 }
 
-/** R-4: a claim name that still holds `{type}` has no allowed change word; no type is guessed, so the claim is refused before any git write. */
-function refuseUntyped(ctx: CommandContext, id: string, claim: string, written: string, give: string): never {
+/** R-4: a claim name that still holds `{type}` has no allowed change word; no type is guessed, so the claim is refused before any git write. `why` says what is missing, in the caller's words (IN-03). */
+function refuseUntyped(ctx: CommandContext, id: string, why: string, written: string, give: string): never {
   const template = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
-  throw new UsageError(
-    `${id}: the branch template ${template} needs a change word, and ${claim.includes('{type}') ? 'the ticket has none that branch_types allows' : 'none was given'} - ${give}, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')}; ${written}`,
-  );
+  throw new UsageError(`${id}: the branch template ${template} needs a change word, and ${why} - ${give}, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')}; ${written}`);
+}
+
+/**
+ * Review ruling (CR-01, WR-02, WR-03): before `git worktree add`, a rendered claim name must be a branch name git accepts (`git check-ref-format --branch`) and must read back
+ * through the templates in force to the same id; otherwise the claim is refused, since a name the readers cannot map to its ticket is a claim nobody sees. No git write has run.
+ */
+function checkClaimName(ctx: CommandContext, id: string, claim: string, written: string): void {
+  const template = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
+  if (!gitOk(ctx.root, ['check-ref-format', '--branch', claim])) {
+    throw new UsageError(`${id}: ${claim} is not a valid branch name (git check-ref-format), as the branch template ${template} renders it - change the template or the ticket's title; ${written}`);
+  }
+  const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
+  if (ticketOfBranch(claim, templates, (i) => i === id, ctx.snapshot.config) !== id) {
+    throw new UsageError(
+      `${id}: ${claim} would not be read back as ${id} under the branch templates in force (${templates.join(', ')}), so no reader would see the claim - change the branch template or the change word; ${written}`,
+    );
+  }
 }
 
 export interface PrunableEntry extends WorktreeEntry {
@@ -647,8 +662,9 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   // R-7 and W3: the --change word stands in for the ticket's own change: in the name, and is written into the claim commit below
   const claim = branchOf(ctx.snapshot, id, { ...branchFieldsOf(onDefault), ...(opts.change === undefined ? {} : { change: opts.change }) });
   if (claim.includes('{type}')) {
-    refuseUntyped(ctx, id, claim, 'nothing was created', `add change: <word> to accord/tickets/${id}.md on the default branch, or run accord worktree open ${id} --change <word>`);
+    refuseUntyped(ctx, id, 'the ticket has none that branch_types allows', 'nothing was created', `add change: <word> to accord/tickets/${id}.md on the default branch, or run accord worktree open ${id} --change <word>`);
   }
+  checkClaimName(ctx, id, claim, 'nothing was created');
   if (
     claim !== branch &&
     (list.some((w) => w.branch === claim) ||
@@ -2172,7 +2188,8 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
 export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string, seen?: WorktreeEntry[]): void {
   const enter = canEnter(ctx);
   const branch = branchOf(ctx.snapshot, id, branchFieldsOf(text));
-  if (branch.includes('{type}')) refuseUntyped(ctx, id, branch, 'nothing was written', 'give --change <word>');
+  if (branch.includes('{type}')) refuseUntyped(ctx, id, 'the new ticket has no change: word that branch_types allows', 'nothing was written', 'give --change <word>');
+  checkClaimName(ctx, id, branch, 'nothing was written');
   const all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[];
   const list = all.filter((w) => w.prunable === undefined);
   const exists =

@@ -74,6 +74,18 @@ describe('branchIdCandidates (D-07, D-11, R-13)', () => {
     expect(branchIdCandidates('t/ST-1', 't/{id}')).toEqual(['ST-1']);
     expect(branchIdCandidates('fix/ST-' + 'a'.repeat(260), 'fix/{id}-{slug}')).toEqual([]);
   });
+
+  // CR-01: a template whose {id} is at the start or the end of the name, beside a {slug}, is read back
+  it('risk:parsing branchIdCandidates reads an id at the start or the end of a {slug} template', () => {
+    expect(branchIdCandidates('ST-9-export', '{id}-{slug}')).toEqual(['ST', 'ST-9']);
+    expect(branchIdCandidates('fix/export-ST-9', 'fix/{slug}-{id}')).toEqual(['9', 'ST-9']);
+    expect(branchIdCandidates('fix/export/ST-9', 'fix/{slug}/{id}')).toEqual(['ST-9']);
+    expect(branchIdCandidates('x/export/ST-9', 'x/{slug}/{id}')).toEqual(['ST-9']);
+    // the id is never empty, and a slug is still one or more characters of one segment
+    expect(branchIdCandidates('fix/export-', 'fix/{slug}-{id}')).toEqual([]);
+    expect(branchIdCandidates('-export', '{id}-{slug}')).toEqual([]);
+    expect(branchIdCandidates('ST-9-', '{id}-{slug}')).toEqual(['ST']);
+  });
 });
 
 describe('pickBranchId (D-07a, R-12)', () => {

@@ -168,3 +168,60 @@ it('risk:regression --change is refused before any write when the word is not li
   expect(ok.code, ok.err).toBe(0);
   expect(readFileSync(`${c.root}/accord/tickets/ST-LN-23.md`, 'utf8')).toMatch(CHANGE('fix'));
 });
+
+// CR-01: a {slug} template whose {id} sits at the start or the end of the name is read back, so status in the main checkout finds the claim.
+it.each([
+  ['{type}/{slug}-{id}', 'fix/export-ST-9'],
+  ['{id}-{slug}', 'ST-9-export'],
+])('risk:data-loss a claim under %s is found again by status in the main checkout (CR-01)', async (template, name) => {
+  const c = copy();
+  adopt(c, ['change: fix'], `branch: "${template}"\n`);
+  const r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(has(c.root, 'refs/heads/' + name)).toBe(true);
+  const row = await rowOf(c, 'ST-9');
+  expect(row.branch).toBe(name);
+  expect(row.claimedBy).toBe('fixture@example.invalid');
+});
+
+// CR-01, WR-02, WR-03 and the review ruling: before git worktree add, a rendered claim name must be a valid branch name and read back to the same id.
+/** The main checkout commits and pushes `config` (so its own config matches origin's), and origin holds ST-9 with `ticket`. */
+function adoptBoth(c: Clone, config: string, ticket = laneTicket('ST-9', { frontmatter: ['change: fix'] })): void {
+  writeFiles(c.root, { 'accord/config.yml': CONFIG + config });
+  commitMsg(c.root, 'adopt the branch template');
+  c.git('push', '-q', 'origin', 'main');
+  pushMain(c, 'accord/tickets/ST-9.md', ticket);
+}
+const nothingMade = (c: Clone, id = 'ST-9'): void => {
+  expect(existsSync(c.sibling(id))).toBe(false);
+  expect(c.git('for-each-ref', '--format=%(refname)', 'refs/heads').trim()).toBe('refs/heads/main');
+  expect(gitRun(c.remote, 'for-each-ref', '--format=%(refname)').trim()).toBe('refs/heads/main');
+};
+
+it('risk:data-loss worktree open refuses a claim name the templates read back as another id (change: t) and creates nothing (WR-02)', async () => {
+  const c = copy();
+  adoptBoth(c, TYPED + 'branch_types: [t, fix]\n');
+  const r = await run(['worktree', 'open', 'ST-9', '--change', 't'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('t/ST-9-export would not be read back as ST-9');
+  nothingMade(c);
+});
+
+it('risk:data-loss worktree open refuses a rendered name git refuses (.lock) before any git write (WR-03)', async () => {
+  const c = copy();
+  adoptBoth(c, 'branch: "{type}/{id}.{slug}"\n', laneTicket('ST-9', { frontmatter: ['change: fix'] }).replace('title: "Export"', 'title: "Lock"'));
+  const r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('fix/ST-9.lock is not a valid branch name');
+  expect(r.err).toContain('{type}/{id}.{slug}');
+  nothingMade(c);
+});
+
+it('risk:data-loss new ticket --worktree refuses a name that is not a valid branch or does not read back, and writes nothing (WR-02, WR-03)', async () => {
+  const c = copy();
+  pushMain(c, 'accord/config.yml', CONFIG + 'branch: "feature/{id}.{slug}"\n');
+  const r = await run(['new', 'ticket', 'ST-LN-24', '--lane', 'M', '--worktree', '--title', 'Lock', '--no-dup-check'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('feature/ST-LN-24.lock is not a valid branch name');
+  nothingMade(c, 'ST-LN-24');
+});

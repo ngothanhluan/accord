@@ -155,16 +155,17 @@ function idShaped(id: string, config: IdShapeConfig | undefined): boolean {
 }
 
 /**
- * Issue #341 D-07b: the fallback id of a name no known id or id shape settles: the shortest candidate that ends in a digit run (every accord id pattern carries
- * `{n}`, and tracker keys end in a number), else none, so `chore/bump-deps` is no claim.
+ * Issue #341 D-07b, D-07b': the fallback id of a name no known id or id shape settles: the shortest candidate that starts with a letter and ends in a digit run (every
+ * accord id pattern starts with its type prefix and carries `{n}`, and a tracker key is a project key and a number), else none, so `chore/bump-deps` is no claim and
+ * `fix/export-ST-9` under `{type}/{slug}-{id}` reads `ST-9`, never `9`.
  */
 function shortestNumbered(candidates: readonly string[]): string | undefined {
-  return candidates.filter((id) => /\d$/.test(id)).sort((a, b) => a.length - b.length)[0];
+  return candidates.filter((id) => /^[A-Za-z].*\d$/.test(id)).sort((a, b) => a.length - b.length)[0];
 }
 
 /**
  * Issue #341 D-07a, D-07b, R-12: the id of a branch among its `candidates` (shortest first): the first the repository `known`s, else the
- * first of this repository's id shape, else the shortest that ends in a digit run, else none. Pure, no git process.
+ * first of this repository's id shape, else the shortest that starts with a letter and ends in a digit run (D-07b'), else none. Pure, no git process.
  */
 export function pickBranchId(candidates: readonly string[], known: (id: string) => boolean, config?: IdShapeConfig): string | undefined {
   return candidates.find(known) ?? candidates.find((id) => idShaped(id, config)) ?? shortestNumbered(candidates);
@@ -179,7 +180,7 @@ export interface BranchId {
 /**
  * Issue #341 D-07, D-07a, D-07b, D-07c: the ticket id a branch `name` carries under the (expanded) `templates`, or undefined. The candidates of every template come in template
  * order. A known id wins; else one of this repository's id shape; else the one id of a template without `{slug}` (so `t/{id}` always claims, as before); else the shortest
- * candidate that ends in a digit run. `ambiguous` is true when the name gave more than one candidate and none is known: the audit then names the branch without a delete command.
+ * candidate that starts with a letter and ends in a digit run (D-07b'). `ambiguous` is true when the name gave more than one candidate and none is known: the audit then names the branch without a delete command.
  */
 export function branchIdOf(name: string, templates: readonly string[], known: (id: string) => boolean, config?: IdShapeConfig): BranchId | undefined {
   const all: string[] = [];

@@ -100,6 +100,10 @@ describe('pickBranchId (D-07a, R-12)', () => {
     expect(pickBranchId(branchIdCandidates('feature/ST-12-export', 'feature/{id}-{slug}'), () => false, undefined)).toBe('ST-12');
     expect(pickBranchId(branchIdCandidates('chore/bump-deps', 'chore/{id}-{slug}'), () => false, undefined)).toBeUndefined();
     expect(pickBranchId(branchIdCandidates('chore/bump-deps', 'chore/{id}-{slug}'), () => false, people)).toBeUndefined();
+    // D-07b': a fallback id also starts with a letter, so an id at the end of a {slug} name is read whole
+    expect(pickBranchId(branchIdCandidates('fix/export-ST-9', 'fix/{slug}-{id}'), () => false, undefined)).toBe('ST-9');
+    expect(pickBranchId(branchIdCandidates('fix/export-2-ST-9', 'fix/{slug}-{id}'), () => false, undefined)).toBe('ST-9');
+    expect(pickBranchId(['9', '12'], () => false, undefined)).toBeUndefined();
     expect(pickBranchId([], () => false, people)).toBeUndefined();
     const tracker = { ids: { mode: 'tracker' as const, projects: ['CSA'] } };
     expect(pickBranchId(branchIdCandidates('fix/CSA-185-404-page', 'fix/{id}-{slug}'), () => false, tracker)).toBe('CSA-185');

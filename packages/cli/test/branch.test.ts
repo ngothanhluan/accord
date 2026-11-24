@@ -30,6 +30,9 @@ it('risk:parsing ticketOfBranch reads a {type}/{id}-{slug} name under listed wor
   expect(ticketOfBranch('chore/bump-deps', expanded, none)).toBeUndefined();
   expect(ticketOfBranch('chore/bump-deps', expanded, none, people)).toBeUndefined();
   expect(ticketOfBranch('fix/login-bug', expanded, none, people)).toBeUndefined();
+  // D-07b': under {type}/{slug}-{id}, a checkout without the ticket and with no convention reads the whole id
+  const tail = expandBranchTypes(['t/{id}', '{type}/{slug}-{id}'], branchTypesOf(undefined));
+  expect(ticketOfBranch('fix/export-ST-9', tail, none)).toBe('ST-9');
   const tracker = { ids: { mode: 'tracker' as const, projects: ['CSA'] } };
   expect(ticketOfBranch('fix/CSA-185-404-page', expanded, none, tracker)).toBe('CSA-185');
   expect(ticketOfBranch('wip/ST-1-x', expanded, none)).toBeUndefined();

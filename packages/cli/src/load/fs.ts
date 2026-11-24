@@ -1045,7 +1045,7 @@ function resolveAfter(root: string, entries: readonly AfterEntry[], walk: Walk |
  * `t/{id}`. The templates are the expanded ones (`{type}` already one template per listed word, D-11). The candidates of every
  * template come in template order, shortest first within one (a `{slug}` makes the id ambiguous), and issue #341 D-07a/D-07b choose
  * (branchIdOf): the first `known` id, else the first of the repository's id shape under `config`, else the one id of a template
- * without `{slug}`, else the shortest id ending in a digit run, else none.
+ * without `{slug}`, else the shortest id that starts with a letter and ends in a digit run, else none.
  */
 export function ticketOfBranch(name: string, templates: readonly string[], known: (id: string) => boolean, config?: Parameters<typeof branchIdOf>[3]): string | undefined {
   return branchIdOf(name, templates, known, config)?.id;

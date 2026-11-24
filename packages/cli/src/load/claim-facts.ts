@@ -256,6 +256,156 @@ export function gitClaimFactsMany(root: string, ids: readonly string[], config?:
   return new Map(ids.map((id) => [id, facts.get(id)]));
 }
 
+/** Phase 08.9 D-02 (T-08.9-14): ticket paths per ruleset log, so the pathspec list stays far below Windows' command line cap of about 32 K characters. */
+export const RULESET_PATHS_PER_LOG = 200;
+
+const SHA_RE = /^[0-9a-f]{40,64}$/;
+/** A ticket path rulesetCommitsMany accepts: the characters git prints unquoted, so a name in `--name-only` output is compared by exact equality. Anything else is handed back to the per-ticket log. */
+const SAFE_REL_RE = /^[A-Za-z0-9._/-]+$/;
+
+/**
+ * Phase 08.9 D-02, D-03: what the one-path log of commitsWritingRuleset lists for one ticket file, replayed over the parent graph with no git process; the pure half of rulesetCommitsMany, kept apart so the
+ * draft creators of 08.9-06 can reuse it. `graph` maps every commit reachable from HEAD to its parents, oldest first as `git log --topo-order --reverse` gives them (that order breaks ties between commits
+ * that are not ancestor-related); `head` is HEAD's commit, `claim` the range's bottom, `ancestors` the claim and everything reachable from it, `wrote` the commits whose diff for this one file adds or removes a
+ * `ruleset:` line (a merge is never in it: `-G` lists no merge), and `changed(merge, parent)` tells whether the file differs between that merge and that parent.
+ * git's default history simplification for one path, as the one-path log walks it from HEAD inside `claim..HEAD`: a merge that is the same for the file as one of its parents is followed through the first such
+ * parent only, so the other side's commits are not listed even when they wrote the line (a many-path walk would list them); the claim, the bottom of the range, counts as such a parent. The result is the walked
+ * commits of `wrote`, oldest first. It is undefined when git's answer cannot be told from the graph: a merge the same as a parent that lies before the claim (strictly older than it), where git's walk follows that
+ * parent alone or not depending on how far its marking of the excluded side has got, which varies with its traversal order. The caller reads that ticket with the one-path log.
+ */
+export function onePathCommits(
+  graph: ReadonlyMap<string, readonly string[]>,
+  head: string,
+  claim: string,
+  ancestors: ReadonlySet<string>,
+  wrote: ReadonlySet<string>,
+  changed: (merge: string, parent: string) => boolean,
+): string[] | undefined {
+  const listed = new Set<string>();
+  const seen = new Set<string>();
+  const stack = [head];
+  while (stack.length > 0) {
+    const sha = stack.pop()!;
+    if (seen.has(sha) || ancestors.has(sha)) continue;
+    seen.add(sha);
+    if (wrote.has(sha)) listed.add(sha);
+    const parents = graph.get(sha) ?? [];
+    let followed = parents;
+    if (parents.length > 1) {
+      for (const parent of parents) {
+        if (changed(sha, parent)) continue;
+        if (parent !== claim && ancestors.has(parent)) return undefined;
+        followed = [parent];
+        break;
+      }
+    }
+    stack.push(...followed);
+  }
+  return listed.size < 2 ? [...listed] : [...graph.keys()].filter((sha) => listed.has(sha));
+}
+
+/**
+ * Phase 08.9 D-02, D-03, D-04: for every ticket `{ rel, claim }`, exactly the list commitsWritingRuleset(root, claim, rel) returns (the commits after the claim that add or remove a `ruleset:` line of the ticket file, oldest
+ * first), from one `git log -G^ruleset: --full-history` per `chunk` ticket paths and one `git diff-tree` for the merges, with the one-path log's history simplification replayed in JS (onePathCommits). The log lists
+ * the candidate commits of all paths in the chunk and the file each one wrote a line into; the diff-tree says, for each merge and parent, which of those files differ between them, which is what git's per-file
+ * simplification reads. A ticket onePathCommits cannot decide, and a ticket path with a character git would quote, are read with the one-path log itself (one process for that ticket alone). `graph` is the parent
+ * graph of every commit reachable from HEAD, oldest first (see onePathCommits). Throws when a step fails or prints an unexpected line; the caller answers every ticket with gitClaimFacts. Every value lives in locals of this call.
+ */
+export function rulesetCommitsMany(
+  root: string,
+  graph: ReadonlyMap<string, readonly string[]>,
+  claims: readonly { rel: string; claim: string }[],
+  chunk = RULESET_PATHS_PER_LOG,
+): Map<string, string[]> {
+  const answers = new Map<string, string[]>();
+  if (claims.length === 0) return answers;
+  if (!Number.isInteger(chunk) || chunk < 1) throw new Error(`rulesetCommitsMany: a chunk of ${chunk} paths`);
+  const named = new Set<string>();
+  for (const { rel, claim } of claims) {
+    if (!SHA_RE.test(claim) || !graph.has(claim)) throw new Error(`rulesetCommitsMany: claim ${claim} is not in the history of HEAD`);
+    if (named.has(rel)) throw new Error(`rulesetCommitsMany: ${rel} is asked twice`);
+    named.add(rel);
+  }
+  const isParent = new Set<string>();
+  for (const parents of graph.values()) for (const parent of parents) isParent.add(parent);
+  const tips = [...graph.keys()].filter((sha) => !isParent.has(sha));
+  if (tips.length !== 1) throw new Error(`rulesetCommitsMany: ${tips.length} tips in the parent graph`);
+  const head = tips[0];
+  const ancestorsOf = new Map<string, Set<string>>();
+  for (const { claim } of claims) {
+    if (ancestorsOf.has(claim)) continue;
+    const seen = new Set<string>();
+    const stack = [claim];
+    while (stack.length > 0) {
+      const sha = stack.pop()!;
+      if (seen.has(sha)) continue;
+      seen.add(sha);
+      stack.push(...(graph.get(sha) ?? []));
+    }
+    ancestorsOf.set(claim, seen);
+  }
+  // a merge every claim already has behind it is outside every ticket's range and is never asked about
+  const merges = [...graph].filter(([sha, parents]) => parents.length > 1 && claims.some(({ claim }) => !ancestorsOf.get(claim)!.has(sha))).map(([sha]) => sha);
+  const quoted = (rel: string): boolean => !SAFE_REL_RE.test(rel);
+  for (let at = 0; at < claims.length; at += chunk) {
+    const part = claims.slice(at, at + chunk);
+    const direct = part.filter(({ rel }) => !quoted(rel));
+    const specs = direct.map(({ rel }) => ':(literal)' + rel);
+    const wroteBy = new Map<string, Set<string>>(direct.map(({ rel }) => [rel, new Set<string>()]));
+    const changedBy = new Map<string, Set<string>>(direct.map(({ rel }) => [rel, new Set<string>()]));
+    if (direct.length > 0) {
+      const log = execFileSync(
+        'git',
+        ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-renames', '--full-history', '--format=%x01%H', '-G^ruleset:', '--name-only', 'HEAD', '--', ...specs],
+        { cwd: root, ...GIT },
+      );
+      for (const record of log.split('\x01')) {
+        const lines = record.split('\n').map((l) => l.replace(/\r$/, ''));
+        const sha = lines[0].trim().toLowerCase();
+        if (sha === '') continue;
+        if (!SHA_RE.test(sha)) throw new Error(`rulesetCommitsMany: unexpected log line ${JSON.stringify(lines[0])}`);
+        for (const name of lines.slice(1)) {
+          if (name === '') continue;
+          const into = wroteBy.get(name);
+          if (into === undefined) throw new Error(`rulesetCommitsMany: the log names a file nobody asked about: ${JSON.stringify(name)}`);
+          into.add(sha);
+        }
+      }
+      if (merges.length > 0) {
+        const out = execFileSync('git', ['diff-tree', '--stdin', '-m', '-r', '--name-only', '--no-renames', '--pretty=oneline', '--', ...specs], {
+          cwd: root,
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          maxBuffer: 64 * 1024 * 1024,
+          env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+          input: merges.map((m) => m + '\n').join(''),
+        });
+        let pair: string | undefined;
+        for (const raw of out.split('\n')) {
+          const line = raw.replace(/\r$/, '');
+          if (line === '') continue;
+          const into = changedBy.get(line);
+          if (into !== undefined) {
+            if (pair === undefined) throw new Error('rulesetCommitsMany: a file name before any merge');
+            into.add(pair);
+            continue;
+          }
+          const header = /^([0-9a-f]{40,64}) \(from ([0-9a-f]{40,64})\)(?: |$)/.exec(line);
+          if (header === null) throw new Error(`rulesetCommitsMany: unexpected diff-tree line ${JSON.stringify(line)}`);
+          pair = header[1] + ' ' + header[2];
+        }
+      }
+    }
+    for (const { rel, claim } of part) {
+      const replayed = quoted(rel)
+        ? undefined
+        : onePathCommits(graph, head, claim, ancestorsOf.get(claim)!, wroteBy.get(rel)!, (merge, parent) => changedBy.get(rel)!.has(merge + ' ' + parent));
+      answers.set(rel, replayed ?? commitsWritingRuleset(root, claim, rel));
+    }
+  }
+  return answers;
+}
+
 /** One ticket's ClaimFacts from its slice of the batch's blobs, assembled as gitClaimFacts assembles them; throws where gitClaimFacts throws (the config unreadable at the claim). */
 function claimFactsFrom(p: Pending, texts: (string | undefined)[]): ClaimFacts {
   if (texts[0] === undefined) throw new Error(`accord/config.yml cannot be read at claim commit ${p.sha}`);

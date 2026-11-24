@@ -186,8 +186,12 @@ function oneTicketLog(root: string, claim: string, rel: string): string[] {
 }
 
 /** The batch's list for every ticket equals the one-path log's, element for element and in order; `expected` (rel -> commits) pins what git is built to answer, so a fixture that lists nothing everywhere proves nothing. */
-function sameRuleset(repo: string, claims: { rel: string; claim: string }[], expected: Record<string, string[]>, chunk?: number): void {
-  const many = rulesetCommitsMany(repo, graphOf(repo), claims, chunk);
+function sameRuleset(repo: string, claims: { rel: string; claim: string }[], expected: Record<string, string[]>, chunk?: number, perTicket = 0): void {
+  const graph = graphOf(repo);
+  const counted = countedSync(() => rulesetCommitsMany(repo, graph, claims, chunk));
+  const many = counted.value;
+  // the replay answers without a log of its own: one log for the chunk, plus one per ticket the replay hands back to the one-path log (`perTicket`)
+  if (chunk === undefined) expect(counted.argv.filter((a) => a.includes('-G^ruleset:')).length, 'ruleset logs started').toBe(1 + perTicket);
   expect([...many.keys()].sort()).toEqual(claims.map((c) => c.rel).sort());
   for (const c of claims) {
     const want = oneTicketLog(repo, c.claim, c.rel);
@@ -298,7 +302,7 @@ it('risk:regression rulesetCommitsMany lists for every ticket what the one-path 
   gitRun(t, 'switch', '-q', '-c', 'older', tBase);
   gitRun(t, 'merge', '-q', '--no-ff', '--no-commit', '-s', 'ours', 'side');
   commitMsg(t, 'merge side into the older branch', at(4));
-  sameRuleset(t, [{ rel: P('T-1'), claim: t1 }], { [P('T-1')]: oneTicketLog(t, t1, P('T-1')) });
+  sameRuleset(t, [{ rel: P('T-1'), claim: t1 }], { [P('T-1')]: oneTicketLog(t, t1, P('T-1')) }, undefined, 1);
 });
 
 // Phase 08.9 D-02 (T-08.9-14): the ruleset commits of any number of tickets come from one log per chunk of ticket paths; five tickets read with a chunk of 2 are read by three logs and equal the per-ticket logs.

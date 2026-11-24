@@ -4,11 +4,17 @@ Each section lists what changes for tickets in flight and for repositories pinne
 
 ## Unreleased
 
-These changes are on main and not yet released. Tickets in flight are unaffected; a repository pinned to an older accord gets the new plan stage and planner text with `accord upgrade`.
+These changes are on main and not yet released.
+
+- The ticket tab of the accord pane follows its design (issue 342): no boxes, a tabs line without brackets that fits the pane, one connected stage track, the current work with its agents, one gradient bar with `n of m` over the task list, criteria chips with a tested count, and a `lately` log in sentences with who did it. Colours, motion, the settings view and the dashboard are unchanged, and tickets in flight and repositories pinned to an older accord are unaffected apart from the look after `accord upgrade`.
+
+## 0.18.0 — 2026-11-24
+
+Release 0.18.0 makes `accord audit` and the test suite faster without changing what either reports, and adds one rule to the plan stage. `accord audit` on accord's own repository starts 56 git processes instead of 254 and runs in about 8 seconds instead of about 20, with a byte-identical report. Tickets in flight: no ticket is refused for something new, and no gate reads anything that changed. A repository pinned to 0.17.1 gets the plan stage and planner text with `accord upgrade`, which moves the pin and regenerates the skill files.
 
 - The plan stage and the planner say that, of test files, a task's `verify:` and `files:` lines name only the ones the task writes or extends; a long existing regression file runs at wave end and in CI, so a task's test run fits its time box.
 - `accord audit` reads the claim commits of finished tickets, the tickets of claim branches, the authors of what a clean would remove, the tips of queued drafts and the drafts on backlog branches with one git call each instead of one or more per ticket or branch; on accord's own repository it starts 56 git processes instead of 254, and its report is unchanged. `accord dashboard`, `accord deferred` and `accord pr` read the drafts on backlog branches the same way. The dry clean `accord audit` runs reads branch tips, their place on the default branch, verified commits, dropped tickets' research records, unpushed commits and stopped rebases once per run in batches, so a leftover branch costs no git call of its own beyond the merge check of a local branch the default branch lacks, where it cost several; it reports the branches as they were when the audit read them, and `accord worktree clean` itself reads and decides as before. A draft whose history the batched read cannot decide exactly (a file added twice, a merge it cannot place) and a short `verified_commit` are still read one at a time.
-- The ticket tab of the accord pane follows its design (issue 342): no boxes, a tabs line without brackets that fits the pane, one connected stage track, the current work with its agents, one gradient bar with `n of m` over the task list, criteria chips with a tested count, and a `lately` log in sentences with who did it. Colours, motion, the settings view and the dashboard are unchanged, and tickets in flight and repositories pinned to an older accord are unaffected apart from the look after `accord upgrade`.
+- After a review of those batched reads: a path that names a directory no longer moves the answers of the reads after it in the same `git cat-file --batch`; the offline dry clean no longer counts a branch ref that points at a tag object as having no commits missing from origin (it reads that branch as before); and the batched claim reader answers an id that is not a plain ticket id with the single-ticket read. Where two claim-ruleset commits are not ancestors of each other, `accord audit` may list them in a different order than the single-ticket read would; the report is the only thing that reads it.
 
 ## 0.17.1 — 2026-11-24
 

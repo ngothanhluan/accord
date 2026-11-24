@@ -332,6 +332,25 @@ export function tabLabels({ state, ticket, running, settings = DEFAULT_SETTINGS,
 
 // issue 342: the tabs line as parts, `{ text, color?, bold?, dim? }` each. A tab is drawn `k: ` (the hotkey and a colon) and its parts joined by single spaces, two cells between tabs;
 // the dashboard's counts are dropped when the line would run past `columns`, so the line fits the pane and the Button row only wraps below that.
+// the cells a tab takes on the tabs line: its hotkey and colon, and its parts joined by single spaces
+const partsWidth = (list) => 3 + len(list.map((p) => p.text).join(' '));
+
+// issue 342 review IN-01: how many rows the tabs row takes in a pane `columns` wide: the three tabs, two cells apart, wrap onto a new row when the next tab does not fit; one row when the width is no number.
+export function tabRows({ parts, columns }) {
+  if (!num(columns)) return 1;
+  let rows = 1;
+  let used = 0;
+  for (const w of [parts.ticket, parts.dashboard, parts.settings].map(partsWidth)) {
+    if (used === 0) used = w;
+    else if (used + 2 + w <= columns) used += 2 + w;
+    else {
+      rows += 1;
+      used = w;
+    }
+  }
+  return rows;
+}
+
 export function tabParts({ labels, columns }) {
   const t = labels.ticket;
   const part = (text, extra = {}) => ({ text: clean(text), ...extra });
@@ -346,7 +365,7 @@ export function tabParts({ labels, columns }) {
   const withCounts = [part('dashboard', { bold: true }), ...(labels.dashboard.short === '' ? [] : [part(labels.dashboard.short, { dim: true })])];
   const bare = [part('dashboard', { bold: true })];
   const settings = [part('settings', { bold: true })];
-  const width = (list) => 3 + len(list.map((p) => p.text).join(' '));
+  const width = partsWidth;
   const fits = !num(columns) || width(ticket) + width(withCounts) + width(settings) + 4 <= columns;
   return { ticket, dashboard: fits ? withCounts : bare, settings };
 }
@@ -687,7 +706,6 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
   }
   // L-01: the stage track's cells take the stage track's gradient, not the stage's own colour
   const cells = pipelineOf(t).map((c, i, all) => ({ ...c, color: paint('stage', i / all.length), text: clean(c.state === 'off' ? `${c.label} off` : c.label) }));
-  const current = cells.find((c) => c.state === 'current');
   const rows = taskRows(t.tasks, t.now?.task);
   const bar = buildProgress(t);
   const isWaiting = plain(waiting) && num(waiting.since);
@@ -712,7 +730,7 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
     bar === undefined
       ? undefined
       : {
-          cells: comet(bar.value / bar.max, Math.max(10, Math.min(70, Math.floor(columns) - 3 - len(counter) - 2)), cometOn ? nowMs : undefined, placeStops('bar', settings, 0.55)).map(({ ch, color }) => ({ ch, color: drawColor(color) })),
+          cells: comet(bar.value / bar.max, Math.max(10, Math.min(70, Math.floor(columns) - 3 - len(bar.valueText) - 2)), cometOn ? nowMs : undefined, placeStops('bar', settings, 0.55)).map(({ ch, color }) => ({ ch, color: drawColor(color) })),
           counter,
           color: rollOn ? GLOW : colors.bar,
         };
@@ -732,7 +750,6 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
       i === 0 ? { ...l, color: isWaiting ? waitColor : colors.now, ...(isWaiting ? { diamond } : {}), ...(fx.has('shimmer') && !isWaiting ? { run: shimmer(l.text, nowMs, placeStops('now', settings)).map(({ ch, color }) => ({ ch, color: drawColor(color) })) } : {}) } : l,
     ),
     ...(headTime === undefined ? {} : { headTime }),
-    ...(current === undefined ? {} : { current: current.text }),
     // Phase 08.8.1 L-07: the task list and the build bar, in the tracked branch only (D-05: a not-committed ticket gets neither)
     ...(rows.length === 0 ? {} : { tasks: rows }),
     ...(bar === undefined ? {} : { progress: bar }),

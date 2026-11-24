@@ -1297,7 +1297,7 @@ it('risk:regression the agents block shows running accord agents with timers and
   const h = await claimedPane();
   // issue 342: the agents are rows of the current-work block, with no heading and no placeholder row
   for (const gone of ['AGENTS', 'none running']) expect(h.texts()).not.toContain(gone);
-  expect(h.texts().some((x) => /^(◐|✓) /.test(x))).toBe(false);
+  expect(h.texts().some((x) => /^[◐◓◑◒◜◝◞◟✓] /.test(x))).toBe(false);
   h.agents = [agentOf('a1', 'accord-executor')];
   await h.fire('turn.start', subStart('a1'));
   expect(isRunning(h, 'executor')).toBe(true);
@@ -1824,6 +1824,55 @@ it('risk:regression a long ticket line drops the dashboard counts and the tabs r
   for (const b of h.nodes('Button')) expect(b.props.plain, String(b.props.key)).toBe(true);
 });
 
+// issue 342 review IN-01, IN-02, IN-03: the log counts the rows the tabs line wraps to, the bar keeps its width while the counter rolls, and the view returns no key the tab does not draw.
+it('risk:regression a wrapped tabs row takes a row from the log, and the bar does not change width while the counter rolls (issue 342 IN-01 IN-02)', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const log = Array.from({ length: 40 }, (_, i) => ({ at: now - 30 - i * 40, kind: 'commit', text: `commit number ${i}` }));
+  const lately = async (id: string): Promise<number> => {
+    const h = await host(await loadPanel());
+    h.columns = 46;
+    h.rows = 50;
+    await h.store.set('settings', NO_MOTION);
+    await h.fire('session.start', start);
+    h.settle({ stdout: JSON.stringify(board({ current: id, yours: { rows: [{ id, title: 'Login form' }], more: 0 } })) });
+    await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW(id), { timeoutMs: 120000 }));
+    h.settle({ stdout: JSON.stringify(detailOf({ id, log })) });
+    await vi.waitFor(() => expect(h.texts()).toContain('Login form'));
+    const t = h.texts();
+    return (t.length - t.indexOf('lately') - 1) / 3;
+  };
+  // 'ST-1' fits the 46 columns on one row, 'ST-LN-123' does not and wraps to two
+  const one = await lately('ST-1');
+  const two = await lately('ST-LN-123');
+  expect(one).toBeGreaterThan(8);
+  expect(two).toBe(one - 1);
+  // the bar's width is the same at rest and at every step of the rolling counter, at two digits
+  const { ticketView, detailOutcome, settingsOf } = await loadView();
+  const state = detailOutcome({ exitCode: 0, stdout: JSON.stringify(detailOf({ stage: 'build', tasksDone: 12, tasksTotal: 15, now: { task: 13, title: 'Beta' } })), stderr: '' });
+  const T = 1_800_000_000_000;
+  const barAt = (ms: number | undefined) => ticketView({ ticket: { id: 'ST-1', state }, now: Math.floor(T / 1000), nowMs: T + (ms ?? 0), settings: settingsOf(undefined), motion: { effects: new Set(['roll']), ...(ms === undefined ? {} : { burst: { at: T, seed: 3 } }), columns: 49 } }).barRow;
+  const rest = barAt(undefined);
+  expect(rest.counter).toBe('12 of 15');
+  const widths = new Set<number>();
+  const counters = new Set<string>();
+  for (let ms = 0; ms < 600; ms += 50) {
+    const rolling = barAt(ms);
+    widths.add(rolling.cells.length);
+    counters.add(rolling.counter);
+  }
+  expect([...counters].some((c) => c !== '12 of 15'), 'the counter rolled').toBe(true);
+  expect([...widths]).toEqual([rest.cells.length]);
+});
+
+// issue 342 review IN-03: the ticket tab no longer draws the current stage's label line, so the view does not return it.
+it('risk:regression the ticket view returns no current-label key the tab does not draw (issue 342 IN-03)', async () => {
+  const { ticketView, detailOutcome } = await loadView();
+  const state = detailOutcome({ exitCode: 0, stdout: JSON.stringify(detailOf({})), stderr: '' });
+  const shown = ticketView({ ticket: { id: 'ST-1', state }, now: 1000 });
+  expect(Object.hasOwn(shown, 'track')).toBe(true);
+  expect(Object.hasOwn(shown, 'current')).toBe(false);
+});
+
 // issue 342 review WR-03: an off stage keeps its `off`, but its name is cut to a letter on a narrow pane like the other stages, so the track fits 30 and 36 columns and its last stage is not cut.
 it('risk:regression the stage track with off stages fits a narrow pane (issue 342 WR-03)', async () => {
   const draw = (columns: number): Promise<Awaited<ReturnType<typeof host>>> =>
@@ -2116,7 +2165,7 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
   h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
   await vi.waitFor(() => expect(h.texts()).toContain('Export'));
-  expect(h.texts().some((x) => /^(◐|✓) /.test(x))).toBe(false);
+  expect(h.texts().some((x) => /^[◐◓◑◒◜◝◞◟✓] /.test(x))).toBe(false);
   expect(h.texts()).not.toContain('✓ executor');
 });
 

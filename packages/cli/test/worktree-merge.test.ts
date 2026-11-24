@@ -552,7 +552,7 @@ it('risk:data-loss clean keeps a done lane S branch whose merge into main confli
   const go = conflictOnMain(g);
   const grows = JSON.parse((await run(['status', '--json'], go)).out) as { id: string; stage: string }[];
   expect(grows.find((r) => r.id === 'ST-14')?.stage).toBe('done');
-  // ST-LN-96 t1-ac-5: the squash-merged branch alone is deleted although main edited its file afterwards (worktree-clean.test.ts); this one holds a later commit main never had
+  // ST-LN-96 t1-ac-5: the squash-merged branch alone is deleted although main edited its file afterwards (worktree-clean-squash.test.ts); this one holds a later commit main never had
   writeFiles(sg, { 'added.txt': 'ST-14 later\n' });
   const t14 = commitMsg(sg, 'later change');
   gitRun(sg, 'push', '-q', 'origin', 't/ST-14');

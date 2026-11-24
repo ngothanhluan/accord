@@ -8,7 +8,7 @@ import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
 import { readCleanFacts } from '../load/clean-facts.js';
-import type { CleanFacts } from '../load/clean-facts.js';
+import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { cleanLine, nextLine, withNext, withNextOnFirst } from './next-action.js';
@@ -1973,13 +1973,17 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
 }
 
 /** ST-LN-13: the first research record the ticket lists at `tip` whose copy the history of `ref` never held, or undefined. */
-function researchNotOn(root: string, tip: string, ref: string, id: string): string | undefined {
+function researchNotOn(root: string, tip: string, ref: string, id: string, answers?: ResearchAnswers): string | undefined {
   const file = 'accord/tickets/' + id + '.md';
-  const files = gitFilesAt(root, tip, [file]);
+  // Phase 08.9 D-08: on the offline dry path the ticket text and the blob names come from the batched reads; anything they did not answer is read as before
+  const given = answers?.ticket(tip, id);
+  const files = given === undefined ? gitFilesAt(root, tip, [file]) : given === null ? {} : { [file]: given };
   if (!Object.hasOwn(files, file)) return undefined;
   const tickets = loadSnapshot({ files, tree: [] }).tickets;
   if (!Object.hasOwn(tickets, id)) return undefined;
   const blob = (c: string, p: string): string | undefined => {
+    const named = answers?.blob(c, p);
+    if (named !== undefined) return named ?? undefined;
     const args = ['rev-parse', '--verify', '-q', c + ':' + p];
     return gitOk(root, args) ? git(root, args).trim() : undefined;
   };
@@ -2021,6 +2025,14 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
     return;
   }
   const after = readList(ctx, s.seen);
+  // Phase 08.9 D-08, offline dry path only: the ticket texts and research blobs at the tips about to be judged, and the commits origin lacks on each local-only branch, are read once for all of them
+  const judging = [...ids.keys()].filter((n) => dropped.has(ids.get(n)!)).sort();
+  const judgedAt = (b: string): string | undefined => {
+    const snapTip = s.facts?.localTip(b);
+    return typeof snapTip === 'string' ? snapTip : snapTip === null ? tips.get(b)!.R : (tips.get(b)!.L ?? tips.get(b)!.R);
+  };
+  const research = s.facts?.researchAt(judging.flatMap((b) => [{ tip: judgedAt(b), id: ids.get(b)! }]).filter((i): i is { tip: string; id: string } => i.tip !== undefined));
+  const lacking = s.facts?.notOnOrigin(judging.filter((b) => tips.get(b)!.R === undefined).flatMap((b) => judgedAt(b) ?? []));
   for (const b of [...ids.keys()].filter((n) => dropped.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
@@ -2055,14 +2067,16 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       if (L !== undefined && R === undefined && pruned.get('refs/remotes/origin/' + b) !== L) {
         // D-03: a ref the dry run's prune report names is not counted as origin's, as it is not after a real prune
         const excluded = [...(s.gone ?? [])].filter((r) => r.startsWith('refs/remotes/')).map((r) => '--exclude=' + r.slice('refs/remotes/'.length));
-        const n = Number(git(ctx.root, ['rev-list', '--count', L, '--not', ...excluded, '--remotes=origin']).trim());
+        // Phase 08.9 D-08: with no ref the dry run's prune report names, the batched count of the tip answers; otherwise, or unanswered, today's count runs
+        const counted = s.gone === undefined || s.gone.size === 0 ? lacking?.get(L) : undefined;
+        const n = counted ?? Number(git(ctx.root, ['rev-list', '--count', L, '--not', ...excluded, '--remotes=origin']).trim());
         if (n > 0) {
           cleanSay(ctx, `kept ${b}: ${n} commits not on origin`);
           continue;
         }
       }
       const at = L ?? R;
-      const lost = at === undefined ? undefined : researchNotOn(ctx.root, at, ref, id);
+      const lost = at === undefined ? undefined : researchNotOn(ctx.root, at, ref, id, research);
       if (lost !== undefined) {
         const d = ref.replace('refs/remotes/origin/', '');
         cleanSay(ctx, `kept ${b}: research record ${lost} is not on ${d} as ${b} holds it - make the record on ${b} equal to the copy on ${d}, or put it on ${d}, then push`);

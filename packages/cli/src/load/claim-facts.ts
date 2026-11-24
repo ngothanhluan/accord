@@ -1,7 +1,7 @@
 // ST-LN-91 D-15: the pin at a ticket's claim commit, the one host fact every Phase 3 rule reads through claimPinBefore (core).
 // Every git error fails closed: `{ error }` makes the new rules apply.
 import { execFileSync } from 'node:child_process';
-import { pinOf, rulesetOfTicket, subjectsFor } from '@accord-dev/accord-core';
+import { pinOf, rulesetOfTicket, SAFE_ID, subjectsFor } from '@accord-dev/accord-core';
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import { catBatch, defaultRefOf } from './fs.js';
 import { claimCommitOf } from './research-facts.js';
@@ -203,10 +203,14 @@ interface Pending {
  * `cat-file --batch`, sliced back per ticket; the ruleset backfill of every ticket with a claim comes from one rulesetCommitsMany call (one log per `chunk` ticket paths, 08.9-05). A ticket whose own read fails gets `{ error }` with gitClaimFacts's text and no other ticket changes (RESEARCH Pitfall 6).
  * When a step all ids share fails (the log, rev-list, the cat-file batch), every id gets gitClaimFacts's own answer, never a partial or different one. Every git value lives in locals of this call: nothing is kept between calls or runs.
  */
-export function gitClaimFactsMany(root: string, ids: readonly string[], config?: Pick<AccordConfig, 'commits'>, chunk = RULESET_PATHS_PER_LOG): Map<string, ClaimFacts | undefined> {
+export function gitClaimFactsMany(root: string, allIds: readonly string[], config?: Pick<AccordConfig, 'commits'>, chunk = RULESET_PATHS_PER_LOG): Map<string, ClaimFacts | undefined> {
   const facts = new Map<string, ClaimFacts | undefined>();
+  if (allIds.length === 0) return facts;
+  // 08.9 review WR-03: an id that fails SAFE_ID never reaches a shared stdin or pathspec line (a newline would shift every later ticket's blobs); it gets the per-id oracle's answer
+  const ids = allIds.filter((id) => SAFE_ID.test(id));
+  for (const id of allIds) if (!SAFE_ID.test(id)) facts.set(id, gitClaimFacts(root, id, config));
   if (ids.length === 0) return facts;
-  const eachOnItsOwn = (): Map<string, ClaimFacts | undefined> => new Map(ids.map((id) => [id, gitClaimFacts(root, id, config)]));
+  const eachOnItsOwn = (): Map<string, ClaimFacts | undefined> => new Map(allIds.map((id) => [id, gitClaimFacts(root, id, config)]));
   const failed = (id: string, e: unknown): ClaimFacts => ({ error: `git failed reading the claim pin of ${id}: ${whyGit(e)}` });
   let ref: string | undefined;
   let found: ReturnType<typeof claimsFromLog>;
@@ -270,7 +274,7 @@ export function gitClaimFactsMany(root: string, ids: readonly string[], config?:
       facts.set(p.id, failed(p.id, e));
     }
   }
-  return new Map(ids.map((id) => [id, facts.get(id)]));
+  return new Map(allIds.map((id) => [id, facts.get(id)]));
 }
 
 /** Phase 08.9 D-02 (T-08.9-14): ticket paths per ruleset log, so the pathspec list stays far below Windows' command line cap of about 32 K characters. */

@@ -15,7 +15,7 @@ import type { CommandContext } from '../src/run.js';
 import { ALIVE } from './helpers/done.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { commitMsg, gitRun, writeFiles } from './helpers/repo.js';
-import { claimWorktree, copy, dropAndMerge, doneOnRemote, lines, ticketWorktree, useSandboxes } from './helpers/worktree.js';
+import { claimWorktree, copy, dropAndMerge, doneOnRemote, dropOnRemote, lines, ticketWorktree, useSandboxes } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
@@ -190,6 +190,90 @@ it('risk:data-loss the batched dry clean prints the per-branch lines when any of
     let hits = 0;
     spawnLog.fail = (a, o) => {
       const hit = failing.some((n) => tables[n](a, o));
+      if (hit) hits++;
+      return hit;
+    };
+    const batched = dry(c, false);
+    spawnLog.fail = undefined;
+    expect(hits, `${label}: its read was never started`).toBeGreaterThan(0);
+    expect(batched.lines, label).toEqual(reference);
+  }
+}, 180_000);
+
+/** The lines git is fed on stdin by a spawn of the test's spawn log. */
+const inputLines = (o: { input?: unknown } | undefined): string[] => String(o?.input ?? '').split('\n').filter((l) => l !== '');
+
+const REC = (topic: string): string => '# ' + topic + '\n\nDate: 2026-10-30. Repository at `5c083d3`. Feeds the ticket.\n';
+
+/** One repository holding three dropped tickets: ST-10 with a research record that differs from the default branch's copy, ST-11 with work origin lacks, ST-12 at a commit origin holds. */
+function droppedSandbox() {
+  const NEW = 'accord/research/2026-10-30-new.md';
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+  vi.mocked(proc.processTable).mockReturnValue(ALIVE);
+  // (i) the branch is pushed and lists a research record; the default branch holds another copy of it
+  claimWorktree(c, 'ST-10', {
+    'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + NEW + '"]'] }),
+    [NEW]: REC('new'),
+  });
+  dropOnRemote(c, ['ST-10', 'ST-11', 'ST-12']);
+  const o = c.otherClone();
+  writeFiles(o, { [NEW]: REC('other') });
+  commitMsg(o, 'other');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  c.git('fetch', '-q', 'origin');
+  const work = (message: string) => c.git('commit-tree', c.git('rev-parse', 'origin/main^{tree}').trim(), '-p', 'origin/main', '-m', message).trim();
+  // (ii) a local-only branch with a commit origin lacks: unpushed work
+  c.git('update-ref', 'refs/heads/t/ST-11', work('unpushed work of ST-11'));
+  // (iii) a local-only branch at a commit origin holds through another of its branches
+  const held = work('work of ST-12 that origin holds');
+  c.git('update-ref', 'refs/remotes/origin/zz/held', held);
+  c.git('update-ref', 'refs/heads/t/ST-12', held);
+  return c;
+}
+
+// Phase 08.9 D-08: dropped branches with a research record or unpushed commits, read in batches, are judged as the per-branch dry clean judges them.
+it('risk:data-loss the batched dry clean judges dropped branches with research records or unpushed commits as the per-branch dry clean does (D-03 D-08)', () => {
+  const c = droppedSandbox();
+  const before = stateOf(c);
+  const batched = dry(c, false);
+  const after = stateOf(c);
+  const single = dry(c, true);
+  expect(batched.lines).toEqual(single.lines);
+
+  // the decision line of each fixture, on the per-branch path
+  const all = single.lines.join('\n');
+  expect(single.lines.some((l) => l.startsWith('kept t/ST-10: research record ')), all).toBe(true); // (i)
+  expect(single.lines.some((l) => l.startsWith('kept t/ST-11: 1 commits not on origin')), all).toBe(true); // (ii)
+  expect(single.lines.some((l) => l.startsWith('deleted t/ST-12 (was ')), all).toBe(true); // (iii)
+
+  // the run wrote nothing; the judgement steps are the same
+  expect(after).toEqual(before);
+  expect(stateOf(c)).toEqual(before);
+  expect(batched.argv.filter(deleting)).toEqual([]);
+  expect(single.argv.filter(deleting)).toEqual([]);
+  const findObject = (argv: string[][]) => argv.filter((a) => a.some((x) => x.startsWith('--find-object=')));
+  expect(findObject(batched.argv)).toEqual(findObject(single.argv));
+  expect(findObject(batched.argv).length).toBeGreaterThan(0);
+  expect(batched.facts).toBe(1);
+  expect(batched.argv.filter(isRefsTable)).toHaveLength(1);
+
+  // D-03: each of the three new reads failing in turn gives the per-branch lines, and the failed read was started
+  const reference = single.lines;
+  type Call = [string[], { input?: unknown } | undefined];
+  // a read of several tickets at once is told apart from the per-branch read of one
+  const tickets = (a: string[], o: Call[1]) => a[0] === 'cat-file' && a.includes('--batch') && inputLines(o).length >= 2 && inputLines(o).every((l) => /^[0-9a-f]{40,64}:accord\/tickets\/[^/]+\.md$/.test(l));
+  const research = (a: string[], o: Call[1]) => a[0] === 'cat-file' && a.includes('--batch-check') && inputLines(o).some((l) => l.includes(':accord/research/'));
+  const counts = (a: string[]) => a[0] === 'rev-list' && a.includes('--parents');
+  const runs: Array<[string, (a: string[], o: Call[1]) => boolean]> = [
+    ['tickets', tickets],
+    ['research', research],
+    ['counts', counts],
+    ['all three', (a, o) => tickets(a, o) || research(a, o) || counts(a)],
+  ];
+  for (const [label, fails] of runs) {
+    let hits = 0;
+    spawnLog.fail = (a, o) => {
+      const hit = fails(a, o);
       if (hit) hits++;
       return hit;
     };

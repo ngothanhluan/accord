@@ -11,7 +11,7 @@ import { readCleanFacts } from '../src/load/clean-facts.js';
 import type { CleanFacts } from '../src/load/clean-facts.js';
 import type { CommandContext } from '../src/run.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
-import { copy, doneOnRemote, useSandboxes } from './helpers/worktree.js';
+import { copy, doneOnRemote, dropOnRemote, useSandboxes } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
@@ -118,6 +118,34 @@ function mergedDone(count: number): Clone {
 it('risk:resource the offline dry clean starts as many git processes for twelve merged done ticket branches as for two (D-02 D-08)', () => {
   const few = mergedDone(2);
   const many = mergedDone(12);
+  const batchedFew = spawns(few, false);
+  const batchedMany = spawns(many, false);
+  const singleFew = spawns(few, true);
+  const singleMany = spawns(many, true);
+  const say = `batched ${batchedMany.length} (${histogram(batchedMany)}) with 12, ${batchedFew.length} (${histogram(batchedFew)}) with 2; per-branch ${singleMany.length} (${histogram(singleMany)}) with 12, ${singleFew.length} (${histogram(singleFew)}) with 2`;
+  expect(histogram(batchedMany), say).toBe(histogram(batchedFew));
+  expect(batchedMany.length, say).toBe(batchedFew.length);
+  expect(batchedFew.filter(isRefsTable), say).toHaveLength(1);
+  expect(batchedMany.filter(isRefsTable), say).toHaveLength(1);
+  expect(singleMany.length - singleFew.length, say).toBeGreaterThan(batchedMany.length - batchedFew.length);
+}, 180_000);
+
+/** Every ticket dropped on origin's main by one commit; `count` of them have a branch on origin only with work the default branch lacks, the next `count` a local-only branch whose commit origin lacks. */
+function droppedBranches(count: number): Clone {
+  const c = copy({ tickets: DONE_IDS });
+  vi.mocked(proc.processTable).mockReturnValue([]);
+  dropOnRemote(c, DONE_IDS);
+  c.git('fetch', '-q', 'origin');
+  const main = c.git('rev-parse', 'refs/remotes/origin/main').trim();
+  for (const id of DONE_IDS.slice(0, count)) c.git('update-ref', `refs/remotes/origin/t/${id}`, commitOn(c, `work on ${id}`, main));
+  for (const id of DONE_IDS.slice(count, 2 * count)) c.git('update-ref', `refs/heads/t/${id}`, commitOn(c, `work on ${id}`, main));
+  return c;
+}
+
+// Phase 08.9 D-02 and D-08: a dropped branch's ticket, research blobs and count of commits origin lacks are read once, so no read grows with the dropped branches.
+it('risk:resource the offline dry clean starts as many git processes for twelve dropped ticket branches as for two (D-02 D-08)', () => {
+  const few = droppedBranches(2);
+  const many = droppedBranches(12);
   const batchedFew = spawns(few, false);
   const batchedMany = spawns(many, false);
   const singleFew = spawns(few, true);

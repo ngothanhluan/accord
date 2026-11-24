@@ -2221,6 +2221,25 @@ it('risk:complex-branching a not-committed ticket draws no tasks block no bar an
   expect(clean.nodes('Progress')).toHaveLength(0);
 });
 
+// issue 342 review CR-01: a not-committed ticket has no `now` head line, but its running agents still draw their row (name and timer), as in 0.17.1.
+it('risk:regression a not-committed ticket with an agent running draws the agent row with its name and timer (issue 342 CR-01)', async () => {
+  const loose = await paneWith({ stage: 'plan', warnings: [{ kind: 'not-committed', text: NOT_COMMITTED }] }, (x) => void x.store.set('settings', NO_MOTION));
+  expect(loose.texts()).toContain(NOT_COMMITTED);
+  expect(isRunning(loose, 'executor')).toBe(false);
+  loose.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 8000 })];
+  await loose.fire('turn.start', subStart('a1'));
+  await vi.waitFor(() => expect(isRunning(loose, 'executor')).toBe(true));
+  const t = loose.texts();
+  const at = t.findIndex((x) => spun('executor').test(x));
+  expect(t[at + 1]).toMatch(/^0:0[0-9]$/);
+  // the ticket has no `now`, so there is no head row, and no box around the agent
+  expect(t.some((x) => x.startsWith('Building'))).toBe(false);
+  expect(loose.nodes('Box').filter((b) => b.props.borderStyle !== undefined)).toEqual([]);
+  // the agent finishes and stays as a dim `✓` row
+  await loose.fire('turn.complete', { agentId: 'a1', durationMs: 9000, reason: 'answer' });
+  expect(loose.texts()).toContain('✓ executor');
+});
+
 // ---- Phase 08.8.1-06 L-07: the log merges repeats and fills the room, criteria labels follow their titles ----
 
 // Phase 08.8.1 L-07: CSA-185's interleaved repeats read as one line each with a count; the newest row is marked; the room sizes the cut.

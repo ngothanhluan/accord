@@ -42,3 +42,12 @@ describe('the change word (D-04, D-10)', () => {
     expect(intent).toContain('branch_types');
   });
 });
+
+// IN-05: the intent stage proposes from the team's own list, which may differ from the default words.
+describe("the team's branch_types (IN-05)", () => {
+  it("risk:regression intent.md sends the agent to the branch_types of accord/config.yml, not to the default words", () => {
+    const intent = read('.claude/skills/accord/intent.md').replace(/\s+/g, ' ');
+    expect(intent).toContain('the words `branch_types` lists in `accord/config.yml`');
+    expect(intent).not.toContain('names the default words');
+  });
+});

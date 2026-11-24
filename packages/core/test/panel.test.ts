@@ -1123,13 +1123,14 @@ it('risk:regression the ticket tab draws the review rounds the criteria and the 
   expect(h.cell('r1/5').text.bold).toBe(true);
   expect(t).toContain('criteria');
   expect(t).toContain('2 of 3 tested');
-  for (const [id, title, label] of [['ac-1', 'Logs in', 'passing'], ['ac-2', 'Logs out', 'failing'], ['ac-3', 'Remembers me', 'untested']]) {
-    expect(kids(h.row(title))).toEqual([id, title, label]);
+  // issue 342 (sketch 004 G): passing and untested read from the chip alone; failing keeps its word
+  for (const [id, title, label] of [['ac-1', 'Logs in', ''], ['ac-2', 'Logs out', 'failing'], ['ac-3', 'Remembers me', '']]) {
+    expect(kids(h.row(title))).toEqual(label === '' ? [id, title] : [id, title, label]);
     expect(h.cell(title).text.wrap).toBe('truncate');
   }
-  expect(h.cell('passing').text.color).toBe('green');
+  expect(h.cell('passing')).toBeUndefined();
   expect(h.cell('failing').text.color).toBe('red');
-  expect(h.cell('untested').text.dimColor).toBe(true);
+  expect(h.cell('untested')).toBeUndefined();
   expect(t).toContain('lately');
   const rest = t.slice(t.indexOf('lately') + 1);
   expect(rest).toHaveLength(24);
@@ -1157,7 +1158,8 @@ it('risk:parsing review rows criteria rows and log rows are built from the json 
   expect(sev.rounds[0].parts).toEqual(['Must 4 deferred', 'Should 5 open', 'Nice 6 fixed']);
   const colors = criteriaRows([critOf('a', 'A', 'failing'), critOf('b', 'B', 'blocked'), critOf('c', 'C', 'verified'), critOf('d', 'D', 'passing'), critOf('e', 'E', 'not run'), critOf('f', 'F', 'untested')]);
   expect(colors.map((c: any) => c.color)).toEqual(['red', 'red', 'green', 'green', 'yellow', 'dim']);
-  expect(colors[0]).toEqual({ id: 'a', title: 'A', label: 'failing', color: 'red', tested: true, chip: '✗' });
+  expect(colors[0]).toEqual({ id: 'a', title: 'A', label: 'failing', color: 'red', tested: true, chip: '✗', chipSays: false });
+  expect(colors.map((c: any) => c.chipSays)).toEqual([false, false, false, true, false, true]);
   expect(colors.map((c: any) => [c.tested, c.chip])).toEqual([[true, '✗'], [false, '✗'], [true, '✓'], [true, '✓'], [false, '○'], [false, '○']]);
   expect([ago(100, 90), ago(0, 59), ago(0, 60), ago(0, 3599), ago(0, 3600), ago(0, 86399), ago(0, 86400)]).toEqual(['0s', '59s', '1m', '59m', '1h', '23h', '1d']);
   const log = Array.from({ length: 12 }, (_, i) => ({ at: 1000 - i, kind: i === 1 ? 'gate' : 'commit', text: `t${i}`, ...(i === 1 ? { fail: true } : {}) }));
@@ -1187,7 +1189,8 @@ it('risk:complex-branching a newest failed gate run shows the failure block and 
   // above the current-work block and the rest
   const t = h.texts();
   expect(t.indexOf('Gate done failed')).toBeGreaterThan(t.indexOf('Login form'));
-  expect(t.indexOf('Gate done failed')).toBeLessThan(t.indexOf('build'));
+  // issue 342 (sketch 004 G): the failure takes the work head's place, so the head line `build` is not drawn
+  expect(t).not.toContain('build');
   expect(tabs(h)['tab:ticket'].label).toContain('gate failed');
   // Phase 08.8.1 W4 (08.7 review WR-04): a newer commit no longer hides the failed gate run; only a newer gate run does
   const later = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'fix: header' }, gate] });
@@ -1317,11 +1320,11 @@ it('risk:regression the agents block shows running accord agents with timers and
   await ordered.fire('turn.start', subStart('a1'));
   const t = ordered.texts();
   const row = t.findIndex((x) => spun('executor').test(x));
-  expect(row).toBeGreaterThan(t.indexOf('Reviewing, round 2 of 5'));
   expect(row).toBeLessThan(t.indexOf('review r2/5 converged'));
-  // the gate failure sits above the current-work block
+  // the gate failure sits above the agent rows and takes the work head's place (issue 342, sketch 004 G)
   expect(t.indexOf('Gate done failed')).toBeGreaterThanOrEqual(0);
-  expect(t.indexOf('Gate done failed')).toBeLessThan(t.indexOf('Reviewing, round 2 of 5'));
+  expect(t.indexOf('Gate done failed')).toBeLessThan(row);
+  expect(t).not.toContain('Reviewing, round 2 of 5');
 });
 
 // Phase 08.7 D-01, D-02: the pure row builders keep accord agents only, running first, at most six rows.
@@ -1706,9 +1709,9 @@ it('risk:parsing criteria rows show the verifier result beside the label (D-06)'
   const four = ['One', 'Two', 'Three', 'Four'].map((title, i) => ({ ...critOf('ac-' + (i + 1), title, 'untested'), verification: 'pass' }));
   const h = await paneWith({ criteria: four });
   expect(h.texts().filter((x) => x === 'verify pass')).toHaveLength(4);
-  for (const [i, title] of ['One', 'Two', 'Three', 'Four'].entries()) expect(kids(h.row(title)), title).toEqual(['ac-' + (i + 1), title, 'untested', 'verify pass']);
+  // issue 342 (sketch 004 G): the chip says untested, so the row reads the id, the title and the verifier result
+  for (const [i, title] of ['One', 'Two', 'Three', 'Four'].entries()) expect(kids(h.row(title)), title).toEqual(['ac-' + (i + 1), title, 'verify pass']);
   expect(h.cell('verify pass').text.color).toBe('green');
-  expect(h.cell('untested').text.dimColor).toBe(true);
 });
 
 // Phase 08.8.1 W4: the failure box and the gate failed mark follow the newest log entry of kind gate, not the newest entry of any kind.
@@ -2019,6 +2022,44 @@ it('risk:regression the ticket tab draws the now line under the head (L-06)', as
   expect(odd.texts().some((x) => x.startsWith('task '))).toBe(false);
 });
 
+// issue 342, owner check against sketch 004 G (2026-11-25): a gate failure takes the current-work head's place (the waiting line stays); the running agent's time shows once, on the head, and comes back to its row when no head shows; a criterion row drops the label its chip already says (passing, untested).
+it('risk:regression a gate failure replaces the work head the agent time shows once and rows drop the label the chip says (issue 342 sketch check)', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const fail = { at: now - 20, kind: 'gate', text: 'gate done FAIL: criterion ac-3 has no passing test', fail: true };
+  const building = { stage: 'build', tasksDone: 2, tasksTotal: 4, now: { task: 3, title: 'Settings view' } };
+  // the time once: on the head, not on the executor row
+  const h = await paneWith(building, (x) => void x.store.set('settings', NO_MOTION));
+  h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
+  await h.fire('turn.start', subStart('a1'));
+  expect(h.texts().filter((x) => /^1:0[0-9]$/.test(x))).toHaveLength(1);
+  const t = h.texts();
+  expect(t[t.indexOf('Building task 3 of 4') + 1]).toMatch(/^1:0[0-9]$/);
+  expect(kids(h.row(t.find((x) => spun('executor').test(x)) as string))).not.toContainEqual(expect.stringMatching(/^1:0[0-9]$/));
+  // a failed gate: the failure group, no work head and no task title under it; the agent row keeps its own time
+  const f = await paneWith({ ...building, log: [fail] }, (x) => void x.store.set('settings', NO_MOTION));
+  f.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
+  await f.fire('turn.start', subStart('a1'));
+  const ft = f.texts();
+  expect(ft).toContain('Gate done failed');
+  expect(ft).not.toContain('Building task 3 of 4');
+  expect(ft.filter((x) => x === 'Settings view')).toHaveLength(0);
+  const at = ft.findIndex((x) => spun('executor').test(x));
+  expect(at).toBeGreaterThan(ft.indexOf('Gate done failed'));
+  expect(ft[at + 1]).toMatch(/^1:0[0-9]$/);
+  // the same failure while the pane waits for the person: the waiting line stays
+  const w = await paneWith({ ...building, log: [fail] });
+  await w.fire('turn.complete', { reason: 'answer', answer: 'Keep it?' });
+  expect(w.texts()).toContain('Gate done failed');
+  expect(w.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true);
+  expect(w.texts()).toContain('Keep it?');
+  // criterion rows: passing and untested read from the chip alone; failing, blocked, verified and not run keep their word
+  const labels = ['passing', 'untested', 'failing', 'blocked', 'verified', 'not run'];
+  const c = await paneWith({ criteria: labels.map((l, i) => critOf('ac-' + (i + 1), 'Title ' + i, l)) });
+  expect(kids(c.row('Title 0'))).toEqual(['ac-1', 'Title 0']);
+  expect(kids(c.row('Title 1'))).toEqual(['ac-2', 'Title 1']);
+  for (const [i, l] of labels.entries()) if (i > 1) expect(kids(c.row('Title ' + i)), l).toEqual(['ac-' + (i + 1), 'Title ' + i, l]);
+});
+
 // Phase 08.8.1 D-01 L-06 T-08.8.1-14 T-08.8.1-15 (probe row P1 held): the tool line is a tool name plus a base name or a program name, never arguments; a task number comes only from the fixed report path shape of the shown ticket.
 it('risk:security the tool line shows a tool name and a base name or program name and never arguments (D-01)', async () => {
   const { toolLabel, briefTask } = await loadView();
@@ -2063,8 +2104,8 @@ it("risk:complex-branching a subagent tool call sets its row's tool and task and
   const edit = { tool: 'Edit', file_path: 'src/view.js', agentId: 'a1', old_string: 'secret one', new_string: 'secret two' };
   await h.fire('tool.call', edit);
   await vi.waitFor(() => expect(h.texts()).toContain('Edit view.js'));
-  // review WR-04: the tool is drawn on its own agent's row, after the name, the time and the task
-  expect(kids(h.cell('Edit view.js').box)).toEqual([expect.stringMatching(spun('executor')), expect.stringMatching(/^1:0[0-9]$/), 'task 3', 'Edit view.js']);
+  // review WR-04: the tool is drawn on its own agent's row, after the name and the task (the time rides the head, issue 342 sketch check)
+  expect(kids(h.cell('Edit view.js').box)).toEqual([expect.stringMatching(spun('executor')), 'task 3', 'Edit view.js']);
   expect(h.texts().join('\n')).not.toContain('secret');
   expect(edit).toEqual({ tool: 'Edit', file_path: 'src/view.js', agentId: 'a1', old_string: 'secret one', new_string: 'secret two' });
   // a call of another ticket's report, and a call of an agent the roster does not hold, change nothing
@@ -2314,9 +2355,10 @@ it('risk:regression the current work names the task and holds the agents in one 
   const order = [head, t.indexOf('Beta'), t.findIndex((x) => spun('executor').test(x)), t.indexOf('task 2'), t.indexOf('Edit view.js')];
   expect(order.every((i) => i >= 0)).toBe(true);
   expect(order).toEqual([...order].sort((a, b) => a - b));
-  // the row reads the spinner and name, the time, the task and the tool; the head row carries the same running time
-  expect(t[order[2] + 1]).toMatch(/^1:0[0-9]$/);
+  // the row reads the spinner and name, the task and the tool; the running time shows once, on the head row (issue 342 sketch check)
+  expect(t[order[2] + 1]).toBe('task 2');
   expect(t[head + 1]).toMatch(/^1:0[0-9]$/);
+  expect(t.filter((x) => /^1:0[0-9]$/.test(x))).toHaveLength(1);
   expect(h.cell('Edit view.js').text.dimColor).toBe(true);
   expect(kids(h.cell('Edit view.js').box)[0]).toMatch(spun('executor'));
   // no box of the block draws a border, and the heading words are gone
@@ -2428,7 +2470,7 @@ it('risk:regression criteria labels sit next to their titles and the newest log 
   const log = Array.from({ length: 30 }, (_, i) => ({ at: now - 30 - i * 40, kind: 'commit', text: `commit number ${i}` }));
   const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log }, (x) => void (x.rows = 40));
   expect(h.cell('Logs in').box.flexGrow).toBeUndefined();
-  expect(kids(h.row('Logs in'))).toEqual(['ac-1', 'Logs in', 'passing']);
+  expect(kids(h.row('Logs in'))).toEqual(['ac-1', 'Logs in']);
   expect(h.cell('commit number 0').text.bold).toBe(true);
   expect(h.cell('commit number 0').text.dimColor).toBeUndefined();
   expect(h.cell('commit number 1').text.bold).toBeUndefined();
@@ -2558,8 +2600,8 @@ it('risk:regression the criteria group reads how many are tested with a chip row
   expect(idOf('◌', 'ac-4').bold).toBe(true);
   expect(idOf('✓', 'ac-1').bold).toBeUndefined();
   // the list keeps every row's id, title, label and verifier result; its ids are dim
-  expect(kids(h.row('Remembers me'))).toEqual(['ac-3', 'Remembers me', 'untested', 'verify pass']);
-  expect(kids(h.row('Logs in'))).toEqual(['ac-1', 'Logs in', 'passing']);
+  expect(kids(h.row('Remembers me'))).toEqual(['ac-3', 'Remembers me', 'verify pass']);
+  expect(kids(h.row('Logs in'))).toEqual(['ac-1', 'Logs in']);
   const list = h.nodes('Box').find((b) => b.props.flexDirection === 'row' && textsIn(b)[1] === 'Logs in');
   expect(((list?.props.children as El[])[0].props.children as El[])[0].props.dimColor).toBe(true);
   // the order: the chips come before the list
@@ -2814,7 +2856,10 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   expect(tabPart(h, '✦').color).toBe(at(0.62));
   expect(tabPart(h, '✗ gate').color).toBe('#ff6b6b');
   // the places of the tab
-  expect(h.cell('Building task 2 of 3').text.color).toBe(at(0.3));
+  // a failed gate takes the work head's place (issue 342 sketch check), so the head's colour is read on the same ticket with no failure
+  const live = await paneWith({ ...over, log: over.log.slice(1) }, (x) => void x.store.set('settings', still));
+  expect(h.texts()).not.toContain('Building task 2 of 3');
+  expect(live.cell('Building task 2 of 3').text.color).toBe(at(0.3));
   expect(taskRow(h, '✓', 1, 'Alpha')?.mark.color).toBe('#6fd39a');
   expect(taskRow(h, '✦', 2, 'Beta')?.mark.color).toBe(at(0.3));
   // the bar's first filled cell takes the bar's colour at its position
@@ -3598,7 +3643,9 @@ it('risk:regression a tool call is drawn on the row of the agent that made it an
   const planner = kids(h.cell(spun('planner')).box);
   expect(executor).toContain('Edit view.js');
   expect(planner).not.toContain('Edit view.js');
-  expect(planner).toHaveLength(2);
+  // the first running agent's time rides the head (issue 342 sketch check), so its row carries the name alone; the other keeps its time
+  expect(planner).toHaveLength(1);
+  expect(executor).toContainEqual(expect.stringMatching(/^1:0[0-9]$/));
   await h.fire('tool.call', { tool: 'Write', file_path: 'plan.md', agentId: 'a2' });
   await vi.waitFor(() => expect(h.texts()).toContain('Write plan.md'));
   expect(kids(h.cell(spun('planner')).box)).toContain('Write plan.md');

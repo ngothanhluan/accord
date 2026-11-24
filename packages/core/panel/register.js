@@ -692,7 +692,10 @@ export function register(on) {
           );
         }
         // issue 342: the current work: a head row (the mark, the head line, the running agent's time), the task title under it and one row per accord agent, in one borderless group
-        const [headLine, second] = tv.now ?? [];
+        // issue 342 (owner check against sketch 004 G): a gate failure takes the work head's place, unless the head is the waiting line
+        const [headLine, second] = tv.failure !== undefined && tv.now?.[0]?.diamond === undefined ? [] : (tv.now ?? []);
+        // the running agent's time shows once: on the head when a head shows, else on its own row
+        const timeOnHead = headLine !== undefined && tv.headTime !== undefined ? tv.headKey : undefined;
         // D-01, D-02: the accord agents running now and finished ones, from subagent events; drawn only where the host has an agent list, and no row when there is none. CR-01: a ticket with no head line (not committed) still shows them.
         const agentEls = listing
           ? agentRows(
@@ -707,7 +710,7 @@ export function register(on) {
                 columnGap: 1,
                 children: [
                   Text({ ...(a.running ? { color: tv.colors.agents } : { color: tv.colors.tick, dimColor: true }), children: [(a.running ? (look.mark ?? '◐') + ' ' : '✓ ') + a.name] }),
-                  Text({ dimColor: true, children: [a.time] }),
+                  ...(a.key === timeOnHead ? [] : [Text({ dimColor: true, children: [a.time] })]),
                   // Phase 08.8.1 L-06: the task the mod saw the agent read or write a report for
                   ...(a.task === undefined ? [] : [Text({ dimColor: true, children: ['task ' + a.task] })]),
                   ...(look.eq === undefined ? [] : [Text({ color: tv.colors.agents, children: [look.eq] })]),
@@ -797,7 +800,8 @@ export function register(on) {
                   flexDirection: 'row',
                   columnGap: 1,
                   children: [
-                    Text({ ...(c.color === 'dim' ? { dimColor: true } : { color: c.color }), children: [c.label] }),
+                    // issue 342 (sketch 004 G): a label the chip already says (passing, untested) is not repeated
+                    ...(c.chipSays ? [] : [Text({ ...(c.color === 'dim' ? { dimColor: true } : { color: c.color }), children: [c.label] })]),
                     // Phase 08.8.1 D-06: the verifier's result beside the label
                     ...(c.verification ? [Text({ color: c.verification.color, children: [c.verification.text] })] : []),
                   ],

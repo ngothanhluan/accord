@@ -562,6 +562,8 @@ export function criteriaRows(criteria) {
     id: str(c.id) ? clean(c.id) : '',
     title: clean(c.title),
     label: clean(c.label),
+    // issue 342 (sketch 004 G): the chip alone says passing (✓) and untested (○), so the row leaves the word out
+    chipSays: c.label === 'passing' || c.label === 'untested',
     color: Object.hasOwn(LABEL_COLOR, c.label) ? LABEL_COLOR[c.label] : 'dim',
     tested: TESTED_LABELS.includes(c.label) || c.verification === 'pass' || c.verification === 'fail',
     chip: c.label === 'failing' || c.label === 'blocked' || c.verification === 'fail' || c.verification === 'blocked' ? '✗' : c.label === 'passing' || c.label === 'verified' || c.verification === 'pass' ? '✓' : '○',
@@ -717,6 +719,7 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
   // issue 342: the running accord agent's time rides the head line of the current-work block (not while the main loop waits for the person)
   const running = isWaiting ? undefined : agentRows(Array.isArray(agents) ? agents : [], nowMs).find((a) => a.running);
   const headTime = running === undefined ? undefined : running.time;
+  const headKey = running === undefined ? undefined : running.key;
   const inFlight = new Set(nowOk(t.now) && Array.isArray(t.tasks) ? (t.tasks.filter(taskOk).find((x) => x.n === t.now.task)?.covers ?? []).map(clean) : []);
   const criteria = criteriaOf(fx.has('breathe') ? inFlight : new Set(), inFlight);
   // issue 342: the build bar is always one gradient row with the counter (`n of m`); the comet head moves only while the comet effect is on, the counter rolls for a burst's first ROLL_MS
@@ -749,7 +752,7 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
     now: nowLines({ ticket: t, waiting, now: nowMs }).map((l, i) =>
       i === 0 ? { ...l, color: isWaiting ? waitColor : colors.now, ...(isWaiting ? { diamond } : {}), ...(fx.has('shimmer') && !isWaiting ? { run: shimmer(l.text, nowMs, placeStops('now', settings)).map(({ ch, color }) => ({ ch, color: drawColor(color) })) } : {}) } : l,
     ),
-    ...(headTime === undefined ? {} : { headTime }),
+    ...(headTime === undefined ? {} : { headTime, headKey }),
     // Phase 08.8.1 L-07: the task list and the build bar, in the tracked branch only (D-05: a not-committed ticket gets neither)
     ...(rows.length === 0 ? {} : { tasks: rows }),
     ...(bar === undefined ? {} : { progress: bar }),

@@ -37,9 +37,9 @@ type Kind = 'none' | 'claim' | 'error';
 const kindOf = (fact: ReturnType<typeof gitClaimFacts>): Kind => (fact === undefined ? 'none' : 'error' in fact ? 'error' : 'claim');
 
 /** The map holds exactly the ids asked, each one deep-equal to the per-ticket read, and each one is the kind the fixture is built to give (so a fixture that reads undefined everywhere proves nothing). */
-function same(repo: string, kinds: Record<string, Kind>, config?: Parameters<typeof gitClaimFacts>[2]): void {
+function same(repo: string, kinds: Record<string, Kind>, config?: Parameters<typeof gitClaimFacts>[2], chunk?: number): void {
   const ids = Object.keys(kinds);
-  const many = gitClaimFactsMany(repo, ids, config);
+  const many = gitClaimFactsMany(repo, ids, config, chunk);
   expect([...many.keys()].sort()).toEqual([...ids].sort());
   for (const id of ids) {
     const want = gitClaimFacts(repo, id, config);
@@ -145,6 +145,22 @@ it('risk:regression gitClaimFactsMany answers every ticket as gitClaimFacts does
   commitMsg(merged, 'claim: T-2', at(3), true);
   mergeMsg(merged, 'side', 'merge side');
   same(merged, { 'T-1': 'claim', 'T-2': 'claim' });
+
+  // Phase 08.9 D-03 fixture (l): a merge that keeps the ticket branch's copy of one ticket file while the other side wrote a ruleset: line into it, and a mix of the other (the batched ruleset read must follow one side for T-1 only)
+  const l = fixtureL();
+  same(l.repo, { 'T-1': 'claim', 'T-2': 'claim' });
+  expect(gitClaimFacts(l.repo, 'T-1'), 'the hidden side wrote no ruleset the claim sees').not.toHaveProperty('ruleset');
+  expect(gitClaimFacts(l.repo, 'T-2'), 'the mixed file takes main\'s commit as its ruleset').toMatchObject({ ruleset: '0.10.0', rulesetCommit: l.expected[P('T-2')][0] });
+
+  // Phase 08.9 D-03 fixture (m): a side branch adds and removes a ruleset: line before it merges; neither commit is the backfill
+  const m = fixtureM();
+  same(m.repo, { 'T-1': 'claim' });
+  expect(gitClaimFacts(m.repo, 'T-1'), 'no commit the one-path log lists wrote a ruleset').not.toHaveProperty('ruleset');
+
+  // Phase 08.9 D-03 fixture (n): five tickets read with a chunk of 2 (three ruleset logs): each takes its own backfill
+  const n = fixtureN();
+  same(n.repo, { 'T-1': 'claim', 'T-2': 'claim', 'T-3': 'claim', 'T-4': 'claim', 'T-5': 'claim' }, undefined, 2);
+  expect(gitClaimFacts(n.repo, 'T-3'), 'the first commit that wrote a ruleset, not the last').toMatchObject({ ruleset: '0.10.0', rulesetCommit: n.expected[P('T-3')][0] });
 });
 
 // Phase 08.9 D-02: the claim commits of any number of tickets come from one log, with no --grep argument and one default-ref lookup.
@@ -157,12 +173,12 @@ it('risk:resource gitClaimFactsMany reads the claim commits of any number of tic
     expect(value.size).toBe(count);
     expect(argv.filter((a) => a.some((x) => x.startsWith('--grep='))), `${count} tickets: a log still limits by --grep`).toEqual([]);
     expect(argv.filter((a) => verbOf(a) === 'for-each-ref').length, `${count} tickets: for-each-ref runs once`).toBe(1);
-    // Phase 08.9 D-02: the merge base comes from the default ref's ancestor set, every ticket's blobs ride one cat-file --batch, and only the ruleset log runs per ticket
+    // Phase 08.9 D-02: the merge base comes from the default ref's ancestor set, every ticket's blobs ride one cat-file --batch, and the ruleset backfill is read for every ticket by one log (08.9-05)
     const verbs = argv.map(verbOf);
     expect(verbs.filter((v) => v === 'rev-list').length, `${count} tickets: rev-list runs once`).toBe(1);
     expect(verbs.filter((v) => v === 'merge-base').length, `${count} tickets: no merge-base for a claim on the default branch`).toBe(0);
     expect(argv.filter((a) => verbOf(a) === 'cat-file' && a.includes('--batch')).length, `${count} tickets: one cat-file --batch`).toBe(1);
-    expect(argv.filter((a) => a.includes('-G^ruleset:')).length, `${count} tickets: one ruleset log each`).toBe(count);
+    expect(argv.filter((a) => a.includes('-G^ruleset:')).length, `${count} tickets: at most one ruleset log`).toBeLessThanOrEqual(1);
   }
 });
 
@@ -202,10 +218,18 @@ function sameRuleset(repo: string, claims: { rel: string; claim: string }[], exp
 
 const withRuleset = (id: string, value = '0.10.0', ...more: string[]): string => laneTicket(id, { frontmatter: [...more, `ruleset: "${value}"`] });
 
-// Phase 08.9 D-03: rulesetCommitsMany lists for every ticket the commits the one-path ruleset log lists, in its order; each fixture below is read by both.
-it('risk:regression rulesetCommitsMany lists for every ticket what the one-path ruleset log lists (D-03)', () => {
-  // (l) a merge that keeps the ticket branch's copy of T-1 while main's side wrote a ruleset: line into it, and a mix for T-2 (changed on both sides): a one-path walk for T-1 follows only the branch side, so
-  // main's commit is hidden; for T-2 the merge is the same as neither parent, both sides are followed and main's commit is listed. A walk over both paths at once would list it for T-1 too.
+/** A fixture both oracles read: the repository, the tickets' claims, and the commits the one-path log is built to list for each ticket. */
+interface Built {
+  repo: string;
+  claims: { rel: string; claim: string }[];
+  expected: Record<string, string[]>;
+}
+
+/**
+ * Phase 08.9 D-03 fixture (l): a merge that keeps the ticket branch's copy of T-1 while main's side wrote a ruleset: line into it, and a mix for T-2 (changed on both sides). A one-path walk for T-1 follows only
+ * the branch side, so main's commit is hidden; for T-2 the merge is the same as neither parent, both sides are followed and main's commit is listed. A walk over both paths at once would list it for T-1 too.
+ */
+function fixtureL(): Built {
   const l = base(['T-1', 'T-2']);
   const l1 = commitMsg(l, 'claim: T-1', at(1), true);
   const l2 = commitMsg(l, 'claim: T-2', at(2), true);
@@ -219,9 +243,11 @@ it('risk:regression rulesetCommitsMany lists for every ticket what the one-path 
   gitRun(l, 'merge', '-q', '--no-ff', '--no-commit', '-s', 'ours', 'main');
   writeFiles(l, { [P('T-2')]: withRuleset('T-2', '0.10.0', 'note: branch') });
   commitMsg(l, 'merge main into the ticket branch', at(5));
-  sameRuleset(l, [{ rel: P('T-1'), claim: l1 }, { rel: P('T-2'), claim: l2 }], { [P('T-1')]: [], [P('T-2')]: [lMain] });
+  return { repo: l, claims: [{ rel: P('T-1'), claim: l1 }, { rel: P('T-2'), claim: l2 }], expected: { [P('T-1')]: [], [P('T-2')]: [lMain] } };
+}
 
-  // (m) a side branch adds and then removes a ruleset: line before it merges: main moved on, so the merge is the same as its first parent for the file and the side branch's two commits are hidden
+/** Phase 08.9 D-03 fixture (m): a side branch adds and then removes a ruleset: line before it merges; main moved on, so the merge is the same as its first parent for the file and the side branch's two commits are hidden. */
+function fixtureM(): Built {
   const m = base(['T-1']);
   const m1 = commitMsg(m, 'claim: T-1', at(1), true);
   gitRun(m, 'switch', '-q', '-c', 'side');
@@ -232,7 +258,26 @@ it('risk:regression rulesetCommitsMany lists for every ticket what the one-path 
   gitRun(m, 'switch', '-q', 'main');
   commitMsg(m, 'main moves on', at(4), true);
   mergeMsg(m, 'side', 'merge side');
-  sameRuleset(m, [{ rel: P('T-1'), claim: m1 }], { [P('T-1')]: [] });
+  return { repo: m, claims: [{ rel: P('T-1'), claim: m1 }], expected: { [P('T-1')]: [] } };
+}
+
+/** Phase 08.9 D-03 fixture (n): five tickets, read with a chunk of 2 (T-1 and T-3 written by one commit, T-2 and T-3 by the next, T-4 and T-5 never). */
+function fixtureN(): Built {
+  const n = base(['T-1', 'T-2', 'T-3', 'T-4', 'T-5']);
+  const claims = ['T-1', 'T-2', 'T-3', 'T-4', 'T-5'].map((id, i) => ({ rel: P(id), claim: commitMsg(n, `claim: ${id}`, at(i + 1), true) }));
+  writeFiles(n, { [P('T-1')]: withRuleset('T-1'), [P('T-3')]: withRuleset('T-3') });
+  const nOne = commitMsg(n, 'sync: rulesets one', at(10));
+  writeFiles(n, { [P('T-2')]: withRuleset('T-2'), [P('T-3')]: withRuleset('T-3', '0.11.0') });
+  const nTwo = commitMsg(n, 'sync: rulesets two', at(11));
+  return { repo: n, claims, expected: { [P('T-1')]: [nOne], [P('T-2')]: [nTwo], [P('T-3')]: [nOne, nTwo], [P('T-4')]: [], [P('T-5')]: [] } };
+}
+
+// Phase 08.9 D-03: rulesetCommitsMany lists for every ticket the commits the one-path ruleset log lists, in its order; each fixture below is read by both.
+it('risk:regression rulesetCommitsMany lists for every ticket what the one-path ruleset log lists (D-03)', () => {
+  const l = fixtureL();
+  sameRuleset(l.repo, l.claims, l.expected);
+  const m = fixtureM();
+  sameRuleset(m.repo, m.claims, m.expected);
 
   // (o) a ruleset: line written after the claim on a straight history, then its value changed: both commits, oldest first
   const o = base(['T-1', 'T-2']);
@@ -315,14 +360,9 @@ it('risk:resource rulesetCommitsMany reads the ruleset commits of any number of 
   expect(all.value.size).toBe(12);
   expect(all.argv.filter((a) => a.includes('-G^ruleset:')).length, 'twelve tickets: one ruleset log').toBe(1);
 
-  // (n) five tickets, chunk size 2: three logs, and every ticket's list still equals its one-path log (T-1 and T-3 written by one commit, T-2 and T-3 by the next, T-4 and T-5 never)
-  const n = base(['T-1', 'T-2', 'T-3', 'T-4', 'T-5']);
-  const five = ['T-1', 'T-2', 'T-3', 'T-4', 'T-5'].map((id, i) => ({ rel: P(id), claim: commitMsg(n, `claim: ${id}`, at(i + 1), true) }));
-  writeFiles(n, { [P('T-1')]: withRuleset('T-1'), [P('T-3')]: withRuleset('T-3') });
-  const nOne = commitMsg(n, 'sync: rulesets one', at(10));
-  writeFiles(n, { [P('T-2')]: withRuleset('T-2'), [P('T-3')]: withRuleset('T-3', '0.11.0') });
-  const nTwo = commitMsg(n, 'sync: rulesets two', at(11));
-  const counted = countedSync(() => rulesetCommitsMany(n, graphOf(n), five, 2));
+  // (n) five tickets, chunk size 2: three logs, and every ticket's list still equals its one-path log
+  const n = fixtureN();
+  const counted = countedSync(() => rulesetCommitsMany(n.repo, graphOf(n.repo), n.claims, 2));
   expect(counted.argv.filter((a) => a.includes('-G^ruleset:')).length, 'five tickets with chunk size 2: three logs').toBe(3);
-  sameRuleset(n, five, { [P('T-1')]: [nOne], [P('T-2')]: [nTwo], [P('T-3')]: [nOne, nTwo], [P('T-4')]: [], [P('T-5')]: [] }, 2);
+  sameRuleset(n.repo, n.claims, n.expected, 2);
 });

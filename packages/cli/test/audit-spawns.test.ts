@@ -121,12 +121,9 @@ function claimedRepo(count: number): string {
   return repo;
 }
 
-// Phase 08.9 D-02: the ruleset log (`-G^ruleset:`, 08.9-05 takes it on) is the only git process a finished ticket with a claim commit still costs.
-it('risk:resource the only git process accord audit adds per finished ticket with a claim commit is its ruleset log (D-02)', async () => {
-  const isRuleset = (argv: string[]): boolean => argv.includes('-G^ruleset:');
+// Phase 08.9 D-02: a finished ticket with a claim commit costs no git process of its own either: its ruleset backfill (`-G^ruleset:`) is read for every ticket by one batched log (08.9-05), so twelve tickets start as many as two.
+it('risk:resource accord audit starts as many git processes for twelve finished tickets with a claim commit as for two (D-02)', async () => {
   const few = await spawns(claimedRepo(2));
   const many = await spawns(claimedRepo(12));
-  const rest = (all: string[][]): string[][] => all.filter((a) => !isRuleset(a));
-  expect([few.filter(isRuleset).length, many.filter(isRuleset).length], 'one ruleset log per ticket').toEqual([2, 12]);
-  expect(rest(many).length, `${rest(many).length} other git processes with 12 tickets (${histogram(rest(many))}), ${rest(few).length} with 2 (${histogram(rest(few))})`).toBe(rest(few).length);
+  expect(many.length, `${many.length} git processes with 12 tickets (${histogram(many)}), ${few.length} with 2 (${histogram(few)})`).toBe(few.length);
 });

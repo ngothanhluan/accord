@@ -381,7 +381,8 @@ function leftovers(ctx: CommandContext, lines: string[], who: (email: string) =>
 
 /**
  * Ruling "branch checks": the claim branches in this clone (local and origin-tracking), each with its ticket looked up where it could be (the checkout, the default ref, the branch's own tip) and
- * whether it is on the default ref. One `for-each-ref` for the refs, one for the merged ones; two `cat-file` calls per branch whose ticket the checkout does not hold. Reads only.
+ * whether it is on the default ref. One `for-each-ref` for the refs, one for the merged ones; one `cat-file --batch-check` reads the ticket of every branch whose ticket the checkout does not hold
+ * (Phase 08.9 D-02: on the default ref and on the branch's own tip, two specs per branch, one process for any number of branches). Reads only.
  */
 function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean): ClaimRefFact[] {
   const root = ctx.root;
@@ -400,6 +401,8 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
   const have = new Set(rows.map((r) => r[0]));
   const defName = def === undefined ? undefined : def.replace(/^refs\/(heads|remotes\/[^/]+)\//, '');
   const refs: ClaimRefFact[] = [];
+  // the rows whose ticket the checkout lacks, with the `<ref>:<path>` specs that say whether it exists elsewhere (T-08.9-12: a ref name, a SHA-checked sha and a SAFE_ID path hold no newline)
+  const probes: Array<{ at: number; def?: string; tip?: string }> = [];
   for (const [ref, email, when, sha] of rows) {
     const m = /^refs\/(?:(heads)|remotes\/origin)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined || when === undefined || sha === undefined) continue;
@@ -408,7 +411,8 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
     const id = ticketOfBranch(name, templates, known);
     if (id === undefined || !SAFE_ID.test(id)) continue;
     const path = `accord/tickets/${id}.md`;
-    const ticketAnywhere = known(id) || (def !== undefined && gitOk(root, ['cat-file', '-e', `${def}:${path}`])) || (SHA.test(sha) && gitOk(root, ['cat-file', '-e', `${sha}:${path}`]));
+    const ticketAnywhere = known(id);
+    if (!ticketAnywhere && (def !== undefined || SHA.test(sha))) probes.push({ at: refs.length, ...(def === undefined ? {} : { def: `${def}:${path}` }), ...(SHA.test(sha) ? { tip: `${sha}:${path}` } : {}) });
     refs.push({
       name,
       sha,
@@ -421,7 +425,42 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
       merged: merged.has(ref as string),
     });
   }
+  if (probes.length > 0) {
+    const specs = probes.flatMap((p) => [p.def, p.tip]).filter((s): s is string => s !== undefined);
+    const present = presentSpecs(root, specs);
+    for (const p of probes) {
+      refs[p.at].ticketAnywhere =
+        (p.def !== undefined && (present === undefined ? gitOk(root, ['cat-file', '-e', p.def]) : present.has(p.def))) ||
+        (p.tip !== undefined && (present === undefined ? gitOk(root, ['cat-file', '-e', p.tip]) : present.has(p.tip)));
+    }
+  }
   return refs;
+}
+
+/**
+ * Phase 08.9 D-02, D-03: which of `specs` (`<ref>:<path>`) name an object, from one `git cat-file --batch-check`, answers read by line index as `missingShas` does. A spec is present only when its line is an object name,
+ * a type and a size: `cat-file -e` fails for a missing or an ambiguous name, and batch-check prints `missing` or `ambiguous` for those. `undefined` when git failed, so the caller reads each with `cat-file -e` as before.
+ */
+function presentSpecs(root: string, specs: readonly string[]): Set<string> | undefined {
+  try {
+    const out = execFileSync('git', ['cat-file', '--batch-check'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+      input: specs.map((s) => s + '\n').join(''),
+    });
+    const lines = out.split('\n');
+    if (lines.length < specs.length) return undefined;
+    const present = new Set<string>();
+    specs.forEach((s, i) => {
+      if (/^[0-9a-f]{40,64} \S+ \d+\r?$/.test(lines[i])) present.add(s);
+    });
+    return present;
+  } catch {
+    return undefined;
+  }
 }
 
 /** D-03, D-06: group 3's second half: what a clean would remove, and the claim branches no clean handles (Rulings "worktree-leftover wording", "branch checks", "G2 facts"). */

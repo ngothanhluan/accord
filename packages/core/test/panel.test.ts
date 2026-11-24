@@ -1205,6 +1205,21 @@ it('risk:complex-branching a newest failed gate run shows the failure block and 
   expect(t2[t2.indexOf('Gate failed') + 1]).toBe('it broke');
 });
 
+// issue 342 review WR-01: the CLI writes `gate <g> FAIL` with no colon when the reason is empty; the head names the gate as the log row does, and no reason line is drawn.
+it('risk:regression a gate failure with no reason reads the gate in its head and draws no raw CLI text (issue 342 WR-01)', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const h = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate ready FAIL', fail: true }] });
+  const t = h.texts();
+  expect(t).toContain('Gate ready failed');
+  expect(t).not.toContain('Gate failed');
+  expect(t).not.toContain('gate ready FAIL');
+  expect(t).toContain('ready failed');
+  const group = h.nodes('Box').find((x) => textsIn(x).join('|') === '✗|Gate ready failed');
+  expect(group, 'failure group with no reason line').toBeDefined();
+  const { logSay } = await loadView();
+  expect(logSay('gate', 'gate ready FAIL')).toMatchObject({ who: 'gate', say: 'ready failed' });
+});
+
 // Phase 08.7 D-08: the context, tokens and cost block is backlog 999.59; the tab draws none of it.
 it('risk:regression the ticket tab draws no context token or cost block (D-08)', async () => {
   const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log: logOf() });

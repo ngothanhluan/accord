@@ -638,10 +638,10 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
   if (s === undefined) return { message: ['Loading…'] };
   if (s.message !== undefined) return { message: s.message.split(NL).map(clean).filter((l) => l) };
   const t = s.ticket;
-  // issue 342: the failure as a head and its reason: `Gate done failed` over `criterion ac-2 has no passing test`; a text of no known shape reads `Gate failed` over the whole text
+  // issue 342: the failure as a head and its reason: `Gate done failed` over `criterion ac-2 has no passing test`; a text of no known shape reads `Gate failed` over the whole text; `gate <g> FAIL` with no reason (the CLI writes it with no colon) has a head and no reason line
   const failed = failureOf(t.log);
-  const failMatch = failed === undefined ? null : /^gate ([a-z][a-z-]{0,19}) FAIL: (.*)$/.exec(failed.text);
-  const failure = failed === undefined ? undefined : failMatch === null ? { head: 'Gate failed', text: failed.text } : { head: `Gate ${failMatch[1]} failed`, text: failMatch[2] };
+  const failMatch = failed === undefined ? null : /^gate ([a-z][a-z-]{0,19}) FAIL(?:: (.*))?$/.exec(failed.text);
+  const failure = failed === undefined ? undefined : failMatch === null ? { head: 'Gate failed', text: failed.text } : { head: `Gate ${failMatch[1]} failed`, text: failMatch[2] ?? '' };
   const warned = warningRows(t.warnings);
   const fx = motion?.effects instanceof Set ? motion.effects : new Set();
   // Phase 08.8.1-09 L-06: a failure the pane is flashing (`motion.flash`) says so, and only then

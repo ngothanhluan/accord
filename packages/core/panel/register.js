@@ -675,7 +675,7 @@ export function register(on) {
         const widest = (list) => Math.max(...list.map((x) => [...x].length));
         // issue 342: the gate failure sits right under the head, where the design draws its failed state: `✗` and the head, the reason under it
         if (tv.failure) {
-          used += 3;
+          used += tv.failure.text === '' ? 2 : 3;
           // Phase 08.8.1-09 L-06: for FLASH_MS after it appeared the head flashes between red and the person's failure colour
           const failColor = tv.failure.flash === true ? 'red' : tv.colors.fail;
           children.push(

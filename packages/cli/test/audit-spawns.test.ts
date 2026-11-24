@@ -374,3 +374,20 @@ it('risk:resource accord audit starts as many git processes for twelve claim bra
   expect(many.argv.length, `${histogram(many.argv)} with 12 branches, ${histogram(few.argv)} with 2`).toBe(few.argv.length);
   for (const argv of [...few.argv, ...many.argv]) expect(verbOf(argv) === 'cat-file' && argv.includes('-e'), `a cat-file -e: ${argv.join(' ')}`).toBe(false);
 });
+
+// Phase 08.9 D-02 and D-03: the drafts of live backlog branches are read by one batched read (gitQueuedBatched through withQueued), never one diff and one blob read per branch; the gap lines are those printed at BASE.
+// The sandboxes have no origin, so the dry clean judges no branch (worktree.ts cleanLocked; its per-branch reads are batched by 08.9-09 and 08.9-10 and counted in dry-clean-spawns.test.ts), and the count is the audit's own reads.
+it('risk:resource accord audit starts as many git processes for twelve live backlog branches as for two (D-02)', async () => {
+  const lines = async (count: number): Promise<{ argv: string[][]; gaps: string[] }> => {
+    const repo = queuedRepo(count);
+    const argv = await spawns(repo);
+    const r = await run(['audit'], repo);
+    expect(r.code, r.out + r.err).toBe(0);
+    return { argv, gaps: r.out.split('\n').filter((l) => l.startsWith('gap: draft-stale:')) };
+  };
+  const few = await lines(2);
+  const many = await lines(12);
+  expect(few.gaps).toEqual(FEW_GAPS);
+  expect(many.gaps).toEqual(MANY_GAPS);
+  expect(many.argv.length, `${histogram(many.argv)} with 12 branches, ${histogram(few.argv)} with 2`).toBe(few.argv.length);
+});

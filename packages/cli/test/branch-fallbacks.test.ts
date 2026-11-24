@@ -48,6 +48,17 @@ it("risk:regression the default branch's template still wins over the checkout's
   expect(has(c.root, 'refs/heads/feature/ST-9')).toBe(false);
 });
 
+// WR-04, D-01a: a default branch whose accord/config.yml sets no `branch` means the team uses t/{id}; one person's unmerged `branch` must not rename only their claims.
+it("risk:complex-branching a default-branch config without branch keeps t/{id}, whatever the checkout's branch says (D-01a)", async () => {
+  const c = copy();
+  setLocal(c, 'branch: "feature/{id}"\n');
+  expect(gitRun(c.root, 'show', 'origin/main:accord/config.yml')).not.toContain('branch:');
+  const r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
+  expect(has(c.root, 'refs/heads/feature/ST-9')).toBe(false);
+});
+
 it("risk:regression the checkout's setup runs in a new worktree that has no accord/config.yml, once (D-02)", async () => {
   const c = copy({ setup: ['node setup-step.js ci'] });
   localOnly(c);

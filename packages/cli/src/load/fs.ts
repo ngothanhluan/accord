@@ -1061,7 +1061,8 @@ function headAuthorOf(body: string): string | undefined {
   return open < 0 || close < 0 ? undefined : line.slice(open + 1, close);
 }
 
-type DefaultBranch = { exists: boolean; template?: string; head?: { commit: string; author: string } | 'unborn' };
+/** `noConfig`: issue #341 D-01a, the default branch exists and holds no accord/config.yml at all (a local-only install); left out when it holds one or git could not say. */
+type DefaultBranch = { exists: boolean; template?: string; noConfig?: true; head?: { commit: string; author: string } | 'unborn' };
 
 /**
  * ST-LN-63: what the light load read (the tracked tree, the files under `accord/` with the tokens and the test report, and the default
@@ -1109,7 +1110,14 @@ function gitDefaultBranch(root: string): DefaultBranch {
     const commit = objects[i * 2];
     const config = objects[i * 2 + 1];
     if (commit === undefined || config === undefined) break;
-    if (commit.type === 'commit') return { exists: true, ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}), ...(head === undefined ? {} : { head }) };
+    if (commit.type === 'commit') {
+      return {
+        exists: true,
+        ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}),
+        ...(config.type === 'missing' ? { noConfig: true as const } : {}),
+        ...(head === undefined ? {} : { head }),
+      };
+    }
   }
   return { exists: false, ...(head === undefined ? {} : { head }) };
 }
@@ -1179,9 +1187,10 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
   const facts = gitFacts(root, defaultBranch.head);
   const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
   const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity, listed } = gitClaims(root, branchTemplates, known, config);
-  // D-09: a new claim is named by the default branch's template whenever it holds a readable one. Issue #341 D-01: when it holds none (no accord/config.yml there, as in a
-  // local-only install, or no `branch` in it), or there is no default branch, the working tree's `branch` names it, then t/{id}.
-  const claimTemplate = defaultBranch.template ?? config?.branch ?? DEFAULT_BRANCH_TEMPLATE;
+  // D-09: a new claim is named by the default branch's template whenever it holds a readable one. Issue #341 D-01, D-01a: only when the default branch holds no
+  // accord/config.yml at all (a local-only install), or there is no default branch, does the working tree's `branch` name it; a default-branch config without a
+  // `branch` (or with one this version refuses) means the team uses t/{id}, so one person's unmerged `branch` never renames only their own claims.
+  const claimTemplate = defaultBranch.template ?? (!defaultBranch.exists || defaultBranch.noConfig === true ? config?.branch : undefined) ?? DEFAULT_BRANCH_TEMPLATE;
   const lastActivity: Record<string, number> = { ...facts?.activity };
   for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).

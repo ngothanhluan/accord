@@ -594,9 +594,15 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   const all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[];
   const list = all.filter((w) => w.prunable === undefined);
   const mainPath = list[0].path;
-  const held = list.find((w) => w.branch === branch);
-  const local = held !== undefined || gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
-  const remote = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
+  // IN-01: a name still holding {type} is no claim (the ticket has no allowed change word and no claim branch), so the literal never reaches git
+  const untyped = branch.includes('{type}');
+  const held = untyped ? undefined : list.find((w) => w.branch === branch);
+  const local = held !== undefined || (!untyped && gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]));
+  const remote = !untyped && gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
+  // IN-04: --change names a new claim only; a found claim keeps its name (D-07), so the flag is refused rather than silently dropped
+  if (opts.change !== undefined && (local || remote)) {
+    throw new UsageError(`--change ${opts.change}: ${id} is already claimed on ${branch}, which keeps its name - run accord worktree open ${id} without --change; nothing was created`);
+  }
   if (opts.continue !== true) {
     const def = gitDefaultRef(ctx.root);
     if (def !== undefined && droppedOn(ctx.root, def, [id]).has(id)) {
@@ -643,8 +649,8 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (opts.continue === true) {
     throw new UsageError(
       isTicket
-        ? withNext('not-claimed', `not claimed: ${id} has no branch ${branch} here or on origin - nothing was created; pick it up first`)
-        : withNext('not-a-ticket', `not a ticket: ${id} is not in accord/tickets and has no branch ${branch} here or on origin - nothing was created`),
+        ? withNext('not-claimed', `not claimed: ${id} has no ${untyped ? 'claim branch' : `branch ${branch}`} here or on origin - nothing was created; pick it up first`)
+        : withNext('not-a-ticket', `not a ticket: ${id} is not in accord/tickets and has no ${untyped ? 'claim branch' : `branch ${branch}`} here or on origin - nothing was created`),
     );
   }
   if (!isTicket) throw new UsageError('no ticket ' + id + ' in accord/tickets - nothing was created');

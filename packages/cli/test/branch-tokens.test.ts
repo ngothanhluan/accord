@@ -6,7 +6,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { copy, has, pushMain, useSandboxes, type Clone } from './helpers/worktree.js';
+import { copy, doneOnRemote, has, pushMain, ticketWorktree, useSandboxes, type Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -265,4 +265,41 @@ it('risk:regression status reads a claim listing over 1 MiB (10 000 fix/ refs on
   expect(listing.length).toBeGreaterThan(1024 * 1024);
   const r = await run(['status', '--json'], c.root);
   expect(r.code, r.err).toBe(0);
+});
+
+// IN-01: a ticket with no allowed change word and no claim yet has no claim branch; the literal {type} never reaches git or the message.
+it('risk:regression --continue on an unclaimed {type} ticket says it has no claim branch, with no {type} literal (IN-01)', async () => {
+  const c = copy();
+  adopt(c, []);
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('ST-9 has no claim branch here or on origin');
+  expect(r.err).not.toContain('{type}');
+});
+
+// IN-02: under a {type} template, new ticket --worktree without --change is refused before the clean removes anything.
+it('risk:data-loss new ticket --worktree with no --change under a {type} template is refused before the clean runs (IN-02)', async () => {
+  const c = copy();
+  ticketWorktree(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
+  pushMain(c, 'accord/config.yml', CONFIG + TYPED);
+  c.git('fetch', '-q', 'origin');
+  const r = await run(['new', 'ticket', 'ST-LN-25', '--lane', 'M', '--worktree', '--title', 'Null total', '--no-dup-check'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('--change <word>');
+  // the done ticket's worktree and branch, which a clean would remove, are still there
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
+});
+
+// IN-04: --change on a ticket already claimed is refused: the claim keeps its name.
+it('risk:regression worktree open --change on a ticket already claimed is refused, saying the claim has its name (IN-04)', async () => {
+  const c = copy();
+  adopt(c);
+  const first = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(first.code, first.err).toBe(0);
+  const r = await run(['worktree', 'open', 'ST-9', '--change', 'feat'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('ST-9 is already claimed on fix/ST-9-export, which keeps its name');
+  expect(has(c.root, 'refs/heads/feat/ST-9-export')).toBe(false);
 });

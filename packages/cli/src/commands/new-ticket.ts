@@ -74,16 +74,17 @@ export function newTicket(
   if (options.worktree === true || options.queue === true) {
     const f = fetchOrigin(ctx);
     ctx = f.ctx;
+    // Issue #341 D-10: the branch is named at claim, so a {type} template needs the word now; no type is guessed. IN-02: the claim template is known once the
+    // fetch returns, so this refusal runs before the clean, which can remove worktrees and delete branches
+    const claimTemplate = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
+    if (options.worktree === true && options.change === undefined && claimTemplate.includes('{type}')) {
+      throw new UsageError(
+        `the branch template ${claimTemplate} needs a change word: give --change <word>, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')} - nothing was written`,
+      );
+    }
     if (options.worktree === true) seen = cleanQuietly(ctx, f.fetched);
   }
   refuseBadConfig(ctx);
-  // Issue #341 D-10: the branch is named at claim, so a {type} template needs the word now; no type is guessed
-  const claimTemplate = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
-  if (options.worktree === true && options.change === undefined && claimTemplate.includes('{type}')) {
-    throw new UsageError(
-      `the branch template ${claimTemplate} needs a change word: give --change <word>, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')} - nothing was written`,
-    );
-  }
   // ST-LN-22 D-08: before any id is chosen or any file written, the tickets most like the request are printed, and nothing is created until the session has judged them
   if (!dupCheck) ctx.stdout.write('similar: skipped (--no-dup-check)\n');
   else if (title !== undefined || related !== undefined) {

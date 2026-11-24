@@ -3,7 +3,7 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { CONFIG } from '../../../test/helpers/lane.js';
-import { gitRun, run } from './helpers/repo.js';
+import { commitMsg, gitRun, run } from './helpers/repo.js';
 import { copy, has, pushMain, useSandboxes, type Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
@@ -21,7 +21,7 @@ useSandboxes([{ setup: ['node setup-step.js ci'] }, {}]);
 function localOnly(c: Clone): void {
   c.git('rm', '-q', '--cached', 'accord/config.yml');
   appendFileSync(`${c.root}/.git/info/exclude`, 'accord/config.yml\n');
-  c.git('commit', '-q', '-m', 'the config stays local');
+  commitMsg(c.root, 'the config stays local'); // conventions.md: -F <file> --cleanup=verbatim, never -m
   c.git('push', '-q', 'origin', 'main');
   expect(existsSync(`${c.root}/accord/config.yml`)).toBe(true);
 }

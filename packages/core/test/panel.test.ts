@@ -1753,8 +1753,8 @@ it('risk:regression a narrow stage track is one connected line that keeps the cu
 const tabBtn = (h: Awaited<ReturnType<typeof host>>, key: string): Record<string, any> => h.buttons().find((b) => b.key === key) as Record<string, any>;
 const tabPart = (h: Awaited<ReturnType<typeof host>>, text: string): Record<string, any> => ((tabBtn(h, 'tab:ticket').children as any[]).find((c) => c && typeof c === 'object' && flat(c.props.children) === text) as El).props;
 const partsOf = (b: Record<string, any>): string[] => (b.children as any[]).filter((c) => c && typeof c === 'object').map((c) => flat(c.props.children));
-// the cells the tabs line takes: `k: ` and the parts joined by single spaces for each tab, two cells between tabs
-const tabsWidth = (h: Awaited<ReturnType<typeof host>>): number => ['tab:ticket', 'tab:dashboard', 'settings'].reduce((n, k) => n + 3 + [...partsOf(tabBtn(h, k)).join(' ')].length, 4);
+// the tabs line as the engine draws it: a plain Button is its hotkey, a colon and its parts joined by spaces, and the row's columnGap (2) lies between the tabs
+const tabsLine = (h: Awaited<ReturnType<typeof host>>): string => ['tab:ticket', 'tab:dashboard', 'settings'].map((k) => `${tabBtn(h, k).hotkey}: ${partsOf(tabBtn(h, k)).join(' ')}`).join('  ');
 
 // issue 342 D-02: the tabs line has no brackets, keeps keys 1, 2 and s, and never runs past the pane: the dashboard counts drop first and the row wraps
 it('risk:regression the tabs line has plain buttons with no brackets and fits the pane width (issue 342 D-02)', async () => {
@@ -1765,20 +1765,29 @@ it('risk:regression the tabs line has plain buttons with no brackets and fits th
     const b = tabBtn(narrow, key);
     expect(b, key).toMatchObject({ plain: true, hotkey });
     expect(['primary', 'secondary'], key).toContain(b.variant);
-    expect(flat(b.children), key).not.toMatch(/[[\]]/);
+  }
+  // 0.17.1 drew brackets because the engine frames a Button that is not `plain`, whatever its children say: so every Button in the rendered tree is plain and none carries a border of its own
+  const buttons = narrow.nodes('Button');
+  expect(buttons.map((b) => b.props.key).sort()).toEqual(['settings', 'tab:dashboard', 'tab:ticket']);
+  for (const b of buttons) {
+    expect(b.props.plain, String(b.props.key)).toBe(true);
+    expect(b.props.borderStyle, String(b.props.key)).toBeUndefined();
+    expect(b.props.borderColor, String(b.props.key)).toBeUndefined();
   }
   expect(partsOf(tabBtn(narrow, 'tab:ticket'))).toEqual(['ST-1', 'build 1/3', '✦']);
   expect(partsOf(tabBtn(narrow, 'tab:dashboard'))).toEqual(['dashboard']);
   expect(tabBtn(narrow, 'tab:dashboard').dimColor).toBe(true);
   expect(tabBtn(narrow, 'tab:ticket').dimColor).toBeUndefined();
-  expect(tabsWidth(narrow)).toBeLessThanOrEqual(49);
+  expect(tabsLine(narrow)).toBe('1: ST-1 build 1/3 ✦  2: dashboard  s: settings');
+  expect([...tabsLine(narrow)].length).toBeLessThanOrEqual(49);
   expect(tabBtn(narrow, 'tab:ticket').label).toBe('1 ticket ST-1 build ◐1');
   expect(tabBtn(narrow, 'tab:dashboard').label).toBe('2 dashboard 1 yours · 1 ready · 0 team');
-  expect(narrow.buttonBox('tab:ticket')).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
+  expect(narrow.buttonBox('tab:ticket')).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap', columnGap: 2 });
   // a wide pane keeps the counts above 0 only
   const wide = await paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3 }, (x) => void (x.columns = 100));
   expect(partsOf(tabBtn(wide, 'tab:dashboard'))).toEqual(['dashboard', '1 yours · 1 ready']);
-  expect(tabsWidth(wide)).toBeLessThanOrEqual(100);
+  expect(tabsLine(wide)).toBe('1: ST-1 build 1/3  2: dashboard 1 yours · 1 ready  s: settings');
+  expect([...tabsLine(wide)].length).toBeLessThanOrEqual(100);
   // not committed, waiting and a failed gate add their marks
   const loose = await paneWith({ stage: 'plan', warnings: [{ kind: 'not-committed', text: NOT_COMMITTED }] }, (x) => void (x.columns = 100));
   expect(partsOf(tabBtn(loose, 'tab:ticket'))).toEqual(['ST-1', 'not tracked']);
@@ -1788,6 +1797,31 @@ it('risk:regression the tabs line has plain buttons with no brackets and fits th
   expect(partsOf(tabBtn(failed, 'tab:ticket'))).toEqual(['ST-1', 'build 1/3', '✗ gate']);
   const mark = (tabBtn(failed, 'tab:ticket').children as any[]).find((c) => c && typeof c === 'object' && flat(c.props.children) === '✗ gate');
   expect(mark.props.color).toBe('#ff6b6b');
+});
+
+// issue 342 review WR-06: a ticket whose own parts pass the pane width drops the dashboard counts and the row wraps, the Buttons staying plain.
+it('risk:regression a long ticket line drops the dashboard counts and the tabs row wraps (issue 342 WR-06)', async () => {
+  const id = 'ST-LN-123';
+  const h = await host(await loadPanel());
+  h.columns = 49;
+  await h.store.set('settings', NO_MOTION);
+  h.agents = ['a1', 'a2', 'a3'].map((a) => agentOf(a, 'accord-executor'));
+  await h.fire('session.start', start);
+  h.settle({ stdout: JSON.stringify(board({ current: id, yours: { rows: [{ id, title: 'Login form' }], more: 0 }, ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW(id), { timeoutMs: 120000 }));
+  const gate = { at: Math.floor(Date.now() / 1000) - 3, kind: 'gate', text: 'gate done FAIL: red', fail: true };
+  h.settle({ stdout: JSON.stringify(detailOf({ id, stage: 'build', tasksDone: 12, tasksTotal: 15, log: [gate] })) });
+  await vi.waitFor(() => expect(h.texts()).toContain('Login form'));
+  for (const a of ['a1', 'a2', 'a3']) await h.fire('turn.start', subStart(a));
+  await h.fire('turn.complete', { reason: 'answer', answer: 'Keep it?' });
+  await vi.waitFor(() => expect(partsOf(tabBtn(h, 'tab:ticket'))).toContain('◆ you'));
+  expect(partsOf(tabBtn(h, 'tab:ticket'))).toEqual([id, 'build 12/15', '✦3', '◆ you', '✗ gate']);
+  // the counts are gone, and the line is longer than the pane, so only the wrap keeps every tab on screen
+  expect(partsOf(tabBtn(h, 'tab:dashboard'))).toEqual(['dashboard']);
+  expect(tabsLine(h)).toBe('1: ST-LN-123 build 12/15 ✦3 ◆ you ✗ gate  2: dashboard  s: settings');
+  expect([...tabsLine(h)].length).toBeGreaterThan(49);
+  expect(h.buttonBox('tab:ticket')).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap', columnGap: 2 });
+  for (const b of h.nodes('Button')) expect(b.props.plain, String(b.props.key)).toBe(true);
 });
 
 // issue 342 review WR-03: an off stage keeps its `off`, but its name is cut to a letter on a narrow pane like the other stages, so the track fits 30 and 36 columns and its last stage is not cut.

@@ -32,6 +32,13 @@ export interface CleanFacts {
    * `^` of every sha the refs table lists under refs/remotes/origin/. `undefined` when this cannot say (a failed call, an origin ref that is not a commit).
    */
   notOnOrigin(tips: readonly string[]): ReadonlyMap<string, number> | undefined;
+  /** The tree of the default ref's commit (what `git rev-parse <ref>^{tree}` prints), from one `git cat-file --batch-check`; `undefined` when this cannot say. */
+  refTree(): string | undefined;
+  /**
+   * The answer of `read(path)`, a detached worktree's stopped-rebase check, read on the first question for that path and replayed (its value, or the error it threw) on every
+   * later one. `read` comes from the caller, so nothing here depends on the commands that use it.
+   */
+  rebaseOf(path: string, read: (path: string) => string | undefined): string | undefined;
 }
 
 /** The answers of one research read: git's own text or object name, `null` for "no such file or path", `undefined` for "not asked or not answered". */
@@ -73,6 +80,8 @@ export function readCleanFacts(root: string, ref: string): CleanFacts {
   let reach: { tips: Set<string>; unreached: Set<string> } | null | undefined;
   let research: ResearchAnswers | null | undefined;
   let lacking: Map<string, number> | null | undefined;
+  let tree: string | null | undefined;
+  const rebases = new Map<string, { value: string | undefined } | { error: unknown }>();
 
   /** The refs table: one for-each-ref with no pattern, read at the first question and never again. */
   const table = (): Map<string, Entry> | null => {
@@ -236,6 +245,32 @@ export function readCleanFacts(root: string, ref: string): CleanFacts {
       }
       lacking = counts;
       return lacking;
+    },
+    refTree() {
+      if (tree !== undefined) return tree ?? undefined;
+      tree = null;
+      const head = table()?.get(ref);
+      if (head === undefined || head.type !== 'commit' || !FULL_SHA.test(head.oid)) return undefined;
+      try {
+        const line = git(root, ['cat-file', '--batch-check'], head.oid + '^{tree}\n').split(/\r?\n/)[0] ?? '';
+        if (/^[0-9a-f]{40}([0-9a-f]{24})? tree \d+$/.test(line)) tree = line.slice(0, line.indexOf(' '));
+      } catch {
+        // the tree is read per branch, as before
+      }
+      return tree ?? undefined;
+    },
+    rebaseOf(path, read) {
+      let answer = rebases.get(path);
+      if (answer === undefined) {
+        try {
+          answer = { value: read(path) };
+        } catch (error) {
+          answer = { error };
+        }
+        rebases.set(path, answer);
+      }
+      if ('error' in answer) throw answer.error;
+      return answer.value;
     },
   };
 }

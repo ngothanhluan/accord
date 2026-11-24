@@ -1611,7 +1611,7 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
         continue;
       }
       // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
-      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && (s.facts === undefined ? rebaseBranch(x.path) : s.facts.rebaseOf(x.path, rebaseBranch)) === b);
       if (rebasing !== undefined) {
         cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
         continue;
@@ -1833,7 +1833,8 @@ function safeTip(root: string, tip: string, vc: string | undefined, ref: string,
     return blobsOnRef(root, tip, ref) ? 'safe' : 'conflict';
   }
   try {
-    return out.split('\n')[0].trim() === git(root, ['rev-parse', ref + '^{tree}']).trim() ? 'safe' : 'unsafe';
+    // Phase 08.9 D-08: on the offline dry path the default ref's tree is read once for all branches
+    return out.split('\n')[0].trim() === (facts?.refTree() ?? git(root, ['rev-parse', ref + '^{tree}']).trim()) ? 'safe' : 'unsafe';
   } catch {
     return 'unsafe';
   }
@@ -1902,7 +1903,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
     try {
       if (spent(ctx, s)) return;
       // A worktree mid-rebase has a detached HEAD; its rebase still owns the branch.
-      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && (s.facts === undefined ? rebaseBranch(x.path) : s.facts.rebaseOf(x.path, rebaseBranch)) === b);
       if (rebasing !== undefined) {
         cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
         continue;
@@ -2039,7 +2040,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       if (spent(ctx, s)) return;
       const W = after.find((x) => x.branch === b);
       // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
-      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && (s.facts === undefined ? rebaseBranch(x.path) : s.facts.rebaseOf(x.path, rebaseBranch)) === b);
       if (rebasing !== undefined) {
         cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
         continue;

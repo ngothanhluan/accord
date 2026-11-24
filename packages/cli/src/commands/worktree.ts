@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
+import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
@@ -47,11 +47,39 @@ export function gitOk(cwd: string, args: string[]): boolean {
   }
 }
 
-/** The ticket's branch: the claim branch git already shows, else the template, as `accord status` prints it. */
-export function branchOf(snapshot: RepoSnapshot, id: string): string {
-  return snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, id)
-    ? snapshot.claimBranches[id]
-    : (snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE).replace('{id}', id);
+/**
+ * The ticket's branch: the claim branch git already shows, else the template rendered from the ticket's id, title and change: word (the checkout's copy, or `fields`
+ * when the caller read a newer copy), as `accord status` prints it. A name still holding `{type}` means the ticket has no allowed change word (R-4).
+ */
+export function branchOf(snapshot: RepoSnapshot, id: string, fields?: { title?: string; change?: string }): string {
+  if (snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, id)) return snapshot.claimBranches[id];
+  const own = snapshot.tickets[id]?.frontmatter;
+  const title = fields?.title ?? own?.title;
+  const change = fields?.change ?? own?.change;
+  return renderBranch(snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE, { id, ...(title === undefined ? {} : { title }), ...(change === undefined ? {} : { change }) }, snapshot.config);
+}
+
+/** R-4: a claim name that still holds `{type}` has no allowed change word; no type is guessed, so the claim is refused before any git write. `why` says what is missing, in the caller's words (IN-03). */
+function refuseUntyped(ctx: CommandContext, id: string, why: string, written: string, give: string): never {
+  const template = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
+  throw new UsageError(`${id}: the branch template ${template} needs a change word, and ${why} - ${give}, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')}; ${written}`);
+}
+
+/**
+ * Review ruling (CR-01, WR-02, WR-03): before `git worktree add`, a rendered claim name must be a branch name git accepts (`git check-ref-format --branch`) and must read back
+ * through the templates in force to the same id; otherwise the claim is refused, since a name the readers cannot map to its ticket is a claim nobody sees. No git write has run.
+ */
+function checkClaimName(ctx: CommandContext, id: string, claim: string, written: string): void {
+  const template = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
+  if (!gitOk(ctx.root, ['check-ref-format', '--branch', claim])) {
+    throw new UsageError(`${id}: ${claim} is not a valid branch name (git check-ref-format), as the branch template ${template} renders it - change the template or the ticket's title; ${written}`);
+  }
+  const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
+  if (ticketOfBranch(claim, templates, (i) => i === id, ctx.snapshot.config) !== id) {
+    throw new UsageError(
+      `${id}: ${claim} would not be read back as ${id} under the branch templates in force (${templates.join(', ')}), so no reader would see the claim - change the branch template or the change word; ${written}`,
+    );
+  }
 }
 
 export interface PrunableEntry extends WorktreeEntry {
@@ -135,20 +163,32 @@ export function siblingOf(mainPath: string, id: string): string {
   return mainPath.slice(0, cut + 1) + mainPath.slice(cut + 1) + '-' + id.toLowerCase();
 }
 
-/** D-07: run the worktree's own `setup`; a failing command keeps the worktree and exits 2. */
-export function prepare(path: string): void {
+/**
+ * D-07: run the worktree's own `setup`; a failing command keeps the worktree and exits 2. Issue #341 D-02: a worktree with no accord/config.yml (a local-only install,
+ * whose accord files are git-excluded) runs the `setup` of `from`, the checkout that runs the command; an invalid file in either place refuses and names it.
+ */
+export function prepare(path: string, from: string): void {
   let text: string | undefined;
+  let where = 'accord/config.yml in the new worktree';
   try {
     text = readFileSync(path + '/accord/config.yml', 'utf8');
   } catch {
-    // no config: nothing to run
+    // no config in the new worktree: the running checkout's, when it is another folder
+    if (norm(from) !== norm(path)) {
+      try {
+        text = readFileSync(from + '/accord/config.yml', 'utf8');
+        where = `accord/config.yml of ${from.replace(/\\/g, '/')}`;
+      } catch {
+        // no config anywhere: nothing to run
+      }
+    }
   }
   let setup: string[] = [];
   if (text !== undefined) {
     const loaded = loadConfig('accord/config.yml', text);
     if (loaded.config === undefined) {
       throw new UsageError(
-        `accord/config.yml in the new worktree is invalid, so setup did not run: ${loaded.findings[0]?.reason ?? 'unreadable'}\nthe worktree is kept; fix the file, then continue the ticket again`,
+        `${where} is invalid, so setup did not run: ${loaded.findings[0]?.reason ?? 'unreadable'}\nthe worktree is kept; fix the file, then continue the ticket again`,
       );
     }
     setup = loaded.config.setup ?? [];
@@ -352,12 +392,12 @@ export function releaseHolds(root: string, session: { pid: number; start: string
 /** Inside the ticket's worktree: take the hold (Claude Code only, D-17), then make sure `setup` finished. */
 function hold(ctx: CommandContext, id: string, path: string): number {
   if (claudeEnv(ctx.env) === undefined) {
-    if (!existsSync(setupMarker(path))) prepare(path);
+    if (!existsSync(setupMarker(path))) prepare(path, ctx.root);
     ctx.stdout.write(withNext('not-held', `not held: ${id} - a second session in this worktree is not refused in this tool yet`) + '\n');
     return 0;
   }
   takeHold(ctx, id, path);
-  if (!existsSync(setupMarker(path))) prepare(path);
+  if (!existsSync(setupMarker(path))) prepare(path, ctx.root);
   ctx.stdout.write(withNext('held', `held: ${id} by this session`) + '\n');
   return 0;
 }
@@ -399,7 +439,7 @@ export function checkPin(ctx: CommandContext, id: string, path: string, branch: 
 export function enterOrStop(ctx: CommandContext, id: string, path: string, branch: string, enter: boolean): void {
   if (!enter) return printStop(ctx, path, id);
   takeHold(ctx, id, path);
-  if (!existsSync(setupMarker(path))) prepare(path);
+  if (!existsSync(setupMarker(path))) prepare(path, ctx.root);
   ctx.stdout.write(`${nextLine('enter')}\nenter: ${path}\n`);
 }
 
@@ -450,7 +490,7 @@ export function worksTicket(cwd: string, marker: string | undefined, snapshot: R
   if (isLinked(top)) {
     const b = currentBranch(top);
     if (b === undefined || b === '') return { id: undefined, top };
-    const id = ticketOfBranch(b, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(snapshot.tickets, i));
+    const id = ticketOfBranch(b, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(snapshot.tickets, i), snapshot.config);
     if (id !== undefined) return { id, top };
   }
   if (marker !== undefined) {
@@ -534,8 +574,14 @@ export function worktreeCheck(ctx: CommandContext): number {
   return 0;
 }
 
-export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
+export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean; change?: string } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  // Issue #341 D-10, R-7: --change names a new claim; a continue never claims, and the word must be one the team lists, so both are refused before the fetch
+  if (opts.change !== undefined) {
+    if (opts.continue === true) throw new UsageError('--change goes with a new claim; --continue never claims - nothing was created');
+    const problem = changeProblem(opts.change, ctx.snapshot.config);
+    if (problem !== undefined) throw new UsageError('--change ' + opts.change + ': ' + problem + ' - nothing was created');
+  }
   guardTicketSession(ctx, opts.continue === true ? id : undefined, `/accord pick-up ${id}`);
   const f = fetchOrigin(ctx);
   ctx = f.ctx;
@@ -548,9 +594,15 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   const all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[];
   const list = all.filter((w) => w.prunable === undefined);
   const mainPath = list[0].path;
-  const held = list.find((w) => w.branch === branch);
-  const local = held !== undefined || gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
-  const remote = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
+  // IN-01: a name still holding {type} is no claim (the ticket has no allowed change word and no claim branch), so the literal never reaches git
+  const untyped = branch.includes('{type}');
+  const held = untyped ? undefined : list.find((w) => w.branch === branch);
+  const local = held !== undefined || (!untyped && gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]));
+  const remote = !untyped && gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
+  // IN-04: --change names a new claim only; a found claim keeps its name (D-07), so the flag is refused rather than silently dropped
+  if (opts.change !== undefined && (local || remote)) {
+    throw new UsageError(`--change ${opts.change}: ${id} is already claimed on ${branch}, which keeps its name - run accord worktree open ${id} without --change; nothing was created`);
+  }
   if (opts.continue !== true) {
     const def = gitDefaultRef(ctx.root);
     if (def !== undefined && droppedOn(ctx.root, def, [id]).has(id)) {
@@ -589,7 +641,7 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
     if (enter) {
       if (pick) takeHold(ctx, id, path);
       checkPin(ctx, id, path, branch, mainPath);
-    } else if (!existsSync(setupMarker(path))) prepare(path);
+    } else if (!existsSync(setupMarker(path))) prepare(path, ctx.root);
     enterOrStop(ctx, id, path, branch, enter);
     return 0;
   }
@@ -597,30 +649,57 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (opts.continue === true) {
     throw new UsageError(
       isTicket
-        ? withNext('not-claimed', `not claimed: ${id} has no branch ${branch} here or on origin - nothing was created; pick it up first`)
-        : withNext('not-a-ticket', `not a ticket: ${id} is not in accord/tickets and has no branch ${branch} here or on origin - nothing was created`),
+        ? withNext('not-claimed', `not claimed: ${id} has no ${untyped ? 'claim branch' : `branch ${branch}`} here or on origin - nothing was created; pick it up first`)
+        : withNext('not-a-ticket', `not a ticket: ${id} is not in accord/tickets and has no ${untyped ? 'claim branch' : `branch ${branch}`} here or on origin - nothing was created`),
     );
   }
   if (!isTicket) throw new UsageError('no ticket ' + id + ' in accord/tickets - nothing was created');
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) throw new UsageError('no origin/main in this clone - run git fetch origin, then try again');
-  if (!gitOk(ctx.root, ['cat-file', '-e', `${ref}:accord/tickets/${id}.md`])) {
+  // W3: the claim commit holds the default ref's copy of the ticket, which can differ from this checkout's, so the name is rendered from that copy.
+  let onDefault: string;
+  try {
+    onDefault = git(ctx.root, ['cat-file', 'blob', `${ref}:accord/tickets/${id}.md`]);
+  } catch {
     throw new UsageError(
       `${id} is not on ${ref.replace('refs/remotes/', '')} - merge accord/tickets/${id}.md into the main branch, run git fetch origin, then try again; nothing was created`,
     );
   }
+  // R-7 and W3: the --change word stands in for the ticket's own change: in the name, and is written into the claim commit below
+  const claim = branchOf(ctx.snapshot, id, { ...branchFieldsOf(onDefault), ...(opts.change === undefined ? {} : { change: opts.change }) });
+  if (claim.includes('{type}')) {
+    refuseUntyped(ctx, id, 'the ticket has none that branch_types allows', 'nothing was created', `add change: <word> to accord/tickets/${id}.md on the default branch, or run accord worktree open ${id} --change <word>`);
+  }
+  checkClaimName(ctx, id, claim, 'nothing was created');
+  if (
+    claim !== branch &&
+    (list.some((w) => w.branch === claim) ||
+      gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + claim]) ||
+      gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + claim]))
+  ) {
+    throw new UsageError(`${claim} already exists - nothing was created`);
+  }
   const path = siblingOf(mainPath, id);
   if (all.some((w) => w.prunable !== undefined && norm(w.path) === norm(path))) refuseAt(id, path, 'nothing was created');
-  git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
+  git(ctx.root, ['worktree', 'add', '--no-track', '-b', claim, path, ref]);
   recordQuietly(ctx, id, path);
-  const wrote = claimRuleset(path, `accord/tickets/${id}.md`);
+  const wroteRuleset = claimRuleset(path, `accord/tickets/${id}.md`);
+  let wroteChange = false;
+  if (opts.change !== undefined) {
+    try {
+      wroteChange = writeKey(path, `accord/tickets/${id}.md`, 'change', opts.change);
+    } catch (e) {
+      throw new UsageError(`could not write change: ${opts.change} into accord/tickets/${id}.md in ${path}: ${firstLine(e instanceof UsageError ? e.message : e)}\nthe worktree is kept; fix the ticket, then continue it`);
+    }
+  }
+  const wrote = wroteRuleset || wroteChange;
   if (wrote) git(path, ['add', '--', ':(literal)' + `accord/tickets/${id}.md`]);
   git(path, ['commit', ...(wrote ? [] : ['--allow-empty']), '-q', '-m', renderSubject(ctx.snapshot.config, 'claim', id)]);
   if (enter) {
     takeHold(ctx, id, path);
-    checkPin(ctx, id, path, branch, mainPath);
-  } else prepare(path);
-  enterOrStop(ctx, id, path, branch, enter);
+    checkPin(ctx, id, path, claim, mainPath);
+  } else prepare(path, ctx.root);
+  enterOrStop(ctx, id, path, claim, enter);
   return 0;
 }
 
@@ -1012,7 +1091,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   rmSync(setupMarker(path), { force: true });
   let failure: unknown;
   try {
-    prepare(path);
+    prepare(path, ctx.root);
   } catch (e) {
     failure = e;
   }
@@ -1578,7 +1657,7 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
   const names = listed.flatMap((row) => {
     const cut = row.indexOf('\0');
     const name = cut < 0 ? '' : row.slice(cut + 1 + 'refs/heads/'.length).trim();
-    return name === '' || ticketOfBranch(name, templates, known) !== undefined ? [] : [name];
+    return name === '' || ticketOfBranch(name, templates, known, ctx.snapshot.config) !== undefined ? [] : [name];
   });
   if (names.length === 0) return;
   const after = readList(ctx, s.seen);
@@ -1889,7 +1968,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
   }
   const ids = new Map<string, string>();
   for (const name of tips.keys()) {
-    const id = ticketOfBranch(name, templates, known);
+    const id = ticketOfBranch(name, templates, known, ctx.snapshot.config);
     if (id !== undefined && id !== skip) ids.set(name, id);
   }
   if (ids.size === 0) return;
@@ -2015,7 +2094,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   // A merged ticket stays on the merged path above; a merged origin branch is left to the host.
   const ids = new Map<string, string>();
   for (const [name, t] of tips) {
-    const id = ticketOfBranch(name, templates, known);
+    const id = ticketOfBranch(name, templates, known, ctx.snapshot.config);
     const tip = (t.L ?? t.R)!;
     if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !(s.facts?.onRef(tip) ?? gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref]))) ids.set(name, id);
   }
@@ -2114,7 +2193,9 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
 /** D-13: write the new ticket in its own worktree on its claim branch, commit and push it, then run setup there. */
 export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string, seen?: WorktreeEntry[]): void {
   const enter = canEnter(ctx);
-  const branch = branchOf(ctx.snapshot, id);
+  const branch = branchOf(ctx.snapshot, id, branchFieldsOf(text));
+  if (branch.includes('{type}')) refuseUntyped(ctx, id, 'the new ticket has no change: word that branch_types allows', 'nothing was written', 'give --change <word>');
+  checkClaimName(ctx, id, branch, 'nothing was written');
   const all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[];
   const list = all.filter((w) => w.prunable === undefined);
   const exists =
@@ -2151,7 +2232,7 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   }
   if (holdError !== undefined) throw holdError;
   if (enter) checkPin(ctx, id, path, branch, list[0].path);
-  prepare(path);
+  prepare(path, ctx.root);
   ctx.stdout.write(rel + '\n');
   enterOrStop(ctx, id, path, branch, enter);
 }

@@ -18,7 +18,7 @@ export function activeTicket(root: string, snapshot: RepoSnapshot, known?: { nam
   // ST-LN-63: `known` is the branch the load of this same checkout already read.
   const branch = known === undefined ? currentBranch(root) : known.name;
   if (branch === undefined) throw new Error('could not read the current branch; nothing to anchor');
-  return ticketOfBranch(branch, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (id) => Object.hasOwn(snapshot.tickets, id));
+  return ticketOfBranch(branch, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (id) => Object.hasOwn(snapshot.tickets, id), snapshot.config);
 }
 
 /**

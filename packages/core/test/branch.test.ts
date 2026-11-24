@@ -1,5 +1,19 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { branchTemplateOf } from '../src/status/branch.js';
+import {
+  branchFieldsOf,
+  branchIdCandidates,
+  branchIdOf,
+  branchTypesOf,
+  DEFAULT_BRANCH_TYPES,
+  expandBranchTypes,
+  loadConfig,
+  loadSnapshot,
+  pickBranchId,
+  renderBranch,
+  slugOf,
+} from '../src/index.js';
+import { CONFIG } from '../../../test/helpers/lane.js';
 
 it('risk:parsing branchTemplateOf reads only branch and never throws', () => {
   expect(branchTemplateOf('')).toBeUndefined();
@@ -12,4 +26,149 @@ it('risk:parsing branchTemplateOf reads only branch and never throws', () => {
 it('risk:parsing branchTemplateOf drops a template the schema refuses', () => {
   expect(branchTemplateOf('branch: "{id}"\n')).toBeUndefined();
   expect(branchTemplateOf('branch: "feature/..{id}"\n')).toBeUndefined();
+});
+
+// Issue #341: the {type} and {slug} tokens of the claim branch template.
+describe('slugOf (D-03)', () => {
+  it('risk:parsing slugOf gives ASCII kebab-case, drops what NFKD does not unmark, and cuts without a trailing hyphen', () => {
+    expect(slugOf('Order total is null', 40)).toBe('order-total-is-null');
+    expect(slugOf('Exportation des données', 40)).toBe('exportation-des-donnees');
+    expect(slugOf('\u0110\u01a1n h\u00e0ng m\u1edbi', 40)).toBe('on-hang-moi');
+    expect(slugOf('  --Hello,   World!--  ', 40)).toBe('hello-world');
+    expect(slugOf('日本語', 40)).toBe('');
+    expect(slugOf('Order total', 5)).toBe('order');
+    expect(slugOf('Order total', 6)).toBe('order');
+  });
+});
+
+describe('renderBranch (D-03, D-08, R-2, R-4)', () => {
+  const T = '{type}/{id}-{slug}';
+  it('risk:parsing renderBranch fills the three tokens and keeps {type} literal for an unlisted word', () => {
+    expect(renderBranch(T, { id: 'ST-9', title: 'Export', change: 'fix' })).toBe('fix/ST-9-export');
+    expect(renderBranch(T, { id: 'ST-9', title: 'Export', change: 'wip' })).toBe('{type}/ST-9-export');
+    expect(renderBranch(T, { id: 'ST-9', title: 'Export' })).toBe('{type}/ST-9-export');
+    expect(renderBranch(T, { id: 'ST-9', title: 'Export', change: 'feature' }, { branch_types: ['feature'] })).toBe('feature/ST-9-export');
+    expect(renderBranch(T, { id: 'ST-9', title: 'Export', change: 'fix' }, { branch_slug_length: '3' })).toBe('fix/ST-9-exp');
+    expect(renderBranch(T, { id: 'ST-9', title: '日本語', change: 'fix' })).toBe('fix/ST-9-ticket');
+    expect(renderBranch('t/{id}', { id: 'ST-9', title: 'Export' })).toBe('t/ST-9');
+    expect(branchTypesOf(undefined)).toEqual([...DEFAULT_BRANCH_TYPES]);
+    expect(DEFAULT_BRANCH_TYPES).toEqual(['feat', 'fix', 'refactor', 'perf', 'docs', 'test', 'build', 'ci', 'chore', 'revert', 'hotfix']);
+  });
+});
+
+describe('expandBranchTypes (D-11)', () => {
+  it('risk:parsing expandBranchTypes writes one template per listed word, keeps templates without {type}, and collapses duplicates', () => {
+    expect(expandBranchTypes(['t/{id}', '{type}/{id}-{slug}'], ['fix', 'feat'])).toEqual(['t/{id}', 'fix/{id}-{slug}', 'feat/{id}-{slug}']);
+    expect(expandBranchTypes(['t/{id}', 't/{id}', 'feature/{id}'], ['fix'])).toEqual(['t/{id}', 'feature/{id}']);
+  });
+});
+
+describe('branchIdCandidates (D-07, D-11, R-13)', () => {
+  it('risk:parsing branchIdCandidates lists every id slice, shortest first, and nothing for a foreign name', () => {
+    expect(branchIdCandidates('fix/ST-LN-13-add-retries', 'fix/{id}-{slug}')).toEqual(['ST', 'ST-LN', 'ST-LN-13', 'ST-LN-13-add']);
+    expect(branchIdCandidates('wip/ST-9-x', 'fix/{id}-{slug}')).toEqual([]);
+    expect(branchIdCandidates('drop/ST-9-x', 'fix/{id}-{slug}')).toEqual([]);
+    expect(branchIdCandidates('t/ST-9', 'fix/{id}-{slug}')).toEqual([]);
+    expect(branchIdCandidates('fix/ST-9-a/b', 'fix/{id}-{slug}')).toEqual([]);
+    expect(branchIdCandidates('fix/ST-9-x', '{type}/{id}-{slug}')).toEqual([]);
+    expect(branchIdCandidates('feature/ST-1', 'feature/{id}')).toEqual(['ST-1']);
+    expect(branchIdCandidates('t/ST-1', 't/{id}')).toEqual(['ST-1']);
+    expect(branchIdCandidates('fix/ST-' + 'a'.repeat(260), 'fix/{id}-{slug}')).toEqual([]);
+  });
+
+  // CR-01: a template whose {id} is at the start or the end of the name, beside a {slug}, is read back
+  it('risk:parsing branchIdCandidates reads an id at the start or the end of a {slug} template', () => {
+    expect(branchIdCandidates('ST-9-export', '{id}-{slug}')).toEqual(['ST', 'ST-9']);
+    expect(branchIdCandidates('fix/export-ST-9', 'fix/{slug}-{id}')).toEqual(['9', 'ST-9']);
+    expect(branchIdCandidates('fix/export/ST-9', 'fix/{slug}/{id}')).toEqual(['ST-9']);
+    expect(branchIdCandidates('x/export/ST-9', 'x/{slug}/{id}')).toEqual(['ST-9']);
+    // the id is never empty, and a slug is still one or more characters of one segment
+    expect(branchIdCandidates('fix/export-', 'fix/{slug}-{id}')).toEqual([]);
+    expect(branchIdCandidates('-export', '{id}-{slug}')).toEqual([]);
+    expect(branchIdCandidates('ST-9-', '{id}-{slug}')).toEqual(['ST']);
+  });
+});
+
+describe('pickBranchId (D-07a, R-12)', () => {
+  const people = { people: { 'a@x.test': 'LN' } };
+  const c1 = branchIdCandidates('fix/ST-AB-5-add-retries', 'fix/{id}-{slug}');
+  it('risk:complex-branching pickBranchId prefers a known id, then the id shape of the repository, then the shortest id ending in a digit run (D-07b)', () => {
+    expect(pickBranchId(c1, () => false, people)).toBe('ST-AB-5');
+    expect(pickBranchId(c1, (id) => id === 'ST-AB', people)).toBe('ST-AB');
+    // D-07b: no known id and no id shape: the shortest candidate that ends in a digit run, else no claim
+    expect(pickBranchId(c1, () => false, undefined)).toBe('ST-AB-5');
+    expect(pickBranchId(branchIdCandidates('feature/ST-12-export', 'feature/{id}-{slug}'), () => false, undefined)).toBe('ST-12');
+    expect(pickBranchId(branchIdCandidates('chore/bump-deps', 'chore/{id}-{slug}'), () => false, undefined)).toBeUndefined();
+    expect(pickBranchId(branchIdCandidates('chore/bump-deps', 'chore/{id}-{slug}'), () => false, people)).toBeUndefined();
+    // D-07b': a fallback id also starts with a letter, so an id at the end of a {slug} name is read whole
+    expect(pickBranchId(branchIdCandidates('fix/export-ST-9', 'fix/{slug}-{id}'), () => false, undefined)).toBe('ST-9');
+    expect(pickBranchId(branchIdCandidates('fix/export-2-ST-9', 'fix/{slug}-{id}'), () => false, undefined)).toBe('ST-9');
+    expect(pickBranchId(['9', '12'], () => false, undefined)).toBeUndefined();
+    expect(pickBranchId([], () => false, people)).toBeUndefined();
+    const tracker = { ids: { mode: 'tracker' as const, projects: ['CSA'] } };
+    expect(pickBranchId(branchIdCandidates('fix/CSA-185-404-page', 'fix/{id}-{slug}'), () => false, tracker)).toBe('CSA-185');
+    expect(pickBranchId(c1, () => false, { people: {}, legacy_ids: ['ST-AB'] })).toBe('ST-AB');
+  });
+});
+
+describe('branchIdOf (D-07b, D-07c)', () => {
+  const none = (): boolean => false;
+  const typed = ['t/{id}', 'feature/{id}-{slug}', 'chore/{id}-{slug}'];
+  it('risk:data-loss branchIdOf says when the id of a name was a guess among several candidates, so the audit offers no delete', () => {
+    expect(branchIdOf('feature/ST-12-export', typed, none)).toEqual({ id: 'ST-12', ambiguous: true });
+    expect(branchIdOf('feature/ST-12-export', typed, (id) => id === 'ST-12')).toEqual({ id: 'ST-12', ambiguous: false });
+    expect(branchIdOf('feature/ST-12-export', typed, none, { people: { 'a@x.test': 'LN' } })).toEqual({ id: 'ST-12', ambiguous: true });
+    expect(branchIdOf('chore/bump-deps', typed, none)).toBeUndefined();
+    expect(branchIdOf('chore/bump-deps', typed, none, { people: { 'a@x.test': 'LN' } })).toBeUndefined();
+    // a template without {slug} has one candidate: t/{id} still always claims, digits or not
+    expect(branchIdOf('t/ST-9', typed, none)).toEqual({ id: 'ST-9', ambiguous: false });
+    expect(branchIdOf('t/legacy', typed, none)).toEqual({ id: 'legacy', ambiguous: false });
+    expect(branchIdOf('main', typed, none)).toBeUndefined();
+  });
+});
+
+describe('branchFieldsOf', () => {
+  it('risk:parsing branchFieldsOf reads title and change from the frontmatter and never throws', () => {
+    expect(branchFieldsOf('---\nid: A-1\ntitle: "Export it"\nchange: fix\n---\nbody')).toEqual({ title: 'Export it', change: 'fix' });
+    expect(branchFieldsOf('no frontmatter')).toEqual({});
+    expect(branchFieldsOf('---\n: [\n---\n')).toEqual({});
+  });
+});
+
+describe('the new config keys and change: through the schema', () => {
+  const ok = (extra: string) => expect(loadConfig('accord/config.yml', CONFIG + extra).findings).toEqual([]);
+  const bad = (extra: string) => expect(loadConfig('accord/config.yml', CONFIG + extra).findings.length).toBeGreaterThan(0);
+  it('risk:parsing branch_types and branch_slug_length accept what the plan lists and refuse the rest', () => {
+    ok('branch_types: [feat, fix]\n');
+    ok('branch_types: [t]\n');
+    ok('branch_types: [drop]\n');
+    bad('branch_types: []\n');
+    bad('branch_types: [Feat]\n');
+    bad('branch_types: [fix, fix]\n');
+    ok('branch_slug_length: "40"\n');
+    bad('branch_slug_length: "0"\n');
+    bad('branch_slug_length: "100"\n');
+    bad('branch_slug_length: "x"\n');
+  });
+  it('risk:parsing a ticket takes change: fix and refuses change: Fix', () => {
+    const run = (change: string) => {
+      const files = {
+        'accord/config.yml': CONFIG,
+        'accord/tickets/T-1.md': `---\nid: T-1\ntitle: "Export"\ntype: story\nstatus: draft\nchange: ${change}\n---\n`,
+      };
+      return loadSnapshot({ files, tree: Object.keys(files).sort() }).errors.filter((f) => f.file === 'accord/tickets/T-1.md');
+    };
+    expect(run('fix')).toEqual([]);
+    expect(run('Fix').length).toBeGreaterThan(0);
+  });
+});
+
+describe('the branch schema with {type} and {slug} (D-06, R-1)', () => {
+  const tpl = (t: string) => branchTemplateOf(`branch: "${t}"\n`);
+  it('risk:parsing branch takes one {id} with at most one {type} and one {slug}, and keeps every old refusal', () => {
+    for (const ok of ['{type}/{id}-{slug}', 'feature/{id}-{slug}', '{type}/{id}', 'feature/{id}', 't/{id}']) expect(tpl(ok), ok).toBe(ok);
+    for (const bad of ['{id}/{id}', '{type}/{type}/{id}', '{slug}/{id}-{slug}', '{type}{id}', '{id}{slug}', '{kind}/{id}', '{id}', 't/{type}-{id}', '{type}/..{id}', '{type}/{id}/', '-{type}/{id}', '{type}//{id}', '{type}/{id}.lock']) {
+      expect(tpl(bad), bad).toBeUndefined();
+    }
+  });
 });

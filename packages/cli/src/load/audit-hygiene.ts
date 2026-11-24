@@ -5,13 +5,13 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
-import { baselineGap, branchGaps, claimPinBefore, deferredGaps, DEFERRED_MARK_FROM, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, normaliseKey, ownerDeferred, removableBaseline, SAFE_BRANCH, SAFE_ID, statusRows, ticketIdleGaps } from '@accord-dev/accord-core';
+import { baselineGap, branchGaps, branchIdOf, claimPinBefore, deferredGaps, DEFERRED_MARK_FROM, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, normaliseKey, ownerDeferred, removableBaseline, SAFE_BRANCH, SAFE_ID, statusRows, ticketIdleGaps } from '@accord-dev/accord-core';
 import type { AuditFact, AuditGap, ClaimPin, ClaimRefFact, OldDraft, OwnerDeferred } from '@accord-dev/accord-core';
 import type { CommandContext } from '../run.js';
 import { NOT_CHECKED } from './audit-health.js';
 import { gitClaimFactsMany, onePathCommits } from './claim-facts.js';
 import type { ClaimFacts } from './claim-facts.js';
-import { doneRef, gitDefaultRef, gitFilesAt, loadClaimView, snapshotAt, ticketOfBranch, withDefaultRef, withQueued } from './fs.js';
+import { doneRef, gitDefaultRef, gitFilesAt, loadClaimView, snapshotAt, withDefaultRef, withQueued } from './fs.js';
 import { whoFor } from './who.js';
 
 /** The fact that names the display mode: `email`, `initials`, or the unset-value form that says what git holds (Ruling "who setting"). */
@@ -408,8 +408,10 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
     if (m === null || email === undefined || when === undefined || sha === undefined) continue;
     const name = m[2];
     if (name === 'HEAD' || name === defName) continue;
-    const id = ticketOfBranch(name, templates, known);
-    if (id === undefined || !SAFE_ID.test(id)) continue;
+    // issue #341 D-07c: an id guessed among several candidates is marked, so its gap carries no delete command
+    const read = branchIdOf(name, templates, known, ctx.snapshot.config);
+    const id = read?.id;
+    if (read === undefined || id === undefined || !SAFE_ID.test(id)) continue;
     const path = `accord/tickets/${id}.md`;
     const ticketAnywhere = known(id);
     if (!ticketAnywhere && (def !== undefined || SHA.test(sha))) probes.push({ at: refs.length, ...(def === undefined ? {} : { def: `${def}:${path}` }), ...(SHA.test(sha) ? { tip: `${sha}:${path}` } : {}) });
@@ -423,6 +425,7 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
       ticketAnywhere,
       origin: origin && have.has(`refs/remotes/origin/${name}`),
       merged: merged.has(ref as string),
+      ...(read.ambiguous ? { ambiguous: true } : {}),
     });
   }
   if (probes.length > 0) {

@@ -48,7 +48,7 @@ session.
    | `## Corrections` | every "no, I meant…", verbatim, append-only, written before any other action |
    | `## Open questions` | each unanswered question as an unchecked `- [ ]` item |
 
-   Before you rewrite a queued Intent, follow `./intent-research.md`.
+   Before you rewrite a queued Intent, follow `./intent-research.md`. When the `branch` of `accord/config.yml` holds `{type}`, check the ticket's `change:` against the work the interview settled; when another of the words `branch_types` lists in `accord/config.yml` fits better (the git area that `accord config areas` prints names the default list it falls back to when the key is absent), propose it and write it on the owner's yes. The claim branch keeps its name.
 
 7. **Write back** your understanding. Separate what the owner said from what
    you assumed, and invite correction. Then commit `accord/tickets/<id>.md`,

@@ -121,6 +121,7 @@ export const OVERRIDABLE: readonly string[] = [
   'gate.author-match',
   'gate.author-skipped',
   'gate.ticket-title',
+  'gate.change-type',
   'gate.plan-large',
   'lint.ticket-title',
   'lint.depends-unknown',
@@ -151,6 +152,7 @@ export const OVERRIDABLE: readonly string[] = [
   'lint.tokens-missing',
   'lint.prototype-derivation',
   'lint.model-retired',
+  'lint.branch-type-root',
   'lint.slop-file',
 ];
 

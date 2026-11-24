@@ -184,7 +184,7 @@ function branchFor(root: string, ctx: CommandContext): { name: string | undefine
 function ticketOfWorktree(root: string, ctx: CommandContext): string | undefined {
   if (!isLinked(root)) return undefined;
   const branch = (branchFor(root, ctx) ?? { name: currentBranch(root) }).name;
-  return branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+  return branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i), ctx.snapshot.config);
 }
 
 /** BUG-LN-14: a /clear or a /resume to another conversation frees the holds this window's claude process took, except the resumed conversation's own and the ticket whose worktree the window stands in (D-06); returns '' or one line saying why nothing was released. */

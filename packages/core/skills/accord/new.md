@@ -31,6 +31,8 @@ Propose a lane as `./lane.md` says, for every new request however small it looks
 - **L and P.** L follows `./new-epic.md`. P is not built yet: say so, and propose
   an epic instead.
 
+When `accord new ticket` refuses because the branch template needs a change word, propose the word that fits the request from the ones it names, as one question per `./ask.md`, then run it again with `--change <word>`.
+
 ## Rules
 
 - Anything touching intent, a veto, an acceptance criterion, or a public

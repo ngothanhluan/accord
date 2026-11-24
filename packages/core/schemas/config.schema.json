@@ -150,6 +150,13 @@
         { "pattern": "^(?:t/\\{id\\}$|(?!t/))" }
       ]
     },
+    "branch_types": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+    },
+    "branch_slug_length": { "type": "string", "pattern": "^[1-9][0-9]?$" },
     "setup": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }

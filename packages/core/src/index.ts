@@ -147,7 +147,19 @@ export type { RemovableWhy } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';
 export { recordTaskDone } from './write/ledger.js';
 export { writeTestTags } from './write/testtag.js';
-export { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE } from './status/branch.js';
+export {
+  branchFieldsOf,
+  branchGlob,
+  branchIdCandidates,
+  branchTemplateOf,
+  branchTypesOf,
+  DEFAULT_BRANCH_TEMPLATE,
+  DEFAULT_BRANCH_TYPES,
+  expandBranchTypes,
+  pickBranchId,
+  renderBranch,
+  slugOf,
+} from './status/branch.js';
 export { auditLines, CONVENTIONS_THIN, conventionLines, conventionsEmpty } from './audit/conventions.js';
 export type { AuditFact, AuditGap } from './audit/conventions.js';
 export { CONFIG_KEYS, newKeys, setKeysOf } from './audit/keys.js';

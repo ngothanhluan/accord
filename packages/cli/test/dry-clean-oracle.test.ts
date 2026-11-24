@@ -283,3 +283,47 @@ it('risk:data-loss the batched dry clean judges dropped branches with research r
     expect(batched.lines, label).toEqual(reference);
   }
 }, 180_000);
+
+/** One repository with a done ticket and a dropped ticket whose worktrees are stopped mid-rebase, a second detached worktree that is not rebasing, and a done ticket whose merged branch the clean deletes. */
+function rebaseSandbox() {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+  vi.mocked(proc.processTable).mockReturnValue(ALIVE);
+  for (const id of ['ST-9', 'ST-10']) ticketWorktree(c, id);
+  doneOnRemote(c, ['ST-9', 'ST-10'], { local: true });
+  claimWorktree(c, 'ST-11');
+  dropOnRemote(c, ['ST-11']);
+  for (const id of ['ST-9', 'ST-11']) {
+    try {
+      gitRun(c.sibling(id), 'rebase', '-q', '--force-rebase', '--exec', 'false', 'HEAD~1');
+    } catch {
+      // the exec line fails on purpose, leaving the rebase stopped
+    }
+    expect(gitRun(c.sibling(id), 'branch', '--show-current').trim()).toBe('');
+  }
+  c.git('worktree', 'add', '-q', '--detach', c.sibling('det'), 'origin/main');
+  c.git('fetch', '-q', 'origin');
+  return c;
+}
+
+// Phase 08.9 D-08: a branch a detached worktree is rebasing is kept as the per-branch dry clean keeps it, whichever phase of the clean judges it.
+it('risk:data-loss the batched dry clean keeps a branch being rebased as the per-branch dry clean does (D-08)', () => {
+  const c = rebaseSandbox();
+  const before = stateOf(c);
+  const batched = dry(c, false);
+  const after = stateOf(c);
+  const single = dry(c, true);
+  expect(batched.lines).toEqual(single.lines);
+
+  const all = single.lines.join('\n');
+  expect(single.lines.some((l) => l.startsWith(`kept t/ST-9: being rebased in ${c.sibling('ST-9')}`)), all).toBe(true); // a done ticket
+  expect(single.lines.some((l) => l.startsWith(`kept t/ST-11: being rebased in ${c.sibling('ST-11')}`)), all).toBe(true); // a dropped ticket
+  expect(single.lines.some((l) => l.startsWith(`removed ${c.sibling('ST-10')}`)), all).toBe(true); // the done ticket the clean deletes
+  expect(single.lines.some((l) => l.startsWith('deleted t/ST-10 (was ')), all).toBe(true);
+
+  expect(after).toEqual(before);
+  expect(stateOf(c)).toEqual(before);
+  expect(batched.argv.filter(deleting)).toEqual([]);
+  expect(single.argv.filter(deleting)).toEqual([]);
+  expect(batched.facts).toBe(1);
+  expect(batched.argv.filter(isRefsTable)).toHaveLength(1);
+}, 180_000);

@@ -11,7 +11,7 @@ import { readCleanFacts } from '../src/load/clean-facts.js';
 import type { CleanFacts } from '../src/load/clean-facts.js';
 import type { CommandContext } from '../src/run.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
-import { copy, useSandboxes } from './helpers/worktree.js';
+import { copy, doneOnRemote, useSandboxes } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
@@ -36,7 +36,7 @@ afterEach(() => {
   spawnLog.calls = [];
 });
 
-useSandboxes([{ tickets: ['ST-9'] }]);
+useSandboxes([{ tickets: ['ST-9'] }, { tickets: Array.from({ length: 24 }, (_, i) => `ST-${101 + i}`) }]);
 
 /** The git verb of one argument list: the first word that is neither a flag nor the value of `-c`. */
 function verbOf(argv: string[]): string {
@@ -88,6 +88,36 @@ function claimAndBacklog(count: number): Clone {
 it('risk:resource the offline dry clean starts as many git processes for twelve live claim and merged backlog branches as for two (D-02 D-08)', () => {
   const few = claimAndBacklog(2);
   const many = claimAndBacklog(12);
+  const batchedFew = spawns(few, false);
+  const batchedMany = spawns(many, false);
+  const singleFew = spawns(few, true);
+  const singleMany = spawns(many, true);
+  const say = `batched ${batchedMany.length} (${histogram(batchedMany)}) with 12, ${batchedFew.length} (${histogram(batchedFew)}) with 2; per-branch ${singleMany.length} (${histogram(singleMany)}) with 12, ${singleFew.length} (${histogram(singleFew)}) with 2`;
+  expect(histogram(batchedMany), say).toBe(histogram(batchedFew));
+  expect(batchedMany.length, say).toBe(batchedFew.length);
+  expect(batchedFew.filter(isRefsTable), say).toHaveLength(1);
+  expect(batchedMany.filter(isRefsTable), say).toHaveLength(1);
+  expect(singleMany.length - singleFew.length, say).toBeGreaterThan(batchedMany.length - batchedFew.length);
+}, 180_000);
+
+const DONE_IDS = Array.from({ length: 24 }, (_, i) => `ST-${101 + i}`);
+
+/** Every ticket done on origin's main by one commit each; `count` of them have a merged branch on origin only, the next `count` a merged local branch. */
+function mergedDone(count: number): Clone {
+  const c = copy({ tickets: DONE_IDS });
+  vi.mocked(proc.processTable).mockReturnValue([]);
+  doneOnRemote(c, DONE_IDS);
+  c.git('fetch', '-q', 'origin');
+  const main = c.git('rev-parse', 'refs/remotes/origin/main').trim();
+  for (const id of DONE_IDS.slice(0, count)) c.git('update-ref', `refs/remotes/origin/t/${id}`, main);
+  for (const id of DONE_IDS.slice(count, 2 * count)) c.git('update-ref', `refs/heads/t/${id}`, main);
+  return c;
+}
+
+// Phase 08.9 D-02 and D-08: a merged done ticket's branch costs no git process of its own, on origin only or local, its verified commit included.
+it('risk:resource the offline dry clean starts as many git processes for twelve merged done ticket branches as for two (D-02 D-08)', () => {
+  const few = mergedDone(2);
+  const many = mergedDone(12);
   const batchedFew = spawns(few, false);
   const batchedMany = spawns(many, false);
   const singleFew = spawns(few, true);

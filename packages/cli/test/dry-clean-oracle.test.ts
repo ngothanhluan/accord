@@ -171,3 +171,31 @@ it('risk:data-loss the batched dry clean of the audit prints the lines the per-b
   expect(batched.argv.filter(isRefsTable)).toHaveLength(1);
   expect(single.argv.filter(isRefsTable)).toHaveLength(0);
 }, 180_000);
+
+// Phase 08.9 D-03 and D-08: a batched read that fails gives the per-branch lines, for each table alone and for all of them at once.
+it('risk:data-loss the batched dry clean prints the per-branch lines when any of its batched reads fails (D-03 D-08)', async () => {
+  const c = await sandbox();
+  const reference = dry(c, true).lines;
+  expect(reference.length).toBeGreaterThan(0);
+  type Call = [string[], { input?: unknown } | undefined];
+  // each table's own calls, told apart from every other git call of the clean by their arguments and the lines they are fed
+  const fed = (o: Call[1], start: string) => String(o?.input ?? '').split('\n').some((l) => l.startsWith(start));
+  const tables: Record<string, (a: string[], o: Call[1]) => boolean> = {
+    refs: (a) => isRefsTable(a),
+    reach: (a, o) => a[0] === 'rev-list' && a.includes('--stdin') && fed(o, '^'),
+    objects: (a, o) => a[0] === 'cat-file' && a.includes('--batch-check') && String(o?.input ?? '').includes('^{commit}'),
+  };
+  const runs: Array<[string, string[]]> = [...Object.keys(tables).map((n): [string, string[]] => [n, [n]]), ['all three', Object.keys(tables)]];
+  for (const [label, failing] of runs) {
+    let hits = 0;
+    spawnLog.fail = (a, o) => {
+      const hit = failing.some((n) => tables[n](a, o));
+      if (hit) hits++;
+      return hit;
+    };
+    const batched = dry(c, false);
+    spawnLog.fail = undefined;
+    expect(hits, `${label}: its read was never started`).toBeGreaterThan(0);
+    expect(batched.lines, label).toEqual(reference);
+  }
+}, 180_000);

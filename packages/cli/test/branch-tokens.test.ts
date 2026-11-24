@@ -225,3 +225,30 @@ it('risk:data-loss new ticket --worktree refuses a name that is not a valid bran
   expect(r.err).toContain('feature/ST-LN-24.lock is not a valid branch name');
   nothingMade(c, 'ST-LN-24');
 });
+
+// CR-02, D-07b, D-07c: with no id convention, a teammate's feature/ST-12-export holding only accord/tickets/ST-12.md reads as ST-12 and is no orphan;
+// a branch whose id was guessed and whose ticket exists nowhere is listed without a delete command.
+it("risk:data-loss with no id convention a teammate's live {slug} claim is no orphan, and a guessed orphan gets no delete command (CR-02, D-07b, D-07c)", async () => {
+  const c = copy();
+  writeFiles(c.root, { 'accord/config.yml': CONFIG + 'branch: "feature/{id}-{slug}"\n' });
+  commitMsg(c.root, 'adopt the slug branch');
+  c.git('push', '-q', 'origin', 'main');
+  const mate = c.otherClone();
+  gitRun(mate, 'config', 'user.email', 'mate@example.invalid');
+  gitRun(mate, 'switch', '-q', '-c', 'feature/ST-12-export');
+  writeFiles(mate, { 'accord/tickets/ST-12.md': laneTicket('ST-12') });
+  commitMsg(mate, 'claim: ST-12');
+  gitRun(mate, 'push', '-q', 'origin', 'feature/ST-12-export');
+  gitRun(mate, 'switch', '-q', '-c', 'feature/ST-13-gone', 'main');
+  commitMsg(mate, 'work without a ticket', undefined, true);
+  gitRun(mate, 'push', '-q', 'origin', 'feature/ST-13-gone');
+  c.git('fetch', '-q', 'origin');
+  const audit = await run(['audit'], c.root);
+  expect(audit.code, audit.err).toBe(0);
+  const orphans = audit.out.split('\n').filter((l) => l.startsWith('gap: branch-orphan:'));
+  expect(orphans.filter((l) => l.includes('feature/ST-12-export')), audit.out).toEqual([]);
+  const gone = orphans.filter((l) => l.includes('feature/ST-13-gone'));
+  expect(gone, audit.out).toHaveLength(1);
+  expect(gone[0]).toContain('names ticket ST-13 by a guess');
+  expect(gone[0]).not.toContain('git push origin --delete');
+});

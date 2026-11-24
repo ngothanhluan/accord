@@ -152,6 +152,7 @@ export {
   branchFieldsOf,
   branchGlob,
   branchIdCandidates,
+  branchIdOf,
   branchTemplateOf,
   branchTypesOf,
   changeProblem,
@@ -162,6 +163,7 @@ export {
   renderBranch,
   slugOf,
 } from './status/branch.js';
+export type { BranchId } from './status/branch.js';
 export { auditLines, CONVENTIONS_THIN, conventionLines, conventionsEmpty } from './audit/conventions.js';
 export type { AuditFact, AuditGap } from './audit/conventions.js';
 export { CONFIG_KEYS, newKeys, setKeysOf } from './audit/keys.js';

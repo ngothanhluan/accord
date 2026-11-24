@@ -3,6 +3,7 @@ import { branchTemplateOf } from '../src/status/branch.js';
 import {
   branchFieldsOf,
   branchIdCandidates,
+  branchIdOf,
   branchTypesOf,
   DEFAULT_BRANCH_TYPES,
   expandBranchTypes,
@@ -91,14 +92,34 @@ describe('branchIdCandidates (D-07, D-11, R-13)', () => {
 describe('pickBranchId (D-07a, R-12)', () => {
   const people = { people: { 'a@x.test': 'LN' } };
   const c1 = branchIdCandidates('fix/ST-AB-5-add-retries', 'fix/{id}-{slug}');
-  it('risk:complex-branching pickBranchId prefers a known id, then the id shape of the repository, then the shortest', () => {
+  it('risk:complex-branching pickBranchId prefers a known id, then the id shape of the repository, then the shortest id ending in a digit run (D-07b)', () => {
     expect(pickBranchId(c1, () => false, people)).toBe('ST-AB-5');
     expect(pickBranchId(c1, (id) => id === 'ST-AB', people)).toBe('ST-AB');
-    expect(pickBranchId(c1, () => false, undefined)).toBe('ST');
+    // D-07b: no known id and no id shape: the shortest candidate that ends in a digit run, else no claim
+    expect(pickBranchId(c1, () => false, undefined)).toBe('ST-AB-5');
+    expect(pickBranchId(branchIdCandidates('feature/ST-12-export', 'feature/{id}-{slug}'), () => false, undefined)).toBe('ST-12');
+    expect(pickBranchId(branchIdCandidates('chore/bump-deps', 'chore/{id}-{slug}'), () => false, undefined)).toBeUndefined();
+    expect(pickBranchId(branchIdCandidates('chore/bump-deps', 'chore/{id}-{slug}'), () => false, people)).toBeUndefined();
     expect(pickBranchId([], () => false, people)).toBeUndefined();
     const tracker = { ids: { mode: 'tracker' as const, projects: ['CSA'] } };
     expect(pickBranchId(branchIdCandidates('fix/CSA-185-404-page', 'fix/{id}-{slug}'), () => false, tracker)).toBe('CSA-185');
     expect(pickBranchId(c1, () => false, { people: {}, legacy_ids: ['ST-AB'] })).toBe('ST-AB');
+  });
+});
+
+describe('branchIdOf (D-07b, D-07c)', () => {
+  const none = (): boolean => false;
+  const typed = ['t/{id}', 'feature/{id}-{slug}', 'chore/{id}-{slug}'];
+  it('risk:data-loss branchIdOf says when the id of a name was a guess among several candidates, so the audit offers no delete', () => {
+    expect(branchIdOf('feature/ST-12-export', typed, none)).toEqual({ id: 'ST-12', ambiguous: true });
+    expect(branchIdOf('feature/ST-12-export', typed, (id) => id === 'ST-12')).toEqual({ id: 'ST-12', ambiguous: false });
+    expect(branchIdOf('feature/ST-12-export', typed, none, { people: { 'a@x.test': 'LN' } })).toEqual({ id: 'ST-12', ambiguous: true });
+    expect(branchIdOf('chore/bump-deps', typed, none)).toBeUndefined();
+    expect(branchIdOf('chore/bump-deps', typed, none, { people: { 'a@x.test': 'LN' } })).toBeUndefined();
+    // a template without {slug} has one candidate: t/{id} still always claims, digits or not
+    expect(branchIdOf('t/ST-9', typed, none)).toEqual({ id: 'ST-9', ambiguous: false });
+    expect(branchIdOf('t/legacy', typed, none)).toEqual({ id: 'legacy', ambiguous: false });
+    expect(branchIdOf('main', typed, none)).toBeUndefined();
   });
 });
 

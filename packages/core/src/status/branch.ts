@@ -155,11 +155,47 @@ function idShaped(id: string, config: IdShapeConfig | undefined): boolean {
 }
 
 /**
- * Issue #341 D-07a, R-12: the id of a branch among its `candidates` (shortest first): the first the repository `known`s, else the
- * first of this repository's id shape, else the first. Pure, no git process.
+ * Issue #341 D-07b: the fallback id of a name no known id or id shape settles: the shortest candidate that ends in a digit run (every accord id pattern carries
+ * `{n}`, and tracker keys end in a number), else none, so `chore/bump-deps` is no claim.
+ */
+function shortestNumbered(candidates: readonly string[]): string | undefined {
+  return candidates.filter((id) => /\d$/.test(id)).sort((a, b) => a.length - b.length)[0];
+}
+
+/**
+ * Issue #341 D-07a, D-07b, R-12: the id of a branch among its `candidates` (shortest first): the first the repository `known`s, else the
+ * first of this repository's id shape, else the shortest that ends in a digit run, else none. Pure, no git process.
  */
 export function pickBranchId(candidates: readonly string[], known: (id: string) => boolean, config?: IdShapeConfig): string | undefined {
-  return candidates.find(known) ?? candidates.find((id) => idShaped(id, config)) ?? candidates[0];
+  return candidates.find(known) ?? candidates.find((id) => idShaped(id, config)) ?? shortestNumbered(candidates);
+}
+
+/** The ticket id a branch name carries, and whether it was a guess among more than one candidate with none known (D-07c). */
+export interface BranchId {
+  id: string;
+  ambiguous: boolean;
+}
+
+/**
+ * Issue #341 D-07, D-07a, D-07b, D-07c: the ticket id a branch `name` carries under the (expanded) `templates`, or undefined. The candidates of every template come in template
+ * order. A known id wins; else one of this repository's id shape; else the one id of a template without `{slug}` (so `t/{id}` always claims, as before); else the shortest
+ * candidate that ends in a digit run. `ambiguous` is true when the name gave more than one candidate and none is known: the audit then names the branch without a delete command.
+ */
+export function branchIdOf(name: string, templates: readonly string[], known: (id: string) => boolean, config?: IdShapeConfig): BranchId | undefined {
+  const all: string[] = [];
+  const whole = new Set<string>();
+  for (const template of templates) {
+    for (const id of branchIdCandidates(name, template)) {
+      if (!all.includes(id)) all.push(id);
+      if (!template.includes('{slug}')) whole.add(id);
+    }
+  }
+  if (all.length === 0) return undefined;
+  const k = all.find(known);
+  if (k !== undefined) return { id: k, ambiguous: false };
+  const ambiguous = all.length > 1;
+  const id = all.find((i) => idShaped(i, config)) ?? all.find((i) => whole.has(i)) ?? shortestNumbered(all);
+  return id === undefined ? undefined : { id, ambiguous };
 }
 
 /** Issue #341 D-11: the first path segments of the branches accord makes itself; a `branch_types` word equal to one is warned about by lint. */

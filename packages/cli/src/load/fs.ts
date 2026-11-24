@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchGlob, branchIdCandidates, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pickBranchId, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
+import { branchGlob, branchIdOf, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
 import type { AccordConfig, BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitStartFailure, runGitSync } from './git-spawn.js';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
@@ -1041,15 +1041,12 @@ function resolveAfter(root: string, entries: readonly AfterEntry[], walk: Walk |
 /**
  * The ticket id a branch name carries under the templates in force, or undefined. A `t/` name is matched only by
  * `t/{id}`. The templates are the expanded ones (`{type}` already one template per listed word, D-11). The candidates of every
- * template come in template order, shortest first within one (a `{slug}` makes the id ambiguous), and issue #341 D-07a chooses:
- * the first `known` id, else the first of the repository's id shape under `config`, else the first.
+ * template come in template order, shortest first within one (a `{slug}` makes the id ambiguous), and issue #341 D-07a/D-07b choose
+ * (branchIdOf): the first `known` id, else the first of the repository's id shape under `config`, else the one id of a template
+ * without `{slug}`, else the shortest id ending in a digit run, else none.
  */
-export function ticketOfBranch(name: string, templates: readonly string[], known: (id: string) => boolean, config?: Parameters<typeof pickBranchId>[2]): string | undefined {
-  return pickBranchId(
-    templates.flatMap((t) => branchIdCandidates(name, t)),
-    known,
-    config,
-  );
+export function ticketOfBranch(name: string, templates: readonly string[], known: (id: string) => boolean, config?: Parameters<typeof branchIdOf>[3]): string | undefined {
+  return branchIdOf(name, templates, known, config)?.id;
 }
 
 /** The author email of a commit object's headers; undefined with an `encoding` header or no author line, where `git show` decides. */

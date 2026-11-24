@@ -24,7 +24,12 @@ it('risk:parsing ticketOfBranch reads a {type}/{id}-{slug} name under listed wor
   const people = { people: { 'a@x.test': 'LN' } };
   expect(ticketOfBranch('fix/ST-AB-5-add-retries', expanded, none, people)).toBe('ST-AB-5');
   expect(ticketOfBranch('fix/ST-AB-5-add-retries', expanded, (id) => id === 'ST-AB', people)).toBe('ST-AB');
-  expect(ticketOfBranch('fix/ST-AB-5-add-retries', expanded, none)).toBe('ST');
+  // D-07b: with no convention the shortest id ending in a digit run is read, and a name with none is no claim
+  expect(ticketOfBranch('fix/ST-AB-5-add-retries', expanded, none)).toBe('ST-AB-5');
+  expect(ticketOfBranch('feat/ST-12-export', expanded, none)).toBe('ST-12');
+  expect(ticketOfBranch('chore/bump-deps', expanded, none)).toBeUndefined();
+  expect(ticketOfBranch('chore/bump-deps', expanded, none, people)).toBeUndefined();
+  expect(ticketOfBranch('fix/login-bug', expanded, none, people)).toBeUndefined();
   const tracker = { ids: { mode: 'tracker' as const, projects: ['CSA'] } };
   expect(ticketOfBranch('fix/CSA-185-404-page', expanded, none, tracker)).toBe('CSA-185');
   expect(ticketOfBranch('wip/ST-1-x', expanded, none)).toBeUndefined();

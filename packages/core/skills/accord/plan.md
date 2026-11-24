@@ -27,7 +27,9 @@ one at a time. You run it in the main session.
    measures something runs its smallest experiment first, one arm on one sample,
    shown to the owner before widening; the planner plans it so. Only the first
    plan sets `baseline:`. In `verify:`, write `(@ac-n)` after the id of the
-   test that proves scenario `@ac-n`.
+   test that proves scenario `@ac-n`. Of test files, `verify:` and `files:`
+   name only those the task writes or extends; a long existing regression
+   file runs at wave end and in CI.
 
    **Re-plan**, entered from a change of course or a review plan gap:
    dispatch the planner with the ticket path, the `baseline:` already in

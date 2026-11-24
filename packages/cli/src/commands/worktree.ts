@@ -7,6 +7,8 @@ import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadCon
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
+import { readCleanFacts } from '../load/clean-facts.js';
+import type { CleanFacts } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { cleanLine, nextLine, withNext, withNextOnFirst } from './next-action.js';
@@ -1272,6 +1274,11 @@ interface GuardState {
   dry?: 'online' | 'offline';
   /** D-03: the refs the dry run's prune report names; every later ref read of the run leaves them out, as it would after a real prune. */
   gone?: ReadonlySet<string>;
+  /**
+   * Phase 08.9 D-08: the batched facts of the audit's offline dry clean, set only there and in no other place; each table is read once per clean (the owner's snapshot-once ruling),
+   * so every tip read answers from the one snapshot. Every site that reads one takes the lookup's answer when there is one and runs the per-branch read otherwise.
+   */
+  facts?: CleanFacts;
 }
 
 /**
@@ -1533,7 +1540,14 @@ function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'n
   }
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
-  const state: GuardState = { seen, accord, until: opts.until, dry: opts.dry, gone: opts.dry === undefined ? undefined : new Set(pruned.keys()) };
+  const state: GuardState = {
+    seen,
+    accord,
+    until: opts.until,
+    dry: opts.dry,
+    gone: opts.dry === undefined ? undefined : new Set(pruned.keys()),
+    facts: opts.dry === 'offline' ? readCleanFacts(ctx.root, ref) : undefined,
+  };
   const merged = mergedTips(ctx.root, ref);
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
   if (halted(state)) return 0;
@@ -1569,6 +1583,8 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
   if (names.length === 0) return;
   const after = readList(ctx, s.seen);
   const tipOf = (b: string): string | undefined => {
+    const snapTip = s.facts?.localTip(b);
+    if (snapTip !== undefined) return snapTip ?? undefined;
     const args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
     return gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
   };
@@ -1580,7 +1596,7 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
   };
   const why = (tip: string, set?: ReadonlySet<string>): string | undefined => {
     if (fresh(tip)) return 'it has no commit of its own';
-    const v = safeTip(ctx.root, tip, undefined, ref, set);
+    const v = safeTip(ctx.root, tip, undefined, ref, set, s.facts);
     if (v === 'safe') return undefined;
     return v === 'conflict' ? `merging it into ${def} conflicts` : `it has commits ${def} lacks`;
   };
@@ -1798,8 +1814,8 @@ export function rebaseBranch(path: string): string | undefined {
 }
 
 /** ST-LN-25 D-08: is every commit of `tip` either on `ref`, in the verified commit `vc`, or past `vc` touching only paths `ref` leaves alone, or else a branch whose merge into `ref` adds nothing? A tip in `merged` (the shas of the branches already on `ref`) is on `ref` without a process; a miss runs every check. */
-function safeTip(root: string, tip: string, vc: string | undefined, ref: string, merged?: ReadonlySet<string>): 'safe' | 'conflict' | 'unsafe' {
-  if (merged?.has(tip.toLowerCase()) === true || gitOk(root, ['merge-base', '--is-ancestor', tip, ref])) return 'safe';
+function safeTip(root: string, tip: string, vc: string | undefined, ref: string, merged?: ReadonlySet<string>, facts?: CleanFacts): 'safe' | 'conflict' | 'unsafe' {
+  if (merged?.has(tip.toLowerCase()) === true || (facts?.onRef(tip) ?? gitOk(root, ['merge-base', '--is-ancestor', tip, ref]))) return 'safe';
   if (vc !== undefined) {
     if (gitOk(root, ['merge-base', '--is-ancestor', tip, vc])) return 'safe';
     if (!gitOk(root, ['merge-base', '--is-ancestor', vc, tip])) return 'unsafe';
@@ -1900,11 +1916,12 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       const tipArgs = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
       // The set answers the first judgement of L and the one of R; the tip re-read after the guards gets every check.
       const reason = (t: string, set?: ReadonlySet<string>) => {
-        const v = safeTip(ctx.root, t, vc, ref, set);
+        const v = safeTip(ctx.root, t, vc, ref, set, s.facts);
         if (v === 'safe') return undefined;
         return v === 'conflict' ? `merging it into ${def} conflicts` : vc !== undefined ? 'it has commits after its verified commit' : `it has changes not on ${def}`;
       };
-      let L = gitOk(ctx.root, tipArgs) ? git(ctx.root, tipArgs).trim() : undefined;
+      const snapTip = s.facts?.localTip(b);
+      let L = snapTip !== undefined ? (snapTip ?? undefined) : gitOk(ctx.root, tipArgs) ? git(ctx.root, tipArgs).trim() : undefined;
       const why = L === undefined ? undefined : reason(L, merged);
       if (why !== undefined) {
         cleanSay(ctx, `kept ${b}: ${why}`);
@@ -1919,7 +1936,8 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       }
       if (L !== undefined) {
         // A commit made while the guards ran counts: the delete names the sha it checked.
-        L = git(ctx.root, tipArgs).trim();
+        const snapAgain = s.facts?.localTip(b);
+        L = typeof snapAgain === 'string' ? snapAgain : git(ctx.root, tipArgs).trim();
         const again = reason(L);
         if (again !== undefined) {
           cleanSay(ctx, `kept ${b}: ${again}`);
@@ -1991,7 +2009,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   for (const [name, t] of tips) {
     const id = ticketOfBranch(name, templates, known);
     const tip = (t.L ?? t.R)!;
-    if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref])) ids.set(name, id);
+    if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !(s.facts?.onRef(tip) ?? gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref]))) ids.set(name, id);
   }
   if (ids.size === 0) return;
   const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);
@@ -2022,7 +2040,8 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       }
       // Re-read the local tip: a commit made in the worktree while the guards ran counts, and the printed sha is the deleted one.
       const args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
-      const L = gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
+      const snapTip = s.facts?.localTip(b);
+      const L = snapTip !== undefined ? (snapTip ?? undefined) : gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
       const R = tips.get(b)!.R;
       if (L !== undefined && R !== undefined && L !== R) {
         if (gitOk(ctx.root, ['merge-base', '--is-ancestor', R, L])) {

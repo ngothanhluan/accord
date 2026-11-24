@@ -1790,6 +1790,39 @@ it('risk:regression the tabs line has plain buttons with no brackets and fits th
   expect(mark.props.color).toBe('#ff6b6b');
 });
 
+// issue 342 review WR-03: an off stage keeps its `off`, but its name is cut to a letter on a narrow pane like the other stages, so the track fits 30 and 36 columns and its last stage is not cut.
+it('risk:regression the stage track with off stages fits a narrow pane (issue 342 WR-03)', async () => {
+  const draw = (columns: number): Promise<Awaited<ReturnType<typeof host>>> =>
+    paneWith({ lane: 'M', stage: 'build', tasksDone: 1, tasksTotal: 3, stagesOff: ['plan', 'review'] }, (x) => {
+      x.columns = columns;
+      void x.store.set('settings', NO_MOTION);
+    });
+  for (const columns of [30, 36]) {
+    const text = flat(trackOf(await draw(columns))?.props.children);
+    expect([...text].length, `${columns}: ${text}`).toBeLessThanOrEqual(columns);
+    expect(text.startsWith('i '), text).toBe(true);
+    expect(text.endsWith(' v'), text).toBe(true);
+    expect(text).toContain('p off');
+    expect(text).toContain('r off');
+    expect(text).toContain('build');
+  }
+  // a roomy pane keeps the full words
+  expect(flat(trackOf(await draw(100))?.props.children)).toContain('plan off');
+  // the pure track fits at every width down to the narrowest that holds the names, off stages included
+  const { stageTrack } = await loadView();
+  const cells = [
+    { key: 'intent', state: 'done', color: '#e07a4f' },
+    { key: 'plan', state: 'off', color: '#f0907a' },
+    { key: 'build', state: 'current', color: '#d98ad0' },
+    { key: 'review', state: 'off', color: '#d98ad0' },
+    { key: 'verify', state: 'todo', color: '#d98ad0' },
+  ];
+  for (let columns = 24; columns <= 120; columns++) {
+    const text = stageTrack(cells, { columns, nowMs: 0, effects: new Set() }).map((x: any) => x.text).join('');
+    expect([...text].length, `${columns}: ${text}`).toBeLessThanOrEqual(columns);
+  }
+});
+
 // issue 342 D-02: the stage track is one Text of one connected line at every width, its colours follow the stage gradient, and no head box or cell background is left
 it('risk:regression the stage track is one connected line coloured by stage with no head box (issue 342 D-02)', async () => {
   const { gradientAt, PALETTES } = await loadView();

@@ -1869,28 +1869,43 @@ it('risk:regression the stage track is one connected line coloured by stage with
 
 // ---- Phase 08.8.1-05: the NOW line, the tool line, the waiting line and the reconciled roster ----
 
-// Phase 08.8.1 L-06: the first NOW line names the task in flight (build), the review round (review) or the stage; the second names the accord agent on it with its running time.
-it('risk:parsing the now line names the task in flight the review round or the stage and the agent on it (L-06)', async () => {
+// Phase 08.8.1 L-06: the first NOW line names the task in flight (build), the review round (review) or the stage; the second is the task's title or the waiting question. issue 342: the running agent is a row of the block and its time rides the head, both drawn by ticketView, not by this function.
+it('risk:parsing the now line names the task in flight the review round or the stage (L-06)', async () => {
   const { nowLines } = await loadView();
   const t0 = 5_000_000;
-  const exec = [{ key: 'a1', type: 'accord-executor', running: true, startTime: t0 - 72000 }];
   const build = { id: 'ST-1', stage: 'build', lane: 'M', tasksDone: 2, tasksTotal: 4, now: { task: 3, title: 'Settings view' } };
-  // issue 342: the head names the task, the title is the second line, and the running agent is a row of the block, not a line of this function
-  expect(nowLines({ ticket: build, agents: exec, waiting: undefined, now: t0 })).toEqual([{ text: 'Building task 3 of 4' }, { text: 'Settings view' }]);
+  expect(nowLines({ ticket: build, waiting: undefined, now: t0 })).toEqual([{ text: 'Building task 3 of 4' }, { text: 'Settings view' }]);
   const review = { id: 'ST-1', stage: 'review', lane: 'M', tasksDone: 4, tasksTotal: 4, review: { cycle: 1, round: 2, cap: 5, rounds: [] } };
-  expect(nowLines({ ticket: review, agents: exec, waiting: undefined, now: t0 })).toEqual([{ text: 'Reviewing, round 2 of 5' }]);
-  expect(nowLines({ ticket: build, agents: [], waiting: { since: t0 - 72000, line: 'Keep it?' }, now: t0 })).toEqual([{ text: 'Waiting for you · 1:12' }, { text: 'Keep it?' }]);
-  expect(nowLines({ ticket: { id: 'ST-1', stage: 'verify', lane: 'M', tasksDone: 4, tasksTotal: 4 }, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'verify' }]);
-  // a build ticket with no `now` key reads its stage word, and a finished agent or a non-accord agent adds no second line
+  expect(nowLines({ ticket: review, waiting: undefined, now: t0 })).toEqual([{ text: 'Reviewing, round 2 of 5' }]);
+  expect(nowLines({ ticket: build, waiting: { since: t0 - 72000, line: 'Keep it?' }, now: t0 })).toEqual([{ text: 'Waiting for you · 1:12' }, { text: 'Keep it?' }]);
+  expect(nowLines({ ticket: { id: 'ST-1', stage: 'verify', lane: 'M', tasksDone: 4, tasksTotal: 4 }, waiting: undefined, now: t0 })).toEqual([{ text: 'verify' }]);
+  // a build ticket with no `now` key reads its stage word
   const plain = { id: 'ST-1', stage: 'build', lane: 'M', tasksDone: 1, tasksTotal: 3 };
-  const idle = [
-    { key: 'f1', type: 'accord-executor', running: false, startTime: 1, endTime: 2, durationMs: 1000 },
-    { key: 'g1', type: 'general-purpose', running: true, startTime: 1 },
-  ];
-  expect(nowLines({ ticket: plain, agents: idle, waiting: undefined, now: t0 })).toEqual([{ text: 'build' }]);
+  expect(nowLines({ ticket: plain, waiting: undefined, now: t0 })).toEqual([{ text: 'build' }]);
   // every text is cleaned
   const dirty = { ...build, now: { task: 3, title: 'bad‮\u0007title' } };
-  expect(nowLines({ ticket: dirty, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'Building task 3 of 4' }, { text: 'bad title' }]);
+  expect(nowLines({ ticket: dirty, waiting: undefined, now: t0 })).toEqual([{ text: 'Building task 3 of 4' }, { text: 'bad title' }]);
+});
+
+// issue 342 review WR-05: the running accord agent's time rides the head row (`headTime`), except while the pane waits for the person; a finished agent and a non-accord agent give none.
+it('risk:regression the head carries the running accord agent time but not while the pane waits for the person (issue 342 WR-05)', async () => {
+  const { ticketView, detailOutcome } = await loadView();
+  const t0 = 1_800_000_000_000;
+  const state = detailOutcome({ exitCode: 0, stdout: JSON.stringify(detailOf({ stage: 'build', tasksDone: 2, tasksTotal: 4, now: { task: 3, title: 'Settings view' } })), stderr: '' });
+  const view = (agents: unknown[], waiting?: { since: number }) => ticketView({ ticket: { id: 'ST-1', state }, now: Math.floor(t0 / 1000), nowMs: t0, agents, waiting });
+  const exec = [{ key: 'a1', type: 'accord-executor', running: true, startTime: t0 - 72000 }];
+  expect(view(exec).headTime).toBe('1:12');
+  // the same agent while the main loop waits for the person: the head is the waiting line and carries no agent time
+  const waiting = view(exec, { since: t0 - 5000 });
+  expect(waiting.now?.[0].text).toBe('Waiting for you · 0:05');
+  expect(Object.hasOwn(waiting, 'headTime')).toBe(false);
+  // a running agent that is not an accord agent, and an accord agent that finished, give no head time
+  const other = [
+    { key: 'f1', type: 'accord-executor', running: false, startTime: t0 - 9000, endTime: t0 - 1000, durationMs: 8000 },
+    { key: 'g1', type: 'general-purpose', running: true, startTime: t0 - 9000 },
+  ];
+  expect(Object.hasOwn(view(other), 'headTime')).toBe(false);
+  expect(Object.hasOwn(view([]), 'headTime')).toBe(false);
 });
 
 // Phase 08.8.1 L-06, issue 342: the current-work head and the task title sit under the track and above the agent rows; a malformed `now` key is dropped.

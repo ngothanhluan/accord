@@ -2,6 +2,12 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+These changes are on main and not yet released. Tickets in flight are unaffected; a repository pinned to an older accord gets the new plan stage and planner text with `accord upgrade`.
+
+- The plan stage and the planner say that, of test files, a task's `verify:` and `files:` lines name only the ones the task writes or extends; a long existing regression file runs at wave end and in CI, so a task's test run fits its time box.
+
 ## 0.17.1 — 2026-11-24
 
 Release 0.17.1 fixes the ticket tab that 0.17.0 shipped, after a review of it. A plan.md that is only untracked, which is the normal state for the whole plan stage, keeps the stage line; the `plan-changed` warning no longer fires right after the first gate plan pass; the pane's frame timer cannot raise an unhandled rejection when the host refuses a redraw; the engine's own `SubagentHandback` call is no longer shown as an agent's tool; and an agent the host lists as waiting, idle or pending is no longer marked finished. Tickets in flight: no ticket is refused for something new and no gate reads anything that changed; a ticket whose plan.md is not committed yet now keeps its stage in `accord anchor` and `accord show --json`. A repository pinned to 0.17.0 gets the fixes with `accord upgrade`, which moves the pin and refreshes the committed pane. The cost of the pane's motion at 12 frames a second is still not measured on a real terminal: the pane animates only while something runs, and each person can turn motion off in the pane's settings view (key `s`).

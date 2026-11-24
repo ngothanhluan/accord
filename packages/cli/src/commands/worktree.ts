@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { branchFieldsOf, branchTypesOf, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
+import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
@@ -60,10 +60,10 @@ export function branchOf(snapshot: RepoSnapshot, id: string, fields?: { title?: 
 }
 
 /** R-4: a claim name that still holds `{type}` has no allowed change word; no type is guessed, so the claim is refused before any git write. */
-function refuseUntyped(ctx: CommandContext, id: string, claim: string, written: string): never {
+function refuseUntyped(ctx: CommandContext, id: string, claim: string, written: string, give: string): never {
   const template = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
   throw new UsageError(
-    `${id}: the branch template ${template} needs a change word, and ${claim.includes('{type}') ? 'the ticket has none that branch_types allows' : 'none was given'} - add change: <word> to accord/tickets/${id}.md, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')}; ${written}`,
+    `${id}: the branch template ${template} needs a change word, and ${claim.includes('{type}') ? 'the ticket has none that branch_types allows' : 'none was given'} - ${give}, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')}; ${written}`,
   );
 }
 
@@ -547,8 +547,14 @@ export function worktreeCheck(ctx: CommandContext): number {
   return 0;
 }
 
-export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
+export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean; change?: string } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  // Issue #341 D-10, R-7: --change names a new claim; a continue never claims, and the word must be one the team lists, so both are refused before the fetch
+  if (opts.change !== undefined) {
+    if (opts.continue === true) throw new UsageError('--change goes with a new claim; --continue never claims - nothing was created');
+    const problem = changeProblem(opts.change, ctx.snapshot.config);
+    if (problem !== undefined) throw new UsageError('--change ' + opts.change + ': ' + problem + ' - nothing was created');
+  }
   guardTicketSession(ctx, opts.continue === true ? id : undefined, `/accord pick-up ${id}`);
   const f = fetchOrigin(ctx);
   ctx = f.ctx;
@@ -626,8 +632,11 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
       `${id} is not on ${ref.replace('refs/remotes/', '')} - merge accord/tickets/${id}.md into the main branch, run git fetch origin, then try again; nothing was created`,
     );
   }
-  const claim = branchOf(ctx.snapshot, id, branchFieldsOf(onDefault));
-  if (claim.includes('{type}')) refuseUntyped(ctx, id, claim, 'nothing was created');
+  // R-7 and W3: the --change word stands in for the ticket's own change: in the name, and is written into the claim commit below
+  const claim = branchOf(ctx.snapshot, id, { ...branchFieldsOf(onDefault), ...(opts.change === undefined ? {} : { change: opts.change }) });
+  if (claim.includes('{type}')) {
+    refuseUntyped(ctx, id, claim, 'nothing was created', `add change: <word> to accord/tickets/${id}.md on the default branch, or run accord worktree open ${id} --change <word>`);
+  }
   if (
     claim !== branch &&
     (list.some((w) => w.branch === claim) ||
@@ -640,7 +649,16 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (all.some((w) => w.prunable !== undefined && norm(w.path) === norm(path))) refuseAt(id, path, 'nothing was created');
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', claim, path, ref]);
   recordQuietly(ctx, id, path);
-  const wrote = claimRuleset(path, `accord/tickets/${id}.md`);
+  const wroteRuleset = claimRuleset(path, `accord/tickets/${id}.md`);
+  let wroteChange = false;
+  if (opts.change !== undefined) {
+    try {
+      wroteChange = writeKey(path, `accord/tickets/${id}.md`, 'change', opts.change);
+    } catch (e) {
+      throw new UsageError(`could not write change: ${opts.change} into accord/tickets/${id}.md in ${path}: ${firstLine(e instanceof UsageError ? e.message : e)}\nthe worktree is kept; fix the ticket, then continue it`);
+    }
+  }
+  const wrote = wroteRuleset || wroteChange;
   if (wrote) git(path, ['add', '--', ':(literal)' + `accord/tickets/${id}.md`]);
   git(path, ['commit', ...(wrote ? [] : ['--allow-empty']), '-q', '-m', renderSubject(ctx.snapshot.config, 'claim', id)]);
   if (enter) {
@@ -2142,7 +2160,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
 export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string, seen?: WorktreeEntry[]): void {
   const enter = canEnter(ctx);
   const branch = branchOf(ctx.snapshot, id, branchFieldsOf(text));
-  if (branch.includes('{type}')) refuseUntyped(ctx, id, branch, 'nothing was written');
+  if (branch.includes('{type}')) refuseUntyped(ctx, id, branch, 'nothing was written', 'give --change <word>');
   const all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[];
   const list = all.filter((w) => w.prunable === undefined);
   const exists =

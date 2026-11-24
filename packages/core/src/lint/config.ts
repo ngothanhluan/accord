@@ -4,6 +4,7 @@ import type { CommitRule } from '../commits/rule.js';
 import { OFF_TICKET_BRANCH, renderSubject, SUBJECT_NAMES, subjectCollisions } from '../commits/subjects.js';
 import type { SubjectName } from '../commits/subjects.js';
 import { floorProblems } from '../gate/floor.js';
+import { ACCORD_BRANCH_ROOTS } from '../status/branch.js';
 import { teamSectionProblems } from '../scaffold/sections.js';
 import type { Rule } from './rules.js';
 
@@ -26,6 +27,27 @@ export const modelRetired: Rule['check'] = (snapshot) =>
     pointer: '/models/' + key,
     reason,
   }));
+
+/**
+ * Issue #341 D-11, R-10: a `branch_types` word that is the first segment of a branch accord makes itself (t, backlog, drop, conventions, upgrade, accord-task) lets `<word>/...` branches be
+ * read as claims, or be missed, under a `{type}` branch. A warning, never a refusal: no word is banned. It fires whether or not `branch` holds `{type}`.
+ */
+export const branchTypeRoot: Rule['check'] = (snapshot) =>
+  (snapshot.config?.branch_types ?? []).flatMap((word, index) =>
+    (ACCORD_BRANCH_ROOTS as readonly string[]).includes(word)
+      ? [
+          {
+            file: 'accord/config.yml',
+            pointer: '/branch_types/' + index,
+            reason:
+              (word === 't'
+                ? 'branch_types lists "t", but a t/ branch is read only as t/{id}, so a {type} branch of that word is never found'
+                : `branch_types lists "${word}", but ${word}/ branches are also accord's own, so under a {type} branch they can be read as claims or missed`) +
+              '; remove or rename the word',
+          },
+        ]
+      : [],
+  );
 
 /** ST-LN-50 D-06: two templates that render one subject, where one is read back, would let a written subject be read as a claim or a plan-ready commit. */
 export const subjectDuplicate: Rule['check'] = (snapshot) =>

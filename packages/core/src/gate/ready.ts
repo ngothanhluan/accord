@@ -5,6 +5,7 @@ import { classifyEars } from '../lint/ears.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
 import { claimPinBefore, claimPinError, DISCUSS_FROM, TITLE_RULE_FROM } from '../round/pin.js';
+import { changeProblem, DEFAULT_BRANCH_TEMPLATE } from '../status/branch.js';
 import { doneOnDefault } from '../status/stage.js';
 import { titleProblem, titleRuleLine } from '../tickets/title.js';
 import { approvedHash } from './hash.js';
@@ -64,6 +65,19 @@ export const ticketTitle: GateRule['check'] = (snapshot, id) => {
   const problem = titleProblem(ticket.frontmatter.title, snapshot.config);
   if (problem === undefined) return [];
   return [{ file: ticketFile(id), pointer: '/title', reason: `${problem}; ${titleRuleLine(snapshot.config)}` }];
+};
+
+/**
+ * Issue #341 D-05, R-5, R-8, R-9: when the template a claim would use (the claim template, else this checkout's `branch`) holds `{type}`, the ticket's `change:` must be a word of branch_types, so the
+ * claim can be named. An epic is never claimed on a branch of its own. No claim-pin cut-off: every earlier release's schema refuses a `{type}` template, so the condition is the cut-off.
+ */
+export const changeType: GateRule['check'] = (snapshot, id) => {
+  const fm = ticketOf(snapshot, id)?.frontmatter;
+  if (fm === undefined || fm.type === 'epic') return [];
+  if (!(snapshot.claimTemplate ?? snapshot.config?.branch ?? DEFAULT_BRANCH_TEMPLATE).includes('{type}')) return [];
+  const problem = changeProblem(fm.change, snapshot.config);
+  if (problem === undefined) return [];
+  return [{ file: ticketFile(id), pointer: '/change', reason: `${problem}; add change: <word> to the frontmatter of ${ticketFile(id)}` }];
 };
 
 /**

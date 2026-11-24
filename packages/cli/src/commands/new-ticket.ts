@@ -8,7 +8,7 @@
 // only to substitute.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { insertTeamSections, nextTicketId, setFrontmatterKey, templates, titleProblem, titleRuleLine, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
+import { branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, insertTeamSections, nextTicketId, setFrontmatterKey, templates, titleProblem, titleRuleLine, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
 import type { Lane } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import { conventionsNotice } from './audit.js';
@@ -23,9 +23,15 @@ import type { CommandContext } from '../run.js';
 export function newTicket(
   ctx: CommandContext,
   givenId: string | undefined,
-  options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[]; related?: string; dupCheck?: boolean; split?: string },
+  options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[]; related?: string; dupCheck?: boolean; split?: string; change?: string },
   cwd: string = ctx.root,
 ): number {
+  // Issue #341 D-04, R-7: --change is checked before anything is read or written: a split names many tickets, and the word must be one the team lists
+  if (options.change !== undefined) {
+    if (options.split !== undefined) throw new UsageError('--change cannot go with --split, which writes many tickets: give each story its own change: afterwards - nothing was written');
+    const problem = changeProblem(options.change, ctx.snapshot.config);
+    if (problem !== undefined) throw new UsageError('--change ' + options.change + ': ' + problem + ' - nothing was written');
+  }
   // ST-LN-28 D-14: an approved split writes the epic and every story in one step; it has its own refusals, and the split file's titles stand in for --title
   if (options.split !== undefined) return newSplit(ctx, givenId, { ...options, split: options.split }, cwd);
   // ST-LN-83 D-03: every bad flag is refused before anything is read, written or pushed
@@ -71,6 +77,13 @@ export function newTicket(
     if (options.worktree === true) seen = cleanQuietly(ctx, f.fetched);
   }
   refuseBadConfig(ctx);
+  // Issue #341 D-10: the branch is named at claim, so a {type} template needs the word now; no type is guessed
+  const claimTemplate = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
+  if (options.worktree === true && options.change === undefined && claimTemplate.includes('{type}')) {
+    throw new UsageError(
+      `the branch template ${claimTemplate} needs a change word: give --change <word>, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')} - nothing was written`,
+    );
+  }
   // ST-LN-22 D-08: before any id is chosen or any file written, the tickets most like the request are printed, and nothing is created until the session has judged them
   if (!dupCheck) ctx.stdout.write('similar: skipped (--no-dup-check)\n');
   else if (title !== undefined || related !== undefined) {
@@ -156,6 +169,8 @@ export function newTicket(
   if (options.lane !== undefined) text = setFrontmatterKey(text, 'lane', options.lane);
   // ST-LN-83 D-03: the title the person gave, written as a double-quoted string on every path
   if (title !== undefined) text = setFrontmatterKey(text, 'title', title);
+  // Issue #341 D-04: the kind of change, one word of branch_types, on every path
+  if (options.change !== undefined) text = setFrontmatterKey(text, 'change', options.change);
   // ST-LN-22 D-08: the tickets the session judged this request to continue, a block list; none writes no key
   if (related !== undefined && related.length > 0) text = setFrontmatterKey(text, 'related', related);
   // ST-LN-50 D-10: the team's own sections go into every story and bug ticket, in the plain and the --worktree path alike; an epic holds none

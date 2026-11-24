@@ -160,3 +160,16 @@ function idShaped(id: string, config: IdShapeConfig | undefined): boolean {
 export function pickBranchId(candidates: readonly string[], known: (id: string) => boolean, config?: IdShapeConfig): string | undefined {
   return candidates.find(known) ?? candidates.find((id) => idShaped(id, config)) ?? candidates[0];
 }
+
+/** Issue #341 D-11: the first path segments of the branches accord makes itself; a `branch_types` word equal to one is warned about by lint. */
+export const ACCORD_BRANCH_ROOTS = ['t', 'backlog', 'drop', 'conventions', 'upgrade', 'accord-task'] as const;
+
+/**
+ * Issue #341 D-05, D-10: why `change` cannot name a `{type}` branch under `config`: undefined when its `branch_types` list the word, else one sentence naming the word
+ * (or its absence) and the words allowed. No type is ever guessed.
+ */
+export function changeProblem(change: string | undefined, config?: Pick<AccordConfig, 'branch_types'>): string | undefined {
+  const words = branchTypesOf(config);
+  if (change !== undefined && words.includes(change)) return undefined;
+  return (change === undefined ? 'the ticket has no change: word' : `change: ${change} is not one of the allowed words`) + `; the allowed words are ${words.join(', ')}`;
+}

@@ -510,6 +510,7 @@ const GATE01: Record<string, string[]> = {
   'valid frontmatter': ['schema.required', 'schema.additionalProperties', 'schema.enum', 'schema.pattern'],
   intent: ['gate.intent-empty'],
   'a lane ticket claimed from the title cut-off: a title that keeps the title rule (ST-LN-22)': ['gate.ticket-title'],
+  'a ticket claimed on a {type} branch template: a change word the team lists (issue #341)': ['gate.change-type'],
   'at least one EARS line': ['gate.ears-missing'],
   'a lane ticket: an approach the owner approved, unchanged since': [
     'gate.approach-empty',

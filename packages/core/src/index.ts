@@ -148,11 +148,13 @@ export type { TaskVerdict } from './gate/task.js';
 export { recordTaskDone } from './write/ledger.js';
 export { writeTestTags } from './write/testtag.js';
 export {
+  ACCORD_BRANCH_ROOTS,
   branchFieldsOf,
   branchGlob,
   branchIdCandidates,
   branchTemplateOf,
   branchTypesOf,
+  changeProblem,
   DEFAULT_BRANCH_TEMPLATE,
   DEFAULT_BRANCH_TYPES,
   expandBranchTypes,

@@ -104,3 +104,67 @@ it('risk:regression accord new ticket --worktree names the branch with the title
   expect(has(c.root, 'refs/heads/feature/ST-LN-20-order-total-is-null')).toBe(true);
   expect(has(c.remote, 'refs/heads/feature/ST-LN-20-order-total-is-null')).toBe(true);
 });
+
+// D-04, D-10: a {type} claim needs a change word, proposed by the agent and given with --change.
+const CHANGE = (word: string) => new RegExp(`^change: "?${word}"?$`, 'm');
+
+it('risk:regression worktree open names --change and the words when the ticket has no word, and --change claims the older draft with the word in the claim commit (D-10)', async () => {
+  const c = copy();
+  adopt(c, []);
+  const refused = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(refused.code).toBe(2);
+  expect(refused.err).toContain('--change <word>');
+  expect(refused.err).toContain(WORDS);
+  const r = await run(['worktree', 'open', 'ST-9', '--change', 'fix'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(has(c.root, 'refs/heads/fix/ST-9-export')).toBe(true);
+  expect(c.git('log', '-1', '--format=%s', 'fix/ST-9-export').trim()).toBe('claim: ST-9');
+  expect(c.git('show', 'fix/ST-9-export:accord/tickets/ST-9.md')).toMatch(CHANGE('fix'));
+});
+
+it('risk:regression worktree open --change names a new claim from the word, not from the ticket on the default ref (W3)', async () => {
+  const c = copy();
+  adopt(c);
+  const r = await run(['worktree', 'open', 'ST-9', '--change', 'feat'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(has(c.root, 'refs/heads/feat/ST-9-export')).toBe(true);
+  expect(has(c.root, 'refs/heads/fix/ST-9-export')).toBe(false);
+  expect(c.git('show', 'feat/ST-9-export:accord/tickets/ST-9.md')).toMatch(CHANGE('feat'));
+});
+
+it('risk:regression new ticket --worktree under a {type} template refuses with no change word and writes nothing, and --change names the branch (D-04, D-10)', async () => {
+  const c = copy();
+  pushMain(c, 'accord/config.yml', CONFIG + TYPED);
+  const argv = ['new', 'ticket', 'ST-LN-21', '--lane', 'M', '--worktree', '--title', 'Null total', '--no-dup-check'];
+  const refused = await run(argv, c.root);
+  expect(refused.code).toBe(2);
+  expect(refused.err).toContain('--change');
+  expect(refused.err).toContain(WORDS);
+  expect(existsSync(c.sibling('ST-LN-21'))).toBe(false);
+  expect(c.git('branch', '--list', '*ST-LN-21*').trim()).toBe('');
+  expect(gitRun(c.remote, 'for-each-ref', '--format=%(refname)').trim()).toBe('refs/heads/main');
+  const r = await run([...argv, '--change', 'fix'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(has(c.root, 'refs/heads/fix/ST-LN-21-null-total')).toBe(true);
+  expect(readFileSync(`${c.sibling('ST-LN-21')}/accord/tickets/ST-LN-21.md`, 'utf8')).toMatch(CHANGE('fix'));
+});
+
+it('risk:regression --change is refused before any write when the word is not listed, or with --continue or --split (D-04, R-7)', async () => {
+  const c = copy();
+  const bad = await run(['new', 'ticket', 'ST-LN-22', '--lane', 'M', '--title', 'Null total', '--no-dup-check', '--change', 'wip'], c.root);
+  expect(bad.code).toBe(2);
+  expect(bad.err).toContain('wip');
+  expect(bad.err).toContain(WORDS);
+  expect(existsSync(`${c.root}/accord/tickets/ST-LN-22.md`)).toBe(false);
+  const cont = await run(['worktree', 'open', 'ST-9', '--continue', '--change', 'fix'], c.root);
+  expect(cont.code).toBe(2);
+  expect(cont.err).toContain('--continue');
+  expect(existsSync(c.sibling('ST-9'))).toBe(false);
+  const split = await run(['new', 'ticket', '--type', 'epic', '--lane', 'L', '--split', `${c.root}/none.md`, '--change', 'fix'], c.root);
+  expect(split.code).toBe(2);
+  expect(split.err).toContain('--split');
+  // a plain new ticket takes a listed word into its frontmatter
+  const ok = await run(['new', 'ticket', 'ST-LN-23', '--lane', 'M', '--title', 'Null total', '--no-dup-check', '--change', 'fix'], c.root);
+  expect(ok.code, ok.err).toBe(0);
+  expect(readFileSync(`${c.root}/accord/tickets/ST-LN-23.md`, 'utf8')).toMatch(CHANGE('fix'));
+});

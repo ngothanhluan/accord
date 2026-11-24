@@ -1262,27 +1262,30 @@ const framePeriod = async (): Promise<number> => Math.round(1000 / (await loadVi
 // Phase 08.7 D-01, D-02, D-03: the agents block lists the accord agents the mod saw start, a timer while one runs and its own time when it ends; the tab label counts the running ones.
 it('risk:regression the agents block shows running accord agents with timers and finished ones with their time (D-01 D-02)', async () => {
   const h = await claimedPane();
-  expect(h.texts()).toContain('AGENTS');
-  expect(h.texts()).toContain('none running');
-  expect(h.cell('none running').text.dimColor).toBe(true);
+  // issue 342: the agents are rows of the current-work block, with no heading and no placeholder row
+  for (const gone of ['AGENTS', 'none running']) expect(h.texts()).not.toContain(gone);
+  expect(h.texts().some((x) => /^(◐|✓) /.test(x))).toBe(false);
   h.agents = [agentOf('a1', 'accord-executor')];
   await h.fire('turn.start', subStart('a1'));
   expect(isRunning(h, 'executor')).toBe(true);
   expect(h.texts()).toContain('1:05');
-  expect(h.texts()).not.toContain('none running');
+  expect(h.texts()).not.toContain('AGENTS');
   expect(tabs(h)['tab:ticket'].label).toContain('◐1');
   await h.fire('turn.complete', { agentId: 'a1', durationMs: 125000, reason: 'answer' });
   expect(h.texts()).toContain('✓ executor');
+  expect(h.cell('✓ executor').text.dimColor).toBe(true);
   expect(h.texts()).toContain('2:05');
   expect(isRunning(h, 'executor')).toBe(false);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
-  // the block sits between the failure box and the review rounds
+  // the executor row sits in the current-work block: after its head, before the progress group and the review rounds
   const now = Math.floor(Date.now() / 1000);
   const ordered = await paneWith({ stage: 'review', review: reviewOf(), log: [{ at: now - 20, kind: 'gate', text: 'gate done FAIL: red', fail: true }] });
+  ordered.agents = [agentOf('a1', 'accord-executor')];
+  await ordered.fire('turn.start', subStart('a1'));
   const t = ordered.texts();
-  expect(t.indexOf('Gate failed')).toBeGreaterThanOrEqual(0);
-  expect(t.indexOf('AGENTS')).toBeGreaterThan(t.indexOf('Gate failed'));
-  expect(t.indexOf('AGENTS')).toBeLessThan(t.indexOf('REVIEW r2/5 converged'));
+  const row = t.findIndex((x) => spun('executor').test(x));
+  expect(row).toBeGreaterThan(t.indexOf('Reviewing, round 2 of 5'));
+  expect(row).toBeLessThan(t.indexOf('REVIEW r2/5 converged'));
 });
 
 // Phase 08.7 D-01, D-02: the pure row builders keep accord agents only, running first, at most six rows.
@@ -1358,8 +1361,6 @@ it('risk:security a non-accord subagent and a type that only looks like one are 
   const types = ['general-purpose', 'Explore', 'accord-', 'accord-Executor', 'xaccord-executor', 'accord-x‮'];
   h.agents = types.map((t, i) => agentOf('s' + i, t));
   for (let i = 0; i < types.length; i++) await h.fire('turn.start', subStart('s' + i));
-  expect(h.texts()).toContain('AGENTS');
-  expect(h.texts()).toContain('none running');
   expect(h.texts().some((x) => /^[◐◓◑◒✓] /.test(x))).toBe(false);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   for (const x of h.texts()) {
@@ -1369,7 +1370,7 @@ it('risk:security a non-accord subagent and a type that only looks like one are 
   // the join key is the entry's id: an event whose agentId matches no entry shows nothing
   h.agents = [agentOf('b1', 'accord-executor')];
   await h.fire('turn.start', subStart('zz'));
-  expect(h.texts()).toContain('none running');
+  expect(h.texts().some((x) => /^[◐◓◑◒✓] /.test(x))).toBe(false);
   // an accord agent shows by its type alone
   await h.fire('turn.start', subStart('b1'));
   expect(isRunning(h, 'executor')).toBe(true);
@@ -1386,6 +1387,7 @@ it('risk:complex-branching without agent list or clock the pane hides the agents
   await none.$.ui.invalidate('ui.render');
   expect(none.texts()).not.toContain('AGENTS');
   expect(none.texts()).not.toContain('none running');
+  expect(none.texts().some((x) => /^[◐◓◑◒✓] /.test(x))).toBe(false);
   expect(none.texts()).toContain('build 1/3');
   const bare = await claimedPane();
   delete bare.$.clock;
@@ -1804,9 +1806,11 @@ it('risk:parsing the now line names the task in flight the review round or the s
   const t0 = 5_000_000;
   const exec = [{ key: 'a1', type: 'accord-executor', running: true, startTime: t0 - 72000 }];
   const build = { id: 'ST-1', stage: 'build', lane: 'M', tasksDone: 2, tasksTotal: 4, now: { task: 3, title: 'Settings view' } };
-  expect(nowLines({ ticket: build, agents: exec, waiting: undefined, now: t0 })).toEqual([{ text: 'task 3 of 4 · Settings view' }, { text: 'executor · 1:12' }]);
+  // issue 342: the head names the task, the title is the second line, and the running agent is a row of the block, not a line of this function
+  expect(nowLines({ ticket: build, agents: exec, waiting: undefined, now: t0 })).toEqual([{ text: 'Building task 3 of 4' }, { text: 'Settings view' }]);
   const review = { id: 'ST-1', stage: 'review', lane: 'M', tasksDone: 4, tasksTotal: 4, review: { cycle: 1, round: 2, cap: 5, rounds: [] } };
-  expect(nowLines({ ticket: review, agents: exec, waiting: undefined, now: t0 })[0]).toEqual({ text: 'review round 2 of 5' });
+  expect(nowLines({ ticket: review, agents: exec, waiting: undefined, now: t0 })).toEqual([{ text: 'Reviewing, round 2 of 5' }]);
+  expect(nowLines({ ticket: build, agents: [], waiting: { since: t0 - 72000, line: 'Keep it?' }, now: t0 })).toEqual([{ text: 'Waiting for you · 1:12' }, { text: 'Keep it?' }]);
   expect(nowLines({ ticket: { id: 'ST-1', stage: 'verify', lane: 'M', tasksDone: 4, tasksTotal: 4 }, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'verify' }]);
   // a build ticket with no `now` key reads its stage word, and a finished agent or a non-accord agent adds no second line
   const plain = { id: 'ST-1', stage: 'build', lane: 'M', tasksDone: 1, tasksTotal: 3 };
@@ -1817,22 +1821,26 @@ it('risk:parsing the now line names the task in flight the review round or the s
   expect(nowLines({ ticket: plain, agents: idle, waiting: undefined, now: t0 })).toEqual([{ text: 'build' }]);
   // every text is cleaned
   const dirty = { ...build, now: { task: 3, title: 'bad‮\u0007title' } };
-  expect(nowLines({ ticket: dirty, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'task 3 of 4 · bad title' }]);
+  expect(nowLines({ ticket: dirty, agents: [], waiting: undefined, now: t0 })).toEqual([{ text: 'Building task 3 of 4' }, { text: 'bad title' }]);
 });
 
-// Phase 08.8.1 L-06: the NOW lines sit under the head and above the AGENTS block; a malformed `now` key is dropped.
+// Phase 08.8.1 L-06, issue 342: the current-work head and the task title sit under the track and above the agent rows; a malformed `now` key is dropped.
 it('risk:regression the ticket tab draws the now line under the head (L-06)', async () => {
-  const h = await paneWith({ stage: 'build', tasksDone: 2, tasksTotal: 4, now: { task: 3, title: 'Settings view' } });
+  const h = await paneWith({ stage: 'build', tasksDone: 2, tasksTotal: 4, now: { task: 3, title: 'Settings view' } }, (x) => void x.store.set('settings', NO_MOTION));
   h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
   await h.fire('turn.start', subStart('a1'));
   const t = h.texts();
-  const first = t.indexOf('task 3 of 4 · Settings view');
-  const second = t.findIndex((x) => /^executor · 1:0[0-9]$/.test(x));
+  const first = t.indexOf('Building task 3 of 4');
+  const second = t.indexOf('Settings view');
   expect(first).toBeGreaterThan(t.indexOf('Login form'));
-  expect(second).toBe(first + 1);
-  expect(first).toBeLessThan(t.indexOf('AGENTS'));
-  expect(h.cell('task 3 of 4 · Settings view').text.bold).toBe(true);
-  expect(h.cell(t[second]).text.dimColor).toBe(true);
+  expect(t[first - 1]).toBe('✦');
+  // the running agent's time rides the head row, the title follows it and the executor row follows the title
+  expect(t[first + 1]).toMatch(/^1:0[0-9]$/);
+  expect(second).toBe(first + 2);
+  expect(t.findIndex((x) => spun('executor').test(x))).toBeGreaterThan(second);
+  expect(t.some((x) => /^executor · /.test(x))).toBe(false);
+  expect(h.cell('Building task 3 of 4').text.bold).toBe(true);
+  expect(h.cell('Settings view').text.dimColor).toBeUndefined();
   const mod = await loadView();
   for (const now of [{ task: '3', title: 'x' }, { task: 3, title: 7 }, 'oops', null]) {
     const got = mod.detailOutcome({ exitCode: 0, stdout: JSON.stringify(detailOf({ now })), stderr: '' });
@@ -1878,7 +1886,8 @@ it('risk:security the tool line shows a tool name and a base name or program nam
 
 // Phase 08.8.1 D-01 L-06 L-05 T-08.8.1-07 (probe rows P1 and P2 held): a subagent tool call sets its row's tool and task, a main-loop accord command schedules one refresh after it ran, and the hook never changes a call.
 it("risk:complex-branching a subagent tool call sets its row's tool and task and a main-loop accord command refreshes show after it ran (D-01 L-06 L-05)", async () => {
-  const h = await claimedPane();
+  // issue 342: the tool is shown plain on the executor row while no typing effect is on, so this person has motion off
+  const h = await paneWith({}, (x) => void x.store.set('settings', NO_MOTION));
   h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
   await h.fire('turn.start', subStart('a1'));
   const read = { tool: 'Read', file_path: '.accord-reports/ST-1/brief-3.md', agentId: 'a1' };
@@ -1886,7 +1895,7 @@ it("risk:complex-branching a subagent tool call sets its row's tool and task and
   await vi.waitFor(() => expect(h.texts()).toContain('task 3'));
   const edit = { tool: 'Edit', file_path: 'src/view.js', agentId: 'a1', old_string: 'secret one', new_string: 'secret two' };
   await h.fire('tool.call', edit);
-  await vi.waitFor(() => expect(h.texts().some((x) => /^executor · 1:0[0-9] · Edit view\.js$/.test(x))).toBe(true));
+  await vi.waitFor(() => expect(h.texts()).toContain('Edit view.js'));
   expect(h.texts().join('\n')).not.toContain('secret');
   expect(edit).toEqual({ tool: 'Edit', file_path: 'src/view.js', agentId: 'a1', old_string: 'secret one', new_string: 'secret two' });
   // a call of another ticket's report, and a call of an agent the roster does not hold, change nothing
@@ -1987,7 +1996,7 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
   h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
   await vi.waitFor(() => expect(h.texts()).toContain('Export'));
-  expect(h.texts()).toContain('none running');
+  expect(h.texts().some((x) => /^(◐|✓) /.test(x))).toBe(false);
   expect(h.texts()).not.toContain('✓ executor');
 });
 
@@ -2047,7 +2056,8 @@ const taskOf = (n: number, title: string, done = false, covers: string[] = []): 
 it('risk:parsing task rows mark done the task in flight and the rest and the bar reads the json counts (L-07)', async () => {
   const { taskRows, buildProgress } = await loadView();
   const rows = taskRows([taskOf(1, 'A', true), taskOf(2, 'B', false, ['ac-1']), taskOf(3, 'Ev\u202eil\u0007 C')], 2);
-  expect(rows.map((r: any) => [r.mark, r.state, r.n, r.title])).toEqual([['✓', 'done', 1, 'A'], ['▸', 'current', 2, 'B'], ['·', 'todo', 3, 'Ev il C']]);
+  expect(rows.map((r: any) => [r.mark, r.state, r.n, r.title])).toEqual([['✓', 'done', 1, 'A'], ['✦', 'current', 2, 'B'], ['·', 'todo', 3, 'Ev il C']]);
+  expect(rows.map((r: any) => r.covers)).toEqual([[], ['ac-1'], []]);
   // a done task stays done even when `now` names it; no current task leaves only done and todo
   expect(taskRows([taskOf(1, 'A', true)], 1)[0].state).toBe('done');
   expect(taskRows([taskOf(1, 'A')], undefined)[0].state).toBe('todo');
@@ -2057,25 +2067,52 @@ it('risk:parsing task rows mark done the task in flight and the rest and the bar
   expect(buildProgress({ tasksTotal: 3 })).toBeUndefined();
 });
 
-// Phase 08.8.1 L-07: the TASKS block sits after the NOW line and before REVIEW; an engine without Progress draws the count as text; a ticket without `tasks` draws no block.
-it('risk:regression the ticket tab draws a tasks block with a progress bar between the now line and review (L-07)', async () => {
-  const tasks = [taskOf(1, 'Alpha', true), taskOf(2, 'Beta'), taskOf(3, 'Gamma')];
-  const over = { stage: 'build', tasksDone: 1, tasksTotal: 3, now: { task: 2, title: 'Beta' }, tasks, review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')] };
-  const h = await paneWith(over);
+const WORK = { stage: 'build', tasksDone: 1, tasksTotal: 3, now: { task: 2, title: 'Beta' }, tasks: [taskOf(1, 'Alpha', true, ['ac-1']), taskOf(2, 'Beta', false, ['ac-2']), taskOf(3, 'Gamma')] };
+// the props of a task row's Box and its first Text: a task row is the one row that starts with a mark, the task number and the title
+const taskRow = (h: Awaited<ReturnType<typeof host>>, mark: string, n: number, title: string): { box: El; mark: Record<string, any> } | undefined => {
+  const box = h.nodes('Box').find((b) => b.props.flexDirection === 'row' && textsIn(b).slice(0, 3).join('|') === `${mark}|${n}|${title}`);
+  return box === undefined ? undefined : { box, mark: (box.props.children as El[])[0].props };
+};
+
+// Phase 08.8.1 L-07, issue 342 D-02: one gradient bar with `n of m` sits above the plan's tasks, marked done, current and todo; the engine's Progress is not drawn on the ticket tab.
+it('risk:regression the progress group draws one gradient bar with n of m and the tasks marked done current and todo (issue 342 D-02)', async () => {
+  const over = { ...WORK, review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')] };
+  const h = await paneWith(over, (x) => {
+    x.columns = 49;
+    void x.store.set('settings', NO_MOTION);
+  });
   const t = h.texts();
-  const now = t.indexOf('task 2 of 3 · Beta');
-  expect(now).toBeGreaterThan(-1);
-  expect(t.indexOf('TASKS')).toBeGreaterThan(now);
-  expect(t.indexOf('TASKS')).toBeLessThan(t.findIndex((x) => x.startsWith('REVIEW')));
+  const bar = barText(h) as El;
+  expect(bar).toBeDefined();
+  const cells = bar.props.children as El[];
+  expect(cells.every((c) => c.type === 'Text' && /^[━─]$/.test(flat(c.props.children)))).toBe(true);
+  expect(new Set(cells.filter((c) => flat(c.props.children) === '━').map((c) => c.props.color)).size).toBeGreaterThanOrEqual(2);
+  const at = t.indexOf(flat(bar.props.children));
+  expect(t[at + 1]).toBe('1 of 3');
+  // two cells of indent, the bar, a space and the counter fit the pane
+  expect(2 + cells.length + 1 + '1 of 3'.length).toBeLessThanOrEqual(49);
+  expect(h.nodes('Progress')).toHaveLength(0);
+  // after the current-work group and before the review block
+  expect(at).toBeGreaterThan(t.indexOf('Building task 2 of 3'));
+  expect(at).toBeLessThan(t.findIndex((x) => x.startsWith('REVIEW')));
   expect(kids(h.row('Alpha'))).toEqual(['✓', '1', 'Alpha']);
-  expect(kids(h.row('Beta'))).toEqual(['▸', '2', 'Beta']);
+  expect(textsIn(taskRow(h, '✦', 2, 'Beta')?.box)).toEqual(['✦', '2', 'Beta']);
   expect(kids(h.row('Gamma'))).toEqual(['·', '3', 'Gamma']);
-  // Phase 08.8.1-07 L-01: the done tick takes the person's tick colour, aurora's by default
-  expect(h.cell('✓').text.color).toBe('#6fd39a');
-  expect(h.cell('▸').text.bold).toBe(true);
-  const bars = h.nodes('Progress');
-  expect(bars).toHaveLength(1);
-  expect(bars[0].props).toMatchObject({ value: 1, max: 3, valueText: '1 of 3' });
+  // Phase 08.8.1-07 L-01: the done tick takes the person's tick colour, the current mark is bold in the live line's colour, the rest is dim
+  expect(taskRow(h, '✓', 1, 'Alpha')?.mark.color).toBe('#6fd39a');
+  expect(taskRow(h, '✦', 2, 'Beta')?.mark).toMatchObject({ bold: true, color: h.cell('Building task 2 of 3').text.color });
+  expect(taskRow(h, '·', 3, 'Gamma')?.mark.dimColor).toBe(true);
+  // the solid style draws every filled cell in one colour
+  const solid = await paneWith(over, (x) => void x.store.set('settings', { ...NO_MOTION, style: 'solid' }));
+  expect(new Set(((barText(solid) as El).props.children as El[]).filter((c) => flat(c.props.children) === '━').map((c) => c.props.color)).size).toBe(1);
+  // a wide pane adds each task's covers, dim
+  const wide = await paneWith(over, (x) => {
+    x.columns = 100;
+    void x.store.set('settings', NO_MOTION);
+  });
+  expect(kids(wide.row('Alpha'))).toEqual(['✓', '1', 'Alpha', 'ac-1']);
+  expect(wide.cell('ac-1').text.dimColor).toBe(true);
+  // an engine without Progress draws the same bar, and a ticket without `tasks` draws a bar from its counts and no task row
   const plain = await paneWith(over, (x) => {
     const full = x.$.ui.resolve;
     x.$.ui.resolve = () => {
@@ -2084,11 +2121,53 @@ it('risk:regression the ticket tab draws a tasks block with a progress bar betwe
       return rest;
     };
   });
-  expect(plain.nodes('Progress')).toHaveLength(0);
+  expect(barText(plain)).toBeDefined();
   expect(plain.texts()).toContain('1 of 3');
   const none = await paneWith({ stage: 'build', now: { task: 2, title: 'Beta' } });
-  expect(none.texts()).not.toContain('TASKS');
+  expect(none.texts()).toContain('1 of 3');
+  expect(none.texts()).not.toContain('Alpha');
   expect(none.nodes('Progress')).toHaveLength(0);
+});
+
+// issue 342 D-02 D-04: the current work reads `✦ Building task n of m`, the task title and each accord agent's row in one borderless block; the agents have no heading, no box and no placeholder.
+it('risk:regression the current work names the task and holds the agents in one block with no heading (issue 342 D-02 D-04)', async () => {
+  const h = await paneWith(WORK, (x) => void x.store.set('settings', NO_MOTION));
+  for (const gone of ['AGENTS', 'TASKS', 'none running']) expect(h.texts()).not.toContain(gone);
+  expect(h.texts().some((x) => spun('executor').test(x) || x.startsWith('✓ '))).toBe(false);
+  h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('tool.call', { tool: 'Read', file_path: '.accord-reports/ST-1/brief-2.md', agentId: 'a1' });
+  await h.fire('tool.call', { tool: 'Edit', file_path: 'C:/w/src/view.js', agentId: 'a1' });
+  await vi.waitFor(() => expect(h.texts()).toContain('Edit view.js'));
+  const t = h.texts();
+  const head = t.indexOf('Building task 2 of 3');
+  expect(t[head - 1]).toBe('✦');
+  const order = [head, t.indexOf('Beta'), t.findIndex((x) => spun('executor').test(x)), t.indexOf('task 2'), t.indexOf('Edit view.js')];
+  expect(order.every((i) => i >= 0)).toBe(true);
+  expect(order).toEqual([...order].sort((a, b) => a - b));
+  // the row reads the spinner and name, the time, the task and the tool; the head row carries the same running time
+  expect(t[order[2] + 1]).toMatch(/^1:0[0-9]$/);
+  expect(t[head + 1]).toMatch(/^1:0[0-9]$/);
+  expect(h.cell('Edit view.js').text.dimColor).toBe(true);
+  // no box of the block draws a border, and the heading words are gone
+  const block = h.nodes('Box').find((b) => textsIn(b)[0] === '✦' && textsIn(b)[1] === 'Building task 2 of 3' && b.props.flexDirection === 'column');
+  expect(block).toBeDefined();
+  expect(block?.props.borderStyle).toBeUndefined();
+  for (const gone of ['AGENTS', 'TASKS', 'none running']) expect(t).not.toContain(gone);
+  // a finished agent stays as a dim `✓` row with its time
+  await h.fire('turn.complete', { agentId: 'a1', durationMs: 125000, reason: 'answer' });
+  expect(h.texts()).toContain('✓ executor');
+  expect(h.cell('✓ executor').text.dimColor).toBe(true);
+  expect(h.texts()).toContain('2:05');
+  // the waiting state keeps its diamond and head with the answer line under it
+  await h.fire('turn.complete', { answer: 'Keep it?', reason: 'answer' });
+  await vi.waitFor(() => expect(h.texts()).toContain('Waiting for you · 0:00'));
+  const w = h.texts();
+  expect(w[w.indexOf('Waiting for you · 0:00') - 1]).toMatch(/^[◆◇]$/);
+  expect(w[w.indexOf('Waiting for you · 0:00') + 1]).toBe('Keep it?');
+  // review reads `Reviewing, round 2 of 5`
+  const review = await paneWith({ stage: 'review', review: reviewOf() });
+  expect(review.texts()).toContain('Reviewing, round 2 of 5');
 });
 
 // Phase 08.8.1 D-05 L-07: a ticket whose records git does not hold draws its warning and no TASKS block, no bar, no count and no task row.
@@ -2100,6 +2179,7 @@ it('risk:complex-branching a not-committed ticket draws no tasks block no bar an
   expect(t).toContain('accord/ is not committed here');
   expect(t).not.toContain('TASKS');
   expect(h.nodes('Progress')).toHaveLength(0);
+  expect(barText(h)).toBeUndefined();
   for (const x of t) {
     expect(x).not.toContain('0 of 3');
     expect(x).not.toContain('0/3');
@@ -2115,8 +2195,9 @@ it('risk:complex-branching a not-committed ticket draws no tasks block no bar an
   expect(ok.tasks).toHaveLength(3);
   expect(ok.progress).toEqual({ value: 0, max: 3, valueText: '0 of 3' });
   const clean = await paneWith(tracked);
-  expect(clean.texts()).toContain('TASKS');
-  expect(clean.nodes('Progress')).toHaveLength(1);
+  expect(clean.texts()).toContain('0 of 3');
+  expect(barText(clean)).toBeDefined();
+  expect(clean.nodes('Progress')).toHaveLength(0);
 });
 
 // ---- Phase 08.8.1-06 L-07: the log merges repeats and fills the room, criteria labels follow their titles ----
@@ -2419,10 +2500,11 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   expect(tabPart(h, '✦').color).toBe(at(0.62));
   expect(tabPart(h, '✗ gate').color).toBe('#ff6b6b');
   // the places of the tab
-  expect(h.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
-  expect(h.cell('✓').text.color).toBe('#6fd39a');
-  expect(h.cell('▸').text.color).toBe(at(0.3));
-  expect(h.nodes('Progress')[0].props.color).toBe(at(0.45));
+  expect(h.cell('Building task 2 of 3').text.color).toBe(at(0.3));
+  expect(taskRow(h, '✓', 1, 'Alpha')?.mark.color).toBe('#6fd39a');
+  expect(taskRow(h, '✦', 2, 'Beta')?.mark.color).toBe(at(0.3));
+  // the bar's first filled cell takes the bar's colour at its position
+  expect(childColors(barText(h))[0]).toBe(at(0.45));
   expect(h.cell(spun('executor')).text.color).toBe(at(0.62));
   expect(h.cell('ac-1').text.color).toBe(at(0.8, 0));
   expect(h.cell('ac-2').text.color).toBe(at(0.8, 0.5));
@@ -2448,7 +2530,7 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   await vi.waitFor(() => expect(isRunning(solid, 'executor')).toBe(true));
   expect(new Set(titleColors(solid))).toEqual(new Set(['#3ec6e0']));
   expect(solid.cell(spun('executor')).text.color).toBe('#ff5f6d');
-  expect(solid.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
+  expect(solid.cell('Building task 2 of 3').text.color).toBe(at(0.3));
   expect(tabPart(solid, 'build 1/3').color).toBe(at(0.3));
   // the pure view gives hex colours for the stage track and keeps the dashboard's stage names in pipelineOf
   const t = ticketView({ ticket: { id: 'ST-1', state: { ticket: detailOf(over) } }, now, settings: settingsOf(undefined) });
@@ -2476,11 +2558,11 @@ it('risk:resource one frame timer runs at the probe rate only while something ru
   const period = await framePeriod();
   const h = await paneWith(MOVING);
   expect(liveTimers(h)).toEqual([]);
-  expect(runColors(h, 'task 2 of 3 · Beta')).toBeUndefined();
+  expect(runColors(h, 'Building task 2 of 3')).toBeUndefined();
   await startExecutor(h);
   expect(liveTimers(h)).toEqual([period]);
   // the live line is one coloured text per character while the timer runs
-  expect(runColors(h, 'task 2 of 3 · Beta')?.every((c) => /^#[0-9a-f]{6}$/.test(c))).toBe(true);
+  expect(runColors(h, 'Building task 2 of 3')?.every((c) => /^#[0-9a-f]{6}$/.test(c))).toBe(true);
   // another view stops the timer and coming back starts one again: the dashboard tab, the widget placement, the settings view
   press(h, 'tab:dashboard');
   await vi.waitFor(() => expect(liveTimers(h)).toEqual([]));
@@ -2500,12 +2582,12 @@ it('risk:resource one frame timer runs at the probe rate only while something ru
   // the agent ends: no timer is left and the live line is plain again
   await h.fire('turn.complete', { agentId: 'a1', durationMs: 10, reason: 'answer' });
   expect(liveTimers(h)).toEqual([]);
-  expect(runColors(h, 'task 2 of 3 · Beta')).toBeUndefined();
+  expect(runColors(h, 'Building task 2 of 3')).toBeUndefined();
   // motion off keeps only the 1-second clock of the agents' times
   const off = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
   await startExecutor(off);
   expect(liveTimers(off)).toEqual([1000]);
-  expect(runColors(off, 'task 2 of 3 · Beta')).toBeUndefined();
+  expect(runColors(off, 'Building task 2 of 3')).toBeUndefined();
   // off the terminal the pane redraws at most 10 a second
   const desk = await paneWith(MOVING, (x) => void (x.surface = 'desktop'));
   await startExecutor(desk);
@@ -2521,7 +2603,7 @@ it('risk:resource one frame timer runs at the probe rate only while something ru
   await flush();
   await still.$.ui.invalidate('ui.render');
   expect(titleColors(still)).toEqual(before);
-  expect(runColors(still, 'task 2 of 3 · Beta')).toBeUndefined();
+  expect(runColors(still, 'Building task 2 of 3')).toBeUndefined();
 });
 
 // Phase 08.8.1 L-01: the shimmer is a pure function of the frame time: one `#rrggbb` per code point, a glow that moves between frames, the same colours for the same time
@@ -2696,25 +2778,27 @@ it('risk:complex-branching a task finished plays sparkles and the rolling counte
   const spy = vi.spyOn(Date, 'now').mockReturnValue(c0);
   try {
     await startExecutor(calm);
-    const grab = async (ms: number): Promise<{ title: string[]; now: string[] | undefined; bar: boolean; eq: string | undefined }> => {
+    const grab = async (ms: number): Promise<{ title: string[]; now: string[] | undefined; bar: boolean; barColors: string[]; eq: string | undefined }> => {
       spy.mockReturnValue(c0 + ms);
       await calm.$.ui.invalidate('ui.render');
-      return { title: titleColors(calm), now: runColors(calm, 'task 3 of 4 · Task 3'), bar: barText(calm) !== undefined, eq: eqText(calm) };
+      return { title: titleColors(calm), now: runColors(calm, 'Building task 3 of 4'), bar: barText(calm) !== undefined, barColors: childColors(barText(calm)), eq: eqText(calm) };
     };
     const a = await grab(100);
     const b = await grab(350);
     expect(b.title).toEqual(a.title);
     expect(a.now).toBeDefined();
     expect(b.now).not.toEqual(a.now);
-    expect(a.bar).toBe(false);
-    expect(calm.nodes('Progress')).toHaveLength(1);
+    // issue 342: the bar is always the gradient row, still while the comet is off
+    expect(a.bar).toBe(true);
+    expect(a.barColors).toEqual(b.barColors);
+    expect(calm.nodes('Progress')).toHaveLength(0);
     expect(a.eq).toBeUndefined();
   } finally {
     spy.mockRestore();
   }
   // mine with only the comet on: only the comet moves
   const mine = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
-  const m0 = 1_800_000_001_000;
+  const m0 = 1_800_000_000_000;
   const spy2 = vi.spyOn(Date, 'now').mockReturnValue(m0);
   try {
     await startExecutor(mine);
@@ -2726,7 +2810,7 @@ it('risk:complex-branching a task finished plays sparkles and the rolling counte
     await mine.$.ui.invalidate('ui.render');
     expect(titleColors(mine)).toEqual(t1);
     expect(childColors(barText(mine))).not.toEqual(bar1);
-    expect(runColors(mine, 'task 3 of 4 · Task 3')).toBeUndefined();
+    expect(runColors(mine, 'Building task 3 of 4')).toBeUndefined();
     expect(eqText(mine)).toBeUndefined();
   } finally {
     spy2.mockRestore();
@@ -2743,12 +2827,22 @@ it('risk:regression the effects the probe cut are never drawn (D-03)', async () 
   const mine = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
   viewPatch = undefined;
   await startExecutor(mine);
-  expect(barText(mine)).toBeUndefined();
-  expect(mine.nodes('Progress')).toHaveLength(1);
-  // the same pane without the cut draws the comet
+  // the bar is still there, but its comet head does not move: the same colours at two frame times
+  const stillFrame = async (h: Awaited<ReturnType<typeof host>>, ms: number): Promise<string[]> => {
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000 + ms);
+    try {
+      await h.$.ui.invalidate('ui.render');
+      return childColors(barText(h));
+    } finally {
+      spy.mockRestore();
+    }
+  };
+  expect(barText(mine)).toBeDefined();
+  expect(await stillFrame(mine, 100)).toEqual(await stillFrame(mine, 350));
+  // the same pane without the cut draws the moving comet
   const open = await paneWith(planOf(2), (x) => void x.store.set('settings', { v: 1, motion: 'mine', effects: { comet: true } }));
   await startExecutor(open);
-  expect(barText(open)).toBeDefined();
+  expect(await stillFrame(open, 100)).not.toEqual(await stillFrame(open, 350));
 });
 
 // ---- Phase 08.8.1-09 task 1: the mission preset draws a heartbeat and a train (L-01) ----
@@ -3127,12 +3221,12 @@ it('risk:regression the engine SubagentHandback call is not shown as an agent to
   h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 })];
   await h.fire('turn.start', subStart('a1'));
   await h.fire('tool.call', { tool: 'Edit', file_path: 'src/view.js', agentId: 'a1' });
-  await vi.waitFor(() => expect(h.texts().some((x) => /^executor · 1:0[0-9] · Edit view\.js$/.test(x))).toBe(true));
+  await vi.waitFor(() => expect(h.texts()).toContain('Edit view.js'));
   const handback = { tool: 'SubagentHandback', agentId: 'a1' };
   expect(await h.fire('tool.call', handback)).toBe(handback);
   await new Promise((r) => setTimeout(r, 10));
   expect(h.texts().join('\n')).not.toContain('SubagentHandback');
-  expect(h.texts().some((x) => /^executor · 1:0[0-9] · Edit view\.js$/.test(x))).toBe(true);
+  expect(h.texts()).toContain('Edit view.js');
 });
 
 // Phase 08.8.1 review WR-04: the host documents the agent statuses pending, running, waiting, idle, completed, failed and killed; an agent is finished when its entry is gone or its status is completed, failed or killed, never on another word.

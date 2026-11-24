@@ -190,6 +190,11 @@ it('risk:regression the pane reads the real cli task list and draws one row per 
     const current = shown.tasks.find((r: any) => r.state === 'current');
     expect(current?.n).toBe(json.now.task);
     expect(shown.progress).toEqual({ value: json.tasksDone, max: json.tasksTotal, valueText: `${json.tasksDone} of ${json.tasksTotal}` });
+    // issue 342 D-02: the head names the task and its title, the current task row carries the still star, and the one gradient bar reads the json's counts
+    expect(shown.now[0].text).toBe(`Building task ${json.now.task} of ${json.tasksTotal}`);
+    expect(shown.now[1].text).toBe(json.now.title);
+    expect(current?.mark).toBe('✦');
+    expect(shown.barRow.counter).toBe(`${json.tasksDone} of ${json.tasksTotal}`);
   } finally {
     cleanup(repo);
   }

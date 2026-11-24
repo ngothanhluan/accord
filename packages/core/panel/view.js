@@ -465,32 +465,27 @@ export function answerLine(answer) {
   return line === undefined ? undefined : cut(line, 200);
 }
 
-// Phase 08.8.1 L-06: the NOW lines under the ticket head. `ticket` is the `show --json` ticket, `agents` the roster as an array (`agentRows` input), `now` epoch milliseconds.
-// The first line names the task in flight (build, from the JSON's `now` and `tasksTotal`), the review round (review) or the stage word; the second names the first running accord agent with its time.
-export function nowLines({ ticket, agents, waiting, now }) {
+// Phase 08.8.1 L-06, issue 342: the current-work lines under the ticket head. `ticket` is the `show --json` ticket, `waiting` the main loop's wait, `now` epoch milliseconds.
+// Build with a task in flight reads `Building task <n> of <total>` and the task's title under it, review reads `Reviewing, round <r> of <cap>`, any other stage the stage word; the running agents are rows of the same block, not a line here.
+export function nowLines({ ticket, waiting, now }) {
   const t = ticket;
-  let head;
-  if (t.stage === 'build' && nowOk(t.now) && num(t.tasksTotal)) head = `task ${t.now.task} of ${t.tasksTotal} · ${t.now.title}`;
-  else if (t.stage === 'review' && plain(t.review) && num(t.review.round) && num(t.review.cap)) head = `review round ${t.review.round} of ${t.review.cap}`;
-  // the stage word alone: the stage track already draws the cell's own label (with its counts) once, and the tab names it once
-  else head = str(t.stage) ? t.stage : '';
   // the main loop waits for the person: its turn ended or its question is open
   if (plain(waiting) && num(waiting.since)) {
     const line = str(waiting.line) ? clean(waiting.line) : '';
     return [{ text: `Waiting for you · ${mmss(now - waiting.since)}` }, ...(line === '' ? [] : [{ text: line }])];
   }
-  const lines = [{ text: clean(head) }];
-  const running = agentRows(Array.isArray(agents) ? agents : [], now).find((a) => a.running);
-  if (running !== undefined) lines.push({ text: `${running.name} · ${running.time}${running.tool === undefined ? '' : ` · ${running.tool}`}` });
-  return lines;
+  if (t.stage === 'build' && nowOk(t.now) && num(t.tasksTotal)) return [{ text: clean(`Building task ${t.now.task} of ${t.tasksTotal}`) }, { text: clean(t.now.title) }];
+  if (t.stage === 'review' && plain(t.review) && num(t.review.round) && num(t.review.cap)) return [{ text: `Reviewing, round ${t.review.round} of ${t.review.cap}` }];
+  // the stage word alone: the stage track already draws the stage once, and the tab names it with its counts
+  return [{ text: clean(str(t.stage) ? t.stage : '') }];
 }
 
-// Phase 08.8.1 L-07: one row per plan task from `show --json` `tasks`: `✓` done, `▸` the task in flight (`current` is `now.task`), `·` the rest. Titles are cleaned.
+// Phase 08.8.1 L-07: one row per plan task from `show --json` `tasks`: `✓` done, `✦` the task in flight (`current` is `now.task`), `·` the rest. Titles are cleaned.
 export function taskRows(tasks, current) {
   const list = Array.isArray(tasks) ? tasks.filter(taskOk) : [];
   return list.map((t) => {
     const state = t.done ? 'done' : t.n === current ? 'current' : 'todo';
-    return { n: t.n, mark: state === 'done' ? '✓' : state === 'current' ? '▸' : '·', state, title: clean(t.title) };
+    return { n: t.n, mark: state === 'done' ? '✓' : state === 'current' ? '✦' : '·', state, title: clean(t.title), covers: t.covers.map(clean) };
   });
 }
 
@@ -660,23 +655,27 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
   const glowing = isWaiting && blinks && nowMs - waiting.since < BLINK_MS;
   const waitColor = glowing && isHex(colors.wait) ? drawColor(mixHex(colors.wait, GLOW, pingpong(seconds(nowMs) * 0.8) * 0.6)) : colors.wait;
   const diamond = blinks && !blinkOn(nowMs, waiting?.since, nowMs) ? '◇' : '◆';
+  // issue 342: the running accord agent's time rides the head line of the current-work block (not while the main loop waits for the person)
+  const running = isWaiting ? undefined : agentRows(Array.isArray(agents) ? agents : [], nowMs).find((a) => a.running);
+  const headTime = running === undefined ? undefined : running.time;
   const covered = new Set(fx.has('breathe') && nowOk(t.now) && Array.isArray(t.tasks) ? (t.tasks.filter(taskOk).find((x) => x.n === t.now.task)?.covers ?? []) : []);
   const criteria = criteriaOf(covered);
-  // L-01: the build bar as a comet with a counter while the comet moves or the counter rolls (a burst's first ROLL_MS), else the engine's own Progress
+  // issue 342: the build bar is always one gradient row with the counter (`n of m`); the comet head moves only while the comet effect is on, the counter rolls for a burst's first ROLL_MS
   const burst = motion?.burst;
   const sinceBurst = plain(burst) && num(burst.at) ? nowMs - burst.at : -1;
   const rollOn = fx.has('roll') && sinceBurst >= 0 && sinceBurst < ROLL_MS;
   const cometOn = fx.has('comet');
   const columns = num(motion?.columns) ? motion.columns : 64;
+  const counter = bar === undefined ? '' : rollOn ? rolling(bar.value, bar.max, burst.at, nowMs) : bar.valueText;
   const barRow =
-    bar !== undefined && (cometOn || rollOn)
-      ? {
-          cells: comet(bar.value / bar.max, Math.max(12, Math.min(40, Math.floor(columns) - 28)), cometOn ? nowMs : undefined, placeStops('bar', settings, 0.55)).map(({ ch, color }) => ({ ch, color: drawColor(color) })),
-          counter: rollOn ? rolling(bar.value, bar.max, burst.at, nowMs) : bar.valueText,
+    bar === undefined
+      ? undefined
+      : {
+          cells: comet(bar.value / bar.max, Math.max(10, Math.min(70, Math.floor(columns) - 3 - len(counter) - 2)), cometOn ? nowMs : undefined, placeStops('bar', settings, 0.55)).map(({ ch, color }) => ({ ch, color: drawColor(color) })),
+          counter,
           color: rollOn ? GLOW : colors.bar,
-        }
-      : undefined;
-  // L-01: the sparkles of a finished task over the TASKS block, three rows of segments
+        };
+  // L-01: the sparkles of a finished task over the progress group, three rows of segments
   const sparks = fx.has('confetti') && plain(burst) ? sparkRows(sparkles(burst, nowMs, Math.max(10, Math.min(100, Math.floor(columns) - 4))), stopsOf(settings)) : undefined;
   // Phase 08.8.1-09 L-01: the mission preset's heartbeat across the top of the tab (a taller glyph where a log entry of the last seconds happened) and the train on the stage track's current connector
   const beat = fx.has('ecg') ? heartbeat(Math.max(20, Math.min(104, Math.floor(columns) - 2)), nowMs, t.log, nowMs, placeStops('stage', settings, 0.85)).map(({ ch, color }) => ({ ch, color: drawColor(color) })) : undefined;
@@ -688,9 +687,10 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
     // issue 342: the stage track as one connected line; the train effect rides its current connector
     track: stageTrack(cells, { columns: motion?.columns, nowMs, effects: fx }),
     // Phase 08.8.1 L-06: the NOW lines, in the tracked branch only; the first line is the waiting colour while the main loop waits for the person, else the live line's
-    now: nowLines({ ticket: t, agents, waiting, now: nowMs }).map((l, i) =>
+    now: nowLines({ ticket: t, waiting, now: nowMs }).map((l, i) =>
       i === 0 ? { ...l, color: isWaiting ? waitColor : colors.now, ...(isWaiting ? { diamond } : {}), ...(fx.has('shimmer') && !isWaiting ? { run: shimmer(l.text, nowMs, placeStops('now', settings)).map(({ ch, color }) => ({ ch, color: drawColor(color) })) } : {}) } : l,
     ),
+    ...(headTime === undefined ? {} : { headTime }),
     ...(current === undefined ? {} : { current: current.text }),
     // Phase 08.8.1 L-07: the task list and the build bar, in the tracked branch only (D-05: a not-committed ticket gets neither)
     ...(rows.length === 0 ? {} : { tasks: rows }),

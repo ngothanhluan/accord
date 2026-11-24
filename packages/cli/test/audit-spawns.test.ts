@@ -330,3 +330,47 @@ it('risk:resource the creators of any number of old drafts on the default branch
   expect(added(few.argv)).toBe(1);
   expect(many.creators).toEqual(Array.from({ length: 12 }, (_, i) => `o${i + 1}@x.io`));
 });
+
+/**
+ * A sandbox on main with no origin and `count` claim branches t/B-1..t/B-<count>, each tip a `claim: B-<n>` commit that adds accord/tickets/B-<n>.md (neither main nor the checkout holds it),
+ * and a branch t/Y-1 whose ticket exists nowhere.
+ */
+function claimBranchRepo(count: number): string {
+  const repo = sandbox({});
+  for (let i = 1; i <= count; i++) {
+    gitRun(repo, 'switch', '-q', '-c', `t/B-${i}`, 'main');
+    writeFiles(repo, { [P(`B-${i}`)]: laneTicket(`B-${i}`) });
+    commitMsg(repo, `claim: B-${i}`, new Date(Date.now() - 2 * 3600 * 1000));
+    gitRun(repo, 'switch', '-q', 'main');
+  }
+  gitRun(repo, 'switch', '-q', '-c', 't/Y-1', 'main');
+  commitMsg(repo, 'claim: Y-1', new Date(Date.now() - 2 * 3600 * 1000), true);
+  gitRun(repo, 'switch', '-q', 'main');
+  return repo;
+}
+
+// The claim-branch gap lines the per-branch probes printed at BASE (captured before 08.9-08 changed claimRefs).
+const CLAIM_FEW_GAPS = [
+  "gap: branch-orphan: t/Y-1 (local) names ticket Y-1, and no accord/tickets/Y-1.md is in the checkout, on main or on the branch; tip by a@x.io - fix: git update-ref -d refs/heads/t/Y-1 <sha>",
+];
+const CLAIM_MANY_GAPS = [
+  "gap: branch-orphan: t/Y-1 (local) names ticket Y-1, and no accord/tickets/Y-1.md is in the checkout, on main or on the branch; tip by a@x.io - fix: git update-ref -d refs/heads/t/Y-1 <sha>",
+];
+
+// Phase 08.9 D-02 and D-03: the ticket of every claim branch is probed with one cat-file --batch-check, never one cat-file -e per branch; the gap lines are those the per-branch probes printed.
+// The sandboxes have no origin, so the dry clean judges no branch (worktree.ts cleanLocked) and the count is the audit's own reads.
+it('risk:resource accord audit starts as many git processes for twelve claim branches whose ticket lives only on its branch as for two (D-02)', async () => {
+  const lines = async (count: number): Promise<{ argv: string[][]; gaps: string[] }> => {
+    const repo = claimBranchRepo(count);
+    const argv = await spawns(repo);
+    const r = await run(['audit'], repo);
+    expect(r.code, r.out + r.err).toBe(0);
+    return { argv, gaps: r.out.split('\n').filter((l) => l.startsWith('gap: branch-')).map((l) => l.replace(/[0-9a-f]{40}/g, '<sha>')) };
+  };
+  const few = await lines(2);
+  const many = await lines(12);
+  expect(few.gaps).toEqual(CLAIM_FEW_GAPS);
+  expect(many.gaps).toEqual(CLAIM_MANY_GAPS);
+  expect(many.argv.length, `${histogram(many.argv)} with 12 branches, ${histogram(few.argv)} with 2`).toBe(few.argv.length);
+  for (const argv of [...few.argv, ...many.argv]) expect(verbOf(argv) === 'cat-file' && argv.includes('-e'), `a cat-file -e: ${argv.join(' ')}`).toBe(false);
+});

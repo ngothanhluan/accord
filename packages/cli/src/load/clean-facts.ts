@@ -209,11 +209,16 @@ export function readCleanFacts(root: string, ref: string): CleanFacts {
     },
     notOnOrigin(tips) {
       if (lacking !== undefined) return lacking ?? undefined;
-      const asked = [...new Set(tips.filter((t) => FULL_SHA.test(t)))];
-      if (asked.length === 0) return new Map();
+      const wanted = [...new Set(tips.filter((t) => FULL_SHA.test(t)))];
+      if (wanted.length === 0) return new Map();
       lacking = null;
       const t = table();
       if (t === null) return undefined;
+      // a tip that is not a commit (a tag object under refs/heads) is left unanswered: rev-list peels it, so a walk over its own sha would count 0
+      const commitTips = new Set<string>();
+      for (const e of t.values()) if (e.type === 'commit') commitTips.add(e.oid);
+      const asked = wanted.filter((x) => commitTips.has(x));
+      if (asked.length === 0) return new Map();
       const origin = new Set<string>();
       for (const [name, e] of t) {
         if (!name.startsWith('refs/remotes/origin/')) continue;

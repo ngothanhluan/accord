@@ -1,7 +1,7 @@
 // Issue #341 D-05, D-11: a `{type}` branch template needs a change: word the team lists (gate.change-type), and a branch_types word that is one of
 // accord's own branch prefixes is warned about (lint.branch-type-root), never refused.
 import { describe, expect, it } from 'vitest';
-import { ACCORD_BRANCH_ROOTS, changeProblem, gateReady, lintSnapshot, loadSnapshot, OVERRIDABLE } from '../src/index.js';
+import { ACCORD_BRANCH_ROOTS, changeProblem, CONFIG_KEYS, gateReady, lintSnapshot, loadSnapshot, newKeys, OVERRIDABLE } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
@@ -77,5 +77,17 @@ describe('changeProblem', () => {
     expect(changeProblem('fix', undefined)).toBeUndefined();
     expect(changeProblem('fix', { branch_types: ['feature'] })).toContain('fix');
     expect(changeProblem(undefined, undefined)).toContain(WORDS);
+  });
+});
+
+// WR-05: 0.18.0 shipped without the two keys, so their rows say the next minor; a repository pinned to 0.18.0 that upgrades is told about both.
+describe('config-keys rows of the issue #341 keys (WR-05)', () => {
+  it('risk:regression a repository pinned to the released 0.18.0 hears of branch_types and branch_slug_length on upgrading to 0.19.0', () => {
+    const rows = CONFIG_KEYS.filter((r) => r.key === 'branch_types' || r.key === 'branch_slug_length');
+    expect(rows.map((r) => [r.key, r.since])).toEqual([
+      ['branch_types', '0.19.0'],
+      ['branch_slug_length', '0.19.0'],
+    ]);
+    expect(newKeys(CONFIG_KEYS, '0.18.0', '0.19.0', []).map((r) => r.key)).toEqual(expect.arrayContaining(['branch_types', 'branch_slug_length']));
   });
 });

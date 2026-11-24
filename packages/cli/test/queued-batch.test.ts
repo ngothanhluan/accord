@@ -46,6 +46,8 @@ interface Fixture {
   expected: string[];
   /** Git `diff` processes the batched read starts when it does not fall back to gitQueued (a tip with two or more merge bases, or none). */
   diffs: number;
+  /** `rev-list` processes that read the default ref's own history: started only when a tip has two or more boundary commits. */
+  histories: number;
 }
 
 const FIXTURES: Fixture[] = [
@@ -54,6 +56,7 @@ const FIXTURES: Fixture[] = [
     build: () => undefined,
     expected: [],
     diffs: 0,
+    histories: 0,
   },
   {
     name: '(b) one local backlog branch adding two drafts',
@@ -62,6 +65,7 @@ const FIXTURES: Fixture[] = [
     },
     expected: ['Q-1', 'Q-2'],
     diffs: 0,
+    histories: 0,
   },
   {
     name: "(c) one name both local and as origin's remote-tracking ref: origin's copy wins",
@@ -73,17 +77,19 @@ const FIXTURES: Fixture[] = [
     },
     expected: ['O-1'],
     diffs: 0,
+    histories: 0,
   },
   {
     name: '(d) one id queued by three branches with different texts: the first in code-point order wins',
     build: (repo) => {
       branch(repo, 'backlog/a', 'main', { [P('Q-1')]: laneTicket('Q-1') + 'from a\n', [P('Q-3')]: laneTicket('Q-3') });
-      branch(repo, 'backlog/b', 'main', { [P('Q-1')]: laneTicket('Q-1') + 'from b\n', [P('Q-2')]: laneTicket('Q-2') });
-      // an uppercase B sorts before a lowercase a by code point, not by locale
+      branch(repo, 'backlog/c', 'main', { [P('Q-1')]: laneTicket('Q-1') + 'from c\n', [P('Q-2')]: laneTicket('Q-2') });
+      // an uppercase B sorts before a lowercase a by code point, not by locale (a ref of 'backlog/b' would collide with it on a case-insensitive file system)
       branch(repo, 'backlog/B', 'main', { [P('Q-1')]: laneTicket('Q-1') + 'from B\n' });
     },
     expected: ['Q-1', 'Q-2', 'Q-3'],
     diffs: 0,
+    histories: 0,
   },
   {
     name: '(e) drafts filtered out: a known id, an id main already has, an id of the wrong shape, a file in a subfolder, a file outside the folder',
@@ -104,6 +110,7 @@ const FIXTURES: Fixture[] = [
     known: ['K-1'],
     expected: ['OK-1'],
     diffs: 0,
+    histories: 0,
   },
   {
     name: '(f) a branch that adds a draft and deletes it, and one that adds a draft and edits it',
@@ -122,6 +129,7 @@ const FIXTURES: Fixture[] = [
     },
     expected: ['D-2', 'E-1'],
     diffs: 0,
+    histories: 0,
   },
   {
     name: '(g) a branch that merged main once after its first commit while main moved on: two boundary commits, one an ancestor of the other',
@@ -139,6 +147,7 @@ const FIXTURES: Fixture[] = [
     },
     expected: ['G-1', 'G-2'],
     diffs: 0,
+    histories: 1,
   },
   {
     name: '(h) a criss-cross: a branch with two merge bases with main',
@@ -154,9 +163,12 @@ const FIXTURES: Fixture[] = [
       commitMsg(repo, 'queue H-2');
       gitRun(repo, 'switch', '-q', 'main');
       mergeMsg(repo, b1, 'merge b1 into main');
+      // the fixture is a criss-cross: main and the branch tip have two merge bases
+      expect(gitRun(repo, 'merge-base', '--all', 'refs/heads/main', 'refs/heads/backlog/cross').trim().split('\n')).toHaveLength(2);
     },
     expected: ['H-2'],
     diffs: 1,
+    histories: 1,
   },
   {
     name: "(i) beside (b)'s branch, a branch whose history shares no commit with main: today's answer for the whole set is nothing",
@@ -171,6 +183,7 @@ const FIXTURES: Fixture[] = [
     expected: [],
     // the batched read tries the orphan by the per-tip diff (one process, which fails), then gitQueued reads both branches (two more)
     diffs: 3,
+    histories: 0,
   },
   {
     name: '(j) a backlog branch already merged into main, beside one that is not',
@@ -181,6 +194,7 @@ const FIXTURES: Fixture[] = [
     },
     expected: ['J-2'],
     diffs: 0,
+    histories: 0,
   },
 ];
 
@@ -196,6 +210,7 @@ it('risk:regression gitQueuedBatched answers every set of backlog branches as gi
     expect(Object.entries(got), fixture.name).toEqual(Object.entries(want));
     const read = countedSync(() => gitQueuedBatched(repo, MAIN, known));
     expect(read.argv.filter((a) => a[0] === 'diff').length, `${fixture.name}: tips read by the per-tip diff`).toBe(fixture.diffs);
+    expect(read.argv.filter((a) => a[0] === 'rev-list' && !a.includes('--stdin')).length, `${fixture.name}: reads of the default ref's history`).toBe(fixture.histories);
   }
 });
 

@@ -13,6 +13,12 @@ export interface CleanFacts {
   localTip(branch: string): string | null | undefined;
   /** What `git merge-base --is-ancestor <sha> <ref>` answers for the default ref `ref`, `undefined` when `sha` is not a tip the refs table lists as a commit. */
   onRef(sha: string): boolean | undefined;
+  /**
+   * The commit each full-length `verified_commit` in `raws` names, from one `git cat-file --batch-check` fed `<raw>^{commit}`: the object name for a commit, `null` for a missing one
+   * (what `rev-parse --verify -q <raw>^{commit}` failing means). A raw that is not 40 or 64 lower-case hex characters is left out, so is any other answer; the whole map is
+   * `undefined` when the call fails. A short name's resolution is git's disambiguation, not batched.
+   */
+  commitsOf(raws: readonly string[]): ReadonlyMap<string, string | null> | undefined;
 }
 
 /** A full object name: the only text that is written to a stdin line of git here. */
@@ -97,6 +103,24 @@ export function readCleanFacts(root: string, ref: string): CleanFacts {
       const r = reached();
       if (r === null || !r.tips.has(lower)) return undefined;
       return !r.unreached.has(lower);
+    },
+    commitsOf(raws) {
+      const asked = [...new Set(raws.filter((r) => FULL_SHA.test(r)))];
+      const answers = new Map<string, string | null>();
+      if (asked.length === 0) return answers;
+      let out: string[];
+      try {
+        out = git(root, ['cat-file', '--batch-check'], asked.map((r) => r + '^{commit}\n').join('')).split(/\r?\n/);
+      } catch {
+        return undefined;
+      }
+      asked.forEach((raw, i) => {
+        const line = out[i] ?? '';
+        const found = /^([0-9a-f]{40}(?:[0-9a-f]{24})?) commit \d+$/.exec(line);
+        if (found !== null) answers.set(raw, found[1]);
+        else if (line === raw + '^{commit} missing') answers.set(raw, null);
+      });
+      return answers;
     },
   };
 }

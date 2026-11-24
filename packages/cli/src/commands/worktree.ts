@@ -1895,6 +1895,8 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
   const snap = snapshotAt(ctx.root, ref, [...new Set(ids.values())]);
   const done = new Set(statusRows(snap).filter((r) => r.stage === 'done' && r.status !== 'dropped').map((r) => r.id));
   const after = readList(ctx, s.seen);
+  // Phase 08.9 D-08: on the offline dry path the commits the full-length verified commits of the done branches name come from one batch-check; a short one or a failed batch is read per branch below
+  const verified = s.facts?.commitsOf([...ids.keys()].filter((n) => done.has(ids.get(n)!)).flatMap((n) => [snap.tickets[ids.get(n)!]?.frontmatter?.verified_commit]).filter((v): v is string => typeof v === 'string'));
   for (const b of [...ids.keys()].filter((n) => done.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
@@ -1912,7 +1914,8 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       }
       const raw = snap.tickets[id]?.frontmatter?.verified_commit;
       const vcArgs = ['rev-parse', '--verify', '-q', String(raw) + '^{commit}'];
-      const vc = typeof raw === 'string' && isSha(raw) && gitOk(ctx.root, vcArgs) ? git(ctx.root, vcArgs).trim() : undefined;
+      const batched = typeof raw === 'string' ? verified?.get(raw) : undefined;
+      const vc = batched !== undefined ? (batched ?? undefined) : typeof raw === 'string' && isSha(raw) && gitOk(ctx.root, vcArgs) ? git(ctx.root, vcArgs).trim() : undefined;
       const tipArgs = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
       // The set answers the first judgement of L and the one of R; the tip re-read after the guards gets every check.
       const reason = (t: string, set?: ReadonlySet<string>) => {

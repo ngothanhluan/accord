@@ -1384,13 +1384,14 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   for (const spec of wanted) {
     const nl = out.indexOf(10, at);
     if (nl < 0) break;
-    const m = /^[0-9a-f]+ blob (\d+)$/.exec(out.toString('utf8', at, nl));
+    const m = /^[0-9a-f]+ (\w+) (\d+)$/.exec(out.toString('utf8', at, nl));
     if (m === null) {
       at = nl + 1; // `<name> missing`
       continue;
     }
-    const size = Number(m[1]);
-    read.set(spec, out.toString('utf8', nl + 1, nl + 1 + size));
+    const size = Number(m[2]);
+    // A tree or commit prints its header and content too: skip it whole, or every later answer shifts by one.
+    if (m[1] === 'blob') read.set(spec, out.toString('utf8', nl + 1, nl + 1 + size));
     at = nl + 1 + size + 1;
   }
   const files = { ...bare.files };
@@ -1551,13 +1552,14 @@ export function catBatch(root: string, specs: readonly string[], what: string, m
   for (let i = 0; i < specs.length; i++) {
     const nl = out.indexOf(10, at);
     if (nl < 0) break;
-    const m = /^[0-9a-f]+ blob (\d+)$/.exec(out.toString('utf8', at, nl));
+    const m = /^[0-9a-f]+ (\w+) (\d+)$/.exec(out.toString('utf8', at, nl));
     if (m === null) {
       at = nl + 1; // `<name> missing`
       continue;
     }
-    const size = Number(m[1]);
-    texts[i] = out.toString('utf8', nl + 1, nl + 1 + size);
+    const size = Number(m[2]);
+    // A tree or commit prints its header and content too: skip it whole, or every later answer shifts by one.
+    if (m[1] === 'blob') texts[i] = out.toString('utf8', nl + 1, nl + 1 + size);
     at = nl + 1 + size + 1;
   }
   return texts;
@@ -2239,13 +2241,14 @@ export function gitPeopleOnRefs(root: string): { byRef: Record<string, Record<st
   for (const ref of refs) {
     const nl = out.indexOf(10, at);
     if (nl < 0) break;
-    const m = /^[0-9a-f]+ blob (\d+)$/.exec(out.toString('utf8', at, nl));
+    const m = /^[0-9a-f]+ (\w+) (\d+)$/.exec(out.toString('utf8', at, nl));
     if (m === null) {
       at = nl + 1; // `<name> missing`
       continue;
     }
-    const size = Number(m[1]);
-    const people = peopleOf(out.toString('utf8', nl + 1, nl + 1 + size));
+    const size = Number(m[2]);
+    // A tree or commit prints its header and content too: skip it whole, or every later answer shifts by one.
+    const people = m[1] === 'blob' ? peopleOf(out.toString('utf8', nl + 1, nl + 1 + size)) : undefined;
     if (people !== undefined) byRef[ref] = people;
     at = nl + 1 + size + 1;
   }

@@ -88,6 +88,10 @@ it('risk:regression the pane draws the real review and log json of a claimed tic
     expect(review.rounds[0].parts).toContain('Must 1 open');
     const now = Math.floor(Date.now() / 1000);
     expect(logRows(got.ticket.log, now).map((r: any) => r.text)).toEqual(['executor report task 1', 'plan: T-1 ready', 'claim: T-1']);
+    // issue 342 D-02: each entry also reads as who did it and what, while the text stays the json's own
+    const rows = logRows(got.ticket.log, now);
+    expect(rows.map((r: any) => r.say)).toEqual(['finished task 1', 'plan: T-1 ready', 'claim: T-1']);
+    expect(rows.map((r: any) => r.who)).toEqual(['executor', 'commit', 'commit']);
   } finally {
     cleanup(repo);
   }

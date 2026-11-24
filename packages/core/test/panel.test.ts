@@ -1120,7 +1120,8 @@ it('risk:regression the ticket tab draws the review rounds the criteria and the 
   expect(kids(h.row('r1/5'))).toEqual(['r1/5', 'Must 1 open 2 fixed', 'Should 1 deferred']);
   expect(kids(h.row('r2/5 final'))).toEqual(['r2/5 final', 'no findings', 'security lens ran']);
   expect(h.cell('r1/5').text.bold).toBe(true);
-  expect(t).toContain('CRITERIA');
+  expect(t).toContain('criteria');
+  expect(t).toContain('2 of 3 tested');
   for (const [id, title, label] of [['ac-1', 'Logs in', 'passing'], ['ac-2', 'Logs out', 'failing'], ['ac-3', 'Remembers me', 'untested']]) {
     expect(kids(h.row(title))).toEqual([id, title, label]);
     expect(h.cell(title).text.wrap).toBe('truncate');
@@ -1128,14 +1129,15 @@ it('risk:regression the ticket tab draws the review rounds the criteria and the 
   expect(h.cell('passing').text.color).toBe('green');
   expect(h.cell('failing').text.color).toBe('red');
   expect(h.cell('untested').text.dimColor).toBe(true);
-  expect(t).toContain('LOG');
-  const rest = t.slice(t.indexOf('LOG') + 1);
-  expect(rest).toHaveLength(16);
+  expect(t).toContain('lately');
+  const rest = t.slice(t.indexOf('lately') + 1);
+  expect(rest).toHaveLength(24);
   for (let i = 0; i < 8; i++) {
-    expect(rest[2 * i]).toMatch(/^[0-9]+[smhd]$/);
-    expect(rest[2 * i + 1]).toBe(log[i].text);
+    expect(rest[3 * i]).toMatch(/^[0-9]+[smhd]$/);
+    expect(rest[3 * i + 1]).toBe(i === 2 ? 'executor' : 'commit');
+    expect(rest[3 * i + 2]).toBe(i === 2 ? 'finished task 1' : log[i].text);
   }
-  expect(rest).toContain('executor report task 1');
+  expect(rest).toContain('finished task 1');
   expect(rest).not.toContain('commit number 8');
 });
 
@@ -1154,13 +1156,14 @@ it('risk:parsing review rows criteria rows and log rows are built from the json 
   expect(sev.rounds[0].parts).toEqual(['Must 4 deferred', 'Should 5 open', 'Nice 6 fixed']);
   const colors = criteriaRows([critOf('a', 'A', 'failing'), critOf('b', 'B', 'blocked'), critOf('c', 'C', 'verified'), critOf('d', 'D', 'passing'), critOf('e', 'E', 'not run'), critOf('f', 'F', 'untested')]);
   expect(colors.map((c: any) => c.color)).toEqual(['red', 'red', 'green', 'green', 'yellow', 'dim']);
-  expect(colors[0]).toEqual({ id: 'a', title: 'A', label: 'failing', color: 'red' });
+  expect(colors[0]).toEqual({ id: 'a', title: 'A', label: 'failing', color: 'red', tested: true, chip: '✗' });
+  expect(colors.map((c: any) => [c.tested, c.chip])).toEqual([[true, '✗'], [false, '✗'], [true, '✓'], [true, '✓'], [false, '○'], [false, '○']]);
   expect([ago(100, 90), ago(0, 59), ago(0, 60), ago(0, 3599), ago(0, 3600), ago(0, 86399), ago(0, 86400)]).toEqual(['0s', '59s', '1m', '59m', '1h', '23h', '1d']);
   const log = Array.from({ length: 12 }, (_, i) => ({ at: 1000 - i, kind: i === 1 ? 'gate' : 'commit', text: `t${i}`, ...(i === 1 ? { fail: true } : {}) }));
   expect(LOG_SHOWN).toBe(8);
   const shown = logRows(log, 1010);
   expect(shown.map((r: any) => r.text)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7']);
-  expect(shown[1]).toEqual({ age: '11s', text: 't1', fail: true });
+  expect(shown[1]).toEqual({ age: '11s', text: 't1', who: 'gate', say: 't1', fail: true });
   // Phase 08.8.1 W4: the newest gate run (t1, failed) shows although a newer commit (t0) sits above it
   expect(failureOf(log)).toEqual({ text: 't1' });
   expect(failureOf([log[1]])).toEqual({ text: 't1' });
@@ -1184,7 +1187,7 @@ it('risk:complex-branching a newest failed gate run shows the failure block and 
   expect(later.nodes('Box').some((b) => b.props.borderColor === '#ff6b6b')).toBe(true);
   expect(later.texts()).toContain('Gate failed');
   expect(tabs(later)['tab:ticket'].label).toContain('gate failed');
-  expect(later.texts()).toContain('LOG');
+  expect(later.texts()).toContain('lately');
   const passed = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate done PASS' }, gate] });
   expect(passed.nodes('Box').some((b) => b.props.borderColor === '#ff6b6b')).toBe(false);
   expect(tabs(passed)['tab:ticket'].label).not.toContain('gate failed');
@@ -1194,7 +1197,7 @@ it('risk:complex-branching a newest failed gate run shows the failure block and 
 it('risk:regression the ticket tab draws no context token or cost block (D-08)', async () => {
   const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log: logOf() });
   const t = h.texts();
-  for (const heading of ['CRITERIA', 'LOG']) expect(t).toContain(heading);
+  for (const heading of ['criteria', 'lately']) expect(t).toContain(heading);
   expect(t.some((x) => x.startsWith('REVIEW'))).toBe(true);
   expect(t.filter((x) => /\b(tokens?|cost|context)\b/i.test(x))).toEqual([]);
 });
@@ -1205,10 +1208,13 @@ it('risk:security log lines criterion titles and stage text cannot put control c
   const h = await paneWith({
     stage: 'build\u0007',
     criteria: [critOf('ac-1', 'Lo⁦gs in', 'passing')],
-    log: [{ at: now - 5, kind: 'commit', text: 'evil‮\u0007subject' }],
+    log: [{ at: now - 4, kind: 'gate', text: 'gate done FAIL: ba\u202ed\u0007 reason', fail: true }, { at: now - 5, kind: 'commit', text: 'evil‮\u0007subject' }],
   });
   const t = h.texts();
   expect(t).toContain('evil subject');
+  // the sentences and the tab parts are cleaned too
+  expect(t).toContain('done failed: ba d reason');
+  expect(t).toContain('build');
   expect(t).toContain('Lo gs in');
   const bad = (c: number): boolean =>
     c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x61c || c === 0x200e || c === 0x200f || c === 0x2028 || c === 0x2029 || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
@@ -1219,11 +1225,11 @@ it('risk:security log lines criterion titles and stage text cannot put control c
 it('risk:complex-branching a malformed review or log key is drawn as absent and the rest of the ticket still shows (D-02)', async () => {
   const bad = await paneWith({ review: { round: 'x' }, criteria: [critOf('ac-1', 'Logs in', 'passing')] });
   expect(bad.texts().some((x) => x.startsWith('REVIEW'))).toBe(false);
-  expect(bad.texts()).toContain('CRITERIA');
+  expect(bad.texts()).toContain('criteria');
   expect(bad.texts()).toContain('Logs in');
   const text = await paneWith({ log: 'x', criteria: [critOf('ac-1', 'Logs in', 'passing')] });
-  expect(text.texts()).not.toContain('LOG');
-  expect(text.texts()).toContain('CRITERIA');
+  expect(text.texts()).not.toContain('lately');
+  expect(text.texts()).toContain('criteria');
   const now = Math.floor(Date.now() / 1000);
   const mixed = await paneWith({
     log: [
@@ -1236,8 +1242,8 @@ it('risk:complex-branching a malformed review or log key is drawn as absent and 
     criteria: [critOf('ac-1', 'Logs in', 'passing')],
   });
   const t = mixed.texts();
-  expect(t).toContain('LOG');
-  expect(t.slice(t.indexOf('LOG') + 1).filter((x) => !/^[0-9]+[smhd]$/.test(x))).toEqual(['good one', 'good two']);
+  expect(t).toContain('lately');
+  expect(t.slice(t.indexOf('lately') + 1).filter((_, i) => i % 3 === 2)).toEqual(['good one', 'good two']);
 });
 
 // ---- Phase 08.7-06: the agents block and the roster (D-01, D-02, D-03) ----
@@ -1619,7 +1625,7 @@ it('risk:complex-branching a not-committed warning replaces the stage track and 
   const keys = Object.keys(nc);
   expect(keys).toEqual(expect.arrayContaining(['title', 'notCommitted']));
   // Phase 08.8.1-07 L-01: the title's colours and the places' colours are display keys; no stage, task or progress key joins them
-  for (const k of keys) expect(['title', 'titleRun', 'colors', 'notCommitted', 'failure', 'review', 'criteria', 'log']).toContain(k);
+  for (const k of keys) expect(['title', 'titleRun', 'colors', 'notCommitted', 'failure', 'review', 'criteria', 'criteriaHead', 'log']).toContain(k);
   expect(nc.notCommitted).toBe(NOT_COMMITTED);
   const held = await paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3, warnings: [{ kind: 'plan-changed', text: PLAN_CHANGED }] });
   const ht = held.texts();
@@ -1635,7 +1641,7 @@ it('risk:complex-branching a not-committed warning replaces the stage track and 
   for (const warnings of [[{ kind: 'mystery', text: 'x' }], [{ kind: 'not-committed', text: 7 }], 'oops', { kind: 'not-committed', text: 'x' }, [null, 3]]) {
     const odd = await paneWith({ stage: 'build', warnings });
     expect(odd.texts()).toContain('build 1/3');
-    expect(odd.texts()).toContain('CRITERIA');
+    expect(odd.texts()).toContain('criteria');
     expect(tabs(odd)['tab:ticket'].label).toBe('1 ticket ST-1 build');
   }
 });
@@ -2217,13 +2223,13 @@ it('risk:parsing repeated log lines merge into the newest with a count and the n
   expect(merged.map((e: any) => [e.text, e.count, e.at])).toEqual([['gate plan PASS', 2, now - 660], ['gate ready PASS', 2, now - 670], ['executor report task 2', 1, now - 1200]]);
   const rows = logRows(log, now);
   expect(rows).toEqual([
-    { age: '11m', text: 'gate plan PASS', fail: false, count: 2, newest: true },
-    { age: '11m', text: 'gate ready PASS', fail: false, count: 2 },
-    { age: '20m', text: 'executor report task 2', fail: false },
+    { age: '11m', text: 'gate plan PASS', who: 'gate', say: 'plan passed (2 times)', fail: false, count: 2, newest: true },
+    { age: '11m', text: 'gate ready PASS', who: 'gate', say: 'ready passed (2 times)', fail: false, count: 2 },
+    { age: '20m', text: 'executor report task 2', who: 'executor', say: 'finished task 2', fail: false },
   ]);
   // the same text under another kind is another line; a failed run keeps its mark
   const kinds = logRows([{ at: 10, kind: 'gate', text: 'x', fail: true }, { at: 9, kind: 'commit', text: 'x' }], 20);
-  expect(kinds).toEqual([{ age: '10s', text: 'x', fail: true, newest: true }, { age: '11s', text: 'x', fail: false }]);
+  expect(kinds).toEqual([{ age: '10s', text: 'x', who: 'gate', say: 'x', fail: true, newest: true }, { age: '11s', text: 'x', who: 'commit', say: 'x', fail: false }]);
   const many = Array.from({ length: 60 }, (_, i) => ({ at: 1000 - i, kind: 'commit', text: `c${i}` }));
   expect(logRows(many.slice(0, 30), 1010, 20)).toHaveLength(20);
   expect(logRows(many.slice(0, 30), 1010, 3)).toHaveLength(LOG_SHOWN);
@@ -2244,17 +2250,142 @@ it('risk:regression criteria labels sit next to their titles and the newest log 
   expect(h.cell('commit number 0').text.dimColor).toBeUndefined();
   expect(h.cell('commit number 1').text.bold).toBeUndefined();
   const t = h.texts();
-  const rows = (t.length - t.indexOf('LOG') - 1) / 2;
+  const rows = (t.length - t.indexOf('lately') - 1) / 3;
   expect(rows).toBeGreaterThan(8);
   expect(rows).toBeLessThanOrEqual(30);
   // a short pane keeps the eight lines, and no rows reported keeps them too
   const short = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log }, (x) => void (x.rows = 10));
-  expect(short.texts().length - short.texts().indexOf('LOG') - 1).toBe(16);
+  expect(short.texts().length - short.texts().indexOf('lately') - 1).toBe(24);
   const unknown = await paneWith({ log });
-  expect(unknown.texts().length - unknown.texts().indexOf('LOG') - 1).toBe(16);
-  // repeated lines draw once with their count
+  expect(unknown.texts().length - unknown.texts().indexOf('lately') - 1).toBe(24);
+  // repeated lines draw once with their count in words
   const twice = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate plan PASS' }, { at: now - 9, kind: 'commit', text: 'c' }, { at: now - 60, kind: 'gate', text: 'gate plan PASS' }] });
-  expect(twice.texts().filter((x) => x.startsWith('gate plan PASS'))).toEqual(['gate plan PASS ×2']);
+  expect(twice.texts().filter((x) => x.startsWith('plan passed'))).toEqual(['plan passed (2 times)']);
+});
+
+// issue 342 D-02 D-04: a log entry reads as who did what in plain words, from the CLI's own texts with anchored patterns and no duration or author the entry does not hold.
+it('risk:parsing log sentences say who did it in plain words and a repeat reads n times (issue 342 D-02 D-04)', async () => {
+  const { logSay, logRows } = await loadView();
+  expect(logSay('report', 'executor report task 3')).toEqual({ who: 'executor', say: 'finished task 3' });
+  expect(logSay('report', 'fix report 2')).toEqual({ who: 'executor', say: 'finished fix 2' });
+  expect(logSay('gate', 'gate plan PASS')).toEqual({ who: 'gate', say: 'plan passed' });
+  expect(logSay('gate', 'gate done FAIL: criterion ac-2 has no passing test')).toEqual({ who: 'gate', say: 'done failed: criterion ac-2 has no passing test' });
+  expect(logSay('gate', 'gate ready FAIL')).toEqual({ who: 'gate', say: 'ready failed' });
+  expect(logSay('commit', 'claim: T-1')).toEqual({ who: 'commit', say: 'claim: T-1' });
+  expect(logSay('mystery', 'whatever happened')).toEqual({ who: 'mystery', say: 'whatever happened' });
+  // anchored: a text that only holds these words, or the wrong kind, is drawn as it was written
+  expect(logSay('report', 'xexecutor report task 3')).toEqual({ who: 'report', say: 'xexecutor report task 3' });
+  expect(logSay('report', 'executor report task 3 and more')).toEqual({ who: 'report', say: 'executor report task 3 and more' });
+  expect(logSay('gate', 'gate plan PASS later')).toEqual({ who: 'gate', say: 'gate plan PASS later' });
+  expect(logSay('commit', 'gate plan PASS')).toEqual({ who: 'commit', say: 'gate plan PASS' });
+  // no control or bidi code point survives into who or say
+  const dirty = logSay('commit', 'ev‮\u0007il subject');
+  expect(dirty.say).toBe('ev il subject');
+  const rows = logRows(
+    [
+      { at: 990, kind: 'gate', text: 'gate plan PASS' },
+      { at: 980, kind: 'report', text: 'executor report task 1' },
+      { at: 900, kind: 'gate', text: 'gate plan PASS' },
+      { at: 800, kind: 'gate', text: 'gate done FAIL: red', fail: true },
+    ],
+    1000,
+  );
+  expect(rows.map((r: any) => [r.who, r.say, r.text, r.count])).toEqual([
+    ['gate', 'plan passed (2 times)', 'gate plan PASS', 2],
+    ['executor', 'finished task 1', 'executor report task 1', undefined],
+    ['gate', 'done failed: red', 'gate done FAIL: red', undefined],
+  ]);
+  expect(rows[0]).toMatchObject({ age: '10s', newest: true, fail: false });
+  expect(rows[2].fail).toBe(true);
+});
+
+// issue 342 D-02: `lately` is a dim label over rows of age, who and a sentence; the newest row is highlighted, a failed gate sentence is in the failure colour and the room decides the count.
+it('risk:regression the lately log reads in sentences with who did it and fills the room (issue 342 D-02)', async () => {
+  const { gradientAt, PALETTES, ticketView, settingsOf } = await loadView();
+  const aurora = PALETTES.aurora as string[];
+  const now = Math.floor(Date.now() / 1000);
+  const log = [
+    { at: now - 20, kind: 'commit', text: 'build: export' },
+    { at: now - 120, kind: 'report', text: 'executor report task 2' },
+    { at: now - 660, kind: 'gate', text: 'gate plan PASS' },
+    { at: now - 700, kind: 'gate', text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true },
+    { at: now - 900, kind: 'gate', text: 'gate plan PASS' },
+  ];
+  const h = await paneWith({ log }, (x) => void x.store.set('settings', NO_MOTION));
+  const t = h.texts();
+  expect(h.cell('lately').text.dimColor).toBe(true);
+  const rest = t.slice(t.indexOf('lately') + 1);
+  expect(rest).toHaveLength(12);
+  expect(rest.filter((_, i) => i % 3 === 0)).toEqual(['20s', '2m', '11m', '11m']);
+  expect(rest.filter((_, i) => i % 3 === 1)).toEqual(['commit', 'executor', 'gate', 'gate']);
+  expect(rest.filter((_, i) => i % 3 === 2)).toEqual(['build: export', 'finished task 2', 'plan passed (2 times)', 'done failed: criterion ac-2 has no passing test']);
+  expect(t).not.toContain('LOG');
+  const logColor = gradientAt(aurora, 0.55);
+  expect(h.cell('build: export').text).toMatchObject({ bold: true, color: logColor });
+  expect(h.cell('commit').text.color).toBe(logColor);
+  expect(h.cell('finished task 2').text.bold).toBeUndefined();
+  expect(h.cell('executor').text.dimColor).toBe(true);
+  expect(h.cell('done failed: criterion ac-2 has no passing test').text.color).toBe('#ff6b6b');
+  // the failed gate as the newest entry is in the failure colour, not the log colour
+  const red = await paneWith({ log: [log[3], log[0]] }, (x) => void x.store.set('settings', NO_MOTION));
+  expect(red.cell('done failed: criterion ac-2 has no passing test').text).toMatchObject({ bold: true, color: '#ff6b6b' });
+  // the room decides how many rows show: at least eight, more with room, and no reported room keeps the eight
+  const many = Array.from({ length: 30 }, (_, i) => ({ at: now - 30 - i * 40, kind: 'commit', text: `commit number ${i}` }));
+  const count = (p: Awaited<ReturnType<typeof host>>): number => (p.texts().length - p.texts().indexOf('lately') - 1) / 3;
+  expect(count(await paneWith({ log: many }))).toBe(8);
+  expect(count(await paneWith({ log: many }, (x) => void (x.rows = 10)))).toBe(8);
+  expect(count(await paneWith({ log: many }, (x) => void (x.rows = 40)))).toBeGreaterThan(8);
+  // the mission ticker scrolls `<age> <who> <say>` lines
+  const T = 1_800_000_000_000;
+  const ticket = { id: 'ST-1', state: { ticket: detailOf({ log: [{ at: T / 1000 - 5, kind: 'commit', text: 'build: x' }, { at: T / 1000 - 9, kind: 'report', text: 'executor report task 1' }] }) } };
+  const ticked = ticketView({ ticket, now: T / 1000, nowMs: 0, settings: settingsOf(undefined), motion: { effects: new Set(['ticker']), columns: 100 } });
+  expect(ticked.log[0].ticker.startsWith('✦ 5s commit build: x  ✦ 9s executor finished task 1')).toBe(true);
+});
+
+// issue 342 D-02 D-04: `criteria k of N tested`, a row of chips (✓ passing or verified, ✗ failing, ◌ in flight, ○ open) and then the list; the chip ids take the criteria gradient.
+it('risk:regression the criteria group reads how many are tested with a chip row and the list (issue 342 D-02)', async () => {
+  const { gradientAt, PALETTES } = await loadView();
+  const aurora = PALETTES.aurora as string[];
+  const over = {
+    stage: 'build',
+    tasksDone: 1,
+    tasksTotal: 3,
+    now: { task: 2, title: 'Beta' },
+    tasks: [taskOf(1, 'Alpha', true, ['ac-1']), taskOf(2, 'Beta', false, ['ac-4']), taskOf(3, 'Gamma')],
+    criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing'), { ...critOf('ac-3', 'Remembers me', 'untested'), verification: 'pass' }, critOf('ac-4', 'Exports', 'untested'), critOf('ac-5', 'Imports', 'untested')],
+  };
+  const h = await paneWith(over, (x) => void x.store.set('settings', NO_MOTION));
+  const t = h.texts();
+  expect(h.cell('criteria').text.dimColor).toBe(true);
+  expect(t[t.indexOf('criteria') + 1]).toBe('3 of 5 tested');
+  expect(h.cell('3 of 5 tested').text.dimColor).toBe(true);
+  // the chip row: a chip is its mark and its id, in this order, before the list rows
+  const chip = (mark: string, id: string): El | undefined => h.nodes('Box').find((b) => b.props.flexDirection === 'row' && textsIn(b).join('|') === `${mark}|${id}`);
+  const chips = [['✓', 'ac-1'], ['✗', 'ac-2'], ['✓', 'ac-3'], ['◌', 'ac-4'], ['○', 'ac-5']] as const;
+  for (const [mark, id] of chips) expect(chip(mark, id), `${mark} ${id}`).toBeDefined();
+  const at = (i: number): string => gradientAt(aurora, 0.8 + i / 5);
+  const markOf = (mark: string, id: string): Record<string, any> => ((chip(mark, id)?.props.children as El[])[0] as El).props;
+  const idOf = (mark: string, id: string): Record<string, any> => ((chip(mark, id)?.props.children as El[])[1] as El).props;
+  expect(markOf('✓', 'ac-1').color).toBe('#6fd39a');
+  expect(markOf('✗', 'ac-2').color).toBe('#ff6b6b');
+  expect(markOf('◌', 'ac-4').color).toBe(at(0));
+  expect(markOf('○', 'ac-5').color).toBe(at(0));
+  chips.forEach(([mark, id], i) => expect(idOf(mark, id).color, id).toBe(at(i)));
+  // the criterion the task in flight covers reads bold
+  expect(idOf('◌', 'ac-4').bold).toBe(true);
+  expect(idOf('✓', 'ac-1').bold).toBeUndefined();
+  // the list keeps every row's id, title, label and verifier result; its ids are dim
+  expect(kids(h.row('Remembers me'))).toEqual(['ac-3', 'Remembers me', 'untested', 'verify pass']);
+  expect(kids(h.row('Logs in'))).toEqual(['ac-1', 'Logs in', 'passing']);
+  const list = h.nodes('Box').find((b) => b.props.flexDirection === 'row' && textsIn(b)[1] === 'Logs in');
+  expect(((list?.props.children as El[])[0].props.children as El[])[0].props.dimColor).toBe(true);
+  // the order: the chips come before the list
+  const ids = t.map((x, i) => [x, i] as const).filter(([x]) => x === 'ac-1').map(([, i]) => i);
+  expect(ids).toHaveLength(2);
+  expect(ids[0]).toBeLessThan(t.indexOf('Logs in'));
+  // a pane with no criterion draws none of it
+  const none = await paneWith({ criteria: [] });
+  expect(none.texts()).not.toContain('criteria');
 });
 
 // ---- Phase 08.8.1-07 L-03 L-02 L-01: each person's settings, kept in the mod's own store and never in the repository ----
@@ -2509,7 +2640,7 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   expect(h.cell('ac-1').text.color).toBe(at(0.8, 0));
   expect(h.cell('ac-2').text.color).toBe(at(0.8, 0.5));
   // the failure box and the log both hold the gate line; the log's is the last
-  expect(h.nodes('Text').filter((n) => flat(n.props.children) === 'gate done FAIL: red').at(-1)?.props.color).toBe('#ff6b6b');
+  expect(h.nodes('Text').filter((n) => flat(n.props.children) === 'done failed: red').at(-1)?.props.color).toBe('#ff6b6b');
   const box = h.nodes('Box').find((b) => b.props.borderColor === '#ff6b6b');
   expect(textsIn(box)[0]).toBe('Gate failed');
   expect(h.cell('Gate failed').text.color).toBe('#ff6b6b');

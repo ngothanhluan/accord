@@ -9,7 +9,7 @@ import { baselineGap, branchGaps, claimPinBefore, deferredGaps, DEFERRED_MARK_FR
 import type { AuditFact, AuditGap, ClaimPin, ClaimRefFact, OldDraft, OwnerDeferred } from '@accord-dev/accord-core';
 import type { CommandContext } from '../run.js';
 import { NOT_CHECKED } from './audit-health.js';
-import { gitClaimFacts } from './claim-facts.js';
+import { gitClaimFactsMany } from './claim-facts.js';
 import type { ClaimFacts } from './claim-facts.js';
 import { doneRef, gitDefaultRef, gitFilesAt, loadClaimView, snapshotAt, ticketOfBranch, withDefaultRef, withQueued } from './fs.js';
 import { whoFor } from './who.js';
@@ -295,7 +295,7 @@ function skippedIds(ids: string[]): string {
 
 /**
  * D-04, D-06, D-10: the Must and Should items no owner decided, of every ticket done on the default ref, whoever claimed it and whatever its lane (the lane is never read). Only a ticket claimed at or
- * after DEFERRED_MARK_FROM is judged; one claimed before, or whose claim release cannot be read, is counted in the fact and never listed (Phase 08.8 D-19: the fact counts the done tickets with an undecided item and names the ones it skipped). The claim fact is read only for a ticket that has an item.
+ * after DEFERRED_MARK_FROM is judged; one claimed before, or whose claim release cannot be read, is counted in the fact and never listed (Phase 08.8 D-19: the fact counts the done tickets with an undecided item and names the ones it skipped). The claim fact is read only for a ticket that has an item, for all of them in one batched read (Phase 08.9 D-02).
  * Reads git (the ref's tree, blobs and claim commits), writes nothing and fetches nothing.
  */
 function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]): void {
@@ -321,14 +321,19 @@ function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
     const unreadable: string[] = [];
     let withItems = 0;
     const judged: { id: string; items: OwnerDeferred[] }[] = [];
+    const itemsOf = new Map<string, OwnerDeferred[]>();
     for (const id of finished) {
       const text = ledgers[`accord/tickets/${id}/ledger.md`];
       const items = text === undefined ? [] : ownerDeferred(text, (mark) => Object.hasOwn(onRef.tickets, mark));
-      if (items.length === 0) continue;
+      if (items.length > 0) itemsOf.set(id, items);
+    }
+    // Phase 08.9 D-02: the claim facts of every ticket that has an item come from one batched read (gitClaimFactsMany), not one read per ticket.
+    const claimFacts = gitClaimFactsMany(ctx.root, [...itemsOf.keys()], ctx.snapshot.config);
+    for (const [id, items] of itemsOf) {
       withItems++;
       let release: ClaimPin | undefined;
       try {
-        release = claimRelease(gitClaimFacts(ctx.root, id, ctx.snapshot.config), onRef.tickets[id]?.frontmatter?.ruleset);
+        release = claimRelease(claimFacts.get(id), onRef.tickets[id]?.frontmatter?.ruleset);
       } catch {
         release = undefined; // a failed read skips this ticket into the unreadable count
       }

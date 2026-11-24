@@ -90,6 +90,8 @@ it('risk:regression gitClaimFactsMany answers every ticket as gitClaimFacts does
   mergeMsg(twice, 'branch-a', 'merge a');
   mergeMsg(twice, 'branch-b', 'merge b');
   same(twice, { 'T-1': 'claim', 'T-2': 'claim' });
+  // the batch must have handed T-1 (two unrelated claims) to claimCommitOf, or the fixture proves nothing about the order rule
+  expect(countedSync(() => gitClaimFactsMany(twice, ['T-1'])).argv.some((a) => a.some((x) => x.startsWith('--grep='))), 'T-1 is read by claimCommitOf').toBe(true);
 
   // fixture 6: no default ref (the only branch is trunk, there is no origin)
   const noDefault = base(['T-1', 'T-2'], 'trunk');

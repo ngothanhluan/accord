@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
-import { gitClaimFacts, gitClaimFactsMany, rulesetCommitsMany } from '../src/load/claim-facts.js';
+import { gitClaimFacts, gitClaimFactsMany, onePathCommits, rulesetCommitsMany } from '../src/load/claim-facts.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
 
@@ -365,4 +365,93 @@ it('risk:resource rulesetCommitsMany reads the ruleset commits of any number of 
   const counted = countedSync(() => rulesetCommitsMany(n.repo, graphOf(n.repo), n.claims, 2));
   expect(counted.argv.filter((a) => a.includes('-G^ruleset:')).length, 'five tickets with chunk size 2: three logs').toBe(3);
   sameRuleset(n.repo, n.claims, n.expected, 2);
+});
+
+
+/**
+ * Phase 08.9 D-03: the shapes of a draft's history on the default branch that the creator of a draft depends on, in one repository: ONCE-1 added once; TWICE-1 added with the same content on two branches that are both
+ * merged (git's per-file simplification follows the first parent only, so the creator is b1's); READD-1 added, deleted and added again; NONE-1 added only on a branch that is not merged (no adding commit in HEAD's
+ * history); DIFF-1 added with different content on two branches and merged by hand to a third content (the merge differs from both parents, so both sides are walked). Each adding commit has its own author.
+ */
+function creatorRepo(): string {
+  const repo = makeEmptyRepo();
+  dirs.push(repo);
+  gitRun(repo, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+  gitRun(repo, 'config', 'user.name', 'a');
+  const as = (email: string): void => {
+    gitRun(repo, 'config', 'user.email', email);
+  };
+  const ticket = (id: string, extra = ''): Record<string, string> => ({ [P(id)]: laneTicket(id) + extra });
+  as('a@x.io');
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  commitMsg(repo, 'base', at(0));
+  as('once@x.io');
+  writeFiles(repo, ticket('ONCE-1'));
+  commitMsg(repo, 'add ONCE-1', at(1));
+  gitRun(repo, 'switch', '-q', '-c', 'b1', 'main');
+  as('b1@x.io');
+  writeFiles(repo, ticket('TWICE-1'));
+  commitMsg(repo, 'add TWICE-1 on b1', at(5));
+  gitRun(repo, 'switch', '-q', '-c', 'b2', 'main');
+  as('b2@x.io');
+  writeFiles(repo, ticket('TWICE-1'));
+  commitMsg(repo, 'add TWICE-1 on b2', at(4));
+  gitRun(repo, 'switch', '-q', '-c', 'b3', 'main');
+  as('b3@x.io');
+  writeFiles(repo, ticket('DIFF-1', '\nx\n'));
+  commitMsg(repo, 'add DIFF-1 on b3', at(6));
+  gitRun(repo, 'switch', '-q', '-c', 'b4', 'main');
+  as('b4@x.io');
+  writeFiles(repo, ticket('DIFF-1', '\ny\n'));
+  commitMsg(repo, 'add DIFF-1 on b4', at(7));
+  gitRun(repo, 'switch', '-q', '-c', 'b5', 'main');
+  as('b5@x.io');
+  writeFiles(repo, ticket('NONE-1'));
+  commitMsg(repo, 'add NONE-1 on b5', at(8));
+  gitRun(repo, 'switch', '-q', 'main');
+  as('r1@x.io');
+  writeFiles(repo, ticket('READD-1'));
+  commitMsg(repo, 'add READD-1', at(10));
+  as('r2@x.io');
+  rmSync(join(repo, P('READD-1')));
+  commitMsg(repo, 'delete READD-1', at(11));
+  as('r3@x.io');
+  writeFiles(repo, ticket('READD-1'));
+  commitMsg(repo, 'add READD-1 again', at(12));
+  as('m@x.io');
+  mergeMsg(repo, 'b1', 'merge b1');
+  mergeMsg(repo, 'b2', 'merge b2');
+  mergeMsg(repo, 'b3', 'merge b3');
+  try {
+    gitRun(repo, '-c', 'commit.gpgsign=false', 'merge', '--no-commit', '--no-ff', 'b4');
+  } catch {
+    // add/add conflict on DIFF-1: the next commit resolves it
+  }
+  writeFiles(repo, ticket('DIFF-1', '\nz\n'));
+  commitMsg(repo, 'merge b4 with DIFF-1 resolved by hand');
+  return repo;
+}
+
+// Phase 08.9 D-03: onePathCommits, given the parent graph, the commits that add the path and what differs at each merge, lists for a draft path (no claim, the whole history) the commits a one-path added-file log lists.
+// The inputs are read here by plain git calls of the test's own, apart from the code under test. The list is oldest first, the log's is newest first.
+it('risk:regression onePathCommits lists for a draft path what a one-path added-file log lists (D-03)', () => {
+  const repo = creatorRepo();
+  const out = (...args: string[]): string => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+  const lines = (text: string): string[] => text.split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  const graph = new Map<string, string[]>(lines(out('log', '--topo-order', '--reverse', '--format=%H %P', 'HEAD')).map((l): [string, string[]] => {
+    const [sha, ...parents] = l.split(' ');
+    return [sha, parents];
+  }));
+  const head = out('rev-parse', 'HEAD').trim();
+  const shapes: Record<string, number> = { 'ONCE-1': 1, 'TWICE-1': 1, 'READD-1': 2, 'NONE-1': 0, 'DIFF-1': 2 };
+  for (const [id, count] of Object.entries(shapes)) {
+    const path = ':(literal)' + P(id);
+    // a test-local copy of creatorOf's log (audit-hygiene.ts) with the commit name in place of the author email
+    const oracle = lines(out('-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-renames', '--diff-filter=A', '--format=%H', '--', path));
+    const wrote = new Set(lines(out('log', '--no-show-signature', '--no-renames', '--full-history', '--diff-filter=A', '--format=%H', '--', path)));
+    const changed = (merge: string, parent: string): boolean => out('diff', '--name-only', '--no-renames', parent, merge, '--', path).trim() !== '';
+    const got = onePathCommits(graph, head, '', new Set<string>(), wrote, changed);
+    expect(oracle, `${id} is built to give ${count} adding commits`).toHaveLength(count);
+    expect(got, id).toEqual([...oracle].reverse());
+  }
 });

@@ -54,7 +54,7 @@ function lastLine(text: string): string | undefined {
  * a queued draft's creator is the author of its backlog branch tip, local first. The id and the branch are checked against the printable patterns before any argument is built (T-08.2-18).
  * Nothing read gives undefined, which the gap names `an unknown author`.
  */
-function creatorOf(root: string, id: string, branch: string | undefined): string | undefined {
+export function creatorOf(root: string, id: string, branch: string | undefined): string | undefined {
   try {
     if (branch === undefined) {
       if (!SAFE_ID.test(id)) return undefined;

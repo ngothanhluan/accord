@@ -1,13 +1,15 @@
 // Phase 08.9 D-02 and D-04: the git processes `accord audit` starts do not grow with the number of finished tickets, and the audit reads the repository fresh on every run.
 // RESEARCH counted 204 of the audit's 254 processes in the per-ticket claim-fact loop of auditDeferred (38 finished tickets with an undecided item, up to six processes each).
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { DEFERRED_MARK_FROM } from '@accord-dev/accord-core';
 import { CONFIG, done, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
-import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import * as limit from '../src/commands/fetch-limit.js';
-import { authorOfSha, authorsOfShas } from '../src/load/audit-hygiene.js';
+import { authorOfSha, authorsOfShas, creatorOf, creatorsOf } from '../src/load/audit-hygiene.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -215,4 +217,116 @@ it('risk:resource accord audit reads the tips of any number of old queued drafts
   expect(forEachRef(many.argv), `${histogram(many.argv)} with 12 branches, ${histogram(few.argv)} with 2`).toBe(forEachRef(few.argv));
   expect(few.gaps).toEqual(FEW_GAPS);
   expect(many.gaps).toEqual(MANY_GAPS);
+});
+
+/** A moment `n` minutes after a fixed start, so two commits made in one test never share a second. */
+const at = (n: number): Date => new Date(Date.UTC(2026, 10, 1, 12, n, 0));
+
+/**
+ * Phase 08.9 D-03: the shapes of a draft's history on the default branch that the creator of a draft depends on, in one repository: ONCE-1 added once; TWICE-1 added with the same content on two branches that are both
+ * merged (git's per-file simplification follows the first parent only, so the creator is b1's); READD-1 added, deleted and added again; NONE-1 added only on a branch that is not merged (no adding commit in HEAD's
+ * history); DIFF-1 added with different content on two branches and merged by hand to a third content (the merge differs from both parents, so both sides are walked). Each adding commit has its own author.
+ */
+function creatorRepo(): string {
+  const repo = makeEmptyRepo();
+  dirs.push(repo);
+  gitRun(repo, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+  gitRun(repo, 'config', 'user.name', 'a');
+  const as = (email: string): void => {
+    gitRun(repo, 'config', 'user.email', email);
+  };
+  const ticket = (id: string, extra = ''): Record<string, string> => ({ [P(id)]: laneTicket(id) + extra });
+  as('a@x.io');
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  commitMsg(repo, 'base', at(0));
+  as('once@x.io');
+  writeFiles(repo, ticket('ONCE-1'));
+  commitMsg(repo, 'add ONCE-1', at(1));
+  gitRun(repo, 'switch', '-q', '-c', 'b1', 'main');
+  as('b1@x.io');
+  writeFiles(repo, ticket('TWICE-1'));
+  commitMsg(repo, 'add TWICE-1 on b1', at(5));
+  gitRun(repo, 'switch', '-q', '-c', 'b2', 'main');
+  as('b2@x.io');
+  writeFiles(repo, ticket('TWICE-1'));
+  commitMsg(repo, 'add TWICE-1 on b2', at(4));
+  gitRun(repo, 'switch', '-q', '-c', 'b3', 'main');
+  as('b3@x.io');
+  writeFiles(repo, ticket('DIFF-1', '\nx\n'));
+  commitMsg(repo, 'add DIFF-1 on b3', at(6));
+  gitRun(repo, 'switch', '-q', '-c', 'b4', 'main');
+  as('b4@x.io');
+  writeFiles(repo, ticket('DIFF-1', '\ny\n'));
+  commitMsg(repo, 'add DIFF-1 on b4', at(7));
+  gitRun(repo, 'switch', '-q', '-c', 'b5', 'main');
+  as('b5@x.io');
+  writeFiles(repo, ticket('NONE-1'));
+  commitMsg(repo, 'add NONE-1 on b5', at(8));
+  gitRun(repo, 'switch', '-q', 'main');
+  as('r1@x.io');
+  writeFiles(repo, ticket('READD-1'));
+  commitMsg(repo, 'add READD-1', at(10));
+  as('r2@x.io');
+  rmSync(join(repo, P('READD-1')));
+  commitMsg(repo, 'delete READD-1', at(11));
+  as('r3@x.io');
+  writeFiles(repo, ticket('READD-1'));
+  commitMsg(repo, 'add READD-1 again', at(12));
+  as('m@x.io');
+  mergeMsg(repo, 'b1', 'merge b1');
+  mergeMsg(repo, 'b2', 'merge b2');
+  mergeMsg(repo, 'b3', 'merge b3');
+  try {
+    gitRun(repo, '-c', 'commit.gpgsign=false', 'merge', '--no-commit', '--no-ff', 'b4');
+  } catch {
+    // add/add conflict on DIFF-1: the next commit resolves it
+  }
+  writeFiles(repo, ticket('DIFF-1', '\nz\n'));
+  commitMsg(repo, 'merge b4 with DIFF-1 resolved by hand');
+  return repo;
+}
+
+// Phase 08.9 D-03: the creator of an old default-branch draft read for many drafts at once is what creatorOf reads for each one, on every shape of history the creator depends on.
+it('risk:regression creatorsOf answers every old draft as creatorOf does (D-03)', () => {
+  const repo = creatorRepo();
+  const ids = ['ONCE-1', 'TWICE-1', 'READD-1', 'NONE-1', 'DIFF-1', 'not a safe id'];
+  const many = creatorsOf(repo, ids);
+  for (const id of ids) expect(many.get(id), id).toBe(creatorOf(repo, id, undefined));
+  // the fixtures are built to give these, so a read that answered nothing everywhere would not pass
+  expect(many.get('ONCE-1')).toBe('once@x.io');
+  expect(many.get('TWICE-1')).toBe('b1@x.io');
+  expect(many.get('READD-1')).toBe('r1@x.io');
+  expect(many.get('NONE-1')).toBeUndefined();
+  expect(many.get('DIFF-1')).toBeDefined();
+  expect(many.get('not a safe id')).toBeUndefined();
+  // one id alone, and the ids in another order, answer the same
+  expect(creatorsOf(repo, ['TWICE-1']).get('TWICE-1')).toBe('b1@x.io');
+  expect(creatorsOf(repo, [...ids].reverse()).get('ONCE-1')).toBe('once@x.io');
+});
+
+// Phase 08.9 D-02: the creators of any number of old drafts on the default branch cost as many git processes as two do, with one added-file log.
+it('risk:resource the creators of any number of old drafts on the default branch are read with one git process (D-02)', () => {
+  const draftsRepo = (count: number): { repo: string; ids: string[] } => {
+    const repo = sandbox({});
+    const ids: string[] = [];
+    for (let i = 1; i <= count; i++) {
+      ids.push(`OLD-${i}`);
+      gitRun(repo, 'config', 'user.email', `o${i}@x.io`);
+      writeFiles(repo, { [P(`OLD-${i}`)]: laneTicket(`OLD-${i}`) });
+      commitMsg(repo, `add OLD-${i}`);
+    }
+    return { repo, ids };
+  };
+  const reads = (count: number): { argv: string[][]; creators: (string | undefined)[] } => {
+    const { repo, ids } = draftsRepo(count);
+    const read = countedSync(() => creatorsOf(repo, ids));
+    return { argv: read.argv, creators: ids.map((id) => read.value.get(id)) };
+  };
+  const few = reads(2);
+  const many = reads(12);
+  const added = (all: string[][]): number => all.filter((a) => a.includes('--diff-filter=A')).length;
+  expect(many.argv.length, `${histogram(many.argv)} with 12 drafts, ${histogram(few.argv)} with 2`).toBe(few.argv.length);
+  expect(added(many.argv), 'one added-file log for twelve drafts').toBe(1);
+  expect(added(few.argv)).toBe(1);
+  expect(many.creators).toEqual(Array.from({ length: 12 }, (_, i) => `o${i + 1}@x.io`));
 });

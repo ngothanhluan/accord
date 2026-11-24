@@ -34,7 +34,7 @@ after: 1, 2
 ```
 
 - Every `@ac-n` and every `D-nn` in the ticket is cited by some task's `covers:`. Nothing in `covers:` is foreign to the ticket.
-- `verify:` names the test report case ids that will exist once the task's tests are written. `after:` names the tasks this one follows (`after: 1, 2`), or `after: none` when it follows none.
+- `verify:` names the test report case ids that will exist once the task's tests are written. `after:` names the tasks this one follows (`after: 1, 2`), or `after: none` when it follows none. Of test files, a task's `verify:` ids and `files:` paths name only those it writes or extends, never a long existing regression file: those run at wave end and in CI. A source path on `files:` still brings the tests that import it into the task's run when `tests.affected` runs related tests.
 - Write `(@ac-n)` after the id of the test that proves scenario `@ac-n`: each scenario that is not `@ui` is mapped to exactly one test; an id may carry two markers; an id that proves no scenario carries none; no `@ui` scenario is mapped.
 - A test whose verify id maps no scenario carries `risk:<kind>` in its name, the kind from the reviewer's list (parsing, money or calculation, security or permission, concurrency, data loss, complex branching, regression of a real bug). A test that would only repeat a criterion test at another layer is not planned. A `risk:parsing` task lists the valid spellings of its input (YAML's several ways to write a map, for one) and its tests cover them first.
 - A test name never holds `@` or a comma.

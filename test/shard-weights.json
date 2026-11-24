@@ -142,6 +142,7 @@
   "packages/core/test/plan-off.test.ts": 1,
   "packages/core/test/plan-review-count.test.ts": 1,
   "packages/core/test/plan-size.test.ts": 1,
+  "packages/core/test/plan-verify-rule.test.ts": 1,
   "packages/core/test/purity.test.ts": 2,
   "packages/core/test/record-v2.test.ts": 1,
   "packages/core/test/refs.test.ts": 1,

@@ -125,3 +125,13 @@ describe('the new config keys and change: through the schema', () => {
     expect(run('Fix').length).toBeGreaterThan(0);
   });
 });
+
+describe('the branch schema with {type} and {slug} (D-06, R-1)', () => {
+  const tpl = (t: string) => branchTemplateOf(`branch: "${t}"\n`);
+  it('risk:parsing branch takes one {id} with at most one {type} and one {slug}, and keeps every old refusal', () => {
+    for (const ok of ['{type}/{id}-{slug}', 'feature/{id}-{slug}', '{type}/{id}', 'feature/{id}', 't/{id}']) expect(tpl(ok), ok).toBe(ok);
+    for (const bad of ['{id}/{id}', '{type}/{type}/{id}', '{slug}/{id}-{slug}', '{type}{id}', '{id}{slug}', '{kind}/{id}', '{id}', 't/{type}-{id}', '{type}/..{id}', '{type}/{id}/', '-{type}/{id}', '{type}//{id}', '{type}/{id}.lock']) {
+      expect(tpl(bad), bad).toBeUndefined();
+    }
+  });
+});

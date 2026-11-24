@@ -408,7 +408,7 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
     if (m === null || email === undefined || when === undefined || sha === undefined) continue;
     const name = m[2];
     if (name === 'HEAD' || name === defName) continue;
-    const id = ticketOfBranch(name, templates, known);
+    const id = ticketOfBranch(name, templates, known, ctx.snapshot.config);
     if (id === undefined || !SAFE_ID.test(id)) continue;
     const path = `accord/tickets/${id}.md`;
     const ticketAnywhere = known(id);

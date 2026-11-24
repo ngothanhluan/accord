@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
+import { branchFieldsOf, branchTypesOf, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
@@ -47,11 +47,24 @@ export function gitOk(cwd: string, args: string[]): boolean {
   }
 }
 
-/** The ticket's branch: the claim branch git already shows, else the template, as `accord status` prints it. */
-export function branchOf(snapshot: RepoSnapshot, id: string): string {
-  return snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, id)
-    ? snapshot.claimBranches[id]
-    : (snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE).replace('{id}', id);
+/**
+ * The ticket's branch: the claim branch git already shows, else the template rendered from the ticket's id, title and change: word (the checkout's copy, or `fields`
+ * when the caller read a newer copy), as `accord status` prints it. A name still holding `{type}` means the ticket has no allowed change word (R-4).
+ */
+export function branchOf(snapshot: RepoSnapshot, id: string, fields?: { title?: string; change?: string }): string {
+  if (snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, id)) return snapshot.claimBranches[id];
+  const own = snapshot.tickets[id]?.frontmatter;
+  const title = fields?.title ?? own?.title;
+  const change = fields?.change ?? own?.change;
+  return renderBranch(snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE, { id, ...(title === undefined ? {} : { title }), ...(change === undefined ? {} : { change }) }, snapshot.config);
+}
+
+/** R-4: a claim name that still holds `{type}` has no allowed change word; no type is guessed, so the claim is refused before any git write. */
+function refuseUntyped(ctx: CommandContext, id: string, claim: string, written: string): never {
+  const template = ctx.snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE;
+  throw new UsageError(
+    `${id}: the branch template ${template} needs a change word, and ${claim.includes('{type}') ? 'the ticket has none that branch_types allows' : 'none was given'} - add change: <word> to accord/tickets/${id}.md, one of: ${branchTypesOf(ctx.snapshot.config).join(', ')}; ${written}`,
+  );
 }
 
 export interface PrunableEntry extends WorktreeEntry {
@@ -450,7 +463,7 @@ export function worksTicket(cwd: string, marker: string | undefined, snapshot: R
   if (isLinked(top)) {
     const b = currentBranch(top);
     if (b === undefined || b === '') return { id: undefined, top };
-    const id = ticketOfBranch(b, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(snapshot.tickets, i));
+    const id = ticketOfBranch(b, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(snapshot.tickets, i), snapshot.config);
     if (id !== undefined) return { id, top };
   }
   if (marker !== undefined) {
@@ -604,23 +617,37 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (!isTicket) throw new UsageError('no ticket ' + id + ' in accord/tickets - nothing was created');
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) throw new UsageError('no origin/main in this clone - run git fetch origin, then try again');
-  if (!gitOk(ctx.root, ['cat-file', '-e', `${ref}:accord/tickets/${id}.md`])) {
+  // W3: the claim commit holds the default ref's copy of the ticket, which can differ from this checkout's, so the name is rendered from that copy.
+  let onDefault: string;
+  try {
+    onDefault = git(ctx.root, ['cat-file', 'blob', `${ref}:accord/tickets/${id}.md`]);
+  } catch {
     throw new UsageError(
       `${id} is not on ${ref.replace('refs/remotes/', '')} - merge accord/tickets/${id}.md into the main branch, run git fetch origin, then try again; nothing was created`,
     );
   }
+  const claim = branchOf(ctx.snapshot, id, branchFieldsOf(onDefault));
+  if (claim.includes('{type}')) refuseUntyped(ctx, id, claim, 'nothing was created');
+  if (
+    claim !== branch &&
+    (list.some((w) => w.branch === claim) ||
+      gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + claim]) ||
+      gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + claim]))
+  ) {
+    throw new UsageError(`${claim} already exists - nothing was created`);
+  }
   const path = siblingOf(mainPath, id);
   if (all.some((w) => w.prunable !== undefined && norm(w.path) === norm(path))) refuseAt(id, path, 'nothing was created');
-  git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
+  git(ctx.root, ['worktree', 'add', '--no-track', '-b', claim, path, ref]);
   recordQuietly(ctx, id, path);
   const wrote = claimRuleset(path, `accord/tickets/${id}.md`);
   if (wrote) git(path, ['add', '--', ':(literal)' + `accord/tickets/${id}.md`]);
   git(path, ['commit', ...(wrote ? [] : ['--allow-empty']), '-q', '-m', renderSubject(ctx.snapshot.config, 'claim', id)]);
   if (enter) {
     takeHold(ctx, id, path);
-    checkPin(ctx, id, path, branch, mainPath);
+    checkPin(ctx, id, path, claim, mainPath);
   } else prepare(path);
-  enterOrStop(ctx, id, path, branch, enter);
+  enterOrStop(ctx, id, path, claim, enter);
   return 0;
 }
 
@@ -1578,7 +1605,7 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
   const names = listed.flatMap((row) => {
     const cut = row.indexOf('\0');
     const name = cut < 0 ? '' : row.slice(cut + 1 + 'refs/heads/'.length).trim();
-    return name === '' || ticketOfBranch(name, templates, known) !== undefined ? [] : [name];
+    return name === '' || ticketOfBranch(name, templates, known, ctx.snapshot.config) !== undefined ? [] : [name];
   });
   if (names.length === 0) return;
   const after = readList(ctx, s.seen);
@@ -1889,7 +1916,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
   }
   const ids = new Map<string, string>();
   for (const name of tips.keys()) {
-    const id = ticketOfBranch(name, templates, known);
+    const id = ticketOfBranch(name, templates, known, ctx.snapshot.config);
     if (id !== undefined && id !== skip) ids.set(name, id);
   }
   if (ids.size === 0) return;
@@ -2015,7 +2042,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   // A merged ticket stays on the merged path above; a merged origin branch is left to the host.
   const ids = new Map<string, string>();
   for (const [name, t] of tips) {
-    const id = ticketOfBranch(name, templates, known);
+    const id = ticketOfBranch(name, templates, known, ctx.snapshot.config);
     const tip = (t.L ?? t.R)!;
     if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !(s.facts?.onRef(tip) ?? gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref]))) ids.set(name, id);
   }
@@ -2114,7 +2141,8 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
 /** D-13: write the new ticket in its own worktree on its claim branch, commit and push it, then run setup there. */
 export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string, seen?: WorktreeEntry[]): void {
   const enter = canEnter(ctx);
-  const branch = branchOf(ctx.snapshot, id);
+  const branch = branchOf(ctx.snapshot, id, branchFieldsOf(text));
+  if (branch.includes('{type}')) refuseUntyped(ctx, id, branch, 'nothing was written');
   const all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[];
   const list = all.filter((w) => w.prunable === undefined);
   const exists =

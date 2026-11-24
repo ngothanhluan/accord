@@ -39,7 +39,7 @@ it('risk:regression the pane reads the real dashboard and show json of a claimed
     const dash = await run(['dashboard', '--json'], repo);
     const show = await run(['show', 'T-1', '--json'], repo);
     expect([dash.code, show.code]).toEqual([0, 0]);
-    const { outcome, currentOf, detailOutcome, pipelineOf, tabLabels } = await loadView();
+    const { outcome, currentOf, detailOutcome, pipelineOf, tabLabels, tabParts, ticketView } = await loadView();
     const state = outcome({ exitCode: 0, stdout: dash.out, stderr: '' });
     expect(state.dashboard).toBeDefined();
     expect(currentOf(state)).toBe('T-1');
@@ -50,6 +50,12 @@ it('risk:regression the pane reads the real dashboard and show json of a claimed
     const labels = tabLabels({ state, ticket: { id: 'T-1', state: got }, running: 0 });
     expect(labels.ticket.label.startsWith('1 ticket T-1 ')).toBe(true);
     expect(labels.dashboard.label.startsWith('2 dashboard ')).toBe(true);
+    // issue 342 D-02: the title is the json's title alone, the track names the json's stage in its one bold segment, and the tabs line starts with the id
+    const shown = ticketView({ ticket: { id: 'T-1', state: got }, now: Math.floor(Date.now() / 1000) });
+    expect(shown.title).toBe(got.ticket.title);
+    expect(shown.track.filter((x: any) => x.bold === true).map((x: any) => x.text)).toEqual([got.ticket.stage]);
+    expect(shown.track.map((x: any) => x.text).join('')).toContain(got.ticket.stage);
+    expect(tabParts({ labels, columns: 100 }).ticket[0].text).toBe('T-1');
   } finally {
     cleanup(repo);
   }

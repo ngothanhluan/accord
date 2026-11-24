@@ -292,15 +292,19 @@ export function pipelineOf(t) {
 // D-03: each tab label carries a live summary. `ticket` is the pane's `{ id, state }` of the claimed ticket, `running` the count of accord agents the mod holds.
 const rowCount = (s) => (plain(s) && Array.isArray(s.rows) ? s.rows.length : 0) + (plain(s) && num(s.more) ? s.more : 0);
 
-export function tabLabels({ state, ticket, running, settings = DEFAULT_SETTINGS }) {
+export function tabLabels({ state, ticket, running, settings = DEFAULT_SETTINGS, waiting }) {
   const d = state?.dashboard;
   const summary = d === undefined ? '' : `${rowCount(d.yours)} yours · ${rowCount(d.ready)} ready · ${rowCount(d.team)} team`;
+  // issue 342: the tabs line's short form keeps only the counts above 0
+  const short = d === undefined ? '' : [[rowCount(d.yours), 'yours'], [rowCount(d.ready), 'ready'], [rowCount(d.team), 'team']].filter(([n]) => n > 0).map(([n, w]) => `${n} ${w}`).join(' · ');
   const t = ticket?.state?.ticket;
   const id = clean(ticket?.id ?? '');
   // Phase 08.8.1 D-05: a ticket the CLI says is not committed shows `not tracked` where its stage word would be, and no stage colour
   const untracked = t !== undefined && warningRows(t.warnings).notCommitted !== undefined;
   const stage = t === undefined ? '' : untracked ? 'not tracked' : clean(t.stage);
   const review = t !== undefined && !untracked && t.stage === 'review' && plain(t.review) && num(t.review.round) && num(t.review.cap) ? `r${t.review.round}/${t.review.cap}` : undefined;
+  // issue 342: the stage as the tabs line reads it, `build 1/3` and `review r2/5` carrying the counts the track no longer holds
+  const stageText = t === undefined ? '' : untracked ? 'not tracked' : t.stage === 'build' && t.lane !== 'S' && num(t.tasksDone) && num(t.tasksTotal) ? `build ${t.tasksDone}/${t.tasksTotal}` : review !== undefined ? `review ${review}` : stage;
   const agents = num(running) && running > 0 ? running : undefined;
   // Phase 08.8.1 W4: the newest gate run decides the mark, not the newest entry of any kind
   const newest = newestGate(t?.log);
@@ -309,18 +313,42 @@ export function tabLabels({ state, ticket, running, settings = DEFAULT_SETTINGS 
   const paint = (place) => drawColor(colorOf(place, settings, 0));
   const stageColor = t !== undefined && !untracked && stage !== '' ? paint('now') : undefined;
   const label = ['1 ticket', id, stage, review, agents === undefined ? '' : `◐${agents}`, failed ? 'gate failed' : ''].filter((p) => p).join(' ');
+  const isWaiting = plain(waiting) && num(waiting.since);
   return {
     ticket: {
       label,
       id,
       stage,
+      stageText,
       ...(stageColor === undefined ? {} : { stageColor }),
       ...(review === undefined ? {} : { review }),
       ...(agents === undefined ? {} : { running: agents, agentsColor: paint('agents') }),
+      ...(isWaiting ? { waiting: true, waitColor: paint('wait') } : {}),
       ...(failed ? { failed: true, failColor: paint('fail') } : {}),
     },
-    dashboard: { label: summary === '' ? '2 dashboard' : `2 dashboard ${summary}`, summary },
+    dashboard: { label: summary === '' ? '2 dashboard' : `2 dashboard ${summary}`, summary, short },
   };
+}
+
+// issue 342: the tabs line as parts, `{ text, color?, bold?, dim? }` each. A tab is drawn `k: ` (the hotkey and a colon) and its parts joined by single spaces, two cells between tabs;
+// the dashboard's counts are dropped when the line would run past `columns`, so the line fits the pane and the Button row only wraps below that.
+export function tabParts({ labels, columns }) {
+  const t = labels.ticket;
+  const part = (text, extra = {}) => ({ text: clean(text), ...extra });
+  const color = (c) => (drawColor(c) === undefined ? {} : { color: drawColor(c) });
+  const ticket = [
+    part(t.id, { bold: true }),
+    ...(t.stageText === '' ? [] : [part(t.stageText, color(t.stageColor))]),
+    ...(t.running === undefined ? [] : [part(t.running > 1 ? `✦${t.running}` : '✦', color(t.agentsColor))]),
+    ...(t.waiting === true ? [part('◆ you', color(t.waitColor))] : []),
+    ...(t.failed === true ? [part('✗ gate', color(t.failColor))] : []),
+  ];
+  const withCounts = [part('dashboard', { bold: true }), ...(labels.dashboard.short === '' ? [] : [part(labels.dashboard.short, { dim: true })])];
+  const bare = [part('dashboard', { bold: true })];
+  const settings = [part('settings', { bold: true })];
+  const width = (list) => 3 + len(list.map((p) => p.text).join(' '));
+  const fits = !num(columns) || width(ticket) + width(withCounts) + width(settings) + 4 <= columns;
+  return { ticket, dashboard: fits ? withCounts : bare, settings };
 }
 
 // D-01, D-02: the agents block. Only an agent whose list type is `accord-<role>` is drawn, and the view is never given an agent's label or description:
@@ -602,7 +630,7 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
   // Phase 08.8.1-07 L-01, L-02: the person's colours for each place of the tab, every one through drawColor; the stage track, the title and the criteria ids take a gradient where the style says so
   const paint = (place, p) => drawColor(colorOf(place, settings, p));
   const colors = { now: paint('now', 0), agents: paint('agents', 0), bar: paint('bar', 0), log: paint('log', 0), tick: paint('tick', 0), wait: paint('wait', 0), fail: paint('fail', 0) };
-  const title = clean(`${t.id} ${t.title}`);
+  const title = clean(t.title);
   // L-01: the criteria the task in flight covers breathe (`covered`, a Set of ids), the others keep their colour
   const criteriaOf = (covered) => (t.criteria.length === 0 ? undefined : criteriaRows(t.criteria).map((c, i, all) => ({ ...c, idColor: covered.has(c.id) ? drawColor(breathe(paint('criteria', i / all.length), nowMs)) : paint('criteria', i / all.length) })));
   // L-01: the title's gradient flows while the effect is on
@@ -650,17 +678,15 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
       : undefined;
   // L-01: the sparkles of a finished task over the TASKS block, three rows of segments
   const sparks = fx.has('confetti') && plain(burst) ? sparkRows(sparkles(burst, nowMs, Math.max(10, Math.min(100, Math.floor(columns) - 4))), stopsOf(settings)) : undefined;
-  // Phase 08.8.1-09 L-01: the mission preset's heartbeat across the top of the tab (a taller glyph where a log entry of the last seconds happened) and the train in the current stage cell (one cell wide at narrow, where a cell holds one space)
+  // Phase 08.8.1-09 L-01: the mission preset's heartbeat across the top of the tab (a taller glyph where a log entry of the last seconds happened) and the train on the stage track's current connector
   const beat = fx.has('ecg') ? heartbeat(Math.max(20, Math.min(104, Math.floor(columns) - 2)), nowMs, t.log, nowMs, placeStops('stage', settings, 0.85)).map(({ ch, color }) => ({ ch, color: drawColor(color) })) : undefined;
-  const trainRows =
-    fx.has('train') && current !== undefined
-      ? train(layoutOf(motion?.columns) === 'narrow' ? cells.map((c) => ({ ...c, text: ' ' })) : cells, nowMs).map((run) => run.map(({ ch, color }) => ({ ch, ...(color === undefined ? {} : { color: drawColor(color) }) })))
-      : undefined;
   return {
     title,
     titleRun,
     colors,
     cells,
+    // issue 342: the stage track as one connected line; the train effect rides its current connector
+    track: stageTrack(cells, { columns: motion?.columns, nowMs, effects: fx }),
     // Phase 08.8.1 L-06: the NOW lines, in the tracked branch only; the first line is the waiting colour while the main loop waits for the person, else the live line's
     now: nowLines({ ticket: t, agents, waiting, now: nowMs }).map((l, i) =>
       i === 0 ? { ...l, color: isWaiting ? waitColor : colors.now, ...(isWaiting ? { diamond } : {}), ...(fx.has('shimmer') && !isWaiting ? { run: shimmer(l.text, nowMs, placeStops('now', settings)).map(({ ch, color }) => ({ ch, color: drawColor(color) })) } : {}) } : l,
@@ -672,7 +698,6 @@ export function ticketView({ ticket, now, nowMs = now * 1000, agents = [], waiti
     ...(barRow === undefined ? {} : { barRow }),
     ...(sparks === undefined ? {} : { sparks }),
     ...(beat === undefined ? {} : { heartbeat: beat }),
-    ...(trainRows === undefined ? {} : { train: trainRows }),
     // Phase 08.8.1 D-02: a plan changed after its gate passed keeps the stage track and shows its warning under it
     // Phase 08.8.1 review WR-01: an untracked plan.md keeps the stage track and says under it that its commit is still to come
     ...(warned.planUncommitted === undefined ? {} : { planUncommitted: warned.planUncommitted }),
@@ -1120,14 +1145,43 @@ export function heartbeat(width, t, events, now, stops = PALETTES.aurora) {
   });
 }
 
-// One run of `{ ch, color? }` per stage cell, as wide as the cell's label: the current cell holds the train (`━` behind it, `▶` at the head, `┄` ahead, one cell about every sixth of a second), every other cell spaces. `cells` are the stage track's `{ text, state, color }`.
-export function train(cells, t) {
-  return (Array.isArray(cells) ? cells : []).map((c) => {
-    const w = [...(plain(c) && str(c.text) ? c.text : '')].length;
-    if (!plain(c) || c.state !== 'current') return Array.from({ length: w }, () => ({ ch: ' ' }));
-    const head = Math.floor(Math.max(0, seconds(t)) * 6) % Math.max(1, w);
-    return Array.from({ length: w }, (_, k) => (k === head ? { ch: '▶', color: GLOW } : k < head ? { ch: '━', color: c.color } : { ch: '┄', color: DIM }));
+// issue 342: the stage track as one connected line of `{ text, color, bold? }` segments, `intent ━━━ plan ━━━ build ┄•┄ review ─── verify`. Passed stages are joined solid in their colour, the current stage
+// is bold with a dotted connector that holds the marker (the mission train rides it), later stages are joined thin. Names are the cells' keys; an off stage reads `<key> off`. `cells` are `{ key, state, color }`.
+// `columns` is the pane's width (64 when it is no number); a connector is at most 9 cells, and a pane too narrow for 2 cells cuts every name but the current one to its first letter.
+export function stageTrack(cells, { columns, nowMs, effects } = {}) {
+  const list = (Array.isArray(cells) ? cells : []).filter((c) => plain(c) && str(c.key));
+  const fx = effects instanceof Set ? effects : new Set();
+  const nameOf = (c, short) => clean(c.state === 'off' ? `${c.key} off` : short && c.state !== 'current' ? c.key.slice(0, 1) : c.key);
+  const cols = num(columns) ? columns : 64;
+  const gaps = Math.max(1, list.length - 1);
+  const room = (short) => Math.floor((cols - list.reduce((n, c) => n + len(nameOf(c, short)), 0)) / gaps) - 2;
+  const short = room(false) < 2;
+  const seg = Math.max(1, Math.min(9, room(short)));
+  const cur = list.findIndex((c) => c.state === 'current');
+  const s = seconds(nowMs);
+  const out = [];
+  const put = (text, color, bold) => out.push({ text, color: drawColor(color), ...(bold ? { bold: true } : {}) });
+  list.forEach((c, i) => {
+    const passed = c.state === 'done';
+    const current = i === cur;
+    put(nameOf(c, short), passed || current ? c.color : DIM, current);
+    if (i === list.length - 1) return;
+    put(' ');
+    if (passed) put('━'.repeat(seg), c.color);
+    else if (current) {
+      const at = fx.has('train') ? Math.floor(s * 6) % seg : fx.size > 0 ? Math.floor(s * 4) % seg : Math.floor(seg / 2);
+      if (fx.has('train')) {
+        if (at > 0) put('━'.repeat(at), c.color);
+        put('▶', GLOW);
+      } else {
+        if (at > 0) put('┄'.repeat(at), DIM);
+        put('•', c.color);
+      }
+      if (seg - at - 1 > 0) put('┄'.repeat(seg - at - 1), DIM);
+    } else put('─'.repeat(seg), TRACK);
+    put(' ');
   });
+  return out;
 }
 
 // How long a wait keeps blinking, and how long a newly appeared gate failure flashes. D-03: after these nothing animates, so the frame timer can stop.

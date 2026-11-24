@@ -986,7 +986,7 @@ it('risk:regression the pane opens on the ticket tab for the claimed ticket and 
   const h = await claimedPane();
   expect(tabs(h)['tab:ticket']).toMatchObject({ hotkey: '1', variant: 'primary' });
   expect(tabs(h)['tab:dashboard']).toMatchObject({ hotkey: '2', variant: 'secondary' });
-  expect(h.texts()).toContain('ST-1 Login form');
+  expect(h.texts()).toContain('Login form');
   expect(h.texts()).toContain('build 1/3');
   expect(h.input()).toBeUndefined();
   expect(marked(h)).toEqual([]);
@@ -1028,7 +1028,7 @@ it('risk:complex-branching keys 1 and 2 switch tabs a picked tab stays and the i
   expect(tabs(h)['tab:dashboard'].variant).toBe('primary');
   const before = calls();
   press(h, 'show:ST-1');
-  await vi.waitFor(() => expect(h.texts()).toContain('ST-1 Renamed'));
+  await vi.waitFor(() => expect(h.texts()).toContain('Renamed'));
   expect(calls()).toBe(before);
   expect(h.input()).toBeUndefined();
   expect(tabs(h)['tab:ticket'].hotkey).toBe('1');
@@ -1093,7 +1093,7 @@ async function paneWith(over: Record<string, unknown>, tweak?: (h: Awaited<Retur
   h.settle({ stdout: claimed });
   await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));
   h.settle({ stdout: JSON.stringify(detailOf(over)) });
-  await vi.waitFor(() => expect(h.texts()).toContain('ST-1 Login form'));
+  await vi.waitFor(() => expect(h.texts()).toContain('Login form'));
   return h;
 }
 const textsIn = (el: any): string[] => {
@@ -1535,12 +1535,13 @@ it('risk:complex-branching the row columns follow the pane width the pane report
     expect(epic[1].props.children[0].type, label).toBe('Progress');
     expect(h.texts().includes('1/3 done'), label).toBe(headers.includes('STAGE'));
   }
-  // the ticket tab below NARROW drops the stage labels and names the current stage once
-  for (const [columns, labelled] of [[100, true], [55, false]] as [number, boolean][]) {
+  // issue 342: the ticket tab's stage track is one connected line that shortens with the pane, and the stage count is named once, on the tabs line
+  for (const [columns, head] of [[100, 'intent ━━━━━━━━━ plan'], [55, 'intent ━━━━━ plan'], [30, 'i ━━━ p']] as [number, string][]) {
     const h = await claimedPane();
     h.columns = columns;
     await h.$.ui.invalidate('ui.render');
-    expect(h.texts().includes('intent/approach'), String(columns)).toBe(labelled);
+    expect(flat(trackOf(h)?.props.children).startsWith(head), String(columns)).toBe(true);
+    expect(h.texts().includes('intent/approach'), String(columns)).toBe(false);
     expect(h.texts().filter((t) => t === 'build 1/3'), String(columns)).toHaveLength(1);
   }
 });
@@ -1610,7 +1611,7 @@ it('risk:complex-branching a not-committed warning replaces the stage track and 
   expect(t.some((x) => x.startsWith('build '))).toBe(false);
   expect(t.some((x) => /0\/3|0 of 3/.test(x))).toBe(false);
   expect(t.some((x) => x.startsWith('Plan task'))).toBe(false);
-  expect(t).toContain('ST-1 Login form');
+  expect(t).toContain('Login form');
   expect(tabs(h)['tab:ticket'].label).toBe('1 ticket ST-1 not tracked');
   const { view: nc } = await ticketOf(csa);
   const keys = Object.keys(nc);
@@ -1688,25 +1689,111 @@ it('risk:complex-branching a newer report or commit does not hide a failed gate 
   expect(failureOf([log[0], log[1]])).toBeUndefined();
 });
 
-// Phase 08.8.1 W3: at the narrow width every filled stage cell holds a one-space Text, so the stage track keeps its line at the last stage.
-it('risk:regression a narrow stage track keeps a line at the last stage (W3)', async () => {
-  for (const [lane, stage] of [['M', 'verify'], ['S', 'review']] as const) {
-    const h = await paneWith({ lane, stage, tasksDone: 3, tasksTotal: 3 });
-    h.columns = 49;
-    await h.$.ui.invalidate('ui.render');
-    const track = h.nodes('Box').find((b) => b.props.flexDirection === 'row' && b.props.columnGap === 1 && (b.props.children as any[]).every((c) => c.props?.paddingX === 1 && c.props?.flexShrink === 0));
+/// the connected stage track of the ticket tab: the one Text whose joined text starts with the first stage name
+const trackOf = (h: Awaited<ReturnType<typeof host>>): El | undefined => h.nodes('Text').find((n) => /^(intent|i) /.test(flat(n.props.children)));
+const NO_MOTION = { v: 1, motion: 'off', effects: {} };
+
+// Phase 08.8.1 W3, issue 342: at the narrow width the stage track is one connected line that keeps the current name, ends with the last stage and fits the pane.
+it('risk:regression a narrow stage track is one connected line that keeps the current name and fits (W3)', async () => {
+  for (const [lane, stage, want] of [
+    ['M', 'verify', 'intent ━━━ plan ━━━ build ━━━ review ━━━ verify'],
+    ['S', 'review', 'intent ━━━━━━━━━ build ━━━━━━━━━ review'],
+  ] as const) {
+    const h = await paneWith({ lane, stage, tasksDone: 3, tasksTotal: 3 }, (x) => {
+      x.columns = 49;
+      void x.store.set('settings', NO_MOTION);
+    });
+    const track = trackOf(h);
     expect(track, lane).toBeDefined();
-    const cells = track?.props.children as El[];
-    expect(cells.length, lane).toBeGreaterThanOrEqual(3);
-    for (const c of cells) {
-      const texts = (c.props.children as El[]).filter((x) => x.type === 'Text');
-      expect(texts, lane).toHaveLength(1);
-      expect(texts[0].props.children, lane).toEqual(c.props.backgroundColor ? [' '] : ['·']);
-      if (!c.props.backgroundColor) expect(texts[0].props.dimColor, lane).toBe(true);
-    }
-    expect(cells.some((c) => c.props.backgroundColor), lane).toBe(true);
-    expect(h.texts(), lane).toContain(stage);
+    expect(flat(track?.props.children), lane).toBe(want);
+    expect([...flat(track?.props.children)].length, lane).toBeLessThanOrEqual(49);
+    const bold = (track?.props.children as El[]).filter((c) => c.props.bold === true).map((c) => flat(c.props.children));
+    expect(bold, lane).toEqual([stage]);
   }
+});
+
+const tabBtn = (h: Awaited<ReturnType<typeof host>>, key: string): Record<string, any> => h.buttons().find((b) => b.key === key) as Record<string, any>;
+const tabPart = (h: Awaited<ReturnType<typeof host>>, text: string): Record<string, any> => ((tabBtn(h, 'tab:ticket').children as any[]).find((c) => c && typeof c === 'object' && flat(c.props.children) === text) as El).props;
+const partsOf = (b: Record<string, any>): string[] => (b.children as any[]).filter((c) => c && typeof c === 'object').map((c) => flat(c.props.children));
+// the cells the tabs line takes: `k: ` and the parts joined by single spaces for each tab, two cells between tabs
+const tabsWidth = (h: Awaited<ReturnType<typeof host>>): number => ['tab:ticket', 'tab:dashboard', 'settings'].reduce((n, k) => n + 3 + [...partsOf(tabBtn(h, k)).join(' ')].length, 4);
+
+// issue 342 D-02: the tabs line has no brackets, keeps keys 1, 2 and s, and never runs past the pane: the dashboard counts drop first and the row wraps
+it('risk:regression the tabs line has plain buttons with no brackets and fits the pane width (issue 342 D-02)', async () => {
+  const narrow = await paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3 }, (x) => void (x.columns = 49));
+  await startExecutor(narrow);
+  await vi.waitFor(() => expect(isRunning(narrow, 'executor')).toBe(true));
+  for (const [key, hotkey] of [['tab:ticket', '1'], ['tab:dashboard', '2'], ['settings', 's']]) {
+    const b = tabBtn(narrow, key);
+    expect(b, key).toMatchObject({ plain: true, hotkey });
+    expect(['primary', 'secondary'], key).toContain(b.variant);
+    expect(flat(b.children), key).not.toMatch(/[[\]]/);
+  }
+  expect(partsOf(tabBtn(narrow, 'tab:ticket'))).toEqual(['ST-1', 'build 1/3', '✦']);
+  expect(partsOf(tabBtn(narrow, 'tab:dashboard'))).toEqual(['dashboard']);
+  expect(tabBtn(narrow, 'tab:dashboard').dimColor).toBe(true);
+  expect(tabBtn(narrow, 'tab:ticket').dimColor).toBeUndefined();
+  expect(tabsWidth(narrow)).toBeLessThanOrEqual(49);
+  expect(tabBtn(narrow, 'tab:ticket').label).toBe('1 ticket ST-1 build ◐1');
+  expect(tabBtn(narrow, 'tab:dashboard').label).toBe('2 dashboard 1 yours · 1 ready · 0 team');
+  expect(narrow.buttonBox('tab:ticket')).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
+  // a wide pane keeps the counts above 0 only
+  const wide = await paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3 }, (x) => void (x.columns = 100));
+  expect(partsOf(tabBtn(wide, 'tab:dashboard'))).toEqual(['dashboard', '1 yours · 1 ready']);
+  expect(tabsWidth(wide)).toBeLessThanOrEqual(100);
+  // not committed, waiting and a failed gate add their marks
+  const loose = await paneWith({ stage: 'plan', warnings: [{ kind: 'not-committed', text: NOT_COMMITTED }] }, (x) => void (x.columns = 100));
+  expect(partsOf(tabBtn(loose, 'tab:ticket'))).toEqual(['ST-1', 'not tracked']);
+  await loose.fire('turn.complete', { reason: 'answer', answer: 'done' });
+  await vi.waitFor(() => expect(partsOf(tabBtn(loose, 'tab:ticket'))).toEqual(['ST-1', 'not tracked', '◆ you']));
+  const failed = await paneWith({ log: [{ at: Math.floor(Date.now() / 1000) - 3, kind: 'gate', text: 'gate done FAIL: red', fail: true }] }, (x) => void (x.columns = 100));
+  expect(partsOf(tabBtn(failed, 'tab:ticket'))).toEqual(['ST-1', 'build 1/3', '✗ gate']);
+  const mark = (tabBtn(failed, 'tab:ticket').children as any[]).find((c) => c && typeof c === 'object' && flat(c.props.children) === '✗ gate');
+  expect(mark.props.color).toBe('#ff6b6b');
+});
+
+// issue 342 D-02: the stage track is one Text of one connected line at every width, its colours follow the stage gradient, and no head box or cell background is left
+it('risk:regression the stage track is one connected line coloured by stage with no head box (issue 342 D-02)', async () => {
+  const { gradientAt, PALETTES } = await loadView();
+  const aurora = PALETTES.aurora as string[];
+  const draw = (over: Record<string, unknown>, columns: number): Promise<Awaited<ReturnType<typeof host>>> =>
+    paneWith({ stage: 'build', tasksDone: 1, tasksTotal: 3, ...over }, (x) => {
+      x.columns = columns;
+      void x.store.set('settings', NO_MOTION);
+    });
+  const at49 = await draw({}, 49);
+  expect(flat(trackOf(at49)?.props.children)).toBe('intent ━━━ plan ━━━ build ┄•┄ review ─── verify');
+  expect(flat(trackOf(await draw({}, 100))?.props.children)).toBe('intent ━━━━━━━━━ plan ━━━━━━━━━ build ┄┄┄┄•┄┄┄┄ review ───────── verify');
+  expect(flat(trackOf(await draw({}, 30))?.props.children)).toBe('i ━━━ p ━━━ build ┄•┄ r ─── v');
+  expect(flat(trackOf(await draw({ lane: 'S', stage: 'review' }, 49))?.props.children)).toBe('intent ━━━━━━━━━ build ━━━━━━━━━ review');
+  const segs = (trackOf(at49)?.props.children as El[]).map((c) => c.props);
+  const word = (text: string): Record<string, any> => segs.find((x) => flat(x.children) === text) as Record<string, any>;
+  const at = (i: number): string => gradientAt(aurora, 0.15 + i / 5);
+  expect(word('intent').color).toBe(at(0));
+  expect(word('plan').color).toBe(at(1));
+  expect(word('build')).toMatchObject({ color: at(2), bold: true });
+  expect(word('review').color).toBe('#474a5c');
+  expect(word('verify').color).toBe('#474a5c');
+  expect(segs.filter((x) => flat(x.children) === '━━━').map((x) => x.color)).toEqual([at(0), at(1)]);
+  expect(word('•').color).toBe(at(2));
+  expect(word('───').color).toBe('#2c2e3b');
+  // no Box of the ticket tab has a background, and the title and the track sit in no bordered Box
+  for (const n of at49.nodes('Box')) expect(n.props.backgroundColor).toBeUndefined();
+  const bordered = (target: string): boolean => {
+    const walk = (n: any, inside: boolean): boolean | undefined => {
+      if (!n || typeof n !== 'object') return undefined;
+      if (n.type === 'Text' && flat(n.props.children).startsWith(target)) return inside;
+      const now = inside || (n.type === 'Box' && n.props.borderStyle !== undefined);
+      for (const c of n.props?.children ?? []) {
+        const r = walk(c, now);
+        if (r !== undefined) return r;
+      }
+      return undefined;
+    };
+    return walk(at49.tree(), false) as boolean;
+  };
+  expect(bordered('Login form')).toBe(false);
+  expect(bordered('intent ')).toBe(false);
 });
 
 // ---- Phase 08.8.1-05: the NOW line, the tool line, the waiting line and the reconciled roster ----
@@ -1741,7 +1828,7 @@ it('risk:regression the ticket tab draws the now line under the head (L-06)', as
   const t = h.texts();
   const first = t.indexOf('task 3 of 4 · Settings view');
   const second = t.findIndex((x) => /^executor · 1:0[0-9]$/.test(x));
-  expect(first).toBeGreaterThan(t.indexOf('ST-1 Login form'));
+  expect(first).toBeGreaterThan(t.indexOf('Login form'));
   expect(second).toBe(first + 1);
   expect(first).toBeLessThan(t.indexOf('AGENTS'));
   expect(h.cell('task 3 of 4 · Settings view').text.bold).toBe(true);
@@ -1899,7 +1986,7 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
   await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
   h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
-  await vi.waitFor(() => expect(h.texts()).toContain('ST-2 Export'));
+  await vi.waitFor(() => expect(h.texts()).toContain('Export'));
   expect(h.texts()).toContain('none running');
   expect(h.texts()).not.toContain('✓ executor');
 });
@@ -2111,7 +2198,7 @@ it('risk:parsing stored settings read as the defaults field by field when missin
 });
 
 // the colour of each character of the title (the ticket head's first Text), as drawn
-const titleColors = (h: Awaited<ReturnType<typeof host>>): string[] => h.cell('ST-1 Login form').text.children.map((c: any) => c.props.color);
+const titleColors = (h: Awaited<ReturnType<typeof host>>): string[] => h.cell('Login form').text.children.map((c: any) => c.props.color);
 
 // Phase 08.8.1 L-03 L-02: key s opens the view, Save keeps the choice in the person's store, and a new session draws the title in it; a session with an empty store is aurora.
 it('risk:regression the settings key opens the view and a saved preset colours the title in a new session (L-03 L-02)', async () => {
@@ -2263,7 +2350,7 @@ it('risk:regression the settings view holds the presets the style the places the
   press(h, 'settings:back');
   await flush();
   expect(inputOf(h, 'place:title')).toBeUndefined();
-  expect(h.texts()).toContain('ST-1 Login form');
+  expect(h.texts()).toContain('Login form');
 });
 
 // Phase 08.8.1 L-03 (Ruling: the focus rule): the settings key is a Button hotkey, never a key handler of the pane's own, so an s typed into a focused field is text.
@@ -2320,13 +2407,17 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   await vi.waitFor(() => expect(isRunning(h, 'executor')).toBe(true));
   const at = (place: number, p = 0): string => gradientAt(aurora, place + p);
   // the stage track: gradient cells at its position, none of the stage names
-  ['intent/approach', 'plan', 'build 1/3'].forEach((label, i) => expect(h.cell(label).box.backgroundColor, label).toBe(at(0.15, i / 5)));
-  for (const label of ['review', 'verify']) expect(h.cell(label).box.backgroundColor, label).toBeUndefined();
+  // issue 342: the track is one connected line, its passed names at their gradient position and its later names grey
+  const segs = (trackOf(h)?.props.children as El[]).map((c) => c.props);
+  const seg = (text: string): Record<string, any> => segs.find((x) => flat(x.children) === text) as Record<string, any>;
+  ['intent', 'plan', 'build'].forEach((label, i) => expect(seg(label).color, label).toBe(at(0.15, i / 5)));
+  for (const label of ['review', 'verify']) expect(seg(label).color, label).toBe('#474a5c');
+  for (const x of segs) expect(STAGE).not.toContain(x.color);
   for (const n of h.nodes('Box')) expect(STAGE).not.toContain(n.props.backgroundColor);
-  // the tab-1 label's stage word is the live line's colour, its agent count the agents', its failure mark the failure colour
-  expect(h.cell(' build').text.color).toBe(at(0.3));
-  expect(h.cell(' ◐1').text.color).toBe(at(0.62));
-  expect(h.cell(' gate failed').text.color).toBe('#ff6b6b');
+  // the tab-1 parts: the stage word is the live line's colour, the agent mark the agents', the failure mark the failure colour
+  expect(tabPart(h, 'build 1/3').color).toBe(at(0.3));
+  expect(tabPart(h, '✦').color).toBe(at(0.62));
+  expect(tabPart(h, '✗ gate').color).toBe('#ff6b6b');
   // the places of the tab
   expect(h.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
   expect(h.cell('✓').text.color).toBe('#6fd39a');
@@ -2358,7 +2449,7 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   expect(new Set(titleColors(solid))).toEqual(new Set(['#3ec6e0']));
   expect(solid.cell(spun('executor')).text.color).toBe('#ff5f6d');
   expect(solid.cell('task 2 of 3 · Beta').text.color).toBe(at(0.3));
-  expect(solid.cell(' build').text.color).toBe(at(0.3));
+  expect(tabPart(solid, 'build 1/3').color).toBe(at(0.3));
   // the pure view gives hex colours for the stage track and keeps the dashboard's stage names in pipelineOf
   const t = ticketView({ ticket: { id: 'ST-1', state: { ticket: detailOf(over) } }, now, settings: settingsOf(undefined) });
   expect(t.cells.map((c: any) => c.color)).toEqual([0, 1, 2, 3, 4].map((i) => at(0.15, i / 5)));
@@ -2593,7 +2684,7 @@ it('risk:complex-branching a task finished plays sparkles and the rolling counte
     await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
     clock.mockReturnValue(T + 5000);
     h.settle({ stdout: JSON.stringify(detailOf({ ...planOf(4), id: 'ST-2', title: 'Export' })) });
-    await vi.waitFor(() => expect(h.texts()).toContain('ST-2 Export'));
+    await vi.waitFor(() => expect(h.texts()).toContain('Export'));
     expect(sparkBox(h)).toBeUndefined();
   } finally {
     clock.mockRestore();
@@ -2664,7 +2755,7 @@ it('risk:regression the effects the probe cut are never drawn (D-03)', async () 
 
 // Phase 08.8.1 L-01: the heartbeat and the train are pure functions of the frame time; the heartbeat is `width` cells with a beat that moves and a taller glyph where a log event happened inside its span; the train rides only the current stage cell
 it('risk:parsing the heartbeat and the train are pure functions of the frame time (L-01)', async () => {
-  const { heartbeat, train, PALETTES, isHex } = await loadView();
+  const { heartbeat, stageTrack, PALETTES, isHex } = await loadView();
   const stops = PALETTES.aurora;
   const t = 1_800_000_000_000;
   const event = { at: t / 1000 - 2 };
@@ -2684,27 +2775,49 @@ it('risk:parsing the heartbeat and the train are pure functions of the frame tim
   expect(heartbeat(60, t, [{ at: t / 1000 - 30 }], t, stops).some((c: any) => c.ch === '▇')).toBe(false);
   expect(heartbeat(60, t, [event], t, stops)).toEqual(a);
   expect(heartbeat(0, t, [], t)).toEqual([]);
-  // the train: only the current cell holds it, one cell a step, the same for the same time
+  // issue 342: the train rides the current connector of the stage track; one cell about every sixth of a second, the same for the same time
   const cells = [
-    { text: 'intent/approach', state: 'done', color: '#e07a4f' },
-    { text: 'build 1/3', state: 'current', color: '#f0907a' },
-    { text: 'review', state: 'todo', color: '#d98ad0' },
+    { key: 'intent', state: 'done', color: '#e07a4f' },
+    { key: 'build', state: 'current', color: '#f0907a' },
+    { key: 'review', state: 'todo', color: '#d98ad0' },
   ];
-  const t0 = train(cells, 0);
-  const t1 = train(cells, 500);
-  expect(t0.map((r: any[]) => r.length)).toEqual([15, 9, 6]);
-  for (const i of [0, 2]) expect(t0[i].every((c: any) => c.ch === ' ')).toBe(true);
-  expect(t0[1].every((c: any) => '━▶┄'.includes(c.ch))).toBe(true);
-  expect(t0[1].filter((c: any) => c.ch === '▶')).toHaveLength(1);
-  expect([t0[1].findIndex((c: any) => c.ch === '▶'), t1[1].findIndex((c: any) => c.ch === '▶')]).toEqual([0, 3]);
-  expect(train(cells, 500)).toEqual(t1);
-  expect(train(cells.map((c) => ({ ...c, state: 'todo' })), 0).flat().every((c: any) => c.ch === ' ')).toBe(true);
+  const join = (segs: any[]): string => segs.map((x) => x.text).join('');
+  const rail = (segs: any[]): any[] => {
+    const i = segs.findIndex((x) => x.text === 'build');
+    return segs.slice(i + 2, -2);
+  };
+  const train = (ms: number): any[] => rail(stageTrack(cells, { columns: 49, nowMs: ms, effects: new Set(['train']) }));
+  const t0 = train(0);
+  const t1 = train(500);
+  expect(join(t0)).toBe('▶┄┄┄┄┄┄┄┄');
+  expect(join(t1)).toBe('━━━▶┄┄┄┄┄');
+  expect(t0.filter((x: any) => x.text === '▶')).toHaveLength(1);
+  expect(t1[0]).toMatchObject({ text: '━━━', color: '#f0907a' });
+  expect(t1.find((x: any) => x.text === '▶').color).toBe('#ffffff');
+  expect(train(500)).toEqual(t1);
+  // the marker: mid-connector with no effect on, moving four steps a second with any effect on, and the same for the same time
+  const marker = (segs: any[], fx: Set<string>, ms: number): number => join(rail(stageTrack(segs, { columns: 49, nowMs: ms, effects: fx }))).indexOf('•');
+  expect(marker(cells, new Set(), 0)).toBe(4);
+  expect(marker(cells, new Set(), 12345)).toBe(4);
+  expect([0, 250, 500, 1000].map((ms) => marker(cells, new Set(['comet']), ms))).toEqual([0, 1, 2, 4]);
+  expect(join(rail(stageTrack(cells, { columns: 49, nowMs: 250, effects: new Set(['comet']) })))).toBe('┄•┄┄┄┄┄┄┄');
+  // an off stage reads `<key> off`; a finished ticket has solid connectors and no bold name; a stage with nothing passed is thin all through
+  const off = stageTrack([{ key: 'intent', state: 'done', color: '#e07a4f' }, { key: 'plan', state: 'off', color: '#f0907a' }, { key: 'build', state: 'current', color: '#d98ad0' }], { columns: 64, nowMs: 0, effects: new Set() });
+  expect(join(off)).toContain('plan off');
+  const done = stageTrack(cells.map((c) => ({ ...c, state: 'done' })), { columns: 49, nowMs: 0, effects: new Set() });
+  expect(join(done)).toBe('intent ━━━━━━━━━ build ━━━━━━━━━ review');
+  expect(done.some((x: any) => x.bold === true)).toBe(false);
+  const todo = stageTrack(cells.map((c) => ({ ...c, state: 'todo' })), { columns: 49, nowMs: 0, effects: new Set() });
+  expect(join(todo)).toBe('intent ───────── build ───────── review');
+  expect(todo.every((x: any) => x.color === undefined || ['#474a5c', '#2c2e3b'].includes(x.color))).toBe(true);
+  // a colour that is no hex is not drawn
+  expect(stageTrack([{ key: 'intent', state: 'done', color: 'blue' }, { key: 'plan', state: 'todo', color: 'blue' }], { columns: 30 })[0].color).toBeUndefined();
 });
 
 // Phase 08.8.1 L-01: under the mission preset the first row of the ticket tab is the heartbeat and the current stage cell holds the train while an agent runs; lively draws neither
 it('risk:regression the mission preset draws the heartbeat and the train on the ticket tab (L-01)', async () => {
   const heart = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[─╱╲‾▇]{20,}$/.test(x));
-  const trainOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[━┄]*▶[━┄]*$/.test(x));
+  const trainOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^intent .*▶/.test(x));
   const mission = await paneWith(MOVING, (x) => {
     x.columns = 100;
     void x.store.set('settings', { v: 1, motion: 'mission', effects: {} });
@@ -2727,8 +2840,8 @@ it('risk:regression the mission preset draws the heartbeat and the train on the 
     expect(top.type).toBe('Text');
     expect(flat(top.props.children)).toBe(a.heart);
     expect(top.props.children.every((c: any) => /^#[0-9a-f]{6}$/.test(c.props.color))).toBe(true);
-    // the current stage cell holds the train: as wide as its label
-    expect(a.train).toHaveLength('build 1/3'.length);
+    // the current connector of the connected track holds the train
+    expect(a.train).toMatch(/^intent .* build ━*▶┄* review /);
     const b = await frame(400);
     expect(b.heart).not.toBe(a.heart);
     expect(b.train).not.toBe(a.train);
@@ -2888,7 +3001,7 @@ it('risk:regression every one of the twelve effects is its own switch and a cut 
       confetti: a.view.sparks !== undefined,
       roll: a.view.barRow !== undefined && a.view.barRow.counter !== a.view.progress.valueText,
       ecg: a.view.heartbeat !== undefined,
-      train: a.view.train !== undefined,
+      train: a.view.track.some((x: any) => x.text === '▶'),
       orbit: '◜◝◞◟'.includes(a.look.mark),
       ticker: a.view.log?.[0]?.ticker !== undefined,
       breathe: differ(a.view.criteria.map((c: any) => c.idColor), b.view.criteria.map((c: any) => c.idColor)),

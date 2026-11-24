@@ -1,4 +1,4 @@
-import { actionFor, agentMotion, agentRows, answerLine, BACKGROUND, BLINK_MS, BURST_MS, briefTask, clean, currentOf, detailOutcome, detailView, effectsOf, failure, failureKey, FLASH_MS, flashOn, FRAME_RATE, isAccordAgent, layoutOf, outcome, ROLL_MS, runsAccord, setCustom, setMotion, setPalette, setPlace, setStyle, settingsOf, settingsView, tabLabels, ticketView, toggleEffect, toolLabel, view, widgetView } from './view.js';
+import { actionFor, agentMotion, agentRows, answerLine, BACKGROUND, BLINK_MS, BURST_MS, briefTask, clean, currentOf, detailOutcome, detailView, effectsOf, failure, failureKey, FLASH_MS, flashOn, FRAME_RATE, isAccordAgent, outcome, ROLL_MS, runsAccord, setCustom, setMotion, setPalette, setPlace, setStyle, settingsOf, settingsView, tabLabels, tabParts, ticketView, toggleEffect, toolLabel, view, widgetView } from './view.js';
 
 // Phase 08.7 D-02, probe row A3 (headless session of 2026-11-23): the `$.agent.list()` entry joins a subagent event by its `id`, which equals the event's `agentId`.
 const LIST_ID_KEY = 'id';
@@ -602,33 +602,34 @@ export function register(on) {
       void $.ui.invalidate('ui.render');
     };
     if (ticket !== undefined) {
-      const labels = tabLabels({ state, ticket, running: runningAgents(), settings });
+      const labels = tabLabels({ state, ticket, running: runningAgents(), settings, waiting });
       const t = labels.ticket;
-      const ticketParts = [Text({ bold: true, children: ['1 ticket'] }), Text({ children: [' ' + t.id] })];
-      if (t.stage !== '') ticketParts.push(Text({ ...(t.stageColor ? { color: t.stageColor } : {}), children: [' ' + t.stage + (t.review ? ' ' + t.review : '')] }));
-      if (t.running) ticketParts.push(Text({ color: t.agentsColor, children: [' ◐' + t.running] }));
-      if (t.failed) ticketParts.push(Text({ color: t.failColor, children: [' gate failed'] }));
-      const dashParts = [Text({ bold: true, children: ['2 dashboard'] })];
-      if (labels.dashboard.summary !== '') dashParts.push(Text({ dimColor: true, children: [' ' + labels.dashboard.summary] }));
+      // issue 342: the tabs line has no brackets: each tab is a plain Button (`1: ` and its parts) and the row wraps; the parts drop the dashboard's counts before the line runs past the pane
+      const parts = tabParts({ labels, columns: e.props?.bodyColumns });
+      const drawParts = (list) =>
+        list.flatMap((p, i) => [...(i > 0 ? [' '] : []), Text({ ...(p.color ? { color: p.color } : {}), ...(p.bold ? { bold: true } : {}), ...(p.dim ? { dimColor: true } : {}), children: [p.text] })]);
       // both tab Buttons keep their hotkeys on both tabs and neither takes focus by itself
       children.push(
         Box({
           flexDirection: 'row',
+          flexWrap: 'wrap',
           columnGap: 2,
           children: [
-            Button({ key: 'tab:ticket', hotkey: '1', variant: tab === 'ticket' ? 'primary' : 'secondary', label: t.label, onPress: pick('ticket'), children: ticketParts }),
-            Button({ key: 'tab:dashboard', hotkey: '2', variant: tab === 'dashboard' ? 'primary' : 'secondary', label: labels.dashboard.label, onPress: pick('dashboard'), children: dashParts }),
+            Button({ key: 'tab:ticket', hotkey: '1', plain: true, ...(tab === 'ticket' ? {} : { dimColor: true }), variant: tab === 'ticket' ? 'primary' : 'secondary', label: t.label, onPress: pick('ticket'), children: drawParts(parts.ticket) }),
+            Button({ key: 'tab:dashboard', hotkey: '2', plain: true, ...(tab === 'dashboard' ? {} : { dimColor: true }), variant: tab === 'dashboard' ? 'primary' : 'secondary', label: labels.dashboard.label, onPress: pick('dashboard'), children: drawParts(parts.dashboard) }),
             // Phase 08.8.1-07 L-03 (Ruling): the one `s` key; it takes no focus by itself and the pane has no key handler of its own, so an `s` typed into a focused field is text
             Button({
               key: 'settings',
               hotkey: 's',
+              plain: true,
+              ...(settingsOpen ? {} : { dimColor: true }),
               variant: settingsOpen ? 'primary' : 'secondary',
               label: 'settings',
               onPress: () => {
                 settingsOpen = !settingsOpen;
                 void $.ui.invalidate('ui.render');
               },
-              children: [Text({ bold: true, children: ['settings'] })],
+              children: drawParts(parts.settings),
             }),
           ],
         }),
@@ -659,38 +660,17 @@ export function register(on) {
           used += 1;
           children.push(Text({ wrap: 'truncate', children: tv.heartbeat.map((c) => Text({ color: c.color, children: [c.ch] })) }));
         }
-        const narrow = layoutOf(e.props?.bodyColumns) === 'narrow';
-        const cellBox = (c) => {
-          const filled = c.state === 'done' || c.state === 'current';
-          // Phase 08.8.1 W3: a filled cell at narrow holds a one-space Text, since an empty Box can collapse to no height (engine-dependent) and the track would lose its line at the last stage
-          const label = narrow ? (filled ? [Text({ children: [' '] })] : [Text({ dimColor: true, children: ['·'] })]) : [Text({ ...(c.state === 'current' ? { bold: true } : {}), ...(filled ? {} : { dimColor: true }), children: [c.text] })];
-          return Box({ paddingX: 1, flexShrink: 0, ...(filled ? { backgroundColor: c.color } : {}), children: label });
-        };
+        // Phase 08.8.1-07 L-01, L-02: the title in the person's colours, one Text per character inside one Text
+        children.push(Text({ bold: true, wrap: 'truncate', children: tv.titleRun.map((r) => Text({ color: r.color, children: [r.ch] })) }));
+        // Phase 08.8.1 D-05: the CLI's not-committed line takes the stage track's place; issue 342: the track is one connected line, one Text per segment; D-02: a plan-changed line goes right under it
         children.push(
-          Box({
-            flexDirection: 'column',
-            borderStyle: 'round',
-            borderColor: 'claude',
-            children: [
-              // Phase 08.8.1-07 L-01, L-02: the title in the person's colours, one Text per character inside one Text
-              Text({ bold: true, wrap: 'truncate', children: tv.titleRun.map((r) => Text({ color: r.color, children: [r.ch] })) }),
-              // Phase 08.8.1 D-05: the CLI's not-committed line takes the stage track's place; D-02: a plan-changed line goes right under the track
-              ...(tv.notCommitted === undefined
-                ? [
-                    Box({ flexDirection: 'row', columnGap: 1, children: tv.cells.map(cellBox) }),
-                    // Phase 08.8.1-09 L-01: the train rides under the track, one run as wide as each cell's label, so it sits in the current cell
-                    ...(tv.train === undefined
-                      ? []
-                      : [Box({ flexDirection: 'row', columnGap: 1, children: tv.train.map((run) => Box({ paddingX: 1, flexShrink: 0, children: [Text({ children: run.map((c) => Text({ ...(c.color === undefined ? {} : { color: c.color }), children: [c.ch] })) })] })) })]),
-                  ]
-                : [Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.notCommitted] })]),
-              ...(narrow && tv.current !== undefined ? [Text({ children: [tv.current] })] : []),
-              ...(tv.planUncommitted === undefined ? [] : [Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planUncommitted] })]),
-              ...(tv.planChanged === undefined ? [] : [Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planChanged] })]),
-            ],
-          }),
+          tv.notCommitted === undefined
+            ? Text({ wrap: 'truncate', children: tv.track.map((seg) => Text({ ...(seg.color ? { color: seg.color } : {}), ...(seg.bold ? { bold: true } : {}), children: [seg.text] })) })
+            : Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.notCommitted] }),
         );
-        used += 3 + (tv.planUncommitted === undefined ? 0 : 1) + (tv.planChanged === undefined ? 0 : 1) + (narrow && tv.current !== undefined ? 1 : 0) + (tv.train === undefined ? 0 : 1) + (tv.now ?? []).length;
+        if (tv.planUncommitted !== undefined) children.push(Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planUncommitted] }));
+        if (tv.planChanged !== undefined) children.push(Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planChanged] }));
+        used += 2 + (tv.planUncommitted === undefined ? 0 : 1) + (tv.planChanged === undefined ? 0 : 1) + (tv.now ?? []).length;
         // Phase 08.8.1 L-06: the NOW lines right under the head, the first bold and the second dimmed
         // Phase 08.8.1-08 L-01: while the shimmer is on the first line is one coloured Text per character, the glow moving with the frame
         for (const [i, l] of (tv.now ?? []).entries()) {

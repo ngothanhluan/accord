@@ -1965,6 +1965,8 @@ it("risk:complex-branching a subagent tool call sets its row's tool and task and
   const edit = { tool: 'Edit', file_path: 'src/view.js', agentId: 'a1', old_string: 'secret one', new_string: 'secret two' };
   await h.fire('tool.call', edit);
   await vi.waitFor(() => expect(h.texts()).toContain('Edit view.js'));
+  // review WR-04: the tool is drawn on its own agent's row, after the name, the time and the task
+  expect(kids(h.cell('Edit view.js').box)).toEqual([expect.stringMatching(spun('executor')), expect.stringMatching(/^1:0[0-9]$/), 'task 3', 'Edit view.js']);
   expect(h.texts().join('\n')).not.toContain('secret');
   expect(edit).toEqual({ tool: 'Edit', file_path: 'src/view.js', agentId: 'a1', old_string: 'secret one', new_string: 'secret two' });
   // a call of another ticket's report, and a call of an agent the roster does not hold, change nothing
@@ -2218,6 +2220,7 @@ it('risk:regression the current work names the task and holds the agents in one 
   expect(t[order[2] + 1]).toMatch(/^1:0[0-9]$/);
   expect(t[head + 1]).toMatch(/^1:0[0-9]$/);
   expect(h.cell('Edit view.js').text.dimColor).toBe(true);
+  expect(kids(h.cell('Edit view.js').box)[0]).toMatch(spun('executor'));
   // no box of the block draws a border, and the heading words are gone
   const block = h.nodes('Box').find((b) => textsIn(b)[0] === '✦' && textsIn(b)[1] === 'Building task 2 of 3' && b.props.flexDirection === 'column');
   expect(block).toBeDefined();
@@ -3482,6 +3485,28 @@ it('risk:regression the engine SubagentHandback call is not shown as an agent to
   await new Promise((r) => setTimeout(r, 10));
   expect(h.texts().join('\n')).not.toContain('SubagentHandback');
   expect(h.texts()).toContain('Edit view.js');
+  expect(kids(h.cell('Edit view.js').box)[0]).toMatch(spun('executor'));
+});
+
+// issue 342 review WR-04: with two agents running, each tool call lands on its own agent's row and on no other.
+it('risk:regression a tool call is drawn on the row of the agent that made it and on no other row (issue 342 WR-04)', async () => {
+  const h = await paneWith({}, (x) => void x.store.set('settings', NO_MOTION));
+  h.agents = [agentOf('a1', 'accord-executor', { startTime: Date.now() - 62000 }), agentOf('a2', 'accord-planner', { startTime: Date.now() - 30000 })];
+  await h.fire('turn.start', subStart('a1'));
+  await h.fire('turn.start', subStart('a2'));
+  await h.fire('tool.call', { tool: 'Edit', file_path: 'src/view.js', agentId: 'a1' });
+  await vi.waitFor(() => expect(h.texts()).toContain('Edit view.js'));
+  const executor = kids(h.cell(spun('executor')).box);
+  const planner = kids(h.cell(spun('planner')).box);
+  expect(executor).toContain('Edit view.js');
+  expect(planner).not.toContain('Edit view.js');
+  expect(planner).toHaveLength(2);
+  await h.fire('tool.call', { tool: 'Write', file_path: 'plan.md', agentId: 'a2' });
+  await vi.waitFor(() => expect(h.texts()).toContain('Write plan.md'));
+  expect(kids(h.cell(spun('planner')).box)).toContain('Write plan.md');
+  expect(kids(h.cell(spun('planner')).box)).not.toContain('Edit view.js');
+  expect(kids(h.cell(spun('executor')).box)).toContain('Edit view.js');
+  expect(kids(h.cell(spun('executor')).box)).not.toContain('Write plan.md');
 });
 
 // Phase 08.8.1 review WR-04: the host documents the agent statuses pending, running, waiting, idle, completed, failed and killed; an agent is finished when its entry is gone or its status is completed, failed or killed, never on another word.

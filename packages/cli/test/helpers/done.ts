@@ -1,8 +1,9 @@
-// Helpers of the ST-LN-55 clean tests (worktree-clean.test.ts) that helpers/worktree.ts does not hold.
+// Helpers of the ST-LN-55 clean tests (worktree-clean*.test.ts) that helpers/worktree.ts does not hold.
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { runCli } from '../../src/run.js';
+import type { Clone } from './worktree.js';
 
 /** The process table in which LIVE runs and DEAD does not. */
 export const ALIVE = [
@@ -89,3 +90,6 @@ export function listing(dir: string): string[] {
   walk('');
   return out.sort();
 }
+
+/** The JSON a session-start hook receives for the clone. */
+export const startInput = (c: Clone, source = 'startup') => JSON.stringify({ session_id: 'sess-M', cwd: c.root, source });

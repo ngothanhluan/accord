@@ -4,9 +4,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { DEFERRED_MARK_FROM } from '@accord-dev/accord-core';
 import { CONFIG, done, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
-import { spawnLog } from './helpers/git-spawns.js';
+import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 import * as limit from '../src/commands/fetch-limit.js';
+import { authorOfSha, authorsOfShas } from '../src/load/audit-hygiene.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -126,4 +127,92 @@ it('risk:resource accord audit starts as many git processes for twelve finished 
   const few = await spawns(claimedRepo(2));
   const many = await spawns(claimedRepo(12));
   expect(many.length, `${many.length} git processes with 12 tickets (${histogram(many)}), ${few.length} with 2 (${histogram(few)})`).toBe(few.length);
+});
+
+// Phase 08.9 D-02: the authors of the commits a dry clean would remove are read with one git process, each equal to what authorOfSha says (D-03).
+it('risk:resource the authors of any number of commits a clean would remove are read with one git process (D-02)', () => {
+  const repo = sandbox({});
+  const shas: string[] = [];
+  for (let i = 1; i <= 12; i++) {
+    gitRun(repo, 'config', 'user.email', `u${i}@x.io`);
+    shas.push(commitMsg(repo, `commit ${i}`, undefined, true));
+  }
+  const short = shas.map((s) => s.slice(0, 7));
+  const read = countedSync(() => authorsOfShas(repo, [...shas, ...short]));
+  expect(read.argv.map((a) => a.join(' ')), 'one git process for twelve commits, full and cut to 7 characters').toHaveLength(1);
+  for (const sha of [...shas, ...short]) expect(read.value.get(sha), sha).toBe(authorOfSha(repo, sha));
+  expect(read.value.get(shas[4])).toBe('u5@x.io');
+  // one 40-hex sha the repository lacks fails the whole log call; every value still equals authorOfSha's
+  const missing = 'deadbeef'.repeat(5);
+  const withMissing = authorsOfShas(repo, [shas[0], missing, short[7]]);
+  expect(withMissing.get(missing)).toBeUndefined();
+  expect(withMissing.get(shas[0])).toBe(authorOfSha(repo, shas[0]));
+  expect(withMissing.get(short[7])).toBe(authorOfSha(repo, short[7]));
+  // a text that is no sha maps to undefined and, alone, starts no process
+  const nothing = countedSync(() => authorsOfShas(repo, ['not a sha', '--output=x']));
+  expect(nothing.argv).toEqual([]);
+  expect(nothing.value.get('not a sha')).toBeUndefined();
+  expect(nothing.value.get('--output=x')).toBeUndefined();
+  expect(countedSync(() => authorsOfShas(repo, [])).argv).toEqual([]);
+  // an annotated tag peels to its commit: the printed record names the commit, so the tag's own sha is read alone and answers as authorOfSha does
+  gitRun(repo, 'tag', '-a', '-m', 'tag', 'v1', shas[3]);
+  const tag = gitRun(repo, 'rev-parse', 'v1').trim();
+  expect(authorOfSha(repo, tag)).toBe('u4@x.io');
+  expect(authorsOfShas(repo, [tag, shas[1]]).get(tag)).toBe(authorOfSha(repo, tag));
+  expect(authorsOfShas(repo, [tag, shas[1]]).get(shas[1])).toBe('u2@x.io');
+});
+
+/** A sandbox on main with `count` unmerged local branches backlog/q-<n>, each adding one draft ticket Q-<n> in a commit 100 days old by q@x.io; the branch names hold no date. */
+function queuedRepo(count: number): string {
+  const repo = sandbox({});
+  for (let i = 1; i <= count; i++) {
+    gitRun(repo, 'switch', '-q', '-c', `backlog/q-${i}`, 'main');
+    gitRun(repo, 'config', 'user.email', 'q@x.io');
+    writeFiles(repo, { [`accord/tickets/Q-${i}.md`]: laneTicket(`Q-${i}`) });
+    commitMsg(repo, `backlog: queue Q-${i}`, new Date(Date.now() - (100 * 24 + 1) * 3600 * 1000));
+    gitRun(repo, 'switch', '-q', 'main');
+    gitRun(repo, 'config', 'user.email', 'a@x.io');
+  }
+  return repo;
+}
+
+// The draft gap lines the per-ref reads printed at BASE (captured before 08.9-06 changed them).
+const FEW_GAPS = [
+  "gap: draft-stale: Q-1 created by q@x.io has waited on backlog/q-1, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-1 first, then ask to pick up Q-1 or accord drop Q-1 --reason \"<why>\"",
+  "gap: draft-stale: Q-2 created by q@x.io has waited on backlog/q-2, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-2 first, then ask to pick up Q-2 or accord drop Q-2 --reason \"<why>\"",
+];
+const MANY_GAPS = [
+  "gap: draft-stale: Q-1 created by q@x.io has waited on backlog/q-1, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-1 first, then ask to pick up Q-1 or accord drop Q-1 --reason \"<why>\"",
+  "gap: draft-stale: Q-10 created by q@x.io has waited on backlog/q-10, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-10 first, then ask to pick up Q-10 or accord drop Q-10 --reason \"<why>\"",
+  "gap: draft-stale: Q-11 created by q@x.io has waited on backlog/q-11, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-11 first, then ask to pick up Q-11 or accord drop Q-11 --reason \"<why>\"",
+  "gap: draft-stale: Q-12 created by q@x.io has waited on backlog/q-12, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-12 first, then ask to pick up Q-12 or accord drop Q-12 --reason \"<why>\"",
+  "gap: draft-stale: Q-2 created by q@x.io has waited on backlog/q-2, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-2 first, then ask to pick up Q-2 or accord drop Q-2 --reason \"<why>\"",
+  "gap: draft-stale: Q-3 created by q@x.io has waited on backlog/q-3, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-3 first, then ask to pick up Q-3 or accord drop Q-3 --reason \"<why>\"",
+  "gap: draft-stale: Q-4 created by q@x.io has waited on backlog/q-4, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-4 first, then ask to pick up Q-4 or accord drop Q-4 --reason \"<why>\"",
+  "gap: draft-stale: Q-5 created by q@x.io has waited on backlog/q-5, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-5 first, then ask to pick up Q-5 or accord drop Q-5 --reason \"<why>\"",
+  "gap: draft-stale: Q-6 created by q@x.io has waited on backlog/q-6, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-6 first, then ask to pick up Q-6 or accord drop Q-6 --reason \"<why>\"",
+  "gap: draft-stale: Q-7 created by q@x.io has waited on backlog/q-7, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-7 first, then ask to pick up Q-7 or accord drop Q-7 --reason \"<why>\"",
+  "gap: draft-stale: Q-8 created by q@x.io has waited on backlog/q-8, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-8 first, then ask to pick up Q-8 or accord drop Q-8 --reason \"<why>\"",
+  "gap: draft-stale: Q-9 created by q@x.io has waited on backlog/q-9, not merged, for 100 days (stale_draft_days 90) - fix: the owner merges the pull request of backlog/q-9 first, then ask to pick up Q-9 or accord drop Q-9 --reason \"<why>\"",
+];
+
+// Phase 08.9 D-02: the tip age and the creator of old queued drafts come from one for-each-ref, never one log per backlog ref (D-03: the gap lines are those the per-ref reads printed).
+it('risk:resource accord audit reads the tips of any number of old queued drafts with one git process (D-02)', async () => {
+  const lines = async (count: number): Promise<{ argv: string[][]; gaps: string[] }> => {
+    const repo = queuedRepo(count);
+    const argv = await spawns(repo);
+    const r = await run(['audit'], repo);
+    expect(r.code, r.out + r.err).toBe(0);
+    return { argv, gaps: r.out.split('\n').filter((l) => l.startsWith('gap: draft-stale:')) };
+  };
+  const few = await lines(2);
+  const many = await lines(12);
+  for (const argv of [...few.argv, ...many.argv]) {
+    const refs = argv.filter((a) => a.startsWith('refs/heads/backlog/') || a.startsWith('refs/remotes/origin/backlog/'));
+    expect(verbOf(argv) === 'log' && refs.length > 0, `a log on a backlog ref: ${argv.join(' ')}`).toBe(false);
+  }
+  const forEachRef = (all: string[][]): number => all.filter((a) => verbOf(a) === 'for-each-ref').length;
+  expect(forEachRef(many.argv), `${histogram(many.argv)} with 12 branches, ${histogram(few.argv)} with 2`).toBe(forEachRef(few.argv));
+  expect(few.gaps).toEqual(FEW_GAPS);
+  expect(many.gaps).toEqual(MANY_GAPS);
 });

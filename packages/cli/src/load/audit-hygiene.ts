@@ -92,8 +92,8 @@ function tipAge(root: string, branch: string, now: number): number | undefined {
 const SHA = /^[0-9a-f]{7,64}$/;
 const NEXT = ' - next: ';
 
-/** The author email of commit `sha`; undefined for a text that is no sha, a commit git cannot find, or no author. The sha is checked before any argument is built. */
-function authorOfSha(root: string, sha: string): string | undefined {
+/** The author email of commit `sha`; undefined for a text that is no sha, a commit git cannot find, or no author. The sha is checked before any argument is built. Exported as the oracle of `authorsOfShas` (D-03). */
+export function authorOfSha(root: string, sha: string): string | undefined {
   if (!SHA.test(sha)) return undefined;
   try {
     const email = lastLine(git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%ae', sha, '--']));
@@ -101,6 +101,84 @@ function authorOfSha(root: string, sha: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Shas per `git log --no-walk` call: a command line holds about 32 K characters on Windows, and 200 shas of 40 characters stay far below it. */
+const SHAS_PER_LOG = 200;
+
+/**
+ * Phase 08.9 D-02: the author emails of any number of commits, read with one `git log --no-walk` per 200 shas; each value equals `authorOfSha`'s answer (D-03).
+ * Only texts that pass SHA enter the argument list, before `--` (T-08.9-15); any other text maps to undefined with no process. A record answers an input only when its full sha starts with the input;
+ * an input no record answers (git peeled a tag to its commit, so the record prints another name), or one that two records answer, is read alone by `authorOfSha`, and so is every sha of a chunk
+ * whose call failed (one missing or ambiguous object fails the whole call). Every value lives in this call's locals (D-04).
+ */
+export function authorsOfShas(root: string, shas: readonly string[]): Map<string, string | undefined> {
+  const authors = new Map<string, string | undefined>();
+  const valid: string[] = [];
+  for (const sha of new Set(shas)) {
+    if (SHA.test(sha)) valid.push(sha);
+    else authors.set(sha, undefined);
+  }
+  for (let at = 0; at < valid.length; at += SHAS_PER_LOG) {
+    const chunk = valid.slice(at, at + SHAS_PER_LOG);
+    let records: Array<{ sha: string; email: string }> | undefined;
+    try {
+      records = git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-walk=unsorted', '--format=%H%x00%ae', ...chunk, '--'])
+        .split(/\r?\n/)
+        .filter((l) => l !== '')
+        .map((l) => {
+          const [sha, email = ''] = l.split('\0');
+          return { sha: sha.toLowerCase(), email: email.trim() };
+        });
+    } catch {
+      records = undefined; // the per-sha read answers each of them as before
+    }
+    for (const sha of chunk) {
+      const hits = records?.filter((r) => r.sha.startsWith(sha));
+      if (hits === undefined || hits.length !== 1) authors.set(sha, authorOfSha(root, sha));
+      else authors.set(sha, hits[0].email === '' ? undefined : hits[0].email);
+    }
+  }
+  return authors;
+}
+
+/** One backlog ref's tip: the committer time and the author email, each present only when git gave a usable one. */
+type Tip = { committed?: number; email?: string };
+
+/**
+ * Phase 08.9 D-02: the committer time and the author email of the tip of every backlog ref (local and origin-tracking) from one `git for-each-ref`, keyed by the full ref name.
+ * `%(committerdate:unix)` and `%(authoremail)` without its brackets are what `log -1 --format=%ct` and `%ae` print. The command line holds no repository text. A failed read throws; the caller then
+ * reads each tip with `tipAge` and `creatorOf` as before. Its result lives in the locals of one audit run (D-04).
+ */
+export function backlogTips(root: string): Map<string, Tip> {
+  const tips = new Map<string, Tip>();
+  const text = git(root, ['for-each-ref', '--format=%(refname)%00%(committerdate:unix)%00%(authoremail)', 'refs/heads/backlog', 'refs/remotes/origin/backlog']);
+  for (const row of text.split(/\r?\n/)) {
+    const [name, time, mail] = row.split('\0');
+    if (name === undefined || name === '') continue;
+    const committed = Number(time);
+    const email = (mail ?? '').trim().replace(/^<|>$/g, '');
+    tips.set(name, { ...(Number.isFinite(committed) && committed > 0 ? { committed } : {}), ...(email === '' ? {} : { email }) });
+  }
+  return tips;
+}
+
+/** `tipAge` from the tips `backlogTips` read: the local ref first, then origin's, the first that holds a time. */
+function tipAgeFrom(tips: Map<string, Tip>, branch: string, now: number): number | undefined {
+  for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
+    const committed = tips.get(ref)?.committed;
+    if (committed !== undefined) return Math.floor((now - committed) / 86400);
+  }
+  return undefined;
+}
+
+/** `creatorOf` of a queued draft from the tips `backlogTips` read: the first of the local and origin refs that holds an author email. */
+function queuedCreatorFrom(tips: Map<string, Tip>, branch: string): string | undefined {
+  for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
+    const email = tips.get(ref)?.email;
+    if (email !== undefined) return email;
+  }
+  return undefined;
 }
 
 /** The HEAD sha of each worktree of this repository by `norm`ed path, read once (`git worktree list --porcelain`); empty when git cannot say. */
@@ -169,18 +247,23 @@ class Lazy<T> {
 
 /**
  * Ruling "worktree-leftover wording": one gap per would-be removal, the author of the commit the line names. `deleted` lines carry `(was <sha>)`; a `removed <path>` line is the HEAD of
- * that worktree. Returns the gaps and the branch names (`t/x`, `origin/t/x`) the lines delete.
+ * that worktree. The authors of all the shas the lines name are read together by `authorsOfShas` (Phase 08.9 D-02: one git process, not one per line). Returns the gaps and the branch names
+ * (`t/x`, `origin/t/x`) the lines delete.
  */
 function leftovers(ctx: CommandContext, lines: string[], who: (email: string) => string, norm: HygieneDeps['norm']): { gaps: AuditGap[]; deleted: Set<string> } {
   const heads = new Lazy(() => worktreeHeads(ctx.root, norm));
   const cut = lines.map((l) => (l.includes(NEXT) ? l.slice(0, l.indexOf(NEXT)) : l));
+  // the sha each cut line names: a `removed` line's worktree HEAD (the list is read only when such a line exists), a `deleted` line's `(was <sha>)`
+  const shaOf = (line: string): string | undefined => {
+    if (line.startsWith('removed ')) return heads.get().get(norm(line.slice('removed '.length)));
+    return /\(was ([^)\s]+)\)$/.exec(line)?.[1];
+  };
+  const named = new Map<string, string | undefined>();
+  for (const line of cut) if (line.startsWith('removed ') || line.startsWith('deleted ')) named.set(line, shaOf(line));
+  const authors = named.size === 0 ? new Map<string, string | undefined>() : authorsOfShas(ctx.root, [...named.values()].filter((sha): sha is string => sha !== undefined));
   const authorOf = (line: string): string | undefined => {
-    if (line.startsWith('removed ')) {
-      const sha = heads.get().get(norm(line.slice('removed '.length)));
-      return sha === undefined ? undefined : authorOfSha(ctx.root, sha);
-    }
-    const sha = /\(was ([^)\s]+)\)$/.exec(line)?.[1];
-    return sha === undefined ? undefined : authorOfSha(ctx.root, sha);
+    const sha = named.get(line);
+    return sha === undefined ? undefined : authors.get(sha);
   };
   const deleted = new Set<string>();
   for (const line of cut) {
@@ -449,13 +532,31 @@ export async function auditHygiene(ctx: CommandContext, deps: HygieneDeps): Prom
     });
     gaps.push(...ticketIdleGaps(open, staleDays, who.show));
 
-    // D-02: an unclaimed, unfinished ticket is a draft; the creator is read only for the ones already past the threshold
+    // D-02: an unclaimed, unfinished ticket is a draft; the creator is read only for the ones already past the threshold.
+    // Phase 08.9 D-02: the tips of the queued drafts' backlog refs are read once, on the first draft that needs one (a failed read leaves the per-ref `tipAge` and `creatorOf`)
+    const tips = new Lazy<Map<string, Tip> | undefined>(() => {
+      try {
+        return backlogTips(ctx.root);
+      } catch {
+        return undefined;
+      }
+    });
+    const batched = (branch: string): Map<string, Tip> | undefined => (SAFE_BRANCH.test(branch) && branch.startsWith('backlog/') ? tips.get() : undefined);
+    const tipAgeOf = (branch: string): number | undefined => {
+      const read = batched(branch);
+      return read === undefined ? tipAge(ctx.root, branch, now) : tipAgeFrom(read, branch, now);
+    };
+    const creatorOfQueued = (id: string, branch: string): string | undefined => {
+      const read = batched(branch);
+      return read === undefined ? creatorOf(ctx.root, id, branch) : queuedCreatorFrom(read, branch);
+    };
     const old: OldDraft[] = [];
     for (const r of open.filter((x) => x.claimedBy === undefined)) {
       const branch = view.queued !== undefined && Object.hasOwn(view.queued, r.id) ? view.queued[r.id].branch : undefined;
-      const days = draftAge(view, r.id, now) ?? (branch === undefined ? undefined : tipAge(ctx.root, branch, now));
+      const days = draftAge(view, r.id, now) ?? (branch === undefined ? undefined : tipAgeOf(branch));
       if (days === undefined || days <= Number(staleDraftDays)) continue;
-      old.push({ id: r.id, days, creator: creatorOf(ctx.root, r.id, branch), ...(branch === undefined ? {} : { queued: branch }) });
+      const creator = branch === undefined ? creatorOf(ctx.root, r.id, undefined) : creatorOfQueued(r.id, branch);
+      old.push({ id: r.id, days, creator, ...(branch === undefined ? {} : { queued: branch }) });
     }
     gaps.push(...draftStaleGaps(old, staleDraftDays, who.show));
   } catch (err) {

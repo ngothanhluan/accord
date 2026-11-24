@@ -13,7 +13,9 @@ reported as CI not checked, with the reason.
 1. Read `git remote get-url origin`. No `origin`, or a host other than
    `github.com`: CI not checked, "no GitHub remote"; skip the rest of Start.
 2. Run `gh auth status`, then
-   `gh pr list --head <branch> --state open --json number,url`. gh
+   `gh pr list --head <branch> --state open --json number,url`, where
+   `<branch>` is the ticket's branch as `git branch --show-current` prints it in its
+   worktree, which a `branch` template with `{type}` or `{slug}` makes differ from the id. gh
    missing, not logged in, or unable to reach the repository: CI not
    checked, with gh's message; skip the rest of Start.
 3. Run `git push -u origin <branch>`. A rejected push: CI not checked,

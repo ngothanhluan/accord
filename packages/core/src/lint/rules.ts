@@ -2,7 +2,7 @@
 // `rule` and `level` from the row (D-58), so a level literal for a `lint.*` rule appears nowhere else.
 import type { Finding, Level } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
-import { commitRule, configFloor, modelRetired, subjectDuplicate, templateSection } from './config.js';
+import { branchTypeRoot, commitRule, configFloor, modelRetired, subjectDuplicate, templateSection } from './config.js';
 import { dependsCycle, dependsUnknown } from './depends.js';
 import { idConvention, initialsDuplicate } from './ids.js';
 import { dependsDropped, droppedReason } from './dropped.js';
@@ -100,6 +100,7 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.tokens-missing', level: 'warning', profiles: ['build', 'maintain'], check: tokensMissing },
   { id: 'lint.prototype-derivation', level: 'warning', profiles: ['build', 'maintain'], check: prototypeDerivation },
   { id: 'lint.model-retired', level: 'warning', profiles: ['build', 'maintain'], check: modelRetired },
+  { id: 'lint.branch-type-root', level: 'warning', profiles: ['build', 'maintain'], check: branchTypeRoot },
   { id: 'lint.subject-duplicate', level: 'error', profiles: ['build', 'maintain'], check: subjectDuplicate },
   { id: 'lint.commit-rule', level: 'error', profiles: ['build', 'maintain'], check: commitRule },
   { id: 'lint.config-floor', level: 'error', profiles: ['build', 'maintain'], check: configFloor },

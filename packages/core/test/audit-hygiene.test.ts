@@ -2,7 +2,7 @@
 import { expect, it } from 'vitest';
 import { BASELINE_LISTED, baselineGap, branchGaps, deferredGaps, draftAge, draftStaleGaps, isOpenWork, leftoverGaps, loadSnapshot, removableBaseline, statusRows, ticketIdleGaps } from '../src/index.js';
 import type { ClaimRefFact, StatusRow } from '../src/index.js';
-import { NO_COMMAND_TIP } from '../src/audit/hygiene.js';
+import { NO_COMMAND_GUESS, NO_COMMAND_TIP } from '../src/audit/hygiene.js';
 import { CONFIG, done, junit, LANE_BODY, laneTicket, P, building, REPORT } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
@@ -173,6 +173,23 @@ it('risk:complex-branching orphan and unpushed claim branches are judged once ea
   expect(branchGaps([ref({}), ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false })], new Set(), '14', NOW, same, { unpushed: false }).map((g) => g.id)).toEqual(['branch-orphan']);
   // D-08
   expect(branchGaps([ref({})], new Set(), '14', NOW, () => 'AX')[0].text).toContain('tip by AX');
+});
+
+// Issue #341 D-07c: an id guessed among several candidates (none known) never gets a delete command, so a wrong guess cannot hand the owner a delete of a live claim.
+it('risk:data-loss a claim branch whose id was guessed among several candidates gets no delete command (D-07c)', () => {
+  const guessed = { name: 'feature/ST-12-export', id: 'ST-12', ticketAnywhere: false, ambiguous: true };
+  for (const r of [ref({ ...guessed, tip: NOW - 3 * 86400 }), ref({ ...guessed, local: false, origin: true })]) {
+    const [gap] = branchGaps([r], new Set(), '14', NOW, same);
+    expect(gap.id).toBe('branch-orphan');
+    expect(gap.text).toContain('names ticket ST-12 by a guess');
+    expect(gap.fix).toBe(NO_COMMAND_GUESS);
+    expect(gap.fix).not.toContain('git push origin --delete');
+    expect(gap.fix).not.toContain('update-ref');
+  }
+  const [unpushed] = branchGaps([ref({ ...guessed, ticketAnywhere: true })], new Set(), '14', NOW, same);
+  expect(unpushed.id).toBe('claim-unpushed');
+  expect(unpushed.fix).toBe('git push -u origin feature/ST-12-export to keep it; ' + NO_COMMAND_GUESS);
+  expect(unpushed.fix).not.toContain('update-ref');
 });
 
 it('risk:security a branch name a shell would read gets no command in its fix (T-08.2-07)', () => {

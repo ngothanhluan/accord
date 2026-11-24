@@ -129,6 +129,8 @@ export interface ClaimRefFact {
   origin: boolean;
   /** The tip is already on the default ref. */
   merged: boolean;
+  /** Issue #341 D-07c: the id was guessed among more than one candidate the name can carry, none of them known, so no delete command is printed. */
+  ambiguous?: boolean;
 }
 
 /** What a fix says for a local branch whose tip git did not give as a hash. */
@@ -136,13 +138,17 @@ export const NO_COMMAND_TIP = 'the branch tip could not be read as a hash, so no
 
 const TIP_HASH = /^[0-9a-f]{40,64}$/;
 
+/** Issue #341 D-07c: what a fix says for a branch whose ticket id was guessed among several candidates the name can carry. */
+export const NO_COMMAND_GUESS = 'the ticket id was guessed from a name that can carry more than one id, so no delete command is printed; read the branch with git log and delete it by hand only if nobody works on it';
+
 /** The repository's local branch delete (conventions.md): `git update-ref -d` pinned to the tip this audit read, never `git branch -D`. */
 const deleteLocal = (r: ClaimRefFact): string | undefined => (TIP_HASH.test(r.sha) ? `git update-ref -d refs/heads/${r.name} ${r.sha}` : undefined);
 
 /**
  * D-03, D-06: `branch-orphan` for a claim ref whose ticket exists nowhere, `claim-unpushed` for a local claim branch never pushed whose tip is older than `stale_days` (strictly).
  * A branch the dry clean already names in a `deleted` line is in neither (`deleted` holds `t/x` for a local ref and `origin/t/x` for an origin one). `unpushed: false` leaves the
- * second check out (no origin remote to compare with); `defaultName` is how the default branch reads in the text. A name a command line would read gets no command.
+ * second check out (no origin remote to compare with); `defaultName` is how the default branch reads in the text. A name a command line would read gets no command, and issue #341 D-07c: a ref
+ * whose id was a guess among several candidates (`ambiguous`) is named as a guess and gets no delete command.
  */
 export function branchGaps(
   refs: readonly ClaimRefFact[],
@@ -160,8 +166,8 @@ export function branchGaps(
     .sort((a, b) => cmp(a.name, b.name) || Number(b.local) - Number(a.local))
     .map((r) => ({
       id: 'branch-orphan',
-      text: `${r.name} (${r.local ? 'local' : 'origin'}) names ticket ${r.id}, and no accord/tickets/${r.id}.md is in the checkout, on ${def} or on the branch; tip by ${by(r)}`,
-      fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : r.local ? (deleteLocal(r) ?? NO_COMMAND_TIP) : `git push origin --delete ${r.name}`,
+      text: `${r.name} (${r.local ? 'local' : 'origin'}) names ticket ${r.id}${r.ambiguous === true ? ' by a guess' : ''}, and no accord/tickets/${r.id}.md is in the checkout, on ${def} or on the branch; tip by ${by(r)}`,
+      fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : r.ambiguous === true ? NO_COMMAND_GUESS : r.local ? (deleteLocal(r) ?? NO_COMMAND_TIP) : `git push origin --delete ${r.name}`,
     }));
   const unpushed =
     opts.unpushed === false
@@ -172,7 +178,11 @@ export function branchGaps(
           .map((r) => ({
             id: 'claim-unpushed',
             text: `${r.name} (ticket ${r.id}) has no origin/${r.name}, and its tip is ${Math.floor((now - r.tip) / 86400)} days old (stale_days ${staleDays}); tip by ${by(r)}`,
-            fix: !SAFE_BRANCH.test(r.name) ? NO_COMMAND_CLAIM : `git push -u origin ${r.name} to keep it${deleteLocal(r) === undefined ? '' : `, or ${deleteLocal(r)} to delete it`}`,
+            fix: !SAFE_BRANCH.test(r.name)
+              ? NO_COMMAND_CLAIM
+              : r.ambiguous === true
+                ? `git push -u origin ${r.name} to keep it; ${NO_COMMAND_GUESS}`
+                : `git push -u origin ${r.name} to keep it${deleteLocal(r) === undefined ? '' : `, or ${deleteLocal(r)} to delete it`}`,
           }));
   return [...orphans, ...unpushed];
 }

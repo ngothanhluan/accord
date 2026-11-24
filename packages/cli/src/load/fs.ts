@@ -3,8 +3,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
-import type { BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
+import { branchGlob, branchIdOf, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
+import type { AccordConfig, BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitStartFailure, runGitSync } from './git-spawn.js';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
@@ -187,6 +187,7 @@ function gitClaims(
   root: string,
   templates: readonly string[],
   known: (id: string) => boolean,
+  config?: AccordConfig,
 ): {
   claims: Record<string, string>;
   branches: Record<string, string>;
@@ -195,18 +196,18 @@ function gitClaims(
   /** Every ref the listing printed, with its sha. */
   listed: Map<string, string>;
 } {
-  const patterns = templates.flatMap((t) => {
-    const parts = t.split('{id}');
-    return parts.length === 2 ? ['refs/heads/' + parts[0] + '*' + parts[1], 'refs/remotes/*/' + parts[0] + '*' + parts[1]] : [];
-  });
+  // Issue #341 D-07: `{id}` and `{slug}` become `*` (one segment); `{type}` was already written out per listed word (D-11).
+  const patterns = templates.flatMap((t) => (t.split('{id}').length === 2 ? ['refs/heads/' + branchGlob(t), 'refs/remotes/*/' + branchGlob(t)] : []));
   let out: string;
   try {
     // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
     // shortcut: a remote whose name contains `/` is not matched; widen the pattern if one ever must be.
+    // WR-06: a {type} template matches every conventional branch on every remote, so the listing can pass Node's 1 MiB default; 64 MiB, as conventions.md asks of git reads
     out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)%00%(objectname)', ...patterns], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
     });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
@@ -221,7 +222,7 @@ function gitClaims(
     if (ref !== undefined && sha !== undefined) listed.set(ref, sha);
     const m = /^refs\/(?:(heads)|remotes\/[^/]+)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined) continue;
-    const id = ticketOfBranch(m[2], templates, known);
+    const id = ticketOfBranch(m[2], templates, known, config);
     if (id === undefined) continue;
     const when = Number(whenText);
     // Local and remote-tracking tips both count towards activity.
@@ -1041,20 +1042,13 @@ function resolveAfter(root: string, entries: readonly AfterEntry[], walk: Walk |
 
 /**
  * The ticket id a branch name carries under the templates in force, or undefined. A `t/` name is matched only by
- * `t/{id}`. Among matching templates the first whose id is `known` wins, else the first match in template order.
+ * `t/{id}`. The templates are the expanded ones (`{type}` already one template per listed word, D-11). The candidates of every
+ * template come in template order, shortest first within one (a `{slug}` makes the id ambiguous), and issue #341 D-07a/D-07b choose
+ * (branchIdOf): the first `known` id, else the first of the repository's id shape under `config`, else the one id of a template
+ * without `{slug}`, else the shortest id that starts with a letter and ends in a digit run, else none.
  */
-export function ticketOfBranch(name: string, templates: readonly string[], known: (id: string) => boolean): string | undefined {
-  const ids: string[] = [];
-  for (const template of templates) {
-    if (name.startsWith('t/') && template !== DEFAULT_BRANCH_TEMPLATE) continue;
-    const parts = template.split('{id}');
-    if (parts.length !== 2) continue;
-    const [pre, suf] = parts;
-    if (!name.startsWith(pre) || !name.endsWith(suf) || name.length <= pre.length + suf.length) continue;
-    const id = name.slice(pre.length, name.length - suf.length);
-    if (!id.includes('/')) ids.push(id);
-  }
-  return ids.find(known) ?? ids[0];
+export function ticketOfBranch(name: string, templates: readonly string[], known: (id: string) => boolean, config?: Parameters<typeof branchIdOf>[3]): string | undefined {
+  return branchIdOf(name, templates, known, config)?.id;
 }
 
 /** The author email of a commit object's headers; undefined with an `encoding` header or no author line, where `git show` decides. */
@@ -1069,7 +1063,8 @@ function headAuthorOf(body: string): string | undefined {
   return open < 0 || close < 0 ? undefined : line.slice(open + 1, close);
 }
 
-type DefaultBranch = { exists: boolean; template?: string; head?: { commit: string; author: string } | 'unborn' };
+/** `noConfig`: issue #341 D-01a, the default branch exists and holds no accord/config.yml at all (a local-only install); left out when it holds one or git could not say. */
+type DefaultBranch = { exists: boolean; template?: string; noConfig?: true; head?: { commit: string; author: string } | 'unborn' };
 
 /**
  * ST-LN-63: what the light load read (the tracked tree, the files under `accord/` with the tokens and the test report, and the default
@@ -1117,7 +1112,14 @@ function gitDefaultBranch(root: string): DefaultBranch {
     const commit = objects[i * 2];
     const config = objects[i * 2 + 1];
     if (commit === undefined || config === undefined) break;
-    if (commit.type === 'commit') return { exists: true, ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}), ...(head === undefined ? {} : { head }) };
+    if (commit.type === 'commit') {
+      return {
+        exists: true,
+        ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}),
+        ...(config.type === 'missing' ? { noConfig: true as const } : {}),
+        ...(head === undefined ? {} : { head }),
+      };
+    }
   }
   return { exists: false, ...(head === undefined ? {} : { head }) };
 }
@@ -1165,7 +1167,11 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
     }
   }
   const defaultBranch = from?.defaultBranch ?? gitDefaultBranch(root);
-  const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))];
+  // Issue #341 D-11: a template with `{type}` is read once per word of the checkout's branch_types (R-11), so a name is a claim only under a listed word.
+  const branchTemplates = expandBranchTypes(
+    [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))],
+    branchTypesOf(config),
+  );
   const known = (id: string) => Object.hasOwn(first.tickets, id);
   const statusOf = (id: string) => first.tickets[id]?.frontmatter?.status;
   // The prompt-expansion hook reads only the tickets, the config and the branch templates; each git spawn it skips is ~50 ms on Windows.
@@ -1182,15 +1188,17 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
   }
   const facts = gitFacts(root, defaultBranch.head);
   const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
-  const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity, listed } = gitClaims(root, branchTemplates, known);
-  // D-09: a new claim is named by the default branch's template; only a repository with no default branch uses the working tree's.
-  const claimTemplate = (defaultBranch.exists ? defaultBranch.template : config?.branch) ?? DEFAULT_BRANCH_TEMPLATE;
+  const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity, listed } = gitClaims(root, branchTemplates, known, config);
+  // D-09: a new claim is named by the default branch's template whenever it holds a readable one. Issue #341 D-01, D-01a: only when the default branch holds no
+  // accord/config.yml at all (a local-only install), or there is no default branch, does the working tree's `branch` name it; a default-branch config without a
+  // `branch` (or with one this version refuses) means the team uses t/{id}, so one person's unmerged `branch` never renames only their own claims.
+  const claimTemplate = defaultBranch.template ?? (!defaultBranch.exists || defaultBranch.noConfig === true ? config?.branch : undefined) ?? DEFAULT_BRANCH_TEMPLATE;
   const lastActivity: Record<string, number> = { ...facts?.activity };
   for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).
   // ST-LN-63: the branch is read once, here, and handed on.
   const branch = { name: currentBranch(root) };
-  const own = branch.name === undefined || branch.name === '' ? undefined : ticketOfBranch(branch.name, branchTemplates, known);
+  const own = branch.name === undefined || branch.name === '' ? undefined : ticketOfBranch(branch.name, branchTemplates, known, config);
   // An entry: a ticket with a start commit or a review.md, with tips, that core reads `afterVerify` for.
   const entries: AfterEntry[] = [];
   for (const id of Object.keys(first.tickets)) {

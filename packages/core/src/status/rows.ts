@@ -5,7 +5,7 @@ import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
 import { acHash, readyHash } from '../gate/hash.js';
 import { resolveStrictness } from '../config/strictness.js';
-import { DEFAULT_BRANCH_TEMPLATE } from './branch.js';
+import { DEFAULT_BRANCH_TEMPLATE, renderBranch } from './branch.js';
 import { doneOnDefault, nextStep, progressOf } from './stage.js';
 import type { Stage } from './stage.js';
 
@@ -107,7 +107,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
               branch:
                 snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, ticket.id)
                   ? snapshot.claimBranches[ticket.id]
-                  : (snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE).replace('{id}', ticket.id),
+                  : renderBranch(snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE, { id: ticket.id, title: fm.title, ...(fm.change === undefined ? {} : { change: fm.change }) }, snapshot.config),
               ...(open && idle !== undefined && idle > Number(snapshot.config?.stale_days ?? '14') ? { idleDays: idle } : {}),
             }),
       };

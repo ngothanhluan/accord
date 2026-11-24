@@ -26,7 +26,7 @@ export interface SnapshotInput {
   // Host-supplied by gate done for the gated ticket: a recorded verified_commit or verification commit that is not an ancestor of HEAD
   // (a rebase or a team script rewrote it), lower case -> what the contents of the ticket's files did since. Absent when the host supplies none.
   contentSince?: Record<string, ContentSince>;
-  // Claim branch templates in force ('t/{id}', 'feature/{id}'). Absent when only the default applies.
+  // Claim branch templates in force ('t/{id}', 'feature/{id}'), each `{type}` already expanded to one template per word of branch_types (D-11). Absent when only the default applies.
   branchTemplates?: string[];
   // Ticket id -> short name of the winning claim ref ('feature/ST-AN-2'). Absent when no claim exists.
   claimBranches?: Record<string, string>;
@@ -173,6 +173,7 @@ export interface TicketFrontmatter {
   // ST-LN-13: repository paths of research records under accord/research/; optional
   research?: string[];
   priority?: 'high' | 'medium' | 'low';// how the dashboard ranks this ticket; absent means medium
+  change?: string; // issue #341 D-04: the kind of change, one word of branch_types, which `{type}` in the claim branch template renders
   approved_hash?: string; // spec §4: written by `accord approve`, 'fnv1a64:<16 hex>'
   ac_hash?: string;
   ruleset?: string; // ST-LN-96 D-02: the accord pin the ticket was claimed under, written by the claim; 'x.y.z' (a pre-release is ignored by the readers)
@@ -361,7 +362,9 @@ export interface AccordConfig {
   stale_draft_days?: string; // digits, default '90': an unclaimed ticket untouched longer is an old draft in accord audit
   people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
-  branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'
+  branch?: string; // claim branch template with exactly one {id} and at most one {type} and one {slug}; absent means 't/{id}'
+  branch_types?: string[]; // issue #341 D-04: the words {type} may take, set by a ticket's `change:`; absent means DEFAULT_BRANCH_TYPES
+  branch_slug_length?: string; // issue #341 D-03: digits '1'..'99', the longest {slug}; absent means '40'; YAML numerics stay strings
   setup?: string[]; // D-07: commands run in order in a new worktree
   commits?: {
     trailers?: 'allow' | 'forbid'; // ST-LN-8 D-01: absent or allow is off

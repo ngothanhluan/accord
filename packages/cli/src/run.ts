@@ -268,8 +268,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--note <line>', 'with --queue: one line of the queued idea under ## Intent, up to four; repeat the option', (line: string, previous: string[]) => [...previous, line], [] as string[])
     .option('--related <ids>', 'the ticket ids this request continues or builds on, comma-separated, or none')
     .option('--split <file>', 'an epic and its stories from a split file, in one step: use with --type epic --lane L, and --queue to put all of them in one commit on one backlog branch')
+    .option('--change <word>', "the kind of change, one word of config.yml's branch_types (feat, fix, ...), written as the ticket's change:; a branch template with {type} needs it")
     .option('--no-dup-check', 'create without checking for similar tickets, which is also how a script passes the --title that --lane S or --lane M needs; for scripts and tests, never for a request a person made')
-    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[]; related?: string; dupCheck?: boolean; split?: string }) => {
+    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean; title?: string; queue?: boolean; note?: string[]; related?: string; dupCheck?: boolean; split?: string; change?: string }) => {
       setCode(newTicket(preflight(opts, options.worktree === true || options.queue === true ? 'light' : 'checkout'), id, options, opts.cwd));
     });
 
@@ -454,8 +455,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('open <id>')
     .description("find or prepare the ticket's worktree, or take its hold from inside it")
     .option('--continue', 'continue a claimed ticket: never claim, refuse when it has no branch')
-    .action((id: string, o: { continue?: boolean }) => {
-      setCode(worktreeOpen(preflight(opts, o.continue === true ? 'checkout' : 'light'), id, { continue: o.continue === true }));
+    .option('--change <word>', "for a new claim: the kind of change, one word of config.yml's branch_types, written as the ticket's change: in the claim commit; a branch template with {type} needs one")
+    .action((id: string, o: { continue?: boolean; change?: string }) => {
+      setCode(worktreeOpen(preflight(opts, o.continue === true ? 'checkout' : 'light'), id, { continue: o.continue === true, ...(o.change === undefined ? {} : { change: o.change }) }));
     });
   worktree
     .command('sync <id>')

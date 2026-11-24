@@ -33,7 +33,7 @@ describe('slugOf (D-03)', () => {
   it('risk:parsing slugOf gives ASCII kebab-case, drops what NFKD does not unmark, and cuts without a trailing hyphen', () => {
     expect(slugOf('Order total is null', 40)).toBe('order-total-is-null');
     expect(slugOf('Exportation des données', 40)).toBe('exportation-des-donnees');
-    expect(slugOf('Đơn hàng mới', 40)).toBe('on-hang-moi');
+    expect(slugOf('\u0110\u01a1n h\u00e0ng m\u1edbi', 40)).toBe('on-hang-moi');
     expect(slugOf('  --Hello,   World!--  ', 40)).toBe('hello-world');
     expect(slugOf('日本語', 40)).toBe('');
     expect(slugOf('Order total', 5)).toBe('order');

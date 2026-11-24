@@ -118,8 +118,14 @@ type Chosen = Claim | undefined | 'read';
  * claimCommitOf's answer is the last `claim: <id>` commit of HEAD outside the default ref, else the last one overall; both are the last hit of a topological log. A filtered log and the whole-history
  * one order two commits that are not ancestor-related differently (RESEARCH Pitfall 2), so the last hit counts only when it descends from every other hit of the same set (a descendant comes
  * after its ancestors in every topological order); otherwise that id is `read` alone by claimCommitOf. No `--grep` here: a subject counts by exact equality with subjectsFor, as claimsOf compares it.
+ * `onRef` is the set of commits of the default ref (undefined with no default ref): a claim in it is its own merge base with the ref.
  */
-function claimsFromLog(root: string, ids: readonly string[], ref: string | undefined, config: Pick<AccordConfig, 'commits'> | undefined): Map<string, Chosen> {
+function claimsFromLog(
+  root: string,
+  ids: readonly string[],
+  ref: string | undefined,
+  config: Pick<AccordConfig, 'commits'> | undefined,
+): { chosen: Map<string, Chosen>; onRef: Set<string> | undefined } {
   const byId = new Map<string, Hit[]>(ids.map((id) => [id, []]));
   const bySubject = new Map<string, string[]>();
   for (const id of ids) {
@@ -168,68 +174,104 @@ function claimsFromLog(root: string, ids: readonly string[], ref: string | undef
     const last = set[set.length - 1];
     chosen.set(id, set.length === 1 || descendsFromAll(last, set.slice(0, -1)) ? { sha: last.sha, time: last.time } : 'read');
   }
-  return chosen;
+  return { chosen, onRef };
+}
+
+/** What gitClaimFactsMany keeps per ticket between its merge base and ruleset log and the one cat-file batch: the claim and the blobs it asked for, in order. */
+interface Pending {
+  id: string;
+  sha: string;
+  time: number;
+  hasBase: boolean;
+  wrote: string[];
+  specs: string[];
 }
 
 /**
  * Phase 08.9 D-02, D-03, D-04: gitClaimFacts for many ids at once, for `accord audit`'s deferred-marks report. For every id the value is exactly what gitClaimFacts(root, id, config) returns, `{ error }`
  * and undefined (no claim commit) included, and gitClaimFacts, commitsWritingRuleset, claimsOf and claimCommitOf stay untouched as its oracle. The claim commits of all ids come from one log (claimsFromLog;
- * the order rule is its doc comment's); the rest of each ticket's read is today's, with its own try/catch, so one unreadable ticket never changes another's answer (RESEARCH Pitfall 6). When a step all ids share
- * fails, every id gets gitClaimFacts's own answer, never a partial or different one. Every git value lives in locals of this call: nothing is kept between calls or runs.
+ * the order rule is its doc comment's). A claim in the default ref's ancestor set is its own merge base with the ref (exact only for an ancestor, RESEARCH Pitfall 5); any other claim keeps
+ * `git merge-base`, exit 1 read as no base, never reused across tickets. Every ticket's blobs (config and ticket file at the claim, config at the base, the commits that wrote a `ruleset:` line) ride one
+ * `cat-file --batch`, sliced back per ticket; the ruleset log stays one per ticket. A ticket whose own read fails gets `{ error }` with gitClaimFacts's text and no other ticket changes (RESEARCH Pitfall 6).
+ * When a step all ids share fails (the log, rev-list, the cat-file batch), every id gets gitClaimFacts's own answer, never a partial or different one. Every git value lives in locals of this call: nothing is kept between calls or runs.
  */
 export function gitClaimFactsMany(root: string, ids: readonly string[], config?: Pick<AccordConfig, 'commits'>): Map<string, ClaimFacts | undefined> {
   const facts = new Map<string, ClaimFacts | undefined>();
   if (ids.length === 0) return facts;
+  const eachOnItsOwn = (): Map<string, ClaimFacts | undefined> => new Map(ids.map((id) => [id, gitClaimFacts(root, id, config)]));
+  const failed = (id: string, e: unknown): ClaimFacts => ({ error: `git failed reading the claim pin of ${id}: ${whyGit(e)}` });
   let ref: string | undefined;
-  let chosen: Map<string, Chosen>;
+  let found: ReturnType<typeof claimsFromLog>;
   try {
     ref = defaultRefOf(root);
-    chosen = claimsFromLog(root, ids, ref, config);
+    found = claimsFromLog(root, ids, ref, config);
   } catch {
-    for (const id of ids) facts.set(id, gitClaimFacts(root, id, config));
-    return facts;
+    return eachOnItsOwn();
   }
+  const pending: Pending[] = [];
   for (const id of ids) {
     try {
-      const picked = chosen.get(id)!;
+      const picked = found.chosen.get(id)!;
       const claim = picked === 'read' ? claimCommit(root, id, ref, config) : picked;
-      facts.set(id, claim === undefined ? undefined : claimFactsAt(root, id, ref, claim));
+      if (claim === undefined) {
+        facts.set(id, undefined);
+        continue;
+      }
+      const { sha, time } = claim;
+      let base: string | undefined;
+      if (ref !== undefined) {
+        if (found.onRef!.has(sha)) base = sha;
+        else {
+          try {
+            base = execFileSync('git', ['merge-base', sha, ref], { cwd: root, ...GIT }).trim().toLowerCase();
+          } catch (e) {
+            if ((e as { status?: number }).status !== 1) throw e; // exit 1 is no common commit
+          }
+        }
+      }
+      const rel = 'accord/tickets/' + id + '.md';
+      const wrote = commitsWritingRuleset(root, sha, rel);
+      const hasBase = base !== undefined && base !== '';
+      pending.push({ id, sha, time, hasBase, wrote, specs: [sha + ':accord/config.yml', sha + ':' + rel, ...(hasBase ? [base + ':accord/config.yml'] : []), ...wrote.map((w) => w + ':' + rel)] });
     } catch (e) {
-      facts.set(id, { error: `git failed reading the claim pin of ${id}: ${whyGit(e)}` });
+      facts.set(id, failed(id, e));
     }
   }
-  return facts;
+  let texts: (string | undefined)[];
+  try {
+    texts = pending.length === 0 ? [] : catBatch(root, pending.flatMap((p) => p.specs), 'the claim pin');
+  } catch {
+    return eachOnItsOwn();
+  }
+  let at = 0;
+  for (const p of pending) {
+    const mine = Array.from({ length: p.specs.length }, (_, i) => texts[at + i]);
+    at += p.specs.length;
+    try {
+      facts.set(p.id, claimFactsFrom(p, mine));
+    } catch (e) {
+      facts.set(p.id, failed(p.id, e));
+    }
+  }
+  return new Map(ids.map((id) => [id, facts.get(id)]));
 }
 
-/** The rest of gitClaimFacts's read for one ticket whose claim commit is known (claim-facts.ts, the body of gitClaimFacts from its merge base on); throws where it throws, and the caller turns that into `{ error }`. */
-function claimFactsAt(root: string, id: string, ref: string | undefined, claim: Claim): ClaimFacts {
-  const { sha, time } = claim;
-  let base: string | undefined;
-  if (ref !== undefined) {
-    try {
-      base = execFileSync('git', ['merge-base', sha, ref], { cwd: root, ...GIT }).trim().toLowerCase();
-    } catch (e) {
-      if ((e as { status?: number }).status !== 1) throw e; // exit 1 is no common commit
-    }
-  }
-  const rel = 'accord/tickets/' + id + '.md';
-  const wrote = commitsWritingRuleset(root, sha, rel);
-  const specs = [sha + ':accord/config.yml', sha + ':' + rel, ...(base === undefined || base === '' ? [] : [base + ':accord/config.yml'])];
-  const first = specs.length;
-  const texts = catBatch(root, [...specs, ...wrote.map((w) => w + ':' + rel)], 'the claim pin');
-  if (texts[0] === undefined) throw new Error(`accord/config.yml cannot be read at claim commit ${sha}`);
+/** One ticket's ClaimFacts from its slice of the batch's blobs, assembled as gitClaimFacts assembles them; throws where gitClaimFacts throws (the config unreadable at the claim). */
+function claimFactsFrom(p: Pending, texts: (string | undefined)[]): ClaimFacts {
+  if (texts[0] === undefined) throw new Error(`accord/config.yml cannot be read at claim commit ${p.sha}`);
+  const first = p.hasBase ? 3 : 2;
   const pin = pinOf(texts[0]);
-  const basePin = base === undefined || base === '' || texts[2] === undefined ? undefined : pinOf(texts[2]);
+  const basePin = !p.hasBase || texts[2] === undefined ? undefined : pinOf(texts[2]);
   let ruleset = texts[1] === undefined ? undefined : rulesetOfTicket(texts[1]);
-  let rulesetCommit = ruleset === undefined ? undefined : sha;
-  for (let i = 0; ruleset === undefined && i < wrote.length; i++) {
+  let rulesetCommit = ruleset === undefined ? undefined : p.sha;
+  for (let i = 0; ruleset === undefined && i < p.wrote.length; i++) {
     const text = texts[first + i];
     ruleset = text === undefined ? undefined : rulesetOfTicket(text);
-    if (ruleset !== undefined) rulesetCommit = wrote[i];
+    if (ruleset !== undefined) rulesetCommit = p.wrote[i];
   }
   return {
-    sha,
-    time,
+    sha: p.sha,
+    time: p.time,
     ...(pin === undefined ? {} : { pin }),
     ...(basePin === undefined ? {} : { basePin }),
     ...(ruleset === undefined ? {} : { ruleset, rulesetCommit: rulesetCommit! }),

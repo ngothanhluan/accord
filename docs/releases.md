@@ -2,9 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.18.0 — 2026-11-24
 
-These changes are on main and not yet released. Tickets in flight are unaffected; a repository pinned to an older accord gets the new plan stage and planner text with `accord upgrade`.
+Release 0.18.0 makes `accord audit` and the test suite faster without changing what either reports, and adds one rule to the plan stage. `accord audit` on accord's own repository starts 56 git processes instead of 254 and runs in about 8 seconds instead of about 20, with a byte-identical report. Tickets in flight: no ticket is refused for something new, and no gate reads anything that changed. A repository pinned to 0.17.1 gets the plan stage and planner text with `accord upgrade`, which moves the pin and regenerates the skill files.
 
 - The plan stage and the planner say that, of test files, a task's `verify:` and `files:` lines name only the ones the task writes or extends; a long existing regression file runs at wave end and in CI, so a task's test run fits its time box.
 - `accord audit` reads the claim commits of finished tickets, the tickets of claim branches, the authors of what a clean would remove, the tips of queued drafts and the drafts on backlog branches with one git call each instead of one or more per ticket or branch; on accord's own repository it starts 56 git processes instead of 254, and its report is unchanged. `accord dashboard`, `accord deferred` and `accord pr` read the drafts on backlog branches the same way. The dry clean `accord audit` runs reads branch tips, their place on the default branch, verified commits, dropped tickets' research records, unpushed commits and stopped rebases once per run in batches, so a leftover branch costs no git call of its own beyond the merge check of a local branch the default branch lacks, where it cost several; it reports the branches as they were when the audit read them, and `accord worktree clean` itself reads and decides as before. A draft whose history the batched read cannot decide exactly (a file added twice, a merge it cannot place) and a short `verified_commit` are still read one at a time.

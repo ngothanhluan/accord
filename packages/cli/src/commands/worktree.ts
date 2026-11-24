@@ -148,20 +148,32 @@ export function siblingOf(mainPath: string, id: string): string {
   return mainPath.slice(0, cut + 1) + mainPath.slice(cut + 1) + '-' + id.toLowerCase();
 }
 
-/** D-07: run the worktree's own `setup`; a failing command keeps the worktree and exits 2. */
-export function prepare(path: string): void {
+/**
+ * D-07: run the worktree's own `setup`; a failing command keeps the worktree and exits 2. Issue #341 D-02: a worktree with no accord/config.yml (a local-only install,
+ * whose accord files are git-excluded) runs the `setup` of `from`, the checkout that runs the command; an invalid file in either place refuses and names it.
+ */
+export function prepare(path: string, from: string): void {
   let text: string | undefined;
+  let where = 'accord/config.yml in the new worktree';
   try {
     text = readFileSync(path + '/accord/config.yml', 'utf8');
   } catch {
-    // no config: nothing to run
+    // no config in the new worktree: the running checkout's, when it is another folder
+    if (norm(from) !== norm(path)) {
+      try {
+        text = readFileSync(from + '/accord/config.yml', 'utf8');
+        where = `accord/config.yml of ${from.replace(/\\/g, '/')}`;
+      } catch {
+        // no config anywhere: nothing to run
+      }
+    }
   }
   let setup: string[] = [];
   if (text !== undefined) {
     const loaded = loadConfig('accord/config.yml', text);
     if (loaded.config === undefined) {
       throw new UsageError(
-        `accord/config.yml in the new worktree is invalid, so setup did not run: ${loaded.findings[0]?.reason ?? 'unreadable'}\nthe worktree is kept; fix the file, then continue the ticket again`,
+        `${where} is invalid, so setup did not run: ${loaded.findings[0]?.reason ?? 'unreadable'}\nthe worktree is kept; fix the file, then continue the ticket again`,
       );
     }
     setup = loaded.config.setup ?? [];
@@ -365,12 +377,12 @@ export function releaseHolds(root: string, session: { pid: number; start: string
 /** Inside the ticket's worktree: take the hold (Claude Code only, D-17), then make sure `setup` finished. */
 function hold(ctx: CommandContext, id: string, path: string): number {
   if (claudeEnv(ctx.env) === undefined) {
-    if (!existsSync(setupMarker(path))) prepare(path);
+    if (!existsSync(setupMarker(path))) prepare(path, ctx.root);
     ctx.stdout.write(withNext('not-held', `not held: ${id} - a second session in this worktree is not refused in this tool yet`) + '\n');
     return 0;
   }
   takeHold(ctx, id, path);
-  if (!existsSync(setupMarker(path))) prepare(path);
+  if (!existsSync(setupMarker(path))) prepare(path, ctx.root);
   ctx.stdout.write(withNext('held', `held: ${id} by this session`) + '\n');
   return 0;
 }
@@ -412,7 +424,7 @@ export function checkPin(ctx: CommandContext, id: string, path: string, branch: 
 export function enterOrStop(ctx: CommandContext, id: string, path: string, branch: string, enter: boolean): void {
   if (!enter) return printStop(ctx, path, id);
   takeHold(ctx, id, path);
-  if (!existsSync(setupMarker(path))) prepare(path);
+  if (!existsSync(setupMarker(path))) prepare(path, ctx.root);
   ctx.stdout.write(`${nextLine('enter')}\nenter: ${path}\n`);
 }
 
@@ -608,7 +620,7 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
     if (enter) {
       if (pick) takeHold(ctx, id, path);
       checkPin(ctx, id, path, branch, mainPath);
-    } else if (!existsSync(setupMarker(path))) prepare(path);
+    } else if (!existsSync(setupMarker(path))) prepare(path, ctx.root);
     enterOrStop(ctx, id, path, branch, enter);
     return 0;
   }
@@ -664,7 +676,7 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (enter) {
     takeHold(ctx, id, path);
     checkPin(ctx, id, path, claim, mainPath);
-  } else prepare(path);
+  } else prepare(path, ctx.root);
   enterOrStop(ctx, id, path, claim, enter);
   return 0;
 }
@@ -1057,7 +1069,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   rmSync(setupMarker(path), { force: true });
   let failure: unknown;
   try {
-    prepare(path);
+    prepare(path, ctx.root);
   } catch (e) {
     failure = e;
   }
@@ -2197,7 +2209,7 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   }
   if (holdError !== undefined) throw holdError;
   if (enter) checkPin(ctx, id, path, branch, list[0].path);
-  prepare(path);
+  prepare(path, ctx.root);
   ctx.stdout.write(rel + '\n');
   enterOrStop(ctx, id, path, branch, enter);
 }

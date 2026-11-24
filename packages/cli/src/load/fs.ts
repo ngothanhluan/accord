@@ -1182,8 +1182,9 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
   const facts = gitFacts(root, defaultBranch.head);
   const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
   const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity, listed } = gitClaims(root, branchTemplates, known, config);
-  // D-09: a new claim is named by the default branch's template; only a repository with no default branch uses the working tree's.
-  const claimTemplate = (defaultBranch.exists ? defaultBranch.template : config?.branch) ?? DEFAULT_BRANCH_TEMPLATE;
+  // D-09: a new claim is named by the default branch's template whenever it holds a readable one. Issue #341 D-01: when it holds none (no accord/config.yml there, as in a
+  // local-only install, or no `branch` in it), or there is no default branch, the working tree's `branch` names it, then t/{id}.
+  const claimTemplate = defaultBranch.template ?? config?.branch ?? DEFAULT_BRANCH_TEMPLATE;
   const lastActivity: Record<string, number> = { ...facts?.activity };
   for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).

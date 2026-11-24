@@ -12,7 +12,7 @@ ticket id, the id of a ticket in `accord/tickets/`, or an id that
 
 Run `accord worktree open <id>`: it makes its `branch` from
 `accord status --json` and commits the claim on it, with the subject of `commits.subjects.claim`. Follow
-`./worktree.md`; it says when to push it (the pushed branch is the claim).
+`./worktree.md`; it says when to push it (the pushed branch is the claim). When it refuses because the branch template needs a change word, propose the word that fits the ticket from the ones it names, as one question per `./ask.md`, then run `accord worktree open <id> --change <word>`.
 
 ## Rules
 

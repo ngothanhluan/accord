@@ -217,7 +217,7 @@ export function taskOpen(ctx: CommandContext, id: string, task: string): number 
   const found = atTask(list, id, n);
   if (found !== undefined) {
     if (found.other !== undefined) throw new UsageError(`${found.other} - nothing was created`);
-    if (!existsSync(setupMarker(found.w.path))) prepare(found.w.path);
+    if (!existsSync(setupMarker(found.w.path))) prepare(found.w.path, ctx.root);
     return printOpen(ctx, found.w.path, branch);
   }
   if (list.some((w) => norm(w.path) === norm(path))) {
@@ -230,7 +230,7 @@ export function taskOpen(ctx: CommandContext, id: string, task: string): number 
     throw new UsageError(`the branch ${branch} already exists with no worktree - keep its commits (git branch -m), then try again; nothing was created`);
   }
   git(ctx.root, ['worktree', 'add', '-q', '-b', branch, path, 'HEAD']);
-  prepare(path);
+  prepare(path, ctx.root);
   return printOpen(ctx, path, branch);
 }
 

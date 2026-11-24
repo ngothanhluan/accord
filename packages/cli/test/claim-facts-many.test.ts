@@ -1,10 +1,11 @@
 // Phase 08.9 D-03: the batched claim-fact reader against the per-ticket oracle. gitClaimFactsMany(root, ids, config) must hold, for every id, exactly what gitClaimFacts(root, id, config) returns,
 // `{ error }` and undefined included; each fixture below is a real git repository read by both. D-02 is the second case: the claim commits of any number of tickets come from one log.
+import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
-import { gitClaimFacts, gitClaimFactsMany } from '../src/load/claim-facts.js';
+import { gitClaimFacts, gitClaimFactsMany, rulesetCommitsMany } from '../src/load/claim-facts.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
 
@@ -163,4 +164,161 @@ it('risk:resource gitClaimFactsMany reads the claim commits of any number of tic
     expect(argv.filter((a) => verbOf(a) === 'cat-file' && a.includes('--batch')).length, `${count} tickets: one cat-file --batch`).toBe(1);
     expect(argv.filter((a) => a.includes('-G^ruleset:')).length, `${count} tickets: one ruleset log each`).toBe(count);
   }
+});
+
+/** Every commit reachable from HEAD with its parents, oldest first, as the one `git log --topo-order --reverse` of the whole history gives them (the parent graph rulesetCommitsMany reads). */
+function graphOf(repo: string): Map<string, string[]> {
+  const rows = gitRun(repo, 'log', '--topo-order', '--reverse', '--format=%H %P', 'HEAD').split('\n').filter((l) => l.trim() !== '');
+  return new Map(rows.map((l): [string, string[]] => { const [sha, ...parents] = l.trim().split(' '); return [sha, parents]; }));
+}
+
+/**
+ * Phase 08.9 D-03: the one-path ruleset log of commitsWritingRuleset (claim-facts.ts), argv and parsing byte for byte. It is a copy because that function is not exported and keeps its text
+ * (it is the oracle of rulesetCommitsMany; exporting it would change its text).
+ */
+function oneTicketLog(root: string, claim: string, rel: string): string[] {
+  const log = execFileSync(
+    'git',
+    ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-renames', '--topo-order', '--reverse', '--format=%H', '-G^ruleset:', claim + '..HEAD', '--', ':(literal)' + rel],
+    { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } },
+  );
+  return log.split(/\r?\n/).map((l) => l.trim().toLowerCase()).filter((l) => /^[0-9a-f]{40,64}$/.test(l));
+}
+
+/** The batch's list for every ticket equals the one-path log's, element for element and in order; `expected` (rel -> commits) pins what git is built to answer, so a fixture that lists nothing everywhere proves nothing. */
+function sameRuleset(repo: string, claims: { rel: string; claim: string }[], expected: Record<string, string[]>, chunk?: number): void {
+  const many = rulesetCommitsMany(repo, graphOf(repo), claims, chunk);
+  expect([...many.keys()].sort()).toEqual(claims.map((c) => c.rel).sort());
+  for (const c of claims) {
+    const want = oneTicketLog(repo, c.claim, c.rel);
+    expect(want, `${c.rel} is built to list ${JSON.stringify(expected[c.rel])}`).toEqual(expected[c.rel]);
+    expect(many.get(c.rel), c.rel).toEqual(want);
+  }
+}
+
+const withRuleset = (id: string, value = '0.10.0', ...more: string[]): string => laneTicket(id, { frontmatter: [...more, `ruleset: "${value}"`] });
+
+// Phase 08.9 D-03: rulesetCommitsMany lists for every ticket the commits the one-path ruleset log lists, in its order; each fixture below is read by both.
+it('risk:regression rulesetCommitsMany lists for every ticket what the one-path ruleset log lists (D-03)', () => {
+  // (l) a merge that keeps the ticket branch's copy of T-1 while main's side wrote a ruleset: line into it, and a mix for T-2 (changed on both sides): a one-path walk for T-1 follows only the branch side, so
+  // main's commit is hidden; for T-2 the merge is the same as neither parent, both sides are followed and main's commit is listed. A walk over both paths at once would list it for T-1 too.
+  const l = base(['T-1', 'T-2']);
+  const l1 = commitMsg(l, 'claim: T-1', at(1), true);
+  const l2 = commitMsg(l, 'claim: T-2', at(2), true);
+  gitRun(l, 'switch', '-q', '-c', 'ticket-branch');
+  writeFiles(l, { [P('T-1')]: laneTicket('T-1', { frontmatter: ['note: branch'] }), [P('T-2')]: laneTicket('T-2', { frontmatter: ['note: branch'] }) });
+  commitMsg(l, 'the branch edits both tickets', at(3));
+  gitRun(l, 'switch', '-q', 'main');
+  writeFiles(l, { [P('T-1')]: withRuleset('T-1'), [P('T-2')]: withRuleset('T-2') });
+  const lMain = commitMsg(l, 'main writes a ruleset into both', at(4));
+  gitRun(l, 'switch', '-q', 'ticket-branch');
+  gitRun(l, 'merge', '-q', '--no-ff', '--no-commit', '-s', 'ours', 'main');
+  writeFiles(l, { [P('T-2')]: withRuleset('T-2', '0.10.0', 'note: branch') });
+  commitMsg(l, 'merge main into the ticket branch', at(5));
+  sameRuleset(l, [{ rel: P('T-1'), claim: l1 }, { rel: P('T-2'), claim: l2 }], { [P('T-1')]: [], [P('T-2')]: [lMain] });
+
+  // (m) a side branch adds and then removes a ruleset: line before it merges: main moved on, so the merge is the same as its first parent for the file and the side branch's two commits are hidden
+  const m = base(['T-1']);
+  const m1 = commitMsg(m, 'claim: T-1', at(1), true);
+  gitRun(m, 'switch', '-q', '-c', 'side');
+  writeFiles(m, { [P('T-1')]: withRuleset('T-1') });
+  commitMsg(m, 'side adds a ruleset', at(2));
+  writeFiles(m, { [P('T-1')]: laneTicket('T-1') });
+  commitMsg(m, 'side removes it again', at(3));
+  gitRun(m, 'switch', '-q', 'main');
+  commitMsg(m, 'main moves on', at(4), true);
+  mergeMsg(m, 'side', 'merge side');
+  sameRuleset(m, [{ rel: P('T-1'), claim: m1 }], { [P('T-1')]: [] });
+
+  // (o) a ruleset: line written after the claim on a straight history, then its value changed: both commits, oldest first
+  const o = base(['T-1', 'T-2']);
+  const o1 = commitMsg(o, 'claim: T-1', at(1), true);
+  writeFiles(o, { [P('T-1')]: withRuleset('T-1') });
+  const oFirst = commitMsg(o, 'sync: ruleset', at(2));
+  commitMsg(o, 'an unrelated commit', at(3), true);
+  writeFiles(o, { [P('T-1')]: withRuleset('T-1', '0.11.0') });
+  const oSecond = commitMsg(o, 'sync: ruleset again', at(4));
+  sameRuleset(o, [{ rel: P('T-1'), claim: o1 }], { [P('T-1')]: [oFirst, oSecond] });
+
+  // (p) a merge after the claim that brings a ruleset: line from the branch side: the merge is the same as the branch side, which is followed and listed (the merge itself is never listed)
+  const p = base(['T-1', 'T-2']);
+  const p1 = commitMsg(p, 'claim: T-1', at(1), true);
+  gitRun(p, 'switch', '-q', '-c', 'side');
+  writeFiles(p, { [P('T-1')]: withRuleset('T-1') });
+  const pSide = commitMsg(p, 'side: ruleset', at(2));
+  gitRun(p, 'switch', '-q', 'main');
+  writeFiles(p, { [P('T-2')]: laneTicket('T-2', { frontmatter: ['note: main'] }) });
+  commitMsg(p, 'main edits the other ticket', at(3));
+  mergeMsg(p, 'side', 'merge side');
+  sameRuleset(p, [{ rel: P('T-1'), claim: p1 }], { [P('T-1')]: [pSide] });
+
+  // (q) a ticket with no commit after its claim (an empty list), beside one that has one
+  const q = base(['T-1', 'T-2']);
+  const q1 = commitMsg(q, 'claim: T-1', at(1), true);
+  writeFiles(q, { [P('T-1')]: withRuleset('T-1') });
+  const qNext = commitMsg(q, 'sync: ruleset', at(2));
+  const q2 = commitMsg(q, 'claim: T-2', at(3), true);
+  sameRuleset(q, [{ rel: P('T-1'), claim: q1 }, { rel: P('T-2'), claim: q2 }], { [P('T-1')]: [qNext], [P('T-2')]: [] });
+
+  // (r) two sibling branches write a ruleset: line each and the merge resolves to a third version: the merge is the same as neither parent, so both sides are followed and the order is the log's
+  const r = base(['T-1']);
+  const r1 = commitMsg(r, 'claim: T-1', at(1), true);
+  gitRun(r, 'switch', '-q', '-c', 'left');
+  writeFiles(r, { [P('T-1')]: withRuleset('T-1', '0.10.0') });
+  const rLeft = commitMsg(r, 'left: ruleset', at(2));
+  gitRun(r, 'switch', '-q', 'main');
+  gitRun(r, 'switch', '-q', '-c', 'right');
+  writeFiles(r, { [P('T-1')]: withRuleset('T-1', '0.11.0') });
+  const rRight = commitMsg(r, 'right: ruleset', at(3));
+  gitRun(r, 'merge', '-q', '--no-ff', '--no-commit', '-s', 'ours', 'left');
+  writeFiles(r, { [P('T-1')]: withRuleset('T-1', '0.12.0') });
+  commitMsg(r, 'merge left into right', at(4));
+  expect(oneTicketLog(r, r1, P('T-1')).sort(), 'both sides are listed').toEqual([rLeft, rRight].sort());
+  sameRuleset(r, [{ rel: P('T-1'), claim: r1 }], { [P('T-1')]: oneTicketLog(r, r1, P('T-1')) });
+
+  // (s) the claim commit is the first parent of a merge that is the same as it for the file: git follows the claim (the bottom of the range) alone, so the side branch's ruleset commit stays hidden
+  const s = base(['T-1']);
+  const s1 = commitMsg(s, 'claim: T-1', at(1), true);
+  gitRun(s, 'switch', '-q', '-c', 'side');
+  writeFiles(s, { [P('T-1')]: withRuleset('T-1') });
+  commitMsg(s, 'side: ruleset', at(2));
+  gitRun(s, 'switch', '-q', 'main');
+  gitRun(s, 'merge', '-q', '--no-ff', '--no-commit', '-s', 'ours', 'side');
+  commitMsg(s, 'merge side, keeping the claim copy', at(3));
+  sameRuleset(s, [{ rel: P('T-1'), claim: s1 }], { [P('T-1')]: [] });
+
+  // (t) HEAD is a merge whose first parent is older than the claim and is the same as the merge for the file: whether git follows that parent alone depends on its traversal order, so the batch hands the ticket to the one-path log
+  const t = base(['T-1']);
+  const tBase = gitRun(t, 'rev-parse', 'HEAD').trim();
+  commitMsg(t, 'a commit between', at(1), true);
+  const t1 = commitMsg(t, 'claim: T-1', at(2), true);
+  gitRun(t, 'switch', '-q', '-c', 'side');
+  writeFiles(t, { [P('T-1')]: withRuleset('T-1') });
+  commitMsg(t, 'side: ruleset', at(3));
+  gitRun(t, 'switch', '-q', '-c', 'older', tBase);
+  gitRun(t, 'merge', '-q', '--no-ff', '--no-commit', '-s', 'ours', 'side');
+  commitMsg(t, 'merge side into the older branch', at(4));
+  sameRuleset(t, [{ rel: P('T-1'), claim: t1 }], { [P('T-1')]: oneTicketLog(t, t1, P('T-1')) });
+});
+
+// Phase 08.9 D-02 (T-08.9-14): the ruleset commits of any number of tickets come from one log per chunk of ticket paths; five tickets read with a chunk of 2 are read by three logs and equal the per-ticket logs.
+it('risk:resource rulesetCommitsMany reads the ruleset commits of any number of tickets with one log per 200 paths (D-02)', () => {
+  const ids = Array.from({ length: 12 }, (_, i) => `T-${i + 1}`);
+  const repo = base(ids);
+  const claims = ids.map((id, i) => ({ rel: P(id), claim: commitMsg(repo, `claim: ${id}`, at(i + 1), true) }));
+  const graph = graphOf(repo);
+  const all = countedSync(() => rulesetCommitsMany(repo, graph, claims));
+  expect(all.value.size).toBe(12);
+  expect(all.argv.filter((a) => a.includes('-G^ruleset:')).length, 'twelve tickets: one ruleset log').toBe(1);
+
+  // (n) five tickets, chunk size 2: three logs, and every ticket's list still equals its one-path log (T-1 and T-3 written by one commit, T-2 and T-3 by the next, T-4 and T-5 never)
+  const n = base(['T-1', 'T-2', 'T-3', 'T-4', 'T-5']);
+  const five = ['T-1', 'T-2', 'T-3', 'T-4', 'T-5'].map((id, i) => ({ rel: P(id), claim: commitMsg(n, `claim: ${id}`, at(i + 1), true) }));
+  writeFiles(n, { [P('T-1')]: withRuleset('T-1'), [P('T-3')]: withRuleset('T-3') });
+  const nOne = commitMsg(n, 'sync: rulesets one', at(10));
+  writeFiles(n, { [P('T-2')]: withRuleset('T-2'), [P('T-3')]: withRuleset('T-3', '0.11.0') });
+  const nTwo = commitMsg(n, 'sync: rulesets two', at(11));
+  const counted = countedSync(() => rulesetCommitsMany(n, graphOf(n), five, 2));
+  expect(counted.argv.filter((a) => a.includes('-G^ruleset:')).length, 'five tickets with chunk size 2: three logs').toBe(3);
+  sameRuleset(n, five, { [P('T-1')]: [nOne], [P('T-2')]: [nTwo], [P('T-3')]: [nOne, nTwo], [P('T-4')]: [], [P('T-5')]: [] }, 2);
 });

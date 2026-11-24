@@ -118,14 +118,14 @@ type Chosen = Claim | undefined | 'read';
  * claimCommitOf's answer is the last `claim: <id>` commit of HEAD outside the default ref, else the last one overall; both are the last hit of a topological log. A filtered log and the whole-history
  * one order two commits that are not ancestor-related differently (RESEARCH Pitfall 2), so the last hit counts only when it descends from every other hit of the same set (a descendant comes
  * after its ancestors in every topological order); otherwise that id is `read` alone by claimCommitOf. No `--grep` here: a subject counts by exact equality with subjectsFor, as claimsOf compares it.
- * `onRef` is the set of commits of the default ref (undefined with no default ref): a claim in it is its own merge base with the ref.
+ * `onRef` is the set of commits of the default ref (undefined with no default ref): a claim in it is its own merge base with the ref. `graph` maps every commit of HEAD to its parents, oldest first (the order of this log), for rulesetCommitsMany.
  */
 function claimsFromLog(
   root: string,
   ids: readonly string[],
   ref: string | undefined,
   config: Pick<AccordConfig, 'commits'> | undefined,
-): { chosen: Map<string, Chosen>; onRef: Set<string> | undefined } {
+): { chosen: Map<string, Chosen>; onRef: Set<string> | undefined; graph: Map<string, string[]> } {
   const byId = new Map<string, Hit[]>(ids.map((id) => [id, []]));
   const bySubject = new Map<string, string[]>();
   for (const id of ids) {
@@ -147,9 +147,8 @@ function claimsFromLog(
     for (const id of named) byId.get(id)!.push(hit);
   }
   const onRef = ref === undefined ? undefined : new Set(execFileSync('git', ['rev-list', ref], { cwd: root, ...GIT }).split('\n').map((l) => l.trim().toLowerCase()).filter((l) => l !== ''));
-  let parentsOf: Map<string, string[]> | undefined;
+  const graph = new Map<string, string[]>(rows.map((r): [string, string[]] => [r[0].toLowerCase(), r[1].split(' ').filter((p) => p !== '').map((p) => p.toLowerCase())]));
   const descendsFromAll = (last: Hit, others: Hit[]): boolean => {
-    parentsOf ??= new Map(rows.map((r) => [r[0].toLowerCase(), r[1].split(' ').filter((p) => p !== '').map((p) => p.toLowerCase())]));
     const missing = new Set(others.map((h) => h.sha));
     const seen = new Set<string>([last.sha]);
     const stack = [...last.parents];
@@ -158,7 +157,7 @@ function claimsFromLog(
       if (seen.has(next)) continue;
       seen.add(next);
       missing.delete(next);
-      stack.push(...(parentsOf.get(next) ?? []));
+      stack.push(...(graph.get(next) ?? []));
     }
     return missing.size === 0;
   };
@@ -174,10 +173,19 @@ function claimsFromLog(
     const last = set[set.length - 1];
     chosen.set(id, set.length === 1 || descendsFromAll(last, set.slice(0, -1)) ? { sha: last.sha, time: last.time } : 'read');
   }
-  return { chosen, onRef };
+  return { chosen, onRef, graph };
 }
 
-/** What gitClaimFactsMany keeps per ticket between its merge base and ruleset log and the one cat-file batch: the claim and the blobs it asked for, in order. */
+/** What gitClaimFactsMany keeps per ticket between its merge base and the batched ruleset log: its claim and merge base. */
+interface Claimed {
+  id: string;
+  sha: string;
+  time: number;
+  base: string | undefined;
+  rel: string;
+}
+
+/** What gitClaimFactsMany keeps per ticket between the batched ruleset log and the one cat-file batch: the claim and the blobs it asked for, in order. */
 interface Pending {
   id: string;
   sha: string;
@@ -192,10 +200,10 @@ interface Pending {
  * and undefined (no claim commit) included, and gitClaimFacts, commitsWritingRuleset, claimsOf and claimCommitOf stay untouched as its oracle. The claim commits of all ids come from one log (claimsFromLog;
  * the order rule is its doc comment's). A claim in the default ref's ancestor set is its own merge base with the ref (exact only for an ancestor, RESEARCH Pitfall 5); any other claim keeps
  * `git merge-base`, exit 1 read as no base, never reused across tickets. Every ticket's blobs (config and ticket file at the claim, config at the base, the commits that wrote a `ruleset:` line) ride one
- * `cat-file --batch`, sliced back per ticket; the ruleset log stays one per ticket. A ticket whose own read fails gets `{ error }` with gitClaimFacts's text and no other ticket changes (RESEARCH Pitfall 6).
+ * `cat-file --batch`, sliced back per ticket; the ruleset backfill of every ticket with a claim comes from one rulesetCommitsMany call (one log per `chunk` ticket paths, 08.9-05). A ticket whose own read fails gets `{ error }` with gitClaimFacts's text and no other ticket changes (RESEARCH Pitfall 6).
  * When a step all ids share fails (the log, rev-list, the cat-file batch), every id gets gitClaimFacts's own answer, never a partial or different one. Every git value lives in locals of this call: nothing is kept between calls or runs.
  */
-export function gitClaimFactsMany(root: string, ids: readonly string[], config?: Pick<AccordConfig, 'commits'>): Map<string, ClaimFacts | undefined> {
+export function gitClaimFactsMany(root: string, ids: readonly string[], config?: Pick<AccordConfig, 'commits'>, chunk = RULESET_PATHS_PER_LOG): Map<string, ClaimFacts | undefined> {
   const facts = new Map<string, ClaimFacts | undefined>();
   if (ids.length === 0) return facts;
   const eachOnItsOwn = (): Map<string, ClaimFacts | undefined> => new Map(ids.map((id) => [id, gitClaimFacts(root, id, config)]));
@@ -208,7 +216,7 @@ export function gitClaimFactsMany(root: string, ids: readonly string[], config?:
   } catch {
     return eachOnItsOwn();
   }
-  const pending: Pending[] = [];
+  const claimed: Claimed[] = [];
   for (const id of ids) {
     try {
       const picked = found.chosen.get(id)!;
@@ -229,14 +237,23 @@ export function gitClaimFactsMany(root: string, ids: readonly string[], config?:
           }
         }
       }
-      const rel = 'accord/tickets/' + id + '.md';
-      const wrote = commitsWritingRuleset(root, sha, rel);
-      const hasBase = base !== undefined && base !== '';
-      pending.push({ id, sha, time, hasBase, wrote, specs: [sha + ':accord/config.yml', sha + ':' + rel, ...(hasBase ? [base + ':accord/config.yml'] : []), ...wrote.map((w) => w + ':' + rel)] });
+      claimed.push({ id, sha, time, base, rel: 'accord/tickets/' + id + '.md' });
     } catch (e) {
       facts.set(id, failed(id, e));
     }
   }
+  // Phase 08.9 D-02: the commits since each claim that wrote a `ruleset:` line come from one batched read for every ticket with a claim; a failure of it is a failure of a shared step
+  let wroteBy: Map<string, string[]>;
+  try {
+    wroteBy = rulesetCommitsMany(root, found.graph, [...new Map(claimed.map((c) => [c.rel, { rel: c.rel, claim: c.sha }])).values()], chunk);
+  } catch {
+    return eachOnItsOwn();
+  }
+  const pending: Pending[] = claimed.map(({ id, sha, time, base, rel }) => {
+    const wrote = wroteBy.get(rel)!;
+    const hasBase = base !== undefined && base !== '';
+    return { id, sha, time, hasBase, wrote, specs: [sha + ':accord/config.yml', sha + ':' + rel, ...(hasBase ? [base + ':accord/config.yml'] : []), ...wrote.map((w) => w + ':' + rel)] };
+  });
   let texts: (string | undefined)[];
   try {
     texts = pending.length === 0 ? [] : catBatch(root, pending.flatMap((p) => p.specs), 'the claim pin');

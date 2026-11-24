@@ -1116,7 +1116,8 @@ it('risk:regression the ticket tab draws the review rounds the criteria and the 
   const log = logOf();
   const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing'), critOf('ac-3', 'Remembers me', 'untested')], log });
   const t = h.texts();
-  expect(t).toContain('REVIEW r2/5 converged');
+  expect(t).toContain('review r2/5 converged');
+  expect(h.cell('review r2/5 converged').text.dimColor).toBe(true);
   expect(kids(h.row('r1/5'))).toEqual(['r1/5', 'Must 1 open 2 fixed', 'Should 1 deferred']);
   expect(kids(h.row('r2/5 final'))).toEqual(['r2/5 final', 'no findings', 'security lens ran']);
   expect(h.cell('r1/5').text.bold).toBe(true);
@@ -1146,10 +1147,10 @@ it('risk:parsing review rows criteria rows and log rows are built from the json 
   const { reviewRows, criteriaRows, ago, logRows, failureOf, LOG_SHOWN } = await loadView();
   const zero = { Must: tally(), Should: tally(), Nice: tally() };
   const two = reviewRows({ cycle: 2, round: 1, cap: 5, rounds: [{ n: 1, added: true, security: 'none', findings: zero }] });
-  expect(two.heading).toBe('REVIEW cycle 2 r1/5');
+  expect(two.heading).toBe('review cycle 2 r1/5');
   expect(two.rounds).toEqual([{ head: 'r1/5 added', parts: ['no findings'], security: 'no security pattern' }]);
   const rows = reviewRows(reviewOf());
-  expect(rows.heading).toBe('REVIEW r2/5 converged');
+  expect(rows.heading).toBe('review r2/5 converged');
   expect(rows.rounds[0]).toEqual({ head: 'r1/5', parts: ['Must 1 open 2 fixed', 'Should 1 deferred'], security: undefined });
   expect(rows.rounds[1]).toMatchObject({ head: 'r2/5 final', parts: ['no findings'], security: 'security lens ran' });
   const sev = reviewRows({ cycle: 1, round: 3, cap: 5, rounds: [{ n: 3, findings: { Must: tally(0, 0, 4), Should: tally(5), Nice: tally(0, 6) } }] });
@@ -1175,22 +1176,33 @@ it('risk:complex-branching a newest failed gate run shows the failure block and 
   const now = Math.floor(Date.now() / 1000);
   const gate = { at: now - 20, kind: 'gate', text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true };
   const h = await paneWith({ log: [gate, { at: now - 60, kind: 'commit', text: 'build: export' }] });
-  const box = h.nodes('Box').find((b) => b.props.borderColor === '#ff6b6b');
-  expect(box?.props.borderStyle).toBe('round');
-  expect(textsIn(box)).toEqual(['Gate failed', gate.text]);
-  const heading = (box?.props.children as any[]).find((c) => c.type === 'Text' && c.props.children[0] === 'Gate failed');
-  // Phase 08.8.1-07 L-01 L-02: the failure box takes the person's failure colour, aurora's by default
-  expect(heading.props).toMatchObject({ bold: true, color: '#ff6b6b' });
+  // issue 342: the failure is a borderless group right under the head: `✗` and the head in the failure colour, the reason under it
+  const group = h.nodes('Box').find((x) => textsIn(x).join('|') === '✗|Gate done failed|criterion ac-2 has no passing test');
+  expect(group, 'failure group').toBeDefined();
+  expect(group?.props.borderStyle).toBeUndefined();
+  expect(group?.props.borderColor).toBeUndefined();
+  expect(h.cell('Gate done failed').text).toMatchObject({ bold: true, color: '#ff6b6b' });
+  expect(h.cell('✗').text).toMatchObject({ bold: true, color: '#ff6b6b' });
+  expect(h.cell('criterion ac-2 has no passing test').text.wrap).toBe('wrap');
+  // above the current-work block and the rest
+  const t = h.texts();
+  expect(t.indexOf('Gate done failed')).toBeGreaterThan(t.indexOf('Login form'));
+  expect(t.indexOf('Gate done failed')).toBeLessThan(t.indexOf('build'));
   expect(tabs(h)['tab:ticket'].label).toContain('gate failed');
   // Phase 08.8.1 W4 (08.7 review WR-04): a newer commit no longer hides the failed gate run; only a newer gate run does
   const later = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'fix: header' }, gate] });
-  expect(later.nodes('Box').some((b) => b.props.borderColor === '#ff6b6b')).toBe(true);
-  expect(later.texts()).toContain('Gate failed');
+  expect(later.texts()).toContain('Gate done failed');
   expect(tabs(later)['tab:ticket'].label).toContain('gate failed');
   expect(later.texts()).toContain('lately');
   const passed = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'gate done PASS' }, gate] });
-  expect(passed.nodes('Box').some((b) => b.props.borderColor === '#ff6b6b')).toBe(false);
+  expect(passed.texts()).not.toContain('Gate done failed');
   expect(tabs(passed)['tab:ticket'].label).not.toContain('gate failed');
+  // a failure text in no known shape reads `Gate failed` over the whole text
+  const odd = await paneWith({ log: [{ at: now - 5, kind: 'gate', text: 'it broke', fail: true }] });
+  expect(odd.texts()).toContain('Gate failed');
+  expect(odd.texts()).toContain('it broke');
+  const t2 = odd.texts();
+  expect(t2[t2.indexOf('Gate failed') + 1]).toBe('it broke');
 });
 
 // Phase 08.7 D-08: the context, tokens and cost block is backlog 999.59; the tab draws none of it.
@@ -1198,7 +1210,7 @@ it('risk:regression the ticket tab draws no context token or cost block (D-08)',
   const h = await paneWith({ stage: 'review', review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing')], log: logOf() });
   const t = h.texts();
   for (const heading of ['criteria', 'lately']) expect(t).toContain(heading);
-  expect(t.some((x) => x.startsWith('REVIEW'))).toBe(true);
+  expect(t.some((x) => x.startsWith('review '))).toBe(true);
   expect(t.filter((x) => /\b(tokens?|cost|context)\b/i.test(x))).toEqual([]);
 });
 
@@ -1224,7 +1236,7 @@ it('risk:security log lines criterion titles and stage text cannot put control c
 // Phase 08.7 D-02, T-08.7-24: a malformed review or log key is drawn as absent and the rest of the ticket still shows.
 it('risk:complex-branching a malformed review or log key is drawn as absent and the rest of the ticket still shows (D-02)', async () => {
   const bad = await paneWith({ review: { round: 'x' }, criteria: [critOf('ac-1', 'Logs in', 'passing')] });
-  expect(bad.texts().some((x) => x.startsWith('REVIEW'))).toBe(false);
+  expect(bad.texts().some((x) => x.startsWith('review '))).toBe(false);
   expect(bad.texts()).toContain('criteria');
   expect(bad.texts()).toContain('Logs in');
   const text = await paneWith({ log: 'x', criteria: [critOf('ac-1', 'Logs in', 'passing')] });
@@ -1291,7 +1303,10 @@ it('risk:regression the agents block shows running accord agents with timers and
   const t = ordered.texts();
   const row = t.findIndex((x) => spun('executor').test(x));
   expect(row).toBeGreaterThan(t.indexOf('Reviewing, round 2 of 5'));
-  expect(row).toBeLessThan(t.indexOf('REVIEW r2/5 converged'));
+  expect(row).toBeLessThan(t.indexOf('review r2/5 converged'));
+  // the gate failure sits above the current-work block
+  expect(t.indexOf('Gate done failed')).toBeGreaterThanOrEqual(0);
+  expect(t.indexOf('Gate done failed')).toBeLessThan(t.indexOf('Reviewing, round 2 of 5'));
 });
 
 // Phase 08.7 D-01, D-02: the pure row builders keep accord agents only, running first, at most six rows.
@@ -2100,7 +2115,7 @@ it('risk:regression the progress group draws one gradient bar with n of m and th
   expect(h.nodes('Progress')).toHaveLength(0);
   // after the current-work group and before the review block
   expect(at).toBeGreaterThan(t.indexOf('Building task 2 of 3'));
-  expect(at).toBeLessThan(t.findIndex((x) => x.startsWith('REVIEW')));
+  expect(at).toBeLessThan(t.findIndex((x) => x.startsWith('review ')));
   expect(kids(h.row('Alpha'))).toEqual(['✓', '1', 'Alpha']);
   expect(textsIn(taskRow(h, '✦', 2, 'Beta')?.box)).toEqual(['✦', '2', 'Beta']);
   expect(kids(h.row('Gamma'))).toEqual(['·', '3', 'Gamma']);
@@ -2639,11 +2654,10 @@ it("risk:regression the ticket tab takes the person's colours with no colour per
   expect(h.cell(spun('executor')).text.color).toBe(at(0.62));
   expect(h.cell('ac-1').text.color).toBe(at(0.8, 0));
   expect(h.cell('ac-2').text.color).toBe(at(0.8, 0.5));
-  // the failure box and the log both hold the gate line; the log's is the last
+  // the failure group holds the reason and the log holds the gate sentence; the log's is the last
   expect(h.nodes('Text').filter((n) => flat(n.props.children) === 'done failed: red').at(-1)?.props.color).toBe('#ff6b6b');
-  const box = h.nodes('Box').find((b) => b.props.borderColor === '#ff6b6b');
-  expect(textsIn(box)[0]).toBe('Gate failed');
-  expect(h.cell('Gate failed').text.color).toBe('#ff6b6b');
+  expect(h.cell('Gate done failed').text.color).toBe('#ff6b6b');
+  expect(h.cell('✗').text.color).toBe('#ff6b6b');
   // the newest log line takes the log's colour when it did not fail
   // Phase 08.8.1-09: the waiting line glows toward white while it blinks, so this check of the waiting colour keeps motion off
   const calm = await paneWith({ log: [{ at: now - 5, kind: 'commit', text: 'newest one' }, { at: now - 9, kind: 'commit', text: 'older one' }] }, (x) => void x.store.set('settings', still));
@@ -3118,11 +3132,11 @@ it('risk:parsing orbit ticker and blink are pure functions of the frame time (L-
 });
 
 const GATE_RED = { kind: 'gate', text: 'gate done FAIL: red', fail: true };
-// the diamond of the waiting line, and the border colour of the failure box
+// the diamond of the waiting line, and the colour of the failure head
 const diamondOf = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.texts().find((x) => /^[◆◇]$/.test(x));
-const failBorder = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.nodes('Box').find((b) => b.props.borderStyle === 'round' && textsIn(b)[0] === 'Gate failed')?.props.borderColor;
+const failBorder = (h: Awaited<ReturnType<typeof host>>): string | undefined => h.nodes('Text').find((n) => flat(n.props.children) === 'Gate done failed')?.props.color;
 
-// Phase 08.8.1 D-03 L-06: while the main loop waits for the person the diamond blinks on the frame timer for ten minutes and then stays lit with no timer left; a newly appearing failed gate flashes the failure box red for 1.5 seconds and a shown failure does not flash again; motion off blinks and flashes nothing and starts no timer
+// Phase 08.8.1 D-03 L-06: while the main loop waits for the person the diamond blinks on the frame timer for ten minutes and then stays lit with no timer left; a newly appearing failed gate flashes the failure head red for 1.5 seconds and a shown failure does not flash again; motion off blinks and flashes nothing and starts no timer
 it('risk:resource the waiting blink and the failure flash run on the frame timer and stop on time (D-03 L-06)', async () => {
   const period = await framePeriod();
   const T = 1_800_000_000_000;
@@ -3246,6 +3260,45 @@ it('risk:regression every one of the twelve effects is its own switch and a cut 
   await vi.waitFor(() => expect(cut.texts().some((x) => x.includes('cut for speed'))).toBe(true));
   expect(cut.texts().filter((x) => x.includes('cut for speed'))).toEqual(['[ ] scrolling log ticker · cut for speed']);
   expect(cut.texts()).toContain('[x] orbiting agent marks');
+});
+
+// issue 342 D-02 D-03: the ticket tab draws no bordered box in any state; the settings view (key s) keeps its box.
+it('risk:regression the ticket tab draws no bordered box in any state (issue 342 D-02 D-03)', async () => {
+  const bordered = (h: Awaited<ReturnType<typeof host>>): El[] => h.nodes('Box').filter((b) => b.props.borderStyle !== undefined || b.props.borderColor !== undefined);
+  const now = Math.floor(Date.now() / 1000);
+  const full = { ...WORK, review: reviewOf(), criteria: [critOf('ac-1', 'Logs in', 'passing'), critOf('ac-2', 'Logs out', 'failing')], log: logOf() };
+  // building with an agent running
+  const building = await paneWith(full);
+  await startExecutor(building);
+  expect(isRunning(building, 'executor')).toBe(true);
+  expect(bordered(building)).toEqual([]);
+  // reviewing with rounds
+  const review = await paneWith({ stage: 'review', review: reviewOf(), criteria: full.criteria, log: logOf() });
+  expect(review.texts()).toContain('review r2/5 converged');
+  expect(bordered(review)).toEqual([]);
+  // a failed gate
+  const failed = await paneWith({ ...full, log: [{ at: now - 4, kind: 'gate', text: 'gate done FAIL: red', fail: true }, ...logOf()] });
+  expect(failed.texts()).toContain('Gate done failed');
+  expect(bordered(failed)).toEqual([]);
+  // waiting for the person
+  const waiting = await paneWith(full);
+  await waiting.fire('turn.complete', { reason: 'answer', answer: 'Keep it?' });
+  await vi.waitFor(() => expect(waiting.texts()).toContain('Waiting for you · 0:00'));
+  expect(bordered(waiting)).toEqual([]);
+  // not committed, and a plan warning
+  const loose = await paneWith({ stage: 'plan', criteria: full.criteria, log: logOf(), warnings: [{ kind: 'not-committed', text: NOT_COMMITTED }] });
+  expect(loose.texts()).toContain(NOT_COMMITTED);
+  expect(bordered(loose)).toEqual([]);
+  const changed = await paneWith({ ...full, warnings: [{ kind: 'plan-changed', text: PLAN_CHANGED }] });
+  expect(changed.texts()).toContain(PLAN_CHANGED);
+  expect(bordered(changed)).toEqual([]);
+  // the settings view keeps its one box
+  press(building, 'settings');
+  await vi.waitFor(() => expect(bordered(building)).toHaveLength(1));
+  // and the dashboard tab keeps its section boxes
+  press(building, 'settings');
+  press(building, 'tab:dashboard');
+  await vi.waitFor(() => expect(bordered(building).length).toBeGreaterThan(0));
 });
 
 // ---- Phase 08.8.1-10: tests the audit of Phase 08.7 found missing ----

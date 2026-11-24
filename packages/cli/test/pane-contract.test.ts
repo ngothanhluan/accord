@@ -84,7 +84,7 @@ it('risk:regression the pane draws the real review and log json of a claimed tic
     const got = detailOutcome({ exitCode: 0, stdout: show.out, stderr: '' });
     expect(got.ticket).toBeDefined();
     const review = reviewRows(got.ticket.review);
-    expect(review.heading).toBe('REVIEW r1/5');
+    expect(review.heading).toBe('review r1/5');
     expect(review.rounds[0].parts).toContain('Must 1 open');
     const now = Math.floor(Date.now() / 1000);
     expect(logRows(got.ticket.log, now).map((r: any) => r.text)).toEqual(['executor report task 1', 'plan: T-1 ready', 'claim: T-1']);

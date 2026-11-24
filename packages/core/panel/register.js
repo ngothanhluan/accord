@@ -671,13 +671,24 @@ export function register(on) {
         if (tv.planUncommitted !== undefined) children.push(Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planUncommitted] }));
         if (tv.planChanged !== undefined) children.push(Text({ bold: true, color: 'warning', wrap: 'wrap', children: [tv.planChanged] }));
         used += 2 + (tv.planUncommitted === undefined ? 0 : 1) + (tv.planChanged === undefined ? 0 : 1);
-        // D-04: below the head, in order: the current work, the progress, the failure box, the review rounds, the criteria checklist and the session log. Nothing here names context, tokens or cost (D-08).
-        // `over` is drawn after the rows and leaves the flow (sparkles over the block), so it takes no room
-        const block = (heading, rows, over = []) => {
-          used += 3 + rows.length;
-          return Box({ flexDirection: 'column', borderStyle: 'round', children: [Text({ bold: true, children: [heading] }), ...rows, ...over] });
-        };
+        // D-04: below the head, in order: the gate failure, the current work, the progress, the review rounds, the criteria and the session log, none of them boxed. Nothing here names context, tokens or cost (D-08).
         const widest = (list) => Math.max(...list.map((x) => [...x].length));
+        // issue 342: the gate failure sits right under the head, where the design draws its failed state: `✗` and the head, the reason under it
+        if (tv.failure) {
+          used += 3;
+          // Phase 08.8.1-09 L-06: for FLASH_MS after it appeared the head flashes between red and the person's failure colour
+          const failColor = tv.failure.flash === true ? 'red' : tv.colors.fail;
+          children.push(
+            Box({
+              flexDirection: 'column',
+              marginTop: 1,
+              children: [
+                Box({ flexDirection: 'row', columnGap: 1, children: [Text({ bold: true, color: failColor, children: ['✗'] }), Text({ bold: true, color: failColor, children: [tv.failure.head] })] }),
+                ...(tv.failure.text === '' ? [] : [Box({ paddingLeft: 2, children: [Text({ wrap: 'wrap', children: [tv.failure.text] })] })]),
+              ],
+            }),
+          );
+        }
         // issue 342: the current work: a head row (the mark, the head line, the running agent's time), the task title under it and one row per accord agent, in one borderless group
         const [headLine, second] = tv.now ?? [];
         if (headLine !== undefined) {
@@ -748,27 +759,17 @@ export function register(on) {
           used += 1 + bar.length + taskBoxes.length;
           children.push(Box({ flexDirection: 'column', marginTop: 1, paddingLeft: 2, children: [...bar, ...taskBoxes, ...sparks] }));
         }
-        if (tv.failure) {
-          used += 4;
-          children.push(
-            Box({
-              flexDirection: 'column',
-              borderStyle: 'round',
-              // Phase 08.8.1-09 L-06: for FLASH_MS after it appeared the box flashes between red and the person's failure colour
-              borderColor: tv.failure.flash === true ? 'red' : tv.colors.fail,
-              children: [Text({ bold: true, color: tv.failure.flash === true ? 'red' : tv.colors.fail, children: ['Gate failed'] }), Text({ wrap: 'wrap', children: [tv.failure.text] })],
-            }),
-          );
-        }
         if (tv.review) {
           const rounds = tv.review.rounds.map((r) =>
             Box({
               flexDirection: 'row',
               columnGap: 1,
+              paddingLeft: 2,
               children: [Text({ bold: true, children: [r.head] }), ...r.parts.map((p) => Text({ children: [p] })), ...(r.security ? [Text({ dimColor: true, children: [r.security] })] : [])],
             }),
           );
-          children.push(block(tv.review.heading, rounds));
+          used += 2 + rounds.length;
+          children.push(Box({ flexDirection: 'column', marginTop: 1, children: [Text({ dimColor: true, children: [tv.review.heading] }), ...rounds] }));
         }
         if (tv.criteria) {
           const idWidth = widest(tv.criteria.map((c) => c.id));

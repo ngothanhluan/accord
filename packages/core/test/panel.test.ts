@@ -2985,10 +2985,14 @@ it('risk:complex-branching a task finished plays sparkles and the rolling counte
     await mine.$.ui.invalidate('ui.render');
     const t1 = titleColors(mine);
     const bar1 = childColors(barText(mine));
+    const track1 = flat(trackOf(mine)?.props.children);
+    expect(track1).toContain('•');
     spy2.mockReturnValue(m0 + 350);
     await mine.$.ui.invalidate('ui.render');
     expect(titleColors(mine)).toEqual(t1);
     expect(childColors(barText(mine))).not.toEqual(bar1);
+    // review WR-02: the stage track, marker included, is the same at both frames
+    expect(flat(trackOf(mine)?.props.children)).toBe(track1);
     expect(runColors(mine, 'Building task 3 of 4')).toBeUndefined();
     expect(eqText(mine)).toBeUndefined();
   } finally {
@@ -3068,12 +3072,12 @@ it('risk:parsing the heartbeat and the train are pure functions of the frame tim
   expect(t1[0]).toMatchObject({ text: '━━━', color: '#f0907a' });
   expect(t1.find((x: any) => x.text === '▶').color).toBe('#ffffff');
   expect(train(500)).toEqual(t1);
-  // the marker: mid-connector with no effect on, moving four steps a second with any effect on, and the same for the same time
+  // the marker (review WR-02): always mid-connector like the head ✦, whatever effect is on and whatever the time; only the train replaces it
   const marker = (segs: any[], fx: Set<string>, ms: number): number => join(rail(stageTrack(segs, { columns: 49, nowMs: ms, effects: fx }))).indexOf('•');
   expect(marker(cells, new Set(), 0)).toBe(4);
   expect(marker(cells, new Set(), 12345)).toBe(4);
-  expect([0, 250, 500, 1000].map((ms) => marker(cells, new Set(['comet']), ms))).toEqual([0, 1, 2, 4]);
-  expect(join(rail(stageTrack(cells, { columns: 49, nowMs: 250, effects: new Set(['comet']) })))).toBe('┄•┄┄┄┄┄┄┄');
+  for (const only of ['comet', 'ticker', 'breathe', 'flow']) expect([0, 250, 500, 1000, 12345].map((ms) => marker(cells, new Set([only]), ms)), only).toEqual([4, 4, 4, 4, 4]);
+  expect(join(rail(stageTrack(cells, { columns: 49, nowMs: 250, effects: new Set(['comet', 'ticker']) })))).toBe('┄┄┄┄•┄┄┄┄');
   // an off stage reads `<key> off`; a finished ticket has solid connectors and no bold name; a stage with nothing passed is thin all through
   const off = stageTrack([{ key: 'intent', state: 'done', color: '#e07a4f' }, { key: 'plan', state: 'off', color: '#f0907a' }, { key: 'build', state: 'current', color: '#d98ad0' }], { columns: 64, nowMs: 0, effects: new Set() });
   expect(join(off)).toContain('plan off');

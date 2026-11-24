@@ -1188,7 +1188,7 @@ export function heartbeat(width, t, events, now, stops = PALETTES.aurora) {
 }
 
 // issue 342: the stage track as one connected line of `{ text, color, bold? }` segments, `intent ━━━ plan ━━━ build ┄•┄ review ─── verify`. Passed stages are joined solid in their colour, the current stage
-// is bold with a dotted connector that holds the marker (the mission train rides it), later stages are joined thin. Names are the cells' keys; an off stage reads `<key> off`. `cells` are `{ key, state, color }`.
+// is bold with a dotted connector that holds the still marker (the mission train rides it), later stages are joined thin. Names are the cells' keys; an off stage reads `<key> off`. `cells` are `{ key, state, color }`.
 // `columns` is the pane's width (64 when it is no number); a connector is at most 9 cells, and a pane too narrow for 2 cells cuts every name but the current one to its first letter.
 export function stageTrack(cells, { columns, nowMs, effects } = {}) {
   const list = (Array.isArray(cells) ? cells : []).filter((c) => plain(c) && str(c.key));
@@ -1211,7 +1211,8 @@ export function stageTrack(cells, { columns, nowMs, effects } = {}) {
     put(' ');
     if (passed) put('━'.repeat(seg), c.color);
     else if (current) {
-      const at = fx.has('train') ? Math.floor(s * 6) % seg : fx.size > 0 ? Math.floor(s * 4) % seg : Math.floor(seg / 2);
+      // review WR-02: the marker sits mid-connector like the head ✦ and never moves; only the train (one of the twelve Lab switches) moves along it
+      const at = fx.has('train') ? Math.floor(s * 6) % seg : Math.floor(seg / 2);
       if (fx.has('train')) {
         if (at > 0) put('━'.repeat(at), c.color);
         put('▶', GLOW);

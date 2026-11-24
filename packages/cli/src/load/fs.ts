@@ -2001,13 +2001,132 @@ export function gitQueued(root: string, ref: string, known: (id: string) => bool
 }
 
 /**
- * ST-LN-16 D-19: `snapshot` with the drafts `gitQueued` finds added as tickets of their own, and `queued` naming the branch of each. They are read with the default ref's config,
+ * Phase 08.9 D-02, D-03, D-04: `gitQueued`'s answer for any number of backlog branches from a fixed number of git processes (`for-each-ref`, `ls-tree`, one `rev-list`, one `diff-tree`, one `cat-file --batch`);
+ * `gitQueued` stays as it is, the oracle: queued-batch.test.ts requires the same entries in the same order on ten fixtures. The Rulings that make it equal:
+ * - merge bases from the branch graph: `git diff <ref>...<tip>` diffs the tip against the merge base of `ref` and the tip. One `rev-list --parents --stdin` fed every tip and `^<ref>` lists every commit a tip reaches
+ *   and `ref` does not; the parents of those commits that are not listed are on `ref` (the boundary). Every common ancestor of a tip and `ref` lies at or below a boundary commit the tip reaches, so the merge bases are the
+ *   boundary commits no other one of that tip descends from; a tip that reaches exactly one has it as its only merge base.
+ * - a tip with two or more boundary commits: which descends from another is read from one `git rev-list --parents <ref>`, started only when such a tip exists; a tip left with one merge base joins the batch.
+ * - a tip with two or more merge bases (a criss-cross), or none, is read by `gitQueued`'s own per-tip `git diff`: with several merge bases git picks one by its internal order and warns, which no batched read reproduces, and with none it fails as today.
+ * - every branch-and-path pair that passes the static filters is read in one `cat-file --batch`; walking the branches in code-point order and each branch's paths in diff order, an id takes the first text that exists, as `gitQueued`'s per-tip filter gives.
+ * Any failure of a shared step returns `gitQueued`'s own answer, and so does a tip that is no object name (T-08.9-21). Every value lives in this call's locals (D-04).
+ */
+export function gitQueuedBatched(root: string, ref: string, known: (id: string) => boolean): Record<string, { branch: string; text: string }> {
+  const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
+  const run = (args: string[], input?: string): string =>
+    execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, env, ...(input === undefined ? {} : { input }) });
+  const found: Record<string, { branch: string; text: string }> = {};
+  try {
+    const tips = new Map<string, string>();
+    for (const row of run(['for-each-ref', '--no-merged', ref, '--format=%(refname)%00%(objectname)', 'refs/heads/backlog', 'refs/remotes/origin/backlog']).split('\n')) {
+      const [name, sha] = row.split('\0');
+      const m = /^refs\/(heads|remotes\/origin)\/(backlog\/.+)$/.exec(name ?? '');
+      if (m === null || sha === undefined || sha === '') continue;
+      if (m[1] === 'heads' && tips.has(m[2])) continue;
+      tips.set(m[2], sha);
+    }
+    if (tips.size === 0) return found;
+    if ([...tips.values()].some((sha) => !/^[0-9a-f]{40,64}$/.test(sha))) return gitQueued(root, ref, known);
+    const onDefault = new Set<string>();
+    for (const f of run(['ls-tree', '-z', '--name-only', ref, '--', 'accord/tickets/']).split('\0')) {
+      const id = /^accord\/tickets\/([^/]+)\.md$/.exec(f)?.[1];
+      if (id !== undefined) onDefault.add(id);
+    }
+    const names = [...tips].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    // the commits the tips reach and ref does not, with their parents
+    const listed = new Map<string, string[]>();
+    for (const line of run(['rev-list', '--parents', '--stdin'], [...new Set(tips.values())].map((sha) => sha + '\n').join('') + '^' + ref + '\n').split('\n')) {
+      const [sha, ...parents] = line.trim().split(' ');
+      if (sha !== '') listed.set(sha, parents);
+    }
+    // per tip: the boundary commits it reaches (on ref, a parent of a listed commit); undefined for a tip rev-list did not list
+    const boundaryOf = (tip: string): string[] | undefined => {
+      if (!listed.has(tip)) return undefined;
+      const seen = new Set<string>();
+      const boundary = new Set<string>();
+      for (let todo = [tip]; todo.length > 0; ) {
+        const commit = todo.pop() as string;
+        if (seen.has(commit)) continue;
+        seen.add(commit);
+        for (const parent of listed.get(commit) ?? []) {
+          if (listed.has(parent)) todo.push(parent);
+          else boundary.add(parent);
+        }
+      }
+      return [...boundary];
+    };
+    const boundaries = new Map<string, string[] | undefined>();
+    for (const [, sha] of names) if (!boundaries.has(sha)) boundaries.set(sha, boundaryOf(sha));
+    // the history of ref, read once and only when a tip has two or more boundary commits
+    let history: Map<string, string[]> | undefined;
+    const independent = (boundary: string[]): string[] => {
+      if (history === undefined) {
+        history = new Map();
+        for (const line of run(['rev-list', '--parents', ref]).split('\n')) {
+          const [sha, ...parents] = line.trim().split(' ');
+          if (sha !== '') history.set(sha, parents);
+        }
+      }
+      const graph = history;
+      const reached = new Set<string>();
+      for (let todo = boundary.flatMap((b) => graph.get(b) ?? []); todo.length > 0; ) {
+        const commit = todo.pop() as string;
+        if (reached.has(commit)) continue;
+        reached.add(commit);
+        todo.push(...(graph.get(commit) ?? []));
+      }
+      return boundary.filter((b) => !reached.has(b));
+    };
+    const bases = new Map<string, string>();
+    for (const [sha, boundary] of boundaries) {
+      if (boundary === undefined || boundary.length === 0) continue;
+      const roots = boundary.length === 1 ? boundary : independent(boundary);
+      if (roots.length === 1) bases.set(sha, roots[0]);
+    }
+    // the files each branch adds over its merge base, in diff order
+    const added = new Map<string, string[]>();
+    const batch = names.filter(([, sha]) => bases.has(sha));
+    if (batch.length > 0) {
+      const sections: string[][] = [];
+      for (const token of run(['diff-tree', '--stdin', '-r', '-z', '--name-only', '--no-renames', '--diff-filter=A', '--always', '--', 'accord/tickets/'], batch.map(([, sha]) => sha + ' ' + bases.get(sha) + '\n').join('')).split('\0')) {
+        if (/^[0-9a-f]{40,64}$/.test(token)) sections.push([token]);
+        else if (token !== '' && sections.length > 0) sections[sections.length - 1].push(token);
+      }
+      if (sections.length !== batch.length) throw new Error('diff-tree answered ' + sections.length + ' of ' + batch.length + ' tips');
+      batch.forEach(([name, sha], i) => {
+        if (sections[i][0] !== sha) throw new Error('diff-tree answered another tip');
+        added.set(name, sections[i].slice(1));
+      });
+    }
+    for (const [name, sha] of names) {
+      if (!added.has(name)) added.set(name, run(['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', ref + '...' + sha, '--', 'accord/tickets/']).split('\0'));
+    }
+    const candidates: { name: string; sha: string; id: string; path: string }[] = [];
+    for (const [name, sha] of names) {
+      for (const path of added.get(name) ?? []) {
+        const id = /^accord\/tickets\/([^/]+)\.md$/.exec(path)?.[1];
+        if (id !== undefined && QUEUED_ID.test(id) && !known(id) && !onDefault.has(id)) candidates.push({ name, sha, id, path });
+      }
+    }
+    const texts = candidates.length === 0 ? [] : catBatch(root, candidates.map((c) => c.sha + ':' + c.path), 'the backlog branches', undefined, env);
+    candidates.forEach((c, i) => {
+      const text = texts[i];
+      if (text !== undefined && !Object.hasOwn(found, c.id)) found[c.id] = { branch: c.name, text };
+    });
+  } catch {
+    return gitQueued(root, ref, known);
+  }
+  return found;
+}
+
+/**
+ * ST-LN-16 D-19: `snapshot` with the drafts `gitQueuedBatched` finds (what `gitQueued` finds, Phase 08.9 D-02) added as tickets of their own, and `queued` naming the branch of each. They are read with the default ref's config,
  * and only their own loader findings are kept, so a queued draft that fails the schema counts as any other ticket does. The snapshot itself when there is none.
  */
 export function withQueued(root: string, snapshot: RepoSnapshot): RepoSnapshot {
   const ref = snapshot.defaultRef?.ref ?? doneRef(root);
   if (ref === undefined) return snapshot;
-  const found = gitQueued(root, ref, (id) => Object.hasOwn(snapshot.tickets, id));
+  const found = gitQueuedBatched(root, ref, (id) => Object.hasOwn(snapshot.tickets, id));
   const ids = Object.keys(found);
   if (ids.length === 0) return snapshot;
   const files = { ...gitFilesAt(root, ref, ['accord/config.yml']), ...Object.fromEntries(ids.map((id) => ['accord/tickets/' + id + '.md', found[id].text])) };

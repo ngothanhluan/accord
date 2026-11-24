@@ -9,7 +9,7 @@ import { baselineGap, branchGaps, claimPinBefore, deferredGaps, DEFERRED_MARK_FR
 import type { AuditFact, AuditGap, ClaimPin, ClaimRefFact, OldDraft, OwnerDeferred } from '@accord-dev/accord-core';
 import type { CommandContext } from '../run.js';
 import { NOT_CHECKED } from './audit-health.js';
-import { gitClaimFacts } from './claim-facts.js';
+import { gitClaimFactsMany, onePathCommits } from './claim-facts.js';
 import type { ClaimFacts } from './claim-facts.js';
 import { doneRef, gitDefaultRef, gitFilesAt, loadClaimView, snapshotAt, ticketOfBranch, withDefaultRef, withQueued } from './fs.js';
 import { whoFor } from './who.js';
@@ -54,7 +54,7 @@ function lastLine(text: string): string | undefined {
  * a queued draft's creator is the author of its backlog branch tip, local first. The id and the branch are checked against the printable patterns before any argument is built (T-08.2-18).
  * Nothing read gives undefined, which the gap names `an unknown author`.
  */
-function creatorOf(root: string, id: string, branch: string | undefined): string | undefined {
+export function creatorOf(root: string, id: string, branch: string | undefined): string | undefined {
   try {
     if (branch === undefined) {
       if (!SAFE_ID.test(id)) return undefined;
@@ -92,8 +92,8 @@ function tipAge(root: string, branch: string, now: number): number | undefined {
 const SHA = /^[0-9a-f]{7,64}$/;
 const NEXT = ' - next: ';
 
-/** The author email of commit `sha`; undefined for a text that is no sha, a commit git cannot find, or no author. The sha is checked before any argument is built. */
-function authorOfSha(root: string, sha: string): string | undefined {
+/** The author email of commit `sha`; undefined for a text that is no sha, a commit git cannot find, or no author. The sha is checked before any argument is built. Exported as the oracle of `authorsOfShas` (D-03). */
+export function authorOfSha(root: string, sha: string): string | undefined {
   if (!SHA.test(sha)) return undefined;
   try {
     const email = lastLine(git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%ae', sha, '--']));
@@ -101,6 +101,190 @@ function authorOfSha(root: string, sha: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Shas per `git log --no-walk` call: a command line holds about 32 K characters on Windows, and 200 shas of 40 characters stay far below it. */
+const SHAS_PER_LOG = 200;
+
+/**
+ * Phase 08.9 D-02: the author emails of any number of commits, read with one `git log --no-walk` per 200 shas; each value equals `authorOfSha`'s answer (D-03).
+ * Only texts that pass SHA enter the argument list, before `--` (T-08.9-15); any other text maps to undefined with no process. A record answers an input only when its full sha starts with the input;
+ * an input no record answers (git peeled a tag to its commit, so the record prints another name), or one that two records answer, is read alone by `authorOfSha`, and so is every sha of a chunk
+ * whose call failed (one missing or ambiguous object fails the whole call). Every value lives in this call's locals (D-04).
+ */
+export function authorsOfShas(root: string, shas: readonly string[]): Map<string, string | undefined> {
+  const authors = new Map<string, string | undefined>();
+  const valid: string[] = [];
+  for (const sha of new Set(shas)) {
+    if (SHA.test(sha)) valid.push(sha);
+    else authors.set(sha, undefined);
+  }
+  for (let at = 0; at < valid.length; at += SHAS_PER_LOG) {
+    const chunk = valid.slice(at, at + SHAS_PER_LOG);
+    let records: Array<{ sha: string; email: string }> | undefined;
+    try {
+      records = git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-walk=unsorted', '--format=%H%x00%ae', ...chunk, '--'])
+        .split(/\r?\n/)
+        .filter((l) => l !== '')
+        .map((l) => {
+          const [sha, email = ''] = l.split('\0');
+          return { sha: sha.toLowerCase(), email: email.trim() };
+        });
+    } catch {
+      records = undefined; // the per-sha read answers each of them as before
+    }
+    for (const sha of chunk) {
+      const hits = records?.filter((r) => r.sha.startsWith(sha));
+      if (hits === undefined || hits.length !== 1) authors.set(sha, authorOfSha(root, sha));
+      else authors.set(sha, hits[0].email === '' ? undefined : hits[0].email);
+    }
+  }
+  return authors;
+}
+
+/** One backlog ref's tip: the committer time and the author email, each present only when git gave a usable one. */
+type Tip = { committed?: number; email?: string };
+
+/**
+ * Phase 08.9 D-02: the committer time and the author email of the tip of every backlog ref (local and origin-tracking) from one `git for-each-ref`, keyed by the full ref name.
+ * `%(committerdate:unix)` and `%(authoremail)` without its brackets are what `log -1 --format=%ct` and `%ae` print. The command line holds no repository text. A failed read throws; the caller then
+ * reads each tip with `tipAge` and `creatorOf` as before. Its result lives in the locals of one audit run (D-04).
+ */
+export function backlogTips(root: string): Map<string, Tip> {
+  const tips = new Map<string, Tip>();
+  const text = git(root, ['for-each-ref', '--format=%(refname)%00%(committerdate:unix)%00%(authoremail)', 'refs/heads/backlog', 'refs/remotes/origin/backlog']);
+  for (const row of text.split(/\r?\n/)) {
+    const [name, time, mail] = row.split('\0');
+    if (name === undefined || name === '') continue;
+    const committed = Number(time);
+    const email = (mail ?? '').trim().replace(/^<|>$/g, '');
+    tips.set(name, { ...(Number.isFinite(committed) && committed > 0 ? { committed } : {}), ...(email === '' ? {} : { email }) });
+  }
+  return tips;
+}
+
+/** `tipAge` from the tips `backlogTips` read: the local ref first, then origin's, the first that holds a time. */
+function tipAgeFrom(tips: Map<string, Tip>, branch: string, now: number): number | undefined {
+  for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
+    const committed = tips.get(ref)?.committed;
+    if (committed !== undefined) return Math.floor((now - committed) / 86400);
+  }
+  return undefined;
+}
+
+/** `creatorOf` of a queued draft from the tips `backlogTips` read: the first of the local and origin refs that holds an author email. */
+function queuedCreatorFrom(tips: Map<string, Tip>, branch: string): string | undefined {
+  for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
+    const email = tips.get(ref)?.email;
+    if (email !== undefined) return email;
+  }
+  return undefined;
+}
+
+/** Draft paths per added-file log: the pathspec list stays far below the command line cap of about 32 K characters on Windows. */
+const DRAFT_PATHS_PER_LOG = 200;
+const FULL_SHA = /^[0-9a-f]{40,64}$/;
+/** The characters git prints unquoted in `--name-only` output, so a name in it is compared by exact equality; a draft path with any other is read by `creatorOf`. */
+const PLAIN_PATH = /^[A-Za-z0-9._/-]+$/;
+
+/**
+ * Phase 08.9 D-02, D-03: `creatorOf(root, id, undefined)` for many drafts on the default branch at once; the value of every id equals what creatorOf returns, which stays untouched as the oracle.
+ * The creator is the author of the oldest commit that added `accord/tickets/<id>.md` in HEAD's history under git's per-file history simplification (RESEARCH Pattern 4): from HEAD, a merge whose file equals
+ * the file of one of its parents is followed through the first such parent only. That walk is replayed by claim-facts.ts's onePathCommits over the parent graph (one `log`), with the commits that add each
+ * file from one `--diff-filter=A --full-history` log per 200 paths and what differs at each merge from one `diff-tree`; the author of each answer comes from one authorsOfShas call. A draft with no adding
+ * commit is undefined, as creatorOf says. A draft with two or more adding commits in the walk is read by creatorOf, because which of them git prints last depends on its date order, which the graph does not tell;
+ * so are a draft whose path git would quote and an id that is no safe id (T-08.9-17), and with fewer than two drafts there is nothing to batch. A shared step that fails gives every draft creatorOf's answer.
+ * Every value lives in the locals of this call (D-04).
+ */
+export function creatorsOf(root: string, ids: readonly string[]): Map<string, string | undefined> {
+  const creators = new Map<string, string | undefined>();
+  const asked = [...new Set(ids)];
+  const rel = (id: string): string => `accord/tickets/${id}.md`;
+  const batchable = asked.filter((id) => SAFE_ID.test(id) && PLAIN_PATH.test(rel(id)));
+  for (const id of asked) if (!batchable.includes(id)) creators.set(id, creatorOf(root, id, undefined));
+  const each = (list: readonly string[]): void => {
+    for (const id of list) creators.set(id, creatorOf(root, id, undefined));
+  };
+  if (batchable.length < 2) {
+    each(batchable);
+    return creators;
+  }
+  const answered = new Map<string, string | undefined>();
+  const handBack: string[] = [];
+  try {
+    const graph = new Map<string, string[]>();
+    for (const line of git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--topo-order', '--reverse', '--format=%H %P', 'HEAD']).split(/\r?\n/)) {
+      const [sha, ...parents] = line.trim().split(' ').filter((w) => w !== '');
+      if (sha === undefined) continue;
+      if (!FULL_SHA.test(sha) || !parents.every((q) => FULL_SHA.test(q))) throw new Error(`creatorsOf: unexpected log line ${JSON.stringify(line)}`);
+      graph.set(sha, parents);
+    }
+    const isParent = new Set<string>();
+    for (const parents of graph.values()) for (const parent of parents) isParent.add(parent);
+    const tips = [...graph.keys()].filter((sha) => !isParent.has(sha));
+    if (tips.length !== 1) throw new Error(`creatorsOf: ${tips.length} tips in the parent graph`);
+    const head = tips[0];
+    const merges = [...graph].filter(([, parents]) => parents.length > 1).map(([sha]) => sha);
+    const nobody = new Set<string>();
+    const winners = new Map<string, string>();
+    for (let at = 0; at < batchable.length; at += DRAFT_PATHS_PER_LOG) {
+      const part = batchable.slice(at, at + DRAFT_PATHS_PER_LOG);
+      const specs = part.map((id) => ':(literal)' + rel(id));
+      const wroteBy = new Map<string, Set<string>>(part.map((id) => [rel(id), new Set<string>()]));
+      const changedBy = new Map<string, Set<string>>(part.map((id) => [rel(id), new Set<string>()]));
+      const log = git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-renames', '--full-history', '--diff-filter=A', '--format=%x01%H', '--name-only', 'HEAD', '--', ...specs]);
+      for (const record of log.split('\x01')) {
+        const lines = record.split('\n').map((l) => l.replace(/\r$/, ''));
+        const sha = lines[0].trim().toLowerCase();
+        if (sha === '') continue;
+        if (!FULL_SHA.test(sha)) throw new Error(`creatorsOf: unexpected log line ${JSON.stringify(lines[0])}`);
+        for (const name of lines.slice(1)) {
+          if (name === '') continue;
+          const into = wroteBy.get(name);
+          if (into === undefined) throw new Error(`creatorsOf: the log names a file nobody asked about: ${JSON.stringify(name)}`);
+          into.add(sha);
+        }
+      }
+      if (merges.length > 0) {
+        const out = execFileSync('git', ['diff-tree', '--stdin', '-m', '-r', '--name-only', '--no-renames', '--pretty=oneline', '--', ...specs], {
+          cwd: root,
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          maxBuffer: 64 * 1024 * 1024,
+          env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+          input: merges.map((m) => m + '\n').join(''),
+        });
+        let pair: string | undefined;
+        for (const raw of out.split('\n')) {
+          const line = raw.replace(/\r$/, '');
+          if (line === '') continue;
+          const into = changedBy.get(line);
+          if (into !== undefined) {
+            if (pair === undefined) throw new Error('creatorsOf: a file name before any merge');
+            into.add(pair);
+            continue;
+          }
+          const header = /^([0-9a-f]{40,64}) \(from ([0-9a-f]{40,64})\)(?: |$)/.exec(line);
+          if (header === null) throw new Error(`creatorsOf: unexpected diff-tree line ${JSON.stringify(line)}`);
+          pair = header[1] + ' ' + header[2];
+        }
+      }
+      for (const id of part) {
+        const listed = onePathCommits(graph, head, '', nobody, wroteBy.get(rel(id))!, (merge, parent) => changedBy.get(rel(id))!.has(merge + ' ' + parent));
+        if (listed === undefined || listed.length > 1) handBack.push(id);
+        else if (listed.length === 0) answered.set(id, undefined);
+        else winners.set(id, listed[0]);
+      }
+    }
+    const authors = authorsOfShas(root, [...winners.values()]);
+    for (const [id, sha] of winners) answered.set(id, authors.get(sha));
+  } catch {
+    each(batchable); // a shared step failed: every draft is read as creatorOf reads it
+    return creators;
+  }
+  for (const [id, email] of answered) creators.set(id, email);
+  each(handBack);
+  return creators;
 }
 
 /** The HEAD sha of each worktree of this repository by `norm`ed path, read once (`git worktree list --porcelain`); empty when git cannot say. */
@@ -169,18 +353,23 @@ class Lazy<T> {
 
 /**
  * Ruling "worktree-leftover wording": one gap per would-be removal, the author of the commit the line names. `deleted` lines carry `(was <sha>)`; a `removed <path>` line is the HEAD of
- * that worktree. Returns the gaps and the branch names (`t/x`, `origin/t/x`) the lines delete.
+ * that worktree. The authors of all the shas the lines name are read together by `authorsOfShas` (Phase 08.9 D-02: one git process, not one per line). Returns the gaps and the branch names
+ * (`t/x`, `origin/t/x`) the lines delete.
  */
 function leftovers(ctx: CommandContext, lines: string[], who: (email: string) => string, norm: HygieneDeps['norm']): { gaps: AuditGap[]; deleted: Set<string> } {
   const heads = new Lazy(() => worktreeHeads(ctx.root, norm));
   const cut = lines.map((l) => (l.includes(NEXT) ? l.slice(0, l.indexOf(NEXT)) : l));
+  // the sha each cut line names: a `removed` line's worktree HEAD (the list is read only when such a line exists), a `deleted` line's `(was <sha>)`
+  const shaOf = (line: string): string | undefined => {
+    if (line.startsWith('removed ')) return heads.get().get(norm(line.slice('removed '.length)));
+    return /\(was ([^)\s]+)\)$/.exec(line)?.[1];
+  };
+  const named = new Map<string, string | undefined>();
+  for (const line of cut) if (line.startsWith('removed ') || line.startsWith('deleted ')) named.set(line, shaOf(line));
+  const authors = named.size === 0 ? new Map<string, string | undefined>() : authorsOfShas(ctx.root, [...named.values()].filter((sha): sha is string => sha !== undefined));
   const authorOf = (line: string): string | undefined => {
-    if (line.startsWith('removed ')) {
-      const sha = heads.get().get(norm(line.slice('removed '.length)));
-      return sha === undefined ? undefined : authorOfSha(ctx.root, sha);
-    }
-    const sha = /\(was ([^)\s]+)\)$/.exec(line)?.[1];
-    return sha === undefined ? undefined : authorOfSha(ctx.root, sha);
+    const sha = named.get(line);
+    return sha === undefined ? undefined : authors.get(sha);
   };
   const deleted = new Set<string>();
   for (const line of cut) {
@@ -192,7 +381,8 @@ function leftovers(ctx: CommandContext, lines: string[], who: (email: string) =>
 
 /**
  * Ruling "branch checks": the claim branches in this clone (local and origin-tracking), each with its ticket looked up where it could be (the checkout, the default ref, the branch's own tip) and
- * whether it is on the default ref. One `for-each-ref` for the refs, one for the merged ones; two `cat-file` calls per branch whose ticket the checkout does not hold. Reads only.
+ * whether it is on the default ref. One `for-each-ref` for the refs, one for the merged ones; one `cat-file --batch-check` reads the ticket of every branch whose ticket the checkout does not hold
+ * (Phase 08.9 D-02: on the default ref and on the branch's own tip, two specs per branch, one process for any number of branches). Reads only.
  */
 function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean): ClaimRefFact[] {
   const root = ctx.root;
@@ -211,6 +401,8 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
   const have = new Set(rows.map((r) => r[0]));
   const defName = def === undefined ? undefined : def.replace(/^refs\/(heads|remotes\/[^/]+)\//, '');
   const refs: ClaimRefFact[] = [];
+  // the rows whose ticket the checkout lacks, with the `<ref>:<path>` specs that say whether it exists elsewhere (T-08.9-12: a ref name, a SHA-checked sha and a SAFE_ID path hold no newline)
+  const probes: Array<{ at: number; def?: string; tip?: string }> = [];
   for (const [ref, email, when, sha] of rows) {
     const m = /^refs\/(?:(heads)|remotes\/origin)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined || when === undefined || sha === undefined) continue;
@@ -219,7 +411,8 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
     const id = ticketOfBranch(name, templates, known);
     if (id === undefined || !SAFE_ID.test(id)) continue;
     const path = `accord/tickets/${id}.md`;
-    const ticketAnywhere = known(id) || (def !== undefined && gitOk(root, ['cat-file', '-e', `${def}:${path}`])) || (SHA.test(sha) && gitOk(root, ['cat-file', '-e', `${sha}:${path}`]));
+    const ticketAnywhere = known(id);
+    if (!ticketAnywhere && (def !== undefined || SHA.test(sha))) probes.push({ at: refs.length, ...(def === undefined ? {} : { def: `${def}:${path}` }), ...(SHA.test(sha) ? { tip: `${sha}:${path}` } : {}) });
     refs.push({
       name,
       sha,
@@ -232,7 +425,42 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
       merged: merged.has(ref as string),
     });
   }
+  if (probes.length > 0) {
+    const specs = probes.flatMap((p) => [p.def, p.tip]).filter((s): s is string => s !== undefined);
+    const present = presentSpecs(root, specs);
+    for (const p of probes) {
+      refs[p.at].ticketAnywhere =
+        (p.def !== undefined && (present === undefined ? gitOk(root, ['cat-file', '-e', p.def]) : present.has(p.def))) ||
+        (p.tip !== undefined && (present === undefined ? gitOk(root, ['cat-file', '-e', p.tip]) : present.has(p.tip)));
+    }
+  }
   return refs;
+}
+
+/**
+ * Phase 08.9 D-02, D-03: which of `specs` (`<ref>:<path>`) name an object, from one `git cat-file --batch-check`, answers read by line index as `missingShas` does. A spec is present only when its line is an object name,
+ * a type and a size: `cat-file -e` fails for a missing or an ambiguous name, and batch-check prints `missing` or `ambiguous` for those. `undefined` when git failed, so the caller reads each with `cat-file -e` as before.
+ */
+function presentSpecs(root: string, specs: readonly string[]): Set<string> | undefined {
+  try {
+    const out = execFileSync('git', ['cat-file', '--batch-check'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+      input: specs.map((s) => s + '\n').join(''),
+    });
+    const lines = out.split('\n');
+    if (lines.length < specs.length) return undefined;
+    const present = new Set<string>();
+    specs.forEach((s, i) => {
+      if (/^[0-9a-f]{40,64} \S+ \d+\r?$/.test(lines[i])) present.add(s);
+    });
+    return present;
+  } catch {
+    return undefined;
+  }
 }
 
 /** D-03, D-06: group 3's second half: what a clean would remove, and the claim branches no clean handles (Rulings "worktree-leftover wording", "branch checks", "G2 facts"). */
@@ -295,7 +523,7 @@ function skippedIds(ids: string[]): string {
 
 /**
  * D-04, D-06, D-10: the Must and Should items no owner decided, of every ticket done on the default ref, whoever claimed it and whatever its lane (the lane is never read). Only a ticket claimed at or
- * after DEFERRED_MARK_FROM is judged; one claimed before, or whose claim release cannot be read, is counted in the fact and never listed (Phase 08.8 D-19: the fact counts the done tickets with an undecided item and names the ones it skipped). The claim fact is read only for a ticket that has an item.
+ * after DEFERRED_MARK_FROM is judged; one claimed before, or whose claim release cannot be read, is counted in the fact and never listed (Phase 08.8 D-19: the fact counts the done tickets with an undecided item and names the ones it skipped). The claim fact is read only for a ticket that has an item, for all of them in one batched read (Phase 08.9 D-02).
  * Reads git (the ref's tree, blobs and claim commits), writes nothing and fetches nothing.
  */
 function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]): void {
@@ -321,14 +549,19 @@ function auditDeferred(ctx: CommandContext, facts: AuditFact[], gaps: AuditGap[]
     const unreadable: string[] = [];
     let withItems = 0;
     const judged: { id: string; items: OwnerDeferred[] }[] = [];
+    const itemsOf = new Map<string, OwnerDeferred[]>();
     for (const id of finished) {
       const text = ledgers[`accord/tickets/${id}/ledger.md`];
       const items = text === undefined ? [] : ownerDeferred(text, (mark) => Object.hasOwn(onRef.tickets, mark));
-      if (items.length === 0) continue;
+      if (items.length > 0) itemsOf.set(id, items);
+    }
+    // Phase 08.9 D-02: the claim facts of every ticket that has an item come from one batched read (gitClaimFactsMany), not one read per ticket.
+    const claimFacts = gitClaimFactsMany(ctx.root, [...itemsOf.keys()], ctx.snapshot.config);
+    for (const [id, items] of itemsOf) {
       withItems++;
       let release: ClaimPin | undefined;
       try {
-        release = claimRelease(gitClaimFacts(ctx.root, id, ctx.snapshot.config), onRef.tickets[id]?.frontmatter?.ruleset);
+        release = claimRelease(claimFacts.get(id), onRef.tickets[id]?.frontmatter?.ruleset);
       } catch {
         release = undefined; // a failed read skips this ticket into the unreadable count
       }
@@ -444,14 +677,39 @@ export async function auditHygiene(ctx: CommandContext, deps: HygieneDeps): Prom
     });
     gaps.push(...ticketIdleGaps(open, staleDays, who.show));
 
-    // D-02: an unclaimed, unfinished ticket is a draft; the creator is read only for the ones already past the threshold
-    const old: OldDraft[] = [];
+    // D-02: an unclaimed, unfinished ticket is a draft; the creator is read only for the ones already past the threshold.
+    // Phase 08.9 D-02: the tips of the queued drafts' backlog refs are read once, on the first draft that needs one (a failed read leaves the per-ref `tipAge` and `creatorOf`)
+    const tips = new Lazy<Map<string, Tip> | undefined>(() => {
+      try {
+        return backlogTips(ctx.root);
+      } catch {
+        return undefined;
+      }
+    });
+    const batched = (branch: string): Map<string, Tip> | undefined => (SAFE_BRANCH.test(branch) && branch.startsWith('backlog/') ? tips.get() : undefined);
+    const tipAgeOf = (branch: string): number | undefined => {
+      const read = batched(branch);
+      return read === undefined ? tipAge(ctx.root, branch, now) : tipAgeFrom(read, branch, now);
+    };
+    const creatorOfQueued = (id: string, branch: string): string | undefined => {
+      const read = batched(branch);
+      return read === undefined ? creatorOf(ctx.root, id, branch) : queuedCreatorFrom(read, branch);
+    };
+    const late: Array<{ id: string; days: number; branch: string | undefined }> = [];
     for (const r of open.filter((x) => x.claimedBy === undefined)) {
       const branch = view.queued !== undefined && Object.hasOwn(view.queued, r.id) ? view.queued[r.id].branch : undefined;
-      const days = draftAge(view, r.id, now) ?? (branch === undefined ? undefined : tipAge(ctx.root, branch, now));
+      const days = draftAge(view, r.id, now) ?? (branch === undefined ? undefined : tipAgeOf(branch));
       if (days === undefined || days <= Number(staleDraftDays)) continue;
-      old.push({ id: r.id, days, creator: creatorOf(ctx.root, r.id, branch), ...(branch === undefined ? {} : { queued: branch }) });
+      late.push({ id: r.id, days, branch });
     }
+    // Phase 08.9 D-02: the creators of the old drafts on the default branch come from one batched read; a queued draft's creator comes from its backlog tip
+    const onDefault = creatorsOf(ctx.root, late.filter((d) => d.branch === undefined).map((d) => d.id));
+    const old: OldDraft[] = late.map(({ id, days, branch }) => ({
+      id,
+      days,
+      creator: branch === undefined ? onDefault.get(id) : creatorOfQueued(id, branch),
+      ...(branch === undefined ? {} : { queued: branch }),
+    }));
     gaps.push(...draftStaleGaps(old, staleDraftDays, who.show));
   } catch (err) {
     facts.push({ name: 'work-ages', value: `not checked (the claim branches could not be read: ${firstLine(err)})` });

@@ -7,6 +7,8 @@ import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadCon
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
+import { readCleanFacts } from '../load/clean-facts.js';
+import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { cleanLine, nextLine, withNext, withNextOnFirst } from './next-action.js';
@@ -1272,6 +1274,11 @@ interface GuardState {
   dry?: 'online' | 'offline';
   /** D-03: the refs the dry run's prune report names; every later ref read of the run leaves them out, as it would after a real prune. */
   gone?: ReadonlySet<string>;
+  /**
+   * Phase 08.9 D-08: the batched facts of the audit's offline dry clean, set only there and in no other place; each table is read once per clean (the owner's snapshot-once ruling),
+   * so every tip read answers from the one snapshot. Every site that reads one takes the lookup's answer when there is one and runs the per-branch read otherwise.
+   */
+  facts?: CleanFacts;
 }
 
 /**
@@ -1533,7 +1540,14 @@ function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'n
   }
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
-  const state: GuardState = { seen, accord, until: opts.until, dry: opts.dry, gone: opts.dry === undefined ? undefined : new Set(pruned.keys()) };
+  const state: GuardState = {
+    seen,
+    accord,
+    until: opts.until,
+    dry: opts.dry,
+    gone: opts.dry === undefined ? undefined : new Set(pruned.keys()),
+    facts: opts.dry === 'offline' ? readCleanFacts(ctx.root, ref) : undefined,
+  };
   const merged = mergedTips(ctx.root, ref);
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
   if (halted(state)) return 0;
@@ -1569,6 +1583,8 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
   if (names.length === 0) return;
   const after = readList(ctx, s.seen);
   const tipOf = (b: string): string | undefined => {
+    const snapTip = s.facts?.localTip(b);
+    if (snapTip !== undefined) return snapTip ?? undefined;
     const args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
     return gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
   };
@@ -1580,7 +1596,7 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
   };
   const why = (tip: string, set?: ReadonlySet<string>): string | undefined => {
     if (fresh(tip)) return 'it has no commit of its own';
-    const v = safeTip(ctx.root, tip, undefined, ref, set);
+    const v = safeTip(ctx.root, tip, undefined, ref, set, s.facts);
     if (v === 'safe') return undefined;
     return v === 'conflict' ? `merging it into ${def} conflicts` : `it has commits ${def} lacks`;
   };
@@ -1595,7 +1611,7 @@ function cleanBranches(ctx: CommandContext, ref: string, s: GuardState, merged: 
         continue;
       }
       // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
-      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && (s.facts === undefined ? rebaseBranch(x.path) : s.facts.rebaseOf(x.path, rebaseBranch)) === b);
       if (rebasing !== undefined) {
         cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
         continue;
@@ -1798,8 +1814,8 @@ export function rebaseBranch(path: string): string | undefined {
 }
 
 /** ST-LN-25 D-08: is every commit of `tip` either on `ref`, in the verified commit `vc`, or past `vc` touching only paths `ref` leaves alone, or else a branch whose merge into `ref` adds nothing? A tip in `merged` (the shas of the branches already on `ref`) is on `ref` without a process; a miss runs every check. */
-function safeTip(root: string, tip: string, vc: string | undefined, ref: string, merged?: ReadonlySet<string>): 'safe' | 'conflict' | 'unsafe' {
-  if (merged?.has(tip.toLowerCase()) === true || gitOk(root, ['merge-base', '--is-ancestor', tip, ref])) return 'safe';
+function safeTip(root: string, tip: string, vc: string | undefined, ref: string, merged?: ReadonlySet<string>, facts?: CleanFacts): 'safe' | 'conflict' | 'unsafe' {
+  if (merged?.has(tip.toLowerCase()) === true || (facts?.onRef(tip) ?? gitOk(root, ['merge-base', '--is-ancestor', tip, ref]))) return 'safe';
   if (vc !== undefined) {
     if (gitOk(root, ['merge-base', '--is-ancestor', tip, vc])) return 'safe';
     if (!gitOk(root, ['merge-base', '--is-ancestor', vc, tip])) return 'unsafe';
@@ -1817,7 +1833,8 @@ function safeTip(root: string, tip: string, vc: string | undefined, ref: string,
     return blobsOnRef(root, tip, ref) ? 'safe' : 'conflict';
   }
   try {
-    return out.split('\n')[0].trim() === git(root, ['rev-parse', ref + '^{tree}']).trim() ? 'safe' : 'unsafe';
+    // Phase 08.9 D-08: on the offline dry path the default ref's tree is read once for all branches
+    return out.split('\n')[0].trim() === (facts?.refTree() ?? git(root, ['rev-parse', ref + '^{tree}']).trim()) ? 'safe' : 'unsafe';
   } catch {
     return 'unsafe';
   }
@@ -1879,12 +1896,14 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
   const snap = snapshotAt(ctx.root, ref, [...new Set(ids.values())]);
   const done = new Set(statusRows(snap).filter((r) => r.stage === 'done' && r.status !== 'dropped').map((r) => r.id));
   const after = readList(ctx, s.seen);
+  // Phase 08.9 D-08: on the offline dry path the commits the full-length verified commits of the done branches name come from one batch-check; a short one or a failed batch is read per branch below
+  const verified = s.facts?.commitsOf([...ids.keys()].filter((n) => done.has(ids.get(n)!)).flatMap((n) => [snap.tickets[ids.get(n)!]?.frontmatter?.verified_commit]).filter((v): v is string => typeof v === 'string'));
   for (const b of [...ids.keys()].filter((n) => done.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
       if (spent(ctx, s)) return;
       // A worktree mid-rebase has a detached HEAD; its rebase still owns the branch.
-      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && (s.facts === undefined ? rebaseBranch(x.path) : s.facts.rebaseOf(x.path, rebaseBranch)) === b);
       if (rebasing !== undefined) {
         cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
         continue;
@@ -1896,15 +1915,17 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       }
       const raw = snap.tickets[id]?.frontmatter?.verified_commit;
       const vcArgs = ['rev-parse', '--verify', '-q', String(raw) + '^{commit}'];
-      const vc = typeof raw === 'string' && isSha(raw) && gitOk(ctx.root, vcArgs) ? git(ctx.root, vcArgs).trim() : undefined;
+      const batched = typeof raw === 'string' ? verified?.get(raw) : undefined;
+      const vc = batched !== undefined ? (batched ?? undefined) : typeof raw === 'string' && isSha(raw) && gitOk(ctx.root, vcArgs) ? git(ctx.root, vcArgs).trim() : undefined;
       const tipArgs = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
       // The set answers the first judgement of L and the one of R; the tip re-read after the guards gets every check.
       const reason = (t: string, set?: ReadonlySet<string>) => {
-        const v = safeTip(ctx.root, t, vc, ref, set);
+        const v = safeTip(ctx.root, t, vc, ref, set, s.facts);
         if (v === 'safe') return undefined;
         return v === 'conflict' ? `merging it into ${def} conflicts` : vc !== undefined ? 'it has commits after its verified commit' : `it has changes not on ${def}`;
       };
-      let L = gitOk(ctx.root, tipArgs) ? git(ctx.root, tipArgs).trim() : undefined;
+      const snapTip = s.facts?.localTip(b);
+      let L = snapTip !== undefined ? (snapTip ?? undefined) : gitOk(ctx.root, tipArgs) ? git(ctx.root, tipArgs).trim() : undefined;
       const why = L === undefined ? undefined : reason(L, merged);
       if (why !== undefined) {
         cleanSay(ctx, `kept ${b}: ${why}`);
@@ -1919,7 +1940,8 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       }
       if (L !== undefined) {
         // A commit made while the guards ran counts: the delete names the sha it checked.
-        L = git(ctx.root, tipArgs).trim();
+        const snapAgain = s.facts?.localTip(b);
+        L = typeof snapAgain === 'string' ? snapAgain : git(ctx.root, tipArgs).trim();
         const again = reason(L);
         if (again !== undefined) {
           cleanSay(ctx, `kept ${b}: ${again}`);
@@ -1952,13 +1974,17 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
 }
 
 /** ST-LN-13: the first research record the ticket lists at `tip` whose copy the history of `ref` never held, or undefined. */
-function researchNotOn(root: string, tip: string, ref: string, id: string): string | undefined {
+function researchNotOn(root: string, tip: string, ref: string, id: string, answers?: ResearchAnswers): string | undefined {
   const file = 'accord/tickets/' + id + '.md';
-  const files = gitFilesAt(root, tip, [file]);
+  // Phase 08.9 D-08: on the offline dry path the ticket text and the blob names come from the batched reads; anything they did not answer is read as before
+  const given = answers?.ticket(tip, id);
+  const files = given === undefined ? gitFilesAt(root, tip, [file]) : given === null ? {} : { [file]: given };
   if (!Object.hasOwn(files, file)) return undefined;
   const tickets = loadSnapshot({ files, tree: [] }).tickets;
   if (!Object.hasOwn(tickets, id)) return undefined;
   const blob = (c: string, p: string): string | undefined => {
+    const named = answers?.blob(c, p);
+    if (named !== undefined) return named ?? undefined;
     const args = ['rev-parse', '--verify', '-q', c + ':' + p];
     return gitOk(root, args) ? git(root, args).trim() : undefined;
   };
@@ -1991,7 +2017,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   for (const [name, t] of tips) {
     const id = ticketOfBranch(name, templates, known);
     const tip = (t.L ?? t.R)!;
-    if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref])) ids.set(name, id);
+    if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !(s.facts?.onRef(tip) ?? gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref]))) ids.set(name, id);
   }
   if (ids.size === 0) return;
   const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);
@@ -2000,13 +2026,21 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
     return;
   }
   const after = readList(ctx, s.seen);
+  // Phase 08.9 D-08, offline dry path only: the ticket texts and research blobs at the tips about to be judged, and the commits origin lacks on each local-only branch, are read once for all of them
+  const judging = [...ids.keys()].filter((n) => dropped.has(ids.get(n)!)).sort();
+  const judgedAt = (b: string): string | undefined => {
+    const snapTip = s.facts?.localTip(b);
+    return typeof snapTip === 'string' ? snapTip : snapTip === null ? tips.get(b)!.R : (tips.get(b)!.L ?? tips.get(b)!.R);
+  };
+  const research = s.facts?.researchAt(judging.flatMap((b) => [{ tip: judgedAt(b), id: ids.get(b)! }]).filter((i): i is { tip: string; id: string } => i.tip !== undefined));
+  const lacking = s.facts?.notOnOrigin(judging.filter((b) => tips.get(b)!.R === undefined).flatMap((b) => judgedAt(b) ?? []));
   for (const b of [...ids.keys()].filter((n) => dropped.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
       if (spent(ctx, s)) return;
       const W = after.find((x) => x.branch === b);
       // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
-      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && (s.facts === undefined ? rebaseBranch(x.path) : s.facts.rebaseOf(x.path, rebaseBranch)) === b);
       if (rebasing !== undefined) {
         cleanSay(ctx, `kept ${b}: being rebased in ${rebasing.path}`);
         continue;
@@ -2022,7 +2056,8 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       }
       // Re-read the local tip: a commit made in the worktree while the guards ran counts, and the printed sha is the deleted one.
       const args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
-      const L = gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
+      const snapTip = s.facts?.localTip(b);
+      const L = snapTip !== undefined ? (snapTip ?? undefined) : gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
       const R = tips.get(b)!.R;
       if (L !== undefined && R !== undefined && L !== R) {
         if (gitOk(ctx.root, ['merge-base', '--is-ancestor', R, L])) {
@@ -2033,14 +2068,16 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       if (L !== undefined && R === undefined && pruned.get('refs/remotes/origin/' + b) !== L) {
         // D-03: a ref the dry run's prune report names is not counted as origin's, as it is not after a real prune
         const excluded = [...(s.gone ?? [])].filter((r) => r.startsWith('refs/remotes/')).map((r) => '--exclude=' + r.slice('refs/remotes/'.length));
-        const n = Number(git(ctx.root, ['rev-list', '--count', L, '--not', ...excluded, '--remotes=origin']).trim());
+        // Phase 08.9 D-08: with no ref the dry run's prune report names, the batched count of the tip answers; otherwise, or unanswered, today's count runs
+        const counted = s.gone === undefined || s.gone.size === 0 ? lacking?.get(L) : undefined;
+        const n = counted ?? Number(git(ctx.root, ['rev-list', '--count', L, '--not', ...excluded, '--remotes=origin']).trim());
         if (n > 0) {
           cleanSay(ctx, `kept ${b}: ${n} commits not on origin`);
           continue;
         }
       }
       const at = L ?? R;
-      const lost = at === undefined ? undefined : researchNotOn(ctx.root, at, ref, id);
+      const lost = at === undefined ? undefined : researchNotOn(ctx.root, at, ref, id, research);
       if (lost !== undefined) {
         const d = ref.replace('refs/remotes/origin/', '');
         cleanSay(ctx, `kept ${b}: research record ${lost} is not on ${d} as ${b} holds it - make the record on ${b} equal to the copy on ${d}, or put it on ${d}, then push`);

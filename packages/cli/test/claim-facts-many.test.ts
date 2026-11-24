@@ -1,5 +1,7 @@
 // Phase 08.9 D-03: the batched claim-fact reader against the per-ticket oracle. gitClaimFactsMany(root, ids, config) must hold, for every id, exactly what gitClaimFacts(root, id, config) returns,
 // `{ error }` and undefined included; each fixture below is a real git repository read by both. D-02 is the second case: the claim commits of any number of tickets come from one log.
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
 import { gitClaimFacts, gitClaimFactsMany } from '../src/load/claim-facts.js';
@@ -97,6 +99,51 @@ it('risk:regression gitClaimFactsMany answers every ticket as gitClaimFacts does
   const noDefault = base(['T-1', 'T-2'], 'trunk');
   commitMsg(noDefault, 'claim: T-1', at(1), true);
   same(noDefault, { 'T-1': 'claim', 'T-2': 'none' });
+
+  // fixture 7: HEAD on an unmerged ticket branch whose claim commit is on it, beside a ticket claimed on main (the claim off the default ref takes the merge-base process)
+  const onBranch = base(['T-1', 'T-2']);
+  commitMsg(onBranch, 'claim: T-1', at(1), true);
+  gitRun(onBranch, 'switch', '-q', '-c', 'ticket-2');
+  commitMsg(onBranch, 'claim: T-2', at(2), true);
+  same(onBranch, { 'T-1': 'claim', 'T-2': 'claim' });
+
+  // fixture 8: accord/config.yml missing at one ticket's claim commit, beside two good ids: that id alone is an error
+  const noConfig = base(['T-1', 'T-2', 'T-3']);
+  commitMsg(noConfig, 'claim: T-1', at(1), true);
+  rmSync(join(noConfig, 'accord', 'config.yml'));
+  commitMsg(noConfig, 'claim: T-2', at(2));
+  writeFiles(noConfig, { 'accord/config.yml': CONFIG });
+  commitMsg(noConfig, 'restore the config', at(3));
+  commitMsg(noConfig, 'claim: T-3', at(4), true);
+  same(noConfig, { 'T-1': 'claim', 'T-2': 'error', 'T-3': 'claim' });
+
+  // fixture 9: a ruleset: line in the ticket file at its claim commit
+  const atClaim = base(['T-1', 'T-2']);
+  writeFiles(atClaim, { [P('T-1')]: laneTicket('T-1', { frontmatter: ['ruleset: "0.10.0"'] }) });
+  commitMsg(atClaim, 'T-1 under a ruleset', at(1));
+  commitMsg(atClaim, 'claim: T-1', at(2), true);
+  same(atClaim, { 'T-1': 'claim', 'T-2': 'none' });
+  expect(gitClaimFacts(atClaim, 'T-1'), 'the ruleset is read at the claim').toMatchObject({ ruleset: '0.10.0' });
+
+  // fixture 10: no ruleset: line at the claim, one written by a later commit (the backfill)
+  const after = base(['T-1', 'T-2']);
+  commitMsg(after, 'claim: T-1', at(1), true);
+  commitMsg(after, 'claim: T-2', at(2), true);
+  writeFiles(after, { [P('T-1')]: laneTicket('T-1', { frontmatter: ['ruleset: "0.10.0"'] }) });
+  commitMsg(after, 'sync: ruleset', at(3));
+  same(after, { 'T-1': 'claim', 'T-2': 'claim' });
+  expect(gitClaimFacts(after, 'T-1'), 'the ruleset is read from the commit that wrote it').toMatchObject({ ruleset: '0.10.0', rulesetCommit: expect.stringMatching(/^[0-9a-f]{40}/) });
+
+  // fixture 11: a merge commit after the claim, the merge bringing in the ticket's ruleset
+  const merged = base(['T-1', 'T-2']);
+  commitMsg(merged, 'claim: T-1', at(1), true);
+  gitRun(merged, 'switch', '-q', '-c', 'side');
+  writeFiles(merged, { [P('T-1')]: laneTicket('T-1', { frontmatter: ['ruleset: "0.10.0"'] }) });
+  commitMsg(merged, 'side: ruleset', at(2));
+  gitRun(merged, 'switch', '-q', 'main');
+  commitMsg(merged, 'claim: T-2', at(3), true);
+  mergeMsg(merged, 'side', 'merge side');
+  same(merged, { 'T-1': 'claim', 'T-2': 'claim' });
 });
 
 // Phase 08.9 D-02: the claim commits of any number of tickets come from one log, with no --grep argument and one default-ref lookup.
@@ -109,5 +156,11 @@ it('risk:resource gitClaimFactsMany reads the claim commits of any number of tic
     expect(value.size).toBe(count);
     expect(argv.filter((a) => a.some((x) => x.startsWith('--grep='))), `${count} tickets: a log still limits by --grep`).toEqual([]);
     expect(argv.filter((a) => verbOf(a) === 'for-each-ref').length, `${count} tickets: for-each-ref runs once`).toBe(1);
+    // Phase 08.9 D-02: the merge base comes from the default ref's ancestor set, every ticket's blobs ride one cat-file --batch, and only the ruleset log runs per ticket
+    const verbs = argv.map(verbOf);
+    expect(verbs.filter((v) => v === 'rev-list').length, `${count} tickets: rev-list runs once`).toBe(1);
+    expect(verbs.filter((v) => v === 'merge-base').length, `${count} tickets: no merge-base for a claim on the default branch`).toBe(0);
+    expect(argv.filter((a) => verbOf(a) === 'cat-file' && a.includes('--batch')).length, `${count} tickets: one cat-file --batch`).toBe(1);
+    expect(argv.filter((a) => a.includes('-G^ruleset:')).length, `${count} tickets: one ruleset log each`).toBe(count);
   }
 });

@@ -110,3 +110,23 @@ it('risk:regression a second accord audit in one process reads a claim commit ad
   expect(line(second.out), second.out).toContain('1 judged');
   expect(line(second.out), second.out).toContain('0 skipped because their claim release cannot be read');
 });
+
+/** `count` finished tickets D-1..D-<count>, each with an undecided Must item and an empty `claim: <id>` commit on main. */
+function claimedRepo(count: number): string {
+  const files: Files = {};
+  for (let i = 1; i <= count; i++) doneM(files, `D-${i}`, undefined);
+  files[P('ST-9')] = laneTicket('ST-9');
+  const repo = sandbox(files);
+  for (let i = 1; i <= count; i++) commitMsg(repo, `claim: D-${i}`, undefined, true);
+  return repo;
+}
+
+// Phase 08.9 D-02: the ruleset log (`-G^ruleset:`, 08.9-05 takes it on) is the only git process a finished ticket with a claim commit still costs.
+it('risk:resource the only git process accord audit adds per finished ticket with a claim commit is its ruleset log (D-02)', async () => {
+  const isRuleset = (argv: string[]): boolean => argv.includes('-G^ruleset:');
+  const few = await spawns(claimedRepo(2));
+  const many = await spawns(claimedRepo(12));
+  const rest = (all: string[][]): string[][] => all.filter((a) => !isRuleset(a));
+  expect([few.filter(isRuleset).length, many.filter(isRuleset).length], 'one ruleset log per ticket').toEqual([2, 12]);
+  expect(rest(many).length, `${rest(many).length} other git processes with 12 tickets (${histogram(rest(many))}), ${rest(few).length} with 2 (${histogram(rest(few))})`).toBe(rest(few).length);
+});

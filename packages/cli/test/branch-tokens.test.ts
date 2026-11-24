@@ -1,6 +1,7 @@
 // Issue #341: the claim branch template takes {type} (the ticket's change: word) and {slug} (the title in kebab-case). Real git in tmp sandboxes with a bare
 // remote: the claim is named from the default ref's ticket, found again by status in the main checkout, and survives a title edit; a {type} claim with no
 // allowed word is refused before any git write; only listed words are claims (D-11); a teammate's hyphenated id is read whole (D-07a).
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
@@ -251,4 +252,17 @@ it("risk:data-loss with no id convention a teammate's live {slug} claim is no or
   expect(gone, audit.out).toHaveLength(1);
   expect(gone[0]).toContain('names ticket ST-13 by a guess');
   expect(gone[0]).not.toContain('git push origin --delete');
+});
+
+// WR-06: a {type} template matches every conventional branch on every remote, so the claim listing can pass git's 1 MiB default output; it reads up to 64 MiB.
+it('risk:regression status reads a claim listing over 1 MiB (10 000 fix/ refs on origin) (WR-06)', async () => {
+  const c = copy();
+  writeFileSync(`${c.root}/accord/config.yml`, readFileSync(`${c.root}/accord/config.yml`, 'utf8') + TYPED);
+  const sha = c.git('rev-parse', 'HEAD').trim();
+  const lines = Array.from({ length: 10000 }, (_, i) => `${sha} refs/remotes/origin/fix/ST-${i + 100}-a-long-enough-slug-to-fill-the-listing`);
+  writeFileSync(`${c.root}/.git/packed-refs`, '# pack-refs with: peeled fully-peeled sorted\n' + lines.sort().join('\n') + '\n');
+  const listing = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)%00%(objectname)', 'refs/remotes/*/fix/*-*'], { cwd: c.root, maxBuffer: 64 * 1024 * 1024 });
+  expect(listing.length).toBeGreaterThan(1024 * 1024);
+  const r = await run(['status', '--json'], c.root);
+  expect(r.code, r.err).toBe(0);
 });

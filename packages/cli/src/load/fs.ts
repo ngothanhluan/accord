@@ -202,10 +202,12 @@ function gitClaims(
   try {
     // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
     // shortcut: a remote whose name contains `/` is not matched; widen the pattern if one ever must be.
+    // WR-06: a {type} template matches every conventional branch on every remote, so the listing can pass Node's 1 MiB default; 64 MiB, as conventions.md asks of git reads
     out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)%00%(objectname)', ...patterns], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
     });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();

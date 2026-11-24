@@ -1,7 +1,7 @@
 // Issue #341 D-05, D-11: a `{type}` branch template needs a change: word the team lists (gate.change-type), and a branch_types word that is one of
 // accord's own branch prefixes is warned about (lint.branch-type-root), never refused.
 import { describe, expect, it } from 'vitest';
-import { ACCORD_BRANCH_ROOTS, changeProblem, CONFIG_KEYS, gateReady, lintSnapshot, loadSnapshot, newKeys, OVERRIDABLE } from '../src/index.js';
+import { ACCORD_BRANCH_ROOTS, changeProblem, CONFIG_KEYS, gateReady, lintSnapshot, loadConfig, loadSnapshot, newKeys, OVERRIDABLE } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
@@ -89,5 +89,14 @@ describe('config-keys rows of the issue #341 keys (WR-05)', () => {
       ['branch_slug_length', '0.19.0'],
     ]);
     expect(newKeys(CONFIG_KEYS, '0.18.0', '0.19.0', []).map((r) => r.key)).toEqual(expect.arrayContaining(['branch_types', 'branch_slug_length']));
+  });
+});
+
+// WR-06: the for-each-ref patterns number two per word and template, all on one command line, so the list of words is bounded.
+describe('branch_types size (WR-06)', () => {
+  it('risk:regression branch_types takes at most 30 words', () => {
+    const words = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(', ');
+    expect(loadConfig('accord/config.yml', CONFIG + `branch_types: [${words(30)}]\n`).findings).toEqual([]);
+    expect(loadConfig('accord/config.yml', CONFIG + `branch_types: [${words(31)}]\n`).findings.map((f) => f.pointer)).toEqual(['/branch_types']);
   });
 });

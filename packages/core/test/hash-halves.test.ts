@@ -28,7 +28,7 @@ it('risk:regression fnv1a64 on 32-bit halves equals the BigInt reference on vect
   expect(fnv1a64('')).toBe('fnv1a64:cbf29ce484222325');
   expect(fnv1a64('a')).toBe('fnv1a64:af63dc4c8601ec8c');
   expect(fnv1a64('foobar')).toBe('fnv1a64:85944171f73967e8');
-  for (const text of ['\u0000', '\u0001\u0000ÿ', 'Ăn cơm 🍚', 'a\u0000b\r\nc\n', 'x'.repeat(4097)]) {
+  for (const text of ['\u0000', '\u0001\u0000ÿ', '\u0102n c\u01a1m \u{1F35A}', 'a\u0000b\r\nc\n', 'x'.repeat(4097)]) {
     expect(fnv1a64(text)).toBe(reference(text));
   }
   let read = 0;
@@ -43,7 +43,7 @@ it('risk:regression fnv1a64 on 32-bit halves equals the BigInt reference on vect
 
 // Phase 08.9.2 Ruling-fnv32 and Pitfall 9: one implementation of the algorithm in core, and neither copy keeps BigInt.
 it('risk:regression contentHash and fnv1a64 are one implementation with no BigInt (Ruling-fnv32)', () => {
-  for (const text of ['', 'a', 'foobar', '\u0000', 'Ăn cơm 🍚', 'line one\nline two\n']) {
+  for (const text of ['', 'a', 'foobar', '\u0000', '\u0102n c\u01a1m \u{1F35A}', 'line one\nline two\n']) {
     expect(contentHash(text)).toBe(fnv1a64(text));
   }
   const code = (path: string): string =>

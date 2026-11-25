@@ -495,8 +495,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('clean')
     .description('fetch, then remove the worktree, the local branch and the origin branch of each ticket done on the default branch, delete the worktree and branches of tickets dropped there when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept; with --dry-run it prints the same lines and removes and deletes nothing')
     .option('--dry-run', 'print what a real clean would remove or delete, and remove or delete nothing; it still fetches, and it assumes each git step succeeds')
-    .action((o: { dryRun?: boolean }) => {
-      setCode(worktreeClean(preflight(opts), o.dryRun === true ? { dry: 'online' } : {}));
+    .option('--after-merge <id>', "after the ticket's pull request merged, from outside its worktree: first drop this Claude Code session's hold on <id>, then the usual clean with every guard; refused (exit 2) when run inside <id>'s worktree, and no other hold is touched")
+    .action((o: { dryRun?: boolean; afterMerge?: string }) => {
+      setCode(worktreeClean(preflight(opts), { ...(o.dryRun === true ? { dry: 'online' as const } : {}), ...(o.afterMerge === undefined ? {} : { afterMerge: o.afterMerge }) }));
     });
   worktree
     .command('check')

@@ -46,8 +46,8 @@ import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeOpen, worktreePush, worktreeSync } from './commands/worktree.js';
-import { loadClaimView, loadLight, loadWithBranch, UsageError, withDefaultRef } from './load/fs.js';
-import type { LightLoad } from './load/fs.js';
+import { loadClaimView, loadLight, loadNarrow, loadWithBranch, UsageError, withDefaultRef } from './load/fs.js';
+import type { LightLoad, NarrowTarget } from './load/fs.js';
 import { pinMessage, versionOnDisk } from './pin.js';
 import { repoRoot } from './root.js';
 
@@ -71,6 +71,8 @@ export interface CommandContext {
   memo?: Map<string, unknown>;
   /** Phase 08.9.2 D-08: the ticket statuses this command's loads read for their frontmatter only (the default `status` listing and `dashboard` set it), kept so a reload reads the same way. */
   frontmatterOnly?: readonly string[];
+  /** Phase 08.9.2 Ruling-narrow: set by a narrow load only: every ticket id of accord/tickets/ (the snapshot holds only the target's neighbourhood), so a default-ref read takes them all, as the full load's does. */
+  ids?: string[];
   /** ST-LN-63: the current branch of `root`, read once by the load (undefined name: git could not say; '' : detached); absent in light mode. */
   branch?: { name: string | undefined };
   stdout: NodeJS.WritableStream;
@@ -97,21 +99,25 @@ const DISPLAY_FRONTMATTER_ONLY: readonly string[] = ['dropped'];
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout', options: { pinCheck?: 'refuse' | 'report'; display?: boolean } = {}): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout', options: { pinCheck?: 'refuse' | 'report'; display?: boolean; only?: NarrowTarget } = {}): CommandContext {
   const root = repoRoot(opts.cwd);
-  const parts = mode === 'claims' ? loadClaimView(root) : undefined;
+  // Phase 08.9.2 Ruling-narrow: under the claim view `only` narrows the checkout and the claim-branch overlay to the target's neighbourhood.
+  const parts = mode === 'claims' ? loadClaimView(root, options.only === undefined ? {} : { only: options.only }) : undefined;
   // ST-LN-63: a light load keeps the parts it read, so a command that goes on to the full load does not read them twice.
   const lit = mode === 'light' ? loadLight(root) : undefined;
-  const read = parts === undefined && lit === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
-  const input = parts?.view ?? lit?.input ?? (read as NonNullable<typeof read>).input;
+  // Phase 08.9.2 Ruling-narrow: `only` is the command of one ticket (a gate, the anchor): its target's neighbourhood is read, every other ticket by file name only. With the claim view the same `only` goes to `loadClaimView`; never with the light load.
+  const narrow = options.only !== undefined && parts === undefined && lit === undefined ? loadNarrow(root, options.only, { stage: mode === 'stage' }) : undefined;
+  const read = parts === undefined && lit === undefined && narrow === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
+  const input = parts?.view ?? lit?.input ?? narrow?.input ?? (read as NonNullable<typeof read>).input;
   // Phase 08.9.2 D-08: one parse memo per command, handed to every load of it (view, checkout, default ref); it lives in this call's locals and on the context, never at module level.
-  const memo = new Map<string, unknown>();
+  const memo = parts?.memo ?? narrow?.memo ?? new Map<string, unknown>();
+  const listedIds = parts?.ids ?? narrow?.ids;
   // Phase 08.9.2 D-08: `display` is the status and dashboard path; a dropped ticket is read for its frontmatter only there, and by no other command.
   const frontmatterOnly = options.display === true ? DISPLAY_FRONTMATTER_ONLY : undefined;
   const loadOptions = frontmatterOnly === undefined ? { memo } : { memo, frontmatterOnly };
   const loaded = loadSnapshot(input, loadOptions);
   // ST-LN-63: the branch the load read, handed on so no command asks git for it again (none in light mode).
-  const branch = parts?.branch ?? read?.branch;
+  const branch = parts?.branch ?? narrow?.branch ?? read?.branch;
   const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout, loadOptions);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
@@ -128,8 +134,8 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
     if (message !== undefined) throw new UsageError(message);
   }
   // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
-  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs, memo, frontmatterOnly) : loaded;
-  return { root, snapshot, memo, ...(frontmatterOnly === undefined ? {} : { frontmatterOnly }), ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
+  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs, memo, frontmatterOnly, listedIds) : loaded;
+  return { root, snapshot, memo, ...(listedIds === undefined ? {} : { ids: listedIds }), ...(frontmatterOnly === undefined ? {} : { frontmatterOnly }), ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
 }
 
 /**
@@ -186,7 +192,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       .description('report whether the ticket passes the ' + which + ' gate')
       .option('--json', 'print the GateResult object instead of text')
       .action((id: string, options: { json?: boolean }) => {
-        setCode(gate(preflight(opts), which, id, options));
+        // Phase 08.9.2 Ruling-narrow: a gate reads its ticket, its epic and its dependencies; every other ticket is known by file name only.
+        setCode(gate(preflight(opts, 'checkout', { only: id }), which, id, options));
       });
   }
 
@@ -543,7 +550,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('anchor [id]')
     .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
     .action((id: string | undefined) => {
-      setCode(anchor(preflight(opts, 'stage'), id));
+      // Phase 08.9.2 Ruling-narrow: the anchor of one ticket reads that ticket, its epic and its dependencies; with no id the branch and the folder listing name the ticket before any ticket file is read.
+      setCode(anchor(preflight(opts, 'stage', { only: id ?? { active: true } }), id));
     });
 
   program
@@ -574,7 +582,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .addOption(new Option('--approval', "print the approved sections for the owner's yes, criteria compacted").conflicts('json'))
     .addOption(new Option('--short', 'with --approval: the short view the owner approves from, the full ticket one path away').conflicts('json'))
     .action((id: string, options: { json?: boolean; approval?: boolean; short?: boolean }) => {
-      setCode(show(preflight(opts, 'claims'), id, options));
+      // Phase 08.9.2 Ruling-narrow: `show` reads its ticket, its epic and its dependencies (and their claim-branch copies); --approval reads the checkout as `accord approve` does, so it keeps the full load.
+      setCode(show(preflight(opts, 'claims', options.approval === true ? {} : { only: id }), id, options));
     });
 
   program
@@ -617,7 +626,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
           } catch {
             cwd = undefined;
           }
-          setCode(hook(preflight({ ...opts, cwd: cwd ?? opts.cwd }, 'checkout'), event));
+          // Phase 08.9.2 Ruling-narrow: the dispatch check reads the active ticket, its epic and its dependencies; every other ticket is known by file name only.
+          setCode(hook(preflight({ ...opts, cwd: cwd ?? opts.cwd }, 'checkout', { only: { active: true } }), event));
         } catch (e) {
           opts.stderr.write(`accord hook pre-tool-use: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
           opts.stdout.write('{}\n');
@@ -625,7 +635,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         }
         return;
       }
-      const ctx = preflight(opts, 'stage');
+      // Phase 08.9.2 Ruling-narrow: only an epic role's SubagentStart reads one ticket (its epic block); session start and resume read every ticket for the session line and keep their load (D-07).
+      const ctx = preflight(opts, 'stage', event === 'subagent-start' ? { only: { active: true } } : {});
       setCode(hook(ctx, event as (typeof HOOK_EVENTS)[number]));
       if (event === 'session-start') {
         const line = await upgradeNotice(ctx.snapshot.config?.accord);

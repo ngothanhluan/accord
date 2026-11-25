@@ -66,6 +66,40 @@ function accordFiles(root: string): Record<string, string> {
   return files;
 }
 
+/**
+ * Phase 08.9.2 Ruling-narrow: `accordFiles` split in two. Every file under `accord/` outside `accord/tickets/` is read as `accordFiles` reads it (config, product files, research records, assets, tests-baseline); of
+ * `accord/tickets/` only the listing is taken: `ticketIds` are the names of `accord/tickets/<id>.md`, `records` the paths under `accord/tickets/<id>/`, and none of them is opened. A file directly in `accord/tickets/`
+ * that is no `<id>.md` is read by nothing (core ignores it, D-37).
+ */
+function accordListing(root: string): { files: Record<string, string>; ticketIds: string[]; records: Map<string, string[]> } {
+  const accordDir = join(root, 'accord');
+  if (!statSync(accordDir, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new UsageError('no accord/ folder in ' + root);
+  }
+  const files: Record<string, string> = {};
+  const ticketIds: string[] = [];
+  const records = new Map<string, string[]>();
+  for (const d of readdirSync(accordDir, { recursive: true, withFileTypes: true })) {
+    if (!d.isFile()) continue;
+    const abs = join(d.parentPath, d.name);
+    const rel = relative(root, abs).split(sep).join('/');
+    const ticket = /^accord\/tickets\/([^/]+)\.md$/.exec(rel);
+    if (ticket !== null) {
+      ticketIds.push(ticket[1] as string);
+      continue;
+    }
+    const record = /^accord\/tickets\/([^/]+)\/.+$/.exec(rel);
+    if (record !== null) {
+      const id = record[1] as string;
+      records.set(id, [...(records.get(id) ?? []), rel]);
+      continue;
+    }
+    if (rel.startsWith('accord/tickets/')) continue;
+    files[rel] = readFileSync(abs, 'utf8');
+  }
+  return { files, ticketIds: ticketIds.sort(), records };
+}
+
 /** A configured path relative to the root, or undefined when unset, missing, or outside the root (T-02-20, T-03-02). */
 function containedPath(root: string, rel: string | undefined): string | undefined {
   if (!rel) return undefined;
@@ -1139,8 +1173,13 @@ export function currentBranch(root: string): string | undefined {
   }
 }
 
-function loadParts(root: string, stage = false, light = false, defer = false, from?: LightLoad): {
+/** Phase 08.9.2 Ruling-narrow: the ticket a narrow load is for, or the one the current branch names (an object, so a ticket whose id is a word never reads as the branch's). */
+export type NarrowTarget = string | { active: true };
+
+function loadParts(root: string, stage = false, light = false, defer = false, from?: LightLoad, narrow?: NarrowTarget): {
   input: SnapshotInput;
+  /** With `narrow` only: the ticket the load is for (undefined when the branch names none), every ticket id of the folder listing, and the parse memo the neighbourhood was read with. */
+  narrowed?: { id: string | undefined; ids: string[]; memo: Map<string, unknown>; reach: ReadonlySet<string> };
   /** In light mode only: what was read, for `loadFromFs(root, { from })` to finish the load with. */
   lightLoad?: LightLoad;
   claimRefs: Record<string, string>;
@@ -1155,10 +1194,11 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
 } {
   // ST-LN-63: with `from`, the light load's reads are taken as they are: no ls-files, no file read, no default-branch read.
   const tree = from?.tree ?? gitTree(root);
-  const files = from === undefined ? accordFiles(root) : { ...from.files };
+  const listing = narrow === undefined ? undefined : accordListing(root);
+  const files = from === undefined ? (listing?.files ?? accordFiles(root)) : { ...from.files };
   // First pass reads the config; the tokens file and the test report are read the same way,
   // and a missing one is lint's concern (LINT-04, FMT-11).
-  const first = loadSnapshot({ files, tree });
+  let first = loadSnapshot({ files, tree });
   const config = first.config;
   if (from === undefined) {
     for (const value of [config?.design.tokens, config?.tests?.report]) {
@@ -1172,7 +1212,38 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
     [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))],
     branchTypesOf(config),
   );
-  const known = (id: string) => Object.hasOwn(first.tickets, id);
+  // Phase 08.9.2 Ruling-narrow: the target's file and folder, its parent and, transitively, every id its depends_on names are read now; any other ticket is known by its file name only.
+  let branchRead: { name: string | undefined } | undefined;
+  let narrowed: { id: string | undefined; ids: string[]; memo: Map<string, unknown>; reach: ReadonlySet<string> } | undefined;
+  if (narrow !== undefined && listing !== undefined) {
+    const listed = new Set(listing.ticketIds);
+    let target: string | undefined;
+    if (typeof narrow === 'string') target = narrow;
+    else {
+      branchRead = { name: currentBranch(root) };
+      target = branchRead.name === undefined || branchRead.name === '' ? undefined : ticketOfBranch(branchRead.name, branchTemplates, (id) => listed.has(id), config);
+    }
+    const memo = new Map<string, unknown>();
+    const seen = new Set<string>();
+    const queue = target === undefined ? [] : [target];
+    for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (listed.has(id)) {
+        const path = 'accord/tickets/' + id + '.md';
+        const text = readFileSync(join(root, path), 'utf8');
+        files[path] = text;
+        const t = loadSnapshot({ files: { [path]: text }, tree: [] }, { memo }).tickets[id]?.frontmatter;
+        const next = [...(t?.parent === undefined ? [] : [t.parent]), ...(t?.depends_on ?? [])];
+        for (const n of next) if (typeof n === 'string') queue.push(n);
+      }
+      for (const rel of listing.records.get(id) ?? []) files[rel] = readFileSync(join(root, rel), 'utf8');
+    }
+    narrowed = { id: target, ids: listing.ticketIds, memo, reach: seen };
+    first = loadSnapshot({ files, tree }, { memo });
+  }
+  const listedIds = narrowed === undefined ? undefined : new Set(narrowed.ids);
+  const known = listedIds === undefined ? (id: string) => Object.hasOwn(first.tickets, id) : (id: string) => listedIds.has(id);
   const statusOf = (id: string) => first.tickets[id]?.frontmatter?.status;
   // The prompt-expansion hook reads only the tickets, the config and the branch templates; each git spawn it skips is ~50 ms on Windows.
   if (light) {
@@ -1197,7 +1268,7 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
   for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).
   // ST-LN-63: the branch is read once, here, and handed on.
-  const branch = { name: currentBranch(root) };
+  const branch = branchRead ?? { name: currentBranch(root) };
   const own = branch.name === undefined || branch.name === '' ? undefined : ticketOfBranch(branch.name, branchTemplates, known, config);
   // An entry: a ticket with a start commit or a review.md, with tips, that core reads `afterVerify` for.
   const entries: AfterEntry[] = [];
@@ -1255,7 +1326,7 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
     ...(Object.keys(lastActivity).length === 0 ? {} : { lastActivity }),
     ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }),
   };
-  return { input, claimRefs, listed, templates: branchTemplates, known, statusOf, branch, ...(defer ? { deferred: { entries, headCommit, own } } : {}) };
+  return { input, claimRefs, listed, templates: branchTemplates, known, statusOf, branch, ...(narrowed === undefined ? {} : { narrowed }), ...(defer ? { deferred: { entries, headCommit, own } } : {}) };
 }
 
 export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean; from?: LightLoad } = {}): SnapshotInput {
@@ -1269,6 +1340,21 @@ export function loadWithBranch(
 ): { input: SnapshotInput; branch?: { name: string | undefined } } {
   const { input, branch } = loadParts(root, options.stage === true, options.light === true, false, options.from);
   return { input, ...(branch === undefined ? {} : { branch }) };
+}
+
+/**
+ * Phase 08.9.2 Ruling-narrow, L-04: the load of a command for one ticket. Every file under `accord/` outside `accord/tickets/`, as `loadFromFs` reads them, then only the files of `target` (a ticket id, or `{ active: true }` for the ticket the
+ * current branch names), of its `parent:` and of every id reached through `depends_on`, transitively; each id of `accord/tickets/` is known by its file name (`ids`, which a default-ref read takes whole) and its file is not opened. The git facts,
+ * the claim branches and the stage facts are read as the full load reads them. `memo` holds the parse of the neighbourhood, for the command's own `loadSnapshot` to reuse.
+ */
+export function loadNarrow(
+  root: string,
+  target: NarrowTarget,
+  options: { stage?: boolean } = {},
+): { input: SnapshotInput; branch: { name: string | undefined }; id: string | undefined; ids: string[]; memo: Map<string, unknown> } {
+  const parts = loadParts(root, options.stage === true, false, false, undefined, target);
+  const narrowed = parts.narrowed as NonNullable<typeof parts.narrowed>;
+  return { input: parts.input, branch: parts.branch as { name: string | undefined }, id: narrowed.id, ids: narrowed.ids, memo: narrowed.memo };
 }
 
 /** ST-LN-63: the light load (what the prompt hook reads) and the parts it read, for `from` to finish a full load without reading them again. */
@@ -1335,11 +1421,19 @@ const recordPaths = (id: string): string[] => [
  * BUG-LN-2: the claim view. `checkout` is the working tree alone; `view` overlays, for each claimed ticket that is not
  * the current branch's own and whose claim ref is not merged into HEAD, the ticket's five records as that ref holds them.
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
+ * Phase 08.9.2 Ruling-narrow: with `only`, the checkout holds the narrow set of that target (its file, its parent and its `depends_on` closure, as `loadNarrow` reads them) and the overlay takes only those
+ * tickets' claim-branch copies; `ids` (every id of accord/tickets/) and `memo` (the parse of the narrow set) are returned for the command's own loads. The claim branch list is read whole, as before. A claim copy that names a parent or dependency outside the narrow set makes the call the full claim view (R-F, for that one case).
  */
-export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined }; refs?: DefaultRefs } {
+export function loadClaimView(
+  root: string,
+  options: { only?: NarrowTarget } = {},
+): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined }; refs?: DefaultRefs; ids?: string[]; memo?: Map<string, unknown> } {
   // ST-LN-63: the branch is read once in loadParts, and the commits after each start come from one walk made here, over the
   // checkout's entries and the candidates' together.
-  const parts = loadParts(root, true, false, true);
+  const parts = loadParts(root, true, false, true, undefined, options.only);
+  const narrowed = parts.narrowed === undefined ? {} : { ids: parts.narrowed.ids, memo: parts.narrowed.memo };
+  /** Narrow only: a ticket outside the neighbourhood the load reached (its own id included, even when the checkout holds no file of it) has no copy to overlay. */
+  const inSet = (id: string): boolean => parts.narrowed === undefined || parts.narrowed.reach.has(id);
   const { input: bare, claimRefs, listed, statusOf } = parts;
   const branch = parts.branch as NonNullable<typeof parts.branch>;
   const { entries: checkoutEntries, headCommit, own } = parts.deferred as NonNullable<typeof parts.deferred>;
@@ -1356,7 +1450,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   const walked = (entries: readonly AfterEntry[]) => walkOver(root, claimPositives(claimRefs, bare.claimBranches ?? {}, listed, headCommit, entries));
   // One spawn for the merged set; a failure (an unborn HEAD) leaves it empty, as a non-ancestor.
   let merged = new Set<string>();
-  const refNames = Object.values(claimRefs);
+  const refNames = Object.entries(claimRefs).filter(([id]) => inSet(id)).map(([, ref]) => ref);
   if (refNames.length > 0) {
     try {
       const mergedOut = execFileSync('git', ['for-each-ref', '--merged', 'HEAD', '--format=%(refname)', ...refNames], {
@@ -1372,12 +1466,12 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   }
   // A squash or rebase merge leaves the claim tip unmerged: a terminal checkout copy is never superseded.
   const terminal = (id: string) => ['archived', 'dropped'].includes(statusOf(id) ?? '');
-  const candidates = Object.entries(claimRefs).filter(([id, ref]) => id !== own && !merged.has(ref) && !terminal(id));
+  const candidates = Object.entries(claimRefs).filter(([id, ref]) => inSet(id) && id !== own && !merged.has(ref) && !terminal(id));
   if (candidates.length === 0) {
     const { walk, def, refs } = walked(checkoutEntries);
     const afterVerify = withAfter(checkoutEntries, resolveAfter(root, checkoutEntries, walk, def));
     const checkout: SnapshotInput = { ...bare, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
-    return { checkout, view: checkout, branch, ...(refs === undefined ? {} : { refs }) };
+    return { checkout, view: checkout, branch, ...(refs === undefined ? {} : { refs }), ...narrowed };
   }
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
   let out: Buffer;
@@ -1422,6 +1516,19 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
       const text = read.get(ref + ':' + path);
       if (text === undefined) delete files[path];
       else files[path] = text;
+    }
+  }
+  // Phase 08.9.2 Ruling-narrow, R-F (this one case): the neighbourhood was read from the checkout's copies. A claim copy that names a parent or a dependency the narrow set does not hold, and that exists, is a
+  // relation `show` would read through the full load; the claim view is then the full one, as before this change.
+  if (parts.narrowed !== undefined) {
+    const { reach, ids: listedIds } = parts.narrowed;
+    const listedSet = new Set(listedIds);
+    for (const id of overlaid) {
+      const path = recordPaths(id)[0];
+      const fm = loadSnapshot({ files: { [path]: files[path] }, tree: [] }, { memo: parts.narrowed.memo }).tickets[id]?.frontmatter;
+      for (const r of [...(fm?.parent === undefined ? [] : [fm.parent]), ...(fm?.depends_on ?? [])]) {
+        if (typeof r === 'string' && !reach.has(r) && (listedSet.has(r) || Object.hasOwn(claimRefs, r))) return loadClaimView(root);
+      }
     }
   }
   // A candidate is read from its overlaid texts: the start commit is the one its own branch records, and core reads its
@@ -1494,7 +1601,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   const view: SnapshotInput = { ...bare, files, planFacts, ...(Object.keys(researchFacts).length === 0 ? {} : { researchFacts }), ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
   if (Object.keys(trackFacts).length === 0) delete view.trackFacts;
   else view.trackFacts = trackFacts;
-  return { checkout, view, branch, ...(refs === undefined ? {} : { refs }) };
+  return { checkout, view, branch, ...(refs === undefined ? {} : { refs }), ...narrowed };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */
@@ -1952,10 +2059,11 @@ export function doneRef(root: string, known?: DefaultRefs): string | undefined {
 }
 
 /** BUG-LN-13: `snapshot` with `defaultRef` read by snapshotAt at doneRef, over the view's ticket ids and every depends_on entry; `snapshot` itself when no default ref resolves. */
-export function withDefaultRef(root: string, snapshot: RepoSnapshot, known?: DefaultRefs, memo?: Map<string, unknown>, frontmatterOnly?: readonly string[]): RepoSnapshot {
+export function withDefaultRef(root: string, snapshot: RepoSnapshot, known?: DefaultRefs, memo?: Map<string, unknown>, frontmatterOnly?: readonly string[], listedIds?: readonly string[]): RepoSnapshot {
   const ref = doneRef(root, known);
   if (ref === undefined) return snapshot;
-  const ids = new Set(Object.keys(snapshot.tickets));
+  // Phase 08.9.2 Ruling-narrow: a narrow load holds a few tickets; `listedIds` are all the ids of accord/tickets/, so the default branch's copies are read in one batch as the full load reads them.
+  const ids = new Set(listedIds ?? Object.keys(snapshot.tickets));
   for (const t of Object.values(snapshot.tickets)) for (const dep of t.frontmatter?.depends_on ?? []) ids.add(dep);
   return { ...snapshot, defaultRef: { ref, snapshot: snapshotAt(root, ref, [...ids], memo, frontmatterOnly) } };
 }

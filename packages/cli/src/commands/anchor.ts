@@ -55,7 +55,8 @@ export const anchorOf = (ctx: CommandContext, id: string): string | undefined =>
  */
 export function epicSnapshot(ctx: CommandContext, id: string): RepoSnapshot {
   const parent = Object.hasOwn(ctx.snapshot.tickets, id) ? ctx.snapshot.tickets[id].frontmatter?.parent : undefined;
-  return parent === undefined || ctx.snapshot.defaultRef !== undefined ? ctx.snapshot : withDefaultRef(ctx.root, ctx.snapshot);
+  // Phase 08.9.2 Ruling-narrow: a narrow load holds the story and its epic only, so the default branch's copies are read for every id of accord/tickets/ (`ctx.ids`), where the epic's siblings are.
+  return parent === undefined || ctx.snapshot.defaultRef !== undefined ? ctx.snapshot : withDefaultRef(ctx.root, ctx.snapshot, undefined, undefined, undefined, ctx.ids);
 }
 
 export function anchor(ctx: CommandContext, id: string | undefined): number {

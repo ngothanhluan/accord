@@ -67,7 +67,7 @@ export function gate(
   const hasRounds = roundRecord !== undefined && roundRecord.cycles.some((c) => c.rounds.length > 0);
   // Phase 08.8 review CR-02: a lane ticket whose review stage is off has no rounds, and Done reads the default ref for it too, so its security rule skips it once it is done there (D-03).
   const reviewOff = which === 'done' && Object.hasOwn(forRounds.tickets, id) && forRounds.tickets[id].frontmatter?.lane !== undefined && stageOff(forRounds, id, 'review');
-  const withRefs = (hasRounds && (which === 'done' || !roundRecord.versioned)) || reviewOff ? withDefaultRef(ctx.root, forRounds) : forRounds;
+  const withRefs = (hasRounds && (which === 'done' || !roundRecord.versioned)) || reviewOff ? withDefaultRef(ctx.root, forRounds, undefined, undefined, undefined, ctx.ids) : forRounds;
   // ST-LN-36 D-05 (5): Done holds each recorded review round against the security triggers of its own package; read after the default ref, whose snapshot says a ticket done there is skipped.
   // BUG-LN-25 D-16: the copies `accord skills sync` writes come from renderedFilesOf, so a changed copy equal to its render is the one thing the scan leaves out.
   const config = ctx.snapshot.config;
@@ -77,7 +77,7 @@ export function gate(
   const rendered = (): ReturnType<typeof render> => (list ??= render()); // at most one render per command, for the two readers
   const forGate = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
   const result =
-    which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id)), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
+    which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), undefined, undefined, undefined, ctx.ids), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

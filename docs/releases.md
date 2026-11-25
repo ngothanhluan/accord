@@ -2,7 +2,7 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.20.2 — 2026-11-25
 
 `accord off` no longer switches off the pane's plugin, so typing `/accord-panel` opens the pane while accord is off. The live check of 0.20.1 found that the command was unknown after `off` (owner ruling, 2026-11-25). A repository pinned to 0.20.0 or 0.20.1 needs only `accord upgrade`. Tickets in flight are unaffected: no gate, check or CI job reads the switch, and the output of every other command is the same bytes as before.
 

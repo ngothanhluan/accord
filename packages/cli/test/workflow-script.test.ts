@@ -262,7 +262,7 @@ interface Run {
  */
 function prepare(
   repo: string,
-  opts: { base: string; script?: string; fail?: string; forward?: boolean },
+  opts: { base: string; script?: string; fail?: string; forward?: boolean; headRef?: string },
 ): { cwd: string; encoding: 'utf8'; env: NodeJS.ProcessEnv } {
   const script = opts.script ?? SCRIPT;
   const bin = join(repo, 'bin');
@@ -291,6 +291,7 @@ function prepare(
     ...process.env,
     PATH: bin + delimiter + (process.env.PATH ?? ''),
     BASE: opts.base,
+    ...(opts.headRef === undefined ? {} : { HEAD_REF: opts.headRef }),
     ACCORD_STUB_LOG: 'calls.log',
     ACCORD_STUB_FAIL: opts.fail ?? '',
     ACCORD_CLI: CLI,
@@ -306,7 +307,7 @@ function callsOf(repo: string): string[] {
 
 function runScript(
   repo: string,
-  opts: { base: string; script?: string; fail?: string; forward?: boolean },
+  opts: { base: string; script?: string; fail?: string; forward?: boolean; headRef?: string },
 ): Run {
   const options = prepare(repo, opts);
   let code = 0;
@@ -328,7 +329,7 @@ const execFileAsync = promisify(execFile);
 /** The same run as `runScript`, awaitable, so a case can start all its scripts at once; a run writes only inside its own sandbox. */
 async function runScriptAsync(
   repo: string,
-  opts: { base: string; script?: string; fail?: string; forward?: boolean },
+  opts: { base: string; script?: string; fail?: string; forward?: boolean; headRef?: string },
 ): Promise<Run> {
   const options = prepare(repo, opts);
   let code = 0;
@@ -1124,3 +1125,145 @@ it.skipIf(noBash)('risk:complex-branching the CI workflow gates a lane R pull re
     if (c.says !== LANE_REFUSAL) expect(said, c.name).not.toContain('lane cannot drop after approval');
   }
 }, 300_000);
+
+// Phase 15 D-31: a slice pull request is gated on its own slice. The script reads the head branch only through the step's `env:` (`HEAD_REF`), matches it with one anchored pattern, and compares the id the
+// pattern captures with the ticket's own before it passes `--slice <n>`; on a claim branch it passes `--slice 1` when the ticket's plan.md at HEAD holds two or more `## Slice` sections.
+describe.skipIf(noBash)('the workflow script — slice pull requests (D-31)', { timeout: 120_000 }, () => {
+  const SLICED = '# Plan\n\n## Task 1: a\n\n## Task 2: b\n\n## Slice 1: first\ntasks: 1\ncovers: @ac-1\n\n## Slice 2: second\ntasks: 2\ncovers: @ac-2\n';
+  const ONE_SLICE = '# Plan\n\n## Task 1: a\n\n## Slice 1: only\ntasks: 1\ncovers: @ac-1\n';
+  const UNSLICED = '# Plan\n\n## Task 1: a\n\n## Task 2: b\n';
+  const ownScript = (): string => {
+    const yml = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+    const named = (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string }> } } }).jobs.accord.steps.filter((s) => s.name === 'lint and gate');
+    expect(named.length, 'exactly one step is named lint and gate').toBe(1);
+    return named[0].run as string;
+  };
+  const SCRIPTS: Array<[string, string]> = [['generated', SCRIPT], ['this repository', ownScript()]];
+  /** T-1 changed together with code, its plan.md at HEAD holding `plan` (none when undefined). */
+  const gated = (plan: string | undefined): { repo: string; base: string } =>
+    sandbox((r) => {
+      write(r, 'accord/tickets/T-1.md', 'id: T-1\n');
+      write(r, 'src/app.ts', CODE);
+      if (plan !== undefined) write(r, 'accord/tickets/T-1/plan.md', plan);
+    });
+  const gateCalls = (calls: string[]): string[] => calls.filter((c) => c.includes(' gate done ')).map((c) => c.slice(c.indexOf(' gate done ') + 1));
+
+  it('risk:regression a slice branch of the gated ticket passes --slice with its number (D-31)', () => {
+    for (const [what, script] of SCRIPTS) {
+      for (const [head, flag] of [['slice/T-1/2', ' --slice 2'], ['slice/T-1/3', ' --slice 3'], ['slice/T-1/12', ' --slice 12']] as const) {
+        const { repo, base } = gated(SLICED);
+        const r = runScript(repo, { base, script, headRef: head });
+        expect(r.code, what + ': ' + r.out + r.err).toBe(0);
+        expect(gateCalls(r.calls), what + ' ' + head).toEqual(['gate done T-1' + flag]);
+      }
+    }
+  });
+
+  it('risk:regression slice 1 stays on the claim branch: a plan with two or more slices passes --slice 1 (D-31)', () => {
+    for (const [what, script] of SCRIPTS) {
+      const { repo, base } = gated(SLICED);
+      const r = runScript(repo, { base, script, headRef: 't/T-1' });
+      expect(r.code, what + ': ' + r.out + r.err).toBe(0);
+      expect(gateCalls(r.calls), what).toEqual(['gate done T-1 --slice 1']);
+    }
+  });
+
+  it('risk:regression a plan with no slice, one slice or no plan at all passes no flag (D-31)', () => {
+    for (const [what, script] of SCRIPTS) {
+      for (const plan of [UNSLICED, ONE_SLICE, undefined]) {
+        const { repo, base } = gated(plan);
+        const r = runScript(repo, { base, script, headRef: 't/T-1' });
+        expect(r.code, what + ': ' + r.out + r.err).toBe(0);
+        expect(gateCalls(r.calls), what).toEqual(['gate done T-1']);
+      }
+      // no head branch at all (the variable unset or empty, as on any event that is not a pull request) reads the plan the same way
+      const { repo, base } = gated(UNSLICED);
+      expect(gateCalls(runScript(repo, { base, script }).calls), what).toEqual(['gate done T-1']);
+      const sliced = gated(SLICED);
+      expect(gateCalls(runScript(sliced.repo, { base: sliced.base, script, headRef: '' }).calls), what).toEqual(['gate done T-1 --slice 1']);
+    }
+  });
+
+  it('risk:security the slice branch of another ticket gives the gated ticket no flag, and a slice head names its own ticket only (T-15-35)', () => {
+    for (const [what, script] of SCRIPTS) {
+      const { repo, base } = gated(SLICED);
+      const r = runScript(repo, { base, script, headRef: 'slice/T-2/2' });
+      expect(gateCalls(r.calls), what).toEqual(['gate done T-1']);
+    }
+  });
+
+  it('risk:security a head branch name that is not exactly a slice branch passes no flag and runs nothing (T-15-34)', () => {
+    const heads = [
+      'slice/T-1/2;touch pwned',
+      'slice/T-1/2$(touch pwned)',
+      'slice/T-1/2`touch pwned`',
+      'slice/T-1/2 && touch pwned',
+      'slice/T-1/$(touch pwned)',
+      'slice/$(touch pwned)/2',
+      'slice/T-1/2\ntouch pwned',
+      'slice/T-1/2\nslice/T-1/3',
+      'slice/T-1/0',
+      'slice/T-1/02',
+      'slice/T-1/100',
+      'slice/T-1/-1',
+      'slice/T-1/2/3',
+      'slice/T-1/two',
+      'xslice/T-1/2',
+      'slice/T-1/2 --json',
+      'slice/ T-1/2',
+      '--slice 9',
+    ];
+    for (const [what, script] of SCRIPTS) {
+      for (const head of heads) {
+        const { repo, base } = gated(UNSLICED);
+        const r = runScript(repo, { base, script, headRef: head });
+        expect(existsSync(join(repo, 'pwned')), `${what}: ${JSON.stringify(head)} created a file`).toBe(false);
+        expect(r.code, `${what}: ${JSON.stringify(head)}: ${r.out}${r.err}`).toBe(0);
+        expect(gateCalls(r.calls), `${what}: ${JSON.stringify(head)}`).toEqual(['gate done T-1']);
+      }
+    }
+  });
+
+  it('risk:security a head name that is no slice branch falls back to the plan on the claim branch, never to the name (D-31)', () => {
+    for (const [what, script] of SCRIPTS) {
+      const { repo, base } = gated(SLICED);
+      const r = runScript(repo, { base, script, headRef: 'slice/T-1/2;touch pwned' });
+      expect(existsSync(join(repo, 'pwned')), what).toBe(false);
+      expect(gateCalls(r.calls), what).toEqual(['gate done T-1 --slice 1']);
+    }
+  });
+
+  it('risk:regression the head branch reaches the script only through the step env, and no expression sits in the run body (T-15-34)', () => {
+    for (const [what, script] of SCRIPTS) {
+      expect(script, what).not.toContain('${{');
+      expect(script, what).toContain('HEAD_REF');
+    }
+    const generated = initFiles({ name: pkg.name, version: pkg.version }).find((f) => f.path === '.github/workflows/accord.yml')?.text ?? '';
+    const own = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+    for (const [what, yml] of [['generated', generated], ['this repository', own]] as const) {
+      const step = (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string; env?: Record<string, string> }> } } }).jobs.accord.steps.find((s) => s.name === 'lint and gate');
+      expect(step?.env?.HEAD_REF, what).toBe('${{ github.head_ref }}');
+      expect(step?.env?.BASE, what).toBe('${{ github.event.pull_request.base.sha }}');
+    }
+  });
+
+  it('risk:regression both copies make the same calls for every slice case (D-25, D-31)', () => {
+    const cases: Array<[string | undefined, string]> = [
+      [SLICED, 'slice/T-1/2'],
+      [SLICED, 't/T-1'],
+      [SLICED, 'slice/T-2/2'],
+      [UNSLICED, 't/T-1'],
+      [ONE_SLICE, 't/T-1'],
+      [UNSLICED, 'slice/T-1/2;touch pwned'],
+      [undefined, 'slice/T-1/3'],
+    ];
+    for (const [plan, head] of cases) {
+      const results = SCRIPTS.map(([, script]) => {
+        const { repo, base } = gated(plan);
+        return runScript(repo, { base, script, headRef: head });
+      });
+      expect(results[1].code, head).toBe(results[0].code);
+      expect(results[1].calls.map((c) => c.slice(c.indexOf(' ') + 1)), head).toEqual(results[0].calls.map((c) => c.slice(c.indexOf(' ') + 1)));
+    }
+  });
+});

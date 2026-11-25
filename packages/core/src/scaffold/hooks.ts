@@ -1,31 +1,37 @@
-// The hooks accord adds to a Claude Code settings file. Every command is `npx --yes <pkg>@<version> hook <event>`:
-// no quoting, pipe, redirect, or variable, so the same string runs under bash and PowerShell.
+// The hooks accord adds to a Claude Code settings file. Every hook is exec form: `command` is `node` and `args` are the launcher, the
+// version and `hook <event>`. Claude Code (2.1.139 or newer) runs it with no shell and substitutes ${CLAUDE_PROJECT_DIR} into each
+// argument, so a project path with a space needs no quoting and the entry means the same under bash and PowerShell.
 export type HookEntries = Record<
   'SessionStart' | 'SubagentStart' | 'UserPromptExpansion' | 'PreToolUse',
-  { matcher: string; hooks: { type: 'command'; command: string; timeout?: number; if?: string }[] }[]
+  { matcher: string; hooks: { type: 'command'; command: string; args?: string[]; timeout?: number; if?: string }[] }[]
 >;
 
-const cmd = (pkg: { name: string; version: string }, event: string): string =>
-  `npx --yes ${pkg.name}@${pkg.version} hook ${event}`;
+// The launcher path, spelled as Claude Code substitutes it (plugin.ts LAUNCHER_PATH is the same file, relative to the project root).
+const LAUNCHER = '${CLAUDE_PROJECT_DIR}/.claude/accord.mjs';
+
+const cmd = (pkg: { version: string }, event: string): { type: 'command'; command: string; args: string[] } => ({
+  type: 'command',
+  command: 'node',
+  args: [LAUNCHER, pkg.version, 'hook', event],
+});
 
 // ST-LN-55 D-11: a session start runs the worktree clean in the foreground. `timeout` is in seconds and is longer than the
 // clean's own budget (Task 8, 300 s), so the hook is never cut short in the middle of a removal.
 export const hookEntries = (pkg: { name: string; version: string }): HookEntries => ({
   SessionStart: [
-    { matcher: 'startup', hooks: [{ type: 'command', command: cmd(pkg, 'session-start'), timeout: 600 }] },
-    { matcher: 'resume|clear|compact', hooks: [{ type: 'command', command: cmd(pkg, 'session-resume'), timeout: 600 }] },
+    { matcher: 'startup', hooks: [{ ...cmd(pkg, 'session-start'), timeout: 600 }] },
+    { matcher: 'resume|clear|compact', hooks: [{ ...cmd(pkg, 'session-resume'), timeout: 600 }] },
   ],
-  SubagentStart: [{ matcher: 'accord-.*', hooks: [{ type: 'command', command: cmd(pkg, 'subagent-start') }] }],
-  UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: cmd(pkg, 'prompt-expansion') }] }],
+  SubagentStart: [{ matcher: 'accord-.*', hooks: [cmd(pkg, 'subagent-start')] }],
+  UserPromptExpansion: [{ matcher: 'accord', hooks: [cmd(pkg, 'prompt-expansion')] }],
   PreToolUse: [
-    { matcher: 'Agent|Task', hooks: [{ type: 'command', command: cmd(pkg, 'pre-tool-use') }] },
+    { matcher: 'Agent|Task', hooks: [cmd(pkg, 'pre-tool-use')] },
     // ST-LN-39 D-08: the verification record's write guard. Plan 05-10's probe saw the `if` field honoured, so each tool's hook spawns
     // only for a path under accord/tickets/<id>/; the handler matches the path again and decides from stdin alone.
     {
       matcher: 'Write|Edit|MultiEdit',
       hooks: (['Write', 'Edit', 'MultiEdit'] as const).map((tool) => ({
-        type: 'command' as const,
-        command: cmd(pkg, 'pre-tool-use'),
+        ...cmd(pkg, 'pre-tool-use'),
         if: tool + '(**/accord/tickets/*/verification.md)',
       })),
     },

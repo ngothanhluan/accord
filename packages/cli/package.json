@@ -1,6 +1,6 @@
 {
   "name": "@accord-dev/accord",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "type": "module",
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/ngothanhluan/accord.git", "directory": "packages/cli" },

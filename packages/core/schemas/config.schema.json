@@ -241,6 +241,13 @@
         "merge": { "type": "string", "enum": ["owner", "at-once"] }
       }
     },
+    "progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "push": { "type": "string", "enum": ["auto", "ref", "off"] }
+      }
+    },
     "git": {
       "type": "object",
       "additionalProperties": false,

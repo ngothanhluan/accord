@@ -121,7 +121,7 @@ it("risk:data-loss a lease push never overwrites a teammate's commit (ST-LN-96 t
   const out = lines(r.out);
   const failed = out.find((l) => l.startsWith('push of t/ST-9 failed'));
   expect(failed).toBeDefined();
-  expect(failed).toContain('accord worktree push ST-9 --force-with-lease');
+  expect(failed).toContain('accord worktree push ST-9 --branch --force-with-lease');
   expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(theirs);
   // the local branch was rebased all the same
   expect(gitRun(sib, 'rev-list', '--merges', 'origin/main..HEAD').trim()).toBe('');

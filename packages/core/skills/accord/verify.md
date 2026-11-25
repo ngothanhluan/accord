@@ -17,7 +17,7 @@ judges, the owner decides.
    `git.sync` command, which runs instead. Show its `synced:`, `pushed:`, `rebased:`, `rebound:` and `verify again:` lines verbatim; on
    `verify again:` the earlier verification no longer holds, so verify again below. After `rebased:` pairs, retype in `review.md` every
    round head that is the left side of a pair to its right side, show the owner a `plan.md` `baseline:` that is one, commit the retyped
-   heads, and run `accord worktree push <id>`. A line starting `push of` is shown verbatim and stops here: the owner decides whether to run
+   heads, and run `accord worktree push <id> --branch`. A line starting `push of` is shown verbatim and stops here: the owner decides whether to run
    the command it prints. Show a line starting `fetch from origin failed` verbatim and go on. When it exits 2 (a conflict it aborted, a
    failed sync, or a refusal), show the message and stop. The owner resolves a conflict, or you do when the owner says so; then this stage
    starts again. Start CI as `./verify-ci.md` says, then run the `tests.full` command from `accord/config.yml` at the commit now checked

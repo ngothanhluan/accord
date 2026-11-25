@@ -87,3 +87,29 @@ export function fetchLine(where: RepositoryOf, pull: PullRequest | undefined): s
   if (pull === undefined || where.kind === 'unknown') return undefined;
   return where.kind === 'this' ? `origin pull/${pull.n}/head` : `https://github.com/${where.owner}/${where.repo}.git pull/${pull.n}/head`;
 }
+
+/** Phase 15 D-12, D-13: a host kind where a recorded live test showed that a push to `refs/accord/<id>` starts no `push` workflow. Only `github` is ever tested (D-13). */
+export type ProvenHost = 'github';
+/**
+ * Phase 15 D-12, D-33: the host kinds `progress.push: auto` may push a progress ref to. EMPTY until a recorded verdict `no push run started` (the live GitHub test of plan 15-11) adds a
+ * kind; any other outcome of that test leaves it empty. While it is empty, `auto` pushes nothing before verify on every host.
+ */
+export const PROGRESS_REF_PROVEN: readonly ProvenHost[] = [];
+
+/** The setting `progressPushTarget` reads: `progress.push` of accord/config.yml (absent means `off`, D-33). */
+export interface ProgressConfig {
+  progress?: { push?: 'auto' | 'ref' | 'off' };
+}
+
+/**
+ * Phase 15 D-12, D-13, D-33: what a stage's `accord worktree push` sends to origin before verify. `off` and absent send nothing; `ref` sends the progress ref on any host (the team's own
+ * choice); `auto` sends it only when `proven` holds `github` and origin's URL names github.com itself, its ssh-over-443 host or a `github.com-<name>` alias (a lookalike such as
+ * `github.com.evil.example`, any other host and a URL accord cannot read are none). `proven` defaults to the recorded list; only a test passes another.
+ */
+export function progressPushTarget(config: ProgressConfig | undefined, originUrl: string | undefined, proven: readonly ProvenHost[] = PROGRESS_REF_PROVEN): 'ref' | 'none' {
+  const mode = config?.progress?.push ?? 'off';
+  if (mode === 'ref') return 'ref';
+  if (mode !== 'auto' || !proven.includes('github') || originUrl === undefined) return 'none';
+  const where = parseRepoUrl(originUrl);
+  return where !== undefined && isGithubHost(where.host) ? 'ref' : 'none';
+}

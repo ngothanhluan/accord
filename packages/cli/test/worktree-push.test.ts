@@ -1,4 +1,4 @@
-// BUG-LN-11: `accord worktree push <id>` puts the claim branch on origin, so another clone's dashboard shows the same stage and task count.
+// BUG-LN-11: `accord worktree push <id> --branch` puts the claim branch on origin, so another clone's dashboard shows the same stage and task count. Phase 15 D-13: the branch push moved behind --branch (verify's push); without it the progress goes to refs/accord/<id> (progress-ref.test.ts).
 import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -82,7 +82,7 @@ it('ac-1 a recorded task pushed with accord worktree push shows the same task co
     expect(await row(wt)).toEqual({ stage: 'build', tasksDone: 1, tasksTotal: 2 });
     expect(await row(o)).toEqual({ stage: 'build', tasksDone: 0, tasksTotal: 2 });
 
-    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    const r = await run(['worktree', 'push', 'ST-9', '--branch'], wt);
     expect(r).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
     expect(onOrigin(c)).toBe(tip);
 
@@ -100,7 +100,7 @@ it('ac-2 each stage change before build pushed with accord worktree push shows t
     const wt = claimed(c);
     const o = c.otherClone();
     const push = async (dir: string, tip: string) => {
-      expect(await run(['worktree', 'push', 'ST-9'], dir)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+      expect(await run(['worktree', 'push', 'ST-9', '--branch'], dir)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
       expect(onOrigin(c)).toBe(tip);
       gitRun(o, 'fetch', '-q', 'origin');
     };
@@ -149,7 +149,7 @@ it('ac-3 a failed push exits 0 with the failure line and the git message and the
     expect((await run(['approve', 'ST-9'], wt)).code).toBe(0);
     expect((await run(['gate', 'ready', 'ST-9'], wt)).code).toBe(0);
     const a = commitMsg(wt, 'approach: ST-9 approved');
-    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    const r = await run(['worktree', 'push', 'ST-9', '--branch'], wt);
     expect(r.code).toBe(0);
     expect(r.err).toBe('');
     expect(r.out.startsWith(FAILED + '\n')).toBe(true);
@@ -159,7 +159,7 @@ it('ac-3 a failed push exits 0 with the failure line and the git message and the
 
     writeFiles(wt, { 'notes.txt': 'notes\n' });
     const b = commitMsg(wt, 'b');
-    const again = await run(['worktree', 'push', 'ST-9'], wt);
+    const again = await run(['worktree', 'push', 'ST-9', '--branch'], wt);
     expect(again.code).toBe(0);
     expect(again.err).toBe('');
     expect(again.out.startsWith(FAILED + '\n')).toBe(true);
@@ -168,7 +168,7 @@ it('ac-3 a failed push exits 0 with the failure line and the git message and the
     c.git('remote', 'set-url', 'origin', c.remote);
     writeFiles(wt, { 'more.txt': 'more\n' });
     const d = commitMsg(wt, 'd');
-    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(await run(['worktree', 'push', 'ST-9', '--branch'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
     expect(onOrigin(c)).toBe(d);
     for (const x of [a, b]) gitRun(c.remote, 'merge-base', '--is-ancestor', x, 'refs/heads/t/ST-9');
   } finally {
@@ -182,7 +182,7 @@ it('ac-3 a failed push exits 0 with the failure line and the git message and the
     const mate = teammate(k);
     writeFiles(wt, { 'mine.txt': 'mine\n' });
     const m = commitMsg(wt, 'mine');
-    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    const r = await run(['worktree', 'push', 'ST-9', '--branch'], wt);
     expect(r.code).toBe(0);
     expect(r.err).toBe('');
     expect(r.out.startsWith(FAILED + '\n')).toBe(true);
@@ -191,7 +191,7 @@ it('ac-3 a failed push exits 0 with the failure line and the git message and the
 
     gitRun(wt, 'fetch', '-q', 'origin');
     mergeMsg(wt, 'origin/t/ST-9', 'merge teammate');
-    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(await run(['worktree', 'push', 'ST-9', '--branch'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
     expect(onOrigin(k)).toBe(head(wt));
     gitRun(k.remote, 'merge-base', '--is-ancestor', m, 'refs/heads/t/ST-9');
   } finally {
@@ -206,15 +206,15 @@ it('risk:data-loss a reworded commit already on origin is pushed with force-with
     const wt = claimed(c);
     writeFiles(wt, { 'notes.txt': 'notes\n' });
     commitMsg(wt, 'notes');
-    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(await run(['worktree', 'push', 'ST-9', '--branch'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
     const r = reword(c, wt, 'notes reworded');
-    const plain = await run(['worktree', 'push', 'ST-9'], wt);
+    const plain = await run(['worktree', 'push', 'ST-9', '--branch'], wt);
     expect(plain.code).toBe(0);
     expect(plain.err).toBe('');
     expect(plain.out.startsWith(FAILED + '\n')).toBe(true);
     expect(plain.out).toContain('[rejected]');
     expect(onOrigin(c)).not.toBe(r);
-    expect(await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(await run(['worktree', 'push', 'ST-9', '--branch', '--force-with-lease'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
     expect(onOrigin(c)).toBe(r);
     expect(gitRun(c.remote, 'log', '-1', '--format=%s', 'refs/heads/t/ST-9').trim()).toBe('notes reworded');
   } finally {
@@ -227,7 +227,7 @@ it('risk:data-loss a reworded commit already on origin is pushed with force-with
     const wt = claimed(d);
     const mate = teammate(d);
     reword(d, wt, 'claim: ST-9 reworded');
-    const r = await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt);
+    const r = await run(['worktree', 'push', 'ST-9', '--branch', '--force-with-lease'], wt);
     expect(r.code).toBe(0);
     expect(r.err).toBe('');
     expect(r.out.startsWith(FAILED + '\n')).toBe(true);
@@ -245,7 +245,7 @@ it('risk:data-loss a reworded commit already on origin is pushed with force-with
     gitRun(wt, 'fetch', '-q', 'origin');
     expect(gitRun(wt, 'rev-parse', 'refs/remotes/origin/t/ST-9').trim()).toBe(mate);
     const own = reword(e, wt, 'claim: ST-9 reworded');
-    const r = await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt);
+    const r = await run(['worktree', 'push', 'ST-9', '--branch', '--force-with-lease'], wt);
     expect(r.code).toBe(0);
     expect(r.err).toBe('');
     expect(r.out.startsWith(FAILED + '\n')).toBe(true);
@@ -263,19 +263,19 @@ it('risk:data-loss a commit with a forbidden line is not pushed when the reposit
     const wt = claimed(c);
     writeFiles(wt, { 'accord/config.yml': CONFIG + 'commits:\n  trailers: forbid\n' });
     const clean = commitMsg(wt, 'config: forbid trailers');
-    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(await run(['worktree', 'push', 'ST-9', '--branch'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
     expect(onOrigin(c)).toBe(clean);
 
     writeFiles(wt, { 'notes.txt': 'notes\n' });
     const bad = commitMsg(wt, 'plan: ST-9 ready\n\nCo-Authored-By: Bot <bot@example.com>');
-    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    const r = await run(['worktree', 'push', 'ST-9', '--branch'], wt);
     expect(r.code).toBe(0);
     expect(r.err).toBe('');
-    expect(r.out).toBe(`${FAILED}\n${trailerReason(bad, 'Co-Authored-By: Bot <bot@example.com>')}\nreword each commit named above to drop that line (it is not on origin yet), then run accord worktree push ST-9 again\n`);
+    expect(r.out).toBe(`${FAILED}\n${trailerReason(bad, 'Co-Authored-By: Bot <bot@example.com>')}\nreword each commit named above to drop that line (it is not on origin yet), then run accord worktree push ST-9 --branch again\n`);
     expect(onOrigin(c)).toBe(clean);
 
     const fixed = reword(c, wt, 'plan: ST-9 ready');
-    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(await run(['worktree', 'push', 'ST-9', '--branch'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
     expect(onOrigin(c)).toBe(fixed);
   } finally {
     c.cleanupAll();

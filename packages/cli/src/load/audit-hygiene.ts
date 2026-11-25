@@ -388,7 +388,8 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
   const root = ctx.root;
   const templates = ctx.snapshot.branchTemplates ?? ['t/{id}'];
   const known = (id: string): boolean => Object.hasOwn(ctx.snapshot.tickets, id);
-  const out = git(root, ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)%00%(objectname)', 'refs/heads', 'refs/remotes/origin']);
+  // Phase 15 D-15: the progress refs come in the same listing; a claim whose tip is on one is pushed, as far as `claim-unpushed` is concerned
+  const out = git(root, ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)%00%(objectname)', 'refs/heads', 'refs/remotes/origin', 'refs/remotes/origin-accord']);
   const merged = new Set<string>();
   if (def !== undefined) {
     try {
@@ -401,6 +402,8 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
   const have = new Set(rows.map((r) => r[0]));
   const defName = def === undefined ? undefined : def.replace(/^refs\/(heads|remotes\/[^/]+)\//, '');
   const refs: ClaimRefFact[] = [];
+  const PROGRESS = 'refs/remotes/origin-accord/';
+  const progress = new Map(rows.filter((r) => (r[0] ?? '').startsWith(PROGRESS) && r[3] !== undefined).map((r) => [(r[0] as string).slice(PROGRESS.length), r[3] as string]));
   // the rows whose ticket the checkout lacks, with the `<ref>:<path>` specs that say whether it exists elsewhere (T-08.9-12: a ref name, a SHA-checked sha and a SAFE_ID path hold no newline)
   const probes: Array<{ at: number; def?: string; tip?: string }> = [];
   for (const [ref, email, when, sha] of rows) {
@@ -415,6 +418,11 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
     const path = `accord/tickets/${id}.md`;
     const ticketAnywhere = known(id);
     if (!ticketAnywhere && (def !== undefined || SHA.test(sha))) probes.push({ at: refs.length, ...(def === undefined ? {} : { def: `${def}:${path}` }), ...(SHA.test(sha) ? { tip: `${sha}:${path}` } : {}) });
+    // D-15: a local claim with no origin branch is pushed when its tip is the progress ref's tip or an ancestor of it; the read is one ancestry check per such branch, none when no progress ref exists
+    const onProgress = (() => {
+      const p = progress.get(id);
+      return origin && m[1] !== undefined && p !== undefined && SHA.test(sha) && SHA.test(p) && (p === sha || gitOk(root, ['merge-base', '--is-ancestor', sha, p]));
+    })();
     refs.push({
       name,
       sha,
@@ -425,6 +433,7 @@ function claimRefs(ctx: CommandContext, def: string | undefined, origin: boolean
       ticketAnywhere,
       origin: origin && have.has(`refs/remotes/origin/${name}`),
       merged: merged.has(ref as string),
+      ...(onProgress ? { progress: true } : {}),
       ...(read.ambiguous ? { ambiguous: true } : {}),
     });
   }

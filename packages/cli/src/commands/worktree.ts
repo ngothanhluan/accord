@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
+import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, parseRepoUrl, pinBefore, pinOf, progressPushTarget, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
@@ -860,6 +860,12 @@ export function gitNoPrompt(cwd: string, args: string[], timeout?: number, seen?
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
 /**
+ * Phase 15 D-15 (15-10): the progress refs come with every fetch of origin, so no teammate edits a git refspec. `-c remote.origin.fetch=` adds a value to the key (a multi-valued one), so the
+ * refspec the clone was configured with (a single-branch clone, a pull-request namespace) keeps working beside it, and it is still one fetch. The copy lands under `origin-accord`, which no branch name reaches.
+ */
+const PROGRESS_FETCH = '+refs/accord/*:refs/remotes/origin-accord/*';
+
+/**
  * ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on.
  * ST-LN-16: `ms` replaces the limit; `quiet` prints no failure line and the reason comes back as `why`; `keep` returns the context as it came, for a caller
  * that reloads in its own way after a fetch.
@@ -880,7 +886,7 @@ export function fetchOrigin(
   if (known !== true && !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return { ctx: finished(), fetched: 'none' };
   const ms = options.ms ?? fetchLimitMs();
   try {
-    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms, ctx.ssh);
+    gitNoPrompt(ctx.root, ['-c', 'remote.origin.fetch=' + PROGRESS_FETCH, 'fetch', '--no-prune', 'origin'], ms, ctx.ssh);
   } catch (e) {
     const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
     if (options.quiet !== true) ctx.stdout.write(withNext('fetch-failed', `fetch from origin failed, going on with the refs already in this clone: ${why}`) + '\n');
@@ -1104,37 +1110,63 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   }
   const push = pushAfterSync(ctx, path, branch, how, 'push');
   if (!push.pushed) {
-    ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}`) + '\n');
+    ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --branch --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}`) + '\n');
   }
   if (failure !== undefined) throw failure;
 }
 
-/** BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0. */
-export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean } = {}): number {
+/**
+ * BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0.
+ * Phase 15 D-12 to D-15, D-33: with `branch` (verify's push) the claim branch goes to origin as always. Without it the progress goes to `refs/accord/<id>`, a ref that is not a branch
+ * and starts no CI, only where `progress.push` allows (`progressPushTarget`); otherwise nothing is pushed, one note line is printed, and it reaches origin at verify.
+ */
+export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean; branch?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
+  const toRef = o.branch !== true;
+  const ref = `refs/accord/${id}`;
+  if (toRef) {
+    let origin: string | undefined;
+    try {
+      origin = git(ctx.root, ['remote', 'get-url', 'origin']).trim();
+    } catch {
+      origin = undefined; // no origin counts as no host
+    }
+    if (progressPushTarget(ctx.snapshot.config, origin) === 'none') {
+      const host = origin === undefined ? undefined : parseRepoUrl(origin)?.host;
+      ctx.stdout.write(`progress not pushed: progress.push is ${ctx.snapshot.config?.progress?.push ?? 'off'} for ${host ?? 'this origin'}; it reaches origin at verify\n`);
+      return 0;
+    }
+  }
   const kept = (why: string): number => {
-    ctx.stdout.write(withNext('push-failed', `push of ${branch} failed; its commits stay local until the next push`) + `\n${why}\n`);
+    const line = toRef ? `push of ${ref} failed; its progress stays local until the next push` : `push of ${branch} failed; its commits stay local until the next push`;
+    ctx.stdout.write(withNext('push-failed', line) + `\n${why}\n`);
     return 0;
   };
   if (ctx.snapshot.config?.commits?.trailers === 'forbid') {
     // a forbidden line on origin could only be removed by replacing history there, so nothing leaves this clone with one
     try {
       const hits = gitUnpushedCommits(ctx.root, branch).flatMap((c) => forbiddenLines(c.message).map((l) => trailerReason(c.sha, l)));
-      if (hits.length > 0) return kept(`${hits.join('\n')}\nreword each commit named above to drop that line (it is not on origin yet), then run accord worktree push ${id} again`);
+      if (hits.length > 0) return kept(`${hits.join('\n')}\nreword each commit named above to drop that line (it is not on origin yet), then run accord worktree push ${id}${toRef ? '' : ' --branch'} again`);
     } catch (e) {
       return kept(e instanceof UsageError ? e.message : firstLine(e));
     }
   }
   try {
-    // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
-    const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];
-    gitNoPrompt(ctx.root, ['push', ...force, 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
+    if (toRef) {
+      // T-15-20: the id passed ID above, and the full ref name is checked again; R8: forced, the ref mirrors the claim branch and holds no work of its own
+      if (!gitOk(ctx.root, ['check-ref-format', ref])) return kept(`${ref} is not a valid ref name`);
+      gitNoPrompt(ctx.root, ['push', 'origin', `+refs/heads/${branch}:${ref}`], undefined, ctx.ssh);
+    } else {
+      // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
+      const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];
+      gitNoPrompt(ctx.root, ['push', ...force, 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
+    }
   } catch (e) {
     const why = String((e as { stderr?: string }).stderr ?? '').trim();
     return kept(why === '' ? String(e) : why);
   }
-  ctx.stdout.write(`pushed: ${branch}\n`);
+  ctx.stdout.write(`pushed: ${toRef ? ref : branch}\n`);
   return 0;
 }
 
@@ -1258,7 +1290,7 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
     // A team script is pushed too, even when origin has no such branch yet: the branch on origin must hold what the gate judges
     const push = pushAfterSync(ctx, ctx.root, branch, done.by !== undefined ? 'team' : 'rebase', done.by !== undefined ? 'push' : 'skip');
     if (push.pushed) ctx.stdout.write(`pushed: ${branch}\n`);
-    else if (push.why !== undefined) ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - run accord worktree push ${id}${push.lease ? ' --force-with-lease' : ''} after checking origin`) + '\n');
+    else if (push.why !== undefined) ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - run accord worktree push ${id} --branch${push.lease ? ' --force-with-lease' : ''} after checking origin`) + '\n');
   }
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
@@ -1676,7 +1708,7 @@ function cleanLocked(ctx: CommandContext, opts: CleanOpts, accord: string): numb
   let fetchFailed = opts.fetched === 'failed';
   try {
     if (!fetchFailed) {
-      if (opts.fetched === undefined) gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], undefined, ctx.ssh);
+      if (opts.fetched === undefined) gitNoPrompt(ctx.root, ['-c', 'remote.origin.fetch=' + PROGRESS_FETCH, 'fetch', '--no-prune', 'origin'], undefined, ctx.ssh);
       // D-03: a dry run that fetches reports the prune read-only; one that does not fetch (the audit) reports none
       if (opts.dry === undefined) pruned = pruneStale(ctx);
       else if (opts.dry === 'online') pruned = pruneStale(ctx, true);
@@ -1999,16 +2031,58 @@ function safeTip(root: string, tip: string, vc: string | undefined, ref: string,
   }
 }
 
+/**
+ * Phase 15 D-15: the progress ref of a ticket whose branches clean deletes: `refs/accord/<id>` on origin goes with a lease on the fetched sha, then the local copy in `refs/remotes/origin-accord/`. `P` is that copy;
+ * `why` is the reason to keep it, when there is one. A dry run names the delete as a successful one and pushes nothing. A refused push is one `kept origin refs/accord/<id>: git push failed: ...` line and the work goes on;
+ * origin no longer holding the ref (another clone cleaned it first, and this fetch does not prune) only drops the stale copy, with a `pruned` line.
+ */
+function deleteProgress(ctx: CommandContext, s: GuardState, id: string, P: string, why?: string): void {
+  const name = 'refs/accord/' + id;
+  if (why !== undefined) {
+    cleanSay(ctx, `kept origin ${name}: ${why}`);
+    return;
+  }
+  const local = 'refs/remotes/origin-accord/' + id;
+  let gone = false;
+  try {
+    if (s.dry === undefined) gitNoPrompt(ctx.root, ['push', `--force-with-lease=${name}:${P}`, 'origin', ':' + name], pushLimit(s), ctx.ssh);
+  } catch (e) {
+    // a lease on a ref origin no longer has is refused as `stale info`, the same as one origin moved: only then, and only in a real run, origin is asked whether the ref is there at all
+    try {
+      gone = /stale info/.test(String((e as { stderr?: string }).stderr ?? '')) && gitNoPrompt(ctx.root, ['ls-remote', 'origin', name], pushLimit(s), ctx.ssh).trim() === '';
+    } catch {
+      gone = false;
+    }
+    if (!gone) {
+      cleanSay(ctx, `kept origin ${name}: git push failed: ${firstLine(e)}`);
+      return;
+    }
+  }
+  if (s.dry === undefined) {
+    try {
+      execFileSync('git', ['update-ref', '-d', local, P], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      // the copy moved or is gone: the next fetch writes it again, or it never was
+    }
+  }
+  cleanSay(ctx, gone ? `pruned ${local} (was ${P})` : `deleted origin ${name} (was ${P})`);
+}
+
 /** ST-LN-25 D-08: for each ticket branch whose ticket is done on `ref`, remove the worktree and delete the local branch when nothing beyond main is lost. */
 function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, fetchFailed: boolean, merged: ReadonlySet<string>, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const def = ref.replace('refs/remotes/', '');
   const tips = new Map<string, string | undefined>();
   const origin = new Map<string, string>();
-  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
+  const progress = new Map<string, string>();
+  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin', 'refs/remotes/origin-accord']).split('\n')) {
     const cut = row.indexOf(' ');
     if (cut < 0) continue;
     const full = row.slice(cut + 1);
+    if (full.startsWith('refs/remotes/origin-accord/')) {
+      progress.set(full.slice('refs/remotes/origin-accord/'.length), row.slice(0, cut)); // D-15: read by ticket id below, never as a branch name
+      continue;
+    }
     if (s.gone?.has(full) === true) continue;
     const local = full.startsWith('refs/heads/');
     const name = full.slice(local ? 'refs/heads/'.length : 'refs/remotes/origin/'.length);
@@ -2082,7 +2156,16 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       }
       // The origin branch goes with a lease on the fetched sha; after a failed fetch it is not judged.
       const R = origin.get(b);
-      if (R === undefined || fetchFailed) continue;
+      // D-15: the ticket's progress ref goes where its origin branch goes, judged as the branch is, and also when the host already deleted the branch
+      const P = progress.get(id);
+      const dropProgress = (): void => {
+        if (P !== undefined) deleteProgress(ctx, s, id, P, reason(P, merged));
+      };
+      if (fetchFailed) continue;
+      if (R === undefined) {
+        dropProgress();
+        continue;
+      }
       const why2 = reason(R, merged);
       if (why2 !== undefined) {
         cleanSay(ctx, `kept origin/${b}: ${why2}`);
@@ -2096,6 +2179,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
         continue;
       }
       cleanSay(ctx, `deleted origin/${b} (was ${R})`);
+      dropProgress();
     } catch (e) {
       cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
@@ -2130,11 +2214,16 @@ function researchNotOn(root: string, tip: string, ref: string, id: string, answe
 function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, pruned: Map<string, string>, fetchFailed: boolean, merged: ReadonlySet<string>, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const tips = new Map<string, { L?: string; R?: string }>();
-  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
+  const progress = new Map<string, string>();
+  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin', 'refs/remotes/origin-accord']).split('\n')) {
     const cut = row.indexOf(' ');
     if (cut < 0) continue;
     const sha = row.slice(0, cut);
     const full = row.slice(cut + 1);
+    if (full.startsWith('refs/remotes/origin-accord/')) {
+      progress.set(full.slice('refs/remotes/origin-accord/'.length), sha); // D-15: read by ticket id below, never as a branch name
+      continue;
+    }
     if (s.gone?.has(full) === true) continue;
     const local = full.startsWith('refs/heads/');
     const name = full.slice(local ? 'refs/heads/'.length : 'refs/remotes/origin/'.length);
@@ -2224,6 +2313,12 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
           continue;
         }
         cleanSay(ctx, `deleted origin/${b} (was ${R})`);
+      }
+      // D-15: the progress ref goes with the branches when the local or origin branch holds every commit of it, so a delete never takes the only copy of a commit
+      const P = progress.get(id);
+      if (P !== undefined && !fetchFailed) {
+        const held = [L, R].some((x) => x !== undefined && (x === P || gitOk(ctx.root, ['merge-base', '--is-ancestor', P, x])));
+        deleteProgress(ctx, s, id, P, held ? undefined : `it has commits not on ${b}`);
       }
       if (L !== undefined) {
         try {

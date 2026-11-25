@@ -228,3 +228,62 @@ it('risk:parsing a host without $.fs.list finds the worktrees from the CLI recor
   await quiet();
   expect(calls(h)).toBe(base + 1);
 });
+
+// ---- stop conditions (D-16, D-18) ----
+
+it('risk:resource accord off for the clone: no mark timer, and a timer running when the marker appears is cancelled at its next tick (D-18)', async () => {
+  const off = await host();
+  off.files.set(GIT + '/accord-off', '');
+  // a typed /accord-panel opens the pane even while accord is off; it still starts no timer
+  await off.fire('command.run', { command: 'accord-panel' });
+  expect(off.live()).toEqual([]);
+  expect(calls(off)).toBe(1);
+  const h = await openPane();
+  const timer = h.live()[0];
+  h.files.set(GIT + '/accord-off', '');
+  const base = calls(h);
+  h.sizes.set(W2, 500);
+  await timer.fn();
+  expect(timer.cancelled).toBe(true);
+  expect(h.live()).toEqual([]);
+  expect(calls(h)).toBe(base);
+});
+
+it('risk:resource a headless session starts no mark timer, whatever the pane does (D-18)', async () => {
+  const h = await host();
+  await h.fire('session.start', { cwd: '.', surface: null, isInteractive: false });
+  await h.fire('command.run', { command: 'accord-panel' });
+  expect(h.live()).toEqual([]);
+  expect(h.$.clock.every).not.toHaveBeenCalled();
+});
+
+it('risk:resource a pane that is closed or not placed loses its mark timer at the next tick and gets one again when it opens (D-18)', async () => {
+  const h = await openPane();
+  const first = h.live()[0];
+  h.placed = false;
+  const base = calls(h);
+  h.sizes.set(W2, 777);
+  await first.fn();
+  expect(first.cancelled).toBe(true);
+  expect(calls(h)).toBe(base);
+  // reopened and placed: one timer again, and only one however often it is drawn
+  h.placed = true;
+  await h.fire('command.run', { command: 'accord-panel' });
+  await h.$.ui.invalidate('ui.render');
+  await h.$.ui.invalidate('ui.render');
+  expect(h.live()).toHaveLength(1);
+  expect(h.live()[0]).not.toBe(first);
+  // closed outright: the pane is gone from the host's list
+  h.close('accord-panel');
+  await h.live()[0].fn();
+  expect(h.live()).toEqual([]);
+});
+
+it('risk:complex-branching a host without $.clock gets no timer and no error (D-18)', async () => {
+  const h = await host();
+  delete h.$.clock;
+  await h.fire('session.start', START);
+  await h.fire('command.run', { command: 'accord-panel' });
+  expect(h.timers).toEqual([]);
+  expect(h.$.ui.open).toHaveBeenCalled();
+});

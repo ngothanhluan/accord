@@ -1,7 +1,7 @@
 // Phase 08.9.2 D-01: accord's hooks run `node ${CLAUDE_PROJECT_DIR}/.claude/accord.mjs <version> hook <event>` in exec form,
 // with no shell and no npx, and the launcher is a rendered, stamped target written for the claude runtime only.
 import { describe, expect, it } from 'vitest';
-import { hookEntries, markerHash, pluginTargets } from '../src/index.js';
+import { hookEntries, hookText, isAccordHookCommand, markerHash, mergeHooksWithNotes, pluginTargets, runsAccordHook } from '../src/index.js';
 
 const pkg = { name: '@accord-dev/accord', version: '9.9.9' };
 const LAUNCHER = '${CLAUDE_PROJECT_DIR}/.claude/accord.mjs';
@@ -52,5 +52,75 @@ describe('the launcher form of the hooks', () => {
     expect(text).toContain(pkg.name);
     expect(text).not.toContain('ACCORD_PACKAGE_NAME');
     expect(pluginTargets({ runtimes: ['codex'] }, pkg).some((f) => f.path === '.claude/accord.mjs')).toBe(false);
+  });
+});
+
+const foreign = { matcher: 'startup', hooks: [{ type: 'command', command: 'echo hi' }] };
+
+/** Today's shape: every hook of `hookEntries` as the `npx --yes <pkg>@<v> hook <event>` string, its timeout and `if` kept. */
+function oldForm(v: string): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [event, groups] of Object.entries(hookEntries({ name: '@accord-dev/accord', version: v }))) {
+    out[event] = groups.map((g) => ({
+      matcher: g.matcher,
+      hooks: g.hooks.map((h) => ({
+        type: h.type,
+        command: `npx --yes @accord-dev/accord@${v} hook ${h.args?.[3]}`,
+        ...(h.timeout === undefined ? {} : { timeout: h.timeout }),
+        ...(h.if === undefined ? {} : { if: h.if }),
+      })),
+    }));
+  }
+  return out;
+}
+
+describe("both hook forms are accord's own", () => {
+  // Phase 08.9.2 D-01: a repository on the old npx hooks moves to the launcher form in one merge, a second merge changes nothing.
+  it('risk:regression sync replaces old npx hooks with the launcher form once and a second merge changes nothing (D-01)', () => {
+    const entries = hookEntries({ name: '@accord-dev/accord', version: '0.20.0' });
+    const old = oldForm('0.19.0');
+    const existing = { model: 'x', hooks: { ...old, SessionStart: [foreign, ...(old.SessionStart as unknown[])] } };
+    const once = mergeHooksWithNotes(existing, entries);
+    expect(once.notes).toEqual([]);
+    expect(once.settings).toEqual({ model: 'x', hooks: { ...entries, SessionStart: [foreign, ...entries.SessionStart] } });
+    expect(JSON.stringify(once.settings)).not.toContain('npx');
+    const twice = mergeHooksWithNotes(once.settings, entries);
+    expect(twice.notes).toEqual([]);
+    expect(twice.settings).toEqual(once.settings);
+  });
+
+  // Phase 08.9.2 D-01: an owner's edit of the launcher hook is kept with one note and never doubled.
+  it('risk:data-loss an owner-edited launcher hook is kept with one note and never doubled (D-01)', () => {
+    const entries = hookEntries({ name: '@accord-dev/accord', version: '0.19.0' });
+    const shell = { type: 'command', command: 'node ".claude/accord.mjs" 0.19.0 hook session-start' };
+    const extended = { type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/accord.mjs', '0.19.0', 'hook', 'session-start', '--x'] };
+    const existing = { hooks: { SessionStart: [{ matcher: 'startup', hooks: [shell] }, { matcher: 'startup', hooks: [extended] }] } };
+    const { settings, notes } = mergeHooksWithNotes(existing, entries);
+    expect(notes).toHaveLength(2);
+    for (const n of notes) expect(n).toContain('session-start');
+    const start = (settings.hooks as Record<string, { hooks: Record<string, unknown>[] }[]>).SessionStart;
+    expect(start.slice(0, 2)).toEqual(existing.hooks.SessionStart);
+    expect(start.slice(2)).toEqual(entries.SessionStart.slice(1)); // only the session-resume entry is added
+    expect(mergeHooksWithNotes(settings, entries).settings).toEqual(settings);
+  });
+
+  // Phase 08.9.2 D-01: the words of command plus args are what sync and render health read.
+  it('risk:parsing runsAccordHook reads the launcher form from the words of command and args (D-01)', () => {
+    const exec = { command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/accord.mjs', '0.19.0', 'hook', 'pre-tool-use'] };
+    expect(hookText(exec)).toBe('node ${CLAUDE_PROJECT_DIR}/.claude/accord.mjs 0.19.0 hook pre-tool-use');
+    expect(runsAccordHook(hookText(exec))).toBe('pre-tool-use');
+    const spaced = { command: 'node', args: ['C:/Users/A B/proj/.claude/accord.mjs', '0.19.0', 'hook', 'session-start'] };
+    expect(hookText(spaced)).toBe('node "C:/Users/A B/proj/.claude/accord.mjs" 0.19.0 hook session-start');
+    expect(runsAccordHook(hookText(spaced))).toBe('session-start');
+    expect(runsAccordHook(hookText({ command: 'node "C:/Users/A B/proj/.claude/accord.mjs" 0.19.0 hook pre-tool-use' }))).toBe('pre-tool-use');
+    expect(runsAccordHook(hookText({ command: 'node .claude/accord.mjs hook pre-tool-use' }))).toBe('pre-tool-use');
+    expect(runsAccordHook(hookText({ command: 'node other.mjs 1.0.0 hook pre-tool-use' }))).toBeUndefined();
+    const oldNpx = 'npx --yes @accord-dev/accord@0.19.0 hook session-start';
+    const launcherText = 'node ${CLAUDE_PROJECT_DIR}/.claude/accord.mjs 0.19.0 hook session-start';
+    expect(isAccordHookCommand(oldNpx)).toBe(true);
+    expect(isAccordHookCommand(launcherText)).toBe(true);
+    for (const other of [launcherText + ' --x', 'node .claude/accord.mjs 0.19.0 hook session-start', 'node ${CLAUDE_PROJECT_DIR}/.claude/accord.mjs hook session-start', 'echo hi']) {
+      expect(isAccordHookCommand(other)).toBe(false);
+    }
   });
 });

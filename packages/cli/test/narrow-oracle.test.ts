@@ -71,6 +71,15 @@ it('risk:regression gate ready on the narrow load prints what it prints on the f
   expect(dependent.out(), 'the reference sees the unknown and the dropped dependency of W-1').toMatch(/NOPE-1|DR-1/);
   expect(mismatches, 'tickets whose narrow Ready differs from the full one').toEqual([]);
 
+  // the narrow load is narrow: a ticket holds itself, its epic and its dependencies, transitively, and a cycle ends
+  const heldBy = (id: string): string[] => Object.keys(narrowContext(repo, id).ctx.snapshot.tickets).sort();
+  expect(heldBy(STORY)).toEqual(['B-1', 'E-1']);
+  expect(heldBy('W-1')).toEqual(['DR-1', 'F-1', 'U-1', 'W-1']);
+  expect(heldBy('Z-1')).toEqual(['U-1', 'U-2', 'Z-1']);
+  expect(heldBy('Y-1')).toEqual(['Y-1', 'Y-2']);
+  expect(heldBy('NOPE-9')).toEqual([]);
+  expect(Object.keys(reference.ctx.snapshot.tickets).length, 'the full load holds every ticket').toBeGreaterThan(15);
+
   // the command itself, through `preflight`: the same bytes as the reference, for a story with an epic, a ticket with dependencies and the epic
   for (const id of [STORY, 'W-1', EPIC]) {
     const want = made(repo, reference.ctx.snapshot, reference.ctx.branch);

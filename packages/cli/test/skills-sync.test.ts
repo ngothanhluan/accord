@@ -801,8 +801,12 @@ it('risk:regression the committed panel and settings carry the plugin', () => {
   const s = JSON.parse(read('.claude/settings.json')) as Record<string, Record<string, unknown>>;
   expect(s.enabledPlugins?.['accord-panel@accord']).toBe(true);
   expect(s.extraKnownMarketplaces?.accord).toEqual(PANEL);
-  const cmds = JSON.stringify(s.hooks);
+  // Phase 08.9.2 D-01: the hook entries are exec form (command `node` plus args), so each is read by its joined text, as sync reads it
+  const groups = Object.values(s.hooks ?? {}) as { hooks: Parameters<typeof hookText>[0][] }[][];
+  const cmds = groups.flatMap((g) => g.flatMap((x) => x.hooks.map((h) => hookText(h)))).join('\n');
   for (const h of ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion']) expect(cmds).toContain(`hook ${h}`);
+  expect(cmds).toContain('.claude/accord.mjs');
+  expect(cmds).not.toContain('npx');
   expect(read('.claude/skills/accord/SKILL.md')).toContain('`/accord continue <id>`');
 });
 

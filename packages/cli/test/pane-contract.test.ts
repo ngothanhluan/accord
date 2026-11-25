@@ -116,7 +116,7 @@ it('risk:regression the dashboard tab draws a bar for every real dashboard row (
     const state = outcome({ exitCode: 0, stdout: dash.out, stderr: '' });
     expect(state.dashboard).toBeDefined();
     const raw = new Map<string, any>();
-    for (const key of ['yours', 'team', 'ready', 'upNext']) for (const r of state.dashboard[key]?.rows ?? []) raw.set(r.id, r);
+    for (const key of ['yours', 'team', 'ready', 'upNext', 'mergedWaiting']) for (const r of state.dashboard[key]?.rows ?? []) raw.set(r.id, r);
     const shown = view(state, '');
     const lanes = shown.sections.filter((s: any) => s.heading !== 'EPICS').flatMap((s: any) => s.rows);
     expect(lanes.length).toBeGreaterThanOrEqual(3);

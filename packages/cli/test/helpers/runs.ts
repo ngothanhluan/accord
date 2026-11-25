@@ -126,7 +126,9 @@ export function normalise(text: string, sample: Sample, copy: SampleCopy, extra:
       return run.length === 40 ? `<sha:${known[sha]}>` : `<short:${known[sha]}>`;
     })
     // Phase 08.7 D-04: a `log` entry of `show --json` holds the commit's absolute epoch second, which moves with the build's start time.
-    .replace(/("at":\s*)\d{9,}/g, '$1"<at>"');
+    .replace(/("at":\s*)\d{9,}/g, '$1"<at>"')
+    // Phase 15 D-22: `waitingSince` of a ticket verified on its branch and not yet merged is the build's start time minus a fixed offset, ISO form, so it moves with every build.
+    .replace(/("waitingSince":\s*")\d{4}-\d\d-\d\dT[0-9:.]+Z"/g, '$1<at>"');
 }
 
 interface Place {

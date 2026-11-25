@@ -94,6 +94,8 @@ export { configPin, loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
+export { sliceScope } from './gate/slice.js';
+export type { SliceScope } from './gate/slice.js';
 export { isSha, ownRecordsOnly, shaEqual } from './gate/done.js';
 export { approvedHash, laneRHash } from './gate/hash.js';
 export {

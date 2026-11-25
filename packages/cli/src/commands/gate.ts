@@ -4,7 +4,8 @@
 // stdout before the write is attempted, so a write failure is reported after the true verdict rather
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
-import { capRulesOf, gateDone, gatePlan, gateReady, renderText, stageOff, workOf } from '@accord-dev/accord-core';
+import { capRulesOf, gateDone, gatePlan, gateReady, renderText, sliceScope, stageOff, workOf } from '@accord-dev/accord-core';
+import type { SliceScope } from '@accord-dev/accord-core';
 import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { gitBaseRecords } from '../load/base-records.js';
 import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
@@ -18,12 +19,28 @@ import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
 
+/**
+ * Phase 15 D-31: the scope of `--slice <value>` for ticket `id`, or undefined when the ticket is unknown (the gate then says so as it always does). A value that is not a whole number, a plan with no
+ * `## Slice` section and a number outside the plan's slices are usage errors (exit 2), never a verdict.
+ */
+function sliceOf(ctx: CommandContext, id: string, value: string): SliceScope | undefined {
+  if (!/^[0-9]{1,3}$/.test(value)) throw new UsageError(`--slice needs a whole number from 1 to the plan's last slice, got "${value.slice(0, 40)}"`);
+  if (!Object.hasOwn(ctx.snapshot.tickets, id)) return undefined;
+  const slices = workOf(ctx.snapshot, id)?.plan?.slices;
+  if (slices === undefined || slices.length === 0) throw new UsageError(`${id} has no "## Slice" section in its plan, so --slice does not apply`);
+  const scope = sliceScope(ctx.snapshot, id, Number(value));
+  if (scope === undefined) throw new UsageError(`--slice ${value} is not one of the plan's slices (1 to ${Math.max(...slices.map((x) => x.n))})`);
+  return scope;
+}
+
 export function gate(
   ctx: CommandContext,
   which: 'ready' | 'plan' | 'done',
   id: string,
-  options: { json?: boolean },
+  options: { json?: boolean; slice?: string },
 ): number {
+  // Phase 15 D-31: `gate done --slice <n>`, checked before anything is loaded or written; a refusal here is exit 2.
+  const scope = options.slice === undefined ? undefined : sliceOf(ctx, id, options.slice);
   // ST-LN-8 D-02: under commits.trailers forbid the host loads the whole branch's commits; an unborn HEAD spawns no git log.
   // Phase 8.1 D-07: so it does when commits.message is set, whose gate.commit-message reads the same commits.
   const withCommits =
@@ -80,7 +97,9 @@ export function gate(
   const rendered = (): ReturnType<typeof render> => (list ??= render()); // at most one render per command, for the two readers
   const forGate = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
   const result =
-    which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), undefined, undefined, undefined, ctx.ids), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
+    which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), undefined, undefined, undefined, ctx.ids), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id, scope === undefined ? {} : { slice: scope.n });
+  // D-31: a slice run says which slice it judged; under --json that line goes to stderr so stdout stays the GateResult alone.
+  if (scope !== undefined) (options.json ? ctx.stderr : ctx.stdout).write(`slice ${scope.n} of ${scope.of}: ${scope.criteria} criteria judged\n`);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );
@@ -88,7 +107,8 @@ export function gate(
   // the snapshot's own key (an unknown id writes nothing), and a failed append names itself once on stderr and changes neither the verdict nor the exit code.
   // Phase 08.8.1 IN-04: with `CI` set (anything but empty, `0` or `false`) no log is written: nothing in CI reads the file and a read-only workspace printed a stderr line on every run.
   const inCi = ctx.env.CI !== undefined && !['', '0', 'false'].includes(ctx.env.CI);
-  if (Object.hasOwn(ctx.snapshot.tickets, id) && !inCi) {
+  // D-31: a run for a slice below the last is not the ticket's Done, so the pane's log of gate runs does not record it as one.
+  if (Object.hasOwn(ctx.snapshot.tickets, id) && !inCi && (scope === undefined || scope.last)) {
     try {
       appendGateRun(ctx.root, id, result, Math.floor(Date.now() / 1000));
     } catch (err) {

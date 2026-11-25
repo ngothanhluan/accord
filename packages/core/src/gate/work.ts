@@ -47,7 +47,10 @@ export const tasksIncomplete: GateRule['check'] = (snapshot, id) => {
     return [{ file: planFile(id), reason: 'the plan has no tasks; Done needs every planned task recorded in ' + ledgerFile(id) }];
   }
   const done = work.ledger?.done ?? {};
+  // Phase 15 D-31: `gate done --slice n` asks for the tasks of slices 1..n; the later slices' tasks are built on branches this pull request does not hold.
+  const required = snapshot.doneSliceTasks !== undefined && Object.hasOwn(snapshot.doneSliceTasks, id) ? snapshot.doneSliceTasks[id] : undefined;
   return work.plan.tasks
+    .filter((t) => required === undefined || required.includes(t.n))
     .filter((t) => !Object.hasOwn(done, String(t.n)))
     .map((t) => ({
       file: planFile(id),

@@ -194,11 +194,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // conditional on which gate was asked for (D-95).
   const gates = program.command('gate').description('run one gate against one ticket');
   for (const which of ['ready', 'plan', 'done'] as const) {
-    gates
+    const command = gates
       .command(which + ' <id>')
       .description('report whether the ticket passes the ' + which + ' gate')
-      .option('--json', 'print the GateResult object instead of text')
-      .action((id: string, options: { json?: boolean }) => {
+      .option('--json', 'print the GateResult object instead of text');
+    // Phase 15 D-31: only Done is slice-aware; Ready and Plan judge the whole ticket.
+    if (which === 'done') command.option('--slice <n>', "judge only slice <n> of the plan's slices (its covers: criteria); the last slice judges them all");
+    command
+      .action((id: string, options: { json?: boolean; slice?: string }) => {
         // Phase 08.9.2 Ruling-narrow: Ready and Plan read the ticket, its epic and its dependencies; every other ticket is known by file name only.
         // Phase 08.9.2 review CR-01: Done does not. `gate.test-untraced` holds each report case against the `@test:` tags of EVERY ticket, so a narrow Done named the cases another ticket traces as untraced; Done takes the full load.
         setCode(gate(preflight(opts, 'checkout', which === 'done' ? {} : { only: id }), which, id, options));

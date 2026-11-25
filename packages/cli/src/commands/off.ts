@@ -31,12 +31,24 @@ const shown = (p: string): string => p.replace(/\\/g, '/');
 /** A copy of `o` without `key`, every other key in its order. */
 const without = (o: Record<string, unknown>, key: string): Record<string, unknown> => Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
 
-/** Temp file, then rename, so a reader never sees half a file (the way notice.ts writes its cache). */
-function writeAtomic(file: string, text: string): void {
-  mkdirSync(dirname(file), { recursive: true });
+const oneLine = (e: unknown): string => String((e as Error).message ?? e).split('\n')[0] as string;
+
+/** Temp file, then rename, so a reader never sees half a file (the way notice.ts writes its cache). A failed write (on Windows a rename over a file another process holds open) leaves no temp file behind and returns its one-line reason; undefined means it worked. */
+function writeAtomic(file: string, text: string): string | undefined {
   const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, text);
-  renameSync(tmp, file);
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(tmp, text);
+    renameSync(tmp, file);
+    return undefined;
+  } catch (e) {
+    try {
+      rmSync(tmp, { force: true });
+    } catch {
+      // the reason returned below is the one that matters
+    }
+    return oneLine(e);
+  }
 }
 
 const asText = (settings: Record<string, unknown>): string => JSON.stringify(settings, null, 2) + '\n';
@@ -71,28 +83,36 @@ export function accordOff(io: OffIo): number {
     return 2;
   }
   // An existing marker is kept as it is (a 0.20.x one keeps its panel record for `on`), so a second `off` changes nothing. Nothing else is written: not the local settings, not the exclude file.
-  let existing = false;
-  try {
-    readFileSync(marker, 'utf8');
-    existing = true;
-  } catch {
-    // none yet
+  // Only a marker that is not there counts as none yet: one that cannot be read (a sharing violation, a folder in its place) is never overwritten, for it may hold a panel record `on` needs.
+  const found = readMarker(marker);
+  if (found?.readError !== undefined) {
+    io.stderr.write(`accord off: cannot read the marker ${shown(marker)}: ${found.readError}; it is left as it is\n`);
+    return 2;
   }
-  if (!existing) {
+  if (found === undefined) {
     const made: Marker = { since: new Date().toISOString() };
-    writeAtomic(marker, JSON.stringify(made, null, 2) + '\n');
+    const failed = writeAtomic(marker, JSON.stringify(made, null, 2) + '\n');
+    if (failed !== undefined) {
+      io.stderr.write(`accord off: cannot write the marker ${shown(marker)}: ${failed}\n`);
+      return 2;
+    }
+  } else if (found.marker?.panel !== undefined) {
+    // an older accord's marker still records a panel flag set to false in the checkout where that `off` ran, so the pane command may be unknown there until `on` puts the flag back
+    io.stdout.write('accord is already off for you in this clone, by an older accord that also set the panel flag: node .claude/accord.mjs on puts the flag back, and a new off then keeps /accord-panel working\n');
+    return 0;
   }
   io.stdout.write('accord is off for you in this clone: its hooks stay silent and the pane does not open by itself (type /accord-panel to open it); node .claude/accord.mjs on switches it back\n');
   return 0;
 }
 
-/** The marker `off` wrote, or undefined when it is absent; `unreadable` is true (and `marker` missing) when it is no JSON object or its `panel` record is malformed. */
-function readMarker(file: string): { marker?: Marker; unreadable: boolean } | undefined {
+/** The marker `off` wrote, or undefined when it is absent; `readError` is its one-line reason when it exists but cannot be read; `unreadable` is true (and `marker` missing) when it is no JSON object or its `panel` record is malformed. */
+function readMarker(file: string): { marker?: Marker; unreadable: boolean; readError?: string } | undefined {
   let text: string;
   try {
     text = readFileSync(file, 'utf8');
-  } catch {
-    return undefined;
+  } catch (e) {
+    if ((e as { code?: string }).code === 'ENOENT') return undefined;
+    return { unreadable: true, readError: oneLine(e) };
   }
   try {
     const m = JSON.parse(text) as unknown;
@@ -124,6 +144,10 @@ export function accordOn(io: OffIo): number {
     io.stdout.write('accord is not off in this clone\n');
     return 0;
   }
+  if (found.readError !== undefined) {
+    io.stderr.write(`accord on: cannot read the marker ${shown(marker)}: ${found.readError}; it is left in place, so try again\n`);
+    return 2;
+  }
   if (found.marker === undefined) {
     io.stderr.write(`accord on: the marker ${shown(marker)} is unreadable, so ${LOCAL} is left as it is\n`);
   } else if (found.marker.panel !== undefined) {
@@ -136,7 +160,10 @@ export function accordOn(io: OffIo): number {
       const { settings } = read;
       const plugins = settings.enabledPlugins;
       // only the flag `off` wrote (false) is undone; a person who set it to true since keeps their choice
-      if (isObject(plugins) && plugins[PANEL] === false) {
+      if (!isObject(plugins) || plugins[PANEL] === undefined) {
+        // The marker is shared by every worktree of the clone, but the flag an older `off` set sits in the checkout where that `off` ran. This checkout has no entry for it, so `on` cannot reach it from here.
+        io.stderr.write(`accord on: the marker came from an older accord that may have set ${PANEL} to false in the checkout where it ran off, not in this one; if /accord-panel is unknown there, delete that key from its ${LOCAL}\n`);
+      } else if (plugins[PANEL] === false) {
         const { prior, createdMap } = record;
         let next: Record<string, unknown>;
         if (prior === 'absent') {
@@ -145,7 +172,13 @@ export function accordOn(io: OffIo): number {
         } else {
           next = { ...settings, enabledPlugins: { ...plugins, [PANEL]: prior } };
         }
-        if (asText(next) !== asText(settings)) writeAtomic(file, asText(next));
+        if (asText(next) !== asText(settings)) {
+          const failed = writeAtomic(file, asText(next));
+          if (failed !== undefined) {
+            io.stderr.write(`accord on: cannot write ${LOCAL}: ${failed}; the marker is left in place, so try again\n`);
+            return 2;
+          }
+        }
       }
     }
   }

@@ -272,7 +272,13 @@ it('risk:data-loss accord on still undoes the panel flag a 0.20.0 or 0.20.1 acco
   legacyOff(mixed, base);
   const markerBefore = bytesOf(markerOf(mixed));
   const localBefore = bytesOf(localOf(mixed));
-  expect((await run(['off'], mixed)).code).toBe(0);
+  const again = await run(['off'], mixed);
+  expect(again.code).toBe(0);
+  // review WR-01: the flag is still false here, so the line must not promise that /accord-panel opens the pane; it names `on` as the way to get the flag back
+  expect(again.out.trim().split('\n')).toHaveLength(1);
+  expect(again.out).toContain('older accord');
+  expect(again.out).toContain('node .claude/accord.mjs on');
+  expect(again.out).not.toContain('type /accord-panel to open it');
   expect(bytesOf(markerOf(mixed))).toEqual(markerBefore);
   expect(bytesOf(localOf(mixed))).toEqual(localBefore);
   expect((await run(['on'], mixed)).code).toBe(0);
@@ -296,7 +302,9 @@ it('risk:parsing accord on reads both marker shapes and leaves the local setting
 
   // a marker that is no JSON, or whose record is malformed: one stderr line, the file kept, the marker gone
   const flagFalse = pretty({ enabledPlugins: { [PANEL]: false } });
-  for (const marker of ['not json\n', pretty({ since: 'x', panel: { prior: 'maybe' } })]) {
+  // review IN-03: a `panel` key that is null, a list or an empty object is no record either
+  const malformed = ['not json\n', pretty({ since: 'x', panel: { prior: 'maybe' } }), pretty({ since: 'x', panel: null }), pretty({ since: 'x', panel: [] }), pretty({ since: 'x', panel: {} })];
+  for (const marker of malformed) {
     const repo = makeLaneRepo();
     dirs.push(repo);
     writeFiles(repo, { '.git/accord-off': marker, '.claude/settings.local.json': flagFalse });
@@ -317,6 +325,78 @@ it('risk:parsing accord on reads both marker shapes and leaves the local setting
     expect(r.err, marker).toBe('');
     expect(read(localOf(repo)), marker).toBe('not json\n');
     expect(existsSync(markerOf(repo)), marker).toBe(false);
+  }
+});
+
+// review CR-01: the marker is shared by every worktree of the clone, but the flag an older `off` set sits in the checkout where it ran. `on` from another worktree cannot reach that flag,
+// so it still switches accord on (the marker goes) and says in one stderr line where the key may be left; it never stays silent about it.
+it('risk:data-loss accord on from another worktree says where the older panel flag may be left (review CR-01)', async () => {
+  const repo = committedRepo();
+  const wt = linkedWorktree(repo);
+  const base = { env: { A: '1' }, enabledPlugins: { 'other@x': true } };
+  legacyOff(repo, base);
+  const flagged = bytesOf(localOf(repo));
+
+  const r = await run(['on'], wt);
+  expect(r.code).toBe(0);
+  expect(r.out).toContain('accord is on again for you in this clone');
+  expect(r.err.trim().split('\n')).toHaveLength(1);
+  expect(r.err).toContain(PANEL);
+  expect(r.err).toContain('checkout where it ran off');
+  expect(existsSync(markerOf(repo))).toBe(false);
+  expect(existsSync(localOf(wt))).toBe(false); // nothing was made in the worktree that ran `on`
+  expect(bytesOf(localOf(repo))).toEqual(flagged); // the other checkout's file is not ours to touch
+
+  // a person who set the flag to true since keeps it, and `on` has nothing to warn about
+  const own = makeLaneRepo();
+  dirs.push(own);
+  legacyOff(own, base);
+  const mid = parsed(localOf(own));
+  writeFiles(own, { '.claude/settings.local.json': pretty({ ...mid, enabledPlugins: { ...(mid.enabledPlugins as object), [PANEL]: true } }) });
+  const keep = bytesOf(localOf(own));
+  const kept = await run(['on'], own);
+  expect(kept.code).toBe(0);
+  expect(kept.err).toBe('');
+  expect(bytesOf(localOf(own))).toEqual(keep);
+  expect(existsSync(markerOf(own))).toBe(false);
+});
+
+// review IN-02: the bytes a real 0.20.1 `accord off` wrote (run from the published package on a clone whose settings file had four-space indentation and an enabledPlugins map), kept as literals
+// so the restore path is proved against what is on people's disks, not against a helper that restates the 0.20.1 code.
+it('risk:data-loss accord on restores the bytes a real 0.20.1 off wrote (review IN-02)', async () => {
+  const repo = makeLaneRepo();
+  dirs.push(repo);
+  const marker = '{\n  "since": "2026-11-25T14:54:11.535Z",\n  "panel": {\n    "prior": "absent",\n    "createdMap": false\n  }\n}\n';
+  const afterOff = '{\n  "permissions": {\n    "allow": [\n      "Bash(ls)"\n    ]\n  },\n  "enabledPlugins": {\n    "other@x": true,\n    "accord-panel@accord": false\n  }\n}\n';
+  const expected = '{\n  "permissions": {\n    "allow": [\n      "Bash(ls)"\n    ]\n  },\n  "enabledPlugins": {\n    "other@x": true\n  }\n}\n';
+  writeFiles(repo, { '.git/accord-off': marker, '.claude/settings.local.json': afterOff });
+  const r = await run(['on'], repo);
+  expect(r.err).toBe('');
+  expect(r.code).toBe(0);
+  expect(read(localOf(repo))).toBe(expected);
+  expect(existsSync(markerOf(repo))).toBe(false);
+
+  // a `createdMap` that is not a boolean counts as false: the emptied map stays
+  const odd = makeLaneRepo();
+  dirs.push(odd);
+  writeFiles(odd, { '.git/accord-off': pretty({ since: 'x', panel: { prior: 'absent', createdMap: 'yes' } }), '.claude/settings.local.json': pretty({ enabledPlugins: { [PANEL]: false } }) });
+  expect((await run(['on'], odd)).code).toBe(0);
+  expect(parsed(localOf(odd))).toEqual({ enabledPlugins: {} });
+});
+
+// review WR-02: a marker that cannot be read is not "none yet". With a folder where the marker belongs, neither command overwrites or removes it, and each says why in one stderr line.
+it('risk:data-loss off and on leave a marker that cannot be read as it is (review WR-02)', async () => {
+  const repo = makeLaneRepo();
+  dirs.push(repo);
+  mkdirSync(markerOf(repo));
+  writeFileSync(join(markerOf(repo), 'keep'), 'x');
+  for (const cmd of ['off', 'on']) {
+    const r = await run([cmd], repo);
+    expect(r.code, cmd).toBe(2);
+    expect(r.err.trim().split('\n'), cmd).toHaveLength(1);
+    expect(r.err, cmd).toContain('cannot read the marker');
+    expect(r.out, cmd).toBe('');
+    expect(existsSync(join(markerOf(repo), 'keep')), cmd).toBe(true);
   }
 });
 

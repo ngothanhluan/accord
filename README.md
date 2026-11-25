@@ -210,6 +210,18 @@ npm rebuild @accord-dev/accord
 
 The last step links the `accord` command that the skills call. After pulling a version bump, run `npm run build` again, or the workspace CLI reports the old version and every command refuses on the pin.
 
+### 10. Not using accord in this repository
+
+A person who does not work through accord sees one line at the start of a session in a repository that holds it. To switch accord off for yourself, run this from the repository root (it needs no install):
+
+```sh
+node .claude/accord.mjs off
+```
+
+Accord's hooks then stay silent and its pane stays closed, in this clone and in all its worktrees. The switch is a file named `accord-off` inside the clone's git folder, which is never committed; `off` also sets the pane's flag in your own `.claude/settings.local.json`, and nobody else on the team is affected.
+
+`node .claude/accord.mjs on` undoes exactly that. Typing `/accord` still works in an off session, where it offers to switch accord back on, and you can ask your agent to "turn accord off" instead of typing the command.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

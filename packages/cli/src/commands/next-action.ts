@@ -28,7 +28,8 @@ export type LineKind =
   | 'setup-failed'
   | 'held-by-other'
   | 'merge-of'
-  | 'ticket-push-failed';
+  | 'ticket-push-failed'
+  | 'accord-off';
 
 /** Every action is a fixed string: no path, branch or id of the repository is ever built into one. */
 export const NEXT_ACTIONS: Readonly<Record<LineKind, string>> = {
@@ -58,6 +59,7 @@ export const NEXT_ACTIONS: Readonly<Record<LineKind, string>> = {
   'setup-failed': 'show this message and stop there: the worktree is kept, and once the owner fixes the command they continue the ticket again in this same session and follow the enter or stop line it prints; the setup commands run again on that continue',
   'held-by-other': 'another session holds this ticket: show this message and stop, editing nothing',
   'merge-of': 'the merge or rebase stopped and was aborted: show this message and stop, editing nothing',
+  'accord-off': 'offer the person to switch accord back on with node .claude/accord.mjs on and run it only on their yes; then go on',
   'ticket-push-failed': 'no stop line follows: carry any people entry, run the push this message names, and once it succeeds run accord worktree open for this ticket with --continue and follow the line it prints; when that push fails again, show git\'s message and stop',
 };
 
@@ -81,6 +83,7 @@ function cleanKind(text: string): LineKind | undefined {
   if (text.startsWith('clean skipped')) return 'clean-skipped';
   if (text.startsWith('clean stopped')) return 'clean-stopped';
   if (text.startsWith('fetch from origin failed')) return 'fetch-failed';
+  if (text.startsWith('accord is switched off')) return 'accord-off';
   return undefined;
 }
 

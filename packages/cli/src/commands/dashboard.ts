@@ -23,10 +23,11 @@ function withStagesOff(ctx: CommandContext, text: string): string {
 function reloaded(ctx: CommandContext): CommandContext {
   const parts = loadClaimView(ctx.root);
   // Phase 08.9.2 D-08: the command's own parse memo, so a reload re-parses only the files the fetch changed.
-  const options = ctx.memo === undefined ? {} : { memo: ctx.memo };
+  // Phase 08.9.2 D-08: a reload reads the dropped and archived bodies the way the first load did.
+  const options = { ...(ctx.memo === undefined ? {} : { memo: ctx.memo }), ...(ctx.frontmatterOnly === undefined ? {} : { frontmatterOnly: ctx.frontmatterOnly }) };
   const loaded = loadSnapshot(parts.view, options);
   const plain = parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout, options);
-  return { ...ctx, snapshot: withDefaultRef(ctx.root, loaded, parts.refs, ctx.memo), plain, branch: parts.branch };
+  return { ...ctx, snapshot: withDefaultRef(ctx.root, loaded, parts.refs, ctx.memo, ctx.frontmatterOnly), plain, branch: parts.branch };
 }
 
 /**

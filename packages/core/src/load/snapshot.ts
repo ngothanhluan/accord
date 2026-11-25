@@ -34,11 +34,16 @@ export const PROTOTYPE = /^accord\/assets\/([^/]+)\/prototype\.html$/;
 /** D-29: backslashes become slashes and a leading ./ is dropped; the separator is never an error. */
 export const normaliseKey = (k: string): string => k.replace(/\\/g, '/').replace(/^\.\//, '');
 
-function parseTicket(id: string, file: string, text: string): { ticket: Ticket; findings: LoadFinding[] } {
+function parseTicket(id: string, file: string, text: string, frontmatterOnly: readonly string[] = []): { ticket: Ticket; findings: LoadFinding[] } {
   const fm = loadFrontmatter<TicketFrontmatter>(file, text, 'ticket');
   const findings = [...fm.findings];
   // D-21: ui defaults to false in the loader; D-34: id is kept verbatim.
   const frontmatter = fm.value === undefined ? undefined : { ...fm.value, ui: fm.value.ui ?? false };
+
+  // Phase 08.9.2 D-08: a ticket whose frontmatter status the caller listed keeps its frontmatter, its file and its id and nothing of its body (no scan, no gherkin), so no finding of the body either.
+  if (frontmatter?.status !== undefined && frontmatterOnly.includes(frontmatter.status)) {
+    return { ticket: { id, file, frontmatter, sections: [], requirements: [], scenarios: [] }, findings };
+  }
 
   const { sections, fences } = scan(fm.body, fm.bodyOffset);
   findings.push(...duplicateHeadings(file, sections, fm.value?.lane === undefined ? d07Key : laneKey));
@@ -90,8 +95,20 @@ function memoised<T>(memo: ParseMemo | undefined, kind: string, file: string, te
   return value;
 }
 
-export function loadSnapshot(input: SnapshotInput, options: { memo?: ParseMemo } = {}): RepoSnapshot {
+/**
+ * Phase 08.9.2 D-08: `frontmatterOnly` lists ticket statuses (`dropped` today) whose files are read for their frontmatter only. Only the status and dashboard load path passes it: nothing a gate, lint or show prints
+ * may depend on a body that was not read, and `status --all` prints a row that does.
+ */
+export interface LoadOptions {
+  memo?: ParseMemo;
+  frontmatterOnly?: readonly string[];
+}
+
+export function loadSnapshot(input: SnapshotInput, options: LoadOptions = {}): RepoSnapshot {
   const memo = options.memo;
+  const frontmatterOnly = options.frontmatterOnly ?? [];
+  // The mode is part of the memo key, so a full parse and a frontmatter-only parse of one text never share an entry.
+  const ticketKind = frontmatterOnly.length === 0 ? 'ticket' : 'ticket:' + frontmatterOnly.join(',');
   // D-26: a file name or a config value is a key of these maps; a null prototype keeps `__proto__` and `constructor` own keys like any other.
   const files: Record<string, string> = Object.create(null);
   for (const key of Object.keys(input.files).sort()) files[normaliseKey(key)] = input.files[key];
@@ -136,7 +153,7 @@ export function loadSnapshot(input: SnapshotInput, options: { memo?: ParseMemo }
   for (const file of Object.keys(files).sort()) {
     const t = TICKET.exec(file);
     if (t) {
-      const r = memoised(memo, 'ticket', file, files[file], () => parseTicket(t[1], file, files[file]));
+      const r = memoised(memo, ticketKind, file, files[file], () => parseTicket(t[1], file, files[file], frontmatterOnly));
       tickets[t[1]] = r.ticket;
       errors.push(...r.findings);
       continue;

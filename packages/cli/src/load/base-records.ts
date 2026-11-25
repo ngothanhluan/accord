@@ -1,6 +1,6 @@
 // Phase 15 D-23, D-25: the host half of "a done ticket is not edited". Reads, for the gated ticket, whether it is done at the merge base of HEAD with the default branch and the text of
 // every record of its file and folder at that commit and at HEAD; the pure core rule (`gate.done-ticket-edited`) compares them. Never throws and never guesses: no default ref, no merge
-// base, an unsafe id or any git failure supplies no fact, and `gate done` then runs today's Done rules.
+// base, HEAD being the merge base itself, an unsafe id or any git failure supplies no fact, and `gate done` then runs today's Done rules.
 import { execFileSync } from 'node:child_process';
 import { isDone, normaliseText, SAFE_ID } from '@accord-dev/accord-core';
 import type { BaseRecords, RepoSnapshot } from '@accord-dev/accord-core';
@@ -36,6 +36,9 @@ export function gitBaseRecords(root: string, snapshot: RepoSnapshot, id: string)
     if (def === undefined) return {};
     const base = mergeBaseOf(root, def, 'HEAD');
     if (base === '') return {};
+    // On the default branch itself, or a branch with no commit of its own, HEAD is the base: nothing was edited and nothing is frozen, so today's Done rules judge the ticket as they always did.
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    if (head === base) return {};
     const done = isDone(snapshotAt(root, base, [id]), id);
     if (!done) return { baseRecords: { [id]: { base, done, records: {}, head: {} } } };
     const file = 'accord/tickets/' + id + '.md';

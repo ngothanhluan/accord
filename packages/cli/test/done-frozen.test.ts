@@ -155,3 +155,12 @@ it('risk:regression accord lint asks a done ticket for no ruleset key (D-23 form
   const findings = JSON.parse(r.out).findings as Found[];
   expect(findings.filter((f) => f.file.startsWith('accord/tickets/T-1') && /ruleset/i.test(f.reason + f.rule))).toEqual([]);
 }, 120_000);
+
+it('risk:regression on the default branch itself the frozen rule is not in force: a done ticket is judged by today\'s Done rules', async () => {
+  const repo = doneOnMain();
+  gitRun(repo, 'switch', '-q', 'main');
+  const onMain = await gateDone(repo, 'T-1');
+  expect(onMain.found.map((f) => f.rule)).not.toContain('gate.done-ticket-edited');
+  expect(onMain.found.length).toBeGreaterThan(0);
+  expect(onMain.code).toBe(1);
+}, 120_000);

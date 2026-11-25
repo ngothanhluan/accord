@@ -158,7 +158,17 @@ export function prWait(ctx: CommandContext, id: string): number {
  * on an `ignored` line, so a count is printed when it grows and never twice.
  */
 function judgePr(ctx: CommandContext, n: number, self: string, told: Map<number, number>): WaitVerdict {
-  const view = { ...(JSON.parse(gh(ctx, ['pr', 'view', String(n), '--json', VIEW_FIELDS])) as PrView), number: n };
+  return judgeView(ctx, viewOf(ctx, n), self, told);
+}
+
+/** What `gh pr view --json` says of pull request `n`, with the number set: the part the verdict reads, and the base and head names the base move is judged by. */
+type Seen = PrView & { baseRefName?: string; headRefName?: string };
+function viewOf(ctx: CommandContext, n: number): Seen {
+  return { ...(JSON.parse(gh(ctx, ['pr', 'view', String(n), '--json', VIEW_FIELDS])) as Seen), number: n };
+}
+
+function judgeView(ctx: CommandContext, view: Seen, self: string, told: Map<number, number>): WaitVerdict {
+  const n = view.number as number;
   // a merged or closed state needs nothing else, so a failing list of inline comments never hides it
   const inline = view.state === 'MERGED' || view.state === 'CLOSED' ? [] : inlineOf(gh(ctx, ['api', `repos/{owner}/{repo}/pulls/${n}/comments`, '--paginate', '--jq', INLINE_JQ]));
   const verdict = prWaitVerdict(view, inline, { since: headCommitDate(view), self });
@@ -227,21 +237,68 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
   const first = current();
   ctx.stdout.write(`pr-wait: watching #${(first.pr as PrRef).number} (slice ${first.k} of ${count}) ${String((first.pr as PrRef).url ?? '').replace(/[^\x21-\x7e]/g, '')}, limit ${limitMs / 60_000} minutes\n`);
   const told = new Map<number, number>();
+  const moved = new Set<number>(); // the slices whose pull request had its base move tried: once each, so a refusal is not repeated every 45 seconds (Ruling R14)
+  const pending: WaitVerdict = { kind: 'pending', ignored: 0 };
+  /** Set when the wait cannot go on and is not one of the verdicts: the next slice has no pull request. Printed as row U2 after the loop (`halt.line`). */
+  const halt: { line?: string } = {};
+
   const poll = (): WaitVerdict => {
-    const w = current();
-    const verdict = judgePr(ctx, (w.pr as PrRef).number, self, told);
-    if (verdict.kind !== 'merged') return verdict;
-    w.merged = true;
-    if (w.k === count) return verdict;
-    const next = watches[w.k]; // slice k + 1
-    const def = defaultBranch(ctx) ?? w.pr?.baseRefName;
-    if (def !== undefined && SAFE_BRANCH.test(def) && !def.startsWith('-') && baseMovable(w.branch, next.branch, next.pr)) {
-      gh(ctx, ['pr', 'edit', String(next.pr.number), '--base', def]);
-      ctx.stdout.write(`pr-wait: slice ${w.k} merged #${(w.pr as PrRef).number}, base of #${next.pr.number} moved to ${def}\n`);
+    // every pull request not merged is looked at each round, lowest slice first: a later slice's feedback or failed check ends the wait as well (D-28)
+    const open = watches.filter((w) => w.pr !== undefined && !w.merged);
+    const seen = new Map<SliceWatch, { view: Seen; verdict: WaitVerdict }>();
+    for (const w of open) {
+      const view = viewOf(ctx, (w.pr as PrRef).number);
+      seen.set(w, { view, verdict: judgeView(ctx, view, self, told) });
     }
-    return { kind: 'pending', ignored: 0 };
+    for (const [w, s] of seen) if (s.verdict.kind === 'merged') w.merged = true;
+
+    // each merged slice's next pull request, still on the merged branch, goes to the default branch (D-08, T-15-38): judged on what `gh pr view` just said of it
+    for (const w of watches) {
+      const next = w.merged && w.k < count ? watches[w.k] : undefined; // slice k + 1
+      const look = next === undefined ? undefined : seen.get(next);
+      if (next === undefined || look === undefined || next.merged || moved.has(next.k)) continue;
+      const nextPr: PrRef = { number: (next.pr as PrRef).number, state: look.view.state, baseRefName: look.view.baseRefName, headRefName: look.view.headRefName };
+      const def = defaultBranch(ctx) ?? w.pr?.baseRefName;
+      if (def === undefined || !SAFE_BRANCH.test(def) || def.startsWith('-') || !baseMovable(w.branch, next.branch, nextPr)) continue;
+      moved.add(next.k);
+      try {
+        gh(ctx, ['pr', 'edit', String(nextPr.number), '--base', def]);
+        ctx.stdout.write(`pr-wait: slice ${w.k} merged #${(w.pr as PrRef).number}, base of #${nextPr.number} moved to ${def}\n`);
+      } catch (err) {
+        ctx.stdout.write(`pr-wait: base of #${nextPr.number} not moved: ${firstLine(err)}\n`);
+      }
+    }
+
+    // merged ends the wait only when every slice's pull request merged (D-28)
+    const last = watches[count - 1];
+    if (watches.every((w) => w.pr !== undefined && w.merged)) return { kind: 'merged', number: (last.pr as PrRef).number };
+    for (const w of watches) {
+      const verdict = seen.get(w)?.verdict;
+      if (verdict !== undefined && verdict.kind !== 'pending' && verdict.kind !== 'merged') return verdict;
+    }
+    // no pull request left to watch but a slice has none yet: look once more for the ones opened meanwhile; a slice that still has none ends the wait
+    if (!watches.some((w) => w.pr !== undefined && !w.merged)) {
+      for (const w of watches) {
+        if (w.pr !== undefined) continue;
+        const pr = newestOf(ctx, w.branch);
+        if (pr !== undefined) {
+          w.pr = pr;
+          w.merged = pr.state === 'MERGED';
+        }
+      }
+      const missing = watches.find((w) => w.pr === undefined);
+      if (missing !== undefined && !watches.some((w) => w.pr !== undefined && !w.merged)) {
+        halt.line = `pr-wait: no pull request for ${missing.branch}`;
+        return { kind: 'closed', number: 0 };
+      }
+    }
+    return pending;
   };
   const end = waitLoop({ poll, now: Date.now, sleep: sleepSync, everyMs: PR_WAIT_EVERY_MS, limitMs });
-  ctx.stdout.write(finalLine(end, end.kind === 'verdict' ? end.verdict.number : ((current().pr as PrRef).number)) + '\n');
+  if (halt.line !== undefined) {
+    ctx.stdout.write(halt.line + '\n');
+    return 2;
+  }
+  ctx.stdout.write(finalLine(end, end.kind === 'verdict' ? end.verdict.number : (current().pr as PrRef).number) + '\n');
   return 0;
 }

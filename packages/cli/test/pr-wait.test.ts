@@ -314,3 +314,147 @@ it('risk:regression a sliced ticket whose first slice merges gets its next slice
   expect(r.out).toContain('pr-wait: slice 1 merged #7, base of #8 moved to main\n');
   expect(lastLine(r.out)).toBe('pr-wait: merged #8');
 });
+
+// ---- feedback on any slice, the one limit, the guarded base move, a missing pull request (Task 2) ----
+
+const THREE_SLICES = [TWO_SLICES, '## Slice 3: Docs', 'tasks: 2', 'covers: @ac-2', ''].join('\n');
+const FEEDBACK = { comments: [{ author: { login: 'bo' }, authorAssociation: 'COLLABORATOR', createdAt: AFTER }] };
+const WRITER = (over: Partial<Fake> = {}): Fake => ({ number: 7, head: 't/T-1', base: 'main', list: 'OPEN', views: [{}], ...over });
+const ESCAPING = (over: Partial<Fake> = {}): Fake => ({ number: 8, head: 'slice/T-1/2', base: 't/T-1', list: 'OPEN', views: [{}], ...over });
+
+it('risk:complex-branching new collaborator feedback on a later slice pull request ends the wait naming that pull request while the first slice is still open (D-28)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  const { edits } = stack([WRITER(), ESCAPING({ views: [FEEDBACK] })]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(lastLine(r.out)).toBe('pr-wait: feedback #8: 1 comments, 0 reviews, 0 inline from bo');
+  expect(edits).toEqual([]);
+});
+
+it('risk:complex-branching a failed check on a later slice pull request ends the wait naming that pull request (D-28)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  stack([WRITER(), ESCAPING({ views: [{ statusCheckRollup: [{ name: 'lint and gate', conclusion: 'FAILURE' }] }] })]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(lastLine(r.out)).toBe('pr-wait: ci-failed #8: lint and gate');
+});
+
+it('risk:complex-branching a closed slice pull request ends the wait naming it, whichever slice it is (D-28)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  stack([WRITER(), ESCAPING({ views: [{ state: 'CLOSED', mergedAt: null }] })]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(lastLine(r.out)).toBe('pr-wait: closed #8');
+});
+
+it('risk:complex-branching one limit covers the whole wait: slice 1 merging at 30 minutes does not restart the clock (D-28)', async () => {
+  const repo = slicedSandbox();
+  const slept = fakeClock();
+  // the 41st look at #7 is the one at 30 minutes (a poll every 45 s); #8 never merges
+  stack([WRITER({ views: [...Array.from({ length: 40 }, () => ({})), MERGED] }), ESCAPING()]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(r.out).toContain('pr-wait: slice 1 merged #7, base of #8 moved to main\n');
+  expect(lastLine(r.out)).toBe('pr-wait: limit #8 after 120 minutes (0 polls failed)');
+  expect(slept.reduce((a, b) => a + b, 0)).toBe(120 * 60_000);
+});
+
+it('risk:security the base of the next slice pull request is moved only when it is open, its head is the next slice of this ticket and its base is the merged branch (T-15-38)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  // the owner already moved #8 to main: nothing to move, no pr edit, and the wait still ends merged
+  const a = stack([WRITER({ views: [MERGED] }), ESCAPING({ base: 'main', views: [{}, MERGED] })]);
+  const first = await run(['pr', 'wait', 'T-1'], repo);
+  expect(lastLine(first.out)).toBe('pr-wait: merged #8');
+  expect(a.edits).toEqual([]);
+  expect(first.out).not.toContain('moved to');
+
+  // #8 is based on some other branch than the merged slice's: left alone as well
+  const b = stack([WRITER({ views: [MERGED] }), ESCAPING({ base: 'release/1', views: [{}, MERGED] })]);
+  const second = await run(['pr', 'wait', 'T-1'], repo);
+  expect(lastLine(second.out)).toBe('pr-wait: merged #8');
+  expect(b.edits).toEqual([]);
+});
+
+it('risk:complex-branching a base move that gh refuses prints its first line and the wait goes on with the next pull request (R14)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  const { edits } = stack([WRITER({ views: [MERGED] }), ESCAPING({ views: [{}, MERGED] })], () =>
+    Object.assign(new Error('Command failed: gh pr edit'), { stderr: 'GraphQL: Base branch was modified\nsecond line\n' }),
+  );
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(r.out).toContain('pr-wait: base of #8 not moved: GraphQL: Base branch was modified\n');
+  expect(r.out).not.toContain('moved to main');
+  expect(lastLine(r.out)).toBe('pr-wait: merged #8');
+  // one attempt for the pull request, not one for every poll
+  expect(edits).toHaveLength(1);
+});
+
+it('risk:regression a ticket without slices, and one with a single slice, make exactly the gh calls of the unsliced wait: no slice lookup, no pr edit (D-28)', async () => {
+  for (const repo of [sandbox(), slicedSandbox('\n## Slice 1: Everything\ntasks: 1, 2\ncovers: @ac-1, @ac-2\n')]) {
+    gh.calls.length = 0;
+    gh.answer = (args) => {
+      if (args[0] === 'api' && args[1] === 'user') return 'me\n';
+      if (args[1] === 'list') return JSON.stringify([{ number: 7, state: 'OPEN', url: URL7 }]);
+      return JSON.stringify({ number: 7, state: 'MERGED', mergedAt: AFTER });
+    };
+    const r = await run(['pr', 'wait', 'T-1'], repo);
+    expect(lastLine(r.out)).toBe('pr-wait: merged #7');
+    expect(gh.calls.map((c) => c.args.slice(0, 2).join(' '))).toEqual(['api user', 'pr list', 'pr view']);
+    expect(gh.calls[1].args.join(' ')).toBe('pr list --head t/T-1 --state all --json number,state,url --limit 30');
+  }
+});
+
+it('risk:complex-branching a slice already merged before the wait starts has its next pull request moved at the first poll, and all slices merged ends the wait at the last one (D-28, D-08)', async () => {
+  const repo = slicedSandbox(THREE_SLICES);
+  fakeClock();
+  const s = stack([
+    WRITER({ list: 'MERGED', views: [MERGED] }),
+    ESCAPING({ views: [{}, MERGED] }),
+    { number: 9, head: 'slice/T-1/3', base: 'slice/T-1/2', list: 'OPEN', views: [{}, {}, MERGED] },
+  ]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(s.edits.map((a) => a.join(' '))).toEqual(['pr edit 8 --base main', 'pr edit 9 --base main']);
+  expect(r.out).toContain('pr-wait: watching #8 (slice 2 of 3) https://github.com/o/r/pull/8, limit 120 minutes\n');
+  expect(r.out).toContain('pr-wait: slice 1 merged #7, base of #8 moved to main\n');
+  expect(r.out).toContain('pr-wait: slice 2 merged #8, base of #9 moved to main\n');
+  expect(lastLine(r.out)).toBe('pr-wait: merged #9');
+});
+
+it('risk:complex-branching the last slice merging while an earlier one is still open does not end the wait: merged means every slice merged (D-28)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  stack([WRITER(), ESCAPING({ views: [MERGED] })]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(lastLine(r.out)).toBe('pr-wait: limit #7 after 120 minutes (0 polls failed)');
+});
+
+it('risk:complex-branching when the merged slice has no next pull request the wait ends naming the slice branch that has none, and a pull request opened meanwhile is followed (D-28)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  stack([WRITER({ views: [MERGED] })]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(2);
+  expect(lastLine(r.out)).toBe('pr-wait: no pull request for slice/T-1/2');
+
+  // the pull request of slice 2 appears while slice 1 is open: it is found when slice 1 merges
+  const prs = [WRITER({ views: [{}, MERGED] })];
+  const s = stack(prs);
+  const base = gh.answer;
+  let looks = 0;
+  gh.answer = (args) => {
+    if (args[1] === 'view') {
+      looks += 1;
+      if (looks === 2) prs.push(ESCAPING({ views: [{}, MERGED] }));
+    }
+    return base(args);
+  };
+  const r2 = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r2.code, r2.out + r2.err).toBe(0);
+  expect(s.edits.map((a) => a.join(' '))).toEqual(['pr edit 8 --base main']);
+  expect(lastLine(r2.out)).toBe('pr-wait: merged #8');
+});

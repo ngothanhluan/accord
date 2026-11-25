@@ -25,7 +25,7 @@ const PHRASES = [
   'accord-off',
   'accord-panel.json',
 ];
-const PARAGRAPHS = ['Hooks', 'Quiet mode', 'Personal switch', 'Panel'] as const;
+const PARAGRAPHS = ['Hooks', 'Early answers', 'Quiet mode', 'Personal switch', 'Panel'] as const;
 
 // Phase 08.9.2 D-01: the record keeps the launcher form, the minimum Claude Code version and one parity exception in each Claude Code-only paragraph.
 it('risk:regression the design record keeps the launcher form its minimum Claude Code version and each parity exception (D-01)', () => {
@@ -37,7 +37,7 @@ it('risk:regression the design record keeps the launcher form its minimum Claude
     else if (!text.includes('Parity exception')) bad.push(`the **${name}.** paragraph holds no "Parity exception"`);
   }
   const total = PARAGRAPHS.reduce((n, name) => n + (paragraph(name).match(/Parity exception/g) ?? []).length, 0);
-  if (total < PARAGRAPHS.length) bad.push(`only ${total} parity exceptions in the four paragraphs`);
+  if (total < PARAGRAPHS.length) bad.push(`only ${total} parity exceptions in the ${PARAGRAPHS.length} paragraphs`);
   if (flat(design).includes('npx --yes <package>@<version> hook <event>')) bad.push('docs/design.md still shows the npx hook form');
   expect(bad).toEqual([]);
 });

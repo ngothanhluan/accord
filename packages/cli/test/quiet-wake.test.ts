@@ -1,10 +1,12 @@
 // Phase 08.9.2 L-02, Ruling-wake-session, Ruling-off-accord: typing /accord in a quiet (or switched-off) session that is not woken yet wakes it. The UserPromptExpansion hook answers with
 // additionalContext holding the ruleset and the anchor (or the session line), runs the worktree clean once in the foreground, and writes <git dir>/accord-wake/<session_id>; a second /accord
 // does nothing more. A session id that is not a plain name names no file. A full-mode repository never reads or writes a wake file.
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
+import { QUIET_LINE } from '../src/commands/hook-early.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
@@ -126,4 +128,111 @@ it('risk:regression a full-mode repository never reads or writes a wake file (D-
   const start = await run(['hook', 'session-start'], repo, {}, JSON.stringify({ cwd: repo, session_id: 's-full', source: 'startup' }));
   expect(start.out.startsWith(RULES)).toBe(true);
   expect(existsSync(join(repo, '.git', 'accord-wake', 's-full'))).toBe(false);
+});
+
+/** The stdin of a session hook for session `id`; `more` adds the event's own fields. */
+const sessionInput = (cwd: string, id: string, more: Record<string, unknown> = {}): string => JSON.stringify({ cwd, session_id: id, ...more });
+
+/** Wakes the session `id` of `repo` with a typed /accord and checks that the wake file exists. */
+async function wakeSession(repo: string, id: string): Promise<void> {
+  const woke = await run(['hook', 'prompt-expansion'], repo, {}, typed(repo, id));
+  expect(woke.code).toBe(0);
+  expect(existsSync(join(repo, '.git', 'accord-wake', id)), `session ${id} is woken`).toBe(true);
+}
+
+// Phase 08.9.2 Ruling-wake-session: once /accord woke a quiet session every later hook of that session takes the full path (rules first); another session of the same clone stays quiet.
+it('risk:regression a woken quiet session takes the full path for every later hook (Ruling-wake-session)', async () => {
+  const repo = repoWith('hook_mode: quiet');
+  await wakeSession(repo, 's-w');
+
+  const resumed = await run(['hook', 'session-resume'], repo, {}, sessionInput(repo, 's-w', { source: 'compact' }));
+  expect(resumed.out.startsWith(RULES), 'the woken session resumes in full').toBe(true);
+  expect(resumed.out).not.toContain(QUIET_LINE);
+
+  const other = await run(['hook', 'session-resume'], repo, {}, sessionInput(repo, 's-other', { source: 'compact' }));
+  expect(other.out, 'another session is still quiet').toBe(QUIET_LINE + '\n');
+});
+
+// Phase 08.9.2 Ruling-wake-session, override Ruling: after /accord in an off session the accord agents it dispatches get the ruleset; other sessions of the off clone get nothing.
+it('risk:regression a woken off session gives accord agents their rules (Ruling-wake-session)', async () => {
+  const repo = repoWith('');
+  expect((await run(['off'], repo)).code).toBe(0);
+  await wakeSession(repo, 's-w');
+
+  const woken = await run(['hook', 'subagent-start'], repo, {}, sessionInput(repo, 's-w', { agent_type: 'accord-executor' }));
+  const out = JSON.parse(woken.out) as { hookSpecificOutput?: { hookEventName?: string; additionalContext?: string } };
+  expect(out.hookSpecificOutput?.hookEventName).toBe('SubagentStart');
+  expect(out.hookSpecificOutput?.additionalContext?.startsWith(RULES)).toBe(true);
+
+  const other = await run(['hook', 'subagent-start'], repo, {}, sessionInput(repo, 's-other', { agent_type: 'accord-executor' }));
+  expect(other.out, 'another session of the off clone stays silent').toBe('');
+  expect(existsSync(join(repo, '.git', 'accord-off')), 'the marker stays').toBe(true);
+});
+
+type Launch = (io: Record<string, unknown>) => number;
+const launcherHref = pathToFileURL(fileURLToPath(new URL('../../core/launcher/accord.mjs', import.meta.url))).href;
+const VERSION = '1.2.3';
+
+/** One launcher call with the real fs and a spawn stub; the launcher file is said to sit in `<checkout>/.claude/`, and the cache holds a bundle of VERSION so a spawn is the bundle's. */
+async function launched(checkout: string, event: string, stdin: Record<string, unknown>): Promise<{ out: string; err: string; spawns: string[][] }> {
+  const cache = mkdtempSync(join(tmpdir(), 'accord-wake-cache-'));
+  dirs.push(cache);
+  const bundle = join(cache, 'accord', 'versions', VERSION, 'node_modules', 'ACCORD_PACKAGE_NAME', 'dist');
+  mkdirSync(bundle, { recursive: true });
+  writeFileSync(join(bundle, 'cli.js'), '');
+  const { launch } = (await import(/* @vite-ignore */ launcherHref)) as { launch: Launch };
+  const fs = await import('node:fs');
+  const spawns: string[][] = [];
+  let out = '';
+  let err = '';
+  launch({
+    argv: [VERSION, 'hook', event],
+    env: { LOCALAPPDATA: cache, XDG_CACHE_HOME: cache },
+    platform: platform(),
+    homedir: cache,
+    execPath: process.execPath,
+    pid: process.pid,
+    launcherPath: join(checkout, '.claude', 'accord.mjs'),
+    readStdin: () => JSON.stringify({ cwd: checkout, ...stdin }),
+    fs: { existsSync: fs.existsSync, mkdirSync: fs.mkdirSync, readdirSync: fs.readdirSync, readFileSync: fs.readFileSync, renameSync: fs.renameSync, rmSync: fs.rmSync, statSync: fs.statSync },
+    spawnSync: (_cmd: string, args: string[]) => {
+      spawns.push(args);
+      return { status: 0, stdout: '', stderr: '' };
+    },
+    now: Date.now,
+    sleep: () => undefined,
+    stdout: { write: (t: string) => (out += t) },
+    stderr: { write: (t: string) => (err += t) },
+  });
+  return { out, err, spawns };
+}
+
+// Phase 08.9.2 Ruling-wake-session, Ruling-off-accord: the launcher reads the wake file with no process. A woken session reaches the bundle even in a quiet or off clone; any other session
+// gets the quiet line or silence and no spawn; an off clone lets a typed /accord (and only that command) through.
+it('risk:resource the launcher reads the wake file with no process and hands a woken session to the CLI (Ruling-wake-session)', async () => {
+  const quiet = repoWith('hook_mode: quiet');
+  writeFiles(quiet, { '.git/accord-wake/s-w': '{"since":"2026-11-25T00:00:00.000Z","delivered":true}\n' });
+
+  const resumed = await launched(quiet, 'session-resume', { session_id: 's-w', source: 'compact' });
+  expect(resumed.spawns, 'a woken quiet session reaches the bundle once').toHaveLength(1);
+  expect(resumed.out).toBe('');
+  const other = await launched(quiet, 'session-resume', { session_id: 's-other', source: 'compact' });
+  expect(other.out, 'another session gets the quiet line').toBe(QUIET_LINE + '\n');
+  expect(other.spawns).toEqual([]);
+
+  const off = repoWith('');
+  expect((await run(['off'], off)).code).toBe(0);
+  writeFiles(off, { '.git/accord-wake/s-w': '{"since":"2026-11-25T00:00:00.000Z","delivered":true}\n' });
+
+  const typedAccord = await launched(off, 'prompt-expansion', { session_id: 's-n', command_name: 'accord', command_args: '' });
+  expect(typedAccord.spawns, 'an off clone lets a typed /accord through').toHaveLength(1);
+  const otherCommand = await launched(off, 'prompt-expansion', { session_id: 's-n', command_name: 'accord-upgrade', command_args: '' });
+  expect(otherCommand.spawns, 'any other command stays silent').toEqual([]);
+  const startWoken = await launched(off, 'session-start', { session_id: 's-w', source: 'startup' });
+  expect(startWoken.spawns, 'an off session start of a woken id reaches the bundle').toHaveLength(1);
+  const startOther = await launched(off, 'session-start', { session_id: 's-other', source: 'startup' });
+  expect(startOther.spawns).toEqual([]);
+  expect(startOther.out).toBe('');
+  const badId = await launched(off, 'session-start', { session_id: '../s-w', source: 'startup' });
+  expect(badId.spawns, 'an id that is not a plain name names no wake file').toEqual([]);
 });

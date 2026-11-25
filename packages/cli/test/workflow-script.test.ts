@@ -26,7 +26,9 @@ import { initFiles } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import pkg from '../package.json' with { type: 'json' };
-import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, mergeMsg } from './helpers/repo.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
+import { CONFIG, REPORT, done, junit, P } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 
 // Narrow local shapes, as in core/test/scaffold.test.ts: the document is data, not a typed API.
 interface Step {
@@ -198,6 +200,38 @@ const UNREADABLE_REASON: Case = {
     ),
   change: rmOld,
 };
+// D-23: a pull request that changes only a record under a ticket's folder gates that ticket; the ticket file is approved at the base.
+const SIGNUP_APPROVED = APPROVED_TICKET.replace('OLD-1', 'SIGNUP-1');
+const seedSignup = (r: string): void => write(r, 'accord/tickets/SIGNUP-1.md', SIGNUP_APPROVED);
+const FOLDER: Case[] = [
+  { seed: seedSignup, change: (r) => write(r, 'accord/tickets/SIGNUP-1/verification.md', 'v\n') },
+  {
+    seed: seedSignup,
+    change: (r) => {
+      write(r, 'accord/tickets/SIGNUP-1.md', SIGNUP_APPROVED + 'more\n');
+      write(r, 'accord/tickets/SIGNUP-1/plan.md', 'p\n');
+      write(r, 'accord/tickets/SIGNUP-1/ledger.md', 'l\n');
+    },
+  },
+  {
+    seed: (r) => {
+      seedSignup(r);
+      write(r, 'accord/tickets/SIGNUP-1/plan.md', 'p\n');
+    },
+    change: (r) => rmSync(join(r, 'accord', 'tickets', 'SIGNUP-1', 'plan.md')),
+  },
+  // a folder whose ticket file is not in HEAD gates nothing
+  { change: (r) => write(r, 'accord/tickets/GHOST-1/plan.md', 'p\n') },
+  // a name with a space and a non-ASCII letter is one id, never split or evaluated (T-15-04)
+  {
+    seed: (r) => write(r, 'accord/tickets/ÉTÉ 1.md', APPROVED_TICKET.replace('OLD-1', 'ÉTÉ 1')),
+    change: (r) => write(r, 'accord/tickets/ÉTÉ 1/plan.md', 'p\n'),
+  },
+  {
+    seed: (r) => write(r, 'accord/tickets/X-1.md', APPROVED_TICKET.replace('OLD-1', 'X-1')),
+    change: (r) => write(r, 'accord/tickets/X-1/$(touch pwned)`id`.md', 'p\n'),
+  },
+];
 const BOTH_FAIL: Case = {
   change: (r) => {
     write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n');
@@ -452,12 +486,42 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(result.out).not.toContain(NOTHING_TO_GATE);
   });
 
-  it('nested-path diff: accord/tickets/<id>/verification.md is not a ticket ([^/]+)', () => {
-    const { repo, base } = sandbox((r) => write(r, 'accord/tickets/SIGNUP-1/verification.md', 'v\n'));
+  // D-23 (Phase 15, on purpose in place of the pinned case "a nested path is not a ticket"): the folder of a ticket is part of it, so a diff that touches only a record under accord/tickets/<id>/ gates <id>.
+  it('risk:regression nested-path diff: accord/tickets/<id>/verification.md gates its ticket once (D-23)', () => {
+    const c = FOLDER[0];
+    const { repo, base } = sandbox(c.change, c.seed);
     const result = runScript(repo, { base });
     expect(result.code, result.err).toBe(0);
-    expect(result.calls.length, result.calls.join(' | ')).toBe(1);
+    expect(result.calls.length, result.calls.join(' | ')).toBe(2);
     expect(result.calls[0].endsWith(' lint')).toBe(true);
+    expect(result.calls[1].endsWith(' gate done SIGNUP-1')).toBe(true);
+  });
+
+  it('risk:regression a done ticket whose file and folder both changed is gated once, and a deleted record gates its ticket (D-23)', () => {
+    for (const c of [FOLDER[1], FOLDER[2]]) {
+      const { repo, base } = sandbox(c.change, c.seed);
+      const result = runScript(repo, { base });
+      expect(result.code, result.out + result.err).toBe(0);
+      expect(result.calls.length, result.calls.join(' | ')).toBe(2);
+      expect(result.calls[1].endsWith(' gate done SIGNUP-1')).toBe(true);
+    }
+  });
+
+  it('risk:security a folder whose ticket file is not in HEAD gates nothing, and a done ticket path with odd characters is one quoted id (D-23, T-15-04)', () => {
+    const ghost = sandbox(FOLDER[3].change, FOLDER[3].seed);
+    const none = runScript(ghost.repo, { base: ghost.base });
+    expect(none.code, none.out + none.err).toBe(0);
+    expect(none.calls.length, none.calls.join(' | ')).toBe(1);
+    const odd = sandbox(FOLDER[4].change, FOLDER[4].seed);
+    const spaced = runScript(odd.repo, { base: odd.base });
+    expect(spaced.code, spaced.out + spaced.err).toBe(0);
+    expect(spaced.calls.length, spaced.calls.join(' | ')).toBe(2);
+    expect(spaced.calls[1].endsWith(' gate done ÉTÉ 1')).toBe(true);
+    const evil = sandbox(FOLDER[5].change, FOLDER[5].seed);
+    const quoted = runScript(evil.repo, { base: evil.base });
+    expect(quoted.code, quoted.out + quoted.err).toBe(0);
+    expect(quoted.calls[1]?.endsWith(' gate done X-1')).toBe(true);
+    expect(existsSync(join(evil.repo, 'pwned'))).toBe(false);
   });
 
   it('a failing gate exits 1 and lint still ran first (A-10)', () => {
@@ -604,7 +668,7 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     const own = named[0].run as string;
     const gatedIds = (calls: string[]): string[] =>
       calls.filter((c) => c.includes('gate done ')).map((c) => c.slice(c.indexOf('gate done ') + 'gate done '.length));
-    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED, ...DELETED_APPROVED, ...DELETED_FREE, ...SWAP, UNREADABLE_REASON, BAD_BASE, BOTH_FAIL];
+    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED, ...DELETED_APPROVED, ...DELETED_FREE, ...SWAP, UNREADABLE_REASON, BAD_BASE, BOTH_FAIL, ...FOLDER];
     const said = (out: string): string[] => out.split('\n').filter((l) => l !== '' && !l.startsWith('npx stub'));
     // All sandboxes first, then every script run at once.
     const built = all.map((c) => [SCRIPT, own].map((script) => ({ script, s: sandbox(c.change, c.seed) })));
@@ -896,6 +960,59 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
     expect(result.code, result.out + result.err).toBe(0);
     expect(result.out).not.toContain('lint.test-id-unknown');
     expect(result.out).toContain(NOTHING_TO_GATE);
+    expect(result.calls.length, result.calls.join(' | ')).toBe(1);
+  });
+
+  // Phase 15 G1 (D-23, D-24, D-25): T-1 is done on main (its folder holds a plan, a ledger, a review and a verification that cites test/export.spec.ts); the pull request is the branch `work`.
+  const VERIFICATION = [
+    '---', 'ticket: T-1', 'commit: abc1234', 'reviewed_on: 2026-09-10', '---', '',
+    '## @ac-1 Export writes a csv', '', 'Result: pass', '', 'Evidence: test/export.spec.ts#writes-csv', '',
+    '## @ac-2 Commas are escaped', '', 'Result: pass', '', 'Evidence: test/export.spec.ts#escapes-commas', '',
+  ].join('\n');
+  function doneTicketPr(change: (repo: string) => void): { repo: string; base: string } {
+    const repo = makeEmptyRepo();
+    repos.push(repo);
+    const files: Files = {
+      'accord/config.yml': CONFIG,
+      [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
+      'test/export.spec.ts': 'export {};\n',
+      'accord/tickets/T-1/verification.md': VERIFICATION,
+    };
+    done(files, 'T-1');
+    writeFiles(repo, files);
+    const base = commitAll(repo, 'base: T-1 done');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 'work');
+    change(repo);
+    commitMsg(repo, 'the pull request');
+    return { repo, base };
+  }
+
+  it('risk:regression a pull request that edits only the plan of a done ticket fails the real CI script with the plain message (D-23)', () => {
+    const { repo, base } = doneTicketPr((r) => writeFileSync(join(r, 'accord', 'tickets', 'T-1', 'plan.md'), readFileSync(join(r, 'accord', 'tickets', 'T-1', 'plan.md'), 'utf8') + '\nA late thought.\n'));
+    const result = runScript(repo, { base, forward: true });
+    expect(result.code, result.out + result.err).toBe(1);
+    expect(result.out + result.err).toContain('a done ticket is not edited');
+    expect(result.out + result.err).not.toContain('gate.tick-stale-commit');
+    expect(result.calls.length, result.calls.join(' | ')).toBe(2);
+    expect(result.calls[1].endsWith(' gate done T-1')).toBe(true);
+  });
+
+  it('risk:regression a pull request that moves the tests a done ticket names and leaves the ticket alone passes the real CI script (D-24)', () => {
+    const { repo, base } = doneTicketPr((r) => {
+      rmSync(join(r, 'test', 'export.spec.ts'));
+      write(r, 'test/csv.spec.ts', 'export {};\n');
+      write(r, REPORT, junit({ 'csv#writes-csv': 'passed', 'csv#escapes-commas': 'passed' }));
+    });
+    const result = runScript(repo, { base, forward: true });
+    expect(result.code, result.out + result.err).toBe(0);
+    expect(result.calls.length, result.calls.join(' | ')).toBe(1);
+  });
+
+  it('risk:regression a pull request that deletes a file the verification of a done ticket cites passes the real CI script with no edit of the ticket (D-24)', () => {
+    const { repo, base } = doneTicketPr((r) => rmSync(join(r, 'test', 'export.spec.ts')));
+    const result = runScript(repo, { base, forward: true });
+    expect(result.code, result.out + result.err).toBe(0);
     expect(result.calls.length, result.calls.join(' | ')).toBe(1);
   });
 

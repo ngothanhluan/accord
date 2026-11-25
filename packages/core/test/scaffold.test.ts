@@ -288,6 +288,16 @@ describe('initFiles — the CI workflow it plans (CLI-02)', () => {
     expect(script).not.toContain('gate ready');
   });
 
+  // Phase 15 D-23: the script collects ids from the ticket file and from the ticket folder, so a pull request that edits only a done ticket's records is gated and the core rule answers.
+  it('risk:regression collects ticket ids from the ticket folder as well as the ticket file, and passes no new flag to gate done (D-23, D-25)', () => {
+    const script = scripts[0].run as string;
+    expect(script).toContain("grep -E '^accord/tickets/[^/]+[.]md$'");
+    expect(script).toContain("grep -E '^accord/tickets/[^/]+/'");
+    expect(script).toContain('gate done "$id"');
+    expect(script).not.toMatch(/gate done "\$id" -/);
+    expect(script.split('\n').filter((l) => !l.trimStart().startsWith('#')).join(' ')).not.toMatch(/\beval\b/);
+  });
+
   // D-135, asserted structurally rather than restated: both strings come from the one `initFiles(PKG)` call
   // at the top of this file, so this proves the two pins cannot drift — which two separate calls, or a
   // hard-coded `'9.9.9'` on both sides, would not.

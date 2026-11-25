@@ -1,7 +1,7 @@
 // Phase 08.9.2 D-03, L-01: `accord off` is a personal switch. It writes a marker in the git common folder and the panel flag in the checkout's local settings,
 // and every accord hook then answers nothing, through the launcher and through the CLI, with no process started, in the checkout and in every linked worktree.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -112,7 +112,7 @@ async function launcherCall(checkout: string, argv: string[], cache: string): Pr
   const code = launch({
     argv,
     env: { LOCALAPPDATA: cache, XDG_CACHE_HOME: cache },
-    platform: process.platform,
+    platform: platform(),
     homedir: cache,
     execPath: process.execPath,
     pid: process.pid,

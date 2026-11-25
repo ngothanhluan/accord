@@ -3,10 +3,23 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
+import { recordSlice } from '../src/load/slices.js';
 import { CONFIG, discussFiles, laneTicket, PLAN as LANE_PLAN, ready } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
+import { claimWorktree, copy, doneOnRemote, has, lines, sha, useSandboxes, withAction } from './helpers/worktree.js';
+
+// the clean cases use the shared sandboxes, whose helpers reset these two mocks after each test
+vi.mock('../src/load/proc.js', async (orig) => {
+  const real = await orig<typeof import('../src/load/proc.js')>();
+  return { ...real, processTable: vi.fn(real.processTable) };
+});
+vi.mock('../src/commands/fetch-limit.js', async (orig) => {
+  const real = await orig<typeof import('../src/commands/fetch-limit.js')>();
+  return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs), cleanBudgetMs: vi.fn(real.cleanBudgetMs) };
+});
+useSandboxes([{}]);
 
 const IDENTITY = [
   ['user.email', 'fixture@example.invalid'],
@@ -265,4 +278,140 @@ it('risk:regression on a slice branch worktree push --branch pushes the slice br
   expect(await run(['worktree', 'push', 'ST-9'], box.wt)).toEqual({ code: 0, out: 'pushed: refs/accord/ST-9\n', err: '' });
   expect(originRef(box, 'refs/accord/ST-9')).toBe(second);
   expect(originRef(box, 'refs/heads/t/ST-9')).toBe(box.tip);
+}, 120_000);
+
+// Phase 15 D-08, R11: review changes slice 1 after slice 2 was cut; `worktree sync` merges the change forward, by a merge commit, whatever git.merge says.
+/** A commit on t/ST-9 made from a throwaway worktree, as review's fix is; the slice worktree stays on its slice branch. Returns the commit. */
+function fixOnClaim(box: Box, file: string, text: string): string {
+  const dir = `${box.main}-st-9-fix`;
+  gitRun(box.main, 'worktree', 'add', '-q', dir, 't/ST-9');
+  writeFiles(dir, { [file]: text });
+  const fix = commitMsg(dir, 'review fix');
+  gitRun(box.main, 'worktree', 'remove', dir);
+  return fix;
+}
+const parentsOfHead = (dir: string): string[] => gitRun(dir, 'rev-list', '--parents', '-n', '1', 'HEAD').trim().split(' ').slice(1);
+
+it('risk:regression sync on a slice branch merges the unmerged previous slice, even under git.merge rebase, and rewrites nothing (D-08, R11)', async () => {
+  const box = sandbox({ files: { 'accord/config.yml': CONFIG + 'git:\n  merge: rebase\n' } });
+  expect((await run(['worktree', 'slice', 'ST-9', '2'], box.wt)).code).toBe(0);
+  writeFiles(box.wt, { 'src/b.ts': 'b\n' });
+  const own = commitMsg(box.wt, 'slice 2 work');
+  const fix = fixOnClaim(box, 'src/fix.ts', 'fix\n');
+  const r = await run(['worktree', 'sync', 'ST-9'], box.wt);
+  expect(r.err).toBe('');
+  expect(r.code).toBe(0);
+  expect(r.out).toContain('merged: 1 commit of t/ST-9 into slice/ST-9/2');
+  // a merge commit whose first parent is slice 2's old tip: no commit of slice 2 was rewritten
+  expect(parentsOfHead(box.wt)).toEqual([own, fix]);
+  expect(readFileSync(join(box.wt, 'src', 'fix.ts'), 'utf8').replace(/\r\n/g, '\n')).toBe('fix\n');
+  expect(branchIn(box.wt)).toBe('slice/ST-9/2');
+  // nothing left to take in: the second run changes nothing
+  const head = gitRun(box.wt, 'rev-parse', 'HEAD').trim();
+  expect((await run(['worktree', 'sync', 'ST-9'], box.wt)).code).toBe(0);
+  expect(gitRun(box.wt, 'rev-parse', 'HEAD').trim()).toBe(head);
+}, 120_000);
+
+it('risk:regression sync on a slice branch merges the default branch once the previous slice is merged into it (D-08)', async () => {
+  const box = sandbox();
+  expect((await run(['worktree', 'slice', 'ST-9', '2'], box.wt)).code).toBe(0);
+  writeFiles(box.wt, { 'src/b.ts': 'b\n' });
+  const own = commitMsg(box.wt, 'slice 2 work');
+  // main moves, then the host merges slice 1's pull request
+  writeFiles(box.main, { 'm.txt': 'm\n' });
+  commitMsg(box.main, 'main moves');
+  mergeMsg(box.main, 't/ST-9', 'Merge pull request #1 from t/ST-9');
+  gitRun(box.main, 'push', '-q', 'origin', 'main');
+  const mainTip = gitRun(box.main, 'rev-parse', 'HEAD').trim();
+  const r = await run(['worktree', 'sync', 'ST-9'], box.wt);
+  expect(r.err).toBe('');
+  expect(r.code).toBe(0);
+  expect(r.out).toContain('of origin/main into slice/ST-9/2');
+  expect(parentsOfHead(box.wt)).toEqual([own, mainTip]);
+  expect(existsSync(join(box.wt, 'm.txt'))).toBe(true);
+}, 120_000);
+
+it('risk:regression a conflicting sync on a slice branch is aborted, named with exit 2, and leaves the branch as it was (D-08)', async () => {
+  const box = sandbox();
+  expect((await run(['worktree', 'slice', 'ST-9', '2'], box.wt)).code).toBe(0);
+  writeFiles(box.wt, { 'src/a.ts': 'slice two\n' });
+  const own = commitMsg(box.wt, 'slice 2 edits a');
+  fixOnClaim(box, 'src/a.ts', 'review fix\n');
+  const r = await run(['worktree', 'sync', 'ST-9'], box.wt);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('conflict in src/a.ts');
+  expect(gitRun(box.wt, 'rev-parse', 'HEAD').trim()).toBe(own);
+  expect(gitRun(box.wt, 'status', '--porcelain', '--untracked-files=no').trim()).toBe('');
+  expect(exists(box.wt, 'MERGE_HEAD')).toBe(false);
+  // an uncommitted change is refused before anything is merged
+  writeFiles(box.wt, { 'src/a.ts': 'edited\n' });
+  const dirty = await run(['worktree', 'sync', 'ST-9'], box.wt);
+  expect(dirty.code).toBe(2);
+  expect(dirty.err).toContain('uncommitted changes');
+}, 120_000);
+
+// Phase 15 D-31, T-15-32: clean removes a done ticket's slice branches, local and on origin, and their record lines, under the guards the claim branch has.
+/** ST-9 claimed in its worktree on a slice branch `slice/ST-9/2`, with `slice/ST-9/3` beside it, both pushed and recorded. */
+function slicedClone() {
+  const c = copy();
+  const tip = claimWorktree(c, 'ST-9');
+  c.git('branch', 'slice/ST-9/2', 't/ST-9');
+  c.git('branch', 'slice/ST-9/3', 't/ST-9');
+  c.git('push', '-q', 'origin', 'slice/ST-9/2', 'slice/ST-9/3');
+  gitRun(c.sibling('ST-9'), 'switch', '-q', 'slice/ST-9/2');
+  recordSlice(c.root, 'ST-9', 2, tip);
+  recordSlice(c.root, 'ST-9', 3, tip);
+  return { c, tip };
+}
+const recordOf = (c: { root: string }): string => (existsSync(`${c.root}/.git/accord/slices`) ? readFileSync(`${c.root}/.git/accord/slices`, 'utf8') : '');
+
+it('risk:data-loss clean deletes the slice branches of a done ticket, local and origin, with their record lines (D-31)', async () => {
+  const { c, tip } = slicedClone();
+  doneOnRemote(c, ['ST-9']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const out = lines(r.out);
+  for (const b of ['slice/ST-9/2', 'slice/ST-9/3']) {
+    expect(out).toContain(withAction(`deleted ${b} (was ${tip})`));
+    expect(out).toContain(withAction(`deleted origin/${b} (was ${tip})`));
+    expect(has(c.root, `refs/heads/${b}`), b).toBe(false);
+    expect(has(c.remote, `refs/heads/${b}`), b).toBe(false);
+  }
+  expect(out).toContain(withAction(`removed ${c.sibling('ST-9')}`));
+  expect(recordOf(c)).toBe('');
+}, 120_000);
+
+it('risk:data-loss clean keeps a slice branch holding commits the default branch lacks, with today\'s unsafe-tip line and its record line (T-15-32)', async () => {
+  const { c, tip } = slicedClone();
+  c.git('switch', '-q', 'slice/ST-9/3');
+  writeFiles(c.root, { 'slice-three.txt': 'unmerged work\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'slice 3 work');
+  const work = sha(c, 'HEAD');
+  c.git('switch', '-q', 'main');
+  doneOnRemote(c, ['ST-9']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const out = lines(r.out);
+  expect(out.some((l) => l.startsWith('kept slice/ST-9/3: it has commits after its verified commit'))).toBe(true);
+  expect(has(c.root, 'refs/heads/slice/ST-9/3')).toBe(true);
+  expect(sha(c, 'refs/heads/slice/ST-9/3')).toBe(work);
+  expect(out).toContain(withAction(`deleted slice/ST-9/2 (was ${tip})`));
+  expect(has(c.root, 'refs/heads/slice/ST-9/2')).toBe(false);
+  expect(recordOf(c)).toBe(`ST-9 3 ${tip}\n`);
+}, 120_000);
+
+it('risk:data-loss clean --dry-run lists the slice deletions and deletes nothing (D-31)', async () => {
+  const { c, tip } = slicedClone();
+  doneOnRemote(c, ['ST-9']);
+  const before = recordOf(c);
+  const r = await run(['worktree', 'clean', '--dry-run'], c.root);
+  expect(r.code).toBe(0);
+  expect(lines(r.out)).toContain(withAction(`deleted slice/ST-9/2 (was ${tip})`));
+  expect(lines(r.out)).toContain(withAction(`deleted slice/ST-9/3 (was ${tip})`));
+  for (const b of ['slice/ST-9/2', 'slice/ST-9/3']) {
+    expect(has(c.root, `refs/heads/${b}`), b).toBe(true);
+    expect(has(c.remote, `refs/heads/${b}`), b).toBe(true);
+  }
+  expect(recordOf(c)).toBe(before);
 }, 120_000);

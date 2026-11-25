@@ -12,7 +12,7 @@ import { readCleanFacts } from '../load/clean-facts.js';
 import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { doneOnDefaultBranch } from '../load/done-on-default.js';
-import { sliceOfBranch } from '../load/slices.js';
+import { dropSlices, sliceBranch, sliceOfBranch } from '../load/slices.js';
 import { blobsOnRef } from '../load/merged-state.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { cleanLine, nextLine, withNext, withNextOnFirst } from './next-action.js';
@@ -1240,6 +1240,8 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   const branch = branchOf(ctx.snapshot, id);
   // refusals first: a refused merge makes no network call
   const cur = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
+  const onSlice = cur === undefined ? undefined : sliceOfBranch(cur);
+  if (cur !== undefined && onSlice?.id === id) return syncSlice(ctx, id, cur, onSlice.n);
   if (cur !== branch) {
     throw new UsageError(`${id} is merged on its branch ${branch}, and this checkout is on ${cur ? cur : 'a detached HEAD'} - run accord worktree sync ${id} in the ticket's worktree; nothing was merged`);
   }
@@ -1297,6 +1299,37 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   }
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
+  return 0;
+}
+
+/**
+ * Phase 15 D-08, D-31 (Rulings R11, R12): `accord worktree sync <id>` on slice branch `slice/<id>/<n>`. Review changes slice n-1 after slice n was cut, and the change is MERGED forward, never rebased and never
+ * force-pushed, whatever `git.merge` or `git.sync` says: the previous slice's branch (the claim branch for slice 2) while it is not merged into the default branch, else the default branch itself. A merge that
+ * conflicts is aborted and named (exit 2) and the branch is as it was. It runs at any stage (slices are built before verify), pushes nothing and re-binds no verification: the slice's own push is `worktree push --branch`.
+ */
+function syncSlice(ctx: CommandContext, id: string, branch: string, n: number): number {
+  if (git(ctx.root, ['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
+    throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree sync ${id} again; nothing was merged`);
+  }
+  const previous = n === 2 ? branchOf(ctx.snapshot, id) : sliceBranch(id, n - 1);
+  if (gitOk(ctx.root, ['remote', 'get-url', 'origin'])) fetchOrigin(ctx, true);
+  const tipOf = (ref: string): string | undefined => (gitOk(ctx.root, ['rev-parse', '--verify', '-q', ref + '^{commit}']) ? git(ctx.root, ['rev-parse', '--verify', ref + '^{commit}']).trim() : undefined);
+  // the branch of slice n-1: this clone's copy, or origin's when that is ahead of it (a teammate pushed the review fix) or the only one
+  const local = 'refs/heads/' + previous;
+  const origin = 'refs/remotes/origin/' + previous;
+  const tips = { local: tipOf(local), origin: tipOf(origin) };
+  const prevRef = tips.local === undefined ? (tips.origin === undefined ? undefined : origin) : tips.origin !== undefined && tips.origin !== tips.local && gitOk(ctx.root, ['merge-base', '--is-ancestor', tips.local, tips.origin]) ? origin : local;
+  if (prevRef === undefined) throw new UsageError(`slice ${n - 1}'s branch ${previous} is neither here nor on origin - nothing was merged`);
+  const def = gitDefaultRef(ctx.root);
+  const prevTip = (prevRef === local ? tips.local : tips.origin) as string;
+  const prevMerged = def !== undefined && safeTip(ctx.root, prevTip, undefined, def) === 'safe';
+  const base = prevMerged ? (def as string) : prevRef;
+  if (gitOk(ctx.root, ['merge-base', '--is-ancestor', base, 'HEAD'])) return 0;
+  const count = Number(git(ctx.root, ['rev-list', '--count', 'HEAD..' + base]).trim());
+  const again = `then run accord worktree sync ${id} again`;
+  syncDefault(ctx.root, base, branch, 'merge', { conflict: `resolve it by hand, ${again}`, clash: `move it, ${again}` });
+  const name = base.replace('refs/remotes/', '').replace('refs/heads/', '');
+  ctx.stdout.write(withNext('synced', `merged: ${count} commit${count === 1 ? '' : 's'} of ${name} into ${branch}`) + '\n');
   return 0;
 }
 
@@ -2071,6 +2104,17 @@ function deleteProgress(ctx: CommandContext, s: GuardState, id: string, P: strin
   cleanSay(ctx, gone ? `pruned ${local} (was ${P})` : `deleted origin ${name} (was ${P})`);
 }
 
+/** Phase 15 D-31: the record line of a slice branch that clean just deleted goes with it; a failed write is named and the clean goes on. */
+function dropSliceLine(ctx: CommandContext, id: string, b: string): void {
+  const slice = sliceOfBranch(b);
+  if (slice === undefined) return;
+  try {
+    dropSlices(ctx.root, id, slice.n);
+  } catch (e) {
+    cleanSay(ctx, `note ${id}: the record of ${b} was not dropped: ${firstLine(e)}`);
+  }
+}
+
 /** ST-LN-25 D-08: for each ticket branch whose ticket is done on `ref`, remove the worktree and delete the local branch when nothing beyond main is lost. */
 function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, fetchFailed: boolean, merged: ReadonlySet<string>, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
@@ -2154,7 +2198,10 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
           continue;
         }
         // D-03: a dry run names the delete as a successful one and deletes nothing
-        if (s.dry === undefined) execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        if (s.dry === undefined) {
+          execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+          dropSliceLine(ctx, id, b);
+        }
         cleanSay(ctx, `deleted ${b} (was ${L})`);
       }
       // The origin branch goes with a lease on the fetched sha; after a failed fetch it is not judged.
@@ -2326,7 +2373,10 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       if (L !== undefined) {
         try {
           // D-03: a dry run names the delete as a successful one and deletes nothing
-          if (s.dry === undefined) execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+          if (s.dry === undefined) {
+            execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+            dropSliceLine(ctx, id, b);
+          }
           cleanSay(ctx, `deleted ${b} (was ${L})`);
         } catch (e) {
           cleanSay(ctx, `kept ${b}: git update-ref failed: ${firstLine(e)}`);

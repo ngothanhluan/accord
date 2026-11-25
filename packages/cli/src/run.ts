@@ -624,7 +624,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
           } catch {
             cwd = undefined;
           }
-          setCode(hook(preflight({ ...opts, cwd: cwd ?? opts.cwd }, 'checkout'), event));
+          // Phase 08.9.2 Ruling-narrow: the dispatch check reads the active ticket, its epic and its dependencies; every other ticket is known by file name only.
+          setCode(hook(preflight({ ...opts, cwd: cwd ?? opts.cwd }, 'checkout', { only: { active: true } }), event));
         } catch (e) {
           opts.stderr.write(`accord hook pre-tool-use: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
           opts.stdout.write('{}\n');
@@ -632,7 +633,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         }
         return;
       }
-      const ctx = preflight(opts, 'stage');
+      // Phase 08.9.2 Ruling-narrow: only an epic role's SubagentStart reads one ticket (its epic block); session start and resume read every ticket for the session line and keep their load (D-07).
+      const ctx = preflight(opts, 'stage', event === 'subagent-start' ? { only: { active: true } } : {});
       setCode(hook(ctx, event as (typeof HOOK_EVENTS)[number]));
       if (event === 'session-start') {
         const line = await upgradeNotice(ctx.snapshot.config?.accord);

@@ -302,6 +302,14 @@ it('risk:regression the executor dispatch answer and the epic block are the same
   expect(answers.get('the default branch: scout') ?? '', 'and no epic block').not.toContain('Epic E-1');
   expect(mismatches, 'hook answers that differ between the narrow and the full load').toEqual([]);
 
+  // a SubagentStart whose cwd is another checkout than the one loaded (a session that went into the story's worktree): that call reloads in full, and prints what the full load prints
+  const across = (narrow: boolean) => {
+    const m = hookContext(repo, narrow, true, start(roots[0][1], 'accord-scout'));
+    return { ...outcome(m, (ctx) => hook(ctx, 'subagent-start')), err: m.err() };
+  };
+  expect(across(true), 'a hook for another checkout than the loaded one').toEqual(across(false));
+  expect(across(false).out, 'the epic block of the other checkout').toContain('Epic E-1');
+
   // the command itself, through preflight: the same bytes as the full load, in the story's worktree and on the default branch
   for (const [where, root] of [roots[0], roots[2]]) {
     for (const [event, stdin, stage] of [

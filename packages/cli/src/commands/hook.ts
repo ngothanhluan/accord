@@ -112,6 +112,7 @@ function subagentEpic(ctx: CommandContext): string | undefined {
       delete c.branch;
       delete c.plain;
       delete c.light;
+      delete c.ids; // Phase 08.9.2: the narrow load's listing is of the first checkout, and this reload is whole
     }
     const id = activeTicket(root, c.snapshot, branchFor(root, ctx));
     return id === undefined ? undefined : epicBlock(epicSnapshot(c, id), id);

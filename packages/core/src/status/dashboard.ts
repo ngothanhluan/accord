@@ -127,9 +127,12 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
   const plain = plainSnapshot ?? snapshot;
   const finished = finishedIn(snapshot);
   const isOpen = isOpenWork(snapshot);
-  const all = statusRows(snapshot, now, plain).map((r) =>
-    isWork(r) && !closed(r) && r.stage === 'done' && !finished(r) ? { ...r, next: nextStep(snapshot.tickets[r.id], 'done') } : r,
-  );
+  // Phase 15 D-22: a ticket done on its claim branch and not on the default ref is a pull request waiting for its merge; `waitingSince` is the newest activity git already gave the loader, never a `gh` answer.
+  const all = statusRows(snapshot, now, plain).map((r) => {
+    if (!(isWork(r) && !closed(r) && r.stage === 'done' && !finished(r))) return r;
+    const last = snapshot.lastActivity?.[r.id];
+    return { ...r, next: nextStep(snapshot.tickets[r.id], 'done'), ...(last === undefined ? {} : { waitingSince: new Date(last * 1000).toISOString() }) };
+  });
   const prio = effectivePriorities(snapshot, plain);
   // Phase 15 D-29: a ticket whose code merged (the host's `mergedClaims`) and that is not done on the default ref waits for verify; it leaves every other group and the pick-up suggestion.
   const merged = new Set(snapshot.mergedClaims ?? []);

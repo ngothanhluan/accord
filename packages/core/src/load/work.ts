@@ -2,7 +2,7 @@
 // review.md under accord/tickets/<id>/, and accord/tests-baseline.txt. Pure string work; every parser
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
-import type { Debug, Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review, Section } from '../model/snapshot.js';
+import type { Debug, Discuss, DiscussArea, Ledger, Line, Plan, PlanSlice, PlanTask, Review, Section } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { trimLineEnd, visibleLines } from '../product/lines.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
@@ -11,6 +11,9 @@ import { headingKey, LIST_MARKER, scan, stripHtmlComments, taskBlocks } from './
 import { parseYamlMap } from './yaml.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
+// Phase 15 D-09: `## Slice <n>: <title>`, with its own three fields. One flat quantifier per group, no nested repeat (T-15-28).
+const SLICE = /^Slice\s+([1-9][0-9]*)\s*:\s*(.*)$/;
+const SLICE_FIELD = /^(tasks|covers|estimate):(.*)$/;
 // The three fields the older rules read, and the deferral rule reads token by token. `after:` is not one of them (ST-LN-91 CR-01): its own reader is afterField,
 // and the deferral rule reads an `after:` line as free text, as it did before the line existed, so a prose line that starts with it never escapes.
 export const FIELD = /^(covers|files|verify):(.*)$/;
@@ -46,22 +49,62 @@ type Field = 'covers' | 'files' | 'verify';
 /** A field value: tokens separated by whitespace or commas, empty tokens dropped. */
 export const tokens = (v: string): string[] => v.split(/[\s,]+/).filter((x) => x !== '');
 
-/** The parser's own field rule: first `covers:`/`files:`/`verify:` line per field, outside a fence, list marker stripped. */
-export function fieldLines(lines: Line[]): Partial<Record<Field, { line: number; value: string }>> {
+/** The first line per key that `re` (capture 1 the key, capture 2 the value) reads, outside a fence, list marker stripped. */
+function readFields<K extends string>(lines: Line[], re: RegExp): Partial<Record<K, { line: number; value: string }>> {
   if (lines.length === 0) return {};
   const { fences } = scan(lines.map((l) => l.text).join('\n'), lines[0].line - 1);
-  const out: Partial<Record<Field, { line: number; value: string }>> = {};
+  const out: Partial<Record<K, { line: number; value: string }>> = {};
   for (const l of lines) {
     if (fences.some((f) => l.line >= f.open && l.line <= f.close)) continue;
-    const f = FIELD.exec(l.text.replace(LIST_MARKER, '').trim());
+    const f = re.exec(l.text.replace(LIST_MARKER, '').trim());
     if (f === null) continue;
-    const key = f[1] as Field;
+    const key = f[1] as K;
     if (out[key] === undefined) out[key] = { line: l.line, value: f[2] };
   }
   return out;
 }
 
+/** The parser's own field rule: first `covers:`/`files:`/`verify:` line per field, outside a fence, list marker stripped. */
+export function fieldLines(lines: Line[]): Partial<Record<Field, { line: number; value: string }>> {
+  return readFields<Field>(lines, FIELD);
+}
+
 const TASK_NUMBER = /^[1-9][0-9]*$/;
+const ESTIMATE_KINDS = new Set(['code', 'test', 'docs', 'skills']);
+const COUNT = /^[0-9]+$/;
+
+/** The `estimate:` value of a slice: pairs of a kind (`code`, `test`, `docs`; `skills` counts with docs) and a count; a token that is not part of a pair goes to `unread`. */
+function readEstimate(value: string): { estimate: NonNullable<PlanSlice['estimate']>; unread: string[] } {
+  const estimate: NonNullable<PlanSlice['estimate']> = {};
+  const unread: string[] = [];
+  const found = tokens(value);
+  for (let i = 0; i < found.length; i++) {
+    const kind = found[i].toLowerCase();
+    const count = found[i + 1];
+    if (ESTIMATE_KINDS.has(kind) && count !== undefined && COUNT.test(count) && Number.isSafeInteger(Number(count))) {
+      const key = kind === 'skills' ? 'docs' : (kind as 'code' | 'test' | 'docs');
+      estimate[key] = (estimate[key] ?? 0) + Number(count);
+      i++;
+    } else {
+      unread.push(found[i]);
+    }
+  }
+  return { estimate, unread };
+}
+
+/** One slice from its section: the first `tasks:`, `covers:` and `estimate:` lines outside a fence. */
+function readSlice(n: number, title: string, s: Section): PlanSlice {
+  const found = readFields<'tasks' | 'covers' | 'estimate'>(s.lines, SLICE_FIELD);
+  const unread: string[] = [];
+  const numbers: number[] = [];
+  for (const t of tokens(found.tasks?.value ?? '')) {
+    if (TASK_NUMBER.test(t) && Number.isSafeInteger(Number(t))) numbers.push(Number(t));
+    else unread.push(t);
+  }
+  const est = found.estimate === undefined ? undefined : readEstimate(found.estimate.value);
+  if (est !== undefined) unread.push(...est.unread);
+  return { n, title, line: s.line, tasks: numbers, covers: tokens(found.covers?.value ?? ''), ...(est === undefined ? {} : { estimate: est.estimate }), unread };
+}
 
 /**
  * ST-LN-91 D-09: the first `after:` line of a task outside its accepted interfaces blocks (group 2 round 3: any other fence line hides nothing), list marker stripped, read as `accord brief` prints the task (WR-01: a comment is text), as `{ line, tasks, unread }`: each token that is a
@@ -139,16 +182,16 @@ function readFiles(value: string): { files: string[]; newFiles: string[]; models
   return { files, newFiles, models };
 }
 
-// The body lines above the first task heading (1-based Markdown line), or the whole body when there is none.
-function preamble(body: string, bodyOffset: number, taskLine: number | undefined): string {
-  if (taskLine === undefined) return body;
-  const above = body.split('\n').slice(0, taskLine - bodyOffset - 1);
+// The body lines above the first task or slice heading (1-based Markdown line), or the whole body when there is none.
+function preamble(body: string, bodyOffset: number, firstLine: number | undefined): string {
+  if (firstLine === undefined) return body;
+  const above = body.split('\n').slice(0, firstLine - bodyOffset - 1);
   return above.length > 0 ? above.join('\n') + '\n' : '';
 }
 
 /**
- * One task per `## Task <n>: <title>` section; any other section is prose and is skipped. `preamble` is the
- * body above the first task heading, verbatim. A field is the
+ * One task per `## Task <n>: <title>` section and one slice per `## Slice <n>: <title>` section (Phase 15 D-09); any other section is prose and is skipped. `preamble` is the
+ * body above the first task or slice heading, verbatim (Ruling R9). A field is the
  * first `covers:`, `files:`, or `verify:` line in the section, outside a fence, with an optional list
  * marker. `baseline:` in the frontmatter names the commit the plan was written against. A repeated task number keeps the first section and reports the second.
  */
@@ -157,7 +200,18 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   const { sections } = scan(body, bodyOffset);
   const findings: LoadFinding[] = [];
   const tasks: PlanTask[] = [];
+  const slices: PlanSlice[] = [];
   for (const s of sections) {
+    const sl = SLICE.exec(s.heading);
+    if (sl !== null) {
+      const n = Number(sl[1]);
+      if (slices.some((x) => x.n === n)) {
+        findings.push({ file, line: s.line, rule: 'load.slice-duplicate', reason: `duplicate "## Slice ${n}"; the first occurrence is used` });
+      } else {
+        slices.push(readSlice(n, sl[2].trim(), s));
+      }
+      continue;
+    }
     const m = TASK.exec(s.heading);
     if (!m) continue;
     const n = Number(m[1]);
@@ -206,7 +260,8 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   const plan: Plan = {
     file,
     tasks,
-    preamble: preamble(body, bodyOffset, sections.find((s) => TASK.test(s.heading))?.line),
+    ...(slices.length === 0 ? {} : { slices }),
+    preamble: preamble(body, bodyOffset, sections.find((s) => TASK.test(s.heading) || SLICE.test(s.heading))?.line),
     bodyHash: fnv1a64(body),
     ...(typeof baseline === 'string' ? { baseline } : {}),
     ...(typeof planHash === 'string' ? { planHash } : {}),

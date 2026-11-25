@@ -4,9 +4,9 @@
 import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
-import type { Plan, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
+import type { Plan, PlanSlice, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { afterCycles } from '../plan/waves.js';
-import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore } from '../round/pin.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore, SLICES_FROM } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, stageLaneTicket, workOf } from './work.js';
@@ -437,6 +437,138 @@ export const acUncovered: GateRule['check'] = (snapshot, id) => {
     .filter((a) => !covered.has(a))
     .map((a) => ({ file: planFile(id), reason: `${a} is covered by no task` }));
 };
+
+/**
+ * Phase 15 D-09: the slices a slice rule reads: those of a lane ticket that is not lane S whose plan holds a `## Slice` section, unless its claim pin is below SLICES_FROM (claimPinBefore: a failed
+ * read and a non-plain pin apply the rules). Its own reader, as wavesTasks is for the wave rules, so a ticket claimed before the release, and a plan with no slice, answer as before.
+ */
+const slicesOf = (snapshot: RepoSnapshot, id: string): { plan: Plan; slices: PlanSlice[] } | undefined => {
+  const t = laneTicket(snapshot, id);
+  const plan = workOf(snapshot, id)?.plan;
+  if (t === undefined || t.frontmatter?.lane === 'S' || plan?.slices === undefined || claimPinBefore(snapshot, id, SLICES_FROM)) return undefined;
+  return { plan, slices: plan.slices };
+};
+
+/** Phase 15 D-03: a plan of more than this many slices gets the warning gate.slice-many. A constant, not a config.yml key. */
+export const SLICES_MANY = 3;
+
+/** Phase 15 D-06: the lines added plus deleted of code, tests, docs and skills a reviewer reads in one slice, when `review.slice_lines` is not set. */
+export const SLICE_LINES_DEFAULT = 1000;
+
+/** `1`, `1 and 2`, `1, 2 and 3`. */
+const andList = (xs: number[]): string => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+/**
+ * Phase 15 D-09: every task of the plan is in exactly one slice, every task a slice names is a task of the plan, a slice names at least one task, and the slices are numbered 1 to N without a gap.
+ * One finding per fault, at the slice heading or the task heading.
+ */
+export const sliceTasks: GateRule['check'] = withNote((snapshot, id) => {
+  const read = slicesOf(snapshot, id);
+  if (read === undefined) return [];
+  const { plan, slices } = read;
+  const file = planFile(id);
+  const known = new Set(plan.tasks.map((t) => t.n));
+  const out: { file: string; line?: number; reason: string }[] = [];
+  const numbers = slices.map((s) => s.n).sort((a, b) => a - b);
+  if (numbers.some((n, i) => n !== i + 1)) {
+    out.push({ file, line: slices[0].line, reason: `slices are numbered ${numbers.join(', ')}; number them 1 to ${numbers.length} with no gap` });
+  }
+  for (const s of slices) {
+    if (s.tasks.length === 0) out.push({ file, line: s.line, reason: `slice ${s.n} names no task on its tasks: line (tasks: 1, 2)` });
+    for (const n of new Set(s.tasks)) {
+      if (!known.has(n)) out.push({ file, line: s.line, reason: `slice ${s.n} names task ${n}, which is not a task of this plan` });
+      else if (s.tasks.filter((x) => x === n).length > 1) out.push({ file, line: s.line, reason: `slice ${s.n} names task ${n} twice` });
+    }
+  }
+  for (const t of plan.tasks) {
+    const holding = slices.filter((s) => s.tasks.includes(t.n)).map((s) => s.n);
+    if (holding.length === 0) out.push({ file, line: t.line, reason: `task ${t.n} is in no slice: name it on the tasks: line of the slice that builds it` });
+    else if (holding.length > 1) out.push({ file, line: t.line, reason: `task ${t.n} is in slices ${andList(holding)}: name it in one slice` });
+  }
+  return out;
+});
+
+/** Phase 15 D-09: a slice delivers at least one criterion, and each criterion its covers: line names is covered by one of its own tasks. */
+export const sliceAcMissing: GateRule['check'] = withNote((snapshot, id) => {
+  const read = slicesOf(snapshot, id);
+  if (read === undefined) return [];
+  const { plan, slices } = read;
+  return slices.flatMap((s) => {
+    const delivered = s.covers.filter((c) => c.startsWith('@'));
+    if (delivered.length === 0) {
+      return [{ file: planFile(id), line: s.line, reason: `slice ${s.n} delivers no criterion: its covers: line names the criteria it delivers (covers: @ac-1)` }];
+    }
+    const covered = new Set(plan.tasks.filter((t) => s.tasks.includes(t.n)).flatMap((t) => t.covers));
+    return delivered
+      .filter((a) => !covered.has(a))
+      .map((a) => ({ file: planFile(id), line: s.line, reason: `slice ${s.n} covers ${a}, which none of its tasks covers` }));
+  });
+});
+
+/** Phase 15 D-09: a task never follows (`after:`) a task of a later slice, because slices merge in order; a task in no slice or in two is sliceTasks'. */
+export const sliceOrder: GateRule['check'] = withNote((snapshot, id) => {
+  const read = slicesOf(snapshot, id);
+  if (read === undefined) return [];
+  const { plan, slices } = read;
+  const sliceOf = new Map<number, number>();
+  for (const t of plan.tasks) {
+    const holding = slices.filter((s) => s.tasks.includes(t.n));
+    if (holding.length === 1) sliceOf.set(t.n, holding[0].n);
+  }
+  return plan.tasks.flatMap((t) =>
+    (t.after?.tasks ?? []).flatMap((u) => {
+      const mine = sliceOf.get(t.n);
+      const theirs = sliceOf.get(u);
+      return mine === undefined || theirs === undefined || theirs <= mine
+        ? []
+        : [
+            {
+              file: planFile(id),
+              line: t.after!.line,
+              reason: `task ${t.n} (slice ${mine}) follows task ${u}, which is in slice ${theirs}: slices merge in order, so move task ${t.n} to slice ${theirs} or later`,
+            },
+          ];
+    }),
+  );
+});
+
+/** Phase 15 D-03: a warning on a plan of more than SLICES_MANY slices, naming the epic split; it fails nothing. */
+export const sliceMany: GateRule['check'] = (snapshot, id) => {
+  const read = slicesOf(snapshot, id);
+  if (read === undefined || read.slices.length <= SLICES_MANY) return [];
+  return [{ file: read.plan.file, reason: `plan.md has ${read.slices.length} slices: work this size is often an epic; if it is, ${SPLIT_HINT}` }];
+};
+
+/** The review budget of a slice in lines: `review.slice_lines` when it reads as a positive whole number, else SLICE_LINES_DEFAULT. */
+const sliceBudget = (snapshot: RepoSnapshot): number => {
+  const n = Number(snapshot.config?.review?.slice_lines);
+  return Number.isSafeInteger(n) && n > 0 ? n : SLICE_LINES_DEFAULT;
+};
+
+/** Phase 15 D-06: a warning on a slice whose estimate (lines added plus deleted of code, tests, docs and skills) is over the review budget; it shows the split and fails nothing. */
+export const sliceLarge: GateRule['check'] = (snapshot, id) => {
+  const read = slicesOf(snapshot, id);
+  if (read === undefined) return [];
+  const budget = sliceBudget(snapshot);
+  return read.slices.flatMap((s) => {
+    const parts = (['code', 'test', 'docs'] as const).flatMap((k) => (s.estimate?.[k] === undefined ? [] : [`${k} ${s.estimate[k]}`]));
+    const total = (s.estimate?.code ?? 0) + (s.estimate?.test ?? 0) + (s.estimate?.docs ?? 0);
+    return total <= budget
+      ? []
+      : [{ file: read.plan.file, line: s.line, reason: `slice ${s.n} is about ${total} lines (${parts.join(', ')}), over the review budget of ${budget}` }];
+  });
+};
+
+/** Phase 15 D-09, T-15-29: a criterion of the ticket that no slice's `covers:` line names, so a slice pull request could pass without it. */
+export const sliceAcUncovered: GateRule['check'] = withNote((snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  const read = slicesOf(snapshot, id);
+  if (t === undefined || read === undefined) return [];
+  const delivered = new Set(read.slices.flatMap((s) => s.covers));
+  return acTags(t)
+    .filter((a) => !delivered.has(a))
+    .map((a) => ({ file: planFile(id), reason: `${a} is delivered by no slice: name it on the covers: line of the slice that delivers it` }));
+});
 
 export const decisionUncited: GateRule['check'] = (snapshot, id) => {
   const t = laneTicket(snapshot, id);

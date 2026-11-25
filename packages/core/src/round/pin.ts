@@ -168,6 +168,14 @@ export const PRODUCT_TEXT_FROM = '0.13.0';
  */
 export const SECURITY_OFF_FROM = '0.16.0';
 
+/**
+ * Phase 15 D-09, D-03, D-06: the release from which `accord gate plan` reads the `## Slice <n>` sections of plan.md: the errors gate.slice-tasks, gate.slice-ac-missing, gate.slice-ac-uncovered and
+ * gate.slice-order, and the warnings gate.slice-many and gate.slice-large. Read only through claimPinBefore: a ticket claimed under a pin below it is judged by none of them, so no plan that exists when
+ * the rules ship gets a finding. It is the next minor after the newest released heading of docs/releases.md at planning, 0.20.3; the release that ships Phase 15 sets it to its own version if another
+ * release came first, and migration-pin.test.ts follows.
+ */
+export const SLICES_FROM = '0.21.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

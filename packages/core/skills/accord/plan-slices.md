@@ -1,0 +1,27 @@
+---
+kind: reference
+---
+
+# Slices
+
+Follow this when step 3 of `./plan.md` applies: when the plan is larger than one review.
+
+A plan is cut into slices only when its expected size is over one review: the sum of its slice estimates, or, before slicing, the planner's own estimate of the whole plan, is more than `review.slice_lines` in `accord/config.yml` (default 1000). The size counts every line a reviewer reads, code, tests, docs and skills, added plus deleted, and no ticket record, generated file or lockfile. This holds under every `review:` mode, `outcome` included. A plan within the budget has no `## Slice` section.
+
+After the last task the planner writes one section per slice, numbered from 1:
+
+```
+## Slice 1: <title>
+tasks: 1, 2
+covers: @ac-1, D-02
+estimate: code 300, test 600, docs 150
+```
+
+- Every task is in exactly one slice, and a task never follows (`after:`) a task of a later slice, because slices merge in order.
+- Every slice delivers at least one criterion: its `covers:` line names an `@ac-n`. Every criterion of the ticket is delivered by some slice.
+- Every slice leaves the default branch working once it is merged, with no feature flag. When the planner cannot cut such a slice, the tasks stay in one slice.
+
+`accord gate plan <id>` checks all of this; fix what it prints as for any plan error.
+
+- `gate.slice-large` warns that a slice's estimate is over the budget and shows its split. Read it; it stops nothing.
+- `gate.slice-many` warns that the plan has more than three slices. Ask the owner as `./ask.md` says whether to make the ticket an epic of smaller stories (lane L, `/accord <request>`), saying what each choice costs; the owner decides. On a yes, stop this plan and tell the owner how to start the epic. On a no, keep the slices and write the no as a Ruling.

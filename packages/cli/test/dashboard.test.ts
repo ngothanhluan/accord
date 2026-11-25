@@ -377,8 +377,8 @@ it('risk:regression an idle ticket shows idle days in the dashboard text and the
     expect(res.code).toBe(0);
     expect(res.out.split('\n').find((l) => l.includes('T-1'))).toMatch(/build 0\/2 idle \d+d/);
     const j = JSON.parse((await run(['dashboard', '--json'], repo)).out);
-    expect(Object.keys(j)).toEqual(['yours', 'team', 'ready', 'upNext', 'epics', 'summary']);
-    expect(Object.keys(j.summary)).toEqual(['inProgress', 'ready', 'blocked', 'backlog', 'done', 'withoutLane', 'withSchemaErrors']);
+    expect(Object.keys(j)).toEqual(['yours', 'team', 'ready', 'upNext', 'mergedWaiting', 'epics', 'summary']);
+    expect(Object.keys(j.summary)).toEqual(['inProgress', 'ready', 'blocked', 'backlog', 'done', 'withoutLane', 'withSchemaErrors', 'mergedWaiting']);
     expect(j.epics).toEqual({ rows: [], more: 0 });
     expect(typeof j.upNext.rows.find((r: { id: string }) => r.id === 'T-1').idleDays).toBe('number');
   } finally {

@@ -193,3 +193,21 @@ it('risk:regression a ticket file only this checkout holds keeps showing there a
   expect(everyId(await dash(repo))).toContain('T-9');
   expect(everyId(await dash(stale))).not.toContain('T-9');
 }, 120_000);
+
+// Phase 08.8 D-08 kept: a claim branch merged while its ticket is not done is a normal state; only its dashboard group changed (D-29).
+it('risk:regression audit and clean report no fault for a merged claim branch of a ticket that is not done (08.8 D-08)', async () => {
+  const repo = base();
+  buildOnBranch(repo);
+  mergeIn(repo, 'merge');
+  expect(ids(await dash(repo), 'mergedWaiting')).toEqual(['T-1']);
+
+  const audit = await run(['audit'], repo);
+  expect(audit.code, audit.err).toBe(0);
+  expect(audit.out.split('\n').filter((l) => /\bT-1\b|t\/T-1/.test(l))).toEqual([]);
+  const clean = await run(['worktree', 'clean', '--dry-run'], repo);
+  expect(clean.code, clean.err).toBe(0);
+  expect(clean.out + clean.err).not.toMatch(/T-1/);
+  // nothing was removed or written
+  expect(gitRun(repo, 'for-each-ref', '--format=%(refname)', 'refs/heads/t').trim()).toBe('refs/heads/t/T-1');
+  expect(gitRun(repo, 'status', '--short').trim()).toBe('');
+}, 180_000);

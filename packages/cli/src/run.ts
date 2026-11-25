@@ -193,8 +193,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       .description('report whether the ticket passes the ' + which + ' gate')
       .option('--json', 'print the GateResult object instead of text')
       .action((id: string, options: { json?: boolean }) => {
-        // Phase 08.9.2 Ruling-narrow: a gate reads its ticket, its epic and its dependencies; every other ticket is known by file name only.
-        setCode(gate(preflight(opts, 'checkout', { only: id }), which, id, options));
+        // Phase 08.9.2 Ruling-narrow: Ready and Plan read the ticket, its epic and its dependencies; every other ticket is known by file name only.
+        // Phase 08.9.2 review CR-01: Done does not. `gate.test-untraced` holds each report case against the `@test:` tags of EVERY ticket, so a narrow Done named the cases another ticket traces as untraced; Done takes the full load.
+        setCode(gate(preflight(opts, 'checkout', which === 'done' ? {} : { only: id }), which, id, options));
       });
   }
 

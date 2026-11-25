@@ -33,7 +33,8 @@ export function hookEarly(opts: RunOptions, event: HookEvent): number | undefine
   // Ruling-wake-session: a session that typed /accord is woken, whatever the mode or the switch: it gets neither the off silence nor the quiet line, and its session events take the full path.
   const woken = isWoken(input?.cwd ?? opts.cwd, input?.session_id);
   // Ruling-off-accord: a typed /accord is an explicit request, so it wakes the session even while accord is off (the full path builds the answer); nothing else is let through.
-  if (!woken && isOff(input?.cwd ?? opts.cwd)) return event === 'prompt-expansion' && isWake(opts) ? undefined : 0;
+  // Review WR-05: the marker is per clone, not per person or session, so the one guard that holds the core value (the verification.md write) keeps answering; every other hook is silent.
+  if (!woken && isOff(input?.cwd ?? opts.cwd)) return event === 'prompt-expansion' && isWake(opts) ? undefined : event === 'pre-tool-use' ? offWriteGuard(opts) : 0;
   switch (event) {
     case 'pre-tool-use':
       return preToolUseEarly(opts);
@@ -48,6 +49,18 @@ export function hookEarly(opts: RunOptions, event: HookEvent): number | undefine
     default:
       return undefined;
   }
+}
+
+/**
+ * Review WR-05: a PreToolUse call while accord is off. Only a denial of a verification.md write is printed; an allowed write, the executor dispatch check and every other call print nothing, as
+ * every other hook does while off. `preToolUseWrite` decides from stdin alone, so no process starts; what it would print for an allowed call is held back.
+ */
+function offWriteGuard(opts: RunOptions): number {
+  let held = '';
+  const sink = { write: (text: string): boolean => ((held += text), true) } as unknown as NodeJS.WritableStream;
+  preToolUseWrite({ stdin: opts.stdin ?? '', stdout: sink, stderr: sink });
+  if (held.includes('"permissionDecision":"deny"')) opts.stdout.write(held);
+  return 0;
 }
 
 function preToolUseEarly(opts: RunOptions): number | undefined {

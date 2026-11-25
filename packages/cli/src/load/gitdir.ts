@@ -90,18 +90,18 @@ export function headBranchOf(gitDir: string): string | undefined {
   return /^[0-9a-f]{40,64}$/i.test(line) ? '' : undefined;
 }
 
-/** Phase 08.9.2 Ruling-wake-session: the folder, in a checkout's own git folder, holding one small file per session that typed /accord; the launcher reads the same files. */
+/** Phase 08.9.2 Ruling-wake-session: the folder, in the common git folder (review WR-02: one place for every worktree, as the off marker), holding one small file per session that typed /accord; the launcher reads the same files. */
 export const WAKE_DIR = 'accord-wake';
 /** A session id may name a file only when it is a plain name: letters, digits, `_` and `-`, 1 to 128 of them (T-08.9.2-29). */
 const SESSION_NAME = /^[A-Za-z0-9_-]{1,128}$/;
 /** A wake file older than this is a session nobody is coming back to; each write removes such files. */
 const WAKE_KEEP_MS = 24 * 3_600_000;
 
-/** `<per-worktree git folder>/accord-wake/<session_id>` of the checkout at `root`; undefined unless the id is a plain name and the git folders can be read. */
+/** `<common git folder>/accord-wake/<session_id>` of the checkout at `root`; undefined unless the id is a plain name and the git folders can be read. */
 export function wakeFilePath(root: string, sessionId: string | undefined): string | undefined {
   if (typeof sessionId !== 'string' || !SESSION_NAME.test(sessionId)) return undefined;
   const dirs = gitDirsOf(root);
-  return dirs === undefined ? undefined : join(dirs.gitDir, WAKE_DIR, sessionId);
+  return dirs === undefined ? undefined : join(dirs.commonDir, WAKE_DIR, sessionId);
 }
 
 /** True when the session `sessionId` of the clone `dir` belongs to has typed /accord (its wake file exists). Never throws: anything unreadable is not woken. */

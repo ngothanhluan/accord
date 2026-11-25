@@ -11,7 +11,7 @@ const MIN = 60_000;
 type Spawned = { cmd: string; args: string[]; opts: Record<string, unknown> };
 type Io = Record<string, unknown>;
 const href = pathToFileURL(fileURLToPath(new URL('../launcher/accord.mjs', import.meta.url))).href;
-const { launch } = (await import(/* @vite-ignore */ href)) as { launch: (io: Io) => number };
+const { launch, readHookInput } = (await import(/* @vite-ignore */ href)) as { launch: (io: Io) => number; readHookInput: (io: Io) => string };
 
 const norm = (p: string): string => p.replace(/\\/g, '/');
 const fsError = (code: string): Error => Object.assign(new Error(`${code}: simulated`), { code });
@@ -119,7 +119,8 @@ function world(opts: { npm?: 'ok' | 'fail'; withNpmCli?: boolean; start?: number
     spawned.push({ cmd, args, opts: o });
     if (args.includes('install')) {
       if (opts.npm === 'fail') return { status: 1, stdout: '', stderr: 'npm ERR! 404 Not Found\nsecond line\n' };
-      const temp = args[args.indexOf('--prefix') + 1] as string;
+      const prefix = args[args.indexOf('--prefix') + 1] as string;
+      const temp = prefix === '.' ? (o.cwd as string) : prefix; // npm resolves a relative prefix against the child's working directory
       m.file(`${temp}/node_modules/${PKG}/dist/cli.js`);
       return { status: 0, stdout: '', stderr: '' };
     }
@@ -398,5 +399,93 @@ it('risk:parsing a command word first reads the pin from accord config beside th
     expect(w.spawned).toEqual([]);
     expect(w.err).toHaveLength(1);
     expect(w.err[0]?.trimEnd().split('\n')).toHaveLength(1);
+  }
+});
+
+// Phase 08.9.2 review WR-01: the pin line takes every form `accord upgrade` writes and accepts (the grammar of scaffold/repin.ts), so the off line a session start prints works in each.
+it('risk:parsing the pin line takes a quoted pin a single-quoted pin and a pin with a comment (WR-01)', () => {
+  for (const line of ['accord: "0.19.0" # pinned', "accord: '0.19.0'", 'accord: 0.19.0 # comment', 'accord:   "0.19.0"', 'accord: 0.19.0\r']) {
+    const w = world();
+    w.m.text('/repo/accord/config.yml', `schema: 1\n${line}\nmode: team\n`);
+    w.m.file(bundleOf('0.19.0'));
+    expect(launch(w.io(['off'])), line).toBe(0);
+    expect(w.err, line).toEqual([]);
+    expect((w.spawned[0] as Spawned | undefined)?.args.map(norm), line).toEqual([bundleOf('0.19.0'), 'off']);
+  }
+  // a key with no value on its line takes nothing from the next line
+  const split = world();
+  split.m.text('/repo/accord/config.yml', 'accord:\nfoo: bar\n');
+  expect(launch(split.io(['off']))).toBe(2);
+  expect(split.spawned).toEqual([]);
+  expect(split.err[0]).toContain('no "accord:" pin found');
+});
+
+/** The stdin seam of readHookInput: `reads` is what each readSync call does (a byte string, an error code, or end of input). */
+function stdinWorld(reads: (string | Buffer | { code: string })[], isTTY = false) {
+  const queue = [...reads];
+  const err: string[] = [];
+  const sleeps: number[] = [];
+  let calls = 0;
+  const io = {
+    isTTY,
+    readSync: (_fd: number, buf: Buffer) => {
+      calls++;
+      const next = queue.shift();
+      if (next === undefined) return 0;
+      if (typeof next === 'object' && !Buffer.isBuffer(next)) throw Object.assign(new Error(next.code + ': simulated'), { code: next.code });
+      return (Buffer.isBuffer(next) ? next : Buffer.from(next, 'utf8')).copy(buf);
+    },
+    sleep: (ms: number) => sleeps.push(ms),
+    stderr: { write: (s: string) => err.push(s) },
+  };
+  return { io, err, sleeps, calls: () => calls };
+}
+
+// Phase 08.9.2 review WR-03: the launcher never waits on a terminal's stdin, reads a pipe in chunks whatever their split, and says so on stderr when the input cannot be read (the CLI then fails open on an empty input).
+it('risk:resource the launcher reads hook input in chunks skips a terminal and names a failed read (WR-03)', () => {
+  const tty = stdinWorld(['never read'], true);
+  expect(readHookInput(tty.io)).toBe('');
+  expect(tty.calls(), 'a terminal is not read').toBe(0);
+
+  // one two-byte character split over two chunks is decoded whole
+  const bytes = Buffer.from('{"a":"é"}', 'utf8');
+  const split = bytes.indexOf(0xc3) + 1;
+  const chunked = stdinWorld([bytes.subarray(0, split), bytes.subarray(split)]);
+  expect(readHookInput(chunked.io)).toBe('{"a":"é"}');
+
+  // a pipe that is not ready yet is waited for, a closed Windows pipe is an end, and neither is reported
+  const slow = stdinWorld([{ code: 'EAGAIN' }, { code: 'EAGAIN' }, '{"x":1}', { code: 'EOF' }]);
+  expect(readHookInput(slow.io)).toBe('{"x":1}');
+  expect(slow.sleeps).toHaveLength(2);
+  expect(slow.err).toEqual([]);
+
+  // any other failure: one stderr line, and what was read so far
+  const broken = stdinWorld(['{"x"', { code: 'EBADF' }]);
+  expect(readHookInput(broken.io)).toBe('{"x"');
+  expect(broken.err).toHaveLength(1);
+  expect(broken.err[0]).toContain('accord: could not read hook input');
+  expect(broken.err[0]).toContain('EBADF');
+
+  // a pipe that never becomes ready stops after a bounded wait
+  const stuck = stdinWorld(Array.from({ length: 200 }, () => ({ code: 'EAGAIN' })));
+  expect(readHookInput(stuck.io)).toBe('');
+  expect(stuck.sleeps.length).toBeLessThan(100);
+  expect(stuck.err).toHaveLength(1);
+});
+
+// Phase 08.9.2 review WR-04: the Windows shell fallback of the install (no npm-cli.js beside Node) carries no user path in the shell command; the temporary folder is the child's working directory.
+it('risk:security the shell fallback of the install on Windows carries no path in its command (WR-04)', () => {
+  for (const home of ['/Users/Luan Ngo/AppData/Local', '/Users/a&b/AppData/Local']) {
+    const w = world({ withNpmCli: false });
+    expect(launch(w.io([V, 'hook', 'session-start'], { platform: 'win32', env: { LOCALAPPDATA: home } })), home).toBe(0);
+    const install = w.npmCalls();
+    expect(install, home).toHaveLength(1);
+    const call = install[0] as Spawned;
+    expect(call.cmd).toBe('npm');
+    expect(call.opts.shell, 'the one shell of the launcher').toBe(true);
+    expect(call.args.filter((a) => /[ &]|\.tmp-|Users/.test(a)), `no argument holds a path of ${home}`).toEqual([]);
+    expect(call.args[call.args.indexOf('--prefix') + 1], 'the prefix is the working directory').toBe('.');
+    expect(norm(String(call.opts.cwd)), 'the temporary folder is where npm runs').toContain(home + '/accord/versions/.tmp-');
+    expect(w.m.has(bundleOf(V).replace(/^\/cache/, home)), 'the install lands in the cache').toBe(true);
   }
 });

@@ -7,10 +7,10 @@
 // place, under a lock folder so two starts install it once. The cache keeps the three newest versions. When the install fails,
 // a hook prints one line and exits 0, so a missing network never stops a session.
 // Plain JavaScript, built-ins only, no dependency: the file is committed to the repository and read by the team.
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
-import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
+import { dirname, join, posix, relative, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PACKAGE = 'ACCORD_PACKAGE_NAME';
@@ -25,16 +25,17 @@ const POLL_MS = 200;
 const KEEP_VERSIONS = 3; // version folders left after a fill, the running one included
 // A first word made only of lowercase letters and dashes is a command (`node .claude/accord.mjs off`), not a version.
 const COMMAND_WORD = /^[a-z][a-z-]*$/;
-const PIN_LINE = /^accord:\s*"?([^"\s]+)"?\s*$/m;
+// The grammar of the CLI's own pin writer (scaffold/repin.ts ACCORD_LINE): a double-quoted, single-quoted or bare value, an optional trailing comment, and nothing across a line end.
+const PIN_LINE = /^accord:[ \t]*(?:"([^"\r\n]*)"|'([^'\r\n]*)'|([^\s#'"]+))(?:[ \t]+#[^\r\n]*)?[ \t]*\r?$/m;
 // `accord off` writes this file in the git common folder; while it exists every hook of the clone is silent (Phase 08.9.2 D-03).
 const OFF_MARKER = 'accord-off';
-// Phase 08.9.2 Ruling-wake-session: `<git dir>/accord-wake/<session_id>` exists for a session that typed /accord; such a session takes the full path whatever the mode or the switch (the CLI's gitdir.ts WAKE_DIR).
+// Phase 08.9.2 Ruling-wake-session: `<common git dir>/accord-wake/<session_id>` exists for a session that typed /accord; such a session takes the full path whatever the mode or the switch (the CLI's gitdir.ts WAKE_DIR).
 const WAKE_DIR = 'accord-wake';
 // A session id may name a file only when it is a plain name (the CLI's SESSION_NAME, T-08.9.2-29).
 const SESSION_NAME = /^[A-Za-z0-9_-]{1,128}$/;
 // Phase 08.9.2 L-03, D-04: the lines a quiet repository prints at a session start (the off line only on a start); word for word the CLI's QUIET_LINE (hook-early.ts) and OFF_LINE (off.ts).
 const QUIET_LINE = 'accord: quiet in this repository (hook_mode: quiet): no rules, fetch or clean at session start; type /accord to wake accord for this session';
-const OFF_LINE = 'accord: not using accord? switch it off for yourself in this clone: node .claude/accord.mjs off (node .claude/accord.mjs on switches it back)';
+const OFF_LINE = 'accord: not using accord? switch it off for yourself in this clone: node .claude/accord.mjs off (node .claude/accord.mjs on switches it back); an agent runs either only when the person asks';
 // D-02: the CLI's own test of the value (hook-early.ts QUIET_MODE), the same text, so launcher and CLI decide alike; anything that is not exactly quiet is full.
 const QUIET_MODE = /^hook_mode:[ \t]+(?:"quiet"|'quiet'|quiet)(?:[ \t]+#.*)?[ \t]*$/m;
 
@@ -70,11 +71,12 @@ function fill(io, versionsDir, folder, version, bundleOf) {
   try {
     io.fs.rmSync(temp, { recursive: true, force: true }); // a leftover of a killed run with the same pid
     io.fs.mkdirSync(temp, { recursive: true });
-    const args = ['install', '--prefix', temp, '--no-save', '--no-audit', '--no-fund', '--ignore-scripts', `${PACKAGE}@${version}`];
+    // Review WR-04: the prefix is `.`, which npm resolves against cwd (the temporary folder), so no user path is ever a word of the command, shell or not.
+    const args = ['install', '--prefix', '.', '--no-save', '--no-audit', '--no-fund', '--ignore-scripts', `${PACKAGE}@${version}`];
     const script = npmCli(io);
     // cwd is the temporary folder, so a package.json or .npmrc committed in the repository the hook runs in never reaches npm.
     const opts = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: io.env, timeout: INSTALL_MS, cwd: temp };
-    // The one place a shell is used: Windows with no npm-cli.js beside Node, where npm is npm.cmd. Fixed words plus the checked version.
+    // The one place a shell is used: Windows with no npm-cli.js beside Node, where npm is npm.cmd. Fixed words plus the checked version, and no path.
     const r = script === undefined ? io.spawnSync('npm', args, { ...opts, shell: io.platform === 'win32' }) : io.spawnSync(io.execPath, [script, ...args], opts);
     if (r.error !== undefined) return oneLine(r.error.message, 160) || 'npm did not start';
     if (r.status !== 0) return oneLine(r.stderr || r.stdout || '', 160) || `npm exited with status ${r.status}`;
@@ -170,7 +172,8 @@ function ensure(io, versionsDir, folder, version, bundleOf) {
 function pinOf(io) {
   try {
     const config = join(dirname(dirname(io.launcherPath)), 'accord', 'config.yml');
-    return PIN_LINE.exec(io.fs.readFileSync(config, 'utf8'))?.[1];
+    const found = PIN_LINE.exec(io.fs.readFileSync(config, 'utf8'));
+    return found?.[1] ?? found?.[2] ?? found?.[3];
   } catch {
     return undefined;
   }
@@ -244,15 +247,15 @@ function fieldOf(text, key) {
 }
 
 /**
- * Phase 08.9.2 Ruling-wake-session: true when this call's session typed /accord, i.e. `<git dir>/accord-wake/<session_id>` exists. Plain file reads. With no `accord-wake` folder (no session
+ * Phase 08.9.2 Ruling-wake-session: true when this call's session typed /accord, i.e. `<common git dir>/accord-wake/<session_id>` exists. Plain file reads. With no `accord-wake` folder (no session
  * ever woke here) it answers false without reading stdin; an id that is not a plain name names no file. Never throws: anything unreadable is not woken.
  */
 function isWoken(io, stdin) {
   try {
     const folders = gitFolders(io);
-    if (folders === undefined || !io.fs.existsSync(join(folders.gitDir, WAKE_DIR))) return false;
+    if (folders === undefined || !io.fs.existsSync(join(folders.common, WAKE_DIR))) return false;
     const id = fieldOf(stdin.get(), 'session_id');
-    return id !== undefined && SESSION_NAME.test(id) && io.fs.existsSync(join(folders.gitDir, WAKE_DIR, id));
+    return id !== undefined && SESSION_NAME.test(id) && io.fs.existsSync(join(folders.common, WAKE_DIR, id));
   } catch {
     return false;
   }
@@ -311,6 +314,18 @@ function answeredAtOnce(text) {
   }
 }
 
+/** True for a Write, Edit or MultiEdit of accord/tickets/<id>/verification.md (the CLI's VERIFICATION_RECORD); anything else, or text that is not JSON, is false. */
+function writesVerification(text) {
+  try {
+    const call = JSON.parse(text);
+    if (call === null || typeof call !== 'object' || !['Write', 'Edit', 'MultiEdit'].includes(call.tool_name)) return false;
+    const file = call.tool_input?.file_path;
+    return typeof file === 'string' && /(?:^|\/)accord\/tickets\/[^/]+\/verification\.md$/i.test(posix.normalize(file.replace(/\\/g, '/')));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Run one launcher call and return the exit code. `io` carries everything the call touches, so a test needs no real cache:
  * { argv (the words after the script), env, platform, homedir, execPath, pid, launcherPath, readStdin, fs, spawnSync, now, sleep, stdout, stderr }.
@@ -323,7 +338,8 @@ export function launch(io) {
   if ((argv[0] === 'hook' || argv[1] === 'hook') && isOff(io)) {
     const offEvent = argv[0] === 'hook' ? argv[1] : argv[2];
     const typedAccord = offEvent === 'prompt-expansion' && fieldOf(stdin.get(), 'command_name') === 'accord';
-    if (!typedAccord && !isWoken(io, stdin)) return 0;
+    // Review WR-05: a verification.md write goes on to the CLI, which denies it unless the verifier writes it; no other pre-tool-use call does.
+    if (!typedAccord && !(offEvent === 'pre-tool-use' && writesVerification(stdin.get())) && !isWoken(io, stdin)) return 0;
   }
   if (typeof argv[0] === 'string' && COMMAND_WORD.test(argv[0])) {
     // No version word: the version is the pin in accord/config.yml, so the line a person types stays short after every upgrade.
@@ -388,13 +404,37 @@ export function launch(io) {
 /** A synchronous pause: Atomics.wait on a private one-element array, no busy loop. */
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-const readStdin = () => {
-  try {
-    return readFileSync(0, 'utf8');
-  } catch {
-    return '';
+/**
+ * Phase 08.9.2 review WR-03: the hook input on fd 0. A terminal is never read (a person typing the hook command has no input, and the CLI skips a TTY the same way). A pipe is read in chunks
+ * and decoded once, so a character split across two chunks stays whole; a pipe that is not ready yet is waited for a bounded time, and a closed Windows pipe (EOF) is an end. Any other failure is
+ * said once on stderr, so the CLI's fail-open on an empty input is never silent. `io` is { isTTY, readSync, sleep, stderr }.
+ */
+export function readHookInput(io) {
+  if (io.isTTY) return '';
+  const chunks = [];
+  const buf = Buffer.alloc(65536);
+  let waits = 0;
+  for (;;) {
+    let n;
+    try {
+      n = io.readSync(0, buf, 0, buf.length, null);
+    } catch (e) {
+      if (e?.code === 'EOF') break;
+      if (e?.code === 'EAGAIN' && waits < 50) {
+        waits += 1;
+        io.sleep(20);
+        continue;
+      }
+      io.stderr.write(`accord: could not read hook input (${oneLine(e?.code ?? e?.message ?? 'unknown', 40)}); the hook runs without it\n`);
+      break;
+    }
+    if (n === 0) break;
+    chunks.push(Buffer.from(buf.subarray(0, n)));
   }
-};
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+const readStdin = () => readHookInput({ isTTY: process.stdin.isTTY === true, readSync, sleep, stderr: process.stderr });
 
 // Run only as the main module, so a test can import `launch` and give it its own io. Both paths go through realpath: a
 // repository reached through a link would otherwise differ from the module URL and the launcher would silently do nothing.

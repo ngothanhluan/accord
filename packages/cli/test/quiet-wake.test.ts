@@ -1,7 +1,7 @@
 // Phase 08.9.2 L-02, Ruling-wake-session, Ruling-off-accord: typing /accord in a quiet (or switched-off) session that is not woken yet wakes it. The UserPromptExpansion hook answers with
 // additionalContext holding the ruleset and the anchor (or the session line), runs the worktree clean once in the foreground, and writes <git dir>/accord-wake/<session_id>; a second /accord
 // does nothing more. A session id that is not a plain name names no file. A full-mode repository never reads or writes a wake file.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -235,4 +235,49 @@ it('risk:resource the launcher reads the wake file with no process and hands a w
   expect(startOther.out).toBe('');
   const badId = await launched(off, 'session-start', { session_id: '../s-w', source: 'startup' });
   expect(badId.spawns, 'an id that is not a plain name names no wake file').toEqual([]);
+});
+
+// Phase 08.9.2 review WR-02: the wake file lives in the common git folder, so a /accord typed in a linked worktree wakes the session for the launcher of the main checkout too, and the reverse.
+it('risk:regression a wake typed in a linked worktree reaches the launcher of the main checkout (WR-02)', async () => {
+  const repo = repoWith('hook_mode: quiet');
+  const folder = mkdtempSync(join(tmpdir(), 'accord-wake-wt-'));
+  dirs.push(folder);
+  const worktree = join(folder, 'wt');
+  gitRun(repo, 'worktree', 'add', '-q', '-b', 'scratch/wake', worktree);
+
+  // a session of the main checkout types /accord after it moved into the worktree: the CLI sees the worktree, the launcher the main checkout
+  const woke = await run(['hook', 'prompt-expansion'], worktree, {}, typed(worktree, 's-wt'));
+  expect(woke.code).toBe(0);
+  expect(existsSync(join(repo, '.git', 'accord-wake', 's-wt')), 'the wake file is in the common git folder').toBe(true);
+  expect(existsSync(join(repo, '.git', 'worktrees')) && readdirSync(join(repo, '.git', 'worktrees')).some((w) => existsSync(join(repo, '.git', 'worktrees', w, 'accord-wake'))), 'none in the per-worktree folder').toBe(false);
+
+  const launcher = await launched(repo, 'session-resume', { session_id: 's-wt', source: 'compact' });
+  expect(launcher.spawns, 'the launcher of the main checkout hands the woken session to the bundle').toHaveLength(1);
+  const other = await launched(repo, 'session-resume', { session_id: 's-other', source: 'compact' });
+  expect(other.spawns, 'another session stays quiet').toEqual([]);
+
+  // and the CLI of the worktree reads a wake file the main checkout's session wrote
+  expect((await run(['hook', 'prompt-expansion'], repo, {}, typed(repo, 's-main'))).code).toBe(0);
+  const resumed = await run(['hook', 'session-resume'], worktree, {}, sessionInput(worktree, 's-main', { source: 'compact' }));
+  expect(resumed.out.startsWith(RULES), 'the worktree CLI treats the main checkout session as woken').toBe(true);
+});
+
+// Phase 08.9.2 security observation O-1 (T-08.9.2-29): a session id that is not a plain name never reaches a file the test planted; each planted target is a path the id would name if it were joined unchecked.
+it('risk:security a session id that is not a plain name never lifts the silence of the launcher (O-1)', async () => {
+  const off = repoWith('');
+  expect((await run(['off'], off)).code).toBe(0);
+  const longId = 'a'.repeat(129);
+  writeFiles(off, {
+    '.git/accord-wake/s-w': '{}\n', // makes the folder exist, so the launcher goes on to the id
+    '.git/x': '{}\n', // what `../x` names
+    '.git/accord-wake/a/b': '{}\n', // what `a/b` names
+    [`.git/accord-wake/${longId}`]: '{}\n', // what an id of 129 characters names
+  });
+  for (const id of ['../x', 'a/b', 'a\b', '', longId, 'missing', undefined]) {
+    const r = await launched(off, 'session-start', id === undefined ? { source: 'startup' } : { session_id: id, source: 'startup' });
+    expect(r.spawns, `session id ${JSON.stringify(id)} stays silent`).toEqual([]);
+    expect(r.out).toBe('');
+  }
+  const plain = await launched(off, 'session-start', { session_id: 's-w', source: 'startup' });
+  expect(plain.spawns, 'a plain id that has a file reaches the bundle').toHaveLength(1);
 });

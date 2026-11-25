@@ -177,7 +177,7 @@ const OFF_NOTE = 'accord is switched off for you in this clone; offer node .clau
 /**
  * Phase 08.9.2 L-02, Ruling-wake-session, Ruling-off-accord: a typed `/accord` in a quiet (or switched-off) session that is not woken yet. The answer is the UserPromptExpansion
  * `additionalContext`: the ruleset, a blank line, the anchor of the active ticket and its stage line (else the session line), the off note when accord is off for the person, and
- * what the worktree clean did, run once in the foreground by the unchanged `sessionClean` and collected instead of printed. The wake file `<git dir>/accord-wake/<session_id>` is written
+ * what the worktree clean did, run once in the foreground by the unchanged `sessionClean` and collected instead of printed. The wake file `<common git dir>/accord-wake/<session_id>` is written
  * after the text is built, so a failure before it leaves the session to try again; every later hook of the session sees the file and takes the full path. A waking prompt never gets
  * a Continue or Pick up block (the guard of `promptExpansion` is not run: a session not yet woken works no ticket). Fails open: any error is one stderr line and `{}`.
  */

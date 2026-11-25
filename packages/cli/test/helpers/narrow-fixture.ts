@@ -4,7 +4,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { commitMsg, gitRun, makeLaneRepo } from './repo.js';
-import { building, discussFiles, done, laneTicket, LANE_S_BODY, P } from '../../../../test/helpers/lane.js';
+import { building, discussFiles, done, junit, laneTicket, LANE_BODY, LANE_S_BODY, P, REPORT } from '../../../../test/helpers/lane.js';
 import type { Files } from '../../../../test/helpers/lane.js';
 
 /** The story in build, a child of the epic, with a claim branch of its own. */
@@ -22,8 +22,17 @@ const R_BODY = ['## Question', 'Does the critic need a second round?', '', '## T
 const RECORD = 'accord/research/2026-11-20-R-1.md';
 const REVIEW = ['Round record: 1', '', '## Round 1', '', 'Must 1 [patch]: the writer drops the header — src/export.ts:3 — fixed in abc1234', '', '## Round 2', '', 'Nice 1 [patch]: rename w — src/export.ts:1 — deferred', '', '## Round 3', '', 'Nice 1 [patch]: a comment typo — src/export.ts:2 — deferred', '', '## Round 4', '', 'Should 1 [patch]: a comma is not quoted — src/export.ts:9 — open', ''].join('\n');
 
-/** A sandbox on `main` (with a faked `origin/main`) holding the cross-ticket cases above plus `extra` plain draft tickets. The caller removes it with `cleanup`. */
-export function narrowFixture(extra = 0): string {
+/** Phase 08.9.2 review CR-01: the lane ticket whose scenario alone names the report case TRACED_ONLY_HERE, and a report case no scenario names. */
+export const TRACER = 'T-9';
+export const TRACED_ONLY_HERE = 'special#only-t9';
+export const UNTRACED_CASE = 'stray#nobody';
+
+/**
+ * A sandbox on `main` (with a faked `origin/main`) holding the cross-ticket cases above plus `extra` plain draft tickets. The caller removes it with `cleanup`.
+ * `withReport` (Phase 08.9.2 review CR-01) also commits the test report CONFIG names, with a case a single ticket (TRACER) names, one no scenario names, and the two every lane ticket names: the
+ * cross-ticket fact `gate.test-untraced` reads at Done.
+ */
+export function narrowFixture(extra = 0, withReport = false): string {
   const files: Files = {};
   // an epic with three children: the story in build and two siblings
   files[P(EPIC)] = laneTicket(EPIC, { lane: 'L' }).replace('type: story', 'type: epic');
@@ -53,6 +62,10 @@ export function narrowFixture(extra = 0): string {
   files[P(CLAIM_ADDS)] = laneTicket(CLAIM_ADDS, { frontmatter: ['status: draft'] });
   // a ticket that depends on the claimed story and on the one claimed on origin only, so `show` reads their claim-branch copies
   files[P('V-1')] = laneTicket('V-1', { frontmatter: ['depends_on: ["B-1", "O-1"]'] });
+  if (withReport) {
+    files[P(TRACER)] = laneTicket(TRACER, { body: LANE_BODY.replace('export#writes-csv', TRACED_ONLY_HERE) });
+    files[REPORT] = junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed', [TRACED_ONLY_HERE]: 'passed', [UNTRACED_CASE]: 'passed' });
+  }
   for (let i = 1; i <= extra; i++) {
     const id = 'X-' + String(i).padStart(3, '0');
     files[P(id)] = laneTicket(id, { frontmatter: ['status: draft'] });

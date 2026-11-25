@@ -1,7 +1,9 @@
 // GATE-01/GATE-03 AC hash (D-75, D-77): FNV-1a 64-bit over the `@ac-n` tags and their steps, written
-// `fnv1a64:<16 lowercase hex>`. Hand-written on TextEncoder and BigInt: core is isomorphic, so
-// node:crypto is banned (CORE-01), and Web Crypto's subtle.digest would make every gate async for
-// forty bytes. The algorithm prefix makes a future change fail loudly instead of comparing wrong.
+// `fnv1a64:<16 lowercase hex>`. Hand-written on TextEncoder and two 32-bit halves (Phase 08.9.2): core is
+// isomorphic, so node:crypto is banned (CORE-01), and Web Crypto's subtle.digest would make every gate async
+// for forty bytes. The halves replace BigInt because every command hashes every plan body, and BigInt cost
+// ten times more for the same output. The algorithm prefix makes a future change fail loudly instead of
+// comparing wrong.
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { ScenarioRef, Ticket } from '../model/snapshot.js';
 
@@ -11,15 +13,26 @@ const tagged = (s: ScenarioRef): s is Tagged => s.acTag !== undefined;
 // U+0000 cannot occur in Markdown source, so the join is injective: no step text can impersonate a
 // tag field, and no two different criteria sets share an input string (T-04-02).
 const SEP = '\u0000';
-const OFFSET = 0xcbf29ce484222325n;
-const PRIME = 0x100000001b3n;
-const MASK = 0xffffffffffffffffn;
 
-/** FNV-1a 64-bit over the UTF-8 bytes of `input`, written `fnv1a64:<16 lowercase hex>` (D-75). */
+/**
+ * FNV-1a 64-bit over the UTF-8 bytes of `input`, written `fnv1a64:<16 lowercase hex>` (D-75).
+ * The state is two unsigned 32-bit halves. The prime is 0x100000001b3, so `h * prime mod 2^64` is
+ * `h * 0x1b3 + (h << 40)`: the low half times 0x1b3 is split in 16-bit pieces to stay exact in a double,
+ * its carry joins the high half, and `lo << 8` is the part of `h << 40` that lands in the high half.
+ */
 export function fnv1a64(input: string): string {
-  let h = OFFSET;
-  for (const byte of new TextEncoder().encode(input)) h = ((h ^ BigInt(byte)) * PRIME) & MASK;
-  return 'fnv1a64:' + h.toString(16).padStart(16, '0');
+  let hi = 0xcbf29ce4;
+  let lo = 0x84222325;
+  for (const byte of new TextEncoder().encode(input)) {
+    lo = (lo ^ byte) >>> 0;
+    const p0 = (lo & 0xffff) * 0x1b3;
+    const p1 = (lo >>> 16) * 0x1b3;
+    const s = p0 + (p1 & 0xffff) * 65536;
+    const carry = (p1 >>> 16) + Math.floor(s / 4294967296);
+    hi = (Math.imul(hi, 0x1b3) + (lo << 8) + carry) >>> 0;
+    lo = s >>> 0;
+  }
+  return 'fnv1a64:' + hi.toString(16).padStart(8, '0') + lo.toString(16).padStart(8, '0');
 }
 
 /**

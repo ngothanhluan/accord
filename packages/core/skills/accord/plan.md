@@ -40,11 +40,8 @@ one at a time. You run it in the main session.
    the baseline. Steps 4 to 6 run as usual, step 7 does not re-run the
    baseline tests, and step 8 commits again.
 
-3. **Slices.** Under `review: human` the planner groups tasks into slices:
-   each slice is one pull request covering a stated subset of the
-   acceptance criteria, green on its own. The planner writes each slice
-   into `plan.md`: the tasks it holds and the criteria it covers. Under
-   `review: outcome` it is one branch, no slices.
+3. **Slices.** When the plan is larger than one review, the planner cuts it as
+   `./plan-slices.md` says.
 
 4. **Gate.** Run `accord gate plan <id>` and fix what it prints, then run
    it again until it passes. On a pass it writes `plan_hash:` into

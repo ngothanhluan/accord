@@ -6,7 +6,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { branchTypesOf, DEFAULT_BRANCH_TEMPLATE, EPIC_ROLES, expandBranchTypes, loadConfig, subagentContext } from '@accord-dev/accord-core';
 import { ticketOfBranch } from '../load/fs.js';
-import { checkoutOf, gitDirsOf, headBranchOf, isOff, wakeFilePath } from '../load/gitdir.js';
+import { checkoutOf, gitDirsOf, headBranchOf, isOff, isWoken, wakeFilePath } from '../load/gitdir.js';
 import { cliRuleset } from '../load/product.js';
 import type { RunOptions } from '../run.js';
 import { hookInput, preToolUseWrite, promptExpansionStdin } from './hook.js';
@@ -29,8 +29,11 @@ const QUIET_MODE = /^hook_mode:[ \t]+(?:"quiet"|'quiet'|quiet)(?:[ \t]+#.*)?[ \t
  */
 export function hookEarly(opts: RunOptions, event: HookEvent): number | undefined {
   // Phase 08.9.2 D-03: while the person's off marker exists in this clone every event prints nothing, whatever it would have decided; read from files, so no git process.
+  const input = hookInput(opts);
+  // Ruling-wake-session: a session that typed /accord is woken, whatever the mode or the switch: it gets neither the off silence nor the quiet line, and its session events take the full path.
+  const woken = isWoken(input?.cwd ?? opts.cwd, input?.session_id);
   // Ruling-off-accord: a typed /accord is an explicit request, so it wakes the session even while accord is off (the full path builds the answer); nothing else is let through.
-  if (isOff(hookInput(opts)?.cwd ?? opts.cwd)) return event === 'prompt-expansion' && isWake(opts) ? undefined : 0;
+  if (!woken && isOff(input?.cwd ?? opts.cwd)) return event === 'prompt-expansion' && isWake(opts) ? undefined : 0;
   switch (event) {
     case 'pre-tool-use':
       return preToolUseEarly(opts);
@@ -41,7 +44,7 @@ export function hookEarly(opts: RunOptions, event: HookEvent): number | undefine
       return isWake(opts) ? undefined : promptExpansionStdin(opts);
     case 'session-start':
     case 'session-resume':
-      return quietStart(opts, event);
+      return woken ? undefined : quietStart(opts, event);
     default:
       return undefined;
   }

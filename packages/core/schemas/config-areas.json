@@ -7,7 +7,8 @@
         { "key": "people", "text": "who is on the team: each person's email maps to the 2 to 4 capital letters their ticket ids and the dashboard show; ids already in use are kept valid as legacy_ids" },
         { "key": "ids", "text": "how new ticket ids are made: a pattern built from {type}, {initials} and {n}, or the tracker's own ids; ids already in use are kept valid as legacy_ids" },
         { "key": "roles", "text": "which roles the team runs: ba and dev are always there, and designer adds the designer skill and its prototype gate" },
-        { "key": "runtimes", "text": "which coding tools accord writes skills for: claude, codex, cursor or copilot; cursor and copilot read the folders the first two write, so the default of claude and codex already serves all four" }
+        { "key": "runtimes", "text": "which coding tools accord writes skills for: claude, codex, cursor or copilot; cursor and copilot read the folders the first two write, so the default of claude and codex already serves all four" },
+        { "key": "hook_mode", "text": "how accord's hooks start a session here: full (rules, fetch and clean at every start) or quiet (one line; accord wakes on /accord or a ticket's branch) for a team where some people do not use accord" }
       ]
     },
     {

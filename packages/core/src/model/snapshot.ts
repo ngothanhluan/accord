@@ -359,6 +359,7 @@ export interface AccordConfig {
   models?: Partial<Record<RouteKey | 'architect' | 'auditor', { model: string; effort?: Effort }>>; // absent entries use the default routing; architect and auditor are still accepted and have no effect (ST-LN-80, Phase 08.6 D-05)
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
   stale_days?: string; // digits; YAML numerics stay strings
+  hook_mode?: 'full' | 'quiet'; // Phase 08.9.2 D-02: quiet makes a session start print one line until /accord or a ticket's branch wakes accord; absent means full
   stale_draft_days?: string; // digits, default '90': an unclaimed ticket untouched longer is an old draft in accord audit
   people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)

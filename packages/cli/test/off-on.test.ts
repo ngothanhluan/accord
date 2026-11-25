@@ -47,7 +47,8 @@ function hookCalls(cwd: string): Array<{ event: string; stdin: Record<string, un
     { event: 'session-resume', stdin: { cwd, session_id: 's-1', source: 'resume' } },
     { event: 'pre-tool-use', stdin: { cwd, tool_name: 'Agent', tool_input: { subagent_type: 'accord-executor' } } },
     { event: 'subagent-start', stdin: { cwd, agent_type: 'accord-scout' } },
-    { event: 'prompt-expansion', stdin: { cwd, session_id: 's-1', command_name: 'accord', command_args: 'continue T-1' } },
+    // 08.9.2-11 Ruling-off-accord: a typed /accord wakes an off session, so it is no silent case any more (quiet-wake.test.ts holds it); a stale matcher name, which the hook allows, stays silent
+    { event: 'prompt-expansion', stdin: { cwd, session_id: 's-1', command_name: 'accord-new', command_args: 'continue T-1' } },
   ];
 }
 

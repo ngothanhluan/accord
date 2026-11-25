@@ -24,8 +24,8 @@ import { budget } from './commands/budget.js';
 import { debugPath } from './commands/debug.js';
 import { configAreas, configCheck, configGet, configSet, configUnset } from './commands/config.js';
 import { gate } from './commands/gate.js';
-import { hook, HOOK_EVENTS } from './commands/hook.js';
-import { hookEarly } from './commands/hook-early.js';
+import { hook, HOOK_EVENTS, wake } from './commands/hook.js';
+import { hookEarly, isWake } from './commands/hook-early.js';
 import { accordOff, accordOn } from './commands/off.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
@@ -616,6 +616,17 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         return;
       }
       if (event === 'prompt-expansion') {
+        // Phase 08.9.2 L-02: a typed /accord that wakes a quiet or switched-off session builds the rules, the anchor and the clean report (a stage load); a failed load allows, as below
+        if (isWake(opts)) {
+          try {
+            setCode(wake(preflight(opts, 'stage')));
+          } catch (e) {
+            opts.stderr.write(`accord hook prompt-expansion: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+            opts.stdout.write('{}\n');
+            setCode(0);
+          }
+          return;
+        }
         // The hook never blocks a prompt because of a broken repository (ledger Ruling): any failure to build
         // the context is one stderr line and an allow.
         let ctx: CommandContext;

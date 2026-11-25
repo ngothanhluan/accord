@@ -28,6 +28,15 @@ const COMMAND_WORD = /^[a-z][a-z-]*$/;
 const PIN_LINE = /^accord:\s*"?([^"\s]+)"?\s*$/m;
 // `accord off` writes this file in the git common folder; while it exists every hook of the clone is silent (Phase 08.9.2 D-03).
 const OFF_MARKER = 'accord-off';
+// Phase 08.9.2 Ruling-wake-session: `<git dir>/accord-wake/<session_id>` exists for a session that typed /accord; such a session takes the full path whatever the mode or the switch (the CLI's gitdir.ts WAKE_DIR).
+const WAKE_DIR = 'accord-wake';
+// A session id may name a file only when it is a plain name (the CLI's SESSION_NAME, T-08.9.2-29).
+const SESSION_NAME = /^[A-Za-z0-9_-]{1,128}$/;
+// Phase 08.9.2 L-03, D-04: the lines a quiet repository prints at a session start (the off line only on a start); word for word the CLI's QUIET_LINE (hook-early.ts) and OFF_LINE (off.ts).
+const QUIET_LINE = 'accord: quiet in this repository (hook_mode: quiet): no rules, fetch or clean at session start; type /accord to wake accord for this session';
+const OFF_LINE = 'accord: not using accord? switch it off for yourself in this clone: node .claude/accord.mjs off (node .claude/accord.mjs on switches it back)';
+// D-02: the CLI's own test of the value (hook-early.ts QUIET_MODE), the same text, so launcher and CLI decide alike; anything that is not exactly quiet is full.
+const QUIET_MODE = /^hook_mode:[ \t]+(?:"quiet"|'quiet'|quiet)(?:[ \t]+#.*)?[ \t]*$/m;
 
 /** One printable line: no control characters, cut at `max`. */
 const oneLine = (text, max) =>
@@ -168,32 +177,119 @@ function pinOf(io) {
 }
 
 /**
- * True while the person's off marker (`accord off`) exists in this clone: `<git common dir>/accord-off`, found with plain file reads from the checkout this
- * launcher sits in (`.git` is the common folder itself, or a file `gitdir: <path>` whose `commondir` leads back to it). The same reads as the CLI's gitdir.ts.
+ * The git folders of the checkout this launcher sits in, from plain file reads: `.git` is the common folder itself (a folder), or a file `gitdir: <path>` naming this
+ * checkout's own folder, whose `commondir` leads back to the common one. The same reads as the CLI's gitdir.ts; undefined when anything cannot be read.
+ */
+function gitFolders(io) {
+  const root = dirname(dirname(io.launcherPath));
+  const dotGit = join(root, '.git');
+  let text;
+  try {
+    text = io.fs.readFileSync(dotGit, 'utf8');
+  } catch (e) {
+    if (e?.code !== 'EISDIR') return undefined; // no .git here, or one that cannot be read
+    return { gitDir: dotGit, common: dotGit }; // a folder: the common folder itself
+  }
+  const line = String(text).split('\n', 1)[0].trim();
+  if (!line.startsWith('gitdir:')) return undefined;
+  const gitDir = resolve(root, line.slice('gitdir:'.length).trim());
+  let common = gitDir;
+  try {
+    const named = String(io.fs.readFileSync(join(gitDir, 'commondir'), 'utf8')).split('\n', 1)[0].trim();
+    if (named !== '') common = resolve(gitDir, named);
+  } catch {
+    // no commondir: the per-worktree folder is the common one
+  }
+  return { gitDir, common };
+}
+
+/**
+ * True while the person's off marker (`accord off`) exists in this clone: `<git common dir>/accord-off`, found with the file reads of gitFolders.
  * Never throws; anything unreadable means not off.
  */
 function isOff(io) {
   try {
+    const folders = gitFolders(io);
+    return folders !== undefined && io.fs.existsSync(join(folders.common, OFF_MARKER));
+  } catch {
+    return false;
+  }
+}
+
+/** stdin of the call, read at most once and only when a decision needs it (a read of fd 0 can be made only once). */
+function lazyStdin(io) {
+  let text;
+  return {
+    get() {
+      if (text === undefined) {
+        try {
+          text = String(io.readStdin() ?? '');
+        } catch {
+          text = '';
+        }
+      }
+      return text;
+    },
+  };
+}
+
+/** One string field of the hook's JSON input, or undefined when stdin is not a JSON object or the field is no string. */
+function fieldOf(text, key) {
+  try {
+    const input = JSON.parse(text);
+    return input !== null && typeof input === 'object' && typeof input[key] === 'string' ? input[key] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Phase 08.9.2 Ruling-wake-session: true when this call's session typed /accord, i.e. `<git dir>/accord-wake/<session_id>` exists. Plain file reads. With no `accord-wake` folder (no session
+ * ever woke here) it answers false without reading stdin; an id that is not a plain name names no file. Never throws: anything unreadable is not woken.
+ */
+function isWoken(io, stdin) {
+  try {
+    const folders = gitFolders(io);
+    if (folders === undefined || !io.fs.existsSync(join(folders.gitDir, WAKE_DIR))) return false;
+    const id = fieldOf(stdin.get(), 'session_id');
+    return id !== undefined && SESSION_NAME.test(id) && io.fs.existsSync(join(folders.gitDir, WAKE_DIR, id));
+  } catch {
+    return false;
+  }
+}
+
+/** True when `branch` holds the id of a file in `<root>/accord/tickets/` as a whole token (bounded by an end or a character outside A-Z, a-z, 0-9; case ignored). */
+function holdsTicketId(io, root, branch) {
+  const ids = io.fs
+    .readdirSync(join(root, 'accord', 'tickets'))
+    .filter((name) => name.endsWith('.md'))
+    .map((name) => name.slice(0, -'.md'.length))
+    .filter((id) => id !== '');
+  return ids.some((id) => new RegExp('(?:^|[^A-Za-z0-9])' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z0-9])', 'i').test(branch));
+}
+
+/**
+ * Phase 08.9.2 L-03, D-02, L-02: in a repository whose config says `hook_mode: quiet` a session start or resume is answered here, with the CLI's own lines, unless the
+ * session opens on a branch that holds a ticket's id (then the CLI decides). Plain file reads only. Returns true when it answered; every doubt (an unreadable file,
+ * another spelling of the value, an unreadable HEAD, a woken session) returns false and the call goes on to the CLI, so no mistake can silence a repository.
+ */
+function quietStart(io, event, stdin) {
+  try {
     const root = dirname(dirname(io.launcherPath));
-    const dotGit = join(root, '.git');
-    let text;
-    try {
-      text = io.fs.readFileSync(dotGit, 'utf8');
-    } catch (e) {
-      if (e?.code !== 'EISDIR') return false; // no .git here, or one that cannot be read
-      return io.fs.existsSync(join(dotGit, OFF_MARKER)); // a folder: the common folder itself
-    }
-    const line = String(text).split('\n', 1)[0].trim();
-    if (!line.startsWith('gitdir:')) return false;
-    const gitDir = resolve(root, line.slice('gitdir:'.length).trim());
-    let common = gitDir;
-    try {
-      const named = String(io.fs.readFileSync(join(gitDir, 'commondir'), 'utf8')).split('\n', 1)[0].trim();
-      if (named !== '') common = resolve(gitDir, named);
-    } catch {
-      // no commondir: the per-worktree folder is the common one
-    }
-    return io.fs.existsSync(join(common, OFF_MARKER));
+    if (!QUIET_MODE.test(String(io.fs.readFileSync(join(root, 'accord', 'config.yml'), 'utf8')))) return false;
+    const folders = gitFolders(io);
+    if (folders === undefined) return false;
+    const head = String(io.fs.readFileSync(join(folders.gitDir, 'HEAD'), 'utf8')).split(/\r?\n/, 1)[0].trim();
+    const ref = /^ref:[ \t]*refs\/heads\/(.+)$/.exec(head);
+    let branch;
+    if (ref !== null) branch = ref[1];
+    else if (/^[0-9a-f]{40,64}$/i.test(head)) branch = ''; // a detached HEAD names no branch
+    else return false;
+    if (branch !== '' && holdsTicketId(io, root, branch)) return false;
+    if (isWoken(io, stdin)) return false; // a session that typed /accord is on and full
+    io.stdout.write(QUIET_LINE + '\n');
+    if (event === 'session-start') io.stdout.write(OFF_LINE + '\n');
+    return true;
   } catch {
     return false;
   }
@@ -221,8 +317,14 @@ function answeredAtOnce(text) {
  */
 export function launch(io) {
   let argv = io.argv;
-  // D-03: switched off for this clone: a hook prints nothing and starts nothing, before the pin, stdin or any cache path is touched.
-  if ((argv[0] === 'hook' || argv[1] === 'hook') && isOff(io)) return 0;
+  const stdin = lazyStdin(io);
+  // D-03: switched off for this clone: a hook prints nothing and starts nothing, before the pin or any cache path is touched. Two calls are let through to the CLI (stdin is read only
+  // for them): a typed /accord, which wakes the session (Ruling-off-accord), and any hook of a session that has woken (Ruling-wake-session); the CLI answers both.
+  if ((argv[0] === 'hook' || argv[1] === 'hook') && isOff(io)) {
+    const offEvent = argv[0] === 'hook' ? argv[1] : argv[2];
+    const typedAccord = offEvent === 'prompt-expansion' && fieldOf(stdin.get(), 'command_name') === 'accord';
+    if (!typedAccord && !isWoken(io, stdin)) return 0;
+  }
   if (typeof argv[0] === 'string' && COMMAND_WORD.test(argv[0])) {
     // No version word: the version is the pin in accord/config.yml, so the line a person types stays short after every upgrade.
     const pin = pinOf(io);
@@ -242,8 +344,11 @@ export function launch(io) {
     return isHook ? 0 : 2;
   }
 
+  // L-03: a quiet repository's session start or resume is answered here, before stdin, the cache or any process.
+  if (isHook && SAYS_ON_STDOUT.has(event) && quietStart(io, event, stdin)) return 0;
+
   // A call for another agent than the executor needs nothing from the repository: answer it before any cache path is built.
-  const input = isHook ? io.readStdin() : undefined;
+  const input = isHook ? stdin.get() : undefined;
   if (isHook && event === 'pre-tool-use' && answeredAtOnce(input)) {
     io.stdout.write('{}\n');
     return 0;

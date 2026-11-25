@@ -1,11 +1,11 @@
 // Phase 15 D-31, D-10: `accord gate done <id> --slice <n>` judges only slice n's criteria (its `covers:` set) in every Done rule that reads scenarios, evidence blocks or ticks, and the
 // tasks of slices 1..n; every other Done rule runs as for the whole ticket, and the last slice judges the full set. On real files and real git, through the real command.
-import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { recordTaskDone, setFrontmatterKey } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
-import { approve, discussFiles, discussPath, gateReadyIn, junit, laneTicket, LANE_BODY, P, REPORT, type Files } from '../../../test/helpers/lane.js';
-import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { approve, CONFIG, discussFiles, discussPath, done, gateReadyIn, junit, laneTicket, LANE_BODY, P, PLAN, REPORT, type Files } from '../../../test/helpers/lane.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 interface Found { rule: string; level: string; file: string; reason: string }
 
@@ -49,6 +49,7 @@ interface Build {
   report?: Record<string, 'passed' | 'failed' | 'skipped'>; // the report at the gated commit
   done?: number[]; // the tasks recorded in the ledger
   ticked?: number[]; // the criteria ticked, and the evidence blocks written
+  stray?: number[]; // evidence blocks of criteria that are not ticked, written as a failing result that cites nothing
   evidence?: Record<number, string>; // the text an evidence block cites, by criterion; the default cites the criterion's passing test
 }
 
@@ -88,7 +89,7 @@ function build(b: Build = {}): string {
     ticket = setFrontmatterKey(ticket, 'verified_hash', hash);
     ticket = setFrontmatterKey(ticket, 'verified_commit', sha);
     writeFileSync(file, ticket);
-    const blocks = ticked.map((n) => evidenceBlock(n, b.evidence?.[n] ?? CITES[n]));
+    const blocks = [...ticked.map((n) => evidenceBlock(n, b.evidence?.[n] ?? CITES[n])), ...(b.stray ?? []).map((n) => evidenceBlock(n, 'it looked fine to me').replace('Result: pass', 'Result: fail'))];
     writeFiles(repo, { 'accord/tickets/T-1/verification.md': ['---', 'ticket: "T-1"', `commit: "${sha}"`, 'reviewed_on: "2026-11-26"', '---', '', ...blocks].join('\n') });
     return repo;
   } catch (e) {
@@ -118,6 +119,142 @@ describe('gate done --slice', () => {
       expect(differ[0].reason).toContain('@ac-2 @ac-3');
       // The unfinished slice 2 task is not asked of slice 1's pull request either: it is built on a branch that pull request does not hold.
       expect([...new Set(errors(whole.found))].sort()).toEqual(['gate.tags-differ', 'gate.task-incomplete', 'gate.test-unknown']);
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:complex-branching slice 1 does not ask for the test of a later slice, and the whole ticket does (D-31)', async () => {
+    const repo = build();
+    try {
+      const slice = await gateDone(repo, '--slice', '1');
+      expect(slice.found.filter((f) => f.rule === 'gate.test-unknown' || f.rule === 'gate.test-not-passed')).toEqual([]);
+      const whole = await gateDone(repo);
+      const unknown = whole.found.filter((f) => f.rule === 'gate.test-unknown').map((f) => f.reason);
+      expect(unknown).toHaveLength(2);
+      expect(unknown.join(' ')).toContain('export#escapes-commas');
+      expect(unknown.join(' ')).toContain('export#third');
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it("risk:complex-branching slice 1 does not read the evidence block of a later slice's criterion, and the whole ticket does (D-31)", async () => {
+    const repo = build({ stray: [2] });
+    try {
+      const slice = await gateDone(repo, '--slice', '1');
+      expect(slice.found.filter((f) => f.rule === 'gate.evidence-unresolved' || f.rule === 'gate.result-not-pass')).toEqual([]);
+      expect(slice.code).toBe(0);
+      const whole = await gateDone(repo);
+      expect(errors(whole.found)).toEqual(expect.arrayContaining(['gate.evidence-unresolved', 'gate.result-not-pass']));
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it("risk:regression slice 1 still fails when its own criterion's evidence cites nothing that exists (D-31)", async () => {
+    const repo = build({ evidence: { 1: 'it looked fine to me' } });
+    try {
+      const slice = await gateDone(repo, '--slice', '1');
+      expect(slice.code).toBe(1);
+      expect(errors(slice.found)).toContain('gate.evidence-unresolved');
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:complex-branching the last slice judges the full set: slice 2 of 2 names the criterion that is not ticked (D-31)', async () => {
+    const repo = build({ done: [1, 2], report: { 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed', 'export#third': 'passed' }, ticked: [1, 2] });
+    try {
+      const slice = await gateDone(repo, '--slice', '2');
+      expect(slice.err).toContain('slice 2 of 2: 3 criteria judged');
+      expect(slice.code).toBe(1);
+      const differ = slice.found.filter((f) => f.rule === 'gate.tags-differ');
+      expect(differ).toHaveLength(1);
+      expect(differ[0].reason).toContain('evidence lacks @ac-3');
+      expect(differ[0].reason).toContain('verified lacks @ac-3');
+      expect(differ[0].reason).not.toContain('@ac-1');
+      expect(errors(slice.found)).not.toContain('gate.task-incomplete');
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:regression the last slice passes once every criterion is ticked and every task is recorded (D-10, D-31)', async () => {
+    const repo = build({ done: [1, 2], report: { 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed', 'export#third': 'passed' }, ticked: [1, 2, 3] });
+    try {
+      const slice = await gateDone(repo, '--slice', '2');
+      expect(errors(slice.found)).toEqual([]);
+      expect(slice.code).toBe(0);
+      expect((await gateDone(repo)).code).toBe(0);
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:security slice 1 still runs the hash rules: a tick bound to other criteria fails gate.tick-stale-hash (D-31)', async () => {
+    const repo = build();
+    try {
+      const file = join(repo, P('T-1'));
+      writeFileSync(file, setFrontmatterKey(readFileSync(file, 'utf8'), 'verified_hash', 'fnv1a64:0000000000000000'));
+      const slice = await gateDone(repo, '--slice', '1');
+      expect(slice.code).toBe(1);
+      expect(errors(slice.found)).toContain('gate.tick-stale-hash');
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:regression a slice run below the last leaves no gate.log line, so the pane never reads it as the ticket done (D-31)', async () => {
+    const repo = build();
+    try {
+      const log = join(repo, '.accord-reports', 'T-1', 'gate.log');
+      await gateDone(repo, '--slice', '1');
+      expect(existsSync(log)).toBe(false);
+      await gateDone(repo);
+      expect(existsSync(log)).toBe(true);
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:parsing --slice outside the plan, not a number, or on a plan with no slices is a usage error (exit 2)', async () => {
+    const repo = build();
+    const plain = build({ slices: '' });
+    try {
+      for (const value of ['0', '3', 'x', '1.5', '-1', '01x']) {
+        const r = await run(['gate', 'done', 'T-1', '--slice', value], repo);
+        expect(r.code, '--slice ' + value).toBe(2);
+        expect(r.out).toBe('');
+      }
+      expect((await run(['gate', 'done', 'T-1', '--slice', '3'], repo)).err).toContain("1 to 2");
+      const none = await run(['gate', 'done', 'T-1', '--slice', '1'], plain);
+      expect(none.code).toBe(2);
+      expect(none.err).toContain('no "## Slice" section');
+      expect((await run(['gate', 'ready', 'T-1', '--slice', '1'], repo)).code).toBe(2);
+      expect((await run(['gate', 'plan', 'T-1', '--slice', '1'], repo)).code).toBe(2);
+    } finally {
+      cleanup(repo);
+      cleanup(plain);
+    }
+  }, 240_000);
+
+  it('risk:regression a ticket done on the base branch runs only the done-ticket-edited row, whatever --slice says (D-23, D-31)', async () => {
+    const repo = makeEmptyRepo();
+    try {
+      const files: Files = { 'accord/config.yml': CONFIG, [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }), 'src/export.ts': 'export {};\n' };
+      done(files, 'T-1');
+      files['accord/tickets/T-1/verification.md'] = ['---', 'ticket: T-1', 'commit: abc1234', 'reviewed_on: 2026-09-10', '---', '', '## @ac-1 Export writes a csv', '', 'Result: pass', '', 'Evidence: src/export.ts', '', '## @ac-2 Commas are escaped', '', 'Result: pass', '', 'Evidence: src/export.ts', ''].join('\n');
+      files['accord/tickets/T-1/plan.md'] = PLAN + '\n## Slice 1: Writer\ntasks: 1\ncovers: @ac-1\n\n## Slice 2: Escaping\ntasks: 2\ncovers: @ac-2\n';
+      writeFiles(repo, files);
+      commitMsg(repo, 'base: T-1 done');
+      gitRun(repo, 'branch', '-M', 'main');
+      gitRun(repo, 'switch', '-q', '-c', 'work');
+      writeFiles(repo, { [P('T-1')]: readFileSync(join(repo, P('T-1')), 'utf8') + '\nA late thought.\n' });
+      commitMsg(repo, 'edit a done ticket');
+      const edited = await gateDone(repo, '--slice', '1');
+      expect(edited.code).toBe(1);
+      expect(errors(edited.found)).toEqual(['gate.done-ticket-edited']);
     } finally {
       cleanup(repo);
     }

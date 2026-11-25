@@ -29,15 +29,16 @@ export function rowsForText<T extends { claimedBy?: string }>(rows: readonly T[]
 
 type Rows = Dashboard['yours']['rows'];
 
-/** `d` with `f` applied to the rows of yours, team, ready and upNext (an absent upNext stays absent; its `suggest` and every `more` are kept); the epics hold no person and stay as they are. */
+/** `d` with `f` applied to the rows of yours, team, ready, upNext and mergedWaiting (an absent upNext or mergedWaiting stays absent; its `suggest` and every `more` are kept); the epics hold no person and stay as they are. */
 function mapRows(d: Dashboard, f: (rows: Rows) => object[]): Record<string, unknown> {
-  const { yours, team, ready, upNext } = d;
+  const { yours, team, ready, upNext, mergedWaiting } = d;
   return {
     ...d,
     yours: { ...yours, rows: f(yours.rows) },
     team: { ...team, rows: f(team.rows) },
     ready: { ...ready, rows: f(ready.rows) },
     ...(upNext === undefined ? {} : { upNext: { ...upNext, rows: f(upNext.rows) } }),
+    ...(mergedWaiting === undefined ? {} : { mergedWaiting: { ...mergedWaiting, rows: f(mergedWaiting.rows) } }),
   };
 }
 

@@ -6,6 +6,7 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { branchGlob, branchIdOf, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
 import type { AccordConfig, BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitStartFailure, runGitSync } from './git-spawn.js';
+import { changedOnRef, mergedClaims, recordPaths } from './merged-state.js';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -1411,22 +1412,19 @@ function catFileBatch(root: string, specs: readonly string[], options: { pre?: s
   }
 }
 
-/** The five records of a ticket, as repository paths. */
-const recordPaths = (id: string): string[] => [
-  'accord/tickets/' + id + '.md',
-  ...['plan', 'ledger', 'review', 'verification'].map((n) => 'accord/tickets/' + id + '/' + n + '.md'),
-];
-
 /**
  * BUG-LN-2: the claim view. `checkout` is the working tree alone; `view` overlays, for each claimed ticket that is not
  * the current branch's own and whose claim ref is not merged into HEAD, the ticket's five records as that ref holds them.
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  * Phase 08.9.2 Ruling-narrow: with `only`, the checkout holds the narrow set of that target (its file, its parent and its `depends_on` closure, as `loadNarrow` reads them) and the overlay takes only those
  * tickets' claim-branch copies; `ids` (every id of accord/tickets/) and `memo` (the parse of the narrow set) are returned for the command's own loads. The claim branch list is read whole, as before. A claim copy that names a parent or dependency outside the narrow set makes the call the full claim view (R-F, for that one case).
+ * Phase 15 D-17, D-21, D-29: with `picture: 'repository'` (the dashboard only; ignored with `only`) the base of every ticket but the checkout's own is the default ref `doneRef` names: a record that ref has and HEAD lacks or holds
+ * otherwise is read from the ref, so a worktree cut before a merge shows what the main checkout shows; a ticket file only this checkout holds keeps showing from it (Ruling R3, an unpublished draft). A claim is merged when its tip is
+ * in the default ref (by ancestry, or by equal record blobs after a squash or rebase merge): it is not overlaid, and its id is returned on the input as `mergedClaims`. With no default ref the call is the one it was without the option.
  */
 export function loadClaimView(
   root: string,
-  options: { only?: NarrowTarget } = {},
+  options: { only?: NarrowTarget; picture?: 'repository' } = {},
 ): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined }; refs?: DefaultRefs; ids?: string[]; memo?: Map<string, unknown> } {
   // ST-LN-63: the branch is read once in loadParts, and the commits after each start come from one walk made here, over the
   // checkout's entries and the candidates' together.
@@ -1448,10 +1446,24 @@ export function loadClaimView(
     return out;
   };
   const walked = (entries: readonly AfterEntry[]) => walkOver(root, claimPositives(claimRefs, bare.claimBranches ?? {}, listed, headCommit, entries));
+  // Phase 15 D-17: the repository picture reads every ticket but the checkout's own from the default ref; the records HEAD and the ref differ on are read here, once.
+  let picture: { ref: string; texts: Record<string, string>; ids: Set<string> } | undefined;
+  if (options.picture === 'repository' && options.only === undefined) {
+    const ref = doneRef(root, defaultRefs(root, true));
+    if (ref !== undefined) {
+      const changed = changedOnRef(root, ref).filter((c) => c.status !== 'D' && c.id !== own);
+      picture = { ref, texts: gitFilesAt(root, ref, changed.map((c) => c.path), env), ids: new Set(changed.map((c) => c.id)) };
+    }
+  }
   // One spawn for the merged set; a failure (an unborn HEAD) leaves it empty, as a non-ancestor.
   let merged = new Set<string>();
+  let mergedIds: string[] = [];
   const refNames = Object.entries(claimRefs).filter(([id]) => inSet(id)).map(([, ref]) => ref);
-  if (refNames.length > 0) {
+  if (picture !== undefined) {
+    // D-29: merged is judged against the default ref, not HEAD, so the answer is the same in every worktree.
+    mergedIds = [...mergedClaims(root, Object.fromEntries(Object.entries(claimRefs).filter(([id]) => inSet(id))), picture.ref)];
+    merged = new Set(mergedIds.map((id) => claimRefs[id]));
+  } else if (refNames.length > 0) {
     try {
       const mergedOut = execFileSync('git', ['for-each-ref', '--merged', 'HEAD', '--format=%(refname)', ...refNames], {
         cwd: root,
@@ -1467,16 +1479,16 @@ export function loadClaimView(
   // A squash or rebase merge leaves the claim tip unmerged: a terminal checkout copy is never superseded.
   const terminal = (id: string) => ['archived', 'dropped'].includes(statusOf(id) ?? '');
   const candidates = Object.entries(claimRefs).filter(([id, ref]) => inSet(id) && id !== own && !merged.has(ref) && !terminal(id));
-  if (candidates.length === 0) {
+  if (candidates.length === 0 && (picture === undefined || (picture.ids.size === 0 && mergedIds.length === 0))) {
     const { walk, def, refs } = walked(checkoutEntries);
     const afterVerify = withAfter(checkoutEntries, resolveAfter(root, checkoutEntries, walk, def));
     const checkout: SnapshotInput = { ...bare, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
     return { checkout, view: checkout, branch, ...(refs === undefined ? {} : { refs }), ...narrowed };
   }
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
-  let out: Buffer;
+  let out: Buffer = Buffer.alloc(0);
   try {
-    out = catFileBatch(root, wanted, { env });
+    if (wanted.length > 0) out = catFileBatch(root, wanted, { env });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
     throw new UsageError('git cat-file failed reading the claim branches' + (stderr === '' ? '' : '\n' + stderr));
@@ -1500,6 +1512,11 @@ export function loadClaimView(
   const planFacts = { ...bare.planFacts };
   // Phase 08.8.1 D-05: the checkout's track facts stay for the checkout's own tickets; a ticket read from its claim branch holds its records in git, so it has none.
   const trackFacts = { ...bare.trackFacts };
+  // Phase 15 D-17: the default ref's records go in first, so a claim branch that is not merged overlays them below as it always did.
+  if (picture !== undefined) {
+    Object.assign(files, picture.texts);
+    for (const id of picture.ids) delete trackFacts[id];
+  }
   const planJobs: { id: string; ref: string; planPath: string }[] = [];
   const overlaid = new Set<string>();
   for (const [id, ref] of candidates) {
@@ -1516,6 +1533,28 @@ export function loadClaimView(
       const text = read.get(ref + ':' + path);
       if (text === undefined) delete files[path];
       else files[path] = text;
+    }
+  }
+  // Phase 15 D-17: a ticket read from the default ref has the plan facts that ref gives: a plan.md it holds, clean, and the subject of the last commit that changed it where core reads one.
+  if (picture !== undefined) {
+    for (const id of picture.ids) {
+      if (overlaid.has(id)) continue;
+      const planPath = 'accord/tickets/' + id + '/plan.md';
+      if (files[planPath] === undefined) {
+        delete planFacts[id];
+        continue;
+      }
+      const present: Record<string, string> = {};
+      for (const p of recordPaths(id)) if (files[p] !== undefined) present[p] = files[p];
+      let subject = '';
+      if (files[recordPaths(id)[0]] !== undefined && readsSubject(loadSnapshot({ files: present, tree: [] }), id)) {
+        try {
+          subject = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%s', picture.ref, '--', planPath], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024, env }).replace(/\r?\n$/, '');
+        } catch {
+          // a commit not present locally reads as no subject, so the plan is not ready
+        }
+      }
+      planFacts[id] = { ...(subject === '' ? {} : { subject }), clean: true };
     }
   }
   // Phase 08.9.2 Ruling-narrow, R-F (this one case): the neighbourhood was read from the checkout's copies. A claim copy that names a parent or a dependency the narrow set does not hold, and that exists, is a
@@ -1595,10 +1634,10 @@ export function loadClaimView(
     researchFacts[id] = gitResearchFact(root, t, { ref: defaultRef.ref, rev: ref, now: Math.floor(Date.now() / 1000), ...(config === undefined ? {} : { config }) });
   }
   const afterVerify: Record<string, AfterVerify> = {
-    ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
+    ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id) && picture?.ids.has(id) !== true),
     ...withAfter(candidateEntries, lists.slice(checkoutEntries.length)),
   };
-  const view: SnapshotInput = { ...bare, files, planFacts, ...(Object.keys(researchFacts).length === 0 ? {} : { researchFacts }), ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
+  const view: SnapshotInput = { ...bare, files, planFacts, ...(mergedIds.length === 0 ? {} : { mergedClaims: mergedIds }), ...(Object.keys(researchFacts).length === 0 ? {} : { researchFacts }), ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
   if (Object.keys(trackFacts).length === 0) delete view.trackFacts;
   else view.trackFacts = trackFacts;
   return { checkout, view, branch, ...(refs === undefined ? {} : { refs }), ...narrowed };

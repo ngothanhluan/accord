@@ -17,6 +17,7 @@ export interface DashboardSummary {
   done: number;
   withoutLane: number;
   withSchemaErrors: number;
+  mergedWaiting: number; // Phase 15 D-29: tickets whose code merged and whose verify is still to do
 }
 export interface EpicRow {
   id: string;
@@ -30,6 +31,7 @@ export interface Dashboard {
   team: DashboardSection;
   ready: DashboardSection;
   upNext: DashboardSection & { suggest?: { action: 'pick-up'; id: string } };
+  mergedWaiting: DashboardSection; // Phase 15 D-29: code merged into the default ref, not done there; the next step is verify, and it is never ready, a pick-up or yours or the team's
   epics: { rows: EpicRow[]; more: number };
   summary: DashboardSummary;
 }
@@ -129,7 +131,13 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
     isWork(r) && !closed(r) && r.stage === 'done' && !finished(r) ? { ...r, next: nextStep(snapshot.tickets[r.id], 'done') } : r,
   );
   const prio = effectivePriorities(snapshot, plain);
-  const open = all.filter(isOpen);
+  // Phase 15 D-29: a ticket whose code merged (the host's `mergedClaims`) and that is not done on the default ref waits for verify; it leaves every other group and the pick-up suggestion.
+  const merged = new Set(snapshot.mergedClaims ?? []);
+  const openAll = all.filter(isOpen);
+  const open = openAll.filter((r) => !merged.has(r.id));
+  const waiting = openAll
+    .filter((r) => merged.has(r.id))
+    .map((r) => (r.lane === 'M' || r.lane === 'L' || r.lane === 'P' ? { ...r, next: nextStep(snapshot.tickets[r.id], 'verify') } : r));
   const mine = (r: StatusRow) => r.claimedBy !== undefined && r.claimedBy.toLowerCase() === viewer.toLowerCase();
   const claimed = open.filter((r) => r.claimedBy !== undefined);
   const readyAll = nextRows(open);
@@ -144,6 +152,7 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
     team: section(claimed.filter((r) => !mine(r)), prio),
     ready,
     upNext: { rows: rest, more: 0, ...(first ? { suggest: { action: 'pick-up' as const, id: first.id } } : {}) },
+    mergedWaiting: section(waiting, prio),
     epics: epicsSection(snapshot, plain),
     summary: {
       inProgress: claimed.length,
@@ -153,6 +162,7 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
       done: all.filter((r) => isWork(r) && !closed(r) && finished(r)).length,
       withoutLane: all.filter((r) => r.type !== undefined && r.type !== 'epic' && r.lane === undefined && !closed(r) && !doneOnDefault(snapshot, r.id, plain)).length,
       withSchemaErrors: all.filter((r) => r.type === undefined).length,
+      mergedWaiting: waiting.length,
     },
   };
 }

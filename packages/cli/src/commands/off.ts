@@ -2,7 +2,7 @@
 // CLI and the pane read with plain file reads, and sets the panel flag in the checkout's `.claude/settings.local.json` for sessions that read that file. The marker, not an
 // `env` variable, carries the switch: a session started in a linked worktree on Windows does not read the main checkout's local file (RESEARCH F-4).
 // The marker records what `off` did to the flag, so `on` undoes exactly that and never a key `off` did not write.
-import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { gitDirsOf, offMarkerPath } from '../load/gitdir.js';
 import { runGitSync } from '../load/git-spawn.js';
@@ -24,6 +24,8 @@ interface Marker {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const shown = (p: string): string => p.replace(/\\/g, '/');
+/** A copy of `o` without `key`, every other key in its order. */
+const without = (o: Record<string, unknown>, key: string): Record<string, unknown> => Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
 
 /** Temp file, then rename, so a reader never sees half a file (the way notice.ts writes its cache). */
 function writeAtomic(file: string, text: string): void {
@@ -118,8 +120,65 @@ export function accordOff(io: OffIo): number {
   return 0;
 }
 
+/** The marker `off` wrote, or undefined when it is absent or unreadable (`unreadable` tells which). */
+function readMarker(file: string): { marker?: Marker; unreadable: boolean } | undefined {
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    return undefined;
+  }
+  try {
+    const m = JSON.parse(text) as unknown;
+    const panel = isObject(m) && isObject(m.panel) ? m.panel : undefined;
+    const prior = panel?.prior;
+    if (panel === undefined || (prior !== 'absent' && typeof prior !== 'boolean')) return { unreadable: true };
+    return { marker: { since: String((m as Record<string, unknown>).since ?? ''), panel: { prior, createdMap: panel.createdMap === true } }, unreadable: false };
+  } catch {
+    return { unreadable: true };
+  }
+}
+
+/**
+ * Switch accord back on: put the panel flag back as the marker says `off` found it, then remove the marker. Only the flag `off` set is touched: a flag the person has
+ * changed since (no longer `false`) stays, as does every other key, their order, and anything added while accord was off. The marker goes last, so a failed write can be retried.
+ */
 export function accordOn(io: OffIo): number {
-  // Task 2 of plan 08.9.2-06 fills this in: restore the panel flag from the marker, then remove the marker.
-  void io;
+  const marker = offMarkerPath(io.root);
+  if (marker === undefined) {
+    io.stderr.write(`accord on: cannot find the git folder of ${shown(io.root)}\n`);
+    return 2;
+  }
+  const found = readMarker(marker);
+  if (found === undefined) {
+    io.stdout.write('accord is not off in this clone\n');
+    return 0;
+  }
+  if (found.marker === undefined) {
+    io.stderr.write(`accord on: the marker ${shown(marker)} is unreadable, so ${LOCAL} is left as it is\n`);
+  } else {
+    const file = join(io.root, '.claude', 'settings.local.json');
+    const read = readLocal(file);
+    if ('refusal' in read) {
+      io.stderr.write(`accord on: ${read.refusal}; the panel flag is left as it is\n`);
+    } else {
+      const { settings } = read;
+      const plugins = settings.enabledPlugins;
+      // only the flag `off` wrote (false) is undone; a person who set it to true since keeps their choice
+      if (isObject(plugins) && plugins[PANEL] === false) {
+        const { prior, createdMap } = found.marker.panel;
+        let next: Record<string, unknown>;
+        if (prior === 'absent') {
+          const rest = without(plugins, PANEL);
+          next = createdMap && Object.keys(rest).length === 0 ? without(settings, 'enabledPlugins') : { ...settings, enabledPlugins: rest };
+        } else {
+          next = { ...settings, enabledPlugins: { ...plugins, [PANEL]: prior } };
+        }
+        if (asText(next) !== asText(settings)) writeAtomic(file, asText(next));
+      }
+    }
+  }
+  rmSync(marker, { force: true });
+  io.stdout.write('accord is on again for you in this clone\n');
   return 0;
 }

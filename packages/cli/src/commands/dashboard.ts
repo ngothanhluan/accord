@@ -11,6 +11,7 @@ import { renderDashboard } from '../render/dashboard.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import { dashboardForJson, dashboardForText } from '../render/who.js';
 import type { CommandContext } from '../run.js';
+import { detailJson } from './show.js';
 
 /** ST-LN-50 D-08: one `stages off for lane <L>: ...` line per lane with a stage off, on top of the summary line that closes the text; nothing when none is off. */
 function withStagesOff(ctx: CommandContext, text: string): string {
@@ -20,14 +21,16 @@ function withStagesOff(ctx: CommandContext, text: string): string {
 }
 
 /** ST-LN-16: the claim view `preflight` builds, read again after a fetch moved origin's refs; the pin was checked on the first read and the fetch changes no file of the checkout. */
-function reloaded(ctx: CommandContext): CommandContext {
+function reloaded(ctx: CommandContext, inFull = false): CommandContext {
   const parts = loadClaimView(ctx.root);
-  // Phase 08.9.2 D-08: the command's own parse memo, so a reload re-parses only the files the fetch changed.
-  // Phase 08.9.2 D-08: a reload reads the dropped and archived bodies the way the first load did.
-  const options = { ...(ctx.memo === undefined ? {} : { memo: ctx.memo }), ...(ctx.frontmatterOnly === undefined ? {} : { frontmatterOnly: ctx.frontmatterOnly }) };
+  const only = inFull ? undefined : ctx.frontmatterOnly;
+  // Phase 08.9.2 D-08: the command's own parse memo, so a reload re-parses only the files the fetch changed; a reload reads the dropped bodies the way the first load did (`inFull` reads them whole).
+  const options = { ...(ctx.memo === undefined ? {} : { memo: ctx.memo }), ...(only === undefined ? {} : { frontmatterOnly: only }) };
   const loaded = loadSnapshot(parts.view, options);
   const plain = parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout, options);
-  return { ...ctx, snapshot: withDefaultRef(ctx.root, loaded, parts.refs, ctx.memo, ctx.frontmatterOnly), plain, branch: parts.branch };
+  const next: CommandContext = { ...ctx, snapshot: withDefaultRef(ctx.root, loaded, parts.refs, ctx.memo, only), plain, branch: parts.branch };
+  if (inFull) delete next.frontmatterOnly;
+  return next;
 }
 
 /**
@@ -45,13 +48,30 @@ function currentTicket(ctx: CommandContext): string | undefined {
   }
 }
 
-export async function dashboardCommand(first: CommandContext, options: { json?: boolean }): Promise<number> {
+/**
+ * Phase 08.9.2 D-05: the detail of the current ticket, the very object `show <id> --json` prints, read from the claim view the dashboard read (before queued drafts join it, as `show` reads none). A ticket the load read for
+ * its frontmatter only (a dropped one) has no body in this view, so it is read whole first, as `show` reads it. A throw leaves the key out of the dashboard, with one line naming the ticket, and never fails it.
+ */
+function currentDetail(ctx: CommandContext, id: string): Record<string, unknown> | undefined {
+  try {
+    const status = ctx.snapshot.tickets[id]?.frontmatter?.status;
+    const whole = status !== undefined && ctx.frontmatterOnly?.includes(status) === true ? reloaded(ctx, true) : ctx;
+    return detailJson(whole, id);
+  } catch {
+    ctx.stderr.write('dashboard: the detail of ' + id + ' could not be read, going on without it\n');
+    return undefined;
+  }
+}
+
+export async function dashboardCommand(first: CommandContext, options: { json?: boolean; fetch?: boolean }): Promise<number> {
   const viewer = gitUserEmail(first.root);
   if (viewer === '') throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>');
   // ST-LN-16 D-19: one bounded fetch before anything is read, so a teammate's pushed claim and a draft queued on a backlog branch show without a manual one. A failure goes on with the refs
   // already here: text says so in one line before the sections, JSON in the field `offline`; with no origin nothing is fetched and nothing is said.
-  const before = remoteRefs(first.root);
-  const f = fetchOrigin(first, undefined, { ms: dashboardFetchLimitMs(), quiet: options.json === true, keep: true });
+  // Phase 08.9.2 D-06: `--no-fetch` draws from the refs already in this clone and starts no git process for them: nothing is fetched, nothing is said, `offline` stays out of the JSON.
+  const before = options.fetch === false ? undefined : remoteRefs(first.root);
+  const f: { fetched: 'ok' | 'failed' | 'none'; why?: string } =
+    options.fetch === false ? { fetched: 'none' } : fetchOrigin(first, undefined, { ms: dashboardFetchLimitMs(), quiet: options.json === true, keep: true });
   // the claim view is read again only when the fetch moved a ref: a fetch that found nothing new leaves the first read as it was
   const read = f.fetched === 'ok' && (before === undefined || remoteRefs(first.root) !== before) ? reloaded(first) : first;
   const ctx: CommandContext = { ...read, snapshot: withQueued(read.root, read.snapshot) };
@@ -68,9 +88,11 @@ export async function dashboardCommand(first: CommandContext, options: { json?: 
   const json = who.mode === 'initials' ? dashboardForJson(d, who.show) : d;
   // Phase 08.7 D-10: `current` sits after the dashboard's own keys and before `offline`; JSON only, the text is unchanged (D-09)
   const current = options.json ? currentTicket(ctx) : undefined;
+  // Phase 08.9.2 D-05: `currentDetail` follows `current` and comes before `offline`; absent when there is no current ticket
+  const detail = current === undefined ? undefined : currentDetail(read, current);
   ctx.stdout.write(
     options.json
-      ? JSON.stringify({ ...json, ...(current === undefined ? {} : { current }), ...(f.why === undefined ? {} : { offline: f.why }) }, null, 2) + '\n'
+      ? JSON.stringify({ ...json, ...(current === undefined ? {} : { current }), ...(detail === undefined ? {} : { currentDetail: detail }), ...(f.why === undefined ? {} : { offline: f.why }) }, null, 2) + '\n'
       : withStagesOff(ctx, renderDashboard(dashboardForText(d, who.show))),
   );
   return 0;

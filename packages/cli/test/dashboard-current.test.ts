@@ -13,7 +13,7 @@ import { copyClone, makeTemplate } from './helpers/worktree.js';
 
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig()));
 
-const CONFIG_WHO = CONFIG + "people:\n  a@x.io: AX\n";
+const CONFIG_WHO = CONFIG + "people:\n  a@x.io: AX\n  v@x.io: VX\n";
 
 /** An empty claim commit on a new branch t/<id>, authored by `author`; the checkout stays on that branch. */
 function claimBranch(repo: string, id: string, author: string): void {
@@ -35,6 +35,9 @@ function claimBranch(repo: string, id: string, author: string): void {
   } finally {
     cleanup(folder);
   }
+  // a stage commit that touches the ticket's folder, so the session log has an entry
+  writeFiles(repo, { [`accord/tickets/${id}/note.md`]: 'note\n' });
+  commitMsg(repo, `plan: ${id} note`);
 }
 
 type Json = Record<string, unknown>;
@@ -88,7 +91,7 @@ it('risk:regression dashboard json carries the current ticket detail equal to sh
   const shown = await run(['show', 'T-1', '--json'], repo);
   expect([board.code, shown.code], board.err + shown.err).toEqual([0, 0]);
   const detail = parse(board.out).currentDetail as Json;
-  expect(detail.holderShown).toBe('AX');
+  expect(detail.holderShown).toBe('VX');
   expect(detail).toEqual(parse(shown.out));
   gitRun(repo, 'switch', '-q', 'main');
   gitRun(repo, 'config', '--unset', 'accord.who');
@@ -111,7 +114,7 @@ it('risk:resource dashboard --no-fetch starts no git fetch (D-06)', async () => 
     const local = await run(['dashboard', '--json', '--no-fetch'], c.root);
     spawnLog.on = false;
     expect(local.code, local.err).toBe(0);
-    expect(spawnLog.calls.filter((a) => a[0] === 'fetch')).toEqual([]);
+    expect(spawnLog.calls.filter((a) => a.includes('fetch'))).toEqual([]);
     expect(Object.keys(parse(local.out))).toEqual(expect.arrayContaining(['yours', 'team', 'ready', 'upNext', 'epics', 'summary']));
 
     spawnLog.calls = [];
@@ -119,7 +122,7 @@ it('risk:resource dashboard --no-fetch starts no git fetch (D-06)', async () => 
     const fetched = await run(['dashboard', '--json'], c.root);
     spawnLog.on = false;
     expect(fetched.code, fetched.err).toBe(0);
-    expect(spawnLog.calls.filter((a) => a[0] === 'fetch').length).toBeGreaterThan(0);
+    expect(spawnLog.calls.filter((a) => a.includes('fetch')).length).toBeGreaterThan(0);
     expect(Object.keys(parse(fetched.out))).toEqual(expect.arrayContaining(['yours', 'team', 'ready', 'upNext', 'epics', 'summary']));
   } finally {
     spawnLog.on = false;

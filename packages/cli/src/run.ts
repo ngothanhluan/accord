@@ -533,7 +533,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('dashboard')
     .description('print the ranked sections for the viewer')
     .option('--json', 'print the Dashboard object instead of text')
-    .action(async (options: { json?: boolean }) => {
+    .option('--no-fetch', 'draw from the refs already in this clone and fetch nothing')
+    .action(async (options: { json?: boolean; fetch?: boolean }) => {
       setCode(await dashboardCommand(preflight(opts, 'claims', { display: true }), options));
     });
 

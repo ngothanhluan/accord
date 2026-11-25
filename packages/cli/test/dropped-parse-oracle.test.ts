@@ -118,7 +118,7 @@ it('risk:regression status and dashboard JSON are unchanged when dropped tickets
 
   // dashboard: the same bytes as the full parse, read for frontmatter only
   loads.length = 0;
-  const board = await run(['dashboard', '--json'], repo);
+  const board = await run(['dashboard', '--json', '--no-fetch'], repo);
   const boardLoads = commandLoads();
   expect(board.code, board.err).toBe(0);
   const ref = reference(repo);

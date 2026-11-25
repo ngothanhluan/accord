@@ -83,12 +83,19 @@ const SIZE_LINE = /^Expected size:\s*([1-9][0-9]*)\s+tasks?\.?$/;
 // The owner's allowance, in the fixed form the round allowance Ruling of round/next.ts models; a line that does not match grants nothing.
 const SIZE_ALLOWANCE = /^Ruling: the owner allows ([1-9][0-9]*) plan tasks against an expected size of ([1-9][0-9]*) tasks? — ".*\S.*" — \S/;
 
+// Issue #361: a line that starts like a size line but is not in its form, so the refusal names the form instead of calling the line missing.
+const SIZE_LIKE = /^expected size\s*:/i;
+
+/** The `## Intent` lines with comments and list marker stripped, trimmed. */
+function intentLines(t: Ticket): string[] {
+  const s = t.sections.find((x) => headingKey(x.heading) === 'intent');
+  return s === undefined ? [] : stripHtmlComments(s.lines).map((l) => l.text.replace(LIST_MARKER, '').trim());
+}
+
 /** N of the `Expected size: N tasks` line under `## Intent`, comments and list marker stripped; undefined when there is no such line or N is not a positive integer. */
 function expectedSize(t: Ticket): number | undefined {
-  const s = t.sections.find((x) => headingKey(x.heading) === 'intent');
-  if (s === undefined) return undefined;
-  for (const l of stripHtmlComments(s.lines)) {
-    const m = SIZE_LINE.exec(l.text.replace(LIST_MARKER, '').trim());
+  for (const text of intentLines(t)) {
+    const m = SIZE_LINE.exec(text);
     const n = m === null ? NaN : Number(m[1]);
     if (Number.isSafeInteger(n)) return n;
   }
@@ -155,12 +162,16 @@ export const planSizeMissing: GateRule['check'] = (snapshot, id) => {
   if (t === undefined || t.frontmatter?.lane === 'S' || plan === undefined || plan.tasks.length === 0 || expectedSize(t) !== undefined) return [];
   const { pin, basePin } = Object.hasOwn(snapshot.planPins ?? {}, id) ? snapshot.planPins![id] : { pin: snapshot.config?.accord, basePin: undefined };
   if (pinBefore(PLAN_SIZE_FROM, pin, basePin)) return [];
+  const malformed = intentLines(t).find((text) => SIZE_LIKE.test(text));
   return [
     {
       file: t.file,
       reason:
-        `## Intent has no "Expected size: <N> tasks" line; from accord ${PLAN_SIZE_FROM} gate plan needs it: ask the owner how many plan tasks ` +
-        'the work should take, write the line into ## Intent, and have the Intent approved again',
+        malformed === undefined
+          ? `## Intent has no "Expected size: <N> tasks" line; from accord ${PLAN_SIZE_FROM} gate plan needs it: ask the owner how many plan tasks ` +
+            'the work should take, write the line into ## Intent, and have the Intent approved again'
+          : `## Intent line "${malformed}" is not in the form "Expected size: <N> tasks" (N a positive integer, nothing after it but an optional full stop); ` +
+            'rewrite it in that form, move any other words to their own line, and have the Intent approved again',
     },
   ];
 };

@@ -136,6 +136,27 @@ describe('expected size cut-off', () => {
     expect(missing(check({ ...sizeless, plan: tasks(0), pins: { pin: PLAN_SIZE_FROM } }))).toEqual([]);
   });
 
+  it('risk:parsing an Expected size line in another form is reported as a format error naming the accepted form (issue #361)', () => {
+    const body = (line: string): string => sized(2).replace('Expected size: 2 tasks', line);
+    for (const line of ['Expected size: 9 tasks, in two repositories', 'Expected size: about 9 tasks', 'Expected size: 9', '- expected size: 9 tasks across two repos']) {
+      const f = missing(check({ body: body(line), plan: tasks(2), pins: { pin: PLAN_SIZE_FROM } }));
+      expect(f).toHaveLength(1);
+      expect(f[0].level).toBe('error');
+      expect(f[0].reason).toContain(line.replace(/^- /, ''));
+      expect(f[0].reason).toContain('Expected size: <N> tasks');
+      expect(f[0].reason).not.toContain('has no');
+    }
+    // the accepted spellings still count, and a valid line wins over a malformed one
+    for (const line of ['Expected size: 9 tasks', 'Expected size: 1 task', 'Expected size: 9 tasks.', '- Expected size: 9 tasks']) {
+      expect(missing(check({ body: body(line), plan: tasks(2), pins: { pin: PLAN_SIZE_FROM } }))).toEqual([]);
+    }
+    expect(missing(check({ body: body('Expected size: 9 tasks, roughly\nExpected size: 9 tasks'), plan: tasks(2), pins: { pin: PLAN_SIZE_FROM } }))).toEqual([]);
+    // before the cut-off a malformed line is allowed, as a missing one is
+    expect(missing(check({ body: body('Expected size: 9 tasks, in two repositories'), plan: tasks(2), pins: { pin: '0.4.0' } }))).toEqual([]);
+    // no line at all keeps the missing-line reason
+    expect(missing(check({ ...sizeless, plan: tasks(2), pins: { pin: PLAN_SIZE_FROM } }))[0].reason).toContain('has no');
+  });
+
   it('risk:regression pinBefore orders versions by number and keeps pinAllowsV1 (ST-LN-93 ac-3)', () => {
     expect(PLAN_SIZE_FROM).toBe('0.4.1');
     expect(pinBefore('0.4.1', '0.4.0')).toBe(true);

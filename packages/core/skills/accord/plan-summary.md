@@ -1,0 +1,18 @@
+---
+kind: reference
+---
+
+# The plan summary
+
+When the plan stage finishes, at step 8 of `./plan.md`, show the owner a summary of the plan. It is only the plan stage's: intent, approach, build, review and verify end as they do today.
+
+The summary holds these six items, in this order, each kept short and in plain words for an owner who reads no code. It has no line cap: it is as long as the six items need.
+
+1. What the plan does: the outcome for the person the `## Intent` names, in a sentence or two.
+2. How it is split: the number of tasks and, when the plan has `## Slice` sections, each slice with its title and the tasks it holds.
+3. Which criteria it covers: each `@ac-n` with a short gloss, and any criterion no task covers.
+4. The Rulings taken: every Ruling this stage wrote into `accord/tickets/<id>/ledger.md`, each in a short line with its cost if wrong; say `none` when there is none. Never leave one out: the owner decides the next step with them in view.
+5. The risks: the lines of `## Failure modes`, and every finding of `plan-review.md` still `open` or `unverified`.
+6. The next step: `./build.md`, and what the owner has to say or do before it starts, if anything.
+
+Never paste a task, the ticket or `plan.md`: they are files the owner opens, and the summary only says what is in them.

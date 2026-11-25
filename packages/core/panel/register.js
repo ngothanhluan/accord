@@ -179,7 +179,7 @@ async function reconcile($) {
   ensureFrames($);
 }
 
-// One `show` refresh after an accord agent ends, debounced 3 seconds so a burst of agents costs one run.
+// One refresh after an accord agent ends, debounced 3 seconds so a burst of agents costs one run.
 function scheduleTicketRefresh($) {
   if (ticket === undefined) return;
   debounce?.cancel();
@@ -187,14 +187,20 @@ function scheduleTicketRefresh($) {
     debounce = $.clock.after(3000, async () => {
       debounce = undefined;
       const pane = (await $.ui.panes()).find((p) => p.id === 'accord-panel');
-      if (pane?.isPlaced === true) void loadShow($, 'ticket');
+      if (pane?.isPlaced === true) void refresh($);
       else if (pane) stale = true;
     });
   } catch {
     // a host without `$.clock`: refresh at once
     debounce = undefined;
-    void loadShow($, 'ticket');
+    void refresh($);
   }
+}
+
+// Phase 08.9.2 D-01: every process the pane starts is the hook launcher at the pinned version, run with `node`; the argv is one array with no shell, and the root is one word whatever it holds.
+async function cli($, words) {
+  const root = String(await $.session.root()).replace(/[\\/]+$/, '');
+  return $.process.run(['node', root + '/.claude/accord.mjs', 'ACCORD_PACKAGE_VERSION', ...words], { timeoutMs: 120000 });
 }
 
 let running = false;
@@ -212,7 +218,8 @@ async function refresh($) {
     do {
       again = false;
       try {
-        state = outcome(await $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'dashboard', '--json'], { timeoutMs: 120000 }));
+        // Phase 08.9.2 D-05: the draw path is one run from local refs; the claimed ticket's detail comes in the same output as `currentDetail`
+        state = outcome(await cli($, ['dashboard', '--json', '--no-fetch']));
       } catch (err) {
         state = failure(err);
       }
@@ -225,7 +232,7 @@ async function refresh($) {
   }
 }
 
-// Follows the dashboard's `current`: a new id starts its `show`, no id clears the ticket and the picked tab, a failed dashboard run keeps both.
+// Follows the dashboard's `current`: a new id replaces the ticket, no id clears the ticket and the picked tab, a failed dashboard run keeps both. The ticket tab's state is the dashboard's own `currentDetail` (Phase 08.9.2 D-05), read through the same `detailOutcome` a `show` result goes through.
 function syncTicket($) {
   if (state?.dashboard === undefined) return;
   const id = currentOf(state);
@@ -236,11 +243,19 @@ function syncTicket($) {
     settingsOpen = false;
     return;
   }
-  if (ticket?.id === id) return;
-  // Phase 08.8.1 W5: a change of ticket clears the roster, so the agents of the last ticket do not stay in the new one's block
-  if (ticket !== undefined) clearRoster($);
-  ticket = { id };
-  void loadShow($, 'ticket');
+  if (ticket?.id !== id) {
+    // Phase 08.8.1 W5: a change of ticket clears the roster, so the agents of the last ticket do not stay in the new one's block
+    if (ticket !== undefined) clearRoster($);
+    ticket = { id };
+  }
+  const given = state.dashboard.currentDetail;
+  // a detail that names another ticket than `current` is not this ticket's; a dashboard with none keeps what the tab holds, and a tab that holds nothing says so instead of loading for ever
+  const result = typeof given === 'object' && given !== null && given.id === id ? detailOutcome({ exitCode: 0, stdout: JSON.stringify(given), stderr: '' }) : ticket.state === undefined ? detailOutcome({ exitCode: 0, stdout: '', stderr: '' }) : undefined;
+  if (result === undefined) return;
+  noteBurst(ticket, result);
+  noteFailure(ticket, result);
+  ticket.state = result;
+  ensureFrames($);
 }
 
 function clearRoster($) {
@@ -273,13 +288,11 @@ function noteFailure(held, result) {
   if (key !== undefined && !first) failFlash = { at: Date.now() };
 }
 
-// Phase 08.8.1 IN-03: one single-flight loader for both `show` slots, the claimed ticket's and the open detail's.
-const flights = { ticket: { running: false, again: false }, detail: { running: false, again: false } };
-const slotOf = (slot) => (slot === 'ticket' ? ticket : detail);
+// Phase 08.8.1 IN-03: one single-flight loader for the open detail's `show`; since Phase 08.9.2 D-05 it is the only `show` the pane runs.
+const flight = { running: false, again: false };
 
-// Runs `show` for the slot's id; a result for an id no longer held by the slot is dropped.
-async function loadShow($, slot) {
-  const flight = flights[slot];
+// Runs `show` for the open detail's id; a result for an id no longer held is dropped.
+async function loadShow($) {
   if (flight.running) {
     flight.again = true;
     return;
@@ -288,23 +301,15 @@ async function loadShow($, slot) {
   try {
     do {
       flight.again = false;
-      const id = slotOf(slot)?.id;
+      const id = detail?.id;
       if (id === undefined) break;
       let result;
       try {
-        result = detailOutcome(await $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'show', id, '--json'], { timeoutMs: 120000 }));
+        result = detailOutcome(await cli($, ['show', id, '--json']));
       } catch (err) {
         result = failure(err);
       }
-      const held = slotOf(slot);
-      if (held?.id === id) {
-        if (slot === 'ticket') {
-          noteBurst(held, result);
-          noteFailure(held, result);
-        }
-        held.state = result;
-        if (slot === 'ticket') ensureFrames($);
-      }
+      if (detail?.id === id) detail.state = result;
       await invalidate($);
     } while (flight.again);
   } finally {
@@ -312,20 +317,15 @@ async function loadShow($, slot) {
   }
 }
 
-// Phase 08.8.1 IN-03: the dashboard run first; the ticket's own `show` follows only when that run left the id unchanged, since a new id starts its show in `syncTicket`.
+// Phase 08.9.2 D-05: one dashboard run, whose `currentDetail` also refreshes the ticket tab; an open detail runs its own `show`.
 function refreshAll($) {
-  const before = ticket?.id;
-  void refresh($)
-    .then(() => {
-      if (ticket !== undefined && ticket.id === before) void loadShow($, 'ticket');
-    })
-    .catch(() => {});
-  if (detail) void loadShow($, 'detail');
+  void refresh($).catch(() => {});
+  if (detail) void loadShow($);
 }
 
 async function openDetail($, open) {
   detail = { id: open.id };
-  const loading = loadShow($, 'detail'); // starts the run before the first redraw so a press runs it at once
+  const loading = loadShow($); // starts the run before the first redraw so a press runs it at once
   await invalidate($);
   await loading;
 }

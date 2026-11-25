@@ -11,14 +11,14 @@ export const pluginDir = '.claude/accord-panel';
 /** Where the hook launcher is written; every accord hook entry runs it (scaffold/hooks.ts). */
 export const LAUNCHER_PATH = '.claude/accord.mjs';
 
-const SPEC = 'ACCORD_PACKAGE_SPEC';
+const VERSION = 'ACCORD_PACKAGE_VERSION';
 const NAME = 'ACCORD_PACKAGE_NAME';
 const json = (value: unknown): string => stamp('{\n', JSON.stringify(value, null, 2).slice(2) + '\n', 'json');
 
 /** The five plugin files and the hook launcher, sorted by path; empty unless the claude runtime is declared. */
 export function pluginTargets(config: Pick<AccordConfig, 'runtimes'>, pkg: { name: string; version: string }): SkillFile[] {
   if (!config.runtimes.includes('claude')) return [];
-  if (!panel['register.js'].includes(SPEC)) throw new Error('panel/register.js lacks ' + SPEC);
+  if (!panel['register.js'].includes(VERSION)) throw new Error('panel/register.js lacks ' + VERSION);
   if (!launcher['accord.mjs'].includes(NAME)) throw new Error('launcher/accord.mjs lacks ' + NAME);
   const files: SkillFile[] = [
     {
@@ -33,7 +33,7 @@ export function pluginTargets(config: Pick<AccordConfig, 'runtimes'>, pkg: { nam
     { path: `${pluginDir}/plugin/hooks/hooks.json`, text: json({ modules: ['./register.js'] }) },
     {
       path: `${pluginDir}/plugin/hooks/register.js`,
-      text: stamp('', panel['register.js'].replaceAll(SPEC, `${pkg.name}@${pkg.version}`), 'js'),
+      text: stamp('', panel['register.js'].replaceAll(VERSION, pkg.version), 'js'),
     },
     { path: `${pluginDir}/plugin/hooks/view.js`, text: stamp('', panel['view.js'], 'js') },
     { path: LAUNCHER_PATH, text: stamp('', launcher['accord.mjs'].replaceAll(NAME, pkg.name), 'js') },

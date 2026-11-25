@@ -74,7 +74,7 @@ it('risk:regression typing accord wakes a quiet session with rules anchor and on
   expect(context.startsWith(RULES), 'the ruleset comes first').toBe(true);
   expect(context, 'the session line follows').toMatch(/\naccord: (no lane tickets yet|\d+ in progress)/);
   expect(context, 'the clean ran and its report is for the owner').toContain('tell the owner the lines above');
-  expect(first.calls.some((c) => c[0] === 'fetch'), 'the clean fetched once').toBe(true);
+  expect(first.calls.some((c) => c.includes('fetch')), 'the clean fetched once').toBe(true);
   expect(existsSync(file), 'the wake file is written').toBe(true);
   const wake = JSON.parse(readFileSync(file, 'utf8')) as { since: string; delivered: boolean };
   expect(Number.isNaN(Date.parse(wake.since))).toBe(false);

@@ -6,6 +6,7 @@ import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicB
 import type { AccordConfig } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
+import { checkoutOf, isOff, wakeFilePath, writeWakeFile } from '../load/gitdir.js';
 import { cliRuleset } from '../load/product.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
 import { pinMessage, versionOnDisk } from '../pin.js';
@@ -167,6 +168,60 @@ function sessionClean(ctx: CommandContext, event: 'session-start' | 'session-res
     out.write(withNext('clean-failed', `clean failed, nothing more was removed: ${msg.split('\n')[0]}`).replace(/\\/g, '/') + '\n');
   }
   if (text !== '') ctx.stdout.write(text + 'tell the owner the lines above\n');
+}
+
+/** Phase 08.9.2 Ruling-off-accord: the sentence a woken session of a switched-off person carries, so the model offers `accord on` and runs it only on their yes; the marker is never removed by the wake. */
+const OFF_NOTE = 'accord is switched off for you in this clone; offer node .claude/accord.mjs on and run it only on their yes';
+
+/**
+ * Phase 08.9.2 L-02, Ruling-wake-session, Ruling-off-accord: a typed `/accord` in a quiet (or switched-off) session that is not woken yet. The answer is the UserPromptExpansion
+ * `additionalContext`: the ruleset, a blank line, the anchor of the active ticket and its stage line (else the session line), the off note when accord is off for the person, and
+ * what the worktree clean did, run once in the foreground by the unchanged `sessionClean` and collected instead of printed. The wake file `<git dir>/accord-wake/<session_id>` is written
+ * after the text is built, so a failure before it leaves the session to try again; every later hook of the session sees the file and takes the full path. A waking prompt never gets
+ * a Continue or Pick up block (the guard of `promptExpansion` is not run: a session not yet woken works no ticket). Fails open: any error is one stderr line and `{}`.
+ */
+export function wake(ctx: CommandContext): number {
+  const allow = (why: string) => {
+    ctx.stderr.write(`accord hook prompt-expansion: ${why.split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+    ctx.stdout.write('{}\n');
+    return 0;
+  };
+  try {
+    const input = hookInput(ctx);
+    const where = input?.cwd ?? ctx.root;
+    const root = repoRoot(where);
+    // the same checkout the launcher and hookEarly look in: the nearest folder holding a .git
+    const checkout = checkoutOf(where);
+    const file = checkout === undefined ? undefined : wakeFilePath(checkout, input?.session_id);
+    if (file === undefined) return allow('no plain session_id to wake');
+    let text = cliRuleset().trimEnd() + '\n\n';
+    const rows = statusRows(ctx.snapshot);
+    let body = sessionLine(rows) + '\n';
+    try {
+      const id = activeTicket(root, ctx.snapshot, branchFor(root, ctx));
+      const anchored = id === undefined ? undefined : anchorOf(ctx, id);
+      if (anchored !== undefined) body = anchored + stageLine(rows.find((r) => r.id === id), root, ctx.snapshot.config);
+    } catch (e) {
+      // the session line stands in for an anchor that cannot be read
+      ctx.stderr.write(`accord: no anchor: ${(e as Error).message.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+    }
+    text += body;
+    if (isOff(where)) text += OFF_NOTE + '\n';
+    let report = '';
+    const collect = {
+      write(chunk: string | Uint8Array): boolean {
+        report += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+        return true;
+      },
+    } as unknown as NodeJS.WritableStream;
+    sessionClean({ ...ctx, stdout: collect }, 'session-start');
+    text += report;
+    writeWakeFile(file, true);
+    ctx.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptExpansion', additionalContext: text } }) + '\n');
+    return 0;
+  } catch (e) {
+    return allow(e instanceof Error ? e.message : String(e));
+  }
 }
 
 /** The first held id (code-point order) of this marker whose worktree exists here, with that worktree's path. */

@@ -2,11 +2,11 @@
 // calls `hookEarly` first; a case it answers starts no git process (RESEARCH F-6 measured 2.4 to 3.3 s of preflight for answers like these).
 // Like `preToolUseWrite` (ST-LN-39 D-08) these answers read no repository and so take no pin check. D-07: session-start and session-resume have no early path
 // except Phase 08.9.2 D-02's: in a repository whose config says `hook_mode: quiet` they print one line, unless the session opens on a ticket's branch.
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { branchTypesOf, DEFAULT_BRANCH_TEMPLATE, EPIC_ROLES, expandBranchTypes, loadConfig, subagentContext } from '@accord-dev/accord-core';
 import { ticketOfBranch } from '../load/fs.js';
-import { checkoutOf, gitDirsOf, headBranchOf, isOff } from '../load/gitdir.js';
+import { checkoutOf, gitDirsOf, headBranchOf, isOff, wakeFilePath } from '../load/gitdir.js';
 import { cliRuleset } from '../load/product.js';
 import type { RunOptions } from '../run.js';
 import { hookInput, preToolUseWrite, promptExpansionStdin } from './hook.js';
@@ -29,14 +29,16 @@ const QUIET_MODE = /^hook_mode:[ \t]+(?:"quiet"|'quiet'|quiet)(?:[ \t]+#.*)?[ \t
  */
 export function hookEarly(opts: RunOptions, event: HookEvent): number | undefined {
   // Phase 08.9.2 D-03: while the person's off marker exists in this clone every event prints nothing, whatever it would have decided; read from files, so no git process.
-  if (isOff(hookInput(opts)?.cwd ?? opts.cwd)) return 0;
+  // Ruling-off-accord: a typed /accord is an explicit request, so it wakes the session even while accord is off (the full path builds the answer); nothing else is let through.
+  if (isOff(hookInput(opts)?.cwd ?? opts.cwd)) return event === 'prompt-expansion' && isWake(opts) ? undefined : 0;
   switch (event) {
     case 'pre-tool-use':
       return preToolUseEarly(opts);
     case 'subagent-start':
       return subagentStartEarly(opts);
     case 'prompt-expansion':
-      return promptExpansionStdin(opts);
+      // L-02: a typed /accord that wakes a quiet session needs the repository (the rules, the anchor, the clean), so the full path answers it
+      return isWake(opts) ? undefined : promptExpansionStdin(opts);
     case 'session-start':
     case 'session-resume':
       return quietStart(opts, event);
@@ -80,24 +82,46 @@ function subagentStartEarly(opts: RunOptions): number | undefined {
 }
 
 /**
- * Phase 08.9.2 D-02, L-02, L-03: the quiet answer of a session start or resume, or undefined when the full path runs. Quiet needs the checkout's config to say so (an unreadable
- * config, a missing key or any other value is full) and the session not to open on a ticket's branch: a branch the checkout's templates map to one of its ticket files wakes
- * accord, and so does a HEAD that cannot be read. A detached HEAD names no branch and stays quiet. Reads files only, so a quiet start runs no git process.
+ * Phase 08.9.2 D-02, L-02, L-03: true when the checkout at `root` is quiet and a session start there would be answered with the quiet line: its config says so (an unreadable
+ * config, a missing key or any other value is full) and the session does not open on a ticket's branch: a branch the checkout's templates map to one of its ticket files wakes
+ * accord, and so does a HEAD that cannot be read. A detached HEAD names no branch and stays quiet. Reads files only, so it runs no git process; any error means not quiet.
  */
-function quietStart(opts: RunOptions, event: HookEvent): number | undefined {
+function isQuietAt(root: string): boolean {
   try {
-    const root = checkoutOf(hookInput(opts)?.cwd ?? opts.cwd);
-    if (root === undefined) return undefined;
     const text = readFileSync(join(root, 'accord', 'config.yml'), 'utf8');
-    if (!QUIET_MODE.test(text)) return undefined;
+    if (!QUIET_MODE.test(text)) return false;
     const dirs = gitDirsOf(root);
     const branch = dirs === undefined ? undefined : headBranchOf(dirs.gitDir);
-    if (branch === undefined || (branch !== '' && opensOnTicket(root, branch, text))) return undefined;
-    opts.stdout.write(QUIET_LINE + '\n');
-    if (event === 'session-start') opts.stdout.write(OFF_LINE + '\n');
-    return 0;
+    return branch !== undefined && (branch === '' || !opensOnTicket(root, branch, text));
   } catch {
-    return undefined;
+    return false;
+  }
+}
+
+/** The quiet answer of a session start or resume, or undefined when the full path runs. */
+function quietStart(opts: RunOptions, event: HookEvent): number | undefined {
+  const root = checkoutOf(hookInput(opts)?.cwd ?? opts.cwd);
+  if (root === undefined || !isQuietAt(root)) return undefined;
+  opts.stdout.write(QUIET_LINE + '\n');
+  if (event === 'session-start') opts.stdout.write(OFF_LINE + '\n');
+  return 0;
+}
+
+/**
+ * Phase 08.9.2 L-02, Ruling-off-accord: true for a typed `/accord` (stdin's command_name) of a session that is not woken yet, in a repository that is quiet here or for a person who
+ * switched accord off, when the session id is a plain name (a wake file can be named). The caller checks that the event is prompt-expansion. Never throws.
+ */
+export function isWake(opts: RunOptions): boolean {
+  try {
+    const input = hookInput(opts);
+    if (input?.command_name !== 'accord') return false;
+    const where = input.cwd ?? opts.cwd;
+    const root = checkoutOf(where);
+    const file = root === undefined ? undefined : wakeFilePath(root, input.session_id);
+    if (root === undefined || file === undefined || existsSync(file)) return false;
+    return isOff(where) || isQuietAt(root);
+  } catch {
+    return false;
   }
 }
 

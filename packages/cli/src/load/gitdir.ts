@@ -2,7 +2,7 @@
 // A main checkout's `.git` is the common folder itself. A linked worktree's `.git` is a file `gitdir: <path>` naming its own folder
 // (`<main>/.git/worktrees/<name>`), whose `commondir` file points back at the common folder (`../..`). The personal off marker lives in the common folder,
 // so one switch covers every worktree of the clone. The launcher (packages/core/launcher/accord.mjs) makes the same reads; keep the two in step.
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 /** The file `accord off` writes in the common git folder and `accord on` removes. */
@@ -88,4 +88,46 @@ export function headBranchOf(gitDir: string): string | undefined {
   const ref = /^ref:[ \t]*refs\/heads\/(.+)$/.exec(line);
   if (ref !== null) return ref[1];
   return /^[0-9a-f]{40,64}$/i.test(line) ? '' : undefined;
+}
+
+/** Phase 08.9.2 Ruling-wake-session: the folder, in a checkout's own git folder, holding one small file per session that typed /accord; the launcher reads the same files. */
+export const WAKE_DIR = 'accord-wake';
+/** A session id may name a file only when it is a plain name: letters, digits, `_` and `-`, 1 to 128 of them (T-08.9.2-29). */
+const SESSION_NAME = /^[A-Za-z0-9_-]{1,128}$/;
+/** A wake file older than this is a session nobody is coming back to; each write removes such files. */
+const WAKE_KEEP_MS = 24 * 3_600_000;
+
+/** `<per-worktree git folder>/accord-wake/<session_id>` of the checkout at `root`; undefined unless the id is a plain name and the git folders can be read. */
+export function wakeFilePath(root: string, sessionId: string | undefined): string | undefined {
+  if (typeof sessionId !== 'string' || !SESSION_NAME.test(sessionId)) return undefined;
+  const dirs = gitDirsOf(root);
+  return dirs === undefined ? undefined : join(dirs.gitDir, WAKE_DIR, sessionId);
+}
+
+/** True when the session `sessionId` of the clone `dir` belongs to has typed /accord (its wake file exists). Never throws: anything unreadable is not woken. */
+export function isWoken(dir: string, sessionId: string | undefined): boolean {
+  try {
+    const root = checkoutOf(dir);
+    const file = root === undefined ? undefined : wakeFilePath(root, sessionId);
+    return file !== undefined && existsSync(file);
+  } catch {
+    return false;
+  }
+}
+
+/** Writes the wake file temp-then-rename, so a reader never sees half a file, and removes the files of the folder older than 24 hours. Throws on a failed write. */
+export function writeWakeFile(file: string, delivered: boolean, now: Date = new Date()): void {
+  const folder = dirname(file);
+  mkdirSync(folder, { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify({ since: now.toISOString(), delivered }) + '\n');
+  renameSync(tmp, file);
+  try {
+    for (const name of readdirSync(folder)) {
+      const old = join(folder, name);
+      if (old !== file && now.getTime() - statSync(old).mtimeMs > WAKE_KEEP_MS) rmSync(old, { force: true });
+    }
+  } catch {
+    // a folder that cannot be pruned is left as it is
+  }
 }

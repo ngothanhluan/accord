@@ -198,10 +198,16 @@ function scheduleTicketRefresh($) {
 }
 
 // Phase 08.9.2 D-01: every process the pane starts is the hook launcher at the pinned version, run with `node`; the argv is one array with no shell, and the root is one word whatever it holds.
-const rootOf = async ($) => String(await $.session.root()).replace(/[\\/]+$/, '');
+// the session root does not change inside a session: read once, then every run starts without waiting for it
+let rootText;
+async function rootOf($) {
+  rootText ??= String(await $.session.root()).replace(/[\\/]+$/, '');
+  return rootText;
+}
 
 async function cli($, words) {
-  return $.process.run(['node', (await rootOf($)) + '/.claude/accord.mjs', 'ACCORD_PACKAGE_VERSION', ...words], { timeoutMs: 120000 });
+  const root = rootText ?? (await rootOf($));
+  return $.process.run(['node', root + '/.claude/accord.mjs', 'ACCORD_PACKAGE_VERSION', ...words], { timeoutMs: 120000 });
 }
 
 // Phase 08.9.2 D-06: the text of the dashboard run the pane draws now. Display only: no gate, record or decision reads it or the cache.
@@ -330,9 +336,9 @@ async function backgroundFetch($) {
   try {
     const run = await cli($, ['dashboard', '--json']);
     if (run.exitCode !== 0 || run.stdout === drawnText || began !== generation) return;
-    const next = outcome(run);
-    if (next.dashboard === undefined) return;
-    state = next;
+    const fetched = outcome(run);
+    if (fetched.dashboard === undefined) return;
+    state = fetched;
     drawnText = run.stdout;
     syncTicket($);
     await invalidate($);

@@ -210,6 +210,19 @@ function gitDirty(root: string): { dirty: Set<string>; untracked: Set<string> } 
   return { dirty, untracked };
 }
 
+/** Whether commit `a` is an ancestor of commit `b`: exit 0 is true, every other outcome (1, an object this clone lacks, a spawn failure) is false. */
+function isAncestor(root: string, a: string, b: string): boolean {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', a, b], { cwd: root, stdio: 'ignore', env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Phase 15 D-15: where accord keeps the copy of origin's `refs/accord/<id>`, the progress ref; fetchOrigin writes it, nothing else does. */
+const PROGRESS_PREFIX = 'refs/remotes/origin-accord/';
+
 /**
  * Spec §5: a branch named by a template in force (`t/{id}` always), local or on any remote, claims its ticket for
  * the author of its tip. One spawn, literal arguments, one narrow pattern pair per template. Per ticket the winner is
@@ -233,6 +246,8 @@ function gitClaims(
 } {
   // Issue #341 D-07: `{id}` and `{slug}` become `*` (one segment); `{type}` was already written out per listed word (D-11).
   const patterns = templates.flatMap((t) => (t.split('{id}').length === 2 ? ['refs/heads/' + branchGlob(t), 'refs/remotes/*/' + branchGlob(t)] : []));
+  // Phase 15 D-15: the progress refs are listed with the claim branches, as a source of records only (below); a template `{id}` alone would match them as branches, so the loop skips them.
+  if (patterns.length > 0) patterns.push(PROGRESS_PREFIX + '*');
   let out: string;
   try {
     // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
@@ -252,9 +267,14 @@ function gitClaims(
   const winners = new Map<string, { email: string; short: string; ref: string; pushed: boolean; when: number }>();
   const activity: Record<string, number> = {};
   const listed = new Map<string, string>();
+  const progressWhen = new Map<string, number>();
   for (const line of out.split('\n')) {
     const [ref, email, whenText, sha] = line.split('\0');
     if (ref !== undefined && sha !== undefined) listed.set(ref, sha);
+    if (ref?.startsWith(PROGRESS_PREFIX) === true) {
+      progressWhen.set(ref, Number(whenText)); // D-15, T-15-23: a progress ref never claims a ticket and never decides who holds it
+      continue;
+    }
     const m = /^refs\/(?:(heads)|remotes\/[^/]+)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined) continue;
     const id = ticketOfBranch(m[2], templates, known, config);
@@ -273,6 +293,16 @@ function gitClaims(
     claims[id] = w.email;
     branches[id] = w.short;
     refs[id] = w.ref;
+    // Phase 15 D-15: for a ticket some claim branch already holds, its records come from the progress ref when that ref is ahead of the claim tip (descends from it); the claimant stays the claim branch's author.
+    // A progress ref that diverged from the claim tip is not read: the claim branch wins a divergence.
+    const progress = PROGRESS_PREFIX + id;
+    const tip = listed.get(w.ref);
+    const ahead = listed.get(progress);
+    if (tip !== undefined && ahead !== undefined && ahead !== tip && isAncestor(root, tip, ahead)) {
+      refs[id] = progress;
+      const when = progressWhen.get(progress);
+      if (when !== undefined && when > (activity[id] ?? 0)) activity[id] = when;
+    }
   }
   return { claims, branches, refs, activity, listed };
 }

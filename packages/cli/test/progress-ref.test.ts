@@ -4,7 +4,7 @@ import { expect, it } from 'vitest';
 import { CONFIG } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
 import { nextLine } from '../src/commands/next-action.js';
-import { makeClone, type Clone } from './helpers/worktree.js';
+import { makeClone, verifyStage, type Clone } from './helpers/worktree.js';
 
 /** The claim worktree of ST-9 with the claim branch pushed, then `accord/config.yml` set to `extra` in one local commit (not pushed). */
 function claimed(c: Clone, extra: string): string {
@@ -174,3 +174,45 @@ it('risk:security a ticket id that is not a plain id never reaches a ref name (T
     c.cleanupAll();
   }
 }, 120_000);
+
+// Phase 15 D-15 (15-10): a teammate's `accord dashboard` fetches refs/accord/* into refs/remotes/origin-accord/* itself, and shows the progress from there.
+type Row = { id: string; claimedBy?: string; stage?: string; tasksDone?: number; tasksTotal?: number };
+const rowOf = async (dir: string, id: string): Promise<Row | undefined> => {
+  const d = JSON.parse((await run(['dashboard', '--json'], dir)).out) as { yours: { rows: Row[] }; team: { rows: Row[] } };
+  return [...d.yours.rows, ...d.team.rows].find((r) => r.id === id);
+};
+/** A teammate's clone: its own address, so a claim by `fixture@example.invalid` is the team's, not its own. */
+const teammate = (c: Clone): string => {
+  const b = c.otherClone();
+  gitRun(b, 'config', 'user.email', 'b@example.com');
+  return b;
+};
+
+it('risk:regression a teammate dashboard shows the progress pushed to refs/accord/<id> with nothing to configure, and a second push moves it (D-15, SC-5)', async () => {
+  const c = makeClone();
+  try {
+    const wt = claimed(c, REF);
+    const b = teammate(c);
+    const before = await rowOf(b, 'ST-9');
+    expect(before?.claimedBy).toBe('fixture@example.invalid');
+    expect(before?.tasksDone ?? 0).toBe(0);
+
+    verifyStage(wt, 'ST-9', { review: false });
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: refs/accord/ST-9\n', err: '' });
+    expect(branchOnOrigin(c)).not.toBe(head(wt));
+    const first = await rowOf(b, 'ST-9');
+    expect(first?.claimedBy).toBe('fixture@example.invalid');
+    expect(first?.tasksDone).toBe(2);
+    expect(gitRun(b, 'rev-parse', 'refs/remotes/origin-accord/ST-9').trim()).toBe(head(wt));
+    expect(gitRun(b, 'config', '--get-all', 'remote.origin.fetch').trim()).toBe('+refs/heads/*:refs/remotes/origin/*');
+
+    writeFiles(wt, { 'accord/tickets/ST-9/review.md': 'verdict: converged\n' });
+    commitMsg(wt, 'review: ST-9');
+    expect((await run(['worktree', 'push', 'ST-9'], wt)).code).toBe(0);
+    const second = await rowOf(b, 'ST-9');
+    expect(second?.stage).not.toBe(first?.stage);
+    expect(gitRun(b, 'rev-parse', 'refs/remotes/origin-accord/ST-9').trim()).toBe(head(wt));
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);

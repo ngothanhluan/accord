@@ -129,6 +129,8 @@ export interface ClaimRefFact {
   origin: boolean;
   /** The tip is already on the default ref. */
   merged: boolean;
+  /** Phase 15 D-15: this local branch's tip is on the progress ref `refs/accord/<id>` as this clone last fetched it, so its commits are on origin though no `origin/<name>` holds them. */
+  progress?: boolean;
   /** Issue #341 D-07c: the id was guessed among more than one candidate the name can carry, none of them known, so no delete command is printed. */
   ambiguous?: boolean;
 }
@@ -173,7 +175,7 @@ export function branchGaps(
     opts.unpushed === false
       ? []
       : listed
-          .filter((r) => r.local && !r.origin && !r.merged && Math.floor((now - r.tip) / 86400) > Number(staleDays))
+          .filter((r) => r.local && !r.origin && r.progress !== true && !r.merged && Math.floor((now - r.tip) / 86400) > Number(staleDays))
           .sort((a, b) => cmp(a.name, b.name))
           .map((r) => ({
             id: 'claim-unpushed',

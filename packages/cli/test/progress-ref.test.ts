@@ -1,10 +1,11 @@
 // Phase 15 D-12 to D-15, D-33 (15-09): `accord worktree push <id>` sends the claim branch's commits to refs/accord/<id>, a ref that is not a branch and starts no CI, and only
 // where `progress.push` allows it. Every origin here is a bare repository in a temporary folder: no test touches a network or a real host.
+import { chmodSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { CONFIG } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
 import { nextLine } from '../src/commands/next-action.js';
-import { makeClone, verifyStage, type Clone } from './helpers/worktree.js';
+import { claimWorktree, doneOnRemote, dropOnRemote, has, lines, makeClone, ticketWorktree, verifyStage, withAction, type Clone } from './helpers/worktree.js';
 
 /** The claim worktree of ST-9 with the claim branch pushed, then `accord/config.yml` set to `extra` in one local commit (not pushed). */
 function claimed(c: Clone, extra: string): string {
@@ -212,6 +213,220 @@ it('risk:regression a teammate dashboard shows the progress pushed to refs/accor
     const second = await rowOf(b, 'ST-9');
     expect(second?.stage).not.toBe(first?.stage);
     expect(gitRun(b, 'rev-parse', 'refs/remotes/origin-accord/ST-9').trim()).toBe(head(wt));
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+const onOrigin = (c: Clone, ref: string): string | undefined => {
+  try {
+    return gitRun(c.remote, 'rev-parse', '--verify', '-q', ref).trim();
+  } catch {
+    return undefined;
+  }
+};
+/** A progress ref written straight into the bare origin: what a teammate's `worktree push` leaves there. */
+const setProgress = (c: Clone, id: string, value: string): void => void gitRun(c.remote, 'update-ref', `refs/accord/${id}`, value);
+/** The bare origin refuses every deletion of a progress ref (a hook), as a host with a protected namespace would. */
+const refuseProgressDeletes = (c: Clone): void => {
+  const hook = `${c.remote}/hooks/pre-receive`;
+  writeFileSync(hook, '#!/bin/sh\nwhile read old new ref; do case "$ref" in refs/accord/*) echo "progress refs are protected" >&2; exit 1;; esac; done\nexit 0\n');
+  chmodSync(hook, 0o755);
+};
+
+it('risk:security a progress ref with no claim branch makes no claim, and one that is not ahead of the claim branch is not read (D-15, T-15-23)', async () => {
+  const c = makeClone();
+  try {
+    // no claim branch anywhere: the ref only exists
+    setProgress(c, 'ST-9', onOrigin(c, 'refs/heads/main') as string);
+    const b = teammate(c);
+    expect(await rowOf(b, 'ST-9')).toBeUndefined();
+    expect(has(b, 'refs/remotes/origin-accord/ST-9')).toBe(true);
+
+    // a claim branch, and a progress ref that does not descend from its tip: the claim branch's records win
+    claimed(c, '');
+    const o = teammate(c);
+    gitRun(o, 'switch', '-q', '-c', 'elsewhere', 'origin/main');
+    verifyStage(o, 'ST-9', { review: false });
+    gitRun(o, 'push', '-q', '-f', 'origin', 'HEAD:refs/accord/ST-9');
+    const row = await rowOf(teammate(c), 'ST-9');
+    expect(row?.claimedBy).toBe('fixture@example.invalid');
+    expect(row?.tasksDone ?? 0).toBe(0);
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+/** Ticket ST-9 done on origin's main with its branch worktree still here, and `refs/accord/ST-9` on origin at the branch's verified tip. */
+function doneWithProgress(c: Clone): { local: string; tip: string } {
+  ticketWorktree(c, 'ST-9');
+  const local = gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim();
+  doneOnRemote(c, ['ST-9']);
+  const tip = onOrigin(c, 'refs/heads/t/ST-9') as string;
+  setProgress(c, 'ST-9', tip);
+  return { local, tip };
+}
+
+it('risk:data-loss clean deletes refs/accord/<id> on origin and the local copy with the done ticket branches and prints the line (D-15)', async () => {
+  const c = makeClone();
+  try {
+    const { local, tip } = doneWithProgress(c);
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(r.code).toBe(0);
+    expect(lines(r.out)).toEqual([
+      withAction(`removed ${c.sibling('ST-9')}`),
+      withAction(`deleted t/ST-9 (was ${local})`),
+      withAction(`deleted origin/t/ST-9 (was ${tip})`),
+      withAction(`deleted origin refs/accord/ST-9 (was ${tip})`),
+    ]);
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBeUndefined();
+    expect(has(c.root, 'refs/remotes/origin-accord/ST-9')).toBe(false);
+    expect((await run(['worktree', 'clean'], c.root)).out).toBe('');
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss clean deletes the progress ref when the host already deleted the origin branch, and drops a copy origin no longer holds (D-15)', async () => {
+  const c = makeClone();
+  try {
+    const { tip } = doneWithProgress(c);
+    gitRun(c.remote, 'update-ref', '-d', 'refs/heads/t/ST-9');
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(lines(r.out).filter((l) => l.includes('refs/accord'))).toEqual([withAction(`deleted origin refs/accord/ST-9 (was ${tip})`)]);
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBeUndefined();
+    expect(has(c.root, 'refs/remotes/origin-accord/ST-9')).toBe(false);
+  } finally {
+    c.cleanupAll();
+  }
+
+  // another clone cleaned it first and this clone's fetch does not prune: the stale copy goes, with a plain line
+  const d = makeClone();
+  try {
+    const { tip } = doneWithProgress(d);
+    gitRun(d.root, 'fetch', '-q', 'origin', '+refs/accord/*:refs/remotes/origin-accord/*');
+    gitRun(d.remote, 'update-ref', '-d', 'refs/accord/ST-9');
+    const r = await run(['worktree', 'clean'], d.root);
+    expect(lines(r.out)).toContain(`pruned refs/remotes/origin-accord/ST-9 (was ${tip})`);
+    expect(has(d.root, 'refs/remotes/origin-accord/ST-9')).toBe(false);
+  } finally {
+    d.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss origin refusing the progress ref delete is one kept line, exit 0, and the ref stays (D-15)', async () => {
+  const c = makeClone();
+  try {
+    const { tip } = doneWithProgress(c);
+    refuseProgressDeletes(c);
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(r.code).toBe(0);
+    const kept = lines(r.out).filter((l) => l.startsWith('kept origin refs/accord/ST-9: git push failed: '));
+    expect(kept).toHaveLength(1);
+    expect(kept[0]).toContain('progress refs are protected');
+    expect(lines(r.out)).toContain(withAction(`deleted origin/t/ST-9 (was ${tip})`));
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBe(tip);
+    expect(has(c.root, 'refs/remotes/origin-accord/ST-9')).toBe(true);
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss clean --dry-run prints the progress ref deletion and deletes nothing (D-15)', async () => {
+  const c = makeClone();
+  try {
+    const { tip } = doneWithProgress(c);
+    gitRun(c.root, 'fetch', '-q', 'origin', '+refs/accord/*:refs/remotes/origin-accord/*');
+    const r = await run(['worktree', 'clean', '--dry-run'], c.root);
+    expect(r.code).toBe(0);
+    expect(lines(r.out)).toContain(withAction(`deleted origin refs/accord/ST-9 (was ${tip})`));
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBe(tip);
+    expect(has(c.root, 'refs/remotes/origin-accord/ST-9')).toBe(true);
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss clean keeps a progress ref with commits after the ticket verified commit (D-15)', async () => {
+  const c = makeClone();
+  try {
+    const { tip } = doneWithProgress(c);
+    const o = c.otherClone();
+    gitRun(o, 'switch', '-q', '-c', 'more', 'origin/t/ST-9');
+    writeFiles(o, { 'later.txt': 'later\n' });
+    commitMsg(o, 'later work');
+    gitRun(o, 'push', '-q', '-f', 'origin', 'HEAD:refs/accord/ST-9');
+    const later = gitRun(o, 'rev-parse', 'HEAD').trim();
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(lines(r.out)).toContain(withAction('kept origin refs/accord/ST-9: it has commits after its verified commit'));
+    expect(lines(r.out)).toContain(withAction(`deleted origin/t/ST-9 (was ${tip})`));
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBe(later);
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss clean deletes the progress ref of a dropped ticket with its branches, and keeps one that holds commits no branch has (D-15)', async () => {
+  const c = makeClone();
+  try {
+    const tip = claimWorktree(c, 'ST-9');
+    dropOnRemote(c, ['ST-9']);
+    setProgress(c, 'ST-9', onOrigin(c, 'refs/heads/t/ST-9') as string);
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(lines(r.out)).toEqual([
+      withAction(`removed ${c.sibling('ST-9')}`),
+      withAction(`deleted origin/t/ST-9 (was ${tip})`),
+      withAction(`deleted origin refs/accord/ST-9 (was ${tip})`),
+      withAction(`deleted t/ST-9 (was ${tip})`),
+    ]);
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBeUndefined();
+    expect(has(c.root, 'refs/remotes/origin-accord/ST-9')).toBe(false);
+  } finally {
+    c.cleanupAll();
+  }
+
+  const d = makeClone();
+  try {
+    const tip = claimWorktree(d, 'ST-9');
+    dropOnRemote(d, ['ST-9']);
+    const o = d.otherClone();
+    gitRun(o, 'switch', '-q', '-c', 'more', 'origin/t/ST-9');
+    writeFiles(o, { 'later.txt': 'later\n' });
+    const later = commitMsg(o, 'later work');
+    gitRun(o, 'push', '-q', 'origin', 'HEAD:refs/accord/ST-9');
+    const r = await run(['worktree', 'clean'], d.root);
+    expect(lines(r.out)).toContain(withAction(`deleted origin/t/ST-9 (was ${tip})`));
+    expect(lines(r.out)).toContain(withAction('kept origin refs/accord/ST-9: it has commits not on t/ST-9'));
+    expect(onOrigin(d, 'refs/accord/ST-9')).toBe(later);
+  } finally {
+    d.cleanupAll();
+  }
+}, 180_000);
+
+const IDLE = new Date(Date.now() - 21 * 24 * 3600 * 1000);
+/** A local claim branch t/T-1 never pushed, its tip 21 days old, in a clone whose origin is a bare repository. */
+function unpushedClaim(): Clone {
+  const c = makeClone({ tickets: ['T-1'] });
+  gitRun(c.root, 'switch', '-q', '-c', 't/T-1');
+  commitMsg(c.root, 'claim: T-1', IDLE, true);
+  gitRun(c.root, 'switch', '-q', 'main');
+  return c;
+}
+const unpushedGaps = async (c: Clone): Promise<string[]> => (await run(['audit'], c.root)).out.split('\n').filter((l) => l.startsWith('gap: claim-unpushed:'));
+
+it('risk:regression audit counts a claim whose tip is on the progress ref as pushed, and still reports one the ref does not hold (D-15)', async () => {
+  const c = unpushedClaim();
+  try {
+    expect(await unpushedGaps(c)).toHaveLength(1);
+    gitRun(c.root, 'push', '-q', 'origin', 't/T-1:refs/accord/T-1');
+    gitRun(c.root, 'fetch', '-q', 'origin', '+refs/accord/*:refs/remotes/origin-accord/*');
+    expect(await unpushedGaps(c)).toEqual([]);
+
+    // the ref is behind the tip: the newest commit has not reached origin
+    gitRun(c.root, 'switch', '-q', 't/T-1');
+    commitMsg(c.root, 'build: T-1 task 1', IDLE, true);
+    gitRun(c.root, 'switch', '-q', 'main');
+    expect(await unpushedGaps(c)).toHaveLength(1);
   } finally {
     c.cleanupAll();
   }

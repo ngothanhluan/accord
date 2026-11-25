@@ -1708,7 +1708,7 @@ function cleanLocked(ctx: CommandContext, opts: CleanOpts, accord: string): numb
   let fetchFailed = opts.fetched === 'failed';
   try {
     if (!fetchFailed) {
-      if (opts.fetched === undefined) gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], undefined, ctx.ssh);
+      if (opts.fetched === undefined) gitNoPrompt(ctx.root, ['-c', 'remote.origin.fetch=' + PROGRESS_FETCH, 'fetch', '--no-prune', 'origin'], undefined, ctx.ssh);
       // D-03: a dry run that fetches reports the prune read-only; one that does not fetch (the audit) reports none
       if (opts.dry === undefined) pruned = pruneStale(ctx);
       else if (opts.dry === 'online') pruned = pruneStale(ctx, true);
@@ -2031,16 +2031,58 @@ function safeTip(root: string, tip: string, vc: string | undefined, ref: string,
   }
 }
 
+/**
+ * Phase 15 D-15: the progress ref of a ticket whose branches clean deletes: `refs/accord/<id>` on origin goes with a lease on the fetched sha, then the local copy in `refs/remotes/origin-accord/`. `P` is that copy;
+ * `why` is the reason to keep it, when there is one. A dry run names the delete as a successful one and pushes nothing. A refused push is one `kept origin refs/accord/<id>: git push failed: ...` line and the work goes on;
+ * origin no longer holding the ref (another clone cleaned it first, and this fetch does not prune) only drops the stale copy, with a `pruned` line.
+ */
+function deleteProgress(ctx: CommandContext, s: GuardState, id: string, P: string, why?: string): void {
+  const name = 'refs/accord/' + id;
+  if (why !== undefined) {
+    cleanSay(ctx, `kept origin ${name}: ${why}`);
+    return;
+  }
+  const local = 'refs/remotes/origin-accord/' + id;
+  let gone = false;
+  try {
+    if (s.dry === undefined) gitNoPrompt(ctx.root, ['push', `--force-with-lease=${name}:${P}`, 'origin', ':' + name], pushLimit(s), ctx.ssh);
+  } catch (e) {
+    // a lease on a ref origin no longer has is refused as `stale info`, the same as one origin moved: only then, and only in a real run, origin is asked whether the ref is there at all
+    try {
+      gone = /stale info/.test(String((e as { stderr?: string }).stderr ?? '')) && gitNoPrompt(ctx.root, ['ls-remote', 'origin', name], pushLimit(s), ctx.ssh).trim() === '';
+    } catch {
+      gone = false;
+    }
+    if (!gone) {
+      cleanSay(ctx, `kept origin ${name}: git push failed: ${firstLine(e)}`);
+      return;
+    }
+  }
+  if (s.dry === undefined) {
+    try {
+      execFileSync('git', ['update-ref', '-d', local, P], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      // the copy moved or is gone: the next fetch writes it again, or it never was
+    }
+  }
+  cleanSay(ctx, gone ? `pruned ${local} (was ${P})` : `deleted origin ${name} (was ${P})`);
+}
+
 /** ST-LN-25 D-08: for each ticket branch whose ticket is done on `ref`, remove the worktree and delete the local branch when nothing beyond main is lost. */
 function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, fetchFailed: boolean, merged: ReadonlySet<string>, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const def = ref.replace('refs/remotes/', '');
   const tips = new Map<string, string | undefined>();
   const origin = new Map<string, string>();
-  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
+  const progress = new Map<string, string>();
+  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin', 'refs/remotes/origin-accord']).split('\n')) {
     const cut = row.indexOf(' ');
     if (cut < 0) continue;
     const full = row.slice(cut + 1);
+    if (full.startsWith('refs/remotes/origin-accord/')) {
+      progress.set(full.slice('refs/remotes/origin-accord/'.length), row.slice(0, cut)); // D-15: read by ticket id below, never as a branch name
+      continue;
+    }
     if (s.gone?.has(full) === true) continue;
     const local = full.startsWith('refs/heads/');
     const name = full.slice(local ? 'refs/heads/'.length : 'refs/remotes/origin/'.length);
@@ -2114,7 +2156,16 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       }
       // The origin branch goes with a lease on the fetched sha; after a failed fetch it is not judged.
       const R = origin.get(b);
-      if (R === undefined || fetchFailed) continue;
+      // D-15: the ticket's progress ref goes where its origin branch goes, judged as the branch is, and also when the host already deleted the branch
+      const P = progress.get(id);
+      const dropProgress = (): void => {
+        if (P !== undefined) deleteProgress(ctx, s, id, P, reason(P, merged));
+      };
+      if (fetchFailed) continue;
+      if (R === undefined) {
+        dropProgress();
+        continue;
+      }
       const why2 = reason(R, merged);
       if (why2 !== undefined) {
         cleanSay(ctx, `kept origin/${b}: ${why2}`);
@@ -2128,6 +2179,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
         continue;
       }
       cleanSay(ctx, `deleted origin/${b} (was ${R})`);
+      dropProgress();
     } catch (e) {
       cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
@@ -2162,11 +2214,16 @@ function researchNotOn(root: string, tip: string, ref: string, id: string, answe
 function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, pruned: Map<string, string>, fetchFailed: boolean, merged: ReadonlySet<string>, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const tips = new Map<string, { L?: string; R?: string }>();
-  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
+  const progress = new Map<string, string>();
+  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin', 'refs/remotes/origin-accord']).split('\n')) {
     const cut = row.indexOf(' ');
     if (cut < 0) continue;
     const sha = row.slice(0, cut);
     const full = row.slice(cut + 1);
+    if (full.startsWith('refs/remotes/origin-accord/')) {
+      progress.set(full.slice('refs/remotes/origin-accord/'.length), sha); // D-15: read by ticket id below, never as a branch name
+      continue;
+    }
     if (s.gone?.has(full) === true) continue;
     const local = full.startsWith('refs/heads/');
     const name = full.slice(local ? 'refs/heads/'.length : 'refs/remotes/origin/'.length);
@@ -2256,6 +2313,12 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
           continue;
         }
         cleanSay(ctx, `deleted origin/${b} (was ${R})`);
+      }
+      // D-15: the progress ref goes with the branches when the local or origin branch holds every commit of it, so a delete never takes the only copy of a commit
+      const P = progress.get(id);
+      if (P !== undefined && !fetchFailed) {
+        const held = [L, R].some((x) => x !== undefined && (x === P || gitOk(ctx.root, ['merge-base', '--is-ancestor', P, x])));
+        deleteProgress(ctx, s, id, P, held ? undefined : `it has commits not on ${b}`);
       }
       if (L !== undefined) {
         try {

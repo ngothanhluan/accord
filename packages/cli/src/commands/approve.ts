@@ -1,6 +1,7 @@
 // Spec §4 `accord approve <id>`: records the owner's approval as approved_hash. Run only after the owner
 // says yes in so many words; the gate then fails the moment an approved section changes.
 import { approvedHash } from '@accord-dev/accord-core';
+import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { UsageError } from '../load/fs.js';
 import { approachFacts, blockedApproval } from './approval-blockers.js';
 import type { CommandContext } from '../run.js';
@@ -13,6 +14,11 @@ export function approve(ctx: CommandContext, id: string): number {
   refuseLaneR(ticket, id, 'approval');
   if (ticket.frontmatter?.lane === 'S') {
     throw new UsageError(ticket.file + ' is a lane S ticket, which needs no approval: run accord gate ready ' + id);
+  }
+  // Phase 15 D-23: a ticket done on the default branch is not edited, so no approval is written into it.
+  if (doneOnDefaultBranch(ctx.root, id)) {
+    ctx.stdout.write(doneRefusal(id) + '\n');
+    return 1;
   }
   if (ticket.frontmatter?.lane === 'M') {
     const refusal = scoutRefusal(ctx, id);

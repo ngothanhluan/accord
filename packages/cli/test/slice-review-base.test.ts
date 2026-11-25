@@ -3,7 +3,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { approve, CONFIG, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 const dirs: string[] = [];
@@ -120,4 +121,69 @@ it('risk:regression on the claim branch and for an unsliced ticket review-packag
   expect(claim.code, claim.out + claim.err).toBe(0);
   expect(claim.out.split('\n')[0]).toBe(`# Review package: T-1 (${base}...HEAD)`);
   expect(claim.out).toContain('src/one.ts');
+}, 120_000);
+
+// ---- Phase 15 plan 17 (D-07): the build stage builds one slice at a time ----
+
+const STEPS = [1, 2, 3, 4].map((n) => ['## Task ' + n + ': Step ' + n, 'covers: @ac-' + ((n % 2) + 1), 'files: src/s' + n + '.ts', 'verify: t#case-' + n + ' (@ac-1)', 'after: ' + (n === 1 ? 'none' : String(n - 1)), ''].join('\n')).join('\n');
+const TWO = ['', '## Slice 1: Writer', 'tasks: 1, 2', 'covers: @ac-1', '', '## Slice 2: Escaping', 'tasks: 3, 4', 'covers: @ac-2', ''].join('\n');
+const PLAN4 = (slices: string): string => ['---', 'baseline: abc1234', '---', '', '# Plan', '', STEPS, slices].join('\n');
+const LEDGER = (...done: number[]): string => '## Tasks\n' + done.map((n) => `- task ${n} done abc1234\n`).join('');
+const stageLine = (out: string): string | undefined => out.split('\n').find((l) => l.startsWith('Stage: '));
+
+/** T-1 approved and planned (plan: T-1 ready), on its claim branch t/T-1, with slice/T-1/2 cut at its tip; origin/main names the fixture commit. The checkout is left on t/T-1. */
+function building(slices: string): string {
+  const files: Files = { [P('T-1')]: laneTicket('T-1') };
+  approve(files, 'T-1');
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG, [P('T-1')]: files[P('T-1')] });
+  dirs.push(repo);
+  const base = commitAll(repo);
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/main', base);
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN4(slices) });
+  commitMsg(repo, 'plan: T-1 ready');
+  return repo;
+}
+
+it('risk:regression on the claim branch of a sliced ticket the anchor names the first task of slice 1 and waves list only the tasks of slice 1 (D-07)', async () => {
+  const repo = building(TWO);
+  const anchor = await run(['anchor'], repo);
+  expect(anchor.code, anchor.out + anchor.err).toBe(0);
+  expect(stageLine(anchor.out)).toBe('Stage: build 0/4, next: task 1 "Step 1"');
+  const waves = await run(['waves', 'T-1'], repo);
+  expect(waves.code, waves.out + waves.err).toBe(0);
+  expect(waves.out).toBe('Parallel: 3\nWave 1: 1\nWave 2: 2\n');
+}, 120_000);
+
+it('risk:regression with every task of slice 1 recorded the anchor says its tasks are done and names no task of slice 2, and waves say slice 1 is built (D-07)', async () => {
+  const repo = building(TWO);
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': LEDGER(1, 2) });
+  const anchor = await run(['anchor'], repo);
+  expect(stageLine(anchor.out)).toBe('Stage: build 2/4, slice 1 of 2: its tasks are done');
+  expect(anchor.out).not.toContain('task 3');
+  const waves = await run(['waves', 'T-1'], repo);
+  expect(waves.code, waves.out + waves.err).toBe(0);
+  expect(waves.out).toBe('Parallel: 3\nSlice 1 of 2 is built\n');
+}, 120_000);
+
+it('risk:regression on slice/T-1/2 the anchor names task 3 and waves list tasks 3 and 4, with tasks 1 and 2 recorded from slice 1 (D-07)', async () => {
+  const repo = building(TWO);
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': LEDGER(1, 2) });
+  commitMsg(repo, 'feat: slice one');
+  gitRun(repo, 'switch', '-q', '-c', 'slice/T-1/2');
+  const anchor = await run(['anchor'], repo);
+  expect(stageLine(anchor.out)).toBe('Stage: build 2/4, next: task 3 "Step 3"');
+  const waves = await run(['waves', 'T-1'], repo);
+  expect(waves.code, waves.out + waves.err).toBe(0);
+  expect(waves.out).toBe('Parallel: 3\nWave 1: 3\nWave 2: 4\n');
+}, 120_000);
+
+it('risk:regression an unsliced plan prints the anchor line and the waves of every task as before, and so does a sliced ticket seen from a branch that is none of its slices (D-07)', async () => {
+  const plain = building('');
+  expect(stageLine((await run(['anchor'], plain)).out)).toBe('Stage: build 0/4, next: task 1 "Step 1"');
+  expect((await run(['waves', 'T-1'], plain)).out).toBe('Parallel: 3\nWave 1: 1\nWave 2: 2\nWave 3: 3\nWave 4: 4\n');
+  // a sliced plan, a checkout of the ticket's id on another branch: nothing says which slice, so nothing is cut away
+  const sliced = building(TWO);
+  gitRun(sliced, 'switch', '-q', '-c', 'scratch');
+  expect((await run(['waves', 'T-1'], sliced)).out).toBe('Parallel: 3\nWave 1: 1\nWave 2: 2\nWave 3: 3\nWave 4: 4\n');
 }, 120_000);

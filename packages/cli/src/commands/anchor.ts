@@ -35,18 +35,32 @@ function commitRuleHeader(ctx: CommandContext): string[] {
 }
 
 /**
- * Phase 15 D-10: `Slice: <n> of <m>, from <short sha>` when this checkout is on a slice of the ticket's sliced plan: a `slice/<id>/<n>` branch, or the ticket's claim branch, which is slice 1. `from` is where the slice
- * starts (`sliceStart`), left out when git cannot say. A ticket whose plan has no `## Slice` section, and a branch of another ticket, print nothing, and no git runs for them.
+ * Phase 15 D-07, D-10: the slice this checkout is on when the ticket's plan has `## Slice` sections: a `slice/<id>/<n>` branch, or the ticket's claim branch, which is slice 1. `tasks` are the task numbers the plan gives
+ * that slice, absent when the plan has no slice with that number. A ticket whose plan has no `## Slice` section, a branch of another ticket and a checkout git cannot name give undefined, and no git runs for a plan without slices.
  */
-function sliceLine(ctx: CommandContext, id: string): string[] {
+export function currentSlice(ctx: CommandContext, id: string): { n: number; of: number; tasks?: number[] } | undefined {
   const slices = workOf(ctx.snapshot, id)?.plan?.slices;
-  if (slices === undefined || slices.length === 0) return [];
+  if (slices === undefined || slices.length === 0) return undefined;
   try {
     const name = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
-    if (name === undefined || activeTicket(ctx.root, ctx.snapshot, { name }) !== id) return [];
+    if (name === undefined || activeTicket(ctx.root, ctx.snapshot, { name }) !== id) return undefined;
     const n = sliceOfBranch(name)?.n ?? 1;
-    const start = sliceStart(ctx.root, ctx.snapshot, id, n);
-    return [`Slice: ${n} of ${Math.max(...slices.map((x) => x.n))}${start === undefined ? '' : `, from ${start.slice(0, 7)}`}`];
+    const tasks = slices.find((s) => s.n === n)?.tasks;
+    return { n, of: Math.max(...slices.map((x) => x.n)), ...(tasks === undefined ? {} : { tasks }) };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Phase 15 D-10: `Slice: <n> of <m>, from <short sha>` when this checkout is on a slice of the ticket's sliced plan (`currentSlice`). `from` is where the slice starts (`sliceStart`), left out when git cannot say.
+ * Any other checkout prints nothing.
+ */
+function sliceLine(ctx: CommandContext, id: string, slice: { n: number; of: number } | undefined): string[] {
+  if (slice === undefined) return [];
+  try {
+    const start = sliceStart(ctx.root, ctx.snapshot, id, slice.n);
+    return [`Slice: ${slice.n} of ${slice.of}${start === undefined ? '' : `, from ${start.slice(0, 7)}`}`];
   } catch {
     return [];
   }
@@ -61,11 +75,13 @@ function sliceLine(ctx: CommandContext, id: string): string[] {
  */
 export const anchorOf = (ctx: CommandContext, id: string): string | undefined => {
   const lane = ctx.snapshot.tickets[id]?.frontmatter?.lane;
+  const slice = currentSlice(ctx, id);
   return anchorText(
     { ...epicSnapshot(ctx, id), ...gitVerifySince(ctx.root, ctx.snapshot, id) },
     id,
-    [...sliceLine(ctx, id), ...stagesOffLines(ctx.snapshot.config, lane), ...commitRuleHeader(ctx)],
+    [...sliceLine(ctx, id, slice), ...stagesOffLines(ctx.snapshot.config, lane), ...commitRuleHeader(ctx)],
     lane === 'S' ? { conventions: readProductText(ctx.root, { from: 'working' }) } : undefined,
+    slice?.tasks === undefined ? undefined : { n: slice.n, of: slice.of, tasks: slice.tasks },
   );
 };
 

@@ -22,9 +22,11 @@ function withStagesOff(ctx: CommandContext, text: string): string {
 /** ST-LN-16: the claim view `preflight` builds, read again after a fetch moved origin's refs; the pin was checked on the first read and the fetch changes no file of the checkout. */
 function reloaded(ctx: CommandContext): CommandContext {
   const parts = loadClaimView(ctx.root);
-  const loaded = loadSnapshot(parts.view);
-  const plain = parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout);
-  return { ...ctx, snapshot: withDefaultRef(ctx.root, loaded, parts.refs), plain, branch: parts.branch };
+  // Phase 08.9.2 D-08: the command's own parse memo, so a reload re-parses only the files the fetch changed.
+  const options = ctx.memo === undefined ? {} : { memo: ctx.memo };
+  const loaded = loadSnapshot(parts.view, options);
+  const plain = parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout, options);
+  return { ...ctx, snapshot: withDefaultRef(ctx.root, loaded, parts.refs, ctx.memo), plain, branch: parts.branch };
 }
 
 /**

@@ -66,6 +66,8 @@ export interface CommandContext {
   // Checkout-only snapshot, set under 'claims': `show --approval` reads it, and a dependency counts as done on the
   // default branch (`snapshot.defaultRef`, BUG-LN-13 D-01), here only when no default ref resolves (BUG-LN-2 D-04).
   plain?: RepoSnapshot;
+  /** Phase 08.9.2 D-08: this command's parse memo (kind, path and text to the parsed value), made by `preflight` and handed to every `loadSnapshot` of the command, a reload included; it is one command's locals, dropped with it. */
+  memo?: Map<string, unknown>;
   /** ST-LN-63: the current branch of `root`, read once by the load (undefined name: git could not say; '' : detached); absent in light mode. */
   branch?: { name: string | undefined };
   stdout: NodeJS.WritableStream;
@@ -93,10 +95,12 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
   const lit = mode === 'light' ? loadLight(root) : undefined;
   const read = parts === undefined && lit === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
   const input = parts?.view ?? lit?.input ?? (read as NonNullable<typeof read>).input;
-  const loaded = loadSnapshot(input);
+  // Phase 08.9.2 D-08: one parse memo per command, handed to every load of it (view, checkout, default ref); it lives in this call's locals and on the context, never at module level.
+  const memo = new Map<string, unknown>();
+  const loaded = loadSnapshot(input, { memo });
   // ST-LN-63: the branch the load read, handed on so no command asks git for it again (none in light mode).
   const branch = parts?.branch ?? read?.branch;
-  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout);
+  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout, { memo });
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
@@ -112,8 +116,8 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
     if (message !== undefined) throw new UsageError(message);
   }
   // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
-  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs) : loaded;
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
+  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs, memo) : loaded;
+  return { root, snapshot, memo, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
 }
 
 /**

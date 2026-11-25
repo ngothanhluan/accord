@@ -187,8 +187,8 @@ export type { PrFacts, SlicePart, TemplateSection } from './pr/template.js';
 // Phase 15 D-06: the measured size of a slice.
 export { sizeKind, sliceSizeOf, sliceSplit } from './pr/size.js';
 export type { NumstatLine, SizeKind, SliceSize } from './pr/size.js';
-export { checkName, headCommitDate, prWaitVerdict } from './pr/wait.js';
-export type { InlineComment, PrView, WaitGate, WaitVerdict } from './pr/wait.js';
+export { baseMovable, checkName, headCommitDate, newestPr, prWaitVerdict } from './pr/wait.js';
+export type { InlineComment, PrRef, PrView, WaitGate, WaitVerdict } from './pr/wait.js';
 export { anchorText } from './status/anchor.js';
 export { EPIC_LESSONS, EPIC_ROLES, epicBlock } from './status/epic.js';
 export { ticketDetail, ticketWarnings } from './status/show.js';

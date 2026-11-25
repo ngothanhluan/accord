@@ -1,7 +1,8 @@
 // Phase 15 plan 06 (D-22, D-21): `accord pr wait <id>` follows a ticket's pull request with `gh` and no model. `gh` is intercepted as in tracker-status.test.ts: a recorded argv array,
 // never a spawn, so no case reaches GitHub and the author's real login is never read. `git` stays real, in tmp sandboxes.
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, makeLaneRepo, run } from './helpers/repo.js';
+import { PLAN } from '../../../test/helpers/lane.js';
+import { cleanup, commitAll, gitRun, makeLaneRepo, run } from './helpers/repo.js';
 
 /** What the fake `gh` answers: a string is stdout, an Error is a failed call. Set per case. */
 const gh = vi.hoisted(() => ({
@@ -28,6 +29,8 @@ beforeEach(() => {
   gh.answer = () => '';
 });
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   while (dirs.length > 0) cleanup(dirs.pop() as string);
 });
 
@@ -231,4 +234,83 @@ it('risk:parsing finalLine prints one row of the grammar for every end and holds
   expect(finalLine(v({ kind: 'feedback', number: 7, comments: 2, reviews: 0, inline: 3, logins: ['ana'], ignored: 0 }), 7)).toBe('pr-wait: feedback #7: 2 comments, 0 reviews, 3 inline from ana');
   expect(finalLine(v({ kind: 'ci-failed', number: 7, names: ['a', 'b c'] }), 7)).toBe('pr-wait: ci-failed #7: a, b c');
   expect(finalLine({ kind: 'limit', failed: 4, waitedMs: 120 * 60_000 }, 7)).toBe('pr-wait: limit #7 after 120 minutes (4 polls failed)');
+});
+
+// ---- stacked slice pull requests (plan 17: D-28, D-08) ----
+
+const TWO_SLICES = ['', '## Slice 1: Writer', 'tasks: 1', 'covers: @ac-1', '', '## Slice 2: Escaping', 'tasks: 2', 'covers: @ac-2', ''].join('\n');
+
+/** T-1 with a plan of slices; origin/main names the fixture commit, as a clone has it. */
+function slicedSandbox(slices = TWO_SLICES, withOrigin = true): string {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1/plan.md': PLAN + slices });
+  dirs.push(repo);
+  const base = commitAll(repo);
+  if (withOrigin) gitRun(repo, 'update-ref', 'refs/remotes/origin/main', base);
+  return repo;
+}
+
+/** One fake pull request: `list` is the state `gh pr list` shows at the start, `views` the answers of successive `gh pr view` calls (the last one stays). */
+interface Fake {
+  number: number;
+  head: string;
+  base: string;
+  list: string;
+  views: Record<string, unknown>[];
+}
+const MERGED = { state: 'MERGED', mergedAt: AFTER };
+
+/** A fake `gh` for stacked pull requests: `list` by head branch, `view` by number, and `edit --base`, which moves the base of the fake. `edits` holds the argv of every `pr edit`. */
+function stack(prs: Fake[], edit?: (args: string[]) => string | Error): { edits: string[][]; views: number[] } {
+  const edits: string[][] = [];
+  const views: number[] = [];
+  gh.answer = (args) => {
+    if (args[0] === 'api' && args[1] === 'user') return 'me\n';
+    if (args[0] === 'api') return '';
+    if (args[0] === 'pr' && args[1] === 'list') {
+      const head = args[args.indexOf('--head') + 1];
+      return JSON.stringify(prs.filter((p) => p.head === head).map((p) => ({ number: p.number, state: p.list, url: `https://github.com/o/r/pull/${p.number}`, baseRefName: p.base, headRefName: p.head })));
+    }
+    if (args[0] === 'pr' && args[1] === 'view') {
+      const p = prs.find((x) => String(x.number) === args[2]) as Fake;
+      views.push(p.number);
+      const v = p.views.length > 1 ? (p.views.shift() as Record<string, unknown>) : p.views[0];
+      return JSON.stringify({ number: p.number, state: 'OPEN', mergedAt: null, commits: [{ committedDate: HEAD }], baseRefName: p.base, headRefName: p.head, ...v });
+    }
+    if (args[0] === 'pr' && args[1] === 'edit') {
+      edits.push(args);
+      const made = edit?.(args);
+      if (made instanceof Error) throw made;
+      const p = prs.find((x) => String(x.number) === args[2]) as Fake;
+      p.base = args[args.indexOf('--base') + 1];
+      return '';
+    }
+    return '';
+  };
+  return { edits, views };
+}
+
+/** The wait's sleeps cost no real time: each advances a fake clock, and the sleeps are recorded in milliseconds. */
+function fakeClock(): number[] {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  const slept: number[] = [];
+  vi.spyOn(Atomics, 'wait').mockImplementation((_a, _i, _v, ms) => {
+    slept.push(Number(ms));
+    vi.setSystemTime(Date.now() + Number(ms));
+    return 'timed-out';
+  });
+  return slept;
+}
+
+it('risk:regression a sliced ticket whose first slice merges gets its next slice pull request moved to the default branch, and the wait ends when the last slice merges (D-28, D-08)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  const { edits } = stack([
+    { number: 7, head: 't/T-1', base: 'main', list: 'OPEN', views: [MERGED] },
+    { number: 8, head: 'slice/T-1/2', base: 't/T-1', list: 'OPEN', views: [{}, MERGED] },
+  ]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(edits.map((a) => a.join(' '))).toEqual(['pr edit 8 --base main']);
+  expect(r.out).toContain('pr-wait: slice 1 merged #7, base of #8 moved to main\n');
+  expect(lastLine(r.out)).toBe('pr-wait: merged #8');
 });

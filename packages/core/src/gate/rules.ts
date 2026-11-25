@@ -33,6 +33,7 @@ import {
 } from './done.js';
 import {
   acUncovered,
+  sliceAcUncovered,
   decisionUncited,
   deferral,
   testsBaselineMissing,
@@ -222,6 +223,7 @@ export const PLAN_RULES: readonly GateRule[] = [
   { id: 'gate.task-model-unknown', level: 'error', profiles: ['build', 'maintain'], check: taskModelUnknown },
   { id: 'gate.task-after-cycle', level: 'error', profiles: ['build', 'maintain'], check: taskAfterCycle },
   { id: 'gate.plan-ac-uncovered', level: 'error', profiles: ['build', 'maintain'], check: acUncovered },
+  { id: 'gate.slice-ac-uncovered', level: 'error', profiles: ['build', 'maintain'], check: sliceAcUncovered },
   { id: 'gate.plan-decision-uncited', level: 'error', profiles: ['build', 'maintain'], check: decisionUncited },
   { id: 'gate.plan-ref-unknown', level: 'error', profiles: ['build', 'maintain'], check: refUnknown },
   { id: 'gate.plan-test-unmapped', level: 'error', profiles: ['build', 'maintain'], check: testUnmapped },

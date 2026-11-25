@@ -238,10 +238,25 @@ export interface PlanTask {
   lines: Line[]; // every line under the heading up to the next '## ' heading, fences included
 }
 
+/**
+ * Phase 15 D-09: one `## Slice <n>: <title>` section of plan.md. `tasks` are the task numbers of its first `tasks:` line (a token that is not a task number goes to `unread`), `covers` the tokens of its first
+ * `covers:` line, `estimate` the lines it expects to add plus delete, by kind, from its first `estimate:` line (`skills` is counted with `docs`; a part that does not read goes to `unread`).
+ */
+export interface PlanSlice {
+  n: number; // 2, from '## Slice 2: <title>'
+  title: string;
+  line: number; // Markdown line of the slice heading
+  tasks: number[]; // [3, 4], from 'tasks: 3, 4'
+  covers: string[]; // ['@ac-2'], from 'covers: @ac-2'
+  estimate?: { code?: number; test?: number; docs?: number }; // from 'estimate: code 300, test 600, docs 150'; absent with no such line
+  unread: string[]; // tokens of tasks: and estimate: that are not read
+}
+
 export interface Plan {
   file: string; // 'accord/tickets/LOGIN-1/plan.md'
   tasks: PlanTask[];
-  preamble: string; // the plan body above the first '## Task n' heading, verbatim
+  slices?: PlanSlice[]; // Phase 15 D-09: every '## Slice n' section in document order; absent when the plan has none
+  preamble: string; // the plan body above the first '## Task n' or '## Slice n' heading, verbatim
   baseline?: string; // frontmatter `baseline:`, a string as written; absent when there is none
   planHash?: string; // frontmatter `plan_hash:` as written, recorded by `gate plan`; absent when there is none
   bodyHash: string; // fnv1a64 of the normalised text below the frontmatter

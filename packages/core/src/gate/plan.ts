@@ -4,9 +4,9 @@
 import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
-import type { Plan, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
+import type { Plan, PlanSlice, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { afterCycles } from '../plan/waves.js';
-import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore } from '../round/pin.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore, SLICES_FROM } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, stageLaneTicket, workOf } from './work.js';
@@ -437,6 +437,28 @@ export const acUncovered: GateRule['check'] = (snapshot, id) => {
     .filter((a) => !covered.has(a))
     .map((a) => ({ file: planFile(id), reason: `${a} is covered by no task` }));
 };
+
+/**
+ * Phase 15 D-09: the slices a slice rule reads: those of a lane ticket that is not lane S whose plan holds a `## Slice` section, unless its claim pin is below SLICES_FROM (claimPinBefore: a failed
+ * read and a non-plain pin apply the rules). Its own reader, as wavesTasks is for the wave rules, so a ticket claimed before the release, and a plan with no slice, answer as before.
+ */
+const slicesOf = (snapshot: RepoSnapshot, id: string): { plan: Plan; slices: PlanSlice[] } | undefined => {
+  const t = laneTicket(snapshot, id);
+  const plan = workOf(snapshot, id)?.plan;
+  if (t === undefined || t.frontmatter?.lane === 'S' || plan?.slices === undefined || claimPinBefore(snapshot, id, SLICES_FROM)) return undefined;
+  return { plan, slices: plan.slices };
+};
+
+/** Phase 15 D-09, T-15-29: a criterion of the ticket that no slice's `covers:` line names, so a slice pull request could pass without it. */
+export const sliceAcUncovered: GateRule['check'] = withNote((snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  const read = slicesOf(snapshot, id);
+  if (t === undefined || read === undefined) return [];
+  const delivered = new Set(read.slices.flatMap((s) => s.covers));
+  return acTags(t)
+    .filter((a) => !delivered.has(a))
+    .map((a) => ({ file: planFile(id), reason: `${a} is delivered by no slice: name it on the covers: line of the slice that delivers it` }));
+});
 
 export const decisionUncited: GateRule['check'] = (snapshot, id) => {
   const t = laneTicket(snapshot, id);

@@ -77,6 +77,7 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.task-model-unknown': 'plan',
   'gate.task-after-cycle': 'plan',
   'gate.plan-ac-uncovered': 'plan',
+  'gate.slice-ac-uncovered': 'plan',
   'gate.plan-decision-uncited': 'plan',
   'gate.plan-ref-unknown': 'plan',
   'gate.plan-test-unmapped': 'plan',

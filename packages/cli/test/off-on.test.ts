@@ -152,7 +152,8 @@ it('risk:resource the launcher finds the same marker with no process started (Ru
   for (const checkout of [repo, wt]) {
     for (const argv of [['1.2.3', 'hook', 'session-start'], ['1.2.3', 'hook', 'pre-tool-use'], ['hook', 'session-start']]) {
       const r = await launcherCall(checkout, argv, cache);
-      expect(r, `${argv.join(' ')} in ${checkout === repo ? 'the checkout' : 'the linked worktree'}`).toEqual({ code: 0, out: '', err: '', spawned: 0, stdinReads: 0 });
+      // review WR-05: a pre-tool-use call reads stdin once, to see whether it is a verification.md write (off-write-guard.test.ts); no other event reads it, and none starts a process
+      expect(r, `${argv.join(' ')} in ${checkout === repo ? 'the checkout' : 'the linked worktree'}`).toEqual({ code: 0, out: '', err: '', spawned: 0, stdinReads: argv.includes('pre-tool-use') ? 1 : 0 });
     }
   }
 });

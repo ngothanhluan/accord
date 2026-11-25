@@ -431,3 +431,19 @@ it('risk:regression audit counts a claim whose tip is on the progress ref as pus
     c.cleanupAll();
   }
 }, 180_000);
+
+it('risk:regression a clone configured to fetch one branch keeps that refspec: the fetch adds the progress refs and no other branch (D-15)', async () => {
+  const c = makeClone();
+  try {
+    const b = teammate(c);
+    gitRun(b, 'config', '--replace-all', 'remote.origin.fetch', '+refs/heads/main:refs/remotes/origin/main');
+    const wt = claimed(c, REF);
+    expect((await run(['worktree', 'push', 'ST-9'], wt)).code).toBe(0);
+    expect((await run(['dashboard', '--json'], b)).code).toBe(0);
+    expect(has(b, 'refs/remotes/origin-accord/ST-9')).toBe(true);
+    expect(has(b, 'refs/remotes/origin/t/ST-9')).toBe(false);
+    expect(gitRun(b, 'config', '--get-all', 'remote.origin.fetch').trim()).toBe('+refs/heads/main:refs/remotes/origin/main');
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);

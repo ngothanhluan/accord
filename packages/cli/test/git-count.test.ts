@@ -733,7 +733,12 @@ it('risk:security every network git call keeps prompts off while core.sshCommand
     expect(r.code).toBe(0);
     expect(r.out).toContain('deleted origin/t/D-1');
     const prefix = ['-c', 'credential.interactive=never', '-c', 'core.sshCommand=ssh -o ConnectTimeout=5 -o BatchMode=yes'];
-    const sub = (a: string[]) => (a[0] === '-c' ? a.slice(4) : a);
+    // Phase 15 D-15: a fetch carries one more `-c remote.origin.fetch=...` after the two the prompt guard adds, so every leading `-c <setting>` pair is skipped
+    const sub = (a: string[]) => {
+      let i = 0;
+      while (a[i] === '-c') i += 2;
+      return a.slice(i);
+    };
     const network = r.argv.filter((a) => ['fetch', 'push'].includes(sub(a)[0]) || (sub(a)[0] === 'remote' && sub(a)[1] === 'prune'));
     // a fetch, a prune and at least one push, each with the prompts off and the user's own ssh options kept
     expect(network.map((a) => sub(a)[0] + (sub(a)[0] === 'remote' ? ' prune' : ''))).toEqual(expect.arrayContaining(['fetch', 'remote prune', 'push']));

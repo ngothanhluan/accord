@@ -119,7 +119,8 @@ function world(opts: { npm?: 'ok' | 'fail'; withNpmCli?: boolean; start?: number
     spawned.push({ cmd, args, opts: o });
     if (args.includes('install')) {
       if (opts.npm === 'fail') return { status: 1, stdout: '', stderr: 'npm ERR! 404 Not Found\nsecond line\n' };
-      const temp = args[args.indexOf('--prefix') + 1] as string;
+      const prefix = args[args.indexOf('--prefix') + 1] as string;
+      const temp = prefix === '.' ? (o.cwd as string) : prefix; // npm resolves a relative prefix against the child's working directory
       m.file(`${temp}/node_modules/${PKG}/dist/cli.js`);
       return { status: 0, stdout: '', stderr: '' };
     }
@@ -470,4 +471,21 @@ it('risk:resource the launcher reads hook input in chunks skips a terminal and n
   expect(readHookInput(stuck.io)).toBe('');
   expect(stuck.sleeps.length).toBeLessThan(100);
   expect(stuck.err).toHaveLength(1);
+});
+
+// Phase 08.9.2 review WR-04: the Windows shell fallback of the install (no npm-cli.js beside Node) carries no user path in the shell command; the temporary folder is the child's working directory.
+it('risk:security the shell fallback of the install on Windows carries no path in its command (WR-04)', () => {
+  for (const home of ['/Users/Luan Ngo/AppData/Local', '/Users/a&b/AppData/Local']) {
+    const w = world({ withNpmCli: false });
+    expect(launch(w.io([V, 'hook', 'session-start'], { platform: 'win32', env: { LOCALAPPDATA: home } })), home).toBe(0);
+    const install = w.npmCalls();
+    expect(install, home).toHaveLength(1);
+    const call = install[0] as Spawned;
+    expect(call.cmd).toBe('npm');
+    expect(call.opts.shell, 'the one shell of the launcher').toBe(true);
+    expect(call.args.filter((a) => /[ &]|\.tmp-|Users/.test(a)), `no argument holds a path of ${home}`).toEqual([]);
+    expect(call.args[call.args.indexOf('--prefix') + 1], 'the prefix is the working directory').toBe('.');
+    expect(norm(String(call.opts.cwd)), 'the temporary folder is where npm runs').toContain(home + '/accord/versions/.tmp-');
+    expect(w.m.has(bundleOf(V).replace(/^\/cache/, home)), 'the install lands in the cache').toBe(true);
+  }
 });

@@ -153,7 +153,7 @@ it('risk:regression gate plan gate done and anchor on the narrow load print what
   }
   const wantStory = outcome(made(repo, stageReference.ctx.snapshot, stageReference.ctx.branch), (ctx) => anchor(ctx, STORY));
   expect(wantStory.out, 'the anchor of a story carries its epic').toContain('Epic E-1');
-  expect(wantStory.out, 'and the lessons of its siblings, read from the default branch').toContain('- C-1: keep the cart on one page');
+  expect(wantStory.out, 'and the lessons of its siblings, read from the default branch').toContain('- C-1: - Lesson: keep the cart on one page');
   const gotStory = await run(['anchor', STORY], repo, ENV);
   expect({ code: gotStory.code, out: gotStory.out }).toEqual(wantStory);
 

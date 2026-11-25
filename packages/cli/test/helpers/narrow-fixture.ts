@@ -25,8 +25,8 @@ export function narrowFixture(extra = 0): string {
   files[P('C-1')] = laneTicket('C-1', { frontmatter: ['parent: "E-1"'] });
   files[P('C-2')] = laneTicket('C-2', { frontmatter: ['parent: "E-1"', 'status: draft'] });
   // the siblings' lessons reach the story's anchor from the default branch, so a narrow load must hand that read every ticket id
-  files['accord/tickets/C-1/ledger.md'] = ['## Rulings', '(none)', '', '## Epic lessons', '- keep the cart on one page', ''].join('\n');
-  files['accord/tickets/C-2/ledger.md'] = ['## Rulings', '(none)', '', '## Epic lessons', '- guests pay without an account', ''].join('\n');
+  files['accord/tickets/C-1/ledger.md'] = ['## Rulings', '(none)', '', '## Epic lessons', '- Lesson: keep the cart on one page — "one cart per user"', ''].join('\n');
+  files['accord/tickets/C-2/ledger.md'] = ['## Rulings', '(none)', '', '## Epic lessons', '- Lesson: guests pay without an account — "guests must be able to pay"', ''].join('\n');
   // a ticket that depends on an unfinished one, a finished one, a dropped one and one that does not exist
   files[P('U-1')] = laneTicket('U-1', { frontmatter: ['status: draft'] });
   done(files, 'F-1');

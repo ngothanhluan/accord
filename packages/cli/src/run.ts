@@ -189,8 +189,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       .description('report whether the ticket passes the ' + which + ' gate')
       .option('--json', 'print the GateResult object instead of text')
       .action((id: string, options: { json?: boolean }) => {
-        // Phase 08.9.2 Ruling-narrow: Ready reads its ticket, its epic and its dependencies (Plan and Done follow in plan 08 Task 2).
-        setCode(gate(preflight(opts, 'checkout', which === 'ready' ? { only: id } : {}), which, id, options));
+        // Phase 08.9.2 Ruling-narrow: a gate reads its ticket, its epic and its dependencies; every other ticket is known by file name only.
+        setCode(gate(preflight(opts, 'checkout', { only: id }), which, id, options));
       });
   }
 
@@ -547,7 +547,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('anchor [id]')
     .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
     .action((id: string | undefined) => {
-      setCode(anchor(preflight(opts, 'stage'), id));
+      // Phase 08.9.2 Ruling-narrow: the anchor of one ticket reads that ticket, its epic and its dependencies; with no id the branch and the folder listing name the ticket before any ticket file is read.
+      setCode(anchor(preflight(opts, 'stage', { only: id ?? { active: true } }), id));
     });
 
   program

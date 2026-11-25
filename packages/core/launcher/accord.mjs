@@ -25,7 +25,8 @@ const POLL_MS = 200;
 const KEEP_VERSIONS = 3; // version folders left after a fill, the running one included
 // A first word made only of lowercase letters and dashes is a command (`node .claude/accord.mjs off`), not a version.
 const COMMAND_WORD = /^[a-z][a-z-]*$/;
-const PIN_LINE = /^accord:\s*"?([^"\s]+)"?\s*$/m;
+// The grammar of the CLI's own pin writer (scaffold/repin.ts ACCORD_LINE): a double-quoted, single-quoted or bare value, an optional trailing comment, and nothing across a line end.
+const PIN_LINE = /^accord:[ \t]*(?:"([^"\r\n]*)"|'([^'\r\n]*)'|([^\s#'"]+))(?:[ \t]+#[^\r\n]*)?[ \t]*\r?$/m;
 // `accord off` writes this file in the git common folder; while it exists every hook of the clone is silent (Phase 08.9.2 D-03).
 const OFF_MARKER = 'accord-off';
 // Phase 08.9.2 Ruling-wake-session: `<git dir>/accord-wake/<session_id>` exists for a session that typed /accord; such a session takes the full path whatever the mode or the switch (the CLI's gitdir.ts WAKE_DIR).
@@ -170,7 +171,8 @@ function ensure(io, versionsDir, folder, version, bundleOf) {
 function pinOf(io) {
   try {
     const config = join(dirname(dirname(io.launcherPath)), 'accord', 'config.yml');
-    return PIN_LINE.exec(io.fs.readFileSync(config, 'utf8'))?.[1];
+    const found = PIN_LINE.exec(io.fs.readFileSync(config, 'utf8'));
+    return found?.[1] ?? found?.[2] ?? found?.[3];
   } catch {
     return undefined;
   }

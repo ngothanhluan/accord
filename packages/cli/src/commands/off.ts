@@ -7,6 +7,9 @@ import { dirname, join } from 'node:path';
 import { gitDirsOf, offMarkerPath } from '../load/gitdir.js';
 import { runGitSync } from '../load/git-spawn.js';
 
+/** Phase 08.9.2 D-04: the one line a full-mode session start prints so a person who does not use accord sees how to switch it off; the quiet line (08.9.2-09) reuses it. The launcher form needs no global install. */
+export const OFF_LINE = 'accord: not using accord? switch it off for yourself in this clone: node .claude/accord.mjs off (node .claude/accord.mjs on switches it back)';
+
 const PANEL = 'accord-panel@accord';
 const LOCAL = '.claude/settings.local.json';
 

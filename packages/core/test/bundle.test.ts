@@ -40,7 +40,11 @@ describe('built core bundle', () => {
   });
 
   it('bundle imports no Node built-in', () => {
-    const js = readFileSync(join(distDir, 'index.js'), 'utf8');
+    const whole = readFileSync(join(distDir, 'index.js'), 'utf8');
+    // Phase 08.9.2 D-01: the hook launcher ships as a string (generated/launcher.ts); its text imports node: built-ins for the
+    // machine that runs it, and core itself imports none. The string is cut out, and the cut must have found it.
+    const js = whole.replace(/"accord\.mjs":\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/, '"accord.mjs": ""');
+    expect(js.length).toBeLessThan(whole.length);
     for (const re of forbidden) expect(js).not.toMatch(re);
     // ajv, yaml, and gherkin stay external dependencies; inlining would hide their requires behind a shim.
     expect(js).toContain('ajv/dist/2020');

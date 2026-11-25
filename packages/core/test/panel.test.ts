@@ -221,16 +221,16 @@ it('ac-1 the pane shows the dashboard json on open and after each turn', async (
 it('risk:parsing every panel file carries one marker whose hash recomputes', () => {
   const files = pluginTargets({ runtimes: ['claude'] }, PKG);
   const base = '.claude/accord-panel/';
+  // Phase 08.9.2 D-01: the hook launcher is rendered beside the panel and carries the same marker
   expect(files.map((f) => f.path)).toEqual(
     [
-      'plugin/.claude-plugin/plugin.json',
-      'plugin/hooks/hooks.json',
-      'plugin/hooks/register.js',
-      'plugin/hooks/view.js',
-      '.claude-plugin/marketplace.json',
-    ]
-      .map((p) => base + p)
-      .sort(),
+      base + 'plugin/.claude-plugin/plugin.json',
+      base + 'plugin/hooks/hooks.json',
+      base + 'plugin/hooks/register.js',
+      base + 'plugin/hooks/view.js',
+      base + '.claude-plugin/marketplace.json',
+      '.claude/accord.mjs',
+    ].sort(),
   );
   for (const f of files) {
     const hash = markerHash(f.text);

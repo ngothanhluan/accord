@@ -110,10 +110,15 @@ it('ac-3 upgrade pushes a branch from the latest origin main whose one commit mo
   const wf = readFileSync(join(p, '.github/workflows/accord.yml'), 'utf8');
   expect(wf).toContain(`${name}@${v} `);
   expect(wf).not.toContain('@0.0.9');
-  const settings = JSON.parse(readFileSync(join(p, '.claude/settings.json'), 'utf8')) as { hooks: Record<string, { hooks: { command: string }[] }[]> };
-  const commands = Object.values(settings.hooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command)));
-  expect(commands.length).toBeGreaterThan(0);
-  for (const cmd of commands) expect(cmd).toMatch(new RegExp(`^npx --yes ${name}@${v.replace(/\./g, '\\.')} hook [a-z-]+$`));
+  const settings = JSON.parse(readFileSync(join(p, '.claude/settings.json'), 'utf8')) as { hooks: Record<string, { hooks: { command: string; args?: string[] }[] }[]> };
+  const hooks = Object.values(settings.hooks).flatMap((es) => es.flatMap((e) => e.hooks));
+  expect(hooks.length).toBeGreaterThan(0);
+  // Phase 08.9.2 D-01: every hook is the exec form that runs the launcher at the new pin
+  for (const h of hooks) {
+    expect(h.command).toBe('node');
+    expect(h.args).toEqual(['${CLAUDE_PROJECT_DIR}/.claude/accord.mjs', v, 'hook', expect.stringMatching(/^[a-z-]+$/)]);
+  }
+  expect(readFileSync(join(p, '.claude/accord.mjs'), 'utf8')).toContain(name);
 
   const s = await run(['skills', 'sync'], p);
   expect(s.code, s.err).toBe(0);

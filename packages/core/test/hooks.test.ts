@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { hookEntries, mergeHooks, mergeHooksWithNotes, runsAccordHook } from '../src/index.js';
+import { hookEntries, hookText, mergeHooks, mergeHooksWithNotes, runsAccordHook } from '../src/index.js';
 
 const e = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
 const foreign = { matcher: 'startup', hooks: [{ type: 'command', command: 'echo hi' }] };
+// Phase 08.9.2 D-01: sync writes exec form hooks that run the launcher; the older `npx --yes` strings in these tests stand for what an older sync wrote.
+const launcherHook = (version: string, sub: string) => ({ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/accord.mjs', version, 'hook', sub] });
 
 describe('mergeHooks', () => {
   it('writes the entries into an empty settings object', () => {
@@ -37,7 +39,12 @@ describe('mergeHooks', () => {
   it('commands carry no shell syntax', () => {
     for (const list of Object.values(e)) {
       for (const entry of list) {
-        for (const h of entry.hooks) expect(h.command).toMatch(/^npx --yes [@a-z0-9/._-]+@[0-9A-Za-z.-]+ hook [a-z-]+$/);
+        for (const h of entry.hooks) {
+          expect(h.command).toBe('node');
+          expect(h.args?.slice(0, 3)).toEqual(['${CLAUDE_PROJECT_DIR}/.claude/accord.mjs', '0.2.0', 'hook']);
+          expect(h.args?.[3]).toMatch(/^[a-z-]+$/);
+          expect(h.args).toHaveLength(4);
+        }
       }
     }
   });
@@ -54,7 +61,7 @@ it('risk:regression the session line and the hook matcher name the new commands 
 
 it('risk:data-loss a re-sync replaces an older prompt expansion hook and keeps a foreign one', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
-  const fresh = { matcher: 'accord', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.2.0 hook prompt-expansion' }] };
+  const fresh = { matcher: 'accord', hooks: [launcherHook('0.2.0', 'prompt-expansion')] };
   expect(entries.UserPromptExpansion).toEqual([fresh]);
   const old = { hooks: { UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook prompt-expansion' }, { type: 'command', command: 'echo hi' }] }] } };
   const once = mergeHooks(old, entries);
@@ -73,18 +80,18 @@ it('risk:data-loss a sync replaces the 0.10.0 prompt expansion matcher and keeps
     },
   };
   const once = mergeHooks(old, entries);
-  const list = (once.hooks as Record<string, { matcher: string; hooks: { command: string }[] }[]>).UserPromptExpansion;
+  const list = (once.hooks as Record<string, { matcher: string; hooks: { command: string; args?: string[] }[] }[]>).UserPromptExpansion;
   // the owner's own hook keeps its entry; the one accord wrote leaves it, and the new entry carries the new matcher
   expect(list).toEqual([{ matcher: 'accord|accord-new|accord-continue|accord-pickup', hooks: [foreign] }, ...entries.UserPromptExpansion]);
   expect(entries.UserPromptExpansion.map((x) => x.matcher)).toEqual(['accord']);
-  const ours = list.flatMap((x) => x.hooks.map((h) => h.command)).filter((c) => c.endsWith('hook prompt-expansion'));
-  expect(ours).toEqual(['npx --yes @accord-dev/accord@0.11.0 hook prompt-expansion']);
+  const ours = list.flatMap((x) => x.hooks.map((h) => hookText(h))).filter((c) => c.endsWith('hook prompt-expansion'));
+  expect(ours).toEqual(['node ${CLAUDE_PROJECT_DIR}/.claude/accord.mjs 0.11.0 hook prompt-expansion']);
   expect(mergeHooks(once, entries)).toEqual(once);
 });
 
 it('risk:regression the pre tool use hook entry matches the agent tool and a re-sync replaces an older one', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
-  const fresh = { matcher: 'Agent|Task', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.2.0 hook pre-tool-use' }] };
+  const fresh = { matcher: 'Agent|Task', hooks: [launcherHook('0.2.0', 'pre-tool-use')] };
   expect(entries.PreToolUse[0]).toEqual(fresh);
   const foreignHook = { type: 'command', command: 'echo hi' };
   const old = { hooks: { PreToolUse: [{ matcher: 'Agent|Task', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook pre-tool-use' }, foreignHook] }] } };
@@ -105,12 +112,11 @@ it('risk:regression both session start hooks carry a 600 second timeout and a re
 
 it('risk:data-loss the hook settings carry the write entry beside the dispatch entry and merge idempotently (ST-LN-39 39-ac-1)', () => {
   const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
-  const command = 'npx --yes @accord-dev/accord@0.2.0 hook pre-tool-use';
   expect(entries.PreToolUse.map((x) => x.matcher)).toEqual(['Agent|Task', 'Write|Edit|MultiEdit']);
   const write = entries.PreToolUse[1];
   // The probe saw the if field honoured, so each tool has its own hook that spawns only for the record path.
   expect(write.hooks).toEqual(
-    ['Write', 'Edit', 'MultiEdit'].map((tool) => ({ type: 'command', command, if: tool + '(**/accord/tickets/*/verification.md)' })),
+    ['Write', 'Edit', 'MultiEdit'].map((tool) => ({ ...launcherHook('0.2.0', 'pre-tool-use'), if: tool + '(**/accord/tickets/*/verification.md)' })),
   );
   const foreignHook = { type: 'command', command: 'echo hi' };
   const settings = { hooks: { PreToolUse: [{ matcher: 'Write|Edit|MultiEdit', hooks: [foreignHook] }] } };
@@ -121,13 +127,13 @@ it('risk:data-loss the hook settings carry the write entry beside the dispatch e
 });
 
 // D-16: a hook the owner edited into another form of `accord hook <event>` is kept, named once and never doubled.
-type Listed = { matcher: string; hooks: { command: string; if?: string }[] };
+type Listed = { matcher: string; hooks: { command: string; args?: string[]; if?: string }[] };
 const identities = (settings: Record<string, unknown>): Record<string, number> => {
   const count: Record<string, number> = {};
   for (const [event, list] of Object.entries(settings.hooks as Record<string, Listed[]>)) {
     for (const entry of list) {
       for (const h of entry.hooks) {
-        const sub = runsAccordHook(h.command);
+        const sub = runsAccordHook(hookText(h));
         if (sub === undefined) continue;
         const id = event + '|' + sub + '|' + (h.if ?? '');
         count[id] = (count[id] ?? 0) + 1;

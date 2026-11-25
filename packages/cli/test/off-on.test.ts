@@ -1,5 +1,6 @@
-// Phase 08.9.2 D-03, L-01: `accord off` is a personal switch. It writes a marker in the git common folder and the panel flag in the checkout's local settings,
-// and every accord hook then answers nothing, through the launcher and through the CLI, with no process started, in the checkout and in every linked worktree.
+// Phase 08.9.2 D-03, L-01: `accord off` is a personal switch. It writes only a marker in the git common folder (owner ruling 2026-11-25, UAT G-08.9.2-10: the panel flag
+// it once also set made Claude Code drop the panel plugin, so a typed /accord-panel was unknown), and every accord hook then answers nothing, through the launcher and
+// through the CLI, with no process started, in the checkout and in every linked worktree. `on` still undoes the flag a 0.20.0 or 0.20.1 `off` recorded in its marker.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -51,24 +52,6 @@ function hookCalls(cwd: string): Array<{ event: string; stdin: Record<string, un
     { event: 'prompt-expansion', stdin: { cwd, session_id: 's-1', command_name: 'accord-new', command_args: 'continue T-1' } },
   ];
 }
-
-// Phase 08.9.2 D-03: the marker lives in the common git folder, the panel flag in the checkout's own local settings, and no `env` key is written.
-it('risk:regression accord off writes the marker in the common git folder and the panel flag in local settings (D-03)', async () => {
-  const repo = makeLaneRepo();
-  dirs.push(repo);
-  const off = await run(['off'], repo);
-  expect(off.err).toBe('');
-  expect(off.code).toBe(0);
-
-  const marker = JSON.parse(read(join(repo, '.git', 'accord-off'))) as { since: string; panel: { prior: unknown; createdMap: unknown } };
-  expect(typeof marker.since).toBe('string');
-  expect(Number.isNaN(Date.parse(marker.since))).toBe(false);
-  expect(marker.panel).toEqual({ prior: 'absent', createdMap: true });
-
-  const local = JSON.parse(read(join(repo, '.claude', 'settings.local.json'))) as Record<string, unknown>;
-  expect((local.enabledPlugins as Record<string, unknown>)[PANEL]).toBe(false);
-  expect(Object.keys(local)).not.toContain('env');
-});
 
 // Phase 08.9.2 D-03, Ruling-structural: with the marker present every hook prints nothing, exits 0 and starts no git process, in the checkout and in a linked worktree.
 it('risk:regression every accord hook is silent while accord is off in the main checkout and a linked worktree (D-03)', async () => {
@@ -162,9 +145,92 @@ const localOf = (repo: string): string => join(repo, '.claude', 'settings.local.
 const markerOf = (repo: string): string => join(repo, '.git', 'accord-off');
 const pretty = (o: unknown): string => JSON.stringify(o, null, 2) + '\n';
 const parsed = (file: string): Record<string, unknown> => JSON.parse(read(file)) as Record<string, unknown>;
+/** A file's bytes read with no encoding, so a BOM and CRLF stay visible; undefined when the file is absent. */
+const bytesOf = (file: string): Buffer | undefined => (existsSync(file) ? readFileSync(file) : undefined);
 
-// Phase 08.9.2 D-03, L-01: `on` undoes what `off` recorded and nothing else; a person's keys, their order and anything they added meanwhile stay.
-it('risk:data-loss accord on removes only what accord off wrote (D-03)', async () => {
+/** A person's own global ignore file may already name the local settings file (Claude Code adds it); the sandbox must not depend on that. */
+const noGlobalIgnore = (repo: string): void => {
+  gitRun(repo, 'config', 'core.excludesFile', join(repo, '.git', 'no-global-ignore'));
+};
+
+/** The state a 0.20.0 or 0.20.1 `accord off` left behind: the marker with its `panel` record, and the local file rewritten as two-space JSON with the panel flag false (the spread order 0.20.1 used). */
+function legacyOff(repo: string, before: Record<string, unknown> | undefined): void {
+  const plugins = before?.enabledPlugins as Record<string, unknown> | undefined;
+  const prior = plugins !== undefined && PANEL in plugins ? plugins[PANEL] : 'absent';
+  writeFiles(repo, {
+    '.git/accord-off': pretty({ since: new Date().toISOString(), panel: { prior, createdMap: plugins === undefined } }),
+    '.claude/settings.local.json': pretty({ ...(before ?? {}), enabledPlugins: { ...(plugins ?? {}), [PANEL]: false } }),
+  });
+}
+
+const FOUR_SPACE = { enabledPlugins: { [PANEL]: true, 'other@x': true }, permissions: { allow: [] as string[] } };
+
+// Phase 08.9.2 D-03, G-08.9.2-10 (owner ruling 2026-11-25): `off` writes only the marker; it never creates or rewrites the local settings and adds no line to the clone's exclude file,
+// so Claude Code keeps loading the panel plugin and a typed /accord-panel stays a known command. The old exclude test's claim (the local file stays out of commits) is this test's stronger form: no work-tree file is made.
+it('risk:regression accord off writes only the marker and leaves the local settings and git exclude untouched (D-03 G-08.9.2-10)', async () => {
+  const repo = makeLaneRepo();
+  dirs.push(repo);
+  noGlobalIgnore(repo);
+  const exclude = join(repo, '.git', 'info', 'exclude');
+  const excludeBefore = bytesOf(exclude);
+  const statusBefore = gitRun(repo, 'status', '--porcelain');
+  const off = await run(['off'], repo);
+  expect(off.err).toBe('');
+  expect(off.code).toBe(0);
+  expect(existsSync(localOf(repo))).toBe(false);
+  const marker = parsed(markerOf(repo));
+  expect(Object.keys(marker)).toEqual(['since']);
+  expect(Number.isNaN(Date.parse(String(marker.since)))).toBe(false);
+  expect(bytesOf(exclude)).toEqual(excludeBefore);
+  expect(gitRun(repo, 'status', '--porcelain')).toBe(statusBefore);
+  expect(off.out.trim().split('\n')).toHaveLength(1);
+  expect(off.out).toContain('/accord-panel');
+  expect(off.out).toContain('node .claude/accord.mjs on');
+
+  // a local file the person already has keeps its bytes, indentation included
+  const own = makeLaneRepo();
+  dirs.push(own);
+  writeFiles(own, { '.claude/settings.local.json': JSON.stringify(FOUR_SPACE, null, 4) + '\n' });
+  const before = bytesOf(localOf(own));
+  expect((await run(['off'], own)).code).toBe(0);
+  expect(bytesOf(localOf(own))).toEqual(before);
+});
+
+// Phase 08.9.2 D-03, G-08.9.2-5 (UAT test 5): with `off` leaving the local file alone, off then on gives it back byte for byte, and creates none where there was none.
+it('risk:data-loss accord off then on leaves the local settings byte for byte as they were (D-03 G-08.9.2-5)', async () => {
+  const four = JSON.stringify(FOUR_SPACE, null, 4) + '\n';
+  const cases: Array<{ name: string; bytes: Buffer | undefined }> = [
+    { name: 'no file at all', bytes: undefined },
+    { name: 'two-space JSON', bytes: Buffer.from(pretty(FOUR_SPACE)) },
+    { name: 'four-space JSON', bytes: Buffer.from(four) },
+    { name: 'BOM plus CRLF four-space JSON', bytes: Buffer.from('﻿' + four.replace(/\n/g, '\r\n')) },
+    { name: 'a JSON array', bytes: Buffer.from('[1, 2]\n') },
+    { name: 'text that is no JSON', bytes: Buffer.from('not json\n') },
+    { name: 'the persons own panel false', bytes: Buffer.from(JSON.stringify({ enabledPlugins: { [PANEL]: false }, env: { A: '1' } }, null, 4) + '\n') },
+  ];
+  for (const c of cases) {
+    const repo = makeLaneRepo();
+    dirs.push(repo);
+    if (c.bytes !== undefined) {
+      mkdirSync(join(repo, '.claude'), { recursive: true });
+      writeFileSync(localOf(repo), c.bytes);
+    }
+    const off = await run(['off'], repo);
+    expect(off.err, c.name).toBe('');
+    expect(off.code, c.name).toBe(0);
+    expect(bytesOf(localOf(repo)), `${c.name} after off`).toEqual(c.bytes);
+    const on = await run(['on'], repo);
+    expect(on.err, c.name).toBe('');
+    expect(on.code, c.name).toBe(0);
+    expect(on.out, c.name).toContain('accord is on again for you in this clone');
+    expect(bytesOf(localOf(repo)), `${c.name} after on`).toEqual(c.bytes);
+    expect(existsSync(markerOf(repo)), c.name).toBe(false);
+  }
+});
+
+// Phase 08.9.2 D-03, G-08.9.2-10 (owner ruling 2026-11-25, backward compatibility): a marker written by 0.20.0 or 0.20.1 carries a `panel` record, and `on` undoes that flag exactly as 0.20.1 did.
+// Green at the base commit by design: it guards the restore path the fix keeps.
+it('risk:data-loss accord on still undoes the panel flag a 0.20.0 or 0.20.1 accord off recorded (D-03 G-08.9.2-10)', async () => {
   const base = { permissions: { allow: ['Bash(ls)'] }, env: { A: '1' }, enabledPlugins: { 'other@x': true } };
   const falseBefore = { ...base, enabledPlugins: { 'other@x': true, [PANEL]: false } };
   const trueBefore = { ...base, enabledPlugins: { [PANEL]: true, 'other@x': true } };
@@ -179,8 +245,7 @@ it('risk:data-loss accord on removes only what accord off wrote (D-03)', async (
   for (const c of cases) {
     const repo = makeLaneRepo();
     dirs.push(repo);
-    if (c.before !== undefined) writeFiles(repo, { '.claude/settings.local.json': pretty(c.before) });
-    expect((await run(['off'], repo)).code, c.name).toBe(0);
+    legacyOff(repo, c.before);
     expect(existsSync(markerOf(repo)), c.name).toBe(true);
     const on = await run(['on'], repo);
     expect(on.err, c.name).toBe('');
@@ -195,25 +260,63 @@ it('risk:data-loss accord on removes only what accord off wrote (D-03)', async (
   // keys the person adds while accord is off are theirs: `on` leaves them, and keeps a map it created once it holds anything else
   const repo = makeLaneRepo();
   dirs.push(repo);
-  expect((await run(['off'], repo)).code).toBe(0);
+  legacyOff(repo, undefined);
   const mid = parsed(localOf(repo));
   writeFiles(repo, { '.claude/settings.local.json': pretty({ ...mid, later: true, enabledPlugins: { ...(mid.enabledPlugins as object), 'mine@y': true } }) });
   expect((await run(['on'], repo)).code).toBe(0);
   expect(parsed(localOf(repo))).toEqual({ later: true, enabledPlugins: { 'mine@y': true } });
+
+  // the new `off` on top of a 0.20.x marker keeps that marker and the local file as they are, so a later `on` still restores the flag
+  const mixed = makeLaneRepo();
+  dirs.push(mixed);
+  legacyOff(mixed, base);
+  const markerBefore = bytesOf(markerOf(mixed));
+  const localBefore = bytesOf(localOf(mixed));
+  expect((await run(['off'], mixed)).code).toBe(0);
+  expect(bytesOf(markerOf(mixed))).toEqual(markerBefore);
+  expect(bytesOf(localOf(mixed))).toEqual(localBefore);
+  expect((await run(['on'], mixed)).code).toBe(0);
+  expect(parsed(localOf(mixed))).toEqual(base);
 });
 
-// Phase 08.9.2 D-03, T-08.9.2-15: a local settings file that is no JSON object is never rewritten, and no marker is written either.
-it('risk:parsing off refuses a local settings file that is not an object and changes nothing (D-03)', async () => {
-  for (const text of ['[1, 2]\n', '"text"\n', 'not json\n', '{"enabledPlugins": [1]}\n', '{"enabledPlugins": {"accord-panel@accord": "no"}}\n']) {
+// Phase 08.9.2 D-03, T-08.9.2-15, T-08.9.2-48, T-08.9.2-49: `on` reads both marker shapes; any doubt leaves the local settings as they are, and only the marker is removed.
+it('risk:parsing accord on reads both marker shapes and leaves the local settings alone on any doubt (D-03)', async () => {
+  const doubtful = ['[1, 2]\n', '"text"\n', 'not json\n', '{"enabledPlugins": [1]}\n', '{"enabledPlugins": {"accord-panel@accord": "no"}}\n'];
+  // a 0.20.x marker with a well-formed record beside a local file `on` cannot restore: one stderr line, the file kept, the marker gone
+  for (const text of doubtful) {
     const repo = makeLaneRepo();
     dirs.push(repo);
-    writeFiles(repo, { '.claude/settings.local.json': text });
-    const r = await run(['off'], repo);
-    expect(r.code, text).toBe(2);
+    writeFiles(repo, { '.git/accord-off': pretty({ since: 'x', panel: { prior: 'absent', createdMap: true } }), '.claude/settings.local.json': text });
+    const r = await run(['on'], repo);
+    expect(r.code, text).toBe(0);
     expect(r.err.trim().split('\n'), text).toHaveLength(1);
-    expect(r.out, text).toBe('');
     expect(read(localOf(repo)), text).toBe(text);
     expect(existsSync(markerOf(repo)), text).toBe(false);
+  }
+
+  // a marker that is no JSON, or whose record is malformed: one stderr line, the file kept, the marker gone
+  const flagFalse = pretty({ enabledPlugins: { [PANEL]: false } });
+  for (const marker of ['not json\n', pretty({ since: 'x', panel: { prior: 'maybe' } })]) {
+    const repo = makeLaneRepo();
+    dirs.push(repo);
+    writeFiles(repo, { '.git/accord-off': marker, '.claude/settings.local.json': flagFalse });
+    const r = await run(['on'], repo);
+    expect(r.code, marker).toBe(0);
+    expect(r.err.trim().split('\n'), marker).toHaveLength(1);
+    expect(read(localOf(repo)), marker).toBe(flagFalse);
+    expect(existsSync(markerOf(repo)), marker).toBe(false);
+  }
+
+  // a marker with no record (what the new `off` writes) opens no settings file: nothing on stderr, even beside a file that is no JSON
+  for (const marker of ['{}\n', pretty({ since: 'x' })]) {
+    const repo = makeLaneRepo();
+    dirs.push(repo);
+    writeFiles(repo, { '.git/accord-off': marker, '.claude/settings.local.json': 'not json\n' });
+    const r = await run(['on'], repo);
+    expect(r.code, marker).toBe(0);
+    expect(r.err, marker).toBe('');
+    expect(read(localOf(repo)), marker).toBe('not json\n');
+    expect(existsSync(markerOf(repo)), marker).toBe(false);
   }
 });
 
@@ -226,14 +329,14 @@ it('risk:regression off and on are idempotent and run without an accord folder o
   await new Promise((r) => setTimeout(r, 5));
   expect((await run(['off'], repo)).code).toBe(0);
   expect(read(markerOf(repo))).toBe(first);
-  expect(parsed(localOf(repo))).toEqual({ enabledPlugins: { [PANEL]: false } });
+  expect(existsSync(localOf(repo))).toBe(false); // off wrote no local settings file
   expect((await run(['on'], repo)).code).toBe(0);
   expect(existsSync(markerOf(repo))).toBe(false);
 
   const none = await run(['on'], repo);
   expect(none.code).toBe(0);
   expect(none.out).toBe('accord is not off in this clone\n');
-  expect(parsed(localOf(repo))).toEqual({}); // the second `on` left the file as the first one did
+  expect(existsSync(localOf(repo))).toBe(false); // and `on` left none behind either
 
   // a pin that is not this CLI's version stops every other command, but not these two
   const pinned = makeLaneRepo();
@@ -267,36 +370,4 @@ it('risk:regression off and on are idempotent and run without an accord folder o
   expect(gitDirsOf(join(tmp, 'co'))).toBeUndefined();
   writeFileSync(join(tmp, 'co', '.git'), 'not a pointer\n');
   expect(gitDirsOf(join(tmp, 'co'))).toBeUndefined();
-});
-
-/** A person's own global ignore file may already name the local settings file (Claude Code adds it); the sandbox must not depend on that. */
-const noGlobalIgnore = (repo: string): void => {
-  gitRun(repo, 'config', 'core.excludesFile', join(repo, '.git', 'no-global-ignore'));
-};
-
-// Phase 08.9.2 D-03, T-08.9.2-17: accord may create the local settings file before Claude Code does, so off keeps it out of commits through the clone's own exclude file.
-it('risk:security off keeps the local settings out of git (D-03)', async () => {
-  const repo = makeLaneRepo();
-  dirs.push(repo);
-  noGlobalIgnore(repo);
-  const exclude = join(repo, '.git', 'info', 'exclude');
-  const first = await run(['off'], repo);
-  expect(first.out).toContain('info/exclude');
-  const lines = (): string[] => (existsSync(exclude) ? read(exclude).split(/\r?\n/) : []);
-  expect(lines().filter((l) => l === '.claude/settings.local.json')).toHaveLength(1);
-  expect(gitRun(repo, 'status', '--porcelain')).not.toContain('settings.local.json');
-  const second = await run(['off'], repo);
-  expect(second.out).not.toContain('info/exclude');
-  expect(lines().filter((l) => l === '.claude/settings.local.json')).toHaveLength(1);
-  expect((await run(['on'], repo)).code).toBe(0);
-  expect(lines()).toContain('.claude/settings.local.json'); // `on` leaves the harmless line
-
-  // a repository that already ignores the file gets no extra line
-  const ignoring = makeLaneRepo({ '.gitignore': '.claude/settings.local.json\n' });
-  dirs.push(ignoring);
-  noGlobalIgnore(ignoring);
-  const r = await run(['off'], ignoring);
-  expect(r.out).not.toContain('info/exclude');
-  const own = join(ignoring, '.git', 'info', 'exclude');
-  expect(existsSync(own) ? read(own) : '').not.toContain('settings.local.json');
 });

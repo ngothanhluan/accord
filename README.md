@@ -218,9 +218,9 @@ A person who does not work through accord sees one line at the start of a sessio
 node .claude/accord.mjs off
 ```
 
-Accord's hooks then stay silent and its pane stays closed, in this clone and in all its worktrees. The switch is a file named `accord-off` inside the clone's git folder, which is never committed; `off` also sets the pane's flag in your own `.claude/settings.local.json`, and nobody else on the team is affected.
+Accord's hooks then stay silent and its pane does not open by itself, in this clone and in all its worktrees; typing `/accord-panel` still opens the pane. The switch is one file named `accord-off` inside the clone's git folder, which is never committed; `off` writes nothing else, and nobody else on the team is affected.
 
-`node .claude/accord.mjs on` undoes exactly that. Typing `/accord` still works in an off session, where it offers to switch accord back on, and you can ask your agent to "turn accord off" instead of typing the command.
+`node .claude/accord.mjs on` removes that file. If you switched accord off with accord 0.20.0 or 0.20.1, which also turned the pane off in your own `.claude/settings.local.json`, `on` puts that setting back as it was. Typing `/accord` still works in an off session, where it offers to switch accord back on, and you can ask your agent to "turn accord off" instead of typing the command.
 
 A team in which some people work without accord can set `hook_mode: quiet` in `accord/config.yml` (`/accord-onboard` proposes it when someone works here without accord): a session start then prints one line instead of the rules, the fetch and the worktree clean, and typing `/accord`, or opening a session on a ticket's branch, brings accord back for that session.
 

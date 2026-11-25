@@ -1,11 +1,12 @@
-// Phase 08.9.2 D-03, L-01: `accord off` and `accord on`, a person's own switch for one clone. `off` writes the marker `<git common dir>/accord-off`, which the launcher, the
-// CLI and the pane read with plain file reads, and sets the panel flag in the checkout's `.claude/settings.local.json` for sessions that read that file. The marker, not an
-// `env` variable, carries the switch: a session started in a linked worktree on Windows does not read the main checkout's local file (RESEARCH F-4).
-// The marker records what `off` did to the flag, so `on` undoes exactly that and never a key `off` did not write.
-import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+// Phase 08.9.2 D-03, L-01: `accord off` and `accord on`, a person's own switch for one clone. Since the owner ruling of 2026-11-25 (UAT G-08.9.2-10: the panel flag `off` once also
+// set in `.claude/settings.local.json` made the host drop the panel plugin, so a typed `/accord-panel` was an unknown command) `off` writes only the marker
+// `<git common dir>/accord-off`, which the launcher, the CLI and the pane read with plain file reads; the pane stays closed unasked and the hooks stay silent while it exists,
+// and a typed `/accord-panel` still opens the pane. The marker, not an `env` variable, carries the switch: a session started in a linked worktree on Windows does not read
+// the main checkout's local file (RESEARCH F-4). A marker written by 0.20.0 or 0.20.1 also records what that `off` did to the panel flag, so `on` still undoes exactly that
+// and never a key `off` did not write; a marker with no such record makes `on` open no settings file.
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { gitDirsOf, offMarkerPath } from '../load/gitdir.js';
-import { runGitSync } from '../load/git-spawn.js';
+import { offMarkerPath } from '../load/gitdir.js';
 
 /** Phase 08.9.2 D-04: the one line a full-mode session start prints so a person who does not use accord sees how to switch it off; the quiet line (08.9.2-09) reuses it. The launcher form needs no global install. */
 export const OFF_LINE = 'accord: not using accord? switch it off for yourself in this clone: node .claude/accord.mjs off (node .claude/accord.mjs on switches it back); an agent runs either only when the person asks';
@@ -19,10 +20,10 @@ export interface OffIo {
   stderr: NodeJS.WritableStream;
 }
 
-/** What `off` did to the panel flag: its value before (`absent` when the key was not there) and whether it had to create the `enabledPlugins` map. */
+/** The marker's content. `panel` is present only in a marker written by 0.20.0 or 0.20.1: what that `off` did to the panel flag, its value before (`absent` when the key was not there) and whether it had to create the `enabledPlugins` map. */
 interface Marker {
   since: string;
-  panel: { prior: 'absent' | boolean; createdMap: boolean };
+  panel?: { prior: 'absent' | boolean; createdMap: boolean };
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -63,45 +64,13 @@ function readLocal(file: string): { settings: Record<string, unknown> } | { refu
   return { settings: parsed };
 }
 
-/** When git does not ignore the local settings file, add it once to the clone's `info/exclude` (never a committed .gitignore); returns the line to print, if any. */
-function keepOutOfGit(io: OffIo, commonDir: string): string | undefined {
-  try {
-    runGitSync(['check-ignore', '-q', '--', LOCAL], { cwd: io.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    return undefined; // exit 0: already ignored
-  } catch (e) {
-    if ((e as { status?: number }).status !== 1) return undefined; // git could not say: leave the file alone rather than guess
-  }
-  const exclude = join(commonDir, 'info', 'exclude');
-  let have = '';
-  try {
-    have = readFileSync(exclude, 'utf8');
-  } catch {
-    // no exclude file yet
-  }
-  if (have.split(/\r?\n/).includes(LOCAL)) return undefined;
-  mkdirSync(dirname(exclude), { recursive: true });
-  appendFileSync(exclude, (have === '' || have.endsWith('\n') ? '' : '\n') + LOCAL + '\n');
-  return `accord off: git did not ignore ${LOCAL}; added it to ${shown(exclude)} so it stays out of commits`;
-}
-
 export function accordOff(io: OffIo): number {
-  const dirs = gitDirsOf(io.root);
   const marker = offMarkerPath(io.root);
-  if (dirs === undefined || marker === undefined) {
+  if (marker === undefined) {
     io.stderr.write(`accord off: cannot find the git folder of ${shown(io.root)}\n`);
     return 2;
   }
-  const file = join(io.root, '.claude', 'settings.local.json');
-  const read = readLocal(file);
-  if ('refusal' in read) {
-    io.stderr.write(`accord off: ${read.refusal}; nothing was changed\n`);
-    return 2;
-  }
-  const { settings } = read;
-  const plugins = settings.enabledPlugins;
-  const prior = isObject(plugins) && PANEL in plugins ? (plugins[PANEL] as boolean) : 'absent';
-
-  // The marker first: with it written, `on` can always undo what follows. An existing marker is kept as it is, so a second `off` changes nothing.
+  // An existing marker is kept as it is (a 0.20.x one keeps its panel record for `on`), so a second `off` changes nothing. Nothing else is written: not the local settings, not the exclude file.
   let existing = false;
   try {
     readFileSync(marker, 'utf8');
@@ -110,20 +79,14 @@ export function accordOff(io: OffIo): number {
     // none yet
   }
   if (!existing) {
-    const made: Marker = { since: new Date().toISOString(), panel: { prior, createdMap: plugins === undefined } };
+    const made: Marker = { since: new Date().toISOString() };
     writeAtomic(marker, JSON.stringify(made, null, 2) + '\n');
   }
-
-  // Copy the map, set the one key; every other key and the order stay.
-  writeAtomic(file, asText({ ...settings, enabledPlugins: { ...(isObject(plugins) ? plugins : {}), [PANEL]: false } }));
-
-  const kept = keepOutOfGit(io, dirs.commonDir);
-  if (kept !== undefined) io.stdout.write(kept + '\n');
-  io.stdout.write('accord is off for you in this clone: its hooks stay silent and the pane stays closed; node .claude/accord.mjs on switches it back\n');
+  io.stdout.write('accord is off for you in this clone: its hooks stay silent and the pane does not open by itself (type /accord-panel to open it); node .claude/accord.mjs on switches it back\n');
   return 0;
 }
 
-/** The marker `off` wrote, or undefined when it is absent or unreadable (`unreadable` tells which). */
+/** The marker `off` wrote, or undefined when it is absent; `unreadable` is true (and `marker` missing) when it is no JSON object or its `panel` record is malformed. */
 function readMarker(file: string): { marker?: Marker; unreadable: boolean } | undefined {
   let text: string;
   try {
@@ -133,18 +96,22 @@ function readMarker(file: string): { marker?: Marker; unreadable: boolean } | un
   }
   try {
     const m = JSON.parse(text) as unknown;
-    const panel = isObject(m) && isObject(m.panel) ? m.panel : undefined;
+    if (!isObject(m)) return { unreadable: true };
+    const since = String(m.since ?? '');
+    if (!Object.keys(m).includes('panel')) return { marker: { since }, unreadable: false }; // what the new `off` writes: no flag to undo
+    const panel = isObject(m.panel) ? m.panel : undefined;
     const prior = panel?.prior;
     if (panel === undefined || (prior !== 'absent' && typeof prior !== 'boolean')) return { unreadable: true };
-    return { marker: { since: String((m as Record<string, unknown>).since ?? ''), panel: { prior, createdMap: panel.createdMap === true } }, unreadable: false };
+    return { marker: { since, panel: { prior, createdMap: panel.createdMap === true } }, unreadable: false };
   } catch {
     return { unreadable: true };
   }
 }
 
 /**
- * Switch accord back on: put the panel flag back as the marker says `off` found it, then remove the marker. Only the flag `off` set is touched: a flag the person has
- * changed since (no longer `false`) stays, as does every other key, their order, and anything added while accord was off. The marker goes last, so a failed write can be retried.
+ * Switch accord back on: remove the marker. A marker written by 0.20.0 or 0.20.1 also carries the `panel` record of what that `off` did to the panel flag, and `on` first puts
+ * the flag back as `off` found it. Only the flag `off` set is touched: a flag the person has changed since (no longer `false`) stays, as does every other key, their order, and
+ * anything added while accord was off. A marker with no record opens no settings file. The marker goes last, so a failed write can be retried.
  */
 export function accordOn(io: OffIo): number {
   const marker = offMarkerPath(io.root);
@@ -159,7 +126,8 @@ export function accordOn(io: OffIo): number {
   }
   if (found.marker === undefined) {
     io.stderr.write(`accord on: the marker ${shown(marker)} is unreadable, so ${LOCAL} is left as it is\n`);
-  } else {
+  } else if (found.marker.panel !== undefined) {
+    const record = found.marker.panel;
     const file = join(io.root, '.claude', 'settings.local.json');
     const read = readLocal(file);
     if ('refusal' in read) {
@@ -169,7 +137,7 @@ export function accordOn(io: OffIo): number {
       const plugins = settings.enabledPlugins;
       // only the flag `off` wrote (false) is undone; a person who set it to true since keeps their choice
       if (isObject(plugins) && plugins[PANEL] === false) {
-        const { prior, createdMap } = found.marker.panel;
+        const { prior, createdMap } = record;
         let next: Record<string, unknown>;
         if (prior === 'absent') {
           const rest = without(plugins, PANEL);

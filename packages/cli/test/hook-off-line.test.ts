@@ -92,4 +92,6 @@ it('risk:regression the readme explains how to work in an accord repository with
   expect(section).toContain('node .claude/accord.mjs off');
   expect(section).toContain('node .claude/accord.mjs on');
   expect(section).toContain('accord-off');
+  // Phase 08.9.2 G-08.9.2-10: off writes only the marker, so the section says the pane command still works while accord is off
+  expect(section).toContain('/accord-panel');
 });

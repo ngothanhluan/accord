@@ -22,6 +22,7 @@ type Node_ = { dir: boolean; mtimeMs: number };
 function memoryFs(clock: { t: number }) {
   const nodes = new Map<string, Node_>();
   const calls: string[] = [];
+  const texts = new Map<string, string>();
   const parentOf = (p: string): string => norm(dirname(p));
   const mk = (p: string, dir: boolean, mtimeMs = clock.t): void => {
     nodes.set(norm(p), { dir, mtimeMs });
@@ -67,10 +68,21 @@ function memoryFs(clock: { t: number }) {
       calls.push(`rmSync ${norm(p)}`);
       for (const k of subtree(p)) nodes.delete(k);
     },
+    readFileSync: (p: string) => {
+      calls.push(`readFileSync ${norm(p)}`);
+      const t = texts.get(norm(p));
+      if (t === undefined) throw fsError('ENOENT');
+      return t;
+    },
   };
   return {
     fs,
     calls,
+    text: (p: string, content: string) => {
+      ensureDirs(dirname(p));
+      mk(p, false);
+      texts.set(norm(p), content);
+    },
     has: (p: string) => nodes.has(norm(p)),
     names: (p: string) => children(p).map((k) => k.slice(k.lastIndexOf('/') + 1)).sort(),
     dir: (p: string, mtimeMs = clock.t) => {
@@ -117,6 +129,7 @@ function world(opts: { npm?: 'ok' | 'fail'; withNpmCli?: boolean; start?: number
     homedir: '/home/u',
     execPath: '/usr/bin/node',
     pid: 4242,
+    launcherPath: '/repo/.claude/accord.mjs',
     readStdin: () => '{"hook_event_name":"PreToolUse"}',
     fs: m.fs,
     spawnSync,
@@ -307,4 +320,80 @@ it('risk:regression a cached version runs the bundle once with the call words an
   expect(call.opts.input).toBe('{"hook_event_name":"PreToolUse"}');
   expect(call.opts.shell).toBeUndefined();
   expect(w.m.calls.filter((c) => !c.startsWith('existsSync'))).toEqual([]);
+});
+
+const pre = (call: Record<string, unknown>): string => JSON.stringify({ hook_event_name: 'PreToolUse', ...call });
+
+// Phase 08.9.2 Ruling-quiet-hooks (D-01): an Agent or Task call that is not an executor dispatch is answered by the launcher with `{}`, before any cache path is built.
+it('risk:resource a non-executor Agent call is answered by the launcher with no process and no cache read (Ruling-quiet-hooks)', () => {
+  const calls = [
+    pre({ tool_name: 'Agent', tool_input: { subagent_type: 'Explore' } }),
+    pre({ tool_name: 'Task', tool_input: { subagent_type: 'Explore' } }),
+    pre({ tool_name: 'Agent' }),
+    pre({ tool_name: 'Agent', tool_input: null }),
+  ];
+  for (const stdin of calls) {
+    const w = world(); // nothing cached: an answer that needed the bundle would have to fill it
+    w.m.calls.length = 0;
+    expect(launch(w.io([V, 'hook', 'pre-tool-use'], { readStdin: () => stdin })), stdin).toBe(0);
+    expect(w.out.join('')).toBe('{}\n');
+    expect(w.err).toEqual([]);
+    expect(w.spawned).toEqual([]);
+    expect(w.m.calls).toEqual([]);
+  }
+});
+
+// Phase 08.9.2 D-01 (T-08.9.2-12, T-08.9.2-13): the write guard and the executor model guard live in the CLI, so the launcher hands those calls over with the stdin text.
+it('risk:security the launcher passes a verification write and an executor dispatch to the bundle (D-01)', () => {
+  const passed = [
+    pre({ tool_name: 'Write', tool_input: { file_path: 'accord/tickets/T-1/verification.md' } }),
+    pre({ tool_name: 'Edit', tool_input: { file_path: 'accord/tickets/T-1/verification.md' } }),
+    pre({ tool_name: 'MultiEdit', tool_input: { file_path: 'accord/tickets/T-1/verification.md' } }),
+    pre({ tool_name: 'Agent', tool_input: { subagent_type: 'accord-executor' } }),
+    pre({ tool_name: 'Task', tool_input: { subagent_type: 'accord-executor' } }),
+    'not json at all',
+    '',
+  ];
+  for (const stdin of passed) {
+    const w = world();
+    w.m.file(bundleOf(V));
+    expect(launch(w.io([V, 'hook', 'pre-tool-use'], { readStdin: () => stdin })), stdin).toBe(0);
+    expect(w.out).toEqual([]);
+    expect(w.bundleRuns(), stdin).toHaveLength(1);
+    expect(w.spawned[0]?.opts.input, stdin).toBe(stdin);
+  }
+});
+
+// Phase 08.9.2 D-01 (the D-04 line `node .claude/accord.mjs off`): a command word first takes its version from accord/config.yml beside the launcher's folder.
+it('risk:parsing a command word first reads the pin from accord config beside the launcher (D-01)', () => {
+  const pinned = world();
+  pinned.m.text('/repo/accord/config.yml', 'schema: 1\naccord: "0.19.0"\nmode: team\n');
+  pinned.m.file(bundleOf('0.19.0'));
+  expect(launch(pinned.io(['off']))).toBe(0);
+  expect(pinned.spawned).toHaveLength(1);
+  expect((pinned.spawned[0] as Spawned).args.map(norm)).toEqual([bundleOf('0.19.0'), 'off']);
+  expect(pinned.err).toEqual([]);
+
+  // A bare unquoted pin works, and a call with more words keeps them all.
+  const bare = world();
+  bare.m.text('/repo/accord/config.yml', 'accord: 0.19.0\n');
+  bare.m.file(bundleOf('0.19.0'));
+  expect(launch(bare.io(['wake', '--now']))).toBe(0);
+  expect((bare.spawned[0] as Spawned).args.map(norm)).toEqual([bundleOf('0.19.0'), 'wake', '--now']);
+
+  // No pin line, a pin that is not a version, no config file, and a flag first: one stderr line, exit 2, no process.
+  const missing = [
+    { setup: (w: ReturnType<typeof world>) => w.m.text('/repo/accord/config.yml', 'schema: 1\n'), argv: ['off'] },
+    { setup: (w: ReturnType<typeof world>) => w.m.text('/repo/accord/config.yml', 'accord: ../x\n'), argv: ['off'] },
+    { setup: () => undefined, argv: ['off'] },
+    { setup: (w: ReturnType<typeof world>) => w.m.text('/repo/accord/config.yml', 'accord: "0.19.0"\n'), argv: ['--version'] },
+  ];
+  for (const c of missing) {
+    const w = world();
+    c.setup(w);
+    expect(launch(w.io(c.argv)), JSON.stringify(c.argv)).toBe(2);
+    expect(w.spawned).toEqual([]);
+    expect(w.err).toHaveLength(1);
+    expect(w.err[0]?.trimEnd().split('\n')).toHaveLength(1);
+  }
 });

@@ -3,11 +3,13 @@
 // the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
 // Phase 8.5 D-16, D-25: outside Claude Code this command is also the main session's channel for the ruleset, which Claude Code's session hooks print themselves: it comes first, built by the shared
 // core assembly with the hooks' exact text, and only here, never in `anchorOf`, so the session-resume hook, which already prints it, never prints it twice.
-import { anchorText, commitRuleLine, commitRuleOf, DEFAULT_BRANCH_TEMPLATE, productBlocks } from '@accord-dev/accord-core';
+import { anchorText, commitRuleLine, commitRuleOf, DEFAULT_BRANCH_TEMPLATE, productBlocks, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, gitVerifySince, ticketOfBranch, withDefaultRef } from '../load/fs.js';
 import { cliRuleset, readProductText } from '../load/product.js';
 import { shown } from '../load/script-trust.js';
+import { sliceStart } from '../load/slice-size.js';
+import { sliceOfBranch } from '../load/slices.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
@@ -33,6 +35,24 @@ function commitRuleHeader(ctx: CommandContext): string[] {
 }
 
 /**
+ * Phase 15 D-10: `Slice: <n> of <m>, from <short sha>` when this checkout is on a slice of the ticket's sliced plan: a `slice/<id>/<n>` branch, or the ticket's claim branch, which is slice 1. `from` is where the slice
+ * starts (`sliceStart`), left out when git cannot say. A ticket whose plan has no `## Slice` section, and a branch of another ticket, print nothing, and no git runs for them.
+ */
+function sliceLine(ctx: CommandContext, id: string): string[] {
+  const slices = workOf(ctx.snapshot, id)?.plan?.slices;
+  if (slices === undefined || slices.length === 0) return [];
+  try {
+    const name = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
+    if (name === undefined || activeTicket(ctx.root, ctx.snapshot, { name }) !== id) return [];
+    const n = sliceOfBranch(name)?.n ?? 1;
+    const start = sliceStart(ctx.root, ctx.snapshot, id, n);
+    return [`Slice: ${n} of ${Math.max(...slices.map((x) => x.n))}${start === undefined ? '' : `, from ${start.slice(0, 7)}`}`];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * The one anchor text of a ticket, for `accord anchor` and the session-resume hook alike (ST-LN-72 review round 2): ST-LN-50 D-08's `stages off for lane <L>: ...` lines close the base lines of the
  * header (Stage, Review base), before any Unfinished line and the first section (core places them: anchorText's `header`); nothing is added when nothing is off for the ticket's lane. The git fact the
  * verify resume line reads (gitVerifySince) is added here too, so both paths print the same lines.
@@ -44,7 +64,7 @@ export const anchorOf = (ctx: CommandContext, id: string): string | undefined =>
   return anchorText(
     { ...epicSnapshot(ctx, id), ...gitVerifySince(ctx.root, ctx.snapshot, id) },
     id,
-    [...stagesOffLines(ctx.snapshot.config, lane), ...commitRuleHeader(ctx)],
+    [...sliceLine(ctx, id), ...stagesOffLines(ctx.snapshot.config, lane), ...commitRuleHeader(ctx)],
     lane === 'S' ? { conventions: readProductText(ctx.root, { from: 'working' }) } : undefined,
   );
 };

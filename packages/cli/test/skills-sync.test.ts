@@ -798,7 +798,8 @@ it('risk:regression the committed panel and settings carry the plugin', () => {
     const text = read(p);
     expect(markerHash(text), p).toBe(contentHash(withoutMarker(normaliseText(text))));
   }
-  expect(read(files[3] as string)).toContain(`@accord-dev/accord@${pkg.version}`);
+  // Phase 08.9.2 D-01: the pane runs the launcher with the pinned version as its argument (it no longer runs npx)
+  expect(read(files[3] as string)).toContain(`.claude/accord.mjs', '${pkg.version}'`);
   const s = JSON.parse(read('.claude/settings.json')) as Record<string, Record<string, unknown>>;
   expect(s.enabledPlugins?.['accord-panel@accord']).toBe(true);
   expect(s.extraKnownMarketplaces?.accord).toEqual(PANEL);

@@ -4,8 +4,9 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync } from
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
-import { cleanup, commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, discussFiles, laneTicket, PLAN as LANE_PLAN, ready } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 
 const IDENTITY = [
   ['user.email', 'fixture@example.invalid'],
@@ -158,4 +159,110 @@ it('risk:security slice is refused for an invalid id, a ticket the plan does not
   expect(elsewhere.code).toBe(2);
   expect(gitRun(box.main, 'branch', '--list', 'slice/*').trim()).toBe('');
   expect(exists(box.main, 'refs/heads/slice/ST-9/2')).toBe(false);
+}, 120_000);
+
+// Phase 15 D-31, SC-2: the dashboard reads a sliced ticket from its newest slice branch. The sandboxes are the ones dashboard-merged.test.ts uses: main holds T-1 (ready, with its plan) and
+// T-2 (ready, no plan), `origin/main` is faked at main's tip, and the viewer is the author of the claim.
+type Json = Record<string, unknown>;
+type Row = { id: string; stage?: string; tasksDone?: number };
+const SECTIONS = ['mergedWaiting', 'yours', 'team', 'ready', 'upNext'] as const;
+const dash = async (dir: string): Promise<Json> => {
+  const r = await run(['dashboard', '--json', '--no-fetch'], dir);
+  expect(r.code, r.err).toBe(0);
+  return JSON.parse(r.out) as Json;
+};
+const rows = (d: Json, section: string): Row[] => (d[section] as { rows?: Row[] } | undefined)?.rows ?? [];
+const ids = (d: Json, section: string): string[] => rows(d, section).map((r) => r.id);
+const rowOf = (d: Json, id: string): Row | undefined => SECTIONS.flatMap((s) => rows(d, s)).find((r) => r.id === id);
+
+function dashBase(): string {
+  const repo = makeEmptyRepo();
+  boxes.push(repo);
+  gitRun(repo, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+  gitRun(repo, 'config', 'user.email', 'v@x.io');
+  gitRun(repo, 'config', 'user.name', 'viewer');
+  const files: Files = { 'accord/config.yml': CONFIG, ...discussFiles('T-1', 'T-2') };
+  ready(files, 'T-1');
+  files['accord/tickets/T-1/plan.md'] = LANE_PLAN;
+  ready(files, 'T-2');
+  writeFiles(repo, files);
+  commitMsg(repo, 'add tickets');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  return repo;
+}
+
+/** The claim branch t/T-1 with its first task done, then slice/T-1/2 on it with the second task done too; the checkout ends on main. */
+function slicedTicket(repo: string): void {
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  commitMsg(repo, 'claim: T-1', undefined, true);
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+  commitMsg(repo, 'build: T-1 task 1');
+  gitRun(repo, 'switch', '-q', '-c', 'slice/T-1/2');
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n' });
+  commitMsg(repo, 'build: T-1 task 2');
+  gitRun(repo, 'switch', '-q', 'main');
+}
+
+it('risk:regression the dashboard shows a sliced ticket from its newest slice branch, never as a claim of its own (D-31, SC-2)', async () => {
+  const repo = dashBase();
+  slicedTicket(repo);
+  const d = await dash(repo);
+  expect(ids(d, 'yours')).toEqual(['T-1']);
+  expect(rowOf(d, 'T-1')).toMatchObject({ tasksDone: 2 });
+  expect(ids(d, 'ready')).toEqual(['T-2']);
+  // the claim branch alone would read one task: the slice branch is what is newer
+  gitRun(repo, 'branch', '-D', 'slice/T-1/2');
+  expect(rowOf(await dash(repo), 'T-1')).toMatchObject({ tasksDone: 1 });
+}, 120_000);
+
+it('risk:complex-branching a ticket whose claim branch merged while slice 2 is unmerged stays in yours, not in mergedWaiting (D-31, D-29)', async () => {
+  const repo = dashBase();
+  slicedTicket(repo);
+  mergeMsg(repo, 't/T-1', 'Merge pull request #1 from t/T-1');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  const d = await dash(repo);
+  expect(ids(d, 'mergedWaiting')).toEqual([]);
+  expect(ids(d, 'yours')).toEqual(['T-1']);
+  expect(rowOf(d, 'T-1')).toMatchObject({ tasksDone: 2 });
+  // once the last slice merges too, the ticket waits for verify
+  mergeMsg(repo, 'slice/T-1/2', 'Merge pull request #2 from slice/T-1/2');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  const after = await dash(repo);
+  expect(ids(after, 'mergedWaiting')).toEqual(['T-1']);
+  expect(ids(after, 'yours')).toEqual([]);
+}, 120_000);
+
+it('risk:security a slice branch of an id that is no ticket, or of a ticket nobody claimed, is ignored by the dashboard (D-31, T-15-33)', async () => {
+  const repo = dashBase();
+  gitRun(repo, 'branch', 'slice/X-1/2', 'main');
+  gitRun(repo, 'branch', 'slice/T-2/2', 'main');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/slice/T-2/3', 'main');
+  const d = await dash(repo);
+  expect(rowOf(d, 'X-1')).toBeUndefined();
+  expect(ids(d, 'ready').sort()).toEqual(['T-1', 'T-2']);
+  for (const section of ['yours', 'team', 'mergedWaiting']) expect(ids(d, section), section).toEqual([]);
+}, 120_000);
+
+const REF = 'progress:\n  push: ref\n';
+const originRef = (box: Box, ref: string): string | undefined => {
+  try {
+    return gitRun(box.remote, 'rev-parse', '--verify', '-q', ref).trim();
+  } catch {
+    return undefined;
+  }
+};
+
+it('risk:regression on a slice branch worktree push --branch pushes the slice branch, and the progress ref mirrors it (D-31)', async () => {
+  const box = sandbox({ files: { 'accord/config.yml': CONFIG + REF } });
+  gitRun(box.wt, 'push', '-q', '-u', 'origin', 't/ST-9');
+  expect((await run(['worktree', 'slice', 'ST-9', '2'], box.wt)).code).toBe(0);
+  writeFiles(box.wt, { 'src/b.ts': 'b\n' });
+  const second = commitMsg(box.wt, 'slice 2 work');
+  expect(await run(['worktree', 'push', 'ST-9', '--branch'], box.wt)).toEqual({ code: 0, out: 'pushed: slice/ST-9/2\n', err: '' });
+  expect(originRef(box, 'refs/heads/slice/ST-9/2')).toBe(second);
+  expect(originRef(box, 'refs/heads/t/ST-9')).toBe(box.tip);
+  expect(originRef(box, 'refs/accord/ST-9')).toBeUndefined();
+  expect(await run(['worktree', 'push', 'ST-9'], box.wt)).toEqual({ code: 0, out: 'pushed: refs/accord/ST-9\n', err: '' });
+  expect(originRef(box, 'refs/accord/ST-9')).toBe(second);
+  expect(originRef(box, 'refs/heads/t/ST-9')).toBe(box.tip);
 }, 120_000);

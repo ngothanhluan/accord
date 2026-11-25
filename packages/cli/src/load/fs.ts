@@ -249,6 +249,8 @@ function gitClaims(
   const patterns = templates.flatMap((t) => (t.split('{id}').length === 2 ? ['refs/heads/' + branchGlob(t), 'refs/remotes/*/' + branchGlob(t)] : []));
   // Phase 15 D-15: the progress refs are listed with the claim branches, as a source of records only (below); a template `{id}` alone would match them as branches, so the loop skips them.
   if (patterns.length > 0) patterns.push(PROGRESS_PREFIX + '*');
+  // Phase 15 D-31: the slice branches of a ticket are listed with its claim branches, as a source of records only (below): `slice/<id>/<n>` matches no template, so it is never a claim
+  if (patterns.length > 0) patterns.push('refs/heads/slice/*/*', 'refs/remotes/*/slice/*/*');
   let out: string;
   try {
     // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
@@ -269,6 +271,8 @@ function gitClaims(
   const activity: Record<string, number> = {};
   const listed = new Map<string, string>();
   const progressWhen = new Map<string, number>();
+  // D-31: per ticket, the newest slice branch: the highest number, a pushed copy over a local one, then the newest tip
+  const slices = new Map<string, { n: number; ref: string; pushed: boolean; when: number }>();
   for (const line of out.split('\n')) {
     const [ref, email, whenText, sha] = line.split('\0');
     if (ref !== undefined && sha !== undefined) listed.set(ref, sha);
@@ -278,6 +282,16 @@ function gitClaims(
     }
     const m = /^refs\/(?:(heads)|remotes\/[^/]+)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined) continue;
+    // D-31, T-15-33: a slice branch of a known ticket is a source of records for that ticket, never a claim and never the claimant
+    const slice = sliceOfBranch(m[2]);
+    if (slice !== undefined) {
+      if (known(slice.id)) {
+        const mine = { n: slice.n, ref: ref as string, pushed: m[1] === undefined, when: Number(whenText) };
+        const seen = slices.get(slice.id);
+        if (seen === undefined || mine.n > seen.n || (mine.n === seen.n && ((mine.pushed && !seen.pushed) || (mine.pushed === seen.pushed && mine.when > seen.when)))) slices.set(slice.id, mine);
+      }
+      continue;
+    }
     const id = claimOfBranch(m[2], templates, known, config);
     if (id === undefined) continue;
     const when = Number(whenText);
@@ -296,8 +310,14 @@ function gitClaims(
     refs[id] = w.ref;
     // Phase 15 D-15: for a ticket some claim branch already holds, its records come from the progress ref when that ref is ahead of the claim tip (descends from it); the claimant stays the claim branch's author.
     // A progress ref that diverged from the claim tip is not read: the claim branch wins a divergence.
+    // D-31: a ticket with a slice branch is read from its newest one (a later slice's records hold the earlier slices' too); the claim branch stays the claimant and the branch `branches` names
+    const slice = slices.get(id);
+    if (slice !== undefined) {
+      refs[id] = slice.ref;
+      if (slice.when > (activity[id] ?? 0)) activity[id] = slice.when;
+    }
     const progress = PROGRESS_PREFIX + id;
-    const tip = listed.get(w.ref);
+    const tip = listed.get(refs[id]);
     const ahead = listed.get(progress);
     if (tip !== undefined && ahead !== undefined && ahead !== tip && isAncestor(root, tip, ahead)) {
       refs[id] = progress;

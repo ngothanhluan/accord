@@ -12,6 +12,7 @@ import { readCleanFacts } from '../load/clean-facts.js';
 import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { doneOnDefaultBranch } from '../load/done-on-default.js';
+import { sliceOfBranch } from '../load/slices.js';
 import { blobsOnRef } from '../load/merged-state.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { cleanLine, nextLine, withNext, withNextOnFirst } from './next-action.js';
@@ -1122,7 +1123,9 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
  */
 export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean; branch?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
-  const branch = branchOf(ctx.snapshot, id);
+  // Phase 15 D-31: in a slice worktree the branch pushed, and mirrored into the progress ref, is the slice branch this checkout is on; anywhere else it is the claim branch, as before
+  const here = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
+  const branch = here !== undefined && sliceOfBranch(here)?.id === id ? here : branchOf(ctx.snapshot, id);
   const toRef = o.branch !== true;
   const ref = `refs/accord/${id}`;
   if (toRef) {

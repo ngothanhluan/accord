@@ -10,6 +10,7 @@ import { loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { anchor } from '../src/commands/anchor.js';
 import { gate } from '../src/commands/gate.js';
+import { hook } from '../src/commands/hook.js';
 import { show } from '../src/commands/show.js';
 import { loadClaimView, loadNarrow, loadWithBranch, withDefaultRef } from '../src/load/fs.js';
 import type { NarrowTarget } from '../src/load/fs.js';
@@ -242,5 +243,75 @@ it('risk:regression show on the narrow claim view prints what it prints on the f
     const want = outcome(made(repo, reference.ctx.snapshot, reference.ctx.branch), (ctx) => show({ ...ctx, ...(reference.ctx.plain === undefined ? {} : { plain: reference.ctx.plain }) }, argv[1], options));
     const got = await run([...argv], repo, ENV);
     expect({ argv, code: got.code, out: got.out }).toEqual({ argv, code: want.code, out: want.out });
+  }
+}, 900_000);
+
+/** A hook context with the stdin the host sends: the narrow load of the active ticket (what `preflight` builds under `only`), or the full load as the reference. */
+function hookContext(root: string, narrow: boolean, stage: boolean, stdin: string): Made {
+  const m = narrow ? narrowContext(root, { active: true }, stage) : fullContext(root, stage);
+  m.ctx.stdin = stdin;
+  return m;
+}
+
+const dispatch = (cwd: string, o: Record<string, unknown> = {}): string =>
+  JSON.stringify({ session_id: 's-1', cwd, hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'accord-executor', description: 'fix round 4', prompt: 'Brief: b.md', ...o } });
+const start = (cwd: string, agent: string): string => JSON.stringify({ session_id: 's-1', cwd, hook_event_name: 'SubagentStart', agent_type: agent });
+
+// Phase 08.9.2 Ruling-oracle (L-04, T-08.9.2-27): the executor dispatch answer (the wrong model refused, the right one and none let through) and the epic block of a SubagentStart are the same bytes
+// on the narrow load of the active ticket as on the full one, in the story's worktree, in a claim on origin only and on the default branch (no active ticket).
+it('risk:regression the executor dispatch answer and the epic block are the same on the narrow load (Ruling-oracle)', async () => {
+  const mismatches: string[] = [];
+  const answers = new Map<string, string>();
+  const roots: [string, string][] = [
+    ['the story worktree', worktreeOn(['<dir>', 't/' + STORY])],
+    ['a claim on origin only', worktreeOn(['-b', 't/' + ORIGIN_ONLY, '<dir>', 'refs/remotes/origin/t/' + ORIGIN_ONLY])],
+    ['the default branch', repo],
+  ];
+  for (const [where, root] of roots) {
+    const calls: [string, string, boolean, string][] = [
+      ['dispatch sonnet', 'pre-tool-use', false, dispatch(root, { model: 'sonnet' })],
+      ['dispatch no model', 'pre-tool-use', false, dispatch(root)],
+      ['dispatch opus', 'pre-tool-use', false, dispatch(root, { model: 'opus' })],
+      ['dispatch reviewer', 'pre-tool-use', false, dispatch(root, { subagent_type: 'accord-reviewer', model: 'sonnet' })],
+      ['scout', 'subagent-start', true, start(root, 'accord-scout')],
+      ['judge', 'subagent-start', true, start(root, 'accord-judge')],
+      ['executor', 'subagent-start', true, start(root, 'accord-executor')],
+    ];
+    for (const [name, event, stage, stdin] of calls) {
+      const call = (narrow: boolean) => {
+        const m = hookContext(root, narrow, stage, stdin);
+        const o = outcome(m, (ctx) => hook(ctx, event as 'pre-tool-use' | 'subagent-start'));
+        return { ...o, err: m.err() };
+      };
+      const want = call(false);
+      const got = call(true);
+      answers.set(where + ': ' + name, want.out);
+      if (JSON.stringify(got) !== JSON.stringify(want)) mismatches.push(where + ': ' + name);
+    }
+  }
+  // the fixture bites: the story's worktree refuses the wrong model and lets the right one through, and a scout there is handed the epic block with its siblings' lessons
+  const refused = (key: string): boolean => (answers.get(key) ?? '').includes('"permissionDecision":"deny"');
+  expect(refused('the story worktree: dispatch sonnet'), 'the wrong model is refused at review').toBe(true);
+  expect(refused('the story worktree: dispatch no model'), 'the configured model is not the one review needs').toBe(true);
+  expect(refused('the story worktree: dispatch opus'), 'the right model passes').toBe(false);
+  expect(refused('the story worktree: dispatch reviewer'), 'another agent passes').toBe(false);
+  expect(answers.get('the story worktree: scout') ?? '', 'a scout in the story worktree is handed the epic block').toContain('Epic E-1');
+  expect(answers.get('the story worktree: judge') ?? '', 'and so is a judge').toContain('Epic E-1');
+  expect(answers.get('the story worktree: executor') ?? '', 'an executor is not an epic role').not.toContain('Epic E-1');
+  expect(answers.get('the default branch: dispatch sonnet') ?? '', 'no active ticket on the default branch: allowed').toBe('{}\n');
+  expect(answers.get('the default branch: scout') ?? '', 'and no epic block').not.toContain('Epic E-1');
+  expect(mismatches, 'hook answers that differ between the narrow and the full load').toEqual([]);
+
+  // the command itself, through preflight: the same bytes as the full load, in the story's worktree and on the default branch
+  for (const [where, root] of [roots[0], roots[2]]) {
+    for (const [event, stdin, stage] of [
+      ['pre-tool-use', dispatch(root, { model: 'sonnet' }), false],
+      ['subagent-start', start(root, 'accord-scout'), true],
+    ] as const) {
+      const m = hookContext(root, false, stage, stdin);
+      const want = outcome(m, (ctx) => hook(ctx, event));
+      const got = await run(['hook', event], root, ENV, stdin);
+      expect({ where, event, code: got.code, out: got.out }).toEqual({ where, event, code: want.code, out: want.out });
+    }
   }
 }, 900_000);

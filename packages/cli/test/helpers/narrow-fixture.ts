@@ -16,6 +16,7 @@ export const ORIGIN_ONLY = 'O-1';
 
 const R_BODY = ['## Question', 'Does the critic need a second round?', '', '## Timebox', '4 hours', '', '## Token budget', '800k weighted tokens', ''].join('\n');
 const RECORD = 'accord/research/2026-11-20-R-1.md';
+const REVIEW = ['Round record: 1', '', '## Round 1', '', 'Must 1 [patch]: the writer drops the header — src/export.ts:3 — fixed in abc1234', '', '## Round 2', '', 'Nice 1 [patch]: rename w — src/export.ts:1 — deferred', '', '## Round 3', '', 'Nice 1 [patch]: a comment typo — src/export.ts:2 — deferred', '', '## Round 4', '', 'Should 1 [patch]: a comma is not quoted — src/export.ts:9 — open', ''].join('\n');
 
 /** A sandbox on `main` (with a faked `origin/main`) holding the cross-ticket cases above plus `extra` plain draft tickets. The caller removes it with `cleanup`. */
 export function narrowFixture(extra = 0): string {
@@ -64,6 +65,8 @@ export function narrowFixture(extra = 0): string {
   // the story's claim branch holds one more done task than the checkout, so `show` of it reads a different copy there than on main
   gitRun(repo, 'switch', '-q', '-c', 't/' + STORY);
   writeFileSync(join(repo, 'accord/tickets/' + STORY + '/ledger.md'), '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n');
+  // and a review record with four rounds, so the executor dispatch check of a hook in the story's worktree has an answer to refuse with
+  writeFileSync(join(repo, 'accord/tickets/' + STORY + '/review.md'), REVIEW);
   commitMsg(repo, 'claim: ' + STORY, undefined, true);
   gitRun(repo, 'switch', '-q', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/' + ORIGIN_ONLY);

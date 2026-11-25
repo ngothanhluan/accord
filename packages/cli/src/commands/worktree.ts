@@ -1587,8 +1587,68 @@ function takeCleanLock(dir: string): { fd: number; file: string } | string {
 }
 
 /** D-05, D-16: fetch, prune stale remote refs, then (ST-LN-25 D-08) remove the worktree and delete the local branch of each ticket that is done on origin's main, then (ST-LN-34) those of dropped tickets, naming what is removed, deleted or kept. */
-export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList; until?: number; dry?: 'online' | 'offline' } = {}): number {
+export interface CleanOpts {
+  fetched?: 'ok' | 'failed' | 'none';
+  skip?: string;
+  seen?: SeenList;
+  until?: number;
+  dry?: 'online' | 'offline';
+  /** Phase 15 D-20: the id of a ticket whose pull request merged; this session's hold on it is dropped, from outside its worktree, before the usual clean. */
+  afterMerge?: string;
+}
+
+/** The worktree of ticket `id`: the one whose branch reads back as it, else the one the record of accord's worktrees names for it. */
+function worktreeOfTicket(ctx: CommandContext, id: string): PrunableEntry | undefined {
+  const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
+  const list = listWorktrees(ctx.root).filter((w) => w.prunable === undefined);
+  const byBranch = list.find((w) => w.branch !== undefined && ticketOfBranch(w.branch, templates, (i) => i === id, ctx.snapshot.config) === id);
+  if (byBranch !== undefined) return byBranch;
+  const recorded = readRecorded(ctx.root).filter((e) => e.id === id);
+  return list.find((w) => recorded.some((e) => norm(e.path) === norm(w.path)));
+}
+
+/**
+ * Phase 15 D-20, Pitfall 2, T-15-16: `--after-merge` never targets the folder the caller stands in. Refuses (exit 2) when `ctx.root` is `id`'s worktree or inside it;
+ * returns the worktree otherwise (undefined when the ticket has none).
+ */
+function afterMergeTarget(ctx: CommandContext, id: string): PrunableEntry | undefined {
+  if (!ID.test(id)) throw new UsageError(`--after-merge needs a ticket id, not ${JSON.stringify(id)}`);
+  const w = worktreeOfTicket(ctx, id);
+  if (w === undefined) return undefined;
+  const here = norm(ctx.root);
+  const there = norm(w.path);
+  if (here === there || here.startsWith(there + '/')) {
+    throw new UsageError(withNext('leave-first', `${w.path} is the worktree this session stands in: leave it first (ExitWorktree keep), then run accord worktree clean --after-merge ${id} again from the main checkout`));
+  }
+  return w;
+}
+
+/** The hold of `id` whose marker is this Claude Code session's, or undefined: another session's hold and a tool with no hold are never touched. */
+function ownHoldOf(ctx: CommandContext, holds: Record<string, Hold>, id: string): Hold | undefined {
+  const claude = claudeEnv(ctx.env);
+  const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
+  return claude !== undefined && h?.marker === claude.marker ? h : undefined;
+}
+
+/** D-20: drop this session's hold on `id`, under the holds lock; the clean that follows judges the folder by every guard as before. */
+function releaseOwnHold(ctx: CommandContext, id: string): void {
+  let dropped = false;
+  try {
+    withHolds(ctx.root, (holds) => {
+      if (ownHoldOf(ctx, holds, id) === undefined) return undefined;
+      dropped = true;
+      return Object.fromEntries(Object.entries(holds).filter(([k]) => k !== id));
+    });
+  } catch (e) {
+    cleanSay(ctx, `note ${id}: the hold of this session could not be dropped: ${firstLine(e instanceof UsageError ? e.message : e)}`);
+    return;
+  }
+  if (dropped) ctx.stdout.write(`released the hold of ${id}: this session left its worktree\n`);
+}
+
+export function worktreeClean(ctx: CommandContext, opts: CleanOpts = {}): number {
   const accord = git(ctx.root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord';
+  if (opts.afterMerge !== undefined) afterMergeTarget(ctx, opts.afterMerge);
   // D-03: a dry run writes nothing, the lock file included; it reads what a real run reads
   if (opts.dry !== undefined) return cleanLocked(ctx, opts, accord);
   const lock = takeCleanLock(accord);
@@ -1597,6 +1657,7 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
     return 0;
   }
   try {
+    if (opts.afterMerge !== undefined) releaseOwnHold(ctx, opts.afterMerge);
     return cleanLocked(ctx, opts, accord);
   } finally {
     closeSync(lock.fd);
@@ -1604,7 +1665,7 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   }
 }
 
-function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList; until?: number; dry?: 'online' | 'offline' }, accord: string): number {
+function cleanLocked(ctx: CommandContext, opts: CleanOpts, accord: string): number {
   const seen = opts.seen ?? {};
   if (opts.dry !== undefined) seen.dry = opts.dry;
   readList(ctx, seen);
@@ -1634,6 +1695,18 @@ function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'n
     gone: opts.dry === undefined ? undefined : new Set(pruned.keys()),
     facts: opts.dry === 'offline' ? readCleanFacts(ctx.root, ref) : undefined,
   };
+  // D-20, D-03: a dry run judges the folder as the real run will, with this session's hold already dropped, and writes nothing
+  if (opts.dry !== undefined && opts.afterMerge !== undefined) {
+    try {
+      const all = readHoldsFile(ctx.root);
+      if (ownHoldOf(ctx, all, opts.afterMerge) !== undefined) {
+        ctx.stdout.write(`would release the hold of ${opts.afterMerge}: this session left its worktree\n`);
+        state.holds = Object.fromEntries(Object.entries(all).filter(([k]) => k !== opts.afterMerge));
+      }
+    } catch {
+      // an unreadable holds file is named by the guards below
+    }
+  }
   const merged = mergedTips(ctx.root, ref);
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
   if (halted(state)) return 0;

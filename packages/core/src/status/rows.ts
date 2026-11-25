@@ -35,6 +35,20 @@ export interface StatusRow {
   claimedBy?: string; // host-supplied author of the claim branch
   branch?: string; // the claim branch, or the name a new claim would use
   idleDays?: number; // whole days since the newest activity, present only when greater than stale_days
+  waitingSince?: string; // Phase 15 D-22: ISO 8601 UTC time of the newest activity of a ticket verified on its claim branch and not yet done on the default ref, a pull request waiting for its merge; display only, no gate reads it
+}
+
+/**
+ * Phase 15 D-22: how long a pull request has waited, as the text dashboard says it: whole minutes under an hour, whole hours under two days, else whole days. Pure: `now` is in milliseconds and a time
+ * that does not parse gives undefined, so a row never fails to draw. The pane's `view.js` holds the same rule for its own draw (it is a plain script and cannot import this one).
+ */
+export function waitingAge(since: string, now: number): string | undefined {
+  const at = Date.parse(since);
+  if (Number.isNaN(at)) return undefined;
+  const minutes = Math.max(0, Math.floor((now - at) / 60000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
 // Code-point order, never a locale-aware compare, so the goldens are identical on every host.

@@ -182,6 +182,8 @@ export type { CommitRule, CommitRuleOf } from './commits/rule.js';
 // Phase 8.1 D-01, D-03: the pull request body from the team's template, every heading kept.
 export { epicBody, fillTemplate, findTemplate, prFacts, prTitle, prTitleProblem, templateSections, todaysBody } from './pr/template.js';
 export type { PrFacts, TemplateSection } from './pr/template.js';
+export { checkName, headCommitDate, prWaitVerdict } from './pr/wait.js';
+export type { InlineComment, PrView, WaitGate, WaitVerdict } from './pr/wait.js';
 export { anchorText } from './status/anchor.js';
 export { EPIC_LESSONS, EPIC_ROLES, epicBlock } from './status/epic.js';
 export { ticketDetail, ticketWarnings } from './status/show.js';
@@ -191,7 +193,7 @@ export type { CriterionDetail, CriterionLabel, TicketDetail, TicketLogEntry, Tic
 export { reviewSummary } from './status/review.js';
 export type { FindingTally, ReviewRoundSummary, ReviewSummary } from './status/review.js';
 export { rulesetText, sessionLine } from './status/session.js';
-export { nextRows, statusRows } from './status/rows.js';
+export { nextRows, statusRows, waitingAge } from './status/rows.js';
 export { dashboard, isOpenWork } from './status/dashboard.js';
 export { BASELINE_LISTED, baselineGap, branchGaps, deferredGaps, draftAge, draftStaleGaps, leftoverGaps, NO_COMMAND_BRANCH, SAFE_BRANCH, SAFE_ID, ticketIdleGaps } from './audit/hygiene.js';
 export type { ClaimRefFact, OldDraft } from './audit/hygiene.js';

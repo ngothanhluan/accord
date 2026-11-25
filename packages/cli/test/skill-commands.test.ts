@@ -43,9 +43,13 @@ function commandPaths(node: Command, prefix = ''): string[] {
   return out.sort();
 }
 
-const REAL = commandPaths(
-  buildProgram({ cwd: '.', stdout: new PassThrough(), stderr: new PassThrough() }, () => {}),
-);
+// Phase 15 15-06: `accord pr` became a group (`pr build`, `pr wait`) whose default subcommand is `build`, so `accord pr <id>` still runs; pr-command.test.ts holds that.
+// A group with a default subcommand is a path a skill may name as well, so it is listed here, by name.
+const GROUPS_WITH_A_DEFAULT = ['pr'];
+const REAL = [
+  ...commandPaths(buildProgram({ cwd: '.', stdout: new PassThrough(), stderr: new PassThrough() }, () => {})),
+  ...GROUPS_WITH_A_DEFAULT,
+].sort();
 
 /**
  * Blank whole lines rather than delete them, so reported line numbers stay accurate
@@ -100,7 +104,7 @@ function mentions(files: SkillFile[]): Mention[] {
 
 describe('the commands a skill may name (SKILL-08, D-110)', () => {
   it('reads the real paths off the commander tree the CLI runs', () => {
-    expect(REAL).toEqual(['anchor', 'approve', 'audit', 'brief', 'budget', 'commit check', 'commit message', 'config areas', 'config check', 'config get', 'config set', 'config unset', 'conventions write', 'dashboard', 'debug path', 'deferred', 'diff-package', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'off', 'on', 'pr', 'related', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'subject', 'task-done', 'tests baseline', 'tests skipped', 'trust', 'upgrade', 'waves', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync', 'worktree task clean', 'worktree task merge', 'worktree task open']);
+    expect(REAL).toEqual(['anchor', 'approve', 'audit', 'brief', 'budget', 'commit check', 'commit message', 'config areas', 'config check', 'config get', 'config set', 'config unset', 'conventions write', 'dashboard', 'debug path', 'deferred', 'diff-package', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'off', 'on', 'pr', 'pr build', 'pr wait', 'related', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'subject', 'task-done', 'tests baseline', 'tests skipped', 'trust', 'upgrade', 'waves', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync', 'worktree task clean', 'worktree task merge', 'worktree task open']);
   });
 
   it('treats a namespace with no action of its own as not a command', () => {

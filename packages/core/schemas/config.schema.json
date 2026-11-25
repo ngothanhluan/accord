@@ -100,7 +100,10 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["mode"],
-      "properties": { "mode": { "type": "string", "enum": ["human", "outcome"] } }
+      "properties": {
+        "mode": { "type": "string", "enum": ["human", "outcome"] },
+        "post": { "type": "string", "enum": ["draft"] }
+      }
     },
     "models": {
       "type": "object",
@@ -347,6 +350,7 @@
       "additionalProperties": false,
       "properties": {
         "template": { "type": "string", "minLength": 1, "maxLength": 260, "pattern": "^(?![A-Za-z]:)(?!/)(?!(?:.*/)?\\.\\.(?:/|$))[^\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029\\p{Cf}\\\\]+$" },
+        "wait_minutes": { "type": "string", "pattern": "^([1-9]|[1-9][0-9]|1[01][0-9]|120)$" },
         "command": { "type": "string", "minLength": 1, "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029\\p{Cf}]+$" }
       }
     },

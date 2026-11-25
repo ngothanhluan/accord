@@ -18,6 +18,7 @@ import { audit } from './commands/audit.js';
 import { commitCheck, commitMessage } from './commands/commit.js';
 import { conventionsWrite } from './commands/conventions.js';
 import { pr } from './commands/pr.js';
+import { prWait } from './commands/pr-wait.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
@@ -372,11 +373,19 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     });
 
   // Phase 8.1 D-01, D-03: the title and the body file of a ticket's pull request, from the team's template and what the ticket knows; `gh pr create` itself stays in the skills.
-  program
-    .command('pr <id>')
+  // Phase 15 D-22: `pr` is a group so `pr wait <id>` can sit beside the body builder; `accord pr <id>` still means `accord pr build <id>`.
+  const prGroup = program.command('pr').description("a ticket's pull request: build writes its title and body file (the default: accord pr <id>), wait follows it until it merged, closed, got feedback or a failed check, or the limit passed");
+  prGroup
+    .command('build <id>', { isDefault: true })
     .description("write the body file of a ticket's pull request from the repository's PR template with every heading kept and the ticket's id, title, Intent, criteria and test evidence filled in, and print title: <title>, body-file: <path>, template: <path>, and one remaining: <heading> line per section left for you to write; the skill then runs gh pr create --title <title> --body-file <path>")
     .action((id: string) => {
       setCode(pr(preflight(opts), id));
+    });
+  prGroup
+    .command('wait <id>')
+    .description("follow a ticket's pull request with gh, asking every 45 seconds and running no model, and end on the first of: merged, closed, new feedback from a collaborator, a failed check, or the limit (pr.wait_minutes); the last line printed is pr-wait: <merged|closed|feedback|ci-failed|limit> ...; reads only, writes nothing; exit 2 when gh is missing or not logged in or no pull request has the ticket's branch")
+    .action((id: string) => {
+      setCode(prWait(preflight(opts), id));
     });
 
   // ST-LN-50 D-11: the deterministic way to change accord/config.yml; every subcommand reads the repository, so each goes
@@ -486,8 +495,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('clean')
     .description('fetch, then remove the worktree, the local branch and the origin branch of each ticket done on the default branch, delete the worktree and branches of tickets dropped there when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept; with --dry-run it prints the same lines and removes and deletes nothing')
     .option('--dry-run', 'print what a real clean would remove or delete, and remove or delete nothing; it still fetches, and it assumes each git step succeeds')
-    .action((o: { dryRun?: boolean }) => {
-      setCode(worktreeClean(preflight(opts), o.dryRun === true ? { dry: 'online' } : {}));
+    .option('--after-merge <id>', "after the ticket's pull request merged, from outside its worktree: first drop this Claude Code session's hold on <id>, then the usual clean with every guard; refused (exit 2) when run inside <id>'s worktree, and no other hold is touched")
+    .action((o: { dryRun?: boolean; afterMerge?: string }) => {
+      setCode(worktreeClean(preflight(opts), { ...(o.dryRun === true ? { dry: 'online' as const } : {}), ...(o.afterMerge === undefined ? {} : { afterMerge: o.afterMerge }) }));
     });
   worktree
     .command('check')

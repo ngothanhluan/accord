@@ -1882,7 +1882,10 @@ it('risk:regression the worktree reference and the finish report say a session s
       expect(wt, dir).toContain(s);
   }
   for (const name of ['new', 'verify']) {
-    expect(flatS(besidePath(name, 'finish.md')), name).toContain("Never wait for the merge, and never remove the ticket's worktree or branches by hand");
+    // Phase 15 plan 07 (D-19): the finish report no longer says "Never wait for the merge"; it hands over to ./pr-wait.md, and the rule about removing by hand stays
+    expect(flatS(besidePath(name, 'finish.md')), name).toContain("Never remove the ticket's worktree or branches by hand");
+    expect(flatS(besidePath(name, 'finish.md')), name).not.toContain('Never wait for the merge');
+    expect(flatS(besidePath(name, 'finish.md')), name).toContain('follow `./pr-wait.md` in place of ending the turn');
     expect(flatS(besidePath(name, 'finish.md')), name).toContain(
       "A /clear in this finishing session keeps its worktree (`kept <path>: this session's worktree`): the folder goes only after this session has ended, at a session started in another folder, so tell the owner to close this session once the pull request is merged.",
     );
@@ -2477,7 +2480,10 @@ it('risk:complex-branching a request about accord itself goes to its command and
 it('risk:regression no skill switches a session between tickets (ST-LN-83 7-ac-2)', () => {
   const all = routedRender();
   expect(all.length).toBeGreaterThan(100);
-  expect(all.filter((f) => f.text.includes('ExitWorktree')).map((f) => f.path)).toEqual([]);
+  // Phase 15 plan 07 (D-20): the one place that names ExitWorktree is the wait after a merge, where the finishing session leaves its own folder (action keep) before the clean; no skill moves a session to another ticket
+  const exits = all.filter((f) => f.text.includes('ExitWorktree'));
+  expect(exits.filter((f) => !/(^|\/)accord\/pr-wait\.md$/.test(f.path)).map((f) => f.path)).toEqual([]);
+  for (const f of exits) expect(f.text, f.path).not.toMatch(/ExitWorktree[^.]{0,40}action `remove`/);
   expect(all.filter((f) => /releas\w* (?:the |its |a |that |this )?hold/i.test(f.text)).map((f) => f.path)).toEqual([]);
   // the routing text sends a change to another ticket to its own session, never moves this one
   const routes = all.filter((f) => f.path.endsWith('/route.md'));

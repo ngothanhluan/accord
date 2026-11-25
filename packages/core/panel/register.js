@@ -198,9 +198,150 @@ function scheduleTicketRefresh($) {
 }
 
 // Phase 08.9.2 D-01: every process the pane starts is the hook launcher at the pinned version, run with `node`; the argv is one array with no shell, and the root is one word whatever it holds.
+const rootOf = async ($) => String(await $.session.root()).replace(/[\\/]+$/, '');
+
 async function cli($, words) {
-  const root = String(await $.session.root()).replace(/[\\/]+$/, '');
-  return $.process.run(['node', root + '/.claude/accord.mjs', 'ACCORD_PACKAGE_VERSION', ...words], { timeoutMs: 120000 });
+  return $.process.run(['node', (await rootOf($)) + '/.claude/accord.mjs', 'ACCORD_PACKAGE_VERSION', ...words], { timeoutMs: 120000 });
+}
+
+// Phase 08.9.2 D-06: the text of the dashboard run the pane draws now. Display only: no gate, record or decision reads it or the cache.
+let drawnText;
+// counts the draw-path runs that settled; a background run that began before the newest one is dropped, since its picture is older than the one drawn
+let generation = 0;
+let fetching = false;
+
+// a path as words joined by `/` with `.` and `..` resolved; a `rel` that starts at a root (a slash, a backslash or a drive) replaces `base`
+function joinPath(base, rel) {
+  const abs = /^([\\/]|[A-Za-z]:)/.test(rel);
+  const out = [];
+  for (const part of (abs ? rel : base + '/' + rel).split(/[\\/]+/)) {
+    if (part === '.') continue;
+    if (part === '..') {
+      if (out.length > 1) out.pop();
+      continue;
+    }
+    out.push(part);
+  }
+  return out.join('/');
+}
+
+// Phase 08.9.2 D-06: the session's git folder through `$.fs` alone (no git process): `.git` is a folder, or a file whose `gitdir:` line names this worktree's folder. Undefined when it cannot be read.
+async function gitDirOf($, root) {
+  try {
+    const dot = root.replace(/[\\/]+/g, '/') + '/.git';
+    const kind = (await $.fs.stat(dot))?.kind;
+    if (kind === 'dir') return dot;
+    if (kind !== 'file') return undefined;
+    const line = /^gitdir:\s*(.+?)\s*$/m.exec(String(await $.fs.read(dot)));
+    return line === null ? undefined : joinPath(root, line[1]);
+  } catch {
+    return undefined;
+  }
+}
+
+// the folder every worktree of the clone shares: the `commondir` file of a worktree's folder, else the folder itself
+async function commonDirOf($, gitDir) {
+  try {
+    const text = String(await $.fs.read(gitDir + '/commondir')).trim();
+    if (text !== '') return joinPath(gitDir, text);
+  } catch {
+    // a main checkout has no commondir
+  }
+  return gitDir;
+}
+
+// Phase 08.9.2 D-03: whether this person switched accord off for the clone (the marker file in the common folder); a folder that cannot be read counts as on
+async function isOff($, root) {
+  try {
+    const dir = await gitDirOf($, root);
+    return dir !== undefined && (await $.fs.exists((await commonDirOf($, dir)) + '/accord-off')) === true;
+  } catch {
+    return false;
+  }
+}
+
+// Phase 08.9.2 D-06, T-08.9.2-32: the saved dashboard, from the worktree's git folder and then the plugin store; used only when it is this version's, parses as JSON and is a dashboard the view accepts. Never a gate's input.
+async function readCache($, root) {
+  const candidates = [];
+  const dir = await gitDirOf($, root);
+  if (dir !== undefined) {
+    try {
+      candidates.push(await $.fs.read(dir + '/accord-panel.json'));
+    } catch {
+      // not there, or refused: the store is tried next
+    }
+  }
+  try {
+    candidates.push(await $.store.get('cache:' + root));
+  } catch {
+    // no store
+  }
+  for (const raw of candidates) {
+    try {
+      const saved = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (typeof saved !== 'object' || saved === null || saved.v !== 'ACCORD_PACKAGE_VERSION' || typeof saved.text !== 'string') continue;
+      const read = outcome({ exitCode: 0, stdout: saved.text, stderr: '' });
+      if (read.dashboard !== undefined) return { text: saved.text, state: read };
+    } catch {
+      // a file that is not JSON is no cache
+    }
+  }
+  return undefined;
+}
+
+// Phase 08.9.2 D-06 (RESEARCH A4): into the worktree's git folder; a refusal, or no folder, moves it to the plugin store under `cache:<root>`
+async function writeCache($, root, text) {
+  const saved = { v: 'ACCORD_PACKAGE_VERSION', savedAt: Date.now(), text };
+  const dir = await gitDirOf($, root);
+  if (dir !== undefined) {
+    try {
+      await $.fs.write(dir + '/accord-panel.json', JSON.stringify(saved));
+      return;
+    } catch {
+      // the host refuses the folder
+    }
+  }
+  try {
+    await $.store.set('cache:' + root, saved);
+  } catch {
+    // display only
+  }
+}
+
+// the saved result drawn first, once, when nothing is drawn yet
+async function primeFromCache($) {
+  if (state !== undefined) return;
+  try {
+    const saved = await readCache($, await rootOf($));
+    if (saved === undefined || state !== undefined) return;
+    state = saved.state;
+    drawnText = saved.text;
+    syncTicket($);
+  } catch {
+    // display only: nothing cached
+  }
+}
+
+// Phase 08.9.2 D-06 Ruling (background fetch): the run that fetches, off the draw path and single-flight; it redraws only when its text differs from the drawn text, and a failed or older run changes nothing.
+async function backgroundFetch($) {
+  if (fetching) return;
+  fetching = true;
+  const began = generation;
+  try {
+    const run = await cli($, ['dashboard', '--json']);
+    if (run.exitCode !== 0 || run.stdout === drawnText || began !== generation) return;
+    const next = outcome(run);
+    if (next.dashboard === undefined) return;
+    state = next;
+    drawnText = run.stdout;
+    syncTicket($);
+    await invalidate($);
+    await writeCache($, await rootOf($), drawnText);
+  } catch {
+    // display only: the drawn state stays
+  } finally {
+    fetching = false;
+  }
 }
 
 let running = false;
@@ -219,13 +360,21 @@ async function refresh($) {
       again = false;
       try {
         // Phase 08.9.2 D-05: the draw path is one run from local refs; the claimed ticket's detail comes in the same output as `currentDetail`
-        state = outcome(await cli($, ['dashboard', '--json', '--no-fetch']));
+        const run = await cli($, ['dashboard', '--json', '--no-fetch']);
+        state = outcome(run);
+        generation += 1;
+        if (state.dashboard !== undefined) drawnText = run.stdout;
       } catch (err) {
         state = failure(err);
       }
       syncTicket($);
       await reconcile($);
       await invalidate($);
+      // Phase 08.9.2 D-06: what was drawn is saved, then the run that fetches starts in the background
+      if (state.dashboard !== undefined) {
+        await guarded(async () => writeCache($, await rootOf($), drawnText));
+        void backgroundFetch($);
+      }
     } while (again);
   } finally {
     running = false;
@@ -359,8 +508,12 @@ async function start($) {
   if (active || opening) return;
   opening = true;
   try {
+    // Phase 08.9.2 D-03: while this person switched accord off for the clone the pane does not open unasked and no process runs; a typed /accord-panel (the command.run binding below) does not come here
+    if (await isOff($, await rootOf($).catch(() => ''))) return;
     await readList($);
     await loadSettings($);
+    // Phase 08.9.2 D-06: the last result is drawn by the first draw, before any process runs
+    await primeFromCache($);
     await $.ui.open({ id: 'accord-panel', title: 'accord' });
     active = true;
   } finally {
@@ -397,6 +550,7 @@ export function register(on) {
   on('command.run', { command: 'accord-panel' }, async ($) => {
     await readList($);
     await loadSettings($);
+    await primeFromCache($);
     const opened = await $.ui.open({ id: 'accord-panel', title: 'accord', focus: true });
     active = true;
     const pane = (await $.ui.panes()).find((p) => p.id === 'accord-panel');

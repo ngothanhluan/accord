@@ -9,5 +9,7 @@
   { "key": "stale_draft_days", "since": "0.10.0", "default": "90: an unclaimed ticket untouched for more than 90 days is an old draft in accord audit" },
   { "key": "branch_types", "since": "0.19.0", "default": "feat, fix, refactor, perf, docs, test, build, ci, chore, revert, hotfix: the words {type} may take in a branch name" },
   { "key": "branch_slug_length", "since": "0.19.0", "default": "40: the most characters {slug} takes from a ticket title" },
-  { "key": "hook_mode", "since": "0.20.0", "default": "full: every session start prints the rules, fetches and runs the worktree clean; quiet prints one line until /accord or a ticket's branch wakes accord" }
+  { "key": "hook_mode", "since": "0.20.0", "default": "full: every session start prints the rules, fetches and runs the worktree clean; quiet prints one line until /accord or a ticket's branch wakes accord" },
+  { "key": "pr.wait_minutes", "since": "0.21.0", "default": "120: a session that finished a ticket waits this many minutes on its pull request (1 to 120), then prints a reminder and stops" },
+  { "key": "review.post", "since": "0.21.0", "default": "draft: replies to pull request feedback wait for the owner (the only level)" }
 ]

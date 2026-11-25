@@ -20,7 +20,7 @@
         { "key": "branch_types", "text": "the words {type} may take in the branch template, at most 30, each a lower-case word such as fix; the default is feat, fix, refactor, perf, docs, test, build, ci, chore, revert and hotfix; a branch is found only by a word on this list, so removing a word while a ticket's branch carries it stops that branch being found, and a word is best removed between tickets" },
         { "key": "branch_slug_length", "text": "the most characters {slug} takes from the ticket title, a whole number from 1 to 99; the default is 40" },
         { "key": "commits", "text": "the wording of every commit accord writes (commits.subjects), the rule a commit message must pass (commits.message) and whether trailers are allowed (commits.trailers); tickets in flight keep working because the old wording is kept as commits.legacy_subjects; commits.message.command is a script the repository declares, and nothing runs until the person runs accord trust" },
-        { "key": "pr", "text": "how a ticket's pull request title and body are made: pr.template names the template file, and pr.command is a script the repository declares that builds them, which runs only after the person runs accord trust" },
+        { "key": "pr", "text": "how a ticket's pull request title and body are made: pr.template names the template file, and pr.command is a script the repository declares that builds them, which runs only after the person runs accord trust; pr.wait_minutes is how long a finished session waits on its pull request, 1 to 120 minutes, and the default is 120" },
         { "key": "queue", "text": "what happens to the pull request that only queues an idea as a draft ticket: queue.merge owner leaves it for the owner to merge, at-once merges it as soon as it opens" }
       ]
     },
@@ -39,7 +39,7 @@
       "id": "review",
       "title": "Review and models",
       "keys": [
-        { "key": "review", "text": "how a ticket is approved at verify: mode human means a person ticks the verification by hand, and mode outcome means accord asks the owner one approve-or-not-yet question after its report" },
+        { "key": "review", "text": "how a ticket is approved at verify: mode human means a person ticks the verification by hand, and mode outcome means accord asks the owner one approve-or-not-yet question after its report; review.post is how far replies to pull request comments go, and draft, the default and only level, holds every reply for the owner" },
         { "key": "models", "text": "which model and effort each accord agent uses (scout, critic, planner, executor, reviewer and the others); an agent with no entry uses its own default" },
         { "key": "escalation", "text": "from which fix round a fix executor is dispatched one model tier above the configured one (escalation.fix_round_tier_up, default 4)" },
         { "key": "strictness", "text": "how strict the gates are: strictness.rounds sets the round caps of the approach, plan and review stages, strictness.levels turns a gate or lint rule to a warning or off within the floor accord keeps, and strictness.stages switches a stage on or off" },

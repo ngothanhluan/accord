@@ -1,5 +1,6 @@
 // Phase 08.9.2 D-04, D-07: a full-mode session start tells the person, once, how to switch accord off for themselves in this clone. The line follows the session body, comes
 // before the clean's report, never shows on a resume, and an off clone prints nothing at all.
+import { readFileSync } from 'node:fs';
 import { afterEach, expect, it } from 'vitest';
 import { OFF_LINE } from '../src/commands/off.js';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run } from './helpers/repo.js';
@@ -58,4 +59,37 @@ it('risk:regression session resume and an off clone print no off line (D-04)', a
   const off = await run(['hook', 'session-start'], repo, {}, startInput(repo));
   expect(off.code).toBe(0);
   expect(off.out).toBe('');
+});
+
+// Phase 08.9.2 Ruling-off-accord: `accord worktree check` is the first command /accord runs; when the person switched accord off it names the switch with its next action, and its exit code stays.
+it('risk:regression worktree check names the off switch with its next action and keeps its exit code (Ruling-off-accord)', async () => {
+  const repo = repoOnDefaultBranch();
+  const on = await run(['worktree', 'check'], repo);
+  expect(on.code).toBe(0);
+  expect(on.out).toBe('');
+
+  expect((await run(['off'], repo)).code).toBe(0);
+  const off = await run(['worktree', 'check'], repo);
+  expect(off.code).toBe(0);
+  expect(off.err).toBe('');
+  const lines = off.out.split('\n').filter((l) => l !== '');
+  expect(lines).toHaveLength(1);
+  expect(lines[0]).toMatch(/^accord is switched off for you in this clone - next: /);
+  expect(lines[0]).toContain('node .claude/accord.mjs on');
+  expect(lines[0]).toContain('yes');
+});
+
+// Phase 08.9.2 D-04: the readme tells anyone how to work in an accord repository without accord, in both copies.
+it('risk:regression the readme explains how to work in an accord repository without accord (D-04)', () => {
+  const heading = '### 10. Not using accord in this repository';
+  const root = readFileSync(new URL('../../../README.md', import.meta.url), 'utf8');
+  const cli = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  expect(cli).toContain(heading);
+  expect(root).toContain(heading);
+  const start = root.indexOf(heading);
+  const end = root.indexOf('\n## ', start);
+  const section = root.slice(start, end < 0 ? undefined : end);
+  expect(section).toContain('node .claude/accord.mjs off');
+  expect(section).toContain('node .claude/accord.mjs on');
+  expect(section).toContain('accord-off');
 });

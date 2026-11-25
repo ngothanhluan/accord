@@ -56,10 +56,10 @@ it('risk:resource gate ready opens as many ticket files at 5 and at 50 extra tic
   await sameAt5And50(['gate', 'ready', STORY, '--json']);
 }, 300_000);
 
-// Phase 08.9.2 Ruling-structural: Plan, Done and the anchor of a story under an epic open the same ticket files at 5 and at 50 extra tickets, and the anchor on the default branch opens none.
-it('risk:resource gate plan gate done and anchor open as many ticket files at 5 and at 50 extra tickets (Ruling-structural)', async () => {
+// Phase 08.9.2 Ruling-structural: Plan and the anchor of a story under an epic open the same ticket files at 5 and at 50 extra tickets, and the anchor on the default branch opens none.
+// Done is not here: since the review fix CR-01 it takes the full load, because `gate.test-untraced` reads the `@test:` tags of every ticket.
+it('risk:resource gate plan and anchor open as many ticket files at 5 and at 50 extra tickets (Ruling-structural)', async () => {
   await sameAt5And50(['gate', 'plan', STORY, '--json']);
-  await sameAt5And50(['gate', 'done', STORY, '--json']);
   await sameAt5And50(['anchor', STORY]);
   await sameAt5And50(['anchor'], 'story worktree');
   expect(await sameAt5And50(['anchor']), 'the anchor on the default branch names no ticket, so it opens no ticket file').toBe(0);

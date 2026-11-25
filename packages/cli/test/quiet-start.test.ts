@@ -1,8 +1,9 @@
 // Phase 08.9.2 D-02, L-02, L-03: with `hook_mode: quiet` in the checkout's accord/config.yml a session start prints one line (and the off line) and starts no git process,
-// unless the session opens on a ticket's branch, where it starts in full. A value that is not exactly `quiet` means full. The launcher's byte-identical answer is 08.9.2-16's.
-import { mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+// unless the session opens on a ticket's branch, where it starts in full. A value that is not exactly `quiet` means full. The launcher's byte-identical answer (08.9.2-16) is the last two cases.
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
 import { QUIET_LINE } from '../src/commands/hook-early.js';
 import { OFF_LINE } from '../src/commands/off.js';
@@ -122,5 +123,112 @@ it('risk:parsing a hook_mode that is not exactly quiet means full (D-02)', async
     const repo = repoWith(line);
     const start = await run(['hook', 'session-start'], repo, {}, startInput(repo));
     expect(start.out, `"${line}" is quiet`).toBe(QUIET_LINE + '\n' + OFF_LINE + '\n');
+  }
+});
+
+type Launch = (io: Record<string, unknown>) => number;
+const launcherHref = pathToFileURL(fileURLToPath(new URL('../../core/launcher/accord.mjs', import.meta.url))).href;
+const VERSION = '1.2.3';
+
+/** One launcher call with the real fs and a spawn stub; the launcher file is said to sit in `<checkout>/.claude/`, and the cache holds a bundle of VERSION so a spawn is the bundle's. */
+async function launcherCall(checkout: string, cache: string, event: string): Promise<{ code: number; out: string; err: string; spawns: string[][]; stdinReads: number }> {
+  const { launch } = (await import(/* @vite-ignore */ launcherHref)) as { launch: Launch };
+  const fs = await import('node:fs');
+  const spawns: string[][] = [];
+  let stdinReads = 0;
+  let out = '';
+  let err = '';
+  const code = launch({
+    argv: [VERSION, 'hook', event],
+    env: { LOCALAPPDATA: cache, XDG_CACHE_HOME: cache },
+    platform: platform(),
+    homedir: cache,
+    execPath: process.execPath,
+    pid: process.pid,
+    launcherPath: join(checkout, '.claude', 'accord.mjs'),
+    readStdin: () => {
+      stdinReads += 1;
+      return startInput(checkout);
+    },
+    fs: { existsSync: fs.existsSync, mkdirSync: fs.mkdirSync, readdirSync: fs.readdirSync, readFileSync: fs.readFileSync, renameSync: fs.renameSync, rmSync: fs.rmSync, statSync: fs.statSync },
+    spawnSync: (_cmd: string, args: string[]) => {
+      spawns.push(args);
+      return { status: 0, stdout: '', stderr: '' };
+    },
+    now: Date.now,
+    sleep: () => undefined,
+    stdout: { write: (t: string) => (out += t) },
+    stderr: { write: (t: string) => (err += t) },
+  });
+  return { code, out, err, spawns, stdinReads };
+}
+
+/** An empty cache base holding the bundle file of VERSION (the launcher only checks that it exists). */
+function cacheWithBundle(): string {
+  const cache = mkdtempSync(join(tmpdir(), 'accord-quiet-cache-'));
+  dirs.push(cache);
+  const bundle = join(cache, 'accord', 'versions', VERSION, 'node_modules', 'ACCORD_PACKAGE_NAME', 'dist');
+  mkdirSync(bundle, { recursive: true });
+  writeFileSync(join(bundle, 'cli.js'), '');
+  return cache;
+}
+
+// Phase 08.9.2 L-03: the launcher prints the quiet answer itself, byte for byte as the CLI, and starts no process, reads no stdin and touches no cache.
+it('risk:resource the launcher prints the quiet line itself and matches the CLI byte for byte (L-03)', async () => {
+  const repo = repoWith('hook_mode: quiet');
+  const wt = linkedWorktree(repo, 'linked');
+  const cache = mkdtempSync(join(tmpdir(), 'accord-quiet-cache-'));
+  dirs.push(cache);
+
+  for (const folder of [repo, wt]) {
+    const where = folder === repo ? 'the checkout' : 'the linked worktree';
+    for (const [event, source] of [['session-start', 'startup'], ['session-resume', 'compact']] as const) {
+      const cli = await run(['hook', event], folder, {}, startInput(folder, source));
+      const launched = await launcherCall(folder, cache, event);
+      expect(launched.out, `${event} in ${where}`).toBe(cli.out);
+      expect(launched.out, `${event} in ${where}`).toBe(event === 'session-start' ? QUIET_LINE + '\n' + OFF_LINE + '\n' : QUIET_LINE + '\n');
+      expect(launched.err, where).toBe('');
+      expect(launched.code, where).toBe(0);
+      expect(launched.spawns, `processes the launcher started for ${event} in ${where}`).toEqual([]);
+      expect(launched.stdinReads, `stdin reads for ${event} in ${where}`).toBe(0);
+    }
+  }
+  expect(existsSync(join(cache, 'accord')), 'the cache is untouched').toBe(false);
+
+  // a detached HEAD names no branch: quiet in the launcher as in the CLI
+  gitRun(repo, 'checkout', '-q', '--detach');
+  const detached = await launcherCall(repo, cache, 'session-start');
+  expect(detached.out).toBe(QUIET_LINE + '\n' + OFF_LINE + '\n');
+  expect(detached.spawns).toEqual([]);
+
+  // a spelling that is not exactly quiet is full for the launcher too: it hands the call to the bundle
+  const full = repoWith('hook_mode:quiet');
+  const handed = await launcherCall(full, cacheWithBundle(), 'session-start');
+  expect(handed.out).toBe('');
+  expect(handed.spawns).toHaveLength(1);
+  // an unreadable config is full, never toward silence
+  const noConfig = repoWith('');
+  rmSync(join(noConfig, 'accord', 'config.yml'));
+  const unreadable = await launcherCall(noConfig, cacheWithBundle(), 'session-start');
+  expect(unreadable.spawns).toHaveLength(1);
+});
+
+// Phase 08.9.2 L-02: the launcher hands to the CLI every branch that holds a ticket id as a whole token, so each branch the CLI would wake reaches it; a branch with no whole-token id stays quiet.
+it('risk:regression the launcher hands a ticket-looking branch to the CLI (L-02)', async () => {
+  const repo = repoWith('hook_mode: quiet');
+  writeFiles(repo, { 'accord/tickets/ST-1.md': '# stub\n' });
+  commitAll(repo);
+
+  for (const [branch, handed] of [['t/T-1', true], ['notes-about-st-1-and-more', true], ['mist-12', false]] as const) {
+    const wt = linkedWorktree(repo, branch);
+    const cache = cacheWithBundle();
+    const launched = await launcherCall(wt, cache, 'session-start');
+    expect(launched.spawns.length, `${branch} reaches the bundle once or never`).toBe(handed ? 1 : 0);
+    if (handed) {
+      expect(launched.spawns[0].slice(1), branch).toEqual(['hook', 'session-start']);
+      expect(launched.out, branch).toBe('');
+    } else {
+      expect(launched.out, branch).toBe(QUIET_LINE + '\n' + OFF_LINE + '\n');
+    }
   }
 });

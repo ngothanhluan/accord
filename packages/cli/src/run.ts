@@ -26,6 +26,7 @@ import { configAreas, configCheck, configGet, configSet, configUnset } from './c
 import { gate } from './commands/gate.js';
 import { hook, HOOK_EVENTS } from './commands/hook.js';
 import { hookEarly } from './commands/hook-early.js';
+import { accordOff, accordOn } from './commands/off.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
@@ -418,6 +419,21 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("run as the newer accord: push a branch upgrade/<version> from origin's default branch whose one commit pins this version in config.yml, the workflow and the hooks, with the skill files skills sync writes; the checkout is not touched")
     .action(() => {
       setCode(upgrade({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} }));
+    });
+
+  // Phase 08.9.2 D-03, L-01: a person's own switch for this clone. A stated exception to the pin check, like `upgrade`: it must work whatever the repository pins and in a
+  // clone with no `accord/` folder, so it takes no `preflight`. It reads files and runs one `git check-ignore`; it calls no model.
+  program
+    .command('off')
+    .description('switch accord off for you in this clone: every accord hook stays silent in every worktree of it and the pane stays closed; writes a marker in the git common folder and sets the panel flag in .claude/settings.local.json; accord on switches it back')
+    .action(() => {
+      setCode(accordOff({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr }));
+    });
+  program
+    .command('on')
+    .description('switch accord back on for you in this clone: removes the marker accord off wrote and restores the panel flag as it was, touching no other key')
+    .action(() => {
+      setCode(accordOn({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr }));
     });
 
   // Phase 8.1 D-08, D-10: the optional audit of what a machine can see about a repository's conventions; it reads files, asks the npm registry at most once a day for the latest accord release, calls no model, and no gate runs it.

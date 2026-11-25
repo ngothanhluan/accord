@@ -34,11 +34,16 @@ export const PROTOTYPE = /^accord\/assets\/([^/]+)\/prototype\.html$/;
 /** D-29: backslashes become slashes and a leading ./ is dropped; the separator is never an error. */
 export const normaliseKey = (k: string): string => k.replace(/\\/g, '/').replace(/^\.\//, '');
 
-function parseTicket(id: string, file: string, text: string): { ticket: Ticket; findings: LoadFinding[] } {
+function parseTicket(id: string, file: string, text: string, frontmatterOnly: readonly string[] = []): { ticket: Ticket; findings: LoadFinding[] } {
   const fm = loadFrontmatter<TicketFrontmatter>(file, text, 'ticket');
   const findings = [...fm.findings];
   // D-21: ui defaults to false in the loader; D-34: id is kept verbatim.
   const frontmatter = fm.value === undefined ? undefined : { ...fm.value, ui: fm.value.ui ?? false };
+
+  // Phase 08.9.2 D-08: a ticket whose frontmatter status the caller listed keeps its frontmatter, its file and its id and nothing of its body (no scan, no gherkin), so no finding of the body either.
+  if (frontmatter?.status !== undefined && frontmatterOnly.includes(frontmatter.status)) {
+    return { ticket: { id, file, frontmatter, sections: [], requirements: [], scenarios: [] }, findings };
+  }
 
   const { sections, fences } = scan(fm.body, fm.bodyOffset);
   findings.push(...duplicateHeadings(file, sections, fm.value?.lane === undefined ? d07Key : laneKey));
@@ -72,7 +77,38 @@ function parseTicket(id: string, file: string, text: string): { ticket: Ticket; 
   return { ticket, findings };
 }
 
-export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
+/**
+ * Phase 08.9.2 D-08: one command's parse results, keyed by kind, path and text. A command builds up to three snapshots (view, checkout, default ref) that mostly hold the same
+ * files, and each result depends on nothing but that path and text, so the second and third snapshot reuse the first one's. The caller makes the Map, per command, and drops it with
+ * the command: nothing here is module-level and nothing is written to disk. A parsed value is shared between the snapshots that hit it, so no reader may mutate one.
+ */
+export type ParseMemo = Map<string, unknown>;
+
+/** The memoised result of `parse`, which must depend only on `kind`, `file` and `text`; without a memo, `parse` runs every time as before. */
+function memoised<T>(memo: ParseMemo | undefined, kind: string, file: string, text: string, parse: () => T): T {
+  if (memo === undefined) return parse();
+  const key = kind + '\u0000' + file + '\u0000' + text;
+  const hit = memo.get(key) as T | undefined;
+  if (hit !== undefined) return hit;
+  const value = parse();
+  memo.set(key, value);
+  return value;
+}
+
+/**
+ * Phase 08.9.2 D-08: `frontmatterOnly` lists ticket statuses (`dropped` today) whose files are read for their frontmatter only. Only the status and dashboard load path passes it: nothing a gate, lint or show prints
+ * may depend on a body that was not read, and `status --all` prints a row that does.
+ */
+export interface LoadOptions {
+  memo?: ParseMemo;
+  frontmatterOnly?: readonly string[];
+}
+
+export function loadSnapshot(input: SnapshotInput, options: LoadOptions = {}): RepoSnapshot {
+  const memo = options.memo;
+  const frontmatterOnly = options.frontmatterOnly ?? [];
+  // The mode is part of the memo key, so a full parse and a frontmatter-only parse of one text never share an entry.
+  const ticketKind = frontmatterOnly.length === 0 ? 'ticket' : 'ticket:' + frontmatterOnly.join(',');
   // D-26: a file name or a config value is a key of these maps; a null prototype keeps `__proto__` and `constructor` own keys like any other.
   const files: Record<string, string> = Object.create(null);
   for (const key of Object.keys(input.files).sort()) files[normaliseKey(key)] = input.files[key];
@@ -117,14 +153,14 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
   for (const file of Object.keys(files).sort()) {
     const t = TICKET.exec(file);
     if (t) {
-      const r = parseTicket(t[1], file, files[file]);
+      const r = memoised(memo, ticketKind, file, files[file], () => parseTicket(t[1], file, files[file], frontmatterOnly));
       tickets[t[1]] = r.ticket;
       errors.push(...r.findings);
       continue;
     }
     const v = VERIFICATION.exec(file);
     if (v) {
-      const r = parseVerification(v[1], file, files[file]);
+      const r = memoised(memo, 'verification', file, files[file], () => parseVerification(v[1], file, files[file]));
       verifications[v[1]] = r.verification;
       errors.push(...r.findings);
       continue;
@@ -178,11 +214,11 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     if (tickets[id].frontmatter?.lane === undefined) continue;
     const entry = Object.hasOwn(work, id) ? work[id] : (work[id] = {});
     if (kind === 'plan') {
-      const r = parsePlan(file, files[file]);
+      const r = memoised(memo, 'plan', file, files[file], () => parsePlan(file, files[file]));
       entry.plan = r.plan;
       errors.push(...r.findings);
     } else if (kind === 'ledger') {
-      entry.ledger = parseLedger(file, files[file]);
+      entry.ledger = memoised(memo, 'ledger', file, files[file], () => parseLedger(file, files[file]));
     } else if (kind === 'debug') {
       entry.debug = parseDebug(file, files[file]);
     } else if (kind === 'discuss') {
@@ -192,8 +228,8 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     } else if (kind === 'plan-review') {
       entry.planRounds = parseRounds(file, files[file], 'plan');
     } else {
-      entry.review = parseReview(file, files[file]);
-      entry.rounds = parseRounds(file, files[file], 'review');
+      entry.review = memoised(memo, 'review', file, files[file], () => parseReview(file, files[file]));
+      entry.rounds = memoised(memo, 'rounds-review', file, files[file], () => parseRounds(file, files[file], 'review'));
     }
   }
 

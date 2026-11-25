@@ -66,6 +66,10 @@ export interface CommandContext {
   // Checkout-only snapshot, set under 'claims': `show --approval` reads it, and a dependency counts as done on the
   // default branch (`snapshot.defaultRef`, BUG-LN-13 D-01), here only when no default ref resolves (BUG-LN-2 D-04).
   plain?: RepoSnapshot;
+  /** Phase 08.9.2 D-08: this command's parse memo (kind, path and text to the parsed value), made by `preflight` and handed to every `loadSnapshot` of the command, a reload included; it is one command's locals, dropped with it. */
+  memo?: Map<string, unknown>;
+  /** Phase 08.9.2 D-08: the ticket statuses this command's loads read for their frontmatter only (the default `status` listing and `dashboard` set it), kept so a reload reads the same way. */
+  frontmatterOnly?: readonly string[];
   /** ST-LN-63: the current branch of `root`, read once by the load (undefined name: git could not say; '' : detached); absent in light mode. */
   branch?: { name: string | undefined };
   stdout: NodeJS.WritableStream;
@@ -83,20 +87,31 @@ export interface CommandContext {
 }
 
 /**
+ * Phase 08.9.2 D-08: the ticket statuses `status` and `dashboard` read for their frontmatter only. `dropped` alone: no field of either command reads a dropped ticket's body (a dropped dependency is never done),
+ * while a done archived ticket decides the `blockedBy` of every ticket that depends on it (plan 03, fallback R-A, taken for `archived`).
+ */
+const DISPLAY_FRONTMATTER_ONLY: readonly string[] = ['dropped'];
+
+/**
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout', options: { pinCheck?: 'refuse' | 'report' } = {}): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout', options: { pinCheck?: 'refuse' | 'report'; display?: boolean } = {}): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
   // ST-LN-63: a light load keeps the parts it read, so a command that goes on to the full load does not read them twice.
   const lit = mode === 'light' ? loadLight(root) : undefined;
   const read = parts === undefined && lit === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
   const input = parts?.view ?? lit?.input ?? (read as NonNullable<typeof read>).input;
-  const loaded = loadSnapshot(input);
+  // Phase 08.9.2 D-08: one parse memo per command, handed to every load of it (view, checkout, default ref); it lives in this call's locals and on the context, never at module level.
+  const memo = new Map<string, unknown>();
+  // Phase 08.9.2 D-08: `display` is the status and dashboard path; a dropped ticket is read for its frontmatter only there, and by no other command.
+  const frontmatterOnly = options.display === true ? DISPLAY_FRONTMATTER_ONLY : undefined;
+  const loadOptions = frontmatterOnly === undefined ? { memo } : { memo, frontmatterOnly };
+  const loaded = loadSnapshot(input, loadOptions);
   // ST-LN-63: the branch the load read, handed on so no command asks git for it again (none in light mode).
   const branch = parts?.branch ?? read?.branch;
-  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout);
+  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout, loadOptions);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
@@ -112,8 +127,8 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
     if (message !== undefined) throw new UsageError(message);
   }
   // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
-  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs) : loaded;
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
+  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs, memo, frontmatterOnly) : loaded;
+  return { root, snapshot, memo, ...(frontmatterOnly === undefined ? {} : { frontmatterOnly }), ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
 }
 
 /**
@@ -502,7 +517,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     // The only async action: `status` may ask the tracker what it knows (INTG-01). `parseAsync`
     // awaits it, so the exit code is still settled before runCli returns.
     .action(async (options: { json?: boolean; all?: boolean }) => {
-      setCode(await status(preflight(opts, 'claims'), options));
+      // Phase 08.9.2 D-08: `--all` prints a row for every dropped ticket, and a row carries what the body says (findings, ready, ticks, stage), so only the default listing reads them for frontmatter only.
+      setCode(await status(preflight(opts, 'claims', { display: options.all !== true }), options));
     });
 
   program
@@ -517,8 +533,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('dashboard')
     .description('print the ranked sections for the viewer')
     .option('--json', 'print the Dashboard object instead of text')
-    .action(async (options: { json?: boolean }) => {
-      setCode(await dashboardCommand(preflight(opts, 'claims'), options));
+    .option('--no-fetch', 'draw from the refs already in this clone and fetch nothing')
+    .action(async (options: { json?: boolean; fetch?: boolean }) => {
+      setCode(await dashboardCommand(preflight(opts, 'claims', { display: true }), options));
     });
 
   program

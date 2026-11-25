@@ -1912,14 +1912,16 @@ export function droppedOn(root: string, ref: string, ids: readonly string[]): Se
  * ST-LN-25: a snapshot of `ref`'s config and the records of `ids`, read from the git tree with no checkout. ST-LN-94 CR-01: a lane R ticket's
  * listed research records are read from `ref` too, with its research fact at `ref`, so a merged R ticket reads done there.
  */
-export function snapshotAt(root: string, ref: string, ids: readonly string[]): RepoSnapshot {
+export function snapshotAt(root: string, ref: string, ids: readonly string[], memo?: Map<string, unknown>, frontmatterOnly?: readonly string[]): RepoSnapshot {
+  // Phase 08.9.2 D-08: the command's parse memo, when its caller has one, so the ref's records that equal the view's are parsed once; `frontmatterOnly` is the status and dashboard load path's, the same as the view's.
+  const options = { ...(memo === undefined ? {} : { memo }), ...(frontmatterOnly === undefined ? {} : { frontmatterOnly }) };
   const paths = ['accord/config.yml', ...ids.flatMap((i) => ['accord/tickets/' + i + '.md', 'accord/tickets/' + i + '/plan.md', 'accord/tickets/' + i + '/ledger.md', 'accord/tickets/' + i + '/review.md'])];
   const files = gitFilesAt(root, ref, paths);
-  const first = loadSnapshot({ files, tree: [] });
+  const first = loadSnapshot({ files, tree: [] }, options);
   const records = [...new Set(Object.values(first.tickets).filter((t) => t.frontmatter?.lane === 'R').flatMap((t) => (t.frontmatter?.research ?? []).filter(isResearchRecord)))];
   if (records.length === 0) return first;
   const researchFacts = researchFactsFor(root, first.tickets, { ref, rev: ref, ...(first.config === undefined ? {} : { config: first.config }) });
-  return loadSnapshot({ files: { ...files, ...gitFilesAt(root, ref, records) }, tree: [], ...(researchFacts === undefined ? {} : { researchFacts }) });
+  return loadSnapshot({ files: { ...files, ...gitFilesAt(root, ref, records) }, tree: [], ...(researchFacts === undefined ? {} : { researchFacts }) }, options);
 }
 
 /** CR-01: the default ref, read only when some lane R ticket lists research (the one git spawn a repository without one never pays). */
@@ -1950,12 +1952,12 @@ export function doneRef(root: string, known?: DefaultRefs): string | undefined {
 }
 
 /** BUG-LN-13: `snapshot` with `defaultRef` read by snapshotAt at doneRef, over the view's ticket ids and every depends_on entry; `snapshot` itself when no default ref resolves. */
-export function withDefaultRef(root: string, snapshot: RepoSnapshot, known?: DefaultRefs): RepoSnapshot {
+export function withDefaultRef(root: string, snapshot: RepoSnapshot, known?: DefaultRefs, memo?: Map<string, unknown>, frontmatterOnly?: readonly string[]): RepoSnapshot {
   const ref = doneRef(root, known);
   if (ref === undefined) return snapshot;
   const ids = new Set(Object.keys(snapshot.tickets));
   for (const t of Object.values(snapshot.tickets)) for (const dep of t.frontmatter?.depends_on ?? []) ids.add(dep);
-  return { ...snapshot, defaultRef: { ref, snapshot: snapshotAt(root, ref, [...ids]) } };
+  return { ...snapshot, defaultRef: { ref, snapshot: snapshotAt(root, ref, [...ids], memo, frontmatterOnly) } };
 }
 
 /** The ticket id shape every id of accord/tickets/ has: core's one id shape (Phase 08.8 D-17 IN-04). */

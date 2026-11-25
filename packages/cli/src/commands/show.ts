@@ -54,6 +54,36 @@ function offLines(ctx: CommandContext, lane: string | undefined, short: boolean)
   return off.length === 0 ? '' : (short ? '\n' : '\n\n') + off.join('\n') + '\n';
 }
 
+/** The detail of the lane ticket `id` as the claim view and the checkout read it; refuses a ticket with no lane (UsageError), as `show` does. */
+function laneDetail(ctx: CommandContext, id: string): TicketDetail {
+  requireLaneTicket(ctx, id);
+  const d = ticketDetail(ctx.snapshot, id, ctx.plain);
+  if (d === undefined) throw new Error('no detail for ' + id); // unreachable after requireLaneTicket
+  return d;
+}
+
+/**
+ * Phase 08.9.2 D-05: the JSON `show <id> --json` prints, built here so `dashboard --json` carries the very same object as `currentDetail`; one builder, so the cleaning of warnings, the now title, the
+ * task titles and the log text applies to both (T-08.8.1-08). It reads the session log (git), which the text output never does (Phase 08.7 D-09), and throws what `show` throws for a ticket with no lane.
+ */
+export function detailJson(ctx: CommandContext, id: string): Record<string, unknown> {
+  const d = laneDetail(ctx, id);
+  // Phase 8.2 D-07, D-08: the person through the one display function; the JSON keeps `holder` the email and adds `holderShown` beside it in initials mode only.
+  const who = whoFor(ctx.root, ctx.snapshot.config);
+  // Phase 08.7 D-04: the session log (commits, agent reports, gate runs); each text is cleaned as the text output cleans a line.
+  const log = ticketLog(ctx.root, id, ctx.snapshot.defaultRef?.ref).map((e) => ({ ...e, text: clean(e.text) }));
+  // Phase 08.8.1 D-05, D-02: a warning text carries a ticket key and a record path, cleaned as every other string the JSON holds.
+  // Phase 08.8.1 L-06, L-07: so do the plan's task titles, which a teammate or an agent wrote (T-08.8.1-08); each key keeps its place.
+  const warned: TicketDetail = {
+    ...d,
+    ...(d.warnings === undefined ? {} : { warnings: d.warnings.map((w) => ({ ...w, text: clean(w.text) })) }),
+    ...(d.now === undefined ? {} : { now: { ...d.now, title: clean(d.now.title) } }),
+    ...(d.tasks === undefined ? {} : { tasks: d.tasks.map((t) => ({ ...t, title: clean(t.title) })) }),
+  };
+  const detail = log.length === 0 ? warned : { ...warned, log };
+  return who.mode === 'initials' && d.holder !== null ? { ...detail, holderShown: who.show(d.holder) } : { ...detail };
+}
+
 export function show(ctx: CommandContext, id: string, options: { json?: boolean; approval?: boolean; short?: boolean }): number {
   if (options.short === true && options.approval !== true) throw new UsageError('--short goes with --approval');
   if (options.approval === true) {
@@ -82,26 +112,12 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
     ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout) + offLines(ctx, ticket.frontmatter?.lane, false));
     return 0;
   }
-  requireLaneTicket(ctx, id);
-  const d = ticketDetail(ctx.snapshot, id, ctx.plain);
-  if (d === undefined) throw new Error('no detail for ' + id); // unreachable after requireLaneTicket
-  // Phase 8.2 D-07, D-08: the Holder line shows the person through the one display function; the JSON keeps `holder` the email and adds `holderShown` beside it in initials mode only.
+  if (options.json === true) {
+    ctx.stdout.write(JSON.stringify(detailJson(ctx, id), null, 2) + '\n');
+    return 0;
+  }
+  const d = laneDetail(ctx, id);
   const who = whoFor(ctx.root, ctx.snapshot.config);
-  // Phase 08.7 D-04: the session log (commits, agent reports, gate runs) is read for the JSON only; the text output never reads it (D-09). Each text is cleaned as the text output cleans a line.
-  const log = options.json === true ? ticketLog(ctx.root, id, ctx.snapshot.defaultRef?.ref).map((e) => ({ ...e, text: clean(e.text) })) : [];
-  // Phase 08.8.1 D-05, D-02: a warning text carries a ticket key and a record path, cleaned as every other string the JSON holds.
-  // Phase 08.8.1 L-06, L-07: so do the plan's task titles, which a teammate or an agent wrote (T-08.8.1-08); each key keeps its place.
-  const warned: TicketDetail = {
-    ...d,
-    ...(d.warnings === undefined ? {} : { warnings: d.warnings.map((w) => ({ ...w, text: clean(w.text) })) }),
-    ...(d.now === undefined ? {} : { now: { ...d.now, title: clean(d.now.title) } }),
-    ...(d.tasks === undefined ? {} : { tasks: d.tasks.map((t) => ({ ...t, title: clean(t.title) })) }),
-  };
-  const detail = log.length === 0 ? warned : { ...warned, log };
-  ctx.stdout.write(
-    options.json === true
-      ? JSON.stringify(who.mode === 'initials' && d.holder !== null ? { ...detail, holderShown: who.show(d.holder) } : detail, null, 2) + '\n'
-      : text(d, stagesOffLines(ctx.snapshot.config, d.lane), d.holder === null ? 'none' : who.show(d.holder)),
-  );
+  ctx.stdout.write(text(d, stagesOffLines(ctx.snapshot.config, d.lane), d.holder === null ? 'none' : who.show(d.holder)));
   return 0;
 }

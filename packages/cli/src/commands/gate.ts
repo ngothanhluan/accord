@@ -6,6 +6,8 @@
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { capRulesOf, gateDone, gatePlan, gateReady, renderText, stageOff, workOf } from '@accord-dev/accord-core';
 import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
+import { gitBaseRecords } from '../load/base-records.js';
+import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
@@ -55,8 +57,9 @@ export function gate(
         // ST-LN-91 D-15: the plan format rules and the plan cap read the ticket's claim pin, never the plan baseline's.
         withRecordPins(ctx.root, claimPinned, id, 'plan', capRulesOf(claimPinned, id, 'plan').fall ? 2 : 3)
       : which === 'done'
-        ? // ST-LN-96 D-02: Done holds the claim fact too, for gate.ruleset-changed and gate.ruleset-missing, in every lane.
-          withClaimPins(ctx.root, { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id), ...gitContentSince(ctx.root, ctx.snapshot, id) }, id)
+        ? // Phase 15 D-23, D-25: Done also holds the ticket's records at the merge base with the default branch, for gate.done-ticket-edited.
+          // ST-LN-96 D-02: Done holds the claim fact too, for gate.ruleset-changed and gate.ruleset-missing, in every lane.
+          withClaimPins(ctx.root, { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id), ...gitContentSince(ctx.root, ctx.snapshot, id), ...gitBaseRecords(ctx.root, ctx.snapshot, id) }, id)
         : ctx.snapshot;
   // ST-LN-17: Done confirms each ## Return from verify marker with git; an unversioned round record of a ticket
   // not done on the default branch needs that branch's snapshot.
@@ -99,6 +102,11 @@ export function gate(
     // T-05-07: the path is the loader's own record for a ticket that exists, joined to the resolved
     // root — the raw `<id>` argument is a key lookup that misses, never a path segment.
     const rel = ctx.snapshot.tickets[id].file;
+    // Phase 15 D-23: a ticket done on the default branch is not edited; the verdict above stands and nothing is written.
+    if (ctx.snapshot.tickets[id].frontmatter?.ac_hash !== result.acHash && doneOnDefaultBranch(ctx.root, id)) {
+      ctx.stderr.write('not written: ' + doneRefusal(id) + '\n');
+      return 0;
+    }
     try {
       // T-05-08, D-96: writeKey writes only on a difference, so a second consecutive `gate ready` leaves
       // the bytes and the mtime alone, CRLF and BOM files included.
@@ -125,7 +133,9 @@ export function gate(
   // Same write path and failure mode as ac_hash: the hash of the plan text the passing verdict was read from.
   if (which === 'plan' && result.verdict === 'pass' && result.planHash !== undefined) {
     const rel = ctx.snapshot.work?.[id]?.plan?.file;
-    if (rel !== undefined) {
+    if (rel !== undefined && ctx.snapshot.work?.[id]?.plan?.planHash !== result.planHash && doneOnDefaultBranch(ctx.root, id)) {
+      ctx.stderr.write('not written: ' + doneRefusal(id) + '\n');
+    } else if (rel !== undefined) {
       try {
         if (writeKey(ctx.root, rel, 'plan_hash', result.planHash)) ctx.stderr.write('wrote plan_hash ' + result.planHash + ' to ' + rel + '\n');
       } catch (err) {

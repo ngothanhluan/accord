@@ -359,7 +359,8 @@ it('risk:security a squash-merged lane R ticket reads done on main and unblocks 
     expect((await rowOf(repo, 'R-1'))?.stage).toBe('done');
     expect((await rowOf(repo, 'T-2'))?.blockedBy ?? []).toEqual([]);
     // A later pull request's CI runs gate done on the ticket from a branch of main with no claim commit. gate done judges the branch it runs
-    // on: the records still count there, and a change outside accord/ on that branch is refused (UAT decision 3).
+    // on: the records still count there (UAT decision 3). Phase 15 D-23: R-1 is done at the merge base and its records are unchanged, so gate done judges no code of that branch for it;
+    // the code is judged by the ticket the branch belongs to.
     gitRun(repo, 'switch', '-q', '-c', 't/T-2');
     writeFiles(repo, { [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["R-1"]', 'priority: high'] }) });
     commitMsg(repo, 'T-2 work');
@@ -369,7 +370,8 @@ it('risk:security a squash-merged lane R ticket reads done on main and unblocks 
     writeFiles(repo, { 'notes.txt': 'T-2 work\n' });
     commitMsg(repo, 'T-2 code');
     const coded = await run(['gate', 'done', 'R-1', '--json'], repo);
-    expect((JSON.parse(coded.out).findings as F[]).map((f) => [f.rule, f.file])).toEqual([['gate.research-shipped', 'notes.txt']]);
+    expect(JSON.parse(coded.out).findings).toEqual([]);
+    expect(coded.code).toBe(0);
     gitRun(repo, 'switch', '-q', 'main');
     // An R ticket added to main later that lists only the older record: evidence, so it stays at research and gate done refuses it.
     const ready2: Record<string, string> = { 'accord/config.yml': CONFIG, [P('R-2')]: laneTicket('R-2', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${PRIOR}"]`] }), [PRIOR]: recordText() };

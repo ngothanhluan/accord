@@ -98,8 +98,9 @@ it('risk:complex-branching gate done skips the review scope checks with a notice
     writeFiles(repo, { 'src/t2.ts': 'export const t2 = 1;\n' });
     commitMsg(repo, 'T-2 code');
 
+    // Phase 15 D-23: S-1 is done at the merge base and its records are unchanged here, so gate done runs no review scope check and prints no skip notice for it either.
     const there = await findings(repo, 'S-1');
-    expect(there.filter((f) => f.rule === 'gate.review-scope-skipped').map((f) => f.level)).toEqual(['warning']);
+    expect(there.filter((f) => f.rule === 'gate.review-scope-skipped')).toEqual([]);
     for (const rule of ['gate.review-scope', 'gate.fix-file-unexplained', 'gate.finding-evidence', 'gate.finding-grounds']) {
       expect(there.filter((f) => f.rule === rule)).toEqual([]);
     }

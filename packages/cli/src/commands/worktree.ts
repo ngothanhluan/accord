@@ -11,6 +11,7 @@ import { isOff } from '../load/gitdir.js';
 import { readCleanFacts } from '../load/clean-facts.js';
 import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
+import { doneOnDefaultBranch } from '../load/done-on-default.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { cleanLine, nextLine, withNext, withNextOnFirst } from './next-action.js';
 import { disposableNames, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
@@ -787,6 +788,8 @@ function backfillRuleset(ctx: CommandContext, id: string, path: string, ref?: st
   if (rulesetPinOf(path) === undefined && (ref === undefined || refPinOf(path, ref) === undefined)) return undefined;
   const pin = claimPinToBackfill(path, id, ctx.snapshot.config);
   if (pin === undefined) return undefined;
+  // Phase 15 D-23: a ticket done on the default branch is not edited, so nothing is backfilled into it and nothing new is printed.
+  if (doneOnDefaultBranch(path, id)) return undefined;
   const rel = ':(literal)' + `accord/tickets/${id}.md`;
   try {
     const before = git(path, ['rev-parse', 'HEAD']).trim();

@@ -14,6 +14,7 @@ import {
   commitMissing,
   commitMessage,
   commitTrailer,
+  doneTicketEdited,
   noScenarios,
   reportMissing,
   resultNotPass,
@@ -270,6 +271,9 @@ const INTERFACE_SIGN: GateRule = { id: 'gate.interface-sign', level: 'error', pr
  * gate that must not be talked past, and GATE-06 forbids a level that depends on a flag. */
 export const DONE_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  // Phase 15 D-23: a pull request that changes a ticket done on the base branch is refused with this one finding, and gateDone runs only this row for such a ticket (D-24, D-25).
+  // It takes no claimPinBefore cut-off: it adds a refusal only for a pull request that changes a done ticket, so a ticket claimed under an older pin loses nothing it had.
+  { id: 'gate.done-ticket-edited', level: 'error', profiles: ['build', 'maintain'], check: doneTicketEdited },
   RULESET_CHANGED,
   RULESET_MISSING,
   { id: 'gate.verification-unfinished', level: 'error', profiles: ['build', 'maintain'], check: verificationUnfinished },
@@ -354,6 +358,7 @@ const SECTIONS_CHANGED: GateRule = {
 /** ST-LN-31 D-04, D-12: the lane S Done table, with the suite rule; no plan, task, criteria or approval rows. */
 export const DONE_S_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  { id: 'gate.done-ticket-edited', level: 'error', profiles: ['build', 'maintain'], check: doneTicketEdited },
   RULESET_CHANGED,
   RULESET_MISSING,
   SECTION_EMPTY,
@@ -393,6 +398,7 @@ export const DONE_S_RULES: readonly GateRule[] = [
  */
 export const DONE_R_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  { id: 'gate.done-ticket-edited', level: 'error', profiles: ['build', 'maintain'], check: doneTicketEdited },
   RULESET_CHANGED,
   RULESET_MISSING,
   RESEARCH_FIELD_MISSING,

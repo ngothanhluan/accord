@@ -25,6 +25,8 @@ const LOCKED_LIST = [
   'gate.approval-stale',
   'gate.branch-unknown',
   'gate.commit-missing',
+  // Phase 15 D-23: a done ticket is not edited
+  'gate.done-ticket-edited',
   'gate.ears-missing',
   'gate.evidence-unresolved',
   'gate.intent-empty',

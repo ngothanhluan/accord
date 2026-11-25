@@ -24,6 +24,10 @@
 // the review has to be of the code being gated, and what a fresh-context review read is the branch.
 //
 // A deleted ticket approved or done at the base fails the check unless its base version is dropped (BUG-LN-4).
+// A ticket is gated when its file or any path under its folder `accord/tickets/<id>/` changed (D-23: a done ticket is
+// not edited with its folder, and the core rule `gate.done-ticket-edited` decides; the script only collects ids, a
+// folder-derived id only when `accord/tickets/<id>.md` is in HEAD). A pull request that only moves tests a done ticket names
+// or deletes a file its verification cites changes neither, so it gates nothing (D-24).
 // `gate done` is skipped for a ticket only when the diff changes nothing outside `accord/` and the ticket is
 // unapproved in both its HEAD and base versions (a lane S ticket: no `ac_hash` in either), or dropped in HEAD. Any read the script cannot settle counts
 // as approved, so a doubt gates. `.github/workflows/accord.yml` carries the same script and must be changed
@@ -112,10 +116,24 @@ jobs:
           set -uo pipefail
           code=0
           ${accord} lint || code=1
-          # --diff-filter=d leaves deleted tickets out of the tickets to gate; the deletion check below decides
-          # whether a deletion may land. [^/]+ keeps accord/tickets/<id>/verification.md out while
-          # accord/tickets/<id>.md stays in. || true keeps a zero-match grep from reading as a failure.
-          tickets=$(git -c core.quotePath=false diff --name-only --diff-filter=d "$BASE"...HEAD | grep -E '^accord/tickets/[^/]+[.]md$' || true)
+          # The tickets to gate are the ticket files this pull request changes and the tickets whose folder it changes
+          # (D-23: a done ticket is not edited, and its folder goes with it). --diff-filter=d leaves deleted ticket
+          # files out; the deletion check below decides whether a deletion may land. [^/]+ is one level: accord/tickets/<id>.md
+          # is a ticket file, accord/tickets/<id>/plan.md is a record of <id>. A path under a folder counts when added, changed
+          # or deleted, and gates its ticket only when accord/tickets/<id>.md is in HEAD. The id is cut out of the path with
+          # parameter expansion, always quoted, read through here-strings, never eval or an expression. || true keeps a
+          # zero-match grep from reading as a failure.
+          ticket_files=$(git -c core.quotePath=false diff --name-only --diff-filter=d "$BASE"...HEAD | grep -E '^accord/tickets/[^/]+[.]md$' || true)
+          folder_paths=$(git -c core.quotePath=false diff --name-only --no-renames "$BASE"...HEAD | grep -E '^accord/tickets/[^/]+/' || true)
+          folder_files=$(while IFS= read -r changed_path; do
+            [ -n "$changed_path" ] || continue
+            folder_id=\${changed_path#accord/tickets/}
+            folder_id=\${folder_id%%/*}
+            folder_file="accord/tickets/$folder_id.md"
+            if listed=$(git ls-tree --name-only HEAD -- "$folder_file") && [ -z "$listed" ]; then continue; fi
+            echo "$folder_file"
+          done <<< "$folder_paths")
+          tickets=$({ echo "$ticket_files"; echo "$folder_files"; } | LC_ALL=C sort -u | grep -v '^$' || true)
           # A pull request that changes anything outside accord/ gates every ticket it touches. One that
           # changes only accord/ skips a ticket that is unapproved or dropped, so a backlog can land. A failing
           # diff counts as code, and so does a deletion, so every doubt is resolved toward gating. Below, the

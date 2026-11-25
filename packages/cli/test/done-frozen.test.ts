@@ -97,3 +97,61 @@ it('risk:regression a branch that edits the ticket file of a ticket done on the 
   expect(edited.found[0].reason).toContain(P('T-1'));
   expect(edited.code).toBe(1);
 }, 120_000);
+
+const VERIFICATION = [
+  '---', 'ticket: T-1', 'commit: abc1234', 'reviewed_on: 2026-09-10', '---', '',
+  '## @ac-1 Export writes a csv', '', 'Result: pass', '', 'Evidence: test/export.spec.ts#writes-csv', '',
+  '## @ac-2 Commas are escaped', '', 'Result: pass', '', 'Evidence: test/export.spec.ts#escapes-commas', '',
+].join('\n');
+
+it('risk:regression a branch that deletes a file the done ticket cites and leaves the ticket alone passes gate done (D-24)', async () => {
+  const repo = doneOnMain((files) => {
+    files['accord/tickets/T-1/verification.md'] = VERIFICATION;
+  });
+  gitRun(repo, 'rm', '-q', 'test/export.spec.ts');
+  commitMsg(repo, 'delete the export spec');
+  const kept = await gateDone(repo, 'T-1');
+  expect(kept.found).toEqual([]);
+  expect(kept.code).toBe(0);
+}, 120_000);
+
+it('risk:regression a branch that edits only the ledger of a done ticket fails with one finding that names that file (D-23 folder)', async () => {
+  const repo = doneOnMain();
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': readFileSync(join(repo, 'accord/tickets/T-1/ledger.md'), 'utf8') + '- task 3 done abc1234\n' });
+  commitMsg(repo, 'touch the ledger of a done ticket');
+  const edited = await gateDone(repo, 'T-1');
+  expect(edited.found.map((f) => f.rule)).toEqual(['gate.done-ticket-edited']);
+  expect(edited.found[0].reason).toContain('accord/tickets/T-1/ledger.md');
+  expect(edited.found[0].reason).not.toContain(P('T-1') + ',');
+  expect(edited.code).toBe(1);
+}, 120_000);
+
+it('risk:regression a branch that deletes a record of a done ticket fails with one finding (D-23 deletion)', async () => {
+  const repo = doneOnMain();
+  gitRun(repo, 'rm', '-q', 'accord/tickets/T-1/review.md');
+  commitMsg(repo, 'delete the review of a done ticket');
+  const edited = await gateDone(repo, 'T-1');
+  expect(edited.found.map((f) => f.rule)).toEqual(['gate.done-ticket-edited']);
+  expect(edited.found[0].reason).toContain('accord/tickets/T-1/review.md');
+  expect(edited.code).toBe(1);
+}, 120_000);
+
+it('risk:regression a ticket that becomes done inside the branch is gated by today\'s Done rules, not the frozen rule (D-23 base)', async () => {
+  const repo = doneOnMain((files) => building(files, 'T-2'));
+  const files: Files = {};
+  done(files, 'T-2');
+  writeFiles(repo, files);
+  commitMsg(repo, 'verify T-2');
+  const gated = await gateDone(repo, 'T-2');
+  expect(gated.found.map((f) => f.rule)).not.toContain('gate.done-ticket-edited');
+  expect(gated.found.length).toBeGreaterThan(0);
+  expect(gated.code).toBe(1);
+}, 120_000);
+
+it('risk:regression accord lint asks a done ticket for no ruleset key (D-23 format change)', async () => {
+  const repo = doneOnMain();
+  expect(readFileSync(join(repo, P('T-1')), 'utf8')).not.toContain('ruleset:');
+  const r = await run(['lint', '--json'], repo);
+  const findings = JSON.parse(r.out).findings as Found[];
+  expect(findings.filter((f) => f.file.startsWith('accord/tickets/T-1') && /ruleset/i.test(f.reason + f.rule))).toEqual([]);
+}, 120_000);

@@ -387,6 +387,108 @@ async function refresh($) {
   }
 }
 
+// Phase 15 D-18, SC-7: another session's commit in another worktree of the clone shows within about 5 seconds, with no turn taken here and no server (D-16). A second, separate timer reads a change mark every MARK_POLL_MS through `$.fs` alone
+// (no process: Phase 08.9.2 D-01) and calls the single-flight `refresh` only when the mark moved, so an idle tick costs file reads and nothing else. The dashboard run it triggers is the draw path's own, from local refs.
+const MARK_POLL_MS = 1000;
+// the most worktree folders one tick reads
+const MARK_WORKTREES_MAX = 100;
+// the clone's common git folder, resolved once per session
+let markCommon;
+// the mark timer while it runs: `{ timer, common, last, busy }`
+let mark;
+let markStarting;
+
+// the clone's common git folder through `$.fs` alone; undefined when it cannot be read
+async function commonOf($) {
+  const dir = await gitDirOf($, await rootOf($));
+  return dir === undefined ? undefined : commonDirOf($, dir);
+}
+
+// the reflog of each linked worktree, from the host's folder listing; a host without `list` gets them from the CLI's own record (`<id>\t<folder>` lines) and each folder's `.git` file. The folders never come from ticket text (T-15-11).
+async function worktreeLogs($, common) {
+  const logs = [];
+  if (typeof $.fs.list === 'function') {
+    try {
+      for (const entry of await $.fs.list(common + '/worktrees')) {
+        if (entry?.kind === 'dir' && typeof entry.name === 'string' && !/[\\/]/.test(entry.name)) logs.push(common + '/worktrees/' + entry.name + '/logs/HEAD');
+      }
+    } catch {
+      // a clone with no linked worktree has no such folder
+    }
+    return logs.slice(0, MARK_WORKTREES_MAX);
+  }
+  try {
+    for (const line of String(await $.fs.read(common + '/accord/worktrees')).split('\n').slice(0, MARK_WORKTREES_MAX)) {
+      const tab = line.indexOf('\t');
+      if (tab <= 0) continue;
+      const folder = line.slice(tab + 1).trim().replace(/\\/g, '/');
+      try {
+        const named = /^gitdir:\s*(.+?)\s*$/m.exec(String(await $.fs.read(folder + '/.git')));
+        if (named !== null) logs.push(joinPath(folder, named[1]) + '/logs/HEAD');
+      } catch {
+        // a folder that is gone or unreadable adds nothing
+      }
+    }
+  } catch {
+    // no record
+  }
+  return logs;
+}
+
+// The change mark: the size, and the modification time when the host reports one, of the head reflog, each linked worktree's head reflog, packed-refs and the holds file of the common folder, as one string. A commit in any worktree appends to
+// its head reflog, so the mark moves; a file that is not there reads as absent, and the same everywhere-absent reads as undefined (nothing to compare).
+async function changeMark($, common) {
+  const files = [common + '/logs/HEAD', common + '/packed-refs', common + '/accord/holds', ...(await worktreeLogs($, common))];
+  const parts = await Promise.all(
+    files.map(async (file) => {
+      try {
+        const s = await $.fs.stat(file);
+        return file + ':' + (typeof s?.size === 'number' ? s.size : '') + ':' + (typeof s?.mtimeMs === 'number' ? s.mtimeMs : '');
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+  return parts.every((p) => p === undefined) ? undefined : parts.map((p, i) => p ?? files[i] + ':-').join('|');
+}
+
+// One tick: a moved mark runs the dashboard once through the single-flight refresh; an unmoved or unreadable one starts nothing.
+async function markTick($, m) {
+  if (mark !== m || m.busy) return;
+  m.busy = true;
+  try {
+    const now = await changeMark($, m.common);
+    if (now === undefined || now === m.last) return;
+    m.last = now;
+    void refresh($).catch(() => {});
+  } catch {
+    // display only
+  } finally {
+    m.busy = false;
+  }
+}
+
+// The one mark timer, with its own handle apart from the frame timer. The mark at the start is the baseline, so only a change after the pane drew is news.
+async function ensureMarkTimer($) {
+  if (mark !== undefined) return;
+  if (markStarting !== undefined) return markStarting;
+  markStarting = (async () => {
+    try {
+      markCommon ??= await commonOf($);
+      if (markCommon === undefined) return;
+      const m = { common: markCommon, last: await changeMark($, markCommon), busy: false, timer: undefined };
+      m.timer = $.clock.every(MARK_POLL_MS, () => markTick($, m));
+      mark = m;
+    } catch {
+      // a host without `$.clock`, or a folder that cannot be read: no mark timer
+      mark = undefined;
+    } finally {
+      markStarting = undefined;
+    }
+  })();
+  return markStarting;
+}
+
 // Follows the dashboard's `current`: a new id replaces the ticket, no id clears the ticket and the picked tab, a failed dashboard run keeps both. The ticket tab's state is the dashboard's own `currentDetail` (Phase 08.9.2 D-05), read through the same `detailOutcome` a `show` result goes through.
 function syncTicket($) {
   if (state?.dashboard === undefined) return;
@@ -530,6 +632,7 @@ async function start($) {
     if (pane && pane.isPlaced === false) $.ui.toast('Run /accord-panel to show the accord dashboard');
   });
   void refresh($);
+  await guarded(() => ensureMarkTimer($));
 }
 
 export function register(on) {
@@ -568,6 +671,7 @@ export function register(on) {
       } else $.ui.toast('The terminal is too narrow for the accord pane: it needs 110 columns');
     }
     void refresh($);
+    await guarded(() => ensureMarkTimer($));
     return {};
   });
 

@@ -77,3 +77,15 @@ export function isOff(dir: string): boolean {
     return false;
   }
 }
+
+/**
+ * Phase 08.9.2 D-02, L-02: the branch a checkout is on, read from the first line of `<gitDir>/HEAD` with no git process. `ref: refs/heads/<name>` gives the name,
+ * a bare object name (a detached HEAD) gives '', and anything else, or a file that cannot be read, gives undefined.
+ */
+export function headBranchOf(gitDir: string): string | undefined {
+  const line = firstLine(join(gitDir, 'HEAD'));
+  if (line === undefined) return undefined;
+  const ref = /^ref:[ \t]*refs\/heads\/(.+)$/.exec(line);
+  if (ref !== null) return ref[1];
+  return /^[0-9a-f]{40,64}$/i.test(line) ? '' : undefined;
+}

@@ -54,6 +54,10 @@ roles: [ba, dev, designer]
 # cursor and copilot -> both.
 runtimes: [claude, codex]
 
+# How accord's hooks start a session: full prints the rules, fetches and cleans at every start; quiet prints one line
+# until /accord or a ticket's branch wakes accord, for a team where some people do not use accord.
+hook_mode: full
+
 # Who creates tickets: git user.email -> initials, 2 to 4 capital letters, such as "an@example.com": AN.
 # While this key exists, accord new ticket assigns every id (ST-AN-7, BUG-AN-1, EP-AN-2) and lint checks them.
 # Unlike the keys above it is optional: deleting it turns the id convention off.

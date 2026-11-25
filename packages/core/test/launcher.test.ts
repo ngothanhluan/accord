@@ -96,6 +96,9 @@ function memoryFs(clock: { t: number }) {
   };
 }
 
+// Phase 08.9.2 D-03 (08.9.2-06): before anything else a hook call reads `<launcher root>/.git` once, looking for the person's off marker; in these worlds there is none.
+const OFF_LOOKUP = ['readFileSync /repo/.git'];
+
 const BASE = '/cache';
 const VERSIONS = `${BASE}/accord/versions`;
 const bundleOf = (v: string): string => `${VERSIONS}/${v}/node_modules/${PKG}/dist/cli.js`;
@@ -294,7 +297,7 @@ it('risk:security the version word is checked before any path or npm word is bui
     const hook = world();
     hook.m.calls.length = 0;
     expect(launch(hook.io([word, 'hook', 'pre-tool-use'])), `hook with ${JSON.stringify(word)}`).toBe(0);
-    expect(hook.m.calls).toEqual([]);
+    expect(hook.m.calls).toEqual(OFF_LOOKUP); // a hook first looks for the person's off marker (08.9.2-06); nothing else is touched
     expect(hook.spawned).toEqual([]);
     expect(hook.err).toHaveLength(1);
     expect(hook.err[0]).toContain('not a version');
@@ -319,7 +322,7 @@ it('risk:regression a cached version runs the bundle once with the call words an
   expect(call.args.map(norm)).toEqual([bundleOf(V), 'hook', 'pre-tool-use']);
   expect(call.opts.input).toBe('{"hook_event_name":"PreToolUse"}');
   expect(call.opts.shell).toBeUndefined();
-  expect(w.m.calls.filter((c) => !c.startsWith('existsSync'))).toEqual([]);
+  expect(w.m.calls.filter((c) => !c.startsWith('existsSync') && !OFF_LOOKUP.includes(c))).toEqual([]);
 });
 
 const pre = (call: Record<string, unknown>): string => JSON.stringify({ hook_event_name: 'PreToolUse', ...call });
@@ -339,7 +342,7 @@ it('risk:resource a non-executor Agent call is answered by the launcher with no 
     expect(w.out.join('')).toBe('{}\n');
     expect(w.err).toEqual([]);
     expect(w.spawned).toEqual([]);
-    expect(w.m.calls).toEqual([]);
+    expect(w.m.calls).toEqual(OFF_LOOKUP); // only the off-marker lookup, no cache path
   }
 });
 

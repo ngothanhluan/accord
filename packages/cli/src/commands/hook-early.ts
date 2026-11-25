@@ -2,6 +2,7 @@
 // calls `hookEarly` first; a case it answers starts no git process (RESEARCH F-6 measured 2.4 to 3.3 s of preflight for answers like these).
 // Like `preToolUseWrite` (ST-LN-39 D-08) these answers read no repository and so take no pin check. D-07: session-start and session-resume have no early path.
 import { EPIC_ROLES, subagentContext } from '@accord-dev/accord-core';
+import { isOff } from '../load/gitdir.js';
 import { cliRuleset } from '../load/product.js';
 import type { RunOptions } from '../run.js';
 import { hookInput, preToolUseWrite, promptExpansionStdin } from './hook.js';
@@ -13,6 +14,8 @@ import type { HookEvent } from './hook.js';
  * Unparseable stdin takes the fail-open answers the full path gives it today.
  */
 export function hookEarly(opts: RunOptions, event: HookEvent): number | undefined {
+  // Phase 08.9.2 D-03: while the person's off marker exists in this clone every event prints nothing, whatever it would have decided; read from files, so no git process.
+  if (isOff(hookInput(opts)?.cwd ?? opts.cwd)) return 0;
   switch (event) {
     case 'pre-tool-use':
       return preToolUseEarly(opts);

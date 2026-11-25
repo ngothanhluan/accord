@@ -26,6 +26,8 @@ const KEEP_VERSIONS = 3; // version folders left after a fill, the running one i
 // A first word made only of lowercase letters and dashes is a command (`node .claude/accord.mjs off`), not a version.
 const COMMAND_WORD = /^[a-z][a-z-]*$/;
 const PIN_LINE = /^accord:\s*"?([^"\s]+)"?\s*$/m;
+// `accord off` writes this file in the git common folder; while it exists every hook of the clone is silent (Phase 08.9.2 D-03).
+const OFF_MARKER = 'accord-off';
 
 /** One printable line: no control characters, cut at `max`. */
 const oneLine = (text, max) =>
@@ -166,6 +168,38 @@ function pinOf(io) {
 }
 
 /**
+ * True while the person's off marker (`accord off`) exists in this clone: `<git common dir>/accord-off`, found with plain file reads from the checkout this
+ * launcher sits in (`.git` is the common folder itself, or a file `gitdir: <path>` whose `commondir` leads back to it). The same reads as the CLI's gitdir.ts.
+ * Never throws; anything unreadable means not off.
+ */
+function isOff(io) {
+  try {
+    const root = dirname(dirname(io.launcherPath));
+    const dotGit = join(root, '.git');
+    let text;
+    try {
+      text = io.fs.readFileSync(dotGit, 'utf8');
+    } catch (e) {
+      if (e?.code !== 'EISDIR') return false; // no .git here, or one that cannot be read
+      return io.fs.existsSync(join(dotGit, OFF_MARKER)); // a folder: the common folder itself
+    }
+    const line = String(text).split('\n', 1)[0].trim();
+    if (!line.startsWith('gitdir:')) return false;
+    const gitDir = resolve(root, line.slice('gitdir:'.length).trim());
+    let common = gitDir;
+    try {
+      const named = String(io.fs.readFileSync(join(gitDir, 'commondir'), 'utf8')).split('\n', 1)[0].trim();
+      if (named !== '') common = resolve(gitDir, named);
+    } catch {
+      // no commondir: the per-worktree folder is the common one
+    }
+    return io.fs.existsSync(join(common, OFF_MARKER));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * True for the one PreToolUse call the CLI answers with `{}` and nothing else: an Agent or Task call for any agent but
  * accord-executor. Write, Edit and MultiEdit (the verification.md guard), an executor dispatch and text that is not JSON all
  * go to the CLI, which fails open on its own.
@@ -187,6 +221,8 @@ function answeredAtOnce(text) {
  */
 export function launch(io) {
   let argv = io.argv;
+  // D-03: switched off for this clone: a hook prints nothing and starts nothing, before the pin, stdin or any cache path is touched.
+  if ((argv[0] === 'hook' || argv[1] === 'hook') && isOff(io)) return 0;
   if (typeof argv[0] === 'string' && COMMAND_WORD.test(argv[0])) {
     // No version word: the version is the pin in accord/config.yml, so the line a person types stays short after every upgrade.
     const pin = pinOf(io);

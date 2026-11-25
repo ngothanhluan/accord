@@ -16,6 +16,7 @@ import { debugStatePath } from './debug.js';
 import { cleanBudgetMs } from './fetch-limit.js';
 import { activeTicket, anchorOf, epicSnapshot } from './anchor.js';
 import { withNext } from './next-action.js';
+import { OFF_LINE } from './off.js';
 import { branchOf, cleanQuietly, fetchOrigin, guardAllowsContinue, ID, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, sessionNext, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
@@ -57,6 +58,8 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
     }
   }
   ctx.stdout.write(rules + '\n' + note + body);
+  // Phase 08.9.2 D-04: a session start (not a resume) tells the person how to switch accord off for themselves; the rules stay first, the fetch and the clean stay in the foreground (D-07)
+  if (event === 'session-start') ctx.stdout.write(OFF_LINE + '\n');
   if (event === 'session-start') startHold(ctx);
   sessionClean(ctx, event);
   return 0;

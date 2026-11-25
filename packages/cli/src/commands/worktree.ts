@@ -7,6 +7,7 @@ import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, 
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
+import { isOff } from '../load/gitdir.js';
 import { readCleanFacts } from '../load/clean-facts.js';
 import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
@@ -571,6 +572,8 @@ function refuseAt(id: string, path: string, tail: string): never {
 
 export function worktreeCheck(ctx: CommandContext): number {
   guardTicketSession(ctx);
+  // Phase 08.9.2 Ruling-off-accord: the first command /accord runs tells a session that the person switched accord off, so the skill's own rule (do what the next action says) offers `accord on`; the exit code stays 0
+  if (isOff(ctx.root)) ctx.stdout.write(withNext('accord-off', 'accord is switched off for you in this clone') + '\n');
   return 0;
 }
 

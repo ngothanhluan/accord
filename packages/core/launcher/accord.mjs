@@ -3,10 +3,11 @@
 // It starts the accord CLI bundle of exactly <version> from a per-user cache and passes everything through, so a hook
 // no longer pays for npx (about 1.5 s per call). The cache holds one folder per version:
 //   <cache>/accord/versions/<version>/node_modules/ACCORD_PACKAGE_NAME/dist/cli.js
-// A version that is not cached yet is installed once with `npm install --ignore-scripts` into a temporary folder and renamed
-// into place. When that fails, a hook prints one line and exits 0, so a missing network never stops a session.
+// A version that is not cached yet is installed once by npm, with install scripts off, into a temporary folder and renamed into
+// place, under a lock folder so two starts install it once. The cache keeps the three newest versions. When the install fails,
+// a hook prints one line and exits 0, so a missing network never stops a session.
 // Plain JavaScript, built-ins only, no dependency: the file is committed to the repository and read by the team.
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
@@ -18,6 +19,10 @@ const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 // A session start and a session resume tell the model what they print; every other event keeps its stdout for the answer.
 const SAYS_ON_STDOUT = new Set(['session-start', 'session-resume']);
 const INSTALL_MS = 240_000;
+const LOCK_WAIT_MS = 120_000; // how long a run waits for another run's install of the same version
+const LOCK_STALE_MS = 10 * 60_000; // a lock older than this belongs to a killed run and is taken over
+const POLL_MS = 200;
+const KEEP_VERSIONS = 3; // version folders left after a fill, the running one included
 
 /** One printable line: no control characters, cut at `max`. */
 const oneLine = (text, max) =>
@@ -49,6 +54,7 @@ function npmCli(io) {
 function fill(io, versionsDir, folder, version, bundleOf) {
   const temp = join(versionsDir, `.tmp-${version}-${io.pid}`);
   try {
+    io.fs.rmSync(temp, { recursive: true, force: true }); // a leftover of a killed run with the same pid
     io.fs.mkdirSync(temp, { recursive: true });
     const args = ['install', '--prefix', temp, '--no-save', '--no-audit', '--no-fund', '--ignore-scripts', `${PACKAGE}@${version}`];
     const script = npmCli(io);
@@ -59,7 +65,6 @@ function fill(io, versionsDir, folder, version, bundleOf) {
     if (r.error !== undefined) return oneLine(r.error.message, 160) || 'npm did not start';
     if (r.status !== 0) return oneLine(r.stderr || r.stdout || '', 160) || `npm exited with status ${r.status}`;
     if (!io.fs.existsSync(bundleOf(temp))) return 'the installed package holds no dist/cli.js';
-    if (io.fs.existsSync(folder) && !io.fs.existsSync(bundleOf(folder))) io.fs.rmSync(folder, { recursive: true, force: true }); // a half folder is no entry
     try {
       io.fs.renameSync(temp, folder);
     } catch (e) {
@@ -77,9 +82,79 @@ function fill(io, versionsDir, folder, version, bundleOf) {
   }
 }
 
+/** Keep the running version and the newest others, three folders in all; every other version folder is removed. Never throws. */
+function prune(io, versionsDir, running) {
+  try {
+    const found = io.fs
+      .readdirSync(versionsDir)
+      .filter((name) => name !== running && VERSION.test(name))
+      .map((name) => {
+        try {
+          return { name, time: io.fs.statSync(join(versionsDir, name)).mtimeMs };
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((entry) => entry !== undefined)
+      .sort((a, b) => b.time - a.time);
+    for (const old of found.slice(KEEP_VERSIONS - 1)) io.fs.rmSync(join(versionsDir, old.name), { recursive: true, force: true });
+  } catch {
+    // a cache that cannot be listed is left alone
+  }
+}
+
+/**
+ * Make sure the bundle of `version` is in the cache. One run installs at a time: the lock is a folder made with mkdirSync, so
+ * the second run waits (up to LOCK_WAIT_MS) until the bundle appears or the lock is released. Returns undefined when the bundle
+ * is there, else the one-line reason.
+ */
+function ensure(io, versionsDir, folder, version, bundleOf) {
+  const lock = join(versionsDir, `.lock-${version}`);
+  const began = io.now();
+  try {
+    io.fs.mkdirSync(versionsDir, { recursive: true });
+    for (;;) {
+      if (io.fs.existsSync(bundleOf(folder))) return undefined; // another run filled it
+      try {
+        io.fs.mkdirSync(lock);
+        break; // the lock is ours
+      } catch (e) {
+        if (e?.code !== 'EEXIST') return oneLine(e instanceof Error ? e.message : e, 160) || 'the cache folder is not writable';
+      }
+      let age;
+      try {
+        age = io.now() - io.fs.statSync(lock).mtimeMs;
+      } catch {
+        continue; // released in between: try to take it
+      }
+      if (age > LOCK_STALE_MS) {
+        io.fs.rmSync(lock, { recursive: true, force: true });
+        continue;
+      }
+      if (io.now() - began >= LOCK_WAIT_MS) return `another install of ${version} did not finish within ${LOCK_WAIT_MS / 1000} s`;
+      io.sleep(POLL_MS);
+    }
+    try {
+      if (io.fs.existsSync(bundleOf(folder))) return undefined;
+      if (io.fs.existsSync(folder)) io.fs.rmSync(folder, { recursive: true, force: true }); // a folder without its bundle is no entry
+      const reason = fill(io, versionsDir, folder, version, bundleOf);
+      if (reason === undefined) prune(io, versionsDir, version);
+      return reason;
+    } finally {
+      try {
+        io.fs.rmSync(lock, { recursive: true, force: true });
+      } catch {
+        // a lock that cannot be removed is taken over after ten minutes
+      }
+    }
+  } catch (e) {
+    return oneLine(e instanceof Error ? e.message : e, 160) || 'the install failed';
+  }
+}
+
 /**
  * Run one launcher call and return the exit code. `io` carries everything the call touches, so a test needs no real cache:
- * { argv (the words after the script), env, platform, homedir, execPath, pid, readStdin, fs, spawnSync, stdout, stderr }.
+ * { argv (the words after the script), env, platform, homedir, execPath, pid, readStdin, fs, spawnSync, now, sleep, stdout, stderr }.
  */
 export function launch(io) {
   const [version, ...rest] = io.argv;
@@ -103,7 +178,7 @@ export function launch(io) {
   const bundle = bundleOf(folder);
 
   if (!io.fs.existsSync(bundle)) {
-    const reason = fill(io, versionsDir, folder, version, bundleOf);
+    const reason = ensure(io, versionsDir, folder, version, bundleOf);
     if (reason !== undefined) {
       const line = `accord: accord ${version} is not installed and could not be installed (${reason}); with network access run: node .claude/accord.mjs ${version} --version`;
       if (isHook) {
@@ -123,6 +198,9 @@ export function launch(io) {
   });
   return r.status ?? 1;
 }
+
+/** A synchronous pause: Atomics.wait on a private one-element array, no busy loop. */
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 const readStdin = () => {
   try {
@@ -150,8 +228,10 @@ if (isMain) {
     execPath: process.execPath,
     pid: process.pid,
     readStdin,
-    fs: { existsSync, mkdirSync, renameSync, rmSync },
+    fs: { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync },
     spawnSync,
+    now: Date.now,
+    sleep,
     stdout: process.stdout,
     stderr: process.stderr,
   });

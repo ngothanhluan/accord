@@ -11,7 +11,7 @@ const MIN = 60_000;
 type Spawned = { cmd: string; args: string[]; opts: Record<string, unknown> };
 type Io = Record<string, unknown>;
 const href = pathToFileURL(fileURLToPath(new URL('../launcher/accord.mjs', import.meta.url))).href;
-const { launch } = (await import(/* @vite-ignore */ href)) as { launch: (io: Io) => number };
+const { launch, readHookInput } = (await import(/* @vite-ignore */ href)) as { launch: (io: Io) => number; readHookInput: (io: Io) => string };
 
 const norm = (p: string): string => p.replace(/\\/g, '/');
 const fsError = (code: string): Error => Object.assign(new Error(`${code}: simulated`), { code });
@@ -417,4 +417,57 @@ it('risk:parsing the pin line takes a quoted pin a single-quoted pin and a pin w
   expect(launch(split.io(['off']))).toBe(2);
   expect(split.spawned).toEqual([]);
   expect(split.err[0]).toContain('no "accord:" pin found');
+});
+
+/** The stdin seam of readHookInput: `reads` is what each readSync call does (a byte string, an error code, or end of input). */
+function stdinWorld(reads: (string | Buffer | { code: string })[], isTTY = false) {
+  const queue = [...reads];
+  const err: string[] = [];
+  const sleeps: number[] = [];
+  let calls = 0;
+  const io = {
+    isTTY,
+    readSync: (_fd: number, buf: Buffer) => {
+      calls++;
+      const next = queue.shift();
+      if (next === undefined) return 0;
+      if (typeof next === 'object' && !Buffer.isBuffer(next)) throw Object.assign(new Error(next.code + ': simulated'), { code: next.code });
+      return (Buffer.isBuffer(next) ? next : Buffer.from(next, 'utf8')).copy(buf);
+    },
+    sleep: (ms: number) => sleeps.push(ms),
+    stderr: { write: (s: string) => err.push(s) },
+  };
+  return { io, err, sleeps, calls: () => calls };
+}
+
+// Phase 08.9.2 review WR-03: the launcher never waits on a terminal's stdin, reads a pipe in chunks whatever their split, and says so on stderr when the input cannot be read (the CLI then fails open on an empty input).
+it('risk:resource the launcher reads hook input in chunks skips a terminal and names a failed read (WR-03)', () => {
+  const tty = stdinWorld(['never read'], true);
+  expect(readHookInput(tty.io)).toBe('');
+  expect(tty.calls(), 'a terminal is not read').toBe(0);
+
+  // one two-byte character split over two chunks is decoded whole
+  const bytes = Buffer.from('{"a":"é"}', 'utf8');
+  const split = bytes.indexOf(0xc3) + 1;
+  const chunked = stdinWorld([bytes.subarray(0, split), bytes.subarray(split)]);
+  expect(readHookInput(chunked.io)).toBe('{"a":"é"}');
+
+  // a pipe that is not ready yet is waited for, a closed Windows pipe is an end, and neither is reported
+  const slow = stdinWorld([{ code: 'EAGAIN' }, { code: 'EAGAIN' }, '{"x":1}', { code: 'EOF' }]);
+  expect(readHookInput(slow.io)).toBe('{"x":1}');
+  expect(slow.sleeps).toHaveLength(2);
+  expect(slow.err).toEqual([]);
+
+  // any other failure: one stderr line, and what was read so far
+  const broken = stdinWorld(['{"x"', { code: 'EBADF' }]);
+  expect(readHookInput(broken.io)).toBe('{"x"');
+  expect(broken.err).toHaveLength(1);
+  expect(broken.err[0]).toContain('accord: could not read hook input');
+  expect(broken.err[0]).toContain('EBADF');
+
+  // a pipe that never becomes ready stops after a bounded wait
+  const stuck = stdinWorld(Array.from({ length: 200 }, () => ({ code: 'EAGAIN' })));
+  expect(readHookInput(stuck.io)).toBe('');
+  expect(stuck.sleeps.length).toBeLessThan(100);
+  expect(stuck.err).toHaveLength(1);
 });

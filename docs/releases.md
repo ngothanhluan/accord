@@ -2,6 +2,15 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## 0.20.3 — 2026-11-25
+
+Release 0.20.3 fixes four faults that the review of 0.20.2 found, all in the path that reads the marker an older accord wrote. A repository pinned to 0.20.2 needs only `accord upgrade`. Tickets in flight are unaffected, and the output of every other command is the same bytes as before.
+
+- `accord on` run from a linked worktree, after a 0.20.0 or 0.20.1 `off` ran in another checkout of the clone, switches accord on as before and now prints one line saying that `enabledPlugins["accord-panel@accord"]` may still be `false` in the checkout where that `off` ran, and that deleting the key from its `.claude/settings.local.json` brings `/accord-panel` back. Before, it said nothing. The marker is shared by every worktree, but the flag sits in the one checkout where the old `off` ran, so `on` cannot reach it from another.
+- `off` over a marker an older accord wrote no longer says that `/accord-panel` opens the pane. It says that `on` puts the panel flag back.
+- A marker that exists but cannot be read (another program holds it open, or a folder stands in its place) is no longer taken for no marker. `off` and `on` exit 2 with one line and leave it, so a panel record that `on` needs is not overwritten or removed.
+- A rename that fails while writing the marker or the local settings leaves no `.tmp` file behind. `off` and `on` exit 2 with one line instead of a stack trace, and `on` keeps the marker so it can be run again.
+
 ## 0.20.2 — 2026-11-25
 
 `accord off` no longer switches off the pane's plugin, so typing `/accord-panel` opens the pane while accord is off. The live check of 0.20.1 found that the command was unknown after `off` (owner ruling, 2026-11-25). A repository pinned to 0.20.0 or 0.20.1 needs only `accord upgrade`. Tickets in flight are unaffected: no gate, check or CI job reads the switch, and the output of every other command is the same bytes as before.

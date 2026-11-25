@@ -540,7 +540,7 @@ export const sliceMany: GateRule['check'] = (snapshot, id) => {
 };
 
 /** The review budget of a slice in lines: `review.slice_lines` when it reads as a positive whole number, else SLICE_LINES_DEFAULT. */
-const sliceBudget = (snapshot: RepoSnapshot): number => {
+export const sliceBudget = (snapshot: RepoSnapshot): number => {
   const n = Number(snapshot.config?.review?.slice_lines);
   return Number.isSafeInteger(n) && n > 0 ? n : SLICE_LINES_DEFAULT;
 };

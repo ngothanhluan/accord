@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { CONFIG, LANE_BODY, LANE_S_BODY, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_BODY, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 
 const dirs: string[] = [];
@@ -235,4 +235,48 @@ it('risk:regression accord pr LOGIN-1 and accord pr build LOGIN-1 print the same
   expect(help.code, help.out + help.err).toBe(0);
   expect(help.out).toMatch(/^\s+build\b/m);
   expect(help.out).toMatch(/^\s+wait\b/m);
+}, 120_000);
+
+// Phase 15 plan 16 (D-06, SC-2): the pull request of one slice names its slice, the criteria it delivers and its measured size.
+const lines = (n: number, what: string): string => Array.from({ length: n }, (_v, i) => `${what} ${i}\n`).join('');
+const BODY_3 = LANE_BODY.replace(
+  '    Then the cell is quoted\n```',
+  ['    Then the cell is quoted', '', '  @ac-3 @test:export#third', '  Scenario: a third thing', '    Given a report', '    When the owner exports it', '    Then a third thing happens', '```'].join('\n'),
+);
+const SLICED = PLAN + ['## Slice 1: Writer', 'tasks: 1', 'covers: @ac-1', '', '## Slice 2: Escaping', 'tasks: 2', 'covers: @ac-2 @ac-3', ''].join('\n');
+
+/** T-1 with a plan of two slices: slice 1 on t/T-1 holds one commit of work, and slice 2 on slice/T-1/2 holds `more` on top of it. */
+function slicedBranch(more: Record<string, string>, extra: Record<string, string> = {}): string {
+  const { repo } = onBranch({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: BODY_3 }), 'accord/tickets/T-1/plan.md': SLICED, ...extra });
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  commitMsg(repo, 'claim: T-1', undefined, true);
+  writeFiles(repo, { 'src/one.ts': lines(500, 'slice one') });
+  commitMsg(repo, 'feat: slice one');
+  gitRun(repo, 'switch', '-q', '-c', 'slice/T-1/2');
+  writeFiles(repo, more);
+  commitMsg(repo, 'feat: slice two');
+  return repo;
+}
+
+const SLICE_TWO = {
+  'src/big.ts': lines(300, 'code'),
+  'packages/x/test/big.test.ts': lines(600, 'test'),
+  'docs/guide.md': lines(150, 'docs'),
+  'accord/tickets/T-1/ledger.md': lines(40, 'record'),
+  'package-lock.json': lines(100, 'lock'),
+};
+
+it('risk:regression accord pr T-1 --slice 2 titles the pull request with its slice and its body names the slice, its criteria and its measured size (D-06)', async () => {
+  const repo = slicedBranch(SLICE_TWO);
+  const r = await run(['pr', 'T-1', '--slice', '2'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(r.out).toContain('title: T-1: Export (slice 2 of 2)\n');
+  const body = readFileSync(bodyFile(repo, 'T-1'), 'utf8');
+  expect(body.startsWith('Slice 2 of 2\n')).toBe(true);
+  expect(body).toContain('`@ac-2` commas are escaped');
+  expect(body).toContain('`@ac-3` a third thing');
+  expect(body).not.toContain('@ac-1');
+  // ticket records and the lockfile are not counted: 300 code, 600 test and 150 docs lines
+  expect(body).toContain('Size: 1050 lines (code 300, test 600, docs 150), review budget 1000\n');
+  expect(body).toContain('- feat: slice two\n');
 }, 120_000);

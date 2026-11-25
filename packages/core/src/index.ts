@@ -120,7 +120,7 @@ export { taskVerdict, ticketTaskVerdict } from './gate/task.js';
 export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';
-export { PLAN_LARGE_TASKS, SIZE_MULTIPLE, sizeRefusal, SLICE_LINES_DEFAULT, SLICES_MANY, TASK_LINE_CAP, taskLength } from './gate/plan.js';
+export { PLAN_LARGE_TASKS, SIZE_MULTIPLE, sizeRefusal, SLICE_LINES_DEFAULT, sliceBudget, SLICES_MANY, TASK_LINE_CAP, taskLength } from './gate/plan.js';
 export { afterCycles, buildWaves, DEFAULT_PARALLEL, parallelOf, sequentialReason } from './plan/waves.js';
 export { CALL_SIGN, interfaceSigns, matches, outsideScope, scopeLines } from './gate/scope.js';
 export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from './security/spec.js';
@@ -182,8 +182,11 @@ export type { SubjectCollision, SubjectName } from './commits/subjects.js';
 export { commitRuleLine, commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal, CONVENTIONAL_EXAMPLE, CONVENTIONAL_PATTERN } from './commits/rule.js';
 export type { CommitRule, CommitRuleOf } from './commits/rule.js';
 // Phase 8.1 D-01, D-03: the pull request body from the team's template, every heading kept.
-export { epicBody, fillTemplate, findTemplate, prFacts, prTitle, prTitleProblem, templateSections, todaysBody } from './pr/template.js';
-export type { PrFacts, TemplateSection } from './pr/template.js';
+export { epicBody, fillTemplate, findTemplate, prFacts, prTitle, prTitleProblem, sliceBlock, sliceFacts, sliceTitle, templateSections, todaysBody } from './pr/template.js';
+export type { PrFacts, SlicePart, TemplateSection } from './pr/template.js';
+// Phase 15 D-06: the measured size of a slice.
+export { sizeKind, sliceSizeOf, sliceSplit } from './pr/size.js';
+export type { NumstatLine, SizeKind, SliceSize } from './pr/size.js';
 export { checkName, headCommitDate, prWaitVerdict } from './pr/wait.js';
 export type { InlineComment, PrView, WaitGate, WaitVerdict } from './pr/wait.js';
 export { anchorText } from './status/anchor.js';

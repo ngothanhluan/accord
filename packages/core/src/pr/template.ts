@@ -2,6 +2,8 @@
 // Pure: the host reads the template file and writes the body file. A heading line is never rewritten or moved, so the fill only inserts lines.
 import type { Ticket, Verification } from '../model/snapshot.js';
 import { headingKey, sectionLines } from '../load/sections.js';
+import { sliceSplit } from './size.js';
+import type { SliceSize } from './size.js';
 
 /** One heading of a template (ATX, levels 1-6) and the lines under it up to the next heading of any level. */
 export interface TemplateSection {
@@ -222,8 +224,35 @@ export function fillTemplate(template: string, facts: PrFacts): { body: string; 
   return { body: out.join('\n').replace(/\n*$/, '\n'), remaining };
 }
 
-/** The title of a ticket's pull request: its id, then its title (Ruling "title"). */
-export const prTitle = (id: string, title: string): string => `${id}: ${title}`;
+/** Phase 15 D-07: which slice a pull request is, of how many. */
+export interface SlicePart {
+  n: number;
+  of: number;
+}
+
+/** A pull request title of a slice ends `(slice <n> of <m>)`; the numbers are the only text added (T-15-37). */
+export const sliceTitle = (title: string, slice: SlicePart): string => `${title} (slice ${slice.n} of ${slice.of})`;
+
+/** The title of a ticket's pull request: its id, then its title (Ruling "title"), and for a slice the part naming it. */
+export const prTitle = (id: string, title: string, slice?: SlicePart): string => (slice === undefined ? `${id}: ${title}` : sliceTitle(`${id}: ${title}`, slice));
+
+/**
+ * Phase 15 D-06: the facts of one slice's pull request. Only the criteria lines (and their evidence lines) that carry a tag the slice's `covers:` names are kept, so the filled template lists what this
+ * pull request delivers; a line with no `@ac-n` tag belongs to no slice and is left out.
+ */
+export function sliceFacts(facts: PrFacts, covers: readonly string[]): PrFacts {
+  const mine = (line: string): boolean => covers.some((c) => c.startsWith('@') && line.startsWith(`- \`${c}\` `));
+  return { ...facts, criteria: facts.criteria.filter(mine), evidence: facts.evidence.filter(mine) };
+}
+
+/**
+ * Phase 15 D-06, SC-2: the block that opens the body of a slice's pull request: `Slice <n> of <m>`, the criteria lines the slice delivers, and the measured size with the review budget (or the
+ * words that it could not be measured). Numbers and the criteria lines `prFacts` made (tags in code spans) only.
+ */
+export function sliceBlock(slice: SlicePart, delivers: readonly string[], size: SliceSize | undefined, budget: number): string {
+  const sizeLine = size === undefined ? 'Size: not measured (git could not say where this slice starts)' : `Size: ${size.total} lines (${sliceSplit(size)}), review budget ${budget}`;
+  return [`Slice ${slice.n} of ${slice.of}`, '', ...(delivers.length === 0 ? [] : ['Delivers:', ...delivers, '']), sizeLine, '', ''].join('\n');
+}
 
 /**
  * Why a pull request title cannot go through the quoted `--title "<title>"` argument the skills write, or undefined when it can (Ruling "title"). A double quote, a backtick, `$` and a backslash

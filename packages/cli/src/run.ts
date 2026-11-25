@@ -382,8 +382,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   prGroup
     .command('build <id>', { isDefault: true })
     .description("write the body file of a ticket's pull request from the repository's PR template with every heading kept and the ticket's id, title, Intent, criteria and test evidence filled in, and print title: <title>, body-file: <path>, template: <path>, and one remaining: <heading> line per section left for you to write; the skill then runs gh pr create --title <title> --body-file <path>")
-    .action((id: string) => {
-      setCode(pr(preflight(opts), id));
+    .option('--slice <n>', "the pull request of slice <n> of the plan's slices: the title ends (slice <n> of <m>) and the body opens with Slice <n> of <m>, the criteria that slice delivers and its measured size")
+    .action((id: string, o: { slice?: string }) => {
+      setCode(pr(preflight(opts), id, o));
     });
   prGroup
     .command('wait <id>')

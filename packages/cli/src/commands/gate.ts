@@ -12,6 +12,7 @@ import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
+import { gitSliceSize } from '../load/slice-size.js';
 import { withSlopFacts } from '../load/slop-facts.js';
 import { appendGateRun, GATE_LOG } from '../load/ticket-log.js';
 import { colourFindings } from '../render/color.js';
@@ -95,7 +96,10 @@ export function gate(
   const render = renderedFilesOf(config);
   let list: ReturnType<typeof render> | undefined;
   const rendered = (): ReturnType<typeof render> => (list ??= render()); // at most one render per command, for the two readers
-  const forGate = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
+  const withFacts = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
+  // Phase 15 D-06: a `--slice` run also holds the measured size of that slice, for gate.slice-diff-large; no flag reads nothing, and a size git could not measure is no fact.
+  const measured = which === 'done' && scope !== undefined ? gitSliceSize(ctx.root, ctx.snapshot, id, scope.n, rendered) : undefined;
+  const forGate = measured === undefined ? withFacts : { ...withFacts, sliceSize: { ...withFacts.sliceSize, [id]: measured } };
   const result =
     which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), undefined, undefined, undefined, ctx.ids), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id, scope === undefined ? {} : { slice: scope.n });
   // D-31: a slice run says which slice it judged; under --json that line goes to stderr so stdout stays the GateResult alone.

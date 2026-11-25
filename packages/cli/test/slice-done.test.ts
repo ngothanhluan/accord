@@ -2,10 +2,10 @@
 // tasks of slices 1..n; every other Done rule runs as for the whole ticket, and the last slice judges the full set. On real files and real git, through the real command.
 import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { recordTaskDone, setFrontmatterKey } from '@accord-dev/accord-core';
+import { recordTaskDone, setFrontmatterKey, SLICES_FROM } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
 import { approve, CONFIG, discussFiles, discussPath, done, gateReadyIn, junit, laneTicket, LANE_BODY, P, PLAN, REPORT, type Files } from '../../../test/helpers/lane.js';
-import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { claimedUnder, cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 interface Found { rule: string; level: string; file: string; reason: string }
 
@@ -51,17 +51,21 @@ interface Build {
   ticked?: number[]; // the criteria ticked, and the evidence blocks written
   stray?: number[]; // evidence blocks of criteria that are not ticked, written as a failing result that cites nothing
   evidence?: Record<number, string>; // the text an evidence block cites, by criterion; the default cites the criterion's passing test
+  extra?: Record<string, string>; // files written in the commit that holds the code, so the slice has a size to measure
+  claim?: string; // the release the ticket was claimed under: a claim commit pinning it follows the branch; absent, no claim commit
+  config?: (base: string) => string; // the accord/config.yml the fixture starts with, from the lane fixture's
 }
 
 /** T-1 on its claim branch, ready and planned, the way lane-flow builds it; the reviewer's evidence and ticks bound to HEAD are left uncommitted, as the reviewer leaves them. */
 function build(b: Build = {}): string {
-  const repo = makeLaneRepo({ ...discussFiles('T-1'), [P('T-1')]: laneTicket('T-1', { body: BODY }) });
+  const repo = makeLaneRepo({ ...discussFiles('T-1'), [P('T-1')]: laneTicket('T-1', { body: BODY }), ...(b.config === undefined ? {} : { 'accord/config.yml': b.config(CONFIG) }) });
   try {
     gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
     gitRun(repo, 'config', 'user.name', 'fixture');
     gitRun(repo, 'config', 'commit.gpgsign', 'false');
     commitMsg(repo, 'base');
     gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    if (b.claim !== undefined) claimedUnder(repo, b.claim);
     const files: Files = {};
     for (const rel of ['accord/config.yml', P('T-1'), 'src/export.ts', discussPath('T-1')]) files[rel] = readFileSync(join(repo, ...rel.split('/')), 'utf8');
     approve(files, 'T-1');
@@ -74,6 +78,7 @@ function build(b: Build = {}): string {
     writeFiles(repo, {
       'src/export.ts': readFileSync(join(repo, 'src', 'export.ts'), 'utf8') + '// the code\n',
       [REPORT]: junit(b.report ?? { 'export#writes-csv': 'passed' }),
+      ...b.extra,
       ...(ledger === undefined ? {} : { 'accord/tickets/T-1/ledger.md': ledger }),
     });
     const head = commitMsg(repo, 'the code of T-1');
@@ -255,6 +260,91 @@ describe('gate done --slice', () => {
       const edited = await gateDone(repo, '--slice', '1');
       expect(edited.code).toBe(1);
       expect(errors(edited.found)).toEqual(['gate.done-ticket-edited']);
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+});
+
+// Phase 15 plan 16 (D-06, SC-3): `gate done --slice n` measures slice n and warns, never blocks, when it is over the review budget.
+describe('gate done --slice measures the slice', () => {
+  const lines = (n: number, what: string): string => Array.from({ length: n }, (_v, i) => `${what} ${i}\n`).join('');
+  // 300 code, 600 test and 150 docs lines on top of the plan's baseline; a lockfile is not counted
+  const BIG = {
+    'src/big.ts': lines(300, 'code'),
+    'packages/x/test/big.test.ts': lines(600, 'test'),
+    'docs/guide.md': lines(150, 'docs'),
+    'package-lock.json': lines(500, 'lock'),
+  };
+  const budget = (n: string) => (base: string): string => base.replace('  mode: outcome\n', `  mode: outcome\n  slice_lines: "${n}"\n`);
+  const sizeFindings = (found: Found[]): Found[] => found.filter((f) => f.rule === 'gate.slice-diff-large');
+
+  it('risk:regression slice 1 over the budget warns gate.slice-diff-large with the split, and the verdict is the one without the warning (D-06)', async () => {
+    const repo = build({ extra: BIG, claim: SLICES_FROM });
+    try {
+      const slice = await gateDone(repo, '--slice', '1');
+      const warned = sizeFindings(slice.found);
+      expect(warned).toHaveLength(1);
+      expect(warned[0].level).toBe('warning');
+      expect(warned[0].reason).toMatch(/^slice 1 is 10\d\d lines \(code 3\d\d, test 600, docs 150\), over the review budget of 1000$/);
+      // the verdict is what the same branch gets with the warning off: the warning adds no error and changes no exit code
+      const quiet = build({ extra: BIG, claim: SLICES_FROM, config: (base) => base + 'strictness:\n  levels:\n    gate.slice-diff-large: off\n' });
+      try {
+        const off = await gateDone(quiet, '--slice', '1');
+        expect(errors(slice.found)).toEqual(errors(off.found));
+        expect(slice.code).toBe(off.code);
+      } finally {
+        cleanup(quiet);
+      }
+    } finally {
+      cleanup(repo);
+    }
+  }, 240_000);
+
+  it('risk:regression review.slice_lines moves the budget: a budget above the size is no warning, and a size equal to the budget is none either (D-06)', async () => {
+    const repo = build({ extra: BIG, claim: SLICES_FROM, config: budget('1200') });
+    try {
+      expect(sizeFindings((await gateDone(repo, '--slice', '1')).found)).toEqual([]);
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:regression gate done with no --slice loads no size, so the same branch gets no size warning (D-06)', async () => {
+    const repo = build({ extra: BIG, claim: SLICES_FROM });
+    try {
+      expect(sizeFindings((await gateDone(repo)).found)).toEqual([]);
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:regression a ticket claimed before SLICES_FROM gets no size warning, however large the slice (D-06)', async () => {
+    const repo = build({ extra: BIG, claim: '0.20.3' });
+    try {
+      expect(sizeFindings((await gateDone(repo, '--slice', '1')).found)).toEqual([]);
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:regression the warning is a team level: strictness.levels can set it to off (D-06)', async () => {
+    const repo = build({ extra: BIG, claim: SLICES_FROM, config: (base) => base + 'strictness:\n  levels:\n    gate.slice-diff-large: off\n' });
+    try {
+      expect(sizeFindings((await gateDone(repo, '--slice', '1')).found)).toEqual([]);
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
+
+  it('risk:regression a slice whose start git cannot find makes no size fact: no warning and no error (D-06)', async () => {
+    // slice 2 starts at the merge base with the claim branch; with that branch renamed there is nothing to measure from
+    const repo = build({ extra: BIG, claim: SLICES_FROM });
+    try {
+      gitRun(repo, 'branch', '-m', 't/T-1', 'work');
+      const r = await run(['gate', 'done', 'T-1', '--slice', '2', '--json'], repo);
+      expect(r.code, r.err).not.toBe(2);
+      expect(sizeFindings((JSON.parse(r.out) as { findings: Found[] }).findings)).toEqual([]);
     } finally {
       cleanup(repo);
     }

@@ -432,6 +432,7 @@ export interface RepoSnapshot {
   contentSince?: Record<string, ContentSince>; // carried through from SnapshotInput
   baseRecords?: Record<string, BaseRecords>; // Phase 15 D-25: ticket id -> its records at the merge base and at HEAD; host-supplied by gate done, absent when the host cannot say
   doneSlice?: Record<string, readonly string[]>; // Phase 15 D-31: ticket id -> the `ac-n` tags of the slice `gate done --slice n` judges (n below the last slice); set by gateDone, never loaded. Absent: the full set
+  sliceSize?: Record<string, { n: number; code: number; test: number; docs: number; total: number }>; // Phase 15 D-06: ticket id -> the measured size of slice n (lines added plus deleted, split); host-supplied by `gate done --slice n`, absent when it was not asked or git could not say
   doneSliceTasks?: Record<string, readonly number[]>; // Phase 15 D-31: ticket id -> the task numbers of slices 1..n that the same run requires in the ledger; set with doneSlice
   commits?: { sha: string; message: string; merge?: boolean }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid; Phase 8.1 D-06: or commits.message is set, with merge true for a commit of two or more parents
   branchTemplates?: string[]; // carried through from SnapshotInput

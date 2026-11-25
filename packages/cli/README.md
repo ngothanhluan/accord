@@ -62,7 +62,7 @@ npx --yes @accord-dev/accord@0.19.0 init
 - `accord/product/glossary.md`, `accord/product/business-rules.md` and `accord/product/conventions.md`, from templates.
 - `.github/workflows/accord.yml`, a GitHub Actions workflow that runs `lint` and `gate done` on the tickets a pull request changes, with the same pinned version.
 - The skills: `/accord`, whose stage files (`intent.md`, `approach.md`, `plan.md`, `build.md`, `review.md`, `verify.md`) hold the six lane M stages, and the seven commands a person calls on their own, `/accord-upgrade`, `/accord-audit`, `/accord-debug`, `/accord-onboard`, `/accord-config`, `/accord-resolve-pr` and `/accord-review-pr`, plus `accord-designer`, which is opt-in: it is installed only when `roles` lists `designer` (see Daily use). Claude Code reads them from `.claude/skills/`, Codex from `.agents/skills/`.
-- For Claude Code only: the accord agents in `.claude/agents/`, the accord pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks, one that lets only the `accord-verifier` subagent write `verification.md`, and the keys that enable the pane. Existing settings are kept.
+- For Claude Code only: the accord agents in `.claude/agents/`, the accord pane plugin in `.claude/accord-panel/`, the launcher `.claude/accord.mjs` that every hook runs (it needs Claude Code 2.1.139 or newer), and in `.claude/settings.json` the session hooks, one that lets only the `accord-verifier` subagent write `verification.md`, and the keys that enable the pane. Existing settings are kept.
 - A short accord block appended to `AGENTS.md` and `CLAUDE.md`, or those files created.
 
 When `init` detects values for your settings (the merge style, the commit wording, the test commands), it prints each as a `proposal:` line and a `proposals:` count, writes none of them, and ends by naming `/accord-onboard`, which confirms them one by one, each only on your yes. When it detects nothing, the closing line is `proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings`, and the scan is what looks for them.
@@ -223,6 +223,8 @@ node .claude/accord.mjs off
 Accord's hooks then stay silent and its pane stays closed, in this clone and in all its worktrees. The switch is a file named `accord-off` inside the clone's git folder, which is never committed; `off` also sets the pane's flag in your own `.claude/settings.local.json`, and nobody else on the team is affected.
 
 `node .claude/accord.mjs on` undoes exactly that. Typing `/accord` still works in an off session, where it offers to switch accord back on, and you can ask your agent to "turn accord off" instead of typing the command.
+
+A team in which some people work without accord can set `hook_mode: quiet` in `accord/config.yml` (`/accord-onboard` proposes it when someone works here without accord): a session start then prints one line instead of the rules, the fetch and the worktree clean, and typing `/accord`, or opening a session on a ticket's branch, brings accord back for that session.
 
 ## License
 

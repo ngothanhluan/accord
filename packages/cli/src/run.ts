@@ -445,16 +445,16 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     });
 
   // Phase 08.9.2 D-03, L-01: a person's own switch for this clone. A stated exception to the pin check, like `upgrade`: it must work whatever the repository pins and in a
-  // clone with no `accord/` folder, so it takes no `preflight`. It reads files and runs one `git check-ignore`; it calls no model.
+  // clone with no `accord/` folder, so it takes no `preflight`. It reads and writes files only, starts no process and calls no model.
   program
     .command('off')
-    .description('switch accord off for you in this clone: every accord hook stays silent in every worktree of it and the pane stays closed; writes a marker in the git common folder and sets the panel flag in .claude/settings.local.json; accord on switches it back')
+    .description('switch accord off for you in this clone: every accord hook stays silent in every worktree of it and the pane does not open by itself (/accord-panel still opens it); writes only a marker in the git common folder; accord on switches it back')
     .action(() => {
       setCode(accordOff({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr }));
     });
   program
     .command('on')
-    .description('switch accord back on for you in this clone: removes the marker accord off wrote and restores the panel flag as it was, touching no other key')
+    .description('switch accord back on for you in this clone: removes the marker accord off wrote; a marker from accord 0.20.0 or 0.20.1 also has the panel flag that version set in .claude/settings.local.json put back as it was, touching no other key')
     .action(() => {
       setCode(accordOn({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr }));
     });

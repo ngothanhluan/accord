@@ -64,6 +64,12 @@ export interface SnapshotInput {
 /** ST-LN-96 D-04: `changed` is the ticket's files whose contents differ between the recorded commit and HEAD (empty: none); `absent`: the commit is not in this clone. */
 export type ContentSince = { changed: string[] } | { absent: true };
 
+/**
+ * Phase 15 D-23, D-25: what the host read of one ticket's records at the merge base of HEAD with the default branch (`base`, a commit) and at HEAD. `done` is whether the ticket is done at `base`;
+ * `records` and `head` map each path of the ticket's file and folder to its text there, a path absent at one side is absent from that map.
+ */
+export interface BaseRecords { base: string; done: boolean; records: Record<string, string>; head: Record<string, string> }
+
 export type ResearchFact = { error: string } | { claimTime?: number; changed: Record<string, number> };
 
 /** ST-LN-57: one commit of a round's range: its kind and the paths it changes (for a merge, the paths its remerge diff shows). */
@@ -406,6 +412,7 @@ export interface RepoSnapshot {
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
   contentSince?: Record<string, ContentSince>; // carried through from SnapshotInput
+  baseRecords?: Record<string, BaseRecords>; // Phase 15 D-25: ticket id -> its records at the merge base and at HEAD; host-supplied by gate done, absent when the host cannot say
   commits?: { sha: string; message: string; merge?: boolean }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid; Phase 8.1 D-06: or commits.message is set, with merge true for a commit of two or more parents
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput

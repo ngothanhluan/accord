@@ -8,6 +8,7 @@ import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { resolveStrictness } from '../config/strictness.js';
 import { effectiveLevel, STAGE_OF, stageOff } from './floor.js';
+import { doneAtBase } from './done.js';
 import { readyHash } from './hash.js';
 import { downgradeMaintain, DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule, RunOnce } from './rules.js';
@@ -121,6 +122,9 @@ export function gatePlan(snapshot: RepoSnapshot, id: string): GateResult {
  */
 export function gateDone(snapshot: RepoSnapshot, id: string): GateResult {
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
+  // Phase 15 D-23, D-24, D-25: a ticket done at the merge base with the default branch runs the one row that says a done ticket is not edited, and no other: its evidence is history,
+  // so no rule resolves a file or a test at HEAD for it. A host that supplied no base fact leaves doneAtBase false and today's tables run.
+  if (doneAtBase(snapshot, id)) return run('done', DONE_RULES.filter((r) => r.id === 'gate.done-ticket-edited'), [], snapshot, id);
   // ST-LN-94 D-10: lane R runs its own Done table, so no lane M Done rule reads an R ticket's records.
   return run('done', lane === 'S' ? DONE_S_RULES : lane === 'R' ? DONE_R_RULES : DONE_RULES, [], snapshot, id);
 }

@@ -469,8 +469,8 @@ function diffNames(root: string, args: string[]): string[] {
 /** Paths per `git diff` command line: a long list is cut into batches, never handed over unbounded. */
 const CONTENT_BATCH = 200;
 
-/** The merge base of `ref` with the default ref `def`. */
-function mergeBaseOf(root: string, def: string, ref: string): string {
+/** The merge base of `ref` with the default ref `def`; throws when git cannot say (Phase 15: gitBaseRecords reads it too). */
+export function mergeBaseOf(root: string, def: string, ref: string): string {
   return execFileSync('git', ['merge-base', def, ref], { cwd: root, ...GIT_QUIET, maxBuffer: 64 * 1024 * 1024 }).trim();
 }
 

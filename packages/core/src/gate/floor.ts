@@ -35,7 +35,7 @@ const FLOOR: Record<string, readonly string[]> = {
     'gate.no-scenarios', 'gate.tags-differ', 'gate.verification-missing', 'gate.result-not-pass', 'gate.commit-missing', 'gate.sha-too-short',
     'gate.ac-hash-missing', 'gate.ac-changed', 'gate.tick-unbound', 'gate.tick-stale-hash', 'gate.tick-stale-commit', 'gate.stale-review',
     'gate.test-tag-missing', 'gate.tests-unconfigured', 'gate.report-missing', 'gate.test-unknown', 'gate.test-not-passed', 'gate.test-untraced',
-    'gate.suite-not-passed', 'gate.verification-unfinished', 'gate.evidence-unresolved', 'gate.note-missing', 'gate.note-unresolved', 'gate.note-pasted',
+    'gate.suite-not-passed', 'gate.done-ticket-edited', 'gate.verification-unfinished', 'gate.evidence-unresolved', 'gate.note-missing', 'gate.note-unresolved', 'gate.note-pasted',
     'gate.research-record-missing', 'gate.research-spent-missing', 'gate.research-over-budget', 'gate.research-shipped',
   ],
   // Phase 8.5 R-4: lint.conventions-file guards the trust boundary of product text delivered to agents (D-08)

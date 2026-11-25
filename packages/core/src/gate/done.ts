@@ -3,6 +3,7 @@
 // has already de-duplicated by tag and validated `Result:` on (D-40, D-42), and never re-scans Markdown.
 // Every path is built from the repo-relative ticket id, so no absolute path and no backslash can reach
 // a reason (D-51).
+import { normaliseText } from '../load/frontmatter.js';
 import { headingKey } from '../load/sections.js';
 import { normaliseKey } from '../load/snapshot.js';
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
@@ -279,6 +280,28 @@ export const tickStaleCommit: GateRule['check'] = (snapshot, id) => {
   const content = contentVerdict(snapshot, tick, host, 'ticks', today);
   if (content !== undefined && 'pass' in content) return [];
   return [{ file: ticketFile(id), pointer: '/verified_commit', reason: content === undefined ? today : content.reason }];
+};
+
+/** Phase 15 D-23: the host read the ticket as done at the merge base with the default branch. Without its fact (no default ref, a git failure) it is false, and today's Done rules stand. */
+export const doneAtBase = (snapshot: RepoSnapshot, id: string): boolean =>
+  snapshot.baseRecords !== undefined && Object.hasOwn(snapshot.baseRecords, id) && snapshot.baseRecords[id].done;
+
+/**
+ * Phase 15 D-23, D-24, D-25: a ticket done at the merge base is not edited. Every path of its file and folder is compared between the base and HEAD, a deletion and an addition
+ * included, after the loader's line-ending normalisation; one finding names every changed path. It takes no `claimPinBefore` cut-off: it adds a refusal only for a pull request that
+ * changes a done ticket, which no earlier release let through quietly. With it in force `gateDone` runs no other Done rule for the ticket, so no evidence is resolved at HEAD (D-24).
+ */
+export const doneTicketEdited: GateRule['check'] = (snapshot, id) => {
+  if (!doneAtBase(snapshot, id)) return [];
+  const fact = (snapshot.baseRecords as NonNullable<RepoSnapshot['baseRecords']>)[id];
+  const paths = [...new Set([...Object.keys(fact.records), ...Object.keys(fact.head)])].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const changed = paths.filter((p) => {
+    const before = Object.hasOwn(fact.records, p) ? normaliseText(fact.records[p]) : undefined;
+    const after = Object.hasOwn(fact.head, p) ? normaliseText(fact.head[p]) : undefined;
+    return before !== after;
+  });
+  if (changed.length === 0) return [];
+  return [{ file: ticketFile(id), reason: `${id} is done on the base branch (${fact.base.slice(0, 7)}); a done ticket is not edited - revert the change to ${changed.join(', ')}` }];
 };
 
 /** ROADMAP criterion 2 and docs/design.md §5: the review must be of the code being gated. */

@@ -52,7 +52,8 @@ function fill(io, versionsDir, folder, version, bundleOf) {
     io.fs.mkdirSync(temp, { recursive: true });
     const args = ['install', '--prefix', temp, '--no-save', '--no-audit', '--no-fund', '--ignore-scripts', `${PACKAGE}@${version}`];
     const script = npmCli(io);
-    const opts = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: io.env, timeout: INSTALL_MS };
+    // cwd is the temporary folder, so a package.json or .npmrc committed in the repository the hook runs in never reaches npm.
+    const opts = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: io.env, timeout: INSTALL_MS, cwd: temp };
     // The one place a shell is used: Windows with no npm-cli.js beside Node, where npm is npm.cmd. Fixed words plus the checked version.
     const r = script === undefined ? io.spawnSync('npm', args, { ...opts, shell: io.platform === 'win32' }) : io.spawnSync(io.execPath, [script, ...args], opts);
     if (r.error !== undefined) return oneLine(r.error.message, 160) || 'npm did not start';

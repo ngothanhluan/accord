@@ -43,12 +43,14 @@ export function narrowFixture(extra = 0): string {
   files[P('R-1')] = laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${RECORD}"]`] });
   files[RECORD] = ['# Critic rounds', '', 'Date: 2026-11-20', 'Repository at `1c5704ee`', '', 'The critic needs one round.', ''].join('\n');
   files[P(ORIGIN_ONLY)] = laneTicket(ORIGIN_ONLY);
+  // a ticket that depends on the claimed story and on the one claimed on origin only, so `show` reads their claim-branch copies
+  files[P('V-1')] = laneTicket('V-1', { frontmatter: ['depends_on: ["B-1", "O-1"]'] });
   for (let i = 1; i <= extra; i++) {
     const id = 'X-' + String(i).padStart(3, '0');
     files[P(id)] = laneTicket(id, { frontmatter: ['status: draft'] });
   }
   // a lane M ticket needs its discuss record to pass Ready, so the fixture holds both verdicts
-  Object.assign(files, discussFiles(STORY, 'C-1', 'C-2', 'U-1', 'F-1', 'W-1', 'U-2', 'Z-1', 'Y-1', 'Y-2', ORIGIN_ONLY));
+  Object.assign(files, discussFiles(STORY, 'C-1', 'C-2', 'U-1', 'F-1', 'W-1', 'U-2', 'Z-1', 'Y-1', 'Y-2', ORIGIN_ONLY, 'V-1'));
   const repo = makeLaneRepo(files);
   gitRun(repo, 'config', 'user.email', 'an@example.com');
   gitRun(repo, 'config', 'user.name', 'fixture');

@@ -64,3 +64,11 @@ it('risk:resource gate plan gate done and anchor open as many ticket files at 5 
   await sameAt5And50(['anchor'], 'story worktree');
   expect(await sameAt5And50(['anchor']), 'the anchor on the default branch names no ticket, so it opens no ticket file').toBe(0);
 }, 600_000);
+
+// Phase 08.9.2 Ruling-structural: the ticket files `show --json` and `show` open do not grow with the number of other tickets, for a story under an epic, for the epic and for a ticket with claimed dependencies.
+it('risk:resource show json opens as many ticket files at 5 and at 50 extra tickets (Ruling-structural)', async () => {
+  await sameAt5And50(['show', STORY, '--json']);
+  await sameAt5And50(['show', STORY]);
+  await sameAt5And50(['show', 'E-1', '--json']);
+  await sameAt5And50(['show', 'V-1', '--json']);
+}, 600_000);

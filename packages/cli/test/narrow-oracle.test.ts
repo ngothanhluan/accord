@@ -10,7 +10,8 @@ import { loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { anchor } from '../src/commands/anchor.js';
 import { gate } from '../src/commands/gate.js';
-import { loadNarrow, loadWithBranch } from '../src/load/fs.js';
+import { show } from '../src/commands/show.js';
+import { loadClaimView, loadNarrow, loadWithBranch, withDefaultRef } from '../src/load/fs.js';
 import type { NarrowTarget } from '../src/load/fs.js';
 import type { CommandContext } from '../src/run.js';
 import { cleanup, gitRun, run } from './helpers/repo.js';
@@ -178,4 +179,61 @@ it('risk:regression gate plan gate done and anchor on the narrow load print what
   expect(texts['the story claim branch'], 'the claim branch names the story').toContain('B-1');
   expect(texts['a claim on origin only'], 'the origin-only claim names its ticket').toContain('O-1');
   expect(texts['the default branch']).not.toContain('B-1');
+}, 900_000);
+
+/** The context `preflight('claims')` builds: the claim view (narrow with `only`), the checkout read beside it, and the default ref's records on the snapshot. */
+function claimContext(root: string, only?: string): Made {
+  const parts = loadClaimView(root, only === undefined ? undefined : { only });
+  const memo = parts.memo ?? new Map<string, unknown>();
+  const loaded = loadSnapshot(parts.view, { memo });
+  const plain = parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout, { memo });
+  const snapshot = withDefaultRef(root, loaded, parts.refs, memo, undefined, parts.ids);
+  const m = made(root, snapshot, parts.branch, parts.ids);
+  m.ctx.plain = plain;
+  return m;
+}
+
+// Phase 08.9.2 Ruling-oracle (L-04): `show <id> --json` (with its log), `show <id>` text and `show <id> --approval` print the same bytes on the narrow claim view as on the full one, for every ticket,
+// in the repository and in the worktrees of a claimed ticket and of an origin-only claim.
+it('risk:regression show on the narrow claim view prints what it prints on the full one (Ruling-oracle)', async () => {
+  const mismatches: string[] = [];
+  const seen = new Set<string>();
+  const compare = (root: string, where: string, targets: readonly string[]): void => {
+    const reference = claimContext(root);
+    for (const id of targets) {
+      for (const [name, options] of [['json', { json: true }], ['text', {}]] as const) {
+        const want = outcome(made(root, reference.ctx.snapshot, reference.ctx.branch), (ctx) => show({ ...ctx, ...(reference.ctx.plain === undefined ? {} : { plain: reference.ctx.plain }) }, id, options));
+        const got = outcome(claimContext(root, id), (ctx) => show(ctx, id, options));
+        seen.add(name + ':' + (typeof want.code === 'number' ? 'ok' + want.code : 'threw'));
+        if (JSON.stringify(got) !== JSON.stringify(want)) mismatches.push(where + ' ' + name + ' ' + id);
+      }
+    }
+  };
+  compare(repo, 'repository', ids);
+  for (const [name, root] of [
+    ['the story claim worktree', worktreeOn(['<dir>', 't/' + STORY])],
+    ['a claim on origin only', worktreeOn(['-b', 't/' + ORIGIN_ONLY, '<dir>', 'refs/remotes/origin/t/' + ORIGIN_ONLY])],
+  ] as const) compare(root, name, [STORY, EPIC, 'C-1', ORIGIN_ONLY, 'V-1', 'W-1']);
+  // the fixture bites: tickets with and without a lane, the story's claim copy, a dependent ticket
+  expect([...seen].sort()).toEqual(expect.arrayContaining(['json:ok0', 'json:threw', 'text:ok0', 'text:threw']));
+  const story = claimContext(repo, STORY);
+  expect(Object.keys(story.ctx.snapshot.tickets).sort(), 'the narrow claim view holds the story and its epic').toEqual(['B-1', 'E-1']);
+  const dependent = claimContext(repo, 'V-1');
+  expect(Object.keys(dependent.ctx.snapshot.tickets).sort(), 'V-1 holds its claimed dependencies, read from their claim branches').toEqual(['B-1', 'E-1', 'O-1', 'V-1']);
+  expect(mismatches, 'show outputs that differ between the narrow and the full claim view').toEqual([]);
+
+  // the command itself, through preflight: --json, text and --approval, as the full load prints them
+  const reference = claimContext(repo);
+  for (const [argv, options] of [
+    [['show', STORY, '--json'], { json: true }],
+    [['show', STORY], {}],
+    [['show', 'V-1', '--json'], { json: true }],
+    [['show', EPIC, '--json'], { json: true }],
+    [['show', STORY, '--approval'], { approval: true }],
+    [['show', STORY, '--approval', '--short'], { approval: true, short: true }],
+  ] as const) {
+    const want = outcome(made(repo, reference.ctx.snapshot, reference.ctx.branch), (ctx) => show({ ...ctx, ...(reference.ctx.plain === undefined ? {} : { plain: reference.ctx.plain }) }, argv[1], options));
+    const got = await run([...argv], repo, ENV);
+    expect({ argv, code: got.code, out: got.out }).toEqual({ argv, code: want.code, out: want.out });
+  }
 }, 900_000);

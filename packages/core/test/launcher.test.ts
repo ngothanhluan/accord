@@ -400,3 +400,21 @@ it('risk:parsing a command word first reads the pin from accord config beside th
     expect(w.err[0]?.trimEnd().split('\n')).toHaveLength(1);
   }
 });
+
+// Phase 08.9.2 review WR-01: the pin line takes every form `accord upgrade` writes and accepts (the grammar of scaffold/repin.ts), so the off line a session start prints works in each.
+it('risk:parsing the pin line takes a quoted pin a single-quoted pin and a pin with a comment (WR-01)', () => {
+  for (const line of ['accord: "0.19.0" # pinned', "accord: '0.19.0'", 'accord: 0.19.0 # comment', 'accord:   "0.19.0"', 'accord: 0.19.0\r']) {
+    const w = world();
+    w.m.text('/repo/accord/config.yml', `schema: 1\n${line}\nmode: team\n`);
+    w.m.file(bundleOf('0.19.0'));
+    expect(launch(w.io(['off'])), line).toBe(0);
+    expect(w.err, line).toEqual([]);
+    expect((w.spawned[0] as Spawned | undefined)?.args.map(norm), line).toEqual([bundleOf('0.19.0'), 'off']);
+  }
+  // a key with no value on its line takes nothing from the next line
+  const split = world();
+  split.m.text('/repo/accord/config.yml', 'accord:\nfoo: bar\n');
+  expect(launch(split.io(['off']))).toBe(2);
+  expect(split.spawned).toEqual([]);
+  expect(split.err[0]).toContain('no "accord:" pin found');
+});

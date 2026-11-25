@@ -38,7 +38,7 @@ export function outcome({ exitCode, stdout, stderr }) {
   } catch {
     return { message: NONE };
   }
-  const ok = plain(d) && ['yours', 'team', 'ready', 'epics'].every((k) => sectionOk(d[k])) && (d.upNext === undefined || sectionOk(d.upNext)) && plain(d.summary);
+  const ok = plain(d) && ['yours', 'team', 'ready', 'epics'].every((k) => sectionOk(d[k])) && (d.upNext === undefined || sectionOk(d.upNext)) && (d.mergedWaiting === undefined || sectionOk(d.mergedWaiting)) && plain(d.summary);
   return ok ? { dashboard: d } : { message: NONE };
 }
 
@@ -105,11 +105,13 @@ export function view(state, query, columns) {
   section('TEAM', d.team, withOpen());
   section('READY', d.ready, withOpen('pick-up', 'Pick up', 'pick-up'));
   if (d.upNext) section('UP NEXT', d.upNext, withOpen('pick-up', 'Pick up', 'pick-up'));
+  // Phase 15 D-29: code merged before verify; the row's next step is verify, so its action is Continue, never Pick up
+  if (d.mergedWaiting) section('MERGED, WAITING FOR VERIFY', d.mergedWaiting, withOpen('continue', 'Continue', 'continue'));
   if (d.epics.rows.length > 0) {
     section('EPICS', d.epics, epicCells);
   }
   // longest cell over every row before the search filter, so columns neither differ between sections nor move while typing
-  const all = [d.yours, d.team, d.ready, ...(d.upNext ? [d.upNext] : []), d.epics];
+  const all = [d.yours, d.team, d.ready, ...(d.upNext ? [d.upNext] : []), ...(d.mergedWaiting ? [d.mergedWaiting] : []), d.epics];
   const widths = { id: len('ID'), bar: 1, lane: len('LANE'), stage: len('STAGE') };
   for (const sec of all) {
     for (const r of rowsOf(sec)) {

@@ -48,6 +48,7 @@ import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeOpen, worktreePush, worktreeSync } from './commands/worktree.js';
 import { loadClaimView, loadLight, loadNarrow, loadWithBranch, UsageError, withDefaultRef } from './load/fs.js';
+import { withMergedClaims } from './load/merged-state.js';
 import type { LightLoad, NarrowTarget } from './load/fs.js';
 import { pinMessage, versionOnDisk } from './pin.js';
 import { repoRoot } from './root.js';
@@ -100,10 +101,11 @@ const DISPLAY_FRONTMATTER_ONLY: readonly string[] = ['dropped'];
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout', options: { pinCheck?: 'refuse' | 'report'; display?: boolean; only?: NarrowTarget } = {}): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout', options: { pinCheck?: 'refuse' | 'report'; display?: boolean; only?: NarrowTarget; picture?: 'repository' } = {}): CommandContext {
   const root = repoRoot(opts.cwd);
   // Phase 08.9.2 Ruling-narrow: under the claim view `only` narrows the checkout and the claim-branch overlay to the target's neighbourhood.
-  const parts = mode === 'claims' ? loadClaimView(root, options.only === undefined ? {} : { only: options.only }) : undefined;
+  // Phase 15 D-17: `picture: 'repository'` is the dashboard's alone; status, next, show and audit keep the checkout as their base.
+  const parts = mode === 'claims' ? loadClaimView(root, { ...(options.only === undefined ? {} : { only: options.only }), ...(options.picture === undefined ? {} : { picture: options.picture }) }) : undefined;
   // ST-LN-63: a light load keeps the parts it read, so a command that goes on to the full load does not read them twice.
   const lit = mode === 'light' ? loadLight(root) : undefined;
   // Phase 08.9.2 Ruling-narrow: `only` is the command of one ticket (a gate, the anchor): its target's neighbourhood is read, every other ticket by file name only. With the claim view the same `only` goes to `loadClaimView`; never with the light load.
@@ -135,7 +137,9 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
     if (message !== undefined) throw new UsageError(message);
   }
   // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
-  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs, memo, frontmatterOnly, listedIds) : loaded;
+  const withDefault = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs, memo, frontmatterOnly, listedIds) : loaded;
+  // Phase 15 D-29: the dashboard also lists a merged ticket whose claim branch is gone, which only the default ref's records say.
+  const snapshot = mode === 'claims' && options.picture === 'repository' ? withMergedClaims(withDefault) : withDefault;
   return { root, snapshot, memo, ...(listedIds === undefined ? {} : { ids: listedIds }), ...(frontmatterOnly === undefined ? {} : { frontmatterOnly }), ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }), ...(pinMismatch === undefined ? {} : { pinMismatch }), ...(pinned === undefined ? {} : { pinned }) };
 }
 
@@ -560,7 +564,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--json', 'print the Dashboard object instead of text')
     .option('--no-fetch', 'draw from the refs already in this clone and fetch nothing')
     .action(async (options: { json?: boolean; fetch?: boolean }) => {
-      setCode(await dashboardCommand(preflight(opts, 'claims', { display: true }), options));
+      setCode(await dashboardCommand(preflight(opts, 'claims', { display: true, picture: 'repository' }), options));
     });
 
   program

@@ -52,6 +52,8 @@ export interface SnapshotInput {
   roundFacts?: Record<string, RoundFacts>;
   // ST-LN-94 CR-01, CR-02: lane R ticket id -> its research fact. Absent when the host supplies none, which counts no record as the result.
   researchFacts?: Record<string, ResearchFact>;
+  // Phase 15 D-29: ids of tickets whose code merged into the default ref, host-supplied by the dashboard's claim view. Absent when the host supplies none.
+  mergedClaims?: string[];
 }
 
 /**
@@ -450,4 +452,7 @@ export interface RepoSnapshot {
   planFix?: Record<string, PlanFix>;
   // ST-LN-16 D-19: host-supplied by the dashboard: ticket id -> the `backlog/*` branch that queued it, for each ticket of `tickets` that no checkout or default branch holds and that was read from that branch's tip. Such a row has no claim.
   queued?: Record<string, { branch: string }>;
+  // Phase 15 D-29, D-21: host-supplied by the dashboard: the ids of tickets whose code merged into the default ref (their claim branch merged by ancestry or by equal record blobs, or no branch is left and the default ref's
+  // records show review or verify); read from git, never written. The dashboard lists such a ticket under `mergedWaiting` while it is not done on the default ref. Absent when the host supplies none.
+  mergedClaims?: readonly string[];
 }

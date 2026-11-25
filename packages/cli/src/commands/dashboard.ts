@@ -1,6 +1,7 @@
 // ST-LN-2 `accord dashboard`: the ranked sections for the viewer (git user.email), as text or JSON.
 import { dashboard, loadSnapshot } from '@accord-dev/accord-core';
 import { gitUserEmail, loadClaimView, remoteRefs, UsageError, withDefaultRef, withQueued } from '../load/fs.js';
+import { withMergedClaims } from '../load/merged-state.js';
 import { whoFor } from '../load/who.js';
 import { activeTicket } from './anchor.js';
 import { conventionsNotice } from './audit.js';
@@ -22,13 +23,13 @@ function withStagesOff(ctx: CommandContext, text: string): string {
 
 /** ST-LN-16: the claim view `preflight` builds, read again after a fetch moved origin's refs; the pin was checked on the first read and the fetch changes no file of the checkout. */
 function reloaded(ctx: CommandContext, inFull = false): CommandContext {
-  const parts = loadClaimView(ctx.root);
+  const parts = loadClaimView(ctx.root, { picture: 'repository' });
   const only = inFull ? undefined : ctx.frontmatterOnly;
   // Phase 08.9.2 D-08: the command's own parse memo, so a reload re-parses only the files the fetch changed; a reload reads the dropped bodies the way the first load did (`inFull` reads them whole).
   const options = { ...(ctx.memo === undefined ? {} : { memo: ctx.memo }), ...(only === undefined ? {} : { frontmatterOnly: only }) };
   const loaded = loadSnapshot(parts.view, options);
   const plain = parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout, options);
-  const next: CommandContext = { ...ctx, snapshot: withDefaultRef(ctx.root, loaded, parts.refs, ctx.memo, only), plain, branch: parts.branch };
+  const next: CommandContext = { ...ctx, snapshot: withMergedClaims(withDefaultRef(ctx.root, loaded, parts.refs, ctx.memo, only)), plain, branch: parts.branch };
   if (inFull) delete next.frontmatterOnly;
   return next;
 }

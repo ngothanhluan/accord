@@ -263,5 +263,6 @@ export function loadSnapshot(input: SnapshotInput, options: LoadOptions = {}): R
     ...(input.returnFacts === undefined ? {} : { returnFacts: input.returnFacts }),
     ...(input.roundFacts === undefined ? {} : { roundFacts: input.roundFacts }),
     ...(input.researchFacts === undefined ? {} : { researchFacts: input.researchFacts }),
+    ...(input.mergedClaims === undefined ? {} : { mergedClaims: input.mergedClaims }),
   };
 }

@@ -11,6 +11,8 @@ A ticket that is done on the default branch is not edited, by a person or by acc
 - The CI job now gates a ticket whose folder changed, not only one whose file changed: a pull request that touches only a done ticket's `plan.md` or `verification.md` now fails with the plain message, where before it was not gated at all. Pinned repositories get the script through `accord upgrade`.
 - `accord approve` refuses a ticket done on the default branch (exit 1, one line). `accord gate ready` and `accord gate plan` print the verdict as before and no longer write `ac_hash` or `plan_hash` into such a ticket, saying so on stderr. The `ruleset:` back-fill of `worktree sync` and Continue writes nothing into it.
 - On the default branch itself, `gate done` of a done ticket judges it by the Done rules as before.
+- `accord dashboard` draws one picture per repository (Phase 15 D-17): every ticket but the checkout's own is read from the default ref plus unmerged claim branches, so the main checkout and every worktree print the same rows. Nothing is written and no process stays running. `status`, `next`, `show` and audit keep their base.
+- A ticket whose code merged before verify is listed under `MERGED, WAITING FOR VERIFY`, with verify as its next step, and no longer as yours, team, ready or the pick-up suggestion (D-29). The JSON gains `mergedWaiting` and `summary.mergedWaiting` (additive; older readers ignore them), the text view prints the group after `UP NEXT` with `[/accord continue <id>]` as its action, and the pane draws it with a Continue action. On a repository whose old claim branches merged long ago, the tickets that sat under YOURS move to this group.
 
 ## 0.20.3 — 2026-11-25
 

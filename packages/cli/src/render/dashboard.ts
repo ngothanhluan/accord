@@ -58,8 +58,10 @@ export function renderDashboard(d: Dashboard): string {
     `${m.inProgress} in progress, ${m.ready} ready, ${m.blocked} blocked, ${m.backlog} backlog, ${m.done} done` +
     (m.withoutLane > 0 ? `, ${m.withoutLane} without lane` : '') +
     (m.withSchemaErrors > 0 ? `, ${m.withSchemaErrors} with schema errors, run accord lint` : '');
-  const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready), block('UP NEXT', d.upNext), ...(d.epics.rows.length ? [epicBlock(d.epics)] : [])];
+  const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready), block('UP NEXT', d.upNext), ...(d.mergedWaiting.rows.length ? [block('MERGED, WAITING FOR VERIFY', d.mergedWaiting)] : []), ...(d.epics.rows.length ? [epicBlock(d.epics)] : [])];
   const pick = d.ready.rows[0]?.id ?? d.upNext.suggest?.id;
-  const actions = [d.yours.rows[0] ? `[/accord continue ${d.yours.rows[0].id}]` : '', pick ? `[/accord pick-up ${pick}]` : '', '[/accord <request>]'].filter(Boolean);
+  // D-29: a merged ticket's next step is verify, reached through continue; it never gets a pick-up (core keeps it out of `suggest`).
+  const resume = d.yours.rows[0] ?? d.mergedWaiting.rows[0];
+  const actions = [resume ? `[/accord continue ${resume.id}]` : '', pick ? `[/accord pick-up ${pick}]` : '', '[/accord <request>]'].filter(Boolean);
   return [...sections.map((s) => s.join('\n')), summary + '\n-> ' + actions.join('  ')].join('\n\n') + '\n';
 }

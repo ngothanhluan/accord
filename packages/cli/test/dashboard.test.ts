@@ -127,8 +127,8 @@ it('risk:security a title cannot inject control characters or overflow its cell'
   const d: Dashboard = {
     epics: empty,
     yours: { rows: [row('A-1', 'Mot de\u001b[31m passe\u202e oublié\u2028x'), row('A-2', 'É'.repeat(70))], more: 0 },
-    team: empty, ready: empty, upNext: empty,
-    summary: { inProgress: 0, ready: 0, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0 },
+    team: empty, ready: empty, upNext: empty, mergedWaiting: empty,
+    summary: { inProgress: 0, ready: 0, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0, mergedWaiting: 0 },
   };
   const text = renderDashboard(d);
   for (const ch of text) {
@@ -281,10 +281,10 @@ it('risk:regression the dashboard action line names the new commands in a fixed 
     ticksBinding: 'none', lane: 'M', stage: 'plan', tasksDone: 0, tasksTotal: 0,
   });
   const empty = { rows: [], more: 0 };
-  const summary = { inProgress: 1, ready: 1, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0 };
-  const text = renderDashboard({ epics: empty, yours: { rows: [row('T-1')], more: 0 }, team: empty, ready: { rows: [row('T-2')], more: 0 }, upNext: empty, summary });
+  const summary = { inProgress: 1, ready: 1, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0, mergedWaiting: 0 };
+  const text = renderDashboard({ epics: empty, yours: { rows: [row('T-1')], more: 0 }, team: empty, ready: { rows: [row('T-2')], more: 0 }, upNext: empty, mergedWaiting: empty, summary });
   expect(text.endsWith('1 in progress, 1 ready, 0 blocked, 0 backlog, 0 done\n-> [/accord continue T-1]  [/accord pick-up T-2]  [/accord <request>]\n')).toBe(true);
-  const none = renderDashboard({ epics: empty, yours: empty, team: empty, ready: empty, upNext: empty, summary });
+  const none = renderDashboard({ epics: empty, yours: empty, team: empty, ready: empty, upNext: empty, mergedWaiting: empty, summary });
   expect(none.endsWith('\n-> [/accord <request>]\n')).toBe(true);
 });
 
@@ -294,18 +294,18 @@ it('risk:complex-branching the action line names only the actions that apply', (
     ticksBinding: 'none', lane: 'M', stage: 'plan', tasksDone: 0, tasksTotal: 0,
   });
   const empty = { rows: [], more: 0 };
-  const summary = { inProgress: 0, ready: 0, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0 };
+  const summary = { inProgress: 0, ready: 0, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0, mergedWaiting: 0 };
   const lastTwo = (d: Dashboard) => {
     const lines = renderDashboard(d).split('\n').filter((l) => l !== '');
     return [lines[lines.length - 2], lines[lines.length - 1]];
   };
-  const a = lastTwo({ epics: empty, yours: { rows: [row('ST-AN-1')], more: 0 }, team: empty, ready: { rows: [row('ST-AN-2')], more: 0 }, upNext: empty, summary });
+  const a = lastTwo({ epics: empty, yours: { rows: [row('ST-AN-1')], more: 0 }, team: empty, ready: { rows: [row('ST-AN-2')], more: 0 }, upNext: empty, mergedWaiting: empty, summary });
   expect(a[1]).toBe('-> [/accord continue ST-AN-1]  [/accord pick-up ST-AN-2]  [/accord <request>]');
   expect(a[0]).toContain(' in progress, ');
-  const b = lastTwo({ epics: empty, yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0, suggest: { action: 'pick-up', id: 'ST-AN-3' } }, summary });
+  const b = lastTwo({ epics: empty, yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0, suggest: { action: 'pick-up', id: 'ST-AN-3' } }, mergedWaiting: empty, summary });
   expect(b[1]).toBe('-> [/accord pick-up ST-AN-3]  [/accord <request>]');
   expect(b[0]).toContain(' in progress, ');
-  const c = lastTwo({ epics: empty, yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0 }, summary });
+  const c = lastTwo({ epics: empty, yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0 }, mergedWaiting: empty, summary });
   expect(c[1]).toBe('-> [/accord <request>]');
   expect(c[0]).toContain(' in progress, ');
 });
@@ -377,8 +377,8 @@ it('risk:regression an idle ticket shows idle days in the dashboard text and the
     expect(res.code).toBe(0);
     expect(res.out.split('\n').find((l) => l.includes('T-1'))).toMatch(/build 0\/2 idle \d+d/);
     const j = JSON.parse((await run(['dashboard', '--json'], repo)).out);
-    expect(Object.keys(j)).toEqual(['yours', 'team', 'ready', 'upNext', 'epics', 'summary']);
-    expect(Object.keys(j.summary)).toEqual(['inProgress', 'ready', 'blocked', 'backlog', 'done', 'withoutLane', 'withSchemaErrors']);
+    expect(Object.keys(j)).toEqual(['yours', 'team', 'ready', 'upNext', 'mergedWaiting', 'epics', 'summary']);
+    expect(Object.keys(j.summary)).toEqual(['inProgress', 'ready', 'blocked', 'backlog', 'done', 'withoutLane', 'withSchemaErrors', 'mergedWaiting']);
     expect(j.epics).toEqual({ rows: [], more: 0 });
     expect(typeof j.upNext.rows.find((r: { id: string }) => r.id === 'T-1').idleDays).toBe('number');
   } finally {

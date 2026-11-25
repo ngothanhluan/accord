@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
-import { agentTargets, contentHash, hookEntries, loadConfig, markerHash, normaliseText, pluginTargets, runsAccordHook, skillTargets, withoutMarker } from '@accord-dev/accord-core';
+import { agentTargets, contentHash, hookEntries, hookText, loadConfig, markerHash, normaliseText, pluginTargets, runsAccordHook, skillTargets, withoutMarker } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
 import { writeSkillFiles } from '../src/commands/skills.js';
@@ -532,14 +532,18 @@ describe('writeSkillFiles — a run that stops part-way', () => {
 
 describe('accord skills sync - hooks in .claude/settings.json', () => {
   const SETTINGS = '.claude/settings.json';
-  const commands = (repo: string): string[] =>
-    JSON.stringify(JSON.parse(bytes(at(repo, SETTINGS)))).match(/npx --yes [^"]+/g) ?? [];
+  const settingsText = (repo: string): string => JSON.stringify(JSON.parse(bytes(at(repo, SETTINGS))));
+  // no npx command anywhere in the file (Phase 08.9.2 D-01)
+  const commands = (repo: string): string[] => settingsText(repo).match(/npx --yes [^"]+/g) ?? [];
+  // the launcher hooks sync writes
+  const launched = (repo: string): string[] => settingsText(repo).match(/\$\{CLAUDE_PROJECT_DIR\}\/\.claude\/accord\.mjs/g) ?? [];
 
   it('risk:regression creates the file with the accord commands; a second run is unchanged and writes nothing', async () => {
     const repo = sandbox();
     const first = await run(['skills', 'sync'], repo);
     expect(first.out).toContain('created ' + SETTINGS + '\n');
-    expect(commands(repo)).toHaveLength(8); // five events' commands plus the write guard's three if-gated hooks (ST-LN-39)
+    expect(launched(repo)).toHaveLength(8); // five events' commands plus the write guard's three if-gated hooks (ST-LN-39)
+    expect(commands(repo)).toEqual([]);
     const before = statSync(at(repo, SETTINGS)).mtimeMs;
     const second = await run(['skills', 'sync'], repo);
     expect(second.out).toContain('unchanged ' + SETTINGS + '\n');
@@ -557,7 +561,8 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
     const json = JSON.parse(bytes(at(repo, SETTINGS)));
     expect(json.model).toBe('x');
     expect(json.hooks.SessionStart[0]).toEqual(foreign);
-    expect(commands(repo)).toHaveLength(8); // five events' commands plus the write guard's three if-gated hooks (ST-LN-39)
+    expect(launched(repo)).toHaveLength(8); // five events' commands plus the write guard's three if-gated hooks (ST-LN-39)
+    expect(commands(repo)).toEqual([]);
   });
 
   it('refuses a file that is not JSON, prints the hooks to add, and leaves it byte-identical', async () => {
@@ -567,7 +572,8 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
     const { code, err } = await run(['skills', 'sync'], repo);
     expect(code).toBe(2);
     expect(err).toContain('Add these hooks by hand');
-    expect(err).toContain('hook session-start');
+    expect(err).toContain('.claude/accord.mjs');
+    expect(err).toContain('"session-start"');
     expect(bytes(at(repo, SETTINGS))).toBe('{ not json');
   });
 
@@ -577,7 +583,7 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
     const entries = hookEntries(pkg);
     const edited = { matcher: 'startup', hooks: [{ type: 'command', command: 'accord hook session-start', timeout: 600 }] };
     writeFileSync(at(repo, SETTINGS), JSON.stringify({ hooks: { ...entries, SessionStart: [edited, entries.SessionStart[1]] } }));
-    type Listed = { hooks: { command: string; if?: string }[] }[];
+    type Listed = { hooks: { command: string; args?: string[]; if?: string }[] }[];
     for (const round of [1, 2]) {
       const { code, out } = await run(['skills', 'sync'], repo);
       expect(code, 'round ' + round).toBe(0);
@@ -586,7 +592,7 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
       const count: Record<string, number> = {};
       for (const [event, list] of Object.entries(hooks)) {
         for (const h of list.flatMap((x) => x.hooks)) {
-          const id = event + '|' + (/ hook (\S+)/.exec(h.command)?.[1] ?? '?') + '|' + (h.if ?? '');
+          const id = event + '|' + (runsAccordHook(hookText(h)) ?? '?') + '|' + (h.if ?? '');
           count[id] = (count[id] ?? 0) + 1;
         }
       }
@@ -600,12 +606,17 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
   it('risk:regression sync keeps one accord hook set when the edited hook path is quoted and holds a space (D-10)', async () => {
     const repo = sandbox();
     mkdirSync(at(repo, '.claude'), { recursive: true });
-    type Listed = { matcher: string; hooks: { type: string; command: string; timeout?: number; if?: string }[] }[];
+    type Listed = { matcher: string; hooks: { type: string; command: string; args?: string[]; timeout?: number; if?: string }[] }[];
     const edited: Record<string, Listed> = {};
     for (const [event, list] of Object.entries(hookEntries(pkg))) {
       edited[event] = list.map((x) => ({
         ...x,
-        hooks: x.hooks.map((h) => ({ ...h, command: 'node "C:\\Users\\A B\\cli.js" hook ' + / hook (\S+)$/.exec(h.command)![1] })),
+        hooks: x.hooks.map((h) => ({
+          type: h.type,
+          command: 'node "C:\\Users\\A B\\cli.js" hook ' + h.args![3],
+          ...(h.timeout === undefined ? {} : { timeout: h.timeout }),
+          ...(h.if === undefined ? {} : { if: h.if }),
+        })),
       }));
     }
     writeFileSync(at(repo, SETTINGS), JSON.stringify({ hooks: edited }));
@@ -620,7 +631,7 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
       const count: Record<string, number> = {};
       for (const [event, list] of Object.entries(hooks)) {
         for (const h of list.flatMap((x) => x.hooks)) {
-          const sub = runsAccordHook(h.command);
+          const sub = runsAccordHook(hookText(h));
           if (sub === undefined) continue;
           const id = event + '|' + sub + '|' + (h.if ?? '');
           count[id] = (count[id] ?? 0) + 1;
@@ -675,7 +686,8 @@ it('ac-5 skills sync installs and enables the panel for claude code only', async
   const first = await run(['skills', 'sync'], a);
   expect(first.code).toBe(0);
   const paths = pluginTargets({ runtimes: ['claude'] }, pkg).map((t) => t.path);
-  expect(paths).toHaveLength(5);
+  expect(paths).toHaveLength(6); // the five panel files and the hook launcher (Phase 08.9.2 D-01)
+  expect(paths).toContain('.claude/accord.mjs');
   for (const path of paths) {
     const text = normaliseText(readFileSync(at(a, path), 'utf8'));
     expect(text).toContain('generated by accord skills sync');
@@ -688,7 +700,7 @@ it('ac-5 skills sync installs and enables the panel for claude code only', async
   const settings = readJson(a, '.claude/settings.json');
   expect(settings.extraKnownMarketplaces.accord).toEqual(PANEL);
   expect(settings.enabledPlugins['accord-panel@accord']).toBe(true);
-  expect(JSON.stringify(settings.hooks).match(/ hook (session-start|session-resume|subagent-start|prompt-expansion)"/g)).toHaveLength(4);
+  expect(JSON.stringify(settings.hooks).match(/"hook","(session-start|session-resume|subagent-start|prompt-expansion)"/g)).toHaveLength(4);
   const second = await run(['skills', 'sync'], a);
   for (const path of [...paths, '.claude/settings.json']) expect(second.out).toContain('unchanged ' + path);
 
@@ -696,6 +708,7 @@ it('ac-5 skills sync installs and enables the panel for claude code only', async
   setConfig(b, /^runtimes: .*$/m, 'runtimes: [codex]');
   await run(['skills', 'sync'], b);
   expect(existsSync(at(b, '.claude/accord-panel'))).toBe(false);
+  expect(existsSync(at(b, '.claude/accord.mjs'))).toBe(false);
   expect(existsSync(at(b, '.claude/settings.json'))).toBe(false);
 });
 

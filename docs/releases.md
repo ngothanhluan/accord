@@ -2,6 +2,16 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+A ticket that is done on the default branch is not edited, by a person or by accord (Phase 15 D-23 to D-25). A repository pinned to an older accord needs `accord upgrade`, which replaces the `lint and gate` step of its workflow with the new script. Tickets in flight are unaffected unless a pull request edits a ticket that is already done.
+
+- New rule `gate.done-ticket-edited`, an error that no strictness setting lowers (LOCKED). `accord gate done <id>` fails it when the branch changes the file of a ticket that was done at the merge base with the default branch, or any record under `accord/tickets/<id>/`, and says so in one message in place of `gate.tick-stale-commit` and `gate.stale-review`: `<id> is done on the base branch (<sha>); a done ticket is not edited - revert the change to <paths>`. A ticket finished inside the pull request is gated as before.
+- A done ticket is judged by that rule alone. A pull request that moves a test the ticket names, or deletes a file its `verification.md` cites, passes with no edit of the ticket, because the evidence of a done ticket is history.
+- The CI job now gates a ticket whose folder changed, not only one whose file changed: a pull request that touches only a done ticket's `plan.md` or `verification.md` now fails with the plain message, where before it was not gated at all. Pinned repositories get the script through `accord upgrade`.
+- `accord approve` refuses a ticket done on the default branch (exit 1, one line). `accord gate ready` and `accord gate plan` print the verdict as before and no longer write `ac_hash` or `plan_hash` into such a ticket, saying so on stderr. The `ruleset:` back-fill of `worktree sync` and Continue writes nothing into it.
+- On the default branch itself, `gate done` of a done ticket judges it by the Done rules as before.
+
 ## 0.20.3 — 2026-11-25
 
 Release 0.20.3 fixes four faults that the review of 0.20.2 found, all in the path that reads the marker an older accord wrote. A repository pinned to 0.20.2 needs only `accord upgrade`. Tickets in flight are unaffected, and the output of every other command is the same bytes as before.

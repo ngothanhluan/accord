@@ -27,7 +27,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import pkg from '../package.json' with { type: 'json' };
 import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
-import { CONFIG, REPORT, done, junit, P } from '../../../test/helpers/lane.js';
+import { CONFIG, REPORT, done, junit } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
 // Narrow local shapes, as in core/test/scaffold.test.ts: the document is data, not a typed API.

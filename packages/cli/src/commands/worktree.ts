@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
+import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, parseRepoUrl, pinBefore, pinOf, progressPushTarget, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
@@ -1109,12 +1109,32 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   if (failure !== undefined) throw failure;
 }
 
-/** BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0. */
-export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean } = {}): number {
+/**
+ * BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0.
+ * Phase 15 D-12 to D-15, D-33: with `branch` (verify's push) the claim branch goes to origin as always. Without it the progress goes to `refs/accord/<id>`, a ref that is not a branch
+ * and starts no CI, only where `progress.push` allows (`progressPushTarget`); otherwise nothing is pushed, one note line is printed, and it reaches origin at verify.
+ */
+export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean; branch?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
+  const toRef = o.branch !== true;
+  const ref = `refs/accord/${id}`;
+  if (toRef) {
+    let origin: string | undefined;
+    try {
+      origin = git(ctx.root, ['remote', 'get-url', 'origin']).trim();
+    } catch {
+      origin = undefined; // no origin counts as no host
+    }
+    if (progressPushTarget(ctx.snapshot.config, origin) === 'none') {
+      const host = origin === undefined ? undefined : parseRepoUrl(origin)?.host;
+      ctx.stdout.write(`progress not pushed: progress.push is ${ctx.snapshot.config?.progress?.push ?? 'off'} for ${host ?? 'this origin'}; it reaches origin at verify\n`);
+      return 0;
+    }
+  }
   const kept = (why: string): number => {
-    ctx.stdout.write(withNext('push-failed', `push of ${branch} failed; its commits stay local until the next push`) + `\n${why}\n`);
+    const line = toRef ? `push of ${ref} failed; its progress stays local until the next push` : `push of ${branch} failed; its commits stay local until the next push`;
+    ctx.stdout.write(withNext('push-failed', line) + `\n${why}\n`);
     return 0;
   };
   if (ctx.snapshot.config?.commits?.trailers === 'forbid') {
@@ -1127,14 +1147,20 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
     }
   }
   try {
-    // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
-    const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];
-    gitNoPrompt(ctx.root, ['push', ...force, 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
+    if (toRef) {
+      // T-15-20: the id passed ID above, and the full ref name is checked again; R8: forced, the ref mirrors the claim branch and holds no work of its own
+      if (!gitOk(ctx.root, ['check-ref-format', ref])) return kept(`${ref} is not a valid ref name`);
+      gitNoPrompt(ctx.root, ['push', 'origin', `+refs/heads/${branch}:${ref}`], undefined, ctx.ssh);
+    } else {
+      // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
+      const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];
+      gitNoPrompt(ctx.root, ['push', ...force, 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
+    }
   } catch (e) {
     const why = String((e as { stderr?: string }).stderr ?? '').trim();
     return kept(why === '' ? String(e) : why);
   }
-  ctx.stdout.write(`pushed: ${branch}\n`);
+  ctx.stdout.write(`pushed: ${toRef ? ref : branch}\n`);
   return 0;
 }
 

@@ -522,10 +522,11 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     });
   worktree
     .command('push <id>')
-    .description("push the ticket's claim branch to origin; a failed push prints git's message and exits 0, its commits stay local until the next push")
+    .description("push the ticket's progress to origin as refs/accord/<id>, a ref that is not a branch and starts no CI, only where progress.push in accord/config.yml allows it (off, the default, pushes nothing and prints a note); with --branch push the claim branch itself; a failed push prints git's message and exits 0, its commits stay local until the next push")
+    .option('--branch', "push the claim branch to origin instead of the progress ref; verify uses it, since the pull request needs the branch")
     .option('--force-with-lease', 'after a commit is reworded: replace the branch on origin only while it is still where this clone last saw it and this branch once held that commit')
-    .action((id: string, o: { forceWithLease?: boolean }) => {
-      setCode(worktreePush(preflight(opts), id, { lease: o.forceWithLease === true }));
+    .action((id: string, o: { forceWithLease?: boolean; branch?: boolean }) => {
+      setCode(worktreePush(preflight(opts), id, { lease: o.forceWithLease === true, branch: o.branch === true }));
     });
   // ST-LN-92 D-03: a task of a wave in its own worktree, run in the ticket's own checkout, for a ticket claimed from 0.6.0.
   const taskTree = worktree.command('task').description("a build task's own worktree beside the ticket's, for a ticket claimed at 0.6.0 or later; run in the ticket's checkout");

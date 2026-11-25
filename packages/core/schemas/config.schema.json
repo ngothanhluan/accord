@@ -102,7 +102,8 @@
       "required": ["mode"],
       "properties": {
         "mode": { "type": "string", "enum": ["human", "outcome"] },
-        "post": { "type": "string", "enum": ["draft"] }
+        "post": { "type": "string", "enum": ["draft"] },
+        "slice_lines": { "type": "string", "pattern": "^[1-9][0-9]{1,4}$" }
       }
     },
     "models": {

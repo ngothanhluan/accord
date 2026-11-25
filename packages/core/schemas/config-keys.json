@@ -12,5 +12,6 @@
   { "key": "hook_mode", "since": "0.20.0", "default": "full: every session start prints the rules, fetches and runs the worktree clean; quiet prints one line until /accord or a ticket's branch wakes accord" },
   { "key": "pr.wait_minutes", "since": "0.21.0", "default": "120: a session that finished a ticket waits this many minutes on its pull request (1 to 120), then prints a reminder and stops" },
   { "key": "review.post", "since": "0.21.0", "default": "draft: replies to pull request feedback wait for the owner (the only level)" },
-  { "key": "progress.push", "since": "0.21.0", "default": "off: no progress is pushed before verify; auto: to refs/accord/<id> only on a host a recorded test proved, none yet; ref: on any host" }
+  { "key": "progress.push", "since": "0.21.0", "default": "off: no progress is pushed before verify; auto: to refs/accord/<id> only on a host a recorded test proved, none yet; ref: on any host" },
+  { "key": "review.slice_lines", "since": "0.21.0", "default": "1000 lines added plus deleted per slice, counting code, tests, docs and skills" }
 ]

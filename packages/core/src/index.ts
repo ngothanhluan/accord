@@ -118,7 +118,7 @@ export { taskVerdict, ticketTaskVerdict } from './gate/task.js';
 export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';
-export { PLAN_LARGE_TASKS, SIZE_MULTIPLE, sizeRefusal, TASK_LINE_CAP, taskLength } from './gate/plan.js';
+export { PLAN_LARGE_TASKS, SIZE_MULTIPLE, sizeRefusal, SLICE_LINES_DEFAULT, SLICES_MANY, TASK_LINE_CAP, taskLength } from './gate/plan.js';
 export { afterCycles, buildWaves, DEFAULT_PARALLEL, parallelOf, sequentialReason } from './plan/waves.js';
 export { CALL_SIGN, interfaceSigns, matches, outsideScope, scopeLines } from './gate/scope.js';
 export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from './security/spec.js';

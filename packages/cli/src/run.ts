@@ -24,7 +24,8 @@ import { budget } from './commands/budget.js';
 import { debugPath } from './commands/debug.js';
 import { configAreas, configCheck, configGet, configSet, configUnset } from './commands/config.js';
 import { gate } from './commands/gate.js';
-import { hook, HOOK_EVENTS, preToolUseWrite } from './commands/hook.js';
+import { hook, HOOK_EVENTS } from './commands/hook.js';
+import { hookEarly } from './commands/hook-early.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
@@ -566,6 +567,12 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
         throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
       }
+      // Phase 08.9.2 Ruling-structural: what stdin alone decides is answered here, before any preflight and so with no git process.
+      const early = hookEarly(opts, event as (typeof HOOK_EVENTS)[number]);
+      if (early !== undefined) {
+        setCode(early);
+        return;
+      }
       if (event === 'prompt-expansion') {
         // The hook never blocks a prompt because of a broken repository (ledger Ruling): any failure to build
         // the context is one stderr line and an allow.
@@ -582,12 +589,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         return;
       }
       if (event === 'pre-tool-use') {
-        // ST-LN-39 D-08: a Write, Edit or MultiEdit is decided from stdin alone, so no repository is loaded for it.
-        const written = preToolUseWrite(opts);
-        if (written !== undefined) {
-          setCode(written);
-          return;
-        }
+        // ST-LN-39 D-08: a Write, Edit or MultiEdit is decided from stdin alone (hookEarly, above), so no repository is loaded for it.
         // Ledger Ruling 32: a broken repository never blocks a dispatch; any failure is one stderr line and an allow.
         try {
           let cwd: string | undefined;

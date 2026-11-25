@@ -246,7 +246,7 @@ function startHold(ctx: CommandContext): void {
   }
 }
 
-export function hookInput(ctx: CommandContext): { session_id?: string; command_name?: string; command_args?: string; cwd?: string; source?: string; agent_type?: string } | undefined {
+export function hookInput(ctx: { stdin?: string }): { session_id?: string; command_name?: string; command_args?: string; cwd?: string; source?: string; agent_type?: string } | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(ctx.stdin ?? '');
@@ -260,6 +260,28 @@ export function hookInput(ctx: CommandContext): { session_id?: string; command_n
     if (typeof v === 'string') out[k] = v;
   }
   return out;
+}
+
+// The two typed forms that name another ticket (the only prompt-expansion cases that read the repository).
+const CONTINUE_FORM = /^continue\s+(\S+)$/;
+const PICK_UP_FORM = /^pick-up\s+(\S+)$/;
+
+/**
+ * Phase 08.9.2 Ruling-structural: the stdin-only part of `promptExpansion`, run before any load. No session_id, any command but accord, and any text but
+ * `continue <id>` or `pick-up <id>` print `{}` (the first with its stderr line, as `promptExpansion` does) and return 0; the two typed forms return
+ * undefined, so the caller loads the repository and `promptExpansion` judges them.
+ */
+export function promptExpansionStdin(io: { stdin?: string; stdout: NodeJS.WritableStream; stderr: NodeJS.WritableStream }): number | undefined {
+  const allow = (why?: string) => {
+    if (why !== undefined) io.stderr.write(`accord hook prompt-expansion: ${why.split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+    io.stdout.write('{}\n');
+    return 0;
+  };
+  const i = hookInput(io);
+  if (i?.session_id === undefined) return allow('no session_id on stdin');
+  if (i.command_name !== 'accord') return allow();
+  const args = (i.command_args ?? '').trim();
+  return CONTINUE_FORM.test(args) || PICK_UP_FORM.test(args) ? undefined : allow();
 }
 
 /**
@@ -286,8 +308,8 @@ function promptExpansion(ctx: CommandContext): number {
     // every other command, accord-upgrade included, never touches the ticket's branch
     if (name !== 'accord') return allow();
     // empty, `queue <idea>` and free text are for the skill to route; only the typed forms name another ticket
-    const cont = word(/^continue\s+(\S+)$/); // the ticket a Continue asks for
-    const pick = word(/^pick-up\s+(\S+)$/);
+    const cont = word(CONTINUE_FORM); // the ticket a Continue asks for
+    const pick = word(PICK_UP_FORM);
     if (cont === undefined && pick === undefined) return allow();
     const typed = cont !== undefined ? undefined : `/accord pick-up ${ID.test(pick as string) ? pick : '<id>'}`; // the command to type in the session that opens
     const w = worksTicket(i.cwd ?? ctx.root, i.session_id, ctx.snapshot);

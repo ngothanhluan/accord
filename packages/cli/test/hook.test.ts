@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { debugStatePath } from '../src/commands/debug.js';
+import { OFF_LINE } from '../src/commands/off.js';
 import { upgradeNotice } from '../src/commands/notice.js';
 import { cachePath, requestLatest } from '../src/commands/registry.js';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run } from './helpers/repo.js';
@@ -26,6 +27,11 @@ afterAll(() => {
 });
 
 const SESSION_LINE = /accord: \d+ in progress, \d+ ready to pick up · type \/accord\n$/;
+/** Phase 08.9.2 D-04: a session start's output is the same text as before with the off line after the session body; what comes before the off line is what the old session start printed. */
+const beforeOffLine = (out: string): string => {
+  expect(out.endsWith(OFF_LINE + '\n')).toBe(true);
+  return out.slice(0, out.length - OFF_LINE.length - 1);
+};
 
 describe('accord hook', () => {
   it('session-start prints the ruleset then the session line', async () => {
@@ -34,7 +40,7 @@ describe('accord hook', () => {
       const r = await run(['hook', 'session-start'], repo);
       expect(r.code).toBe(0);
       expect(r.out.startsWith('# accord rules\n')).toBe(true);
-      expect(r.out).toMatch(SESSION_LINE);
+      expect(beforeOffLine(r.out)).toMatch(SESSION_LINE);
       expect(r.out).not.toContain('{{');
       expect(r.out).toMatch(/Run accord as `npx --yes @accord-dev\/accord@[^`]+` when/);
     } finally {
@@ -635,7 +641,7 @@ it('ac-2 an unreachable registry adds no line is given up after 3 seconds and is
     expect(b.code).toBe(0);
     expect(b.out).toBe(a.out);
     expect(a.out.startsWith('# accord rules\n')).toBe(true);
-    expect(a.out).toMatch(SESSION_LINE);
+    expect(beforeOffLine(a.out)).toMatch(SESSION_LINE);
     expect(a.out).not.toContain(' is out');
     expect(stub).toHaveBeenCalledTimes(1);
     expect(reason?.name).toBe('TimeoutError');

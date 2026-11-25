@@ -40,7 +40,7 @@ export const NEXT_ACTIONS: Readonly<Record<LineKind, string>> = {
   trust: 'show this line as it is and stop there: allowing the team script with accord trust is the owner\'s to do, never yours',
   synced: 'show this line as it is and go on with the other lines: the default branch is in the ticket branch and setup ran on it',
   'push-after-sync': 'show this line as it is, tell the owner the synced branch is local only, and run the push command the line names; when that push fails too, show git\'s message and stop',
-  'push-failed': 'show this line and git\'s message after it as they are and go on with the stage\'s next step, never stop or ask the owner; after a commit was reworded, run the next push with --force-with-lease',
+  'push-failed': 'show this line and git\'s message after it as they are and go on with the stage\'s next step, never stop or ask the owner; after a commit was reworded, run the next branch push as accord worktree push <id> --branch --force-with-lease',
   removed: 'show this line as it is and go on with the other lines',
   deleted: 'show this line as it is and go on with the other lines',
   kept: 'show this line as it is and go on; delete and move nothing it names and never offer to: the folder and the branch stay, a file it names that accord never deletes is the owner\'s to move or delete, and a research record is never deleted or moved, only made equal to the default branch\'s copy as the line says',

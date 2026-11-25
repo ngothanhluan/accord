@@ -1104,7 +1104,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   }
   const push = pushAfterSync(ctx, path, branch, how, 'push');
   if (!push.pushed) {
-    ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}`) + '\n');
+    ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --branch --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}`) + '\n');
   }
   if (failure !== undefined) throw failure;
 }
@@ -1141,7 +1141,7 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
     // a forbidden line on origin could only be removed by replacing history there, so nothing leaves this clone with one
     try {
       const hits = gitUnpushedCommits(ctx.root, branch).flatMap((c) => forbiddenLines(c.message).map((l) => trailerReason(c.sha, l)));
-      if (hits.length > 0) return kept(`${hits.join('\n')}\nreword each commit named above to drop that line (it is not on origin yet), then run accord worktree push ${id} again`);
+      if (hits.length > 0) return kept(`${hits.join('\n')}\nreword each commit named above to drop that line (it is not on origin yet), then run accord worktree push ${id}${toRef ? '' : ' --branch'} again`);
     } catch (e) {
       return kept(e instanceof UsageError ? e.message : firstLine(e));
     }
@@ -1284,7 +1284,7 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
     // A team script is pushed too, even when origin has no such branch yet: the branch on origin must hold what the gate judges
     const push = pushAfterSync(ctx, ctx.root, branch, done.by !== undefined ? 'team' : 'rebase', done.by !== undefined ? 'push' : 'skip');
     if (push.pushed) ctx.stdout.write(`pushed: ${branch}\n`);
-    else if (push.why !== undefined) ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - run accord worktree push ${id}${push.lease ? ' --force-with-lease' : ''} after checking origin`) + '\n');
+    else if (push.why !== undefined) ctx.stdout.write(withNext('push-after-sync', `push of ${branch} failed: ${push.why} - run accord worktree push ${id} --branch${push.lease ? ' --force-with-lease' : ''} after checking origin`) + '\n');
   }
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);

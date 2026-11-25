@@ -1179,7 +1179,7 @@ export type NarrowTarget = string | { active: true };
 function loadParts(root: string, stage = false, light = false, defer = false, from?: LightLoad, narrow?: NarrowTarget): {
   input: SnapshotInput;
   /** With `narrow` only: the ticket the load is for (undefined when the branch names none), every ticket id of the folder listing, and the parse memo the neighbourhood was read with. */
-  narrowed?: { id: string | undefined; ids: string[]; memo: Map<string, unknown> };
+  narrowed?: { id: string | undefined; ids: string[]; memo: Map<string, unknown>; reach: ReadonlySet<string> };
   /** In light mode only: what was read, for `loadFromFs(root, { from })` to finish the load with. */
   lightLoad?: LightLoad;
   claimRefs: Record<string, string>;
@@ -1214,7 +1214,7 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
   );
   // Phase 08.9.2 Ruling-narrow: the target's file and folder, its parent and, transitively, every id its depends_on names are read now; any other ticket is known by its file name only.
   let branchRead: { name: string | undefined } | undefined;
-  let narrowed: { id: string | undefined; ids: string[]; memo: Map<string, unknown> } | undefined;
+  let narrowed: { id: string | undefined; ids: string[]; memo: Map<string, unknown>; reach: ReadonlySet<string> } | undefined;
   if (narrow !== undefined && listing !== undefined) {
     const listed = new Set(listing.ticketIds);
     let target: string | undefined;
@@ -1239,7 +1239,7 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
       }
       for (const rel of listing.records.get(id) ?? []) files[rel] = readFileSync(join(root, rel), 'utf8');
     }
-    narrowed = { id: target, ids: listing.ticketIds, memo };
+    narrowed = { id: target, ids: listing.ticketIds, memo, reach: seen };
     first = loadSnapshot({ files, tree }, { memo });
   }
   const listedIds = narrowed === undefined ? undefined : new Set(narrowed.ids);
@@ -1422,7 +1422,7 @@ const recordPaths = (id: string): string[] => [
  * the current branch's own and whose claim ref is not merged into HEAD, the ticket's five records as that ref holds them.
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  * Phase 08.9.2 Ruling-narrow: with `only`, the checkout holds the narrow set of that target (its file, its parent and its `depends_on` closure, as `loadNarrow` reads them) and the overlay takes only those
- * tickets' claim-branch copies; `ids` (every id of accord/tickets/) and `memo` (the parse of the narrow set) are returned for the command's own loads. The claim branch list is read whole, as before.
+ * tickets' claim-branch copies; `ids` (every id of accord/tickets/) and `memo` (the parse of the narrow set) are returned for the command's own loads. The claim branch list is read whole, as before. A claim copy that names a parent or dependency outside the narrow set makes the call the full claim view (R-F, for that one case).
  */
 export function loadClaimView(
   root: string,
@@ -1432,8 +1432,8 @@ export function loadClaimView(
   // checkout's entries and the candidates' together.
   const parts = loadParts(root, true, false, true, undefined, options.only);
   const narrowed = parts.narrowed === undefined ? {} : { ids: parts.narrowed.ids, memo: parts.narrowed.memo };
-  /** Narrow only: a ticket whose file the load did not open has no copy to overlay. */
-  const inSet = (id: string): boolean => options.only === undefined || Object.hasOwn(parts.input.files, 'accord/tickets/' + id + '.md');
+  /** Narrow only: a ticket outside the neighbourhood the load reached (its own id included, even when the checkout holds no file of it) has no copy to overlay. */
+  const inSet = (id: string): boolean => parts.narrowed === undefined || parts.narrowed.reach.has(id);
   const { input: bare, claimRefs, listed, statusOf } = parts;
   const branch = parts.branch as NonNullable<typeof parts.branch>;
   const { entries: checkoutEntries, headCommit, own } = parts.deferred as NonNullable<typeof parts.deferred>;
@@ -1516,6 +1516,19 @@ export function loadClaimView(
       const text = read.get(ref + ':' + path);
       if (text === undefined) delete files[path];
       else files[path] = text;
+    }
+  }
+  // Phase 08.9.2 Ruling-narrow, R-F (this one case): the neighbourhood was read from the checkout's copies. A claim copy that names a parent or a dependency the narrow set does not hold, and that exists, is a
+  // relation `show` would read through the full load; the claim view is then the full one, as before this change.
+  if (parts.narrowed !== undefined) {
+    const { reach, ids: listedIds } = parts.narrowed;
+    const listedSet = new Set(listedIds);
+    for (const id of overlaid) {
+      const path = recordPaths(id)[0];
+      const fm = loadSnapshot({ files: { [path]: files[path] }, tree: [] }, { memo: parts.narrowed.memo }).tickets[id]?.frontmatter;
+      for (const r of [...(fm?.parent === undefined ? [] : [fm.parent]), ...(fm?.depends_on ?? [])]) {
+        if (typeof r === 'string' && !reach.has(r) && (listedSet.has(r) || Object.hasOwn(claimRefs, r))) return loadClaimView(root);
+      }
     }
   }
   // A candidate is read from its overlaid texts: the start commit is the one its own branch records, and core reads its

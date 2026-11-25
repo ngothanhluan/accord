@@ -4,7 +4,7 @@ description: Use when starting any work in an accord repository, when seeing whe
 license: MIT
 argument-hint: "[request]"
 kind: skill
-loads: [accord/approach-approval.md, accord/approach-critique.md, accord/approach.md, accord/build-no-plan.md, accord/build-waves.md, accord/build.md, accord/continue.md, accord/ids.md, accord/intent-discuss.md, accord/intent-research.md, accord/intent.md, accord/lane-r.md, accord/lane-s.md, accord/lane.md, accord/new-epic.md, accord/new.md, accord/pickup.md, accord/plan-baseline.md, accord/plan-critique.md, accord/plan-legacy-round1.md, accord/plan.md, accord/queue.md, accord/review-record.md, accord/review-security.md, accord/review.md, accord/route.md, accord/verify-ci.md, accord/verify-deferred.md, accord/verify-writer.md, accord/verify.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/resume.md, shared/scout.md, shared/similar.md]
+loads: [accord/approach-approval.md, accord/approach-critique.md, accord/approach.md, accord/build-no-plan.md, accord/build-waves.md, accord/build.md, accord/continue.md, accord/ids.md, accord/intent-discuss.md, accord/intent-research.md, accord/intent.md, accord/lane-r.md, accord/lane-s.md, accord/lane.md, accord/new-epic.md, accord/new.md, accord/pickup.md, accord/plan-baseline.md, accord/plan-critique.md, accord/plan-legacy-round1.md, accord/plan.md, accord/queue.md, accord/review-record.md, accord/review-security.md, accord/review.md, accord/route.md, accord/verify-ci.md, accord/verify-deferred.md, accord/verify-writer.md, accord/verify.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md, shared/pr-wait.md, shared/resume.md, shared/scout.md, shared/similar.md]
 ---
 
 First run the session check in `./worktree.md` before the dashboard. `./route.md` says where the check runs for any other text. A failure reported in a ticket that has reached verify follows `./failure.md` by this route.
@@ -53,7 +53,7 @@ An `Unfinished:` line at the plan or verify stage follows `./resume.md`, as `./p
 
 ## A lane: `./continue.md` and the change route
 
-A lane proposal follows `./lane.md` and its scout reply is checked as `./scout.md` says. Lane S follows `./lane-s.md` and `./review-security.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says. Lane R follows `./lane-r.md`.
+A lane proposal follows `./lane.md` and its scout reply is checked as `./scout.md` says. Lane S follows `./lane-s.md` and `./review-security.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says; after that report, wait on the pull request as `./pr-wait.md` says. Lane R follows `./lane-r.md`.
 
 ## Rules
 

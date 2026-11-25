@@ -6,6 +6,7 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { branchGlob, branchIdOf, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
 import type { AccordConfig, BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitStartFailure, runGitSync } from './git-spawn.js';
+import { sliceOfBranch } from './slices.js';
 import { changedOnRef, mergedClaims, recordPaths } from './merged-state.js';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
@@ -277,7 +278,7 @@ function gitClaims(
     }
     const m = /^refs\/(?:(heads)|remotes\/[^/]+)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined) continue;
-    const id = ticketOfBranch(m[2], templates, known, config);
+    const id = claimOfBranch(m[2], templates, known, config);
     if (id === undefined) continue;
     const when = Number(whenText);
     // Local and remote-tracking tips both count towards activity.
@@ -1113,6 +1114,15 @@ function resolveAfter(root: string, entries: readonly AfterEntry[], walk: Walk |
  * without `{slug}`, else the shortest id that starts with a letter and ends in a digit run, else none.
  */
 export function ticketOfBranch(name: string, templates: readonly string[], known: (id: string) => boolean, config?: Parameters<typeof branchIdOf>[3]): string | undefined {
+  const own = branchIdOf(name, templates, known, config)?.id;
+  if (own !== undefined) return own;
+  // Phase 15 D-31: `slice/<id>/<n>` names ticket `<id>` for every reader that maps a branch to its ticket, when `<id>` is a known ticket; it matches no claim template, so `claimOfBranch` never reads it
+  const slice = sliceOfBranch(name);
+  return slice !== undefined && known(slice.id) ? slice.id : undefined;
+}
+
+/** The ticket a branch CLAIMS under the templates in force: `ticketOfBranch` without the slice branches of Phase 15 D-31, which name a ticket but never claim it. */
+function claimOfBranch(name: string, templates: readonly string[], known: (id: string) => boolean, config?: Parameters<typeof branchIdOf>[3]): string | undefined {
   return branchIdOf(name, templates, known, config)?.id;
 }
 

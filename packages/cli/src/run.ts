@@ -19,6 +19,7 @@ import { commitCheck, commitMessage } from './commands/commit.js';
 import { conventionsWrite } from './commands/conventions.js';
 import { pr } from './commands/pr.js';
 import { prWait } from './commands/pr-wait.js';
+import { sliceOpen } from './commands/slice-tree.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
@@ -547,6 +548,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("remove task n's worktree and delete its branch, only when the ticket branch holds its commits; otherwise exit 1 and remove nothing")
     .action((id: string, n: string) => {
       setCode(taskClean(preflight(opts), id, n));
+    });
+  // Phase 15 D-07, D-31: a ticket's later slices on stacked branches, run in the ticket's own worktree.
+  worktree
+    .command('slice <id> <n>')
+    .description("open slice n (2 to the plan's slice count) of a sliced ticket: create branch slice/<id>/<n> at the tip of the branch of slice n-1 (the claim branch for slice 2), stacked on it without waiting for its pull request to merge (D-07), switch this worktree to it, record it in the git folder's accord/slices, and print branch: and base:; run again it prints the same lines; it refuses a dirty tree and a slice the plan does not have")
+    .action((id: string, n: string) => {
+      setCode(sliceOpen(preflight(opts), id, n));
     });
 
   program

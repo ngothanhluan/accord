@@ -38,11 +38,35 @@ export const hookEntries = (pkg: { name: string; version: string }): HookEntries
   ],
 });
 
-export const isAccordHookCommand = (c: string): boolean =>
-  /^npx --yes \S+ hook (session-start|session-resume|subagent-start|prompt-expansion|pre-tool-use)$/.test(c);
-
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
+
+const EVENTS = '(session-start|session-resume|subagent-start|prompt-expansion|pre-tool-use)';
+const OLD_FORM = new RegExp('^npx --yes \\S+ hook ' + EVENTS + '$');
+const LAUNCHER_FORM = new RegExp('^node \\$\\{CLAUDE_PROJECT_DIR\\}/\\.claude/accord\\.mjs \\S+ hook ' + EVENTS + '$');
+
+/**
+ * D-01: the words of a hook as one line: `command`, then each `args` word, a word that holds whitespace in double quotes so
+ * `runsAccordHook` reads it back as one word. A hook with no `args` is shell form, whose `command` is already the whole line.
+ */
+export function hookText(h: { command: string; args?: string[] }): string {
+  if (h.args === undefined) return h.command;
+  return [h.command, ...h.args].map((w) => (/\s/.test(w) ? '"' + w + '"' : w)).join(' ');
+}
+
+/** The text of a settings hook object, or undefined when it is not a command hook (no string `command`, or `args` that is not a list of strings). */
+function textOf(h: unknown): string | undefined {
+  if (!isObject(h) || typeof h.command !== 'string') return undefined;
+  if (h.args === undefined) return h.command;
+  if (!Array.isArray(h.args) || !h.args.every((a) => typeof a === 'string')) return undefined;
+  return hookText({ command: h.command, args: h.args as string[] });
+}
+
+/** The two shapes sync has written: the old npx command line and the launcher form of `hookEntries`, nothing else. */
+export const isAccordHookCommand = (c: string): boolean => OLD_FORM.test(c) || LAUNCHER_FORM.test(c);
+
+/** The last path component, split on either slash (core never reads a file, so no node:path). */
+const basename = (w: string): string => w.slice(Math.max(w.lastIndexOf('/'), w.lastIndexOf('\\')) + 1);
 
 const SUBCOMMANDS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
 
@@ -78,8 +102,9 @@ function commandTokens(c: string): string[] {
 
 /**
  * D-16: the subcommand when `c` runs `accord hook <subcommand>` in any form an owner may have edited it into: `accord`
- * itself, an npx package spec whose name is `accord` or ends with `/accord` (with or without `@<version>`), or a path
- * ending `cli.js`, followed by `hook` and one of the five subcommands, then any arguments. `undefined` for anything else.
+ * itself, an npx package spec whose name is `accord` or ends with `/accord` (with or without `@<version>`), a path
+ * ending `cli.js`, or the launcher `accord.mjs` (D-01: one or two words before `hook`, the launcher then optionally the
+ * version), followed by `hook` and one of the five subcommands, then any arguments. `undefined` for anything else.
  * Phase 08.8 D-10: the program may be quoted and may hold a space (`node "C:\Users\A B\cli.js" hook session-start`).
  */
 export function runsAccordHook(c: string): string | undefined {
@@ -89,9 +114,10 @@ export function runsAccordHook(c: string): string | undefined {
     const sub = SUBCOMMANDS.find((s) => s === tokens[i + 1]);
     if (sub === undefined) continue;
     const program = tokens[i - 1] ?? '';
-    const base = program.slice(Math.max(program.lastIndexOf('/'), program.lastIndexOf('\\')) + 1);
+    const base = basename(program);
     const name = base.replace(/@[^@]*$/, '').replace(/\.(cmd|exe|ps1)$/, '');
-    if (name === 'accord' || base === 'cli.js') return sub;
+    const launcher = [tokens[i - 1], i >= 2 ? tokens[i - 2] : undefined].some((w) => w !== undefined && basename(w) === 'accord.mjs');
+    if (name === 'accord' || base === 'cli.js' || launcher) return sub;
   }
   return undefined;
 }
@@ -119,12 +145,13 @@ export function mergeHooksWithNotes(existing: unknown, entries: HookEntries): { 
         continue;
       }
       const rest = entry.hooks.filter((h) => {
-        if (!isObject(h) || typeof h.command !== 'string') return true;
-        if (isAccordHookCommand(h.command)) return false;
-        const sub = runsAccordHook(h.command);
+        const text = textOf(h);
+        if (!isObject(h) || text === undefined) return true;
+        if (isAccordHookCommand(text)) return false;
+        const sub = runsAccordHook(text);
         if (sub !== undefined) {
           edited.add(sub + '|' + (typeof h.if === 'string' ? h.if : ''));
-          notes.push(`kept ${event} hook "${h.command}": it runs accord hook ${sub} in a form sync did not write, so sync left it; edit or remove it to get accord's`);
+          notes.push(`kept ${event} hook "${text}": it runs accord hook ${sub} in a form sync did not write, so sync left it; edit or remove it to get accord's`);
         }
         return true;
       });
@@ -132,7 +159,7 @@ export function mergeHooksWithNotes(existing: unknown, entries: HookEntries): { 
     }
     const wanted: HookEntries[keyof HookEntries] = [];
     for (const entry of added) {
-      const own = entry.hooks.filter((h) => !edited.has((runsAccordHook(h.command) ?? '') + '|' + (h.if ?? '')));
+      const own = entry.hooks.filter((h) => !edited.has((runsAccordHook(hookText(h)) ?? '') + '|' + (h.if ?? '')));
       if (own.length > 0) wanted.push(own.length === entry.hooks.length ? entry : { ...entry, hooks: own });
     }
     hooks[event] = [...kept, ...wanted];

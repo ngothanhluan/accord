@@ -18,6 +18,7 @@ import {
   allSkillDirs,
   contentHash,
   hookEntries,
+  hookText,
   isAccordHookCommand,
   isIntactRender,
   markerHash,
@@ -348,11 +349,16 @@ export function renderHealth(root: string, config: AccordConfig): RenderHealth {
     if (!Array.isArray(list)) return [];
     return list.flatMap((entry) => (isRecord(entry) && Array.isArray(entry.hooks) ? entry.hooks.filter(isRecord) : []));
   };
-  const commandOf = (h: Record<string, unknown>): string | undefined => (typeof h.command === 'string' ? h.command : undefined);
+  // D-01: a hook is judged by the words of `command` plus `args` (an exec form hook has `args`); `args` that is not a list of strings is not accord's.
+  const commandOf = (h: Record<string, unknown>): string | undefined => {
+    if (typeof h.command !== 'string') return undefined;
+    if (h.args === undefined) return h.command;
+    return Array.isArray(h.args) && h.args.every((a) => typeof a === 'string') ? hookText({ command: h.command, args: h.args as string[] }) : undefined;
+  };
   for (const [event, groups] of Object.entries(entries)) {
     const present = hooksOf(event);
     for (const wanted of groups.flatMap((g) => g.hooks)) {
-      const sub = runsAccordHook(wanted.command);
+      const sub = runsAccordHook(hookText(wanted));
       const kind = `accord ${event} hook for ${sub}${wanted.if === undefined ? '' : ' if ' + wanted.if}`;
       const same = present.filter((h) => {
         const c = commandOf(h);

@@ -57,6 +57,8 @@ async function host(mod: { register: (on: Handler) => void }) {
   const stored = new Map<string, unknown>();
   const h = {
     store: stored,
+    // the in-memory files of the fake `$.fs`, by absolute path
+    files: new Map<string, string>(),
     placed: true,
     // Phase 08.7: the surface a draw reports, the pane's width (undefined draws no props), the agents `$.agent.list` gives, the surfaces `$.session.surfaces` gives and the timers `$.clock` was asked for
     surface: 'terminal' as string,
@@ -71,10 +73,15 @@ async function host(mod: { register: (on: Handler) => void }) {
     // Phase 08.8.1-05: `last` stands for the host's own step at the end of the chain (a tool call that runs); its result is what the chain resolves with
     async fire(event: string, e: any, last?: Handler): Promise<any> {
       const chain = hooks.filter((x) => x.event === event && Object.entries(x.matcher).every(([k, v]) => e[k] === v));
-      const run = (i: number): Promise<any> => (i >= chain.length ? Promise.resolve(last ? last(e) : e) : Promise.resolve(chain[i].fn($, e, () => run(i + 1))));
-      return run(0);
+      const run = (i: number): Promise<any> => (i >= chain.length ? Promise.resolve(last ? last(e) : e) : Promise.resolve(chain[i].fn(reg, e, () => run(i + 1))));
+      const result = await run(0);
+      // Phase 08.9.2 D-01: the pane reads the session root before it starts a process, which takes a few microtask ticks a test no longer sees as part of the event
+      for (let i = 0; i < 8; i++) await Promise.resolve();
+      return result;
     },
     settle: (r: Partial<Result>) => (runs.shift() as { res: (r: Result) => void }).res({ exitCode: 0, stdout: '', stderr: '', ...r }),
+    // Phase 08.9.2 D-06: the background `dashboard --json` runs of the pane wait in their own queue, so these tests count only the draw-path and `show` runs; panel-cache.test.ts covers the background run
+    background: [] as { res: (r: Result) => void; rej: (e: unknown) => void }[],
     fail: (err: unknown) => (runs.shift() as { rej: (e: unknown) => void }).rej(err),
     inflight: () => runs.length,
     close: (id: string) => open.delete(id),
@@ -145,7 +152,15 @@ async function host(mod: { register: (on: Handler) => void }) {
   const $: any = {
     agent: { list: vi.fn(async () => h.agents) },
     clock: { after: vi.fn(timer('after')), every: vi.fn(timer('every')) },
-    session: { surfaces: vi.fn(async () => h.surfaces) },
+    // Phase 08.9.2 D-01: the pane builds its argv from the session root
+    session: { surfaces: vi.fn(async () => h.surfaces), root: vi.fn(async () => '/work/repo') },
+    // Phase 08.9.2 D-06: a main checkout with a writable git folder, so the pane's cache lives in `files` and never in the store these tests read
+    fs: {
+      read: vi.fn(async (path: string) => h.files.get(path) ?? Promise.reject(new Error('ENOENT'))),
+      write: vi.fn(async (path: string, text: string) => void h.files.set(path, text)),
+      exists: vi.fn(async (path: string) => h.files.has(path) || path === '/work/repo/.git'),
+      stat: vi.fn(async (path: string) => (h.files.has(path) ? { kind: 'file' } : path === '/work/repo/.git' ? { kind: 'dir' } : Promise.reject(new Error('ENOENT')))),
+    },
     store: {
       get: vi.fn(async (k: string) => (stored.has(k) ? JSON.parse(JSON.stringify(stored.get(k))) : undefined)),
       set: vi.fn(async (k: string, v: unknown) => void stored.set(k, JSON.parse(JSON.stringify(v)))),
@@ -171,6 +186,16 @@ async function host(mod: { register: (on: Handler) => void }) {
       }),
     },
   };
+  // the pane gets the same host with the process noun routed: a dashboard run without --no-fetch is the background run
+  const reg: any = new Proxy($, {
+    get: (t, k) =>
+      k === 'process'
+        ? {
+            run: (argv: string[], o: unknown) =>
+              argv[3] === 'dashboard' && !argv.includes('--no-fetch') ? new Promise<Result>((res, rej) => h.background.push({ res, rej })) : t.process.run(argv, o),
+          }
+        : t[k as string],
+  });
   return Object.assign(h, { $ });
 }
 
@@ -183,6 +208,8 @@ const board = (over: Record<string, unknown> = {}): Record<string, unknown> => (
   ...over,
 });
 const start = { cwd: '.', surface: 'terminal', isInteractive: true };
+// Phase 08.9.2 D-01 D-05: the argv of the pane's one draw-path run, through the launcher at the pinned version
+const DASH = ['node', '/work/repo/.claude/accord.mjs', '9.9.9', 'dashboard', '--json', '--no-fetch'];
 
 it('ac-1 the pane shows the dashboard json on open and after each turn', async () => {
   const h = await host(await loadPanel());
@@ -190,7 +217,7 @@ it('ac-1 the pane shows the dashboard json on open and after each turn', async (
   expect(h.$.command.register).toHaveBeenCalledWith(expect.objectContaining({ name: 'accord-panel' }));
   expect(h.$.ui.open).toHaveBeenCalledWith(expect.objectContaining({ id: 'accord-panel' }));
   expect(h.$.process.run).toHaveBeenCalledTimes(1);
-  expect(h.$.process.run).toHaveBeenCalledWith(['npx', '--yes', '@accord-dev/accord@9.9.9', 'dashboard', '--json'], { timeoutMs: 120000 });
+  expect(h.$.process.run).toHaveBeenCalledWith(DASH, { timeoutMs: 120000 });
   expect(h.texts()).toEqual(['Loading…']);
   h.settle({
     stdout: JSON.stringify(
@@ -243,7 +270,9 @@ it('risk:parsing every panel file carries one marker whose hash recomputes', () 
     }
   }
   const reg = files.find((f) => f.path.endsWith('register.js'))?.text ?? '';
-  expect(reg).toContain("'@accord-dev/accord@9.9.9'");
+  // Phase 08.9.2 D-01: the render token is the version alone; the pane's argv holds the launcher path, never the package spec
+  expect(reg).toContain("'9.9.9'");
+  expect(reg).not.toContain('ACCORD_PACKAGE_VERSION');
   expect(reg).not.toContain('ACCORD_PACKAGE_SPEC');
   const plugin = JSON.parse(files.find((f) => f.path.endsWith('plugin.json') && f.path.includes('plugin/.claude-plugin'))?.text ?? '{}') as { version: string };
   expect(plugin.version).toBe('9.9.9');
@@ -268,7 +297,7 @@ it('risk:complex-branching the pane opens on an interactive terminal and a deskt
   expect(headless.$.command.register).toHaveBeenCalledTimes(1);
   expect(headless.$.ui.open).toHaveBeenCalledTimes(1);
   expect(headless.$.process.run).toHaveBeenCalledTimes(1);
-  expect(headless.$.process.run).toHaveBeenCalledWith(['npx', '--yes', '@accord-dev/accord@9.9.9', 'dashboard', '--json'], { timeoutMs: 120000 });
+  expect(headless.$.process.run).toHaveBeenCalledWith(DASH, { timeoutMs: 120000 });
   await headless.fire('session.attach', { surface: 'desktop', clientId: 'desktop:default' });
   expect(headless.$.ui.open).toHaveBeenCalledTimes(1);
   expect(headless.$.process.run).toHaveBeenCalledTimes(1);
@@ -352,7 +381,7 @@ it('ac-4 pressing a row id opens its detail view with its button and back', asyn
   }
   expect(h.nodes('Text').filter((n) => n.props.underline === true)).toHaveLength(2);
   press(h, 'show:ST-1');
-  expect(h.$.process.run).toHaveBeenLastCalledWith(['npx', '--yes', '@accord-dev/accord@9.9.9', 'show', 'ST-1', '--json'], { timeoutMs: 120000 });
+  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));
   expect(h.$.command.run).not.toHaveBeenCalled();
   h.settle({ stdout: JSON.stringify(detailOf()) });
   await vi.waitFor(() => {
@@ -795,7 +824,7 @@ it('risk:concurrency an open detail reruns show after a turn and drops a result 
   let n = calls();
   await h.fire('turn.complete', { reason: 'answer' });
   expect(calls()).toBe(n + 2);
-  expect(argv(n).slice(3)).toEqual(['dashboard', '--json']);
+  expect(argv(n).slice(3)).toEqual(['dashboard', '--json', '--no-fetch']);
   expect(argv(n + 1).slice(3)).toEqual(['show', 'ST-1', '--json']);
   h.settle({ stdout: twoRows });
   h.settle({ stdout: JSON.stringify(detailOf({ title: 'Renamed' })) });
@@ -960,21 +989,23 @@ it("risk:parsing tab labels read the json's own numbers (D-03)", async () => {
   expect(labels({ log: [{ at: 5, kind: 'gate', text: 'gate done PASS' }] }).ticket.label).not.toContain('gate failed');
 });
 
-const claimed = JSON.stringify(
-  board({
-    current: 'ST-1',
-    yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 },
-    ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 },
-  }),
-);
-const SHOW = (id: string): string[] => ['npx', '--yes', '@accord-dev/accord@9.9.9', 'show', id, '--json'];
-// the pane of a ticket worktree after its dashboard and its ticket `show` both settled
+// Phase 08.9.2 D-05: the dashboard of a claimed worktree carries the ticket's `show` object as `currentDetail`, so one run settles both the dashboard and the ticket tab
+const claimedWith = (detail: Record<string, unknown> = detailOf()): string =>
+  JSON.stringify(
+    board({
+      current: 'ST-1',
+      currentDetail: detail,
+      yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 },
+      ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 },
+    }),
+  );
+const claimed = claimedWith();
+const SHOW = (id: string): string[] => ['node', '/work/repo/.claude/accord.mjs', '9.9.9', 'show', id, '--json'];
+// the pane of a ticket worktree after its one dashboard run settled (the ticket tab reads `currentDetail`)
 async function claimedPane(): Promise<Awaited<ReturnType<typeof host>>> {
   const h = await host(await loadPanel());
   await h.fire('session.start', start);
   h.settle({ stdout: claimed });
-  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));
-  h.settle({ stdout: JSON.stringify(detailOf()) });
   await vi.waitFor(() => expect(h.texts()).toContain('build 1/3'));
   return h;
 }
@@ -1017,11 +1048,9 @@ it('risk:complex-branching keys 1 and 2 switch tabs a picked tab stays and the i
   expect(h.input()?.autoFocus).toBeUndefined();
   expect(marked(h)).toEqual([]);
   await h.fire('turn.complete', { reason: 'answer' });
-  // Phase 08.8.1 IN-03: the dashboard run settles first and the ticket's show follows it (it was two runs in flight at once before)
+  // Phase 08.9.2 D-05: one dashboard run refreshes both tabs, its currentDetail carries the ticket (it was a dashboard run and then a show before)
   await vi.waitFor(() => expect(h.inflight()).toBe(1));
-  h.settle({ stdout: claimed });
-  await vi.waitFor(() => expect(h.inflight()).toBe(1));
-  h.settle({ stdout: JSON.stringify(detailOf({ title: 'Renamed' })) });
+  h.settle({ stdout: claimedWith(detailOf({ title: 'Renamed' })) });
   await vi.waitFor(() => expect(h.inflight()).toBe(0));
   await new Promise((r) => setTimeout(r, 10));
   expect(h.input()).toBeDefined();
@@ -1090,9 +1119,7 @@ async function paneWith(over: Record<string, unknown>, tweak?: (h: Awaited<Retur
   const h = await host(await loadPanel());
   tweak?.(h);
   await h.fire('session.start', start);
-  h.settle({ stdout: claimed });
-  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 }));
-  h.settle({ stdout: JSON.stringify(detailOf(over)) });
+  h.settle({ stdout: claimedWith(detailOf(over)) });
   await vi.waitFor(() => expect(h.texts()).toContain('Login form'));
   return h;
 }
@@ -1389,8 +1416,8 @@ it('risk:concurrency subagent turns start no accord run and an accord subagent e
   expect(calls()).toBe(base);
   await waits[1].fn();
   expect(calls()).toBe(base + 1);
-  expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 });
-  h.settle({ stdout: JSON.stringify(detailOf()) });
+  expect(h.$.process.run).toHaveBeenLastCalledWith(DASH, { timeoutMs: 120000 });
+  h.settle({ stdout: claimed });
   await vi.waitFor(() => expect(h.inflight()).toBe(0));
 });
 
@@ -1437,9 +1464,9 @@ it('risk:complex-branching without agent list or clock the pane hides the agents
   const base = bare.$.process.run.mock.calls.length;
   await bare.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' });
   expect(bare.$.process.run.mock.calls.length).toBe(base + 1);
-  expect(bare.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 });
+  expect(bare.$.process.run).toHaveBeenLastCalledWith(DASH, { timeoutMs: 120000 });
   expect(bare.timers).toEqual([]);
-  bare.settle({ stdout: JSON.stringify(detailOf()) });
+  bare.settle({ stdout: claimed });
   await vi.waitFor(() => expect(bare.inflight()).toBe(0));
 });
 
@@ -1810,10 +1837,17 @@ it('risk:regression a long ticket line drops the dashboard counts and the tabs r
   await h.store.set('settings', NO_MOTION);
   h.agents = ['a1', 'a2', 'a3'].map((a) => agentOf(a, 'accord-executor'));
   await h.fire('session.start', start);
-  h.settle({ stdout: JSON.stringify(board({ current: id, yours: { rows: [{ id, title: 'Login form' }], more: 0 }, ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
-  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW(id), { timeoutMs: 120000 }));
   const gate = { at: Math.floor(Date.now() / 1000) - 3, kind: 'gate', text: 'gate done FAIL: red', fail: true };
-  h.settle({ stdout: JSON.stringify(detailOf({ id, stage: 'build', tasksDone: 12, tasksTotal: 15, log: [gate] })) });
+  h.settle({
+    stdout: JSON.stringify(
+      board({
+        current: id,
+        currentDetail: detailOf({ id, stage: 'build', tasksDone: 12, tasksTotal: 15, log: [gate] }),
+        yours: { rows: [{ id, title: 'Login form' }], more: 0 },
+        ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 },
+      }),
+    ),
+  });
   await vi.waitFor(() => expect(h.texts()).toContain('Login form'));
   for (const a of ['a1', 'a2', 'a3']) await h.fire('turn.start', subStart(a));
   await h.fire('turn.complete', { reason: 'answer', answer: 'Keep it?' });
@@ -1837,9 +1871,7 @@ it('risk:regression a wrapped tabs row takes a row from the log, and the bar doe
     h.rows = 50;
     await h.store.set('settings', NO_MOTION);
     await h.fire('session.start', start);
-    h.settle({ stdout: JSON.stringify(board({ current: id, yours: { rows: [{ id, title: 'Login form' }], more: 0 } })) });
-    await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW(id), { timeoutMs: 120000 }));
-    h.settle({ stdout: JSON.stringify(detailOf({ id, log })) });
+    h.settle({ stdout: JSON.stringify(board({ current: id, currentDetail: detailOf({ id, log }), yours: { rows: [{ id, title: 'Login form' }], more: 0 } })) });
     await vi.waitFor(() => expect(h.texts()).toContain('Login form'));
     const t = h.texts();
     return (t.length - t.indexOf('lately') - 1) / 3;
@@ -2132,7 +2164,7 @@ it("risk:complex-branching a subagent tool call sets its row's tool and task and
   const base = h.$.process.run.mock.calls.length;
   await h.timers.filter((t) => t.ms === 3000 && !t.cancelled).at(-1)?.fn();
   expect(h.$.process.run.mock.calls.length).toBe(base + 1);
-  expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-1'), { timeoutMs: 120000 });
+  expect(h.$.process.run).toHaveBeenLastCalledWith(DASH, { timeoutMs: 120000 });
   // a hook whose roster write throws still returns what the call returned
   const bad = {
     tool: 'Read',
@@ -2202,9 +2234,7 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   expect(everyTimers(h).filter((t) => !t.cancelled)).toHaveLength(0);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   // a change of the dashboard's current id clears the roster
-  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
-  await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
-  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', currentDetail: detailOf({ id: 'ST-2', title: 'Export' }), yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
   await vi.waitFor(() => expect(h.texts()).toContain('Export'));
   expect(h.texts().some((x) => /^[◐◓◑◒◜◝◞◟✓] /.test(x))).toBe(false);
   expect(h.texts()).not.toContain('✓ executor');
@@ -2235,27 +2265,25 @@ it('risk:regression a throwing hook still passes the event on and a failed pane 
   expect(attacher.$.ui.open).toHaveBeenCalledTimes(2);
 });
 
-// Phase 08.8.1 IN-03 (08.7 review): one loader runs show; a main-loop turn end starts the ticket's show only when the dashboard run left the id unchanged, so a new id costs one show.
+// Phase 08.8.1 IN-03 (08.7 review), Phase 08.9.2 D-05: a new ticket id costs no show run at all and a main-loop turn end costs one dashboard run; the claimed ticket's detail arrives as currentDetail.
 it('risk:concurrency a new ticket id starts one show run and not two (IN-03)', async () => {
   const showsOf = (h: Awaited<ReturnType<typeof host>>, id: string): number => h.$.process.run.mock.calls.filter((c: any[]) => c[0][3] === 'show' && c[0][4] === id).length;
   const h = await claimedPane();
-  expect(showsOf(h, 'ST-1')).toBe(1);
+  expect(showsOf(h, 'ST-1')).toBe(0);
   await h.fire('turn.complete', { reason: 'answer' });
-  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
-  await vi.waitFor(() => expect(showsOf(h, 'ST-2')).toBe(1));
+  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', currentDetail: detailOf({ id: 'ST-2', title: 'Export' }), yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.texts()).toContain('Export'));
   await new Promise((r) => setTimeout(r, 20));
-  expect(showsOf(h, 'ST-1')).toBe(1);
-  expect(showsOf(h, 'ST-2')).toBe(1);
-  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
-  await vi.waitFor(() => expect(h.inflight()).toBe(0));
-  expect(showsOf(h, 'ST-2')).toBe(1);
-  // the same id: the dashboard run settles first and then the ticket's show runs once
+  expect(showsOf(h, 'ST-1')).toBe(0);
+  expect(showsOf(h, 'ST-2')).toBe(0);
+  expect(h.inflight()).toBe(0);
+  // the same id again: one dashboard run, still no show
   await h.fire('turn.complete', { reason: 'answer' });
-  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
-  await vi.waitFor(() => expect(showsOf(h, 'ST-2')).toBe(2));
-  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', currentDetail: detailOf({ id: 'ST-2', title: 'Export' }), yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
   await vi.waitFor(() => expect(h.inflight()).toBe(0));
-  expect(showsOf(h, 'ST-2')).toBe(2);
+  await new Promise((r) => setTimeout(r, 20));
+  expect(showsOf(h, 'ST-2')).toBe(0);
+  expect(h.$.process.run.mock.calls.filter((c: any[]) => c[0][3] === 'dashboard')).toHaveLength(3);
 });
 
 // ---- Phase 08.8.1-06 L-07: the task list with a build progress bar in the ticket tab's lower half ----
@@ -3054,14 +3082,14 @@ const planOf = (done: number): Record<string, unknown> => ({
   tasks: [1, 2, 3, 4].map((n) => taskOf(n, `Task ${n}`, n <= done, [`ac-${n}`])),
   criteria: [1, 2, 3, 4].map((n) => critOf(`ac-${n}`, `Criterion ${n}`, 'untested')),
 });
-// the pane after one more `show` result: an accord agent ends, its debounced refresh runs and `show` answers with these keys
+// the pane after one more dashboard run: an accord agent ends, its debounced refresh runs and the dashboard answers with these keys as `currentDetail` (Phase 08.9.2 D-05)
 async function reshow(h: Awaited<ReturnType<typeof host>>, over: Record<string, unknown>, id: string): Promise<void> {
   h.agents = [...h.agents, agentOf(id, 'accord-planner')];
   await h.fire('turn.start', subStart(id));
   await h.fire('turn.complete', { agentId: id, durationMs: 10, reason: 'answer' });
   await h.timers.filter((t) => t.kind === 'after' && !t.cancelled).at(-1)?.fn();
   await vi.waitFor(() => expect(h.inflight()).toBe(1));
-  h.settle({ stdout: JSON.stringify(detailOf(over)) });
+  h.settle({ stdout: claimedWith(detailOf(over)) });
   await vi.waitFor(() => expect(h.inflight()).toBe(0));
 }
 const sparkBox = (h: Awaited<ReturnType<typeof host>>): El | undefined => h.nodes('Box').find((b) => b.props.position === 'absolute');
@@ -3116,14 +3144,12 @@ it('risk:complex-branching a task finished plays sparkles and the rolling counte
     expect(counterOf(h)).toBe('3 of 4');
     expect(sparkBox(h)).toBeUndefined();
     // a new ticket id starts none, even with a higher count
-    const next = JSON.stringify(board({ current: 'ST-2', yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } }));
+    const next = JSON.stringify(board({ current: 'ST-2', currentDetail: detailOf({ ...planOf(4), id: 'ST-2', title: 'Export' }), yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } }));
     await h.fire('turn.start', { turnId: 'm', text: 'x' });
     await h.fire('turn.complete', { reason: 'answer' });
     await vi.waitFor(() => expect(h.inflight()).toBe(1));
-    h.settle({ stdout: next });
-    await vi.waitFor(() => expect(h.$.process.run).toHaveBeenLastCalledWith(SHOW('ST-2'), { timeoutMs: 120000 }));
     clock.mockReturnValue(T + 5000);
-    h.settle({ stdout: JSON.stringify(detailOf({ ...planOf(4), id: 'ST-2', title: 'Export' })) });
+    h.settle({ stdout: next });
     await vi.waitFor(() => expect(h.texts()).toContain('Export'));
     expect(sparkBox(h)).toBeUndefined();
   } finally {
@@ -3418,9 +3444,7 @@ it('risk:resource the waiting blink and the failure flash run on the frame timer
       await at(off, ms);
       expect(diamondOf(off)).toBe('◆');
     }
-    off.settle({ stdout: claimed });
-    await vi.waitFor(() => expect(off.inflight()).toBe(1));
-    off.settle({ stdout: JSON.stringify(detailOf(failing)) });
+    off.settle({ stdout: claimedWith(detailOf(failing)) });
     await vi.waitFor(() => expect(off.inflight()).toBe(0));
     await at(off, 0);
     expect(failBorder(off)).toBe('#ff6b6b');
@@ -3530,7 +3554,7 @@ it('risk:resource the agent roster holds at most fifty accord agents however man
 });
 
 // Phase 08.8.1 audit of Phase 08.7 (T-08.7-15, D-02): the pane holds no logic or gate beyond display. Read from its source: it imports nothing but view.js, reads no file, makes no network call, reaches the
-// host only through the listed nouns and runs only the pinned `npx` for `dashboard` and `show`. A person who widens the pane widens this list on purpose, with the owner's say.
+// host only through the listed nouns and runs only the pinned launcher through `node` for `dashboard` and `show` (Phase 08.9.2 D-01, D-06: it reads and writes only the git folder's cache and marker through `$.fs`). A person who widens the pane widens this list on purpose, with the owner's say.
 it('risk:security the pane reaches the host only through the display nouns and runs only the pinned npx show and dashboard (D-02)', () => {
   const code = (name: string): string =>
     readFileSync(new URL('../panel/' + name, import.meta.url), 'utf8')
@@ -3543,10 +3567,35 @@ it('risk:security the pane reaches the host only through the display nouns and r
   expect([...reg.matchAll(/^import\b[^;]*?from\s+'([^']+)'/gm)].map((m) => m[1])).toEqual(['./view.js']);
   expect(view).not.toMatch(/^import\b/m);
   const nouns = [...new Set([...reg.matchAll(/\$\.([a-z]+)\.([a-zA-Z]+)/g)].map((m) => `${m[1]}.${m[2]}`))].sort();
-  expect(nouns).toEqual(['agent.list', 'clock.after', 'clock.every', 'command.register', 'command.run', 'process.run', 'session.surfaces', 'store.get', 'store.set', 'ui.invalidate', 'ui.open', 'ui.panes', 'ui.resolve', 'ui.toast']);
+  // Phase 08.9.2 D-01 D-06 D-03: the nouns the pane gained are `session.root` (the launcher's path) and the four `fs` calls of the cache and the off marker; the title keeps its words, the run is the launcher through `node`
+  expect(nouns).toEqual([
+    'agent.list',
+    'clock.after',
+    'clock.every',
+    'command.register',
+    'command.run',
+    'fs.exists',
+    'fs.read',
+    'fs.stat',
+    'fs.write',
+    'process.run',
+    'session.root',
+    'session.surfaces',
+    'store.get',
+    'store.set',
+    'ui.invalidate',
+    'ui.open',
+    'ui.panes',
+    'ui.resolve',
+    'ui.toast',
+  ]);
   const runs = [...reg.matchAll(/\$\.process\.run\(([^)]*)/g)].map((m) => m[1]);
-  expect(runs).toHaveLength(2);
-  for (const argv of runs) expect(argv).toMatch(/^\['npx', '--yes', 'ACCORD_PACKAGE_SPEC', '(?:dashboard|show)'/);
+  expect(runs).toHaveLength(1);
+  expect(runs[0]).toMatch(/^\['node', root \+ '\/\.claude\/accord\.mjs', 'ACCORD_PACKAGE_VERSION', \.\.\.words\]/);
+  expect(reg).not.toContain('npx');
+  const words = [...reg.matchAll(/\bcli\(\$, \[([^\]]*)\]/g)].map((m) => m[1]);
+  expect(words).toHaveLength(3);
+  for (const w of words) expect(w).toMatch(/^'(?:dashboard|show)'/);
 });
 
 // Phase 08.8.1 audit finding (T-08.7-18): `claude plugin validate` refuses a pane whose inner binding is named like the hook continuation, and the settings view's `edit = (next) => ...` shadowed it since 08.8.1-07. This scan mirrors that rule on the source.

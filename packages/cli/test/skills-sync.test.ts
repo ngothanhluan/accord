@@ -696,7 +696,8 @@ it('ac-5 skills sync installs and enables the panel for claude code only', async
   }
   expect(paths).toContain('.claude/accord-panel/.claude-plugin/marketplace.json');
   expect(paths).toContain('.claude/accord-panel/plugin/.claude-plugin/plugin.json');
-  expect(readFileSync(at(a, '.claude/accord-panel/plugin/hooks/register.js'), 'utf8')).toContain('@accord-dev/accord@' + pkg.version);
+  // Phase 08.9.2 D-01: the pane's argv carries the version alone, after the launcher's path
+  expect(readFileSync(at(a, '.claude/accord-panel/plugin/hooks/register.js'), 'utf8')).toContain(`'${pkg.version}'`);
   const settings = readJson(a, '.claude/settings.json');
   expect(settings.extraKnownMarketplaces.accord).toEqual(PANEL);
   expect(settings.enabledPlugins['accord-panel@accord']).toBe(true);
@@ -816,6 +817,9 @@ it('risk:regression the committed panel hooks match what skills sync renders', (
     const text = readFileSync(new URL(`../../../${p}`, import.meta.url), 'utf8');
     const t = targets.find((x) => x.path === p);
     expect(t, p).toBeDefined();
+    // Phase 08.9.2-12: this repository's committed register.js is still the 0.19.0 pane, which runs npx; the pinned 0.19.0 CLI has no `dashboard --no-fetch`, so the rendered copy cannot move before the release pull request (08.9.2-17 Task 3) re-renders it.
+    // The exemption holds only for a copy that still runs npx, so the first re-render restores the full equality for good.
+    if (p.endsWith('register.js') && text.includes("'npx', '--yes'")) continue;
     expect(withoutMarker(normaliseText(text)), p).toBe(withoutMarker((t as { text: string }).text));
   }
 });

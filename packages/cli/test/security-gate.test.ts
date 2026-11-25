@@ -302,7 +302,8 @@ const TEAM_SECURITY = [
   '',
   '## Patterns',
   '',
-  '- panel-spec: line /accord@[0-9]/ — the package spec the panel runs',
+  // Phase 08.9.2 D-01: the panel runs the launcher with the pinned version as one quoted word, no longer a package spec
+  "- panel-spec: line /'[0-9]+[.][0-9]+[.][0-9]+'/ — the pinned version the panel passes the launcher",
   '',
   '## Checklist',
   '',

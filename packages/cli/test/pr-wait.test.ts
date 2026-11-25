@@ -6,7 +6,7 @@ import { cleanup, makeLaneRepo, run } from './helpers/repo.js';
 /** What the fake `gh` answers: a string is stdout, an Error is a failed call. Set per case. */
 const gh = vi.hoisted(() => ({
   calls: [] as { args: string[]; opts: unknown }[],
-  answer: ((_args: string[]) => '') as (args: string[]) => string | Error,
+  answer: (() => '') as (args: string[]) => string | Error,
 }));
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
@@ -113,7 +113,8 @@ it('risk:parsing accord pr wait ends on a failed check with its sanitised name (
   const last = lastLine(r.out);
   expect(last).toMatch(/^pr-wait: ci-failed #7: lint and gate, [A-Za-z0-9 ._()/:-]+$/);
   expect(last.length).toBeLessThan(200);
-  expect(r.out).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f]/);
+  // only printable characters and the newlines between lines
+  expect(r.out.replaceAll('\n', '')).toMatch(/^[\x20-\x7e]*$/);
 });
 
 it('risk:regression accord pr wait without a usable gh exits 2 as unavailable and with no pull request exits 2 naming the branch (D-22)', async () => {

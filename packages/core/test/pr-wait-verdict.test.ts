@@ -91,8 +91,8 @@ it('risk:security the verdict never holds the body of a comment, a review or an 
     comments: [{ author: { login: 'ana' }, authorAssociation: 'OWNER', createdAt: AFTER, body: marker }],
     reviews: [{ author: { login: 'ana' }, authorAssociation: 'OWNER', submittedAt: AFTER, state: 'COMMENTED', body: marker }],
     statusCheckRollup: [{ name: 'lint', conclusion: 'FAILURE', body: marker }],
-  } as PrView;
-  const inline = [{ user: { login: 'ana' }, author_association: 'OWNER', created_at: AFTER, in_reply_to_id: null, body: marker }] as InlineComment[];
+  } as unknown as PrView;
+  const inline = [{ user: { login: 'ana' }, author_association: 'OWNER', created_at: AFTER, in_reply_to_id: null, body: marker }] as unknown as InlineComment[];
   expect(JSON.stringify(prWaitVerdict(view, inline, gate))).not.toContain('UNIQUE-MARKER');
   expect(JSON.stringify(prWaitVerdict(open({ statusCheckRollup: view.statusCheckRollup }), none, gate))).not.toContain('UNIQUE-MARKER');
 });

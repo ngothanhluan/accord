@@ -217,3 +217,22 @@ it('risk:regression remaining lines name the visible heading (D-16)', async () =
   expect(r.out).not.toContain('remaining: Hidden');
   expect(remaining(r.out)).toEqual(['Screenshots']);
 }, 120_000);
+
+// Phase 15 plan 06 (D-22): `pr` became a group so `pr wait <id>` can sit beside the body builder; `accord pr <id>` is still `accord pr build <id>`.
+it('risk:regression accord pr LOGIN-1 and accord pr build LOGIN-1 print the same title, body file and remaining lines, and accord pr --help lists build and wait (D-22)', async () => {
+  const repo = sandbox({ '.github/pull_request_template.md': TEMPLATE });
+  const bare = await run(['pr', 'T-1'], repo);
+  expect(bare.code, bare.out + bare.err).toBe(0);
+  const bodyBare = readFileSync(bodyFile(repo, 'T-1'), 'utf8');
+  rmSync(bodyFile(repo, 'T-1'));
+  const built = await run(['pr', 'build', 'T-1'], repo);
+  expect(built.code, built.out + built.err).toBe(0);
+  expect(built.out).toBe(bare.out);
+  expect(readFileSync(bodyFile(repo, 'T-1'), 'utf8')).toBe(bodyBare);
+  expect(bare.out).toMatch(/^title: T-1: Export\nbody-file: .+\ntemplate: .github\/pull_request_template.md\nremaining: Screenshots\n$/);
+
+  const help = await run(['pr', '--help'], repo);
+  expect(help.code, help.out + help.err).toBe(0);
+  expect(help.out).toMatch(/^\s+build\b/m);
+  expect(help.out).toMatch(/^\s+wait\b/m);
+}, 120_000);

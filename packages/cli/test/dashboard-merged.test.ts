@@ -211,3 +211,31 @@ it('risk:regression audit and clean report no fault for a merged claim branch of
   expect(gitRun(repo, 'for-each-ref', '--format=%(refname)', 'refs/heads/t').trim()).toBe('refs/heads/t/T-1');
   expect(gitRun(repo, 'status', '--short').trim()).toBe('');
 }, 180_000);
+
+// Phase 15 D-29, SC-6 (15-04): the text dashboard prints the group after UP NEXT, and continue is its action; the finish report only suggests what the dashboard prints.
+it('risk:regression the text dashboard prints MERGED, WAITING FOR VERIFY after UP NEXT with continue as the action and no pick-up of the merged ticket (D-29)', async () => {
+  const repo = base();
+  buildOnBranch(repo);
+  mergeMsg(repo, 't/T-1', 'Merge pull request #1 from t/T-1');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  gitRun(repo, 'branch', '-D', 't/T-1');
+
+  const r = await run(['dashboard', '--no-fetch'], repo);
+  expect(r.code, r.err).toBe(0);
+  const lines = r.out.split('\n');
+  const head = lines.indexOf('MERGED, WAITING FOR VERIFY');
+  expect(head).toBeGreaterThan(lines.indexOf('UP NEXT'));
+  expect(lines[head + 2]).toMatch(/^ {2}T-1\b/);
+  const action = lines.filter((l) => l.startsWith('->')).join('\n');
+  expect(action).toContain('[/accord continue T-1]');
+  expect(action).not.toContain('[/accord pick-up T-1]');
+  expect(action).toContain('[/accord pick-up T-2]');
+}, 120_000);
+
+it('risk:regression a dashboard with no merged ticket prints no MERGED, WAITING FOR VERIFY heading (D-29)', async () => {
+  const repo = base();
+  const r = await run(['dashboard', '--no-fetch'], repo);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out).not.toContain('MERGED, WAITING FOR VERIFY');
+  expect(r.out).not.toContain('[/accord continue');
+}, 120_000);

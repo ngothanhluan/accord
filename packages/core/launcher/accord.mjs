@@ -23,6 +23,9 @@ const LOCK_WAIT_MS = 120_000; // how long a run waits for another run's install 
 const LOCK_STALE_MS = 10 * 60_000; // a lock older than this belongs to a killed run and is taken over
 const POLL_MS = 200;
 const KEEP_VERSIONS = 3; // version folders left after a fill, the running one included
+// A first word made only of lowercase letters and dashes is a command (`node .claude/accord.mjs off`), not a version.
+const COMMAND_WORD = /^[a-z][a-z-]*$/;
+const PIN_LINE = /^accord:\s*"?([^"\s]+)"?\s*$/m;
 
 /** One printable line: no control characters, cut at `max`. */
 const oneLine = (text, max) =>
@@ -152,12 +155,48 @@ function ensure(io, versionsDir, folder, version, bundleOf) {
   }
 }
 
+/** The version accord/config.yml names, read beside this launcher's folder; undefined when there is no pin line. */
+function pinOf(io) {
+  try {
+    const config = join(dirname(dirname(io.launcherPath)), 'accord', 'config.yml');
+    return PIN_LINE.exec(io.fs.readFileSync(config, 'utf8'))?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * True for the one PreToolUse call the CLI answers with `{}` and nothing else: an Agent or Task call for any agent but
+ * accord-executor. Write, Edit and MultiEdit (the verification.md guard), an executor dispatch and text that is not JSON all
+ * go to the CLI, which fails open on its own.
+ */
+function answeredAtOnce(text) {
+  try {
+    const call = JSON.parse(text);
+    if (call === null || typeof call !== 'object') return false;
+    if (call.tool_name !== 'Agent' && call.tool_name !== 'Task') return false;
+    return call.tool_input?.subagent_type !== 'accord-executor';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Run one launcher call and return the exit code. `io` carries everything the call touches, so a test needs no real cache:
- * { argv (the words after the script), env, platform, homedir, execPath, pid, readStdin, fs, spawnSync, now, sleep, stdout, stderr }.
+ * { argv (the words after the script), env, platform, homedir, execPath, pid, launcherPath, readStdin, fs, spawnSync, now, sleep, stdout, stderr }.
  */
 export function launch(io) {
-  const [version, ...rest] = io.argv;
+  let argv = io.argv;
+  if (typeof argv[0] === 'string' && COMMAND_WORD.test(argv[0])) {
+    // No version word: the version is the pin in accord/config.yml, so the line a person types stays short after every upgrade.
+    const pin = pinOf(io);
+    if (pin === undefined) {
+      io.stderr.write('accord: no "accord:" pin found in accord/config.yml beside this launcher; run node .claude/accord.mjs <version> <command>\n');
+      return argv[0] === 'hook' ? 0 : 2;
+    }
+    argv = [pin, ...argv];
+  }
+  const [version, ...rest] = argv;
   const isHook = rest[0] === 'hook';
   const event = rest[1] ?? '';
   const say = (text) => (isHook && SAYS_ON_STDOUT.has(event) ? io.stdout : io.stderr).write(text + '\n');
@@ -165,6 +204,13 @@ export function launch(io) {
   if (typeof version !== 'string' || !VERSION.test(version)) {
     io.stderr.write(`accord: "${oneLine(version ?? '', 40)}" is not a version; the hook expects node .claude/accord.mjs <version> hook <event>\n`);
     return isHook ? 0 : 2;
+  }
+
+  // A call for another agent than the executor needs nothing from the repository: answer it before any cache path is built.
+  const input = isHook ? io.readStdin() : undefined;
+  if (isHook && event === 'pre-tool-use' && answeredAtOnce(input)) {
+    io.stdout.write('{}\n');
+    return 0;
   }
 
   const versionsDir = join(cacheBase(io), 'accord', 'versions');
@@ -190,8 +236,7 @@ export function launch(io) {
     }
   }
 
-  const input = isHook ? io.readStdin() : undefined;
-  const r = io.spawnSync(io.execPath, [bundle, ...io.argv.slice(1)], {
+  const r = io.spawnSync(io.execPath, [bundle, ...argv.slice(1)], {
     stdio: isHook ? ['pipe', 'inherit', 'inherit'] : 'inherit',
     env: io.env,
     ...(input === undefined ? {} : { input }),
@@ -227,8 +272,9 @@ if (isMain) {
     homedir: homedir(),
     execPath: process.execPath,
     pid: process.pid,
+    launcherPath: fileURLToPath(import.meta.url),
     readStdin,
-    fs: { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync },
+    fs: { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync },
     spawnSync,
     now: Date.now,
     sleep,

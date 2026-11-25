@@ -261,3 +261,23 @@ it('risk:regression a wake typed in a linked worktree reaches the launcher of th
   const resumed = await run(['hook', 'session-resume'], worktree, {}, sessionInput(worktree, 's-main', { source: 'compact' }));
   expect(resumed.out.startsWith(RULES), 'the worktree CLI treats the main checkout session as woken').toBe(true);
 });
+
+// Phase 08.9.2 security observation O-1 (T-08.9.2-29): a session id that is not a plain name never reaches a file the test planted; each planted target is a path the id would name if it were joined unchecked.
+it('risk:security a session id that is not a plain name never lifts the silence of the launcher (O-1)', async () => {
+  const off = repoWith('');
+  expect((await run(['off'], off)).code).toBe(0);
+  const longId = 'a'.repeat(129);
+  writeFiles(off, {
+    '.git/accord-wake/s-w': '{}\n', // makes the folder exist, so the launcher goes on to the id
+    '.git/x': '{}\n', // what `../x` names
+    '.git/accord-wake/a/b': '{}\n', // what `a/b` names
+    [`.git/accord-wake/${longId}`]: '{}\n', // what an id of 129 characters names
+  });
+  for (const id of ['../x', 'a/b', 'a\b', '', longId, 'missing', undefined]) {
+    const r = await launched(off, 'session-start', id === undefined ? { source: 'startup' } : { session_id: id, source: 'startup' });
+    expect(r.spawns, `session id ${JSON.stringify(id)} stays silent`).toEqual([]);
+    expect(r.out).toBe('');
+  }
+  const plain = await launched(off, 'session-start', { session_id: 's-w', source: 'startup' });
+  expect(plain.spawns, 'a plain id that has a file reaches the bundle').toHaveLength(1);
+});

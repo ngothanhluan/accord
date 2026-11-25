@@ -29,7 +29,7 @@ const COMMAND_WORD = /^[a-z][a-z-]*$/;
 const PIN_LINE = /^accord:[ \t]*(?:"([^"\r\n]*)"|'([^'\r\n]*)'|([^\s#'"]+))(?:[ \t]+#[^\r\n]*)?[ \t]*\r?$/m;
 // `accord off` writes this file in the git common folder; while it exists every hook of the clone is silent (Phase 08.9.2 D-03).
 const OFF_MARKER = 'accord-off';
-// Phase 08.9.2 Ruling-wake-session: `<git dir>/accord-wake/<session_id>` exists for a session that typed /accord; such a session takes the full path whatever the mode or the switch (the CLI's gitdir.ts WAKE_DIR).
+// Phase 08.9.2 Ruling-wake-session: `<common git dir>/accord-wake/<session_id>` exists for a session that typed /accord; such a session takes the full path whatever the mode or the switch (the CLI's gitdir.ts WAKE_DIR).
 const WAKE_DIR = 'accord-wake';
 // A session id may name a file only when it is a plain name (the CLI's SESSION_NAME, T-08.9.2-29).
 const SESSION_NAME = /^[A-Za-z0-9_-]{1,128}$/;
@@ -246,15 +246,15 @@ function fieldOf(text, key) {
 }
 
 /**
- * Phase 08.9.2 Ruling-wake-session: true when this call's session typed /accord, i.e. `<git dir>/accord-wake/<session_id>` exists. Plain file reads. With no `accord-wake` folder (no session
+ * Phase 08.9.2 Ruling-wake-session: true when this call's session typed /accord, i.e. `<common git dir>/accord-wake/<session_id>` exists. Plain file reads. With no `accord-wake` folder (no session
  * ever woke here) it answers false without reading stdin; an id that is not a plain name names no file. Never throws: anything unreadable is not woken.
  */
 function isWoken(io, stdin) {
   try {
     const folders = gitFolders(io);
-    if (folders === undefined || !io.fs.existsSync(join(folders.gitDir, WAKE_DIR))) return false;
+    if (folders === undefined || !io.fs.existsSync(join(folders.common, WAKE_DIR))) return false;
     const id = fieldOf(stdin.get(), 'session_id');
-    return id !== undefined && SESSION_NAME.test(id) && io.fs.existsSync(join(folders.gitDir, WAKE_DIR, id));
+    return id !== undefined && SESSION_NAME.test(id) && io.fs.existsSync(join(folders.common, WAKE_DIR, id));
   } catch {
     return false;
   }

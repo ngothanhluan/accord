@@ -1421,11 +1421,19 @@ const recordPaths = (id: string): string[] => [
  * BUG-LN-2: the claim view. `checkout` is the working tree alone; `view` overlays, for each claimed ticket that is not
  * the current branch's own and whose claim ref is not merged into HEAD, the ticket's five records as that ref holds them.
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
+ * Phase 08.9.2 Ruling-narrow: with `only`, the checkout holds the narrow set of that target (its file, its parent and its `depends_on` closure, as `loadNarrow` reads them) and the overlay takes only those
+ * tickets' claim-branch copies; `ids` (every id of accord/tickets/) and `memo` (the parse of the narrow set) are returned for the command's own loads. The claim branch list is read whole, as before.
  */
-export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined }; refs?: DefaultRefs } {
+export function loadClaimView(
+  root: string,
+  options: { only?: NarrowTarget } = {},
+): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined }; refs?: DefaultRefs; ids?: string[]; memo?: Map<string, unknown> } {
   // ST-LN-63: the branch is read once in loadParts, and the commits after each start come from one walk made here, over the
   // checkout's entries and the candidates' together.
-  const parts = loadParts(root, true, false, true);
+  const parts = loadParts(root, true, false, true, undefined, options.only);
+  const narrowed = parts.narrowed === undefined ? {} : { ids: parts.narrowed.ids, memo: parts.narrowed.memo };
+  /** Narrow only: a ticket whose file the load did not open has no copy to overlay. */
+  const inSet = (id: string): boolean => options.only === undefined || Object.hasOwn(parts.input.files, 'accord/tickets/' + id + '.md');
   const { input: bare, claimRefs, listed, statusOf } = parts;
   const branch = parts.branch as NonNullable<typeof parts.branch>;
   const { entries: checkoutEntries, headCommit, own } = parts.deferred as NonNullable<typeof parts.deferred>;
@@ -1442,7 +1450,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   const walked = (entries: readonly AfterEntry[]) => walkOver(root, claimPositives(claimRefs, bare.claimBranches ?? {}, listed, headCommit, entries));
   // One spawn for the merged set; a failure (an unborn HEAD) leaves it empty, as a non-ancestor.
   let merged = new Set<string>();
-  const refNames = Object.values(claimRefs);
+  const refNames = Object.entries(claimRefs).filter(([id]) => inSet(id)).map(([, ref]) => ref);
   if (refNames.length > 0) {
     try {
       const mergedOut = execFileSync('git', ['for-each-ref', '--merged', 'HEAD', '--format=%(refname)', ...refNames], {
@@ -1458,12 +1466,12 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   }
   // A squash or rebase merge leaves the claim tip unmerged: a terminal checkout copy is never superseded.
   const terminal = (id: string) => ['archived', 'dropped'].includes(statusOf(id) ?? '');
-  const candidates = Object.entries(claimRefs).filter(([id, ref]) => id !== own && !merged.has(ref) && !terminal(id));
+  const candidates = Object.entries(claimRefs).filter(([id, ref]) => inSet(id) && id !== own && !merged.has(ref) && !terminal(id));
   if (candidates.length === 0) {
     const { walk, def, refs } = walked(checkoutEntries);
     const afterVerify = withAfter(checkoutEntries, resolveAfter(root, checkoutEntries, walk, def));
     const checkout: SnapshotInput = { ...bare, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
-    return { checkout, view: checkout, branch, ...(refs === undefined ? {} : { refs }) };
+    return { checkout, view: checkout, branch, ...(refs === undefined ? {} : { refs }), ...narrowed };
   }
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
   let out: Buffer;
@@ -1580,7 +1588,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   const view: SnapshotInput = { ...bare, files, planFacts, ...(Object.keys(researchFacts).length === 0 ? {} : { researchFacts }), ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
   if (Object.keys(trackFacts).length === 0) delete view.trackFacts;
   else view.trackFacts = trackFacts;
-  return { checkout, view, branch, ...(refs === undefined ? {} : { refs }) };
+  return { checkout, view, branch, ...(refs === undefined ? {} : { refs }), ...narrowed };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */

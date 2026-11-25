@@ -63,12 +63,19 @@ const worktrees: string[] = [];
 
 /** A worktree of the fixture on a new or existing branch (or detached), in its own temporary folder; the folders go with the test, and the fixture repository's removal takes the worktree records. */
 function worktreeOn(args: string[]): string {
+  // one worktree per argument list: a branch is checked out in one worktree at a time, and two tests read the same ones
+  const key = args.join(' ');
+  const reused = byArgs.get(key);
+  if (reused !== undefined) return reused;
   const folder = mkdtempSync(join(tmpdir(), 'accord-narrow-wt-'));
   const dir = join(folder, 'wt');
   gitRun(repo, 'worktree', 'add', '-q', ...args.map((a) => (a === '<dir>' ? dir : a)));
   worktrees.push(folder);
+  byArgs.set(key, dir);
   return dir;
 }
+
+const byArgs = new Map<string, string>();
 
 // Phase 08.9.2 Ruling-oracle (L-04): the verdict and the findings of Ready do not move when the other tickets are not read.
 it('risk:regression gate ready on the narrow load prints what it prints on the full load (Ruling-oracle)', async () => {

@@ -1,6 +1,8 @@
 // Phase 08.9.2 Ruling-narrow, Ruling-oracle: the repository the narrow-load tests read. Every cross-ticket read of RESEARCH F-6 has a ticket in it: an epic with children, a story in build,
 // dependencies that are unfinished, finished, dropped and unknown, a dependency cycle, a dependency two steps away, an archived ticket, a lane S and a lane R ticket, and a claim branch
 // that exists on origin only. `extra` plain draft tickets are added on top, so a test can show that a command does not open more files as the repository grows.
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { commitMsg, gitRun, makeLaneRepo } from './repo.js';
 import { building, discussFiles, done, laneTicket, LANE_S_BODY, P } from '../../../../test/helpers/lane.js';
 import type { Files } from '../../../../test/helpers/lane.js';
@@ -59,7 +61,9 @@ export function narrowFixture(extra = 0): string {
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
   // the story's claim branch, here too; a ticket claimed on origin only
+  // the story's claim branch holds one more done task than the checkout, so `show` of it reads a different copy there than on main
   gitRun(repo, 'switch', '-q', '-c', 't/' + STORY);
+  writeFileSync(join(repo, 'accord/tickets/' + STORY + '/ledger.md'), '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n');
   commitMsg(repo, 'claim: ' + STORY, undefined, true);
   gitRun(repo, 'switch', '-q', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/' + ORIGIN_ONLY);

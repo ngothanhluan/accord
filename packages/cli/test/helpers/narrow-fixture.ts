@@ -13,6 +13,10 @@ export const STORY = 'B-1';
 export const EPIC = 'E-1';
 /** The ticket whose claim branch exists on origin only. */
 export const ORIGIN_ONLY = 'O-1';
+/** A ticket filed only on its claim branch, and one that names a parent and a dependency there; a ticket on the default branch whose claim copy adds a dependency. */
+export const CLAIM_ONLY = 'N-1';
+export const CLAIM_RELATED = 'N-2';
+export const CLAIM_ADDS = 'M-1';
 
 const R_BODY = ['## Question', 'Does the critic need a second round?', '', '## Timebox', '4 hours', '', '## Token budget', '800k weighted tokens', ''].join('\n');
 const RECORD = 'accord/research/2026-11-20-R-1.md';
@@ -46,6 +50,7 @@ export function narrowFixture(extra = 0): string {
   files[P('R-1')] = laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${RECORD}"]`] });
   files[RECORD] = ['# Critic rounds', '', 'Date: 2026-11-20', 'Repository at `1c5704ee`', '', 'The critic needs one round.', ''].join('\n');
   files[P(ORIGIN_ONLY)] = laneTicket(ORIGIN_ONLY);
+  files[P(CLAIM_ADDS)] = laneTicket(CLAIM_ADDS, { frontmatter: ['status: draft'] });
   // a ticket that depends on the claimed story and on the one claimed on origin only, so `show` reads their claim-branch copies
   files[P('V-1')] = laneTicket('V-1', { frontmatter: ['depends_on: ["B-1", "O-1"]'] });
   for (let i = 1; i <= extra; i++) {
@@ -69,6 +74,18 @@ export function narrowFixture(extra = 0): string {
   writeFileSync(join(repo, 'accord/tickets/' + STORY + '/review.md'), REVIEW);
   commitMsg(repo, 'claim: ' + STORY, undefined, true);
   gitRun(repo, 'switch', '-q', 'main');
+  // a ticket filed only on its claim branch (none in the checkout), one whose claim branch names a parent and a dependency, and a ticket whose claim copy adds a dependency its checkout copy lacks:
+  // `show` reads these from the claim branch, and a relation they name that the narrow set does not hold is read in full
+  for (const [id, frontmatter] of [
+    [CLAIM_ONLY, []],
+    [CLAIM_RELATED, ['parent: "E-1"', 'depends_on: ["U-1"]']],
+    [CLAIM_ADDS, ['depends_on: ["U-1"]']],
+  ] as const) {
+    gitRun(repo, 'switch', '-q', '-c', 't/' + id);
+    writeFileSync(join(repo, 'accord/tickets/' + id + '.md'), laneTicket(id, { frontmatter: ['status: draft', ...frontmatter] }));
+    commitMsg(repo, 'claim: ' + id);
+    gitRun(repo, 'switch', '-q', 'main');
+  }
   gitRun(repo, 'switch', '-q', '-c', 't/' + ORIGIN_ONLY);
   commitMsg(repo, 'claim: ' + ORIGIN_ONLY, undefined, true);
   gitRun(repo, 'update-ref', 'refs/remotes/origin/t/' + ORIGIN_ONLY, gitRun(repo, 'rev-parse', 'HEAD').trim());

@@ -16,7 +16,7 @@ import { loadClaimView, loadNarrow, loadWithBranch, withDefaultRef } from '../sr
 import type { NarrowTarget } from '../src/load/fs.js';
 import type { CommandContext } from '../src/run.js';
 import { cleanup, gitRun, run } from './helpers/repo.js';
-import { EPIC, narrowFixture, ORIGIN_ONLY, STORY } from './helpers/narrow-fixture.js';
+import { CLAIM_ADDS, CLAIM_ONLY, CLAIM_RELATED, EPIC, narrowFixture, ORIGIN_ONLY, STORY } from './helpers/narrow-fixture.js';
 
 const ENV = { CI: '1' }; // no gate log is written, so a run leaves nothing for the next one to read
 
@@ -217,7 +217,7 @@ it('risk:regression show on the narrow claim view prints what it prints on the f
       }
     }
   };
-  compare(repo, 'repository', ids);
+  compare(repo, 'repository', [...ids, CLAIM_ONLY, CLAIM_RELATED, CLAIM_ADDS]);
   for (const [name, root] of [
     ['the story claim worktree', worktreeOn(['<dir>', 't/' + STORY])],
     ['a claim on origin only', worktreeOn(['-b', 't/' + ORIGIN_ONLY, '<dir>', 'refs/remotes/origin/t/' + ORIGIN_ONLY])],
@@ -228,6 +228,10 @@ it('risk:regression show on the narrow claim view prints what it prints on the f
   expect(Object.keys(story.ctx.snapshot.tickets).sort(), 'the narrow claim view holds the story and its epic').toEqual(['B-1', 'E-1']);
   const dependent = claimContext(repo, 'V-1');
   expect(Object.keys(dependent.ctx.snapshot.tickets).sort(), 'V-1 holds its claimed dependencies, read from their claim branches').toEqual(['B-1', 'E-1', 'O-1', 'V-1']);
+  // a ticket filed only on its claim branch is read from there, narrow; a claim copy that names a relation outside the narrow set is read in full
+  expect(Object.keys(claimContext(repo, CLAIM_ONLY).ctx.snapshot.tickets).sort(), 'a claim-only ticket alone').toEqual([CLAIM_ONLY]);
+  expect(Object.keys(claimContext(repo, CLAIM_RELATED).ctx.snapshot.tickets).length, 'a claim copy naming a parent and a dependency outside the set loads in full').toBeGreaterThan(15);
+  expect(Object.keys(claimContext(repo, CLAIM_ADDS).ctx.snapshot.tickets).length, 'so does a claim copy that adds a dependency').toBeGreaterThan(15);
   expect(mismatches, 'show outputs that differ between the narrow and the full claim view').toEqual([]);
 
   // the command itself, through preflight: --json, text and --approval, as the full load prints them

@@ -2,6 +2,14 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+`accord off` no longer switches off the pane's plugin, so typing `/accord-panel` opens the pane while accord is off. The live check of 0.20.1 found that the command was unknown after `off` (owner ruling, 2026-11-25). A repository pinned to 0.20.0 or 0.20.1 needs only `accord upgrade`. Tickets in flight are unaffected: no gate, check or CI job reads the switch, and the output of every other command is the same bytes as before.
+
+- `off` writes only the marker `accord-off` in the git common directory. 0.20.0 and 0.20.1 also set `enabledPlugins["accord-panel@accord"]` to `false` in the person's `.claude/settings.local.json` (creating the file when it was absent and adding it to `info/exclude` when git did not ignore it), so Claude Code did not load the panel plugin and `/accord-panel` was an unknown command. The pane still does not open by itself and starts no process while the marker exists, and every hook but the `verification.md` guard stays silent.
+- Because `off` no longer touches the local settings file, `on` leaves it byte for byte as it was, a hand-indented file included, and no longer leaves a `{}` file where none existed.
+- `on` still undoes the flag a 0.20.0 or 0.20.1 `off` set, as that marker records, so a person who switched accord off before upgrading runs `node .claude/accord.mjs on` to get `/accord-panel` back and then `node .claude/accord.mjs off` to stay off without the flag, since an `off` while a marker exists keeps that marker as it is.
+
 ## 0.20.1 — 2026-11-25
 
 Release 0.20.1 fixes six faults that the review of 0.20.0 found. A repository pinned to 0.20.0 needs only `accord upgrade`, which moves the pin and re-renders the launcher. Tickets in flight are unaffected: no gate reads anything new, and apart from the changes below the output of every command is the same bytes as before. In 0.20.0, `accord gate done` read fewer tickets than the gate needs and could fail a ticket for a test that another ticket's scenario names, and the launcher and the off switch each broke on an edge case: a pin line with a comment, a session that moves into a worktree, a terminal on stdin, a Windows path with spaces, and the `verification.md` guard while accord is off.

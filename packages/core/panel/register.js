@@ -1197,7 +1197,7 @@ export function register(on) {
       }
       return Box({ flexDirection: 'column', children });
     }
-    const v = view(state, query, e.props?.bodyColumns);
+    const v = view(state, query, e.props?.bodyColumns, Date.now());
     // A drawn Input holds its value until the next draw, so every draw passes the stored text.
     const search = () =>
       Input({
@@ -1274,8 +1274,9 @@ export function register(on) {
           // an epic's progress box already spans the lane column, so the lane cell leaves the epic row
           if (epic && withLane) kids.splice(2, 1);
           body.push(line(kids));
-          if (r.blockedBy || r.who) {
+          if (r.blockedBy || r.who || r.waiting) {
             const sub = [Box({ width: widths.id, flexShrink: 0 })];
+            if (r.waiting) sub.push(Text({ color: 'yellow', children: [r.waiting] }));
             if (r.blockedBy) sub.push(Text({ color: 'red', children: [r.blockedBy] }));
             if (r.who) sub.push(Text({ dimColor: true, children: [r.who] }));
             body.push(line(sub));

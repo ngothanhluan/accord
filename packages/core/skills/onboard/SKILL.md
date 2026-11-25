@@ -23,7 +23,11 @@ repository. `accord init` only proposes: it writes nothing to `accord/config.yml
    the scan, as its `[init]` or `[scan]` marker says, never from its evidence text, and walk each one as `./walk.md` says, with the proposal as the recommendation: a key that declares a script is walked the same way, and `./walk.md` says that nothing
    runs until the person runs `accord trust`. A key with no proposal is not walked here: a later change of any value, or a key accord proposed nothing for, is `/accord-config`.
 5. When the last proposal is answered, finish as `./walk.md` says: this skill commits nothing. Then go on to step 6.
-6. Ask one question that stands alone, as `./ask.md` says (in plain chat, the recommended answer first, every id glossed): whether to run `accord audit` now. Say what it does: it reads
+6. Ask one question that stands alone, as `./ask.md` says (in plain chat, the recommended answer first, every id glossed): whether anyone on the team works in this repository without accord.
+   Say what quiet mode does: a session start prints one line instead of the rules, the fetch and the clean, and accord wakes when someone types `/accord` or opens a ticket's
+   branch; each person can still switch accord off for themselves. On yes, recommend `hook_mode` quiet and walk it as `./walk.md` says, so it is written only by
+   `accord config set hook_mode quiet` after the owner's yes. On no, write nothing: the repository stays full. Then go on to step 7.
+7. Ask one question that stands alone, as `./ask.md` says (in plain chat, the recommended answer first, every id glossed): whether to run `accord audit` now. Say what it does: it reads
    the repository's files and reports what a machine can see about its conventions and its accord setup, each gap with
    its fix, and it changes nothing. On no, run nothing, and say that `/accord-audit` runs it any time. On yes, run
    `accord audit` and show each `gap:` line with its `- fix:`; when a `conventions-empty` or `conventions-thin` gap is

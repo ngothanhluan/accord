@@ -1320,6 +1320,9 @@ const subStart = (id: string): Record<string, unknown> => ({ turnId: 't-' + id, 
 const spun = (name: string): RegExp => new RegExp(`^[◐◓◑◒] ${name}$`);
 const isRunning = (h: Awaited<ReturnType<typeof host>>, name: string): boolean => h.texts().some((x) => spun(name).test(x));
 const everyTimers = (h: Awaited<ReturnType<typeof host>>): Awaited<ReturnType<typeof host>>['timers'] => h.timers.filter((t) => t.kind === 'every');
+// Phase 15 D-18: a placed pane in an interactive session holds the change-mark timer, a 1-second `every` timer that is the first one asked for (it starts when the pane opens, before any agent runs); the frame timer is each `every` timer after it
+const MARK = 1000;
+const frameTimers = (h: Awaited<ReturnType<typeof host>>): Awaited<ReturnType<typeof host>>['timers'] => everyTimers(h).slice(1);
 const framePeriod = async (): Promise<number> => Math.round(1000 / (await loadView()).FRAME_RATE);
 
 // Phase 08.7 D-01, D-02, D-03: the agents block lists the accord agents the mod saw start, a timer while one runs and its own time when it ends; the tab label counts the running ones.
@@ -1396,9 +1399,10 @@ it('risk:concurrency subagent turns start no accord run and an accord subagent e
   await h.fire('turn.start', subStart('a2'));
   await h.fire('turn.start', subStart('g1'));
   expect(calls()).toBe(base);
-  // Phase 08.8.1-08 D-03: the one timer is the frame timer, at the probe's rate, in place of the 1-second tick
-  expect(h.$.clock.every).toHaveBeenCalledTimes(1);
-  expect(h.$.clock.every).toHaveBeenCalledWith(await framePeriod(), expect.any(Function));
+  // Phase 08.8.1-08 D-03: the one frame timer is at the probe's rate, in place of the 1-second tick; Phase 15 D-18: the change-mark timer is the other `every` timer
+  expect(h.$.clock.every).toHaveBeenCalledTimes(2);
+  expect(h.$.clock.every).toHaveBeenNthCalledWith(1, MARK, expect.any(Function));
+  expect(h.$.clock.every).toHaveBeenNthCalledWith(2, await framePeriod(), expect.any(Function));
   expect(h.$.clock.after).not.toHaveBeenCalled();
   await h.fire('turn.complete', { agentId: 'g1', durationMs: 10, reason: 'answer' });
   expect(h.$.clock.after).not.toHaveBeenCalled();
@@ -1406,13 +1410,15 @@ it('risk:concurrency subagent turns start no accord run and an accord subagent e
   expect(h.$.clock.after).toHaveBeenCalledTimes(1);
   expect(h.$.clock.after).toHaveBeenLastCalledWith(3000, expect.any(Function));
   expect(calls()).toBe(base);
-  const ticks = everyTimers(h);
+  const ticks = frameTimers(h);
   expect(ticks).toHaveLength(1);
   expect(ticks[0].cancelled).toBe(false);
   await h.fire('turn.complete', { agentId: 'a2', durationMs: 10, reason: 'answer' });
   const waits = h.timers.filter((t) => t.ms === 3000);
   expect(waits.map((t) => t.cancelled)).toEqual([true, false]);
   expect(ticks[0].cancelled).toBe(true);
+  // the change-mark timer outlives the agents: it runs while the pane is placed
+  expect(everyTimers(h)[0].cancelled).toBe(false);
   expect(calls()).toBe(base);
   await waits[1].fn();
   expect(calls()).toBe(base + 1);
@@ -1459,13 +1465,14 @@ it('risk:complex-branching without agent list or clock the pane hides the agents
   delete bare.$.clock;
   bare.agents = [agentOf('a1', 'accord-executor')];
   await bare.fire('turn.start', subStart('a1'));
-  expect(bare.timers).toEqual([]);
+  // the pane opened before the clock went: only its change-mark timer exists, and no frame timer is asked for
+  expect(bare.timers.map((t) => t.ms)).toEqual([MARK]);
   expect(isRunning(bare, 'executor')).toBe(true);
   const base = bare.$.process.run.mock.calls.length;
   await bare.fire('turn.complete', { agentId: 'a1', durationMs: 5, reason: 'answer' });
   expect(bare.$.process.run.mock.calls.length).toBe(base + 1);
   expect(bare.$.process.run).toHaveBeenLastCalledWith(DASH, { timeoutMs: 120000 });
-  expect(bare.timers).toEqual([]);
+  expect(bare.timers.map((t) => t.ms)).toEqual([MARK]);
   bare.settle({ stdout: claimed });
   await vi.waitFor(() => expect(bare.inflight()).toBe(0));
 });
@@ -2221,7 +2228,7 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   await h.fire('turn.start', subStart('a2'));
   expect(isRunning(h, 'executor')).toBe(true);
   expect(isRunning(h, 'planner')).toBe(true);
-  const ticks = everyTimers(h);
+  const ticks = frameTimers(h);
   expect(ticks).toHaveLength(1);
   expect(ticks[0].cancelled).toBe(false);
   // a1 is gone from the list and a2 is listed with another status; neither raised its own turn.complete
@@ -2231,7 +2238,7 @@ it('risk:concurrency an agent the host no longer lists as running is marked fini
   expect(h.texts()).toContain('✓ planner');
   expect(isRunning(h, 'executor')).toBe(false);
   expect(ticks.every((t) => t.cancelled)).toBe(true);
-  expect(everyTimers(h).filter((t) => !t.cancelled)).toHaveLength(0);
+  expect(frameTimers(h).filter((t) => !t.cancelled)).toHaveLength(0);
   expect(tabs(h)['tab:ticket'].label).not.toContain('◐');
   // a change of the dashboard's current id clears the roster
   h.settle({ stdout: JSON.stringify(board({ current: 'ST-2', currentDetail: detailOf({ id: 'ST-2', title: 'Export' }), yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
@@ -2943,48 +2950,48 @@ const startExecutor = async (h: Awaited<ReturnType<typeof host>>): Promise<void>
 it('risk:resource one frame timer runs at the probe rate only while something runs and none when idle (D-03)', async () => {
   const period = await framePeriod();
   const h = await paneWith(MOVING);
-  expect(liveTimers(h)).toEqual([]);
+  expect(liveTimers(h)).toEqual([MARK]);
   expect(runColors(h, 'Building task 2 of 3')).toBeUndefined();
   await startExecutor(h);
-  expect(liveTimers(h)).toEqual([period]);
+  expect(liveTimers(h)).toEqual([MARK, period]);
   // the live line is one coloured text per character while the timer runs
   expect(runColors(h, 'Building task 2 of 3')?.every((c) => /^#[0-9a-f]{6}$/.test(c))).toBe(true);
   // another view stops the timer and coming back starts one again: the dashboard tab, the widget placement, the settings view
   press(h, 'tab:dashboard');
-  await vi.waitFor(() => expect(liveTimers(h)).toEqual([]));
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([MARK]));
   press(h, 'tab:ticket');
-  await vi.waitFor(() => expect(liveTimers(h)).toEqual([period]));
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([MARK, period]));
   h.columns = 100;
   h.placement = 'widget';
   await h.$.ui.invalidate('ui.render');
-  expect(liveTimers(h)).toEqual([]);
+  expect(liveTimers(h)).toEqual([MARK]);
   h.placement = 'dock';
   await h.$.ui.invalidate('ui.render');
-  expect(liveTimers(h)).toEqual([period]);
+  expect(liveTimers(h)).toEqual([MARK, period]);
   press(h, 'settings');
-  await vi.waitFor(() => expect(liveTimers(h)).toEqual([]));
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([MARK]));
   press(h, 'settings');
-  await vi.waitFor(() => expect(liveTimers(h)).toEqual([period]));
+  await vi.waitFor(() => expect(liveTimers(h)).toEqual([MARK, period]));
   // the agent ends: no timer is left and the live line is plain again
   await h.fire('turn.complete', { agentId: 'a1', durationMs: 10, reason: 'answer' });
-  expect(liveTimers(h)).toEqual([]);
+  expect(liveTimers(h)).toEqual([MARK]);
   expect(runColors(h, 'Building task 2 of 3')).toBeUndefined();
   // motion off keeps only the 1-second clock of the agents' times
   const off = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
   await startExecutor(off);
-  expect(liveTimers(off)).toEqual([1000]);
+  expect(liveTimers(off)).toEqual([MARK, 1000]);
   expect(runColors(off, 'Building task 2 of 3')).toBeUndefined();
   // off the terminal the pane redraws at most 10 a second
   const desk = await paneWith(MOVING, (x) => void (x.surface = 'desktop'));
   await startExecutor(desk);
-  expect(liveTimers(desk)).toHaveLength(1);
-  expect(liveTimers(desk)[0]).toBeGreaterThanOrEqual(100);
+  expect(liveTimers(desk)).toHaveLength(2);
+  expect(liveTimers(desk)[1]).toBeGreaterThanOrEqual(100);
   // P7 static: the Desktop draws the person's colours and no effect, and no frame timer runs there
   viewPatch = (text) => text.replace('export const DESKTOP_MOTION = true', 'export const DESKTOP_MOTION = false');
   const still = await paneWith(MOVING, (x) => void (x.surface = 'desktop'));
   viewPatch = undefined;
   await startExecutor(still);
-  expect(liveTimers(still)).toEqual([1000]);
+  expect(liveTimers(still)).toEqual([MARK, 1000]);
   const before = titleColors(still);
   await flush();
   await still.$.ui.invalidate('ui.render');
@@ -3392,10 +3399,10 @@ it('risk:resource the waiting blink and the failure flash run on the frame timer
   try {
     // the blink
     const h = await paneWith(MOVING);
-    expect(liveTimers(h)).toEqual([]);
+    expect(liveTimers(h)).toEqual([MARK]);
     await h.fire('turn.complete', { reason: 'answer', answer: 'ok' });
     await vi.waitFor(() => expect(h.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
-    expect(liveTimers(h)).toEqual([period]);
+    expect(liveTimers(h)).toEqual([MARK, period]);
     const frames: { diamond: string | undefined; color: string }[] = [];
     for (const ms of [0, 250, 500, 750]) {
       await at(h, ms);
@@ -3404,21 +3411,21 @@ it('risk:resource the waiting blink and the failure flash run on the frame timer
     expect(frames.map((f) => f.diamond)).toEqual(['◆', '◆', '◇', '◇']);
     // the line glows toward white while it blinks
     expect(frames[1].color).not.toBe(frames[0].color);
-    expect(liveTimers(h)).toEqual([period]);
+    expect(liveTimers(h)).toEqual([MARK, period]);
     // after ten minutes the diamond stays lit in the waiting colour and no timer is left
     await at(h, 600_500);
     expect(diamondOf(h)).toBe('◆');
     expect(h.cell(waitingText(h)).text.color).toBe('#e07a4f');
-    expect(liveTimers(h)).toEqual([]);
+    expect(liveTimers(h)).toEqual([MARK]);
     await h.fire('turn.start', { turnId: 'next', text: 'yes' });
-    expect(liveTimers(h)).toEqual([]);
+    expect(liveTimers(h)).toEqual([MARK]);
     // the failure flash
     clock.mockReturnValue(T);
     const f = await paneWith(MOVING);
-    expect(liveTimers(f)).toEqual([]);
+    expect(liveTimers(f)).toEqual([MARK]);
     const failing = { ...MOVING, log: [{ at: Math.floor(T / 1000) - 5, ...GATE_RED }] };
     await reshow(f, failing, 'p1');
-    expect(liveTimers(f)).toEqual([period]);
+    expect(liveTimers(f)).toEqual([MARK, period]);
     const borders: (string | undefined)[] = [];
     for (const ms of [0, 200, 400]) {
       await at(f, ms);
@@ -3427,19 +3434,19 @@ it('risk:resource the waiting blink and the failure flash run on the frame timer
     expect(borders).toEqual(['red', '#ff6b6b', 'red']);
     await at(f, 1600);
     expect(failBorder(f)).toBe('#ff6b6b');
-    expect(liveTimers(f)).toEqual([]);
+    expect(liveTimers(f)).toEqual([MARK]);
     // a failure already shown does not flash again, on a redraw or on the next show of the same entry
     await at(f, 5000);
     expect(failBorder(f)).toBe('#ff6b6b');
     await reshow(f, failing, 'p2');
     expect(failBorder(f)).toBe('#ff6b6b');
-    expect(liveTimers(f)).toEqual([]);
+    expect(liveTimers(f)).toEqual([MARK]);
     // motion off: no blink, no flash and no timer, the diamond lit and the box in the failure colour
     clock.mockReturnValue(T);
     const off = await paneWith(MOVING, (x) => void x.store.set('settings', { v: 1, motion: 'off', effects: {} }));
     await off.fire('turn.complete', { reason: 'answer' });
     await vi.waitFor(() => expect(off.texts().some((x) => x.startsWith('Waiting for you'))).toBe(true));
-    expect(liveTimers(off)).toEqual([]);
+    expect(liveTimers(off)).toEqual([MARK]);
     for (const ms of [0, 500]) {
       await at(off, ms);
       expect(diamondOf(off)).toBe('◆');
@@ -3448,7 +3455,7 @@ it('risk:resource the waiting blink and the failure flash run on the frame timer
     await vi.waitFor(() => expect(off.inflight()).toBe(0));
     await at(off, 0);
     expect(failBorder(off)).toBe('#ff6b6b');
-    expect(liveTimers(off)).toEqual([]);
+    expect(liveTimers(off)).toEqual([MARK]);
   } finally {
     clock.mockRestore();
   }
@@ -3568,6 +3575,7 @@ it('risk:security the pane reaches the host only through the display nouns and r
   expect(view).not.toMatch(/^import\b/m);
   const nouns = [...new Set([...reg.matchAll(/\$\.([a-z]+)\.([a-zA-Z]+)/g)].map((m) => `${m[1]}.${m[2]}`))].sort();
   // Phase 08.9.2 D-01 D-06 D-03: the nouns the pane gained are `session.root` (the launcher's path) and the four `fs` calls of the cache and the off marker; the title keeps its words, the run is the launcher through `node`
+  // Phase 15 D-18: `fs.list` joins them for the change mark (the linked worktrees' folders); the mark starts no process
   expect(nouns).toEqual([
     'agent.list',
     'clock.after',
@@ -3575,6 +3583,7 @@ it('risk:security the pane reaches the host only through the display nouns and r
     'command.register',
     'command.run',
     'fs.exists',
+    'fs.list',
     'fs.read',
     'fs.stat',
     'fs.write',
@@ -3642,7 +3651,7 @@ it('risk:concurrency the frame timer swallows a redraw the host rejects or throw
   const h = await paneWith({}, (x) => void x.store.set('settings', { v: 1, motion: 'lively', effects: {} }));
   h.agents = [agentOf('a1', 'accord-executor')];
   await h.fire('turn.start', subStart('a1'));
-  const tick = everyTimers(h).find((t) => !t.cancelled);
+  const tick = frameTimers(h).find((t) => !t.cancelled);
   expect(tick).toBeDefined();
   const unhandled: unknown[] = [];
   const on = (r: unknown): number => unhandled.push(r);

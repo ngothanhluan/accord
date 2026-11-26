@@ -1,5 +1,6 @@
 // Phase 15 D-31, D-10: `accord gate done <id> --slice <n>` judges only slice n's criteria (its `covers:` set) in every Done rule that reads scenarios, evidence blocks or ticks, and the
 // tasks of slices 1..n; every other Done rule runs as for the whole ticket, and the last slice judges the full set. On real files and real git, through the real command.
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { recordTaskDone, setFrontmatterKey, SLICES_FROM } from '@accord-dev/accord-core';
@@ -441,4 +442,65 @@ describe('gate done --slice measures the slice', () => {
       cleanup(repo);
     }
   }, 120_000);
+
+  // Review C-WR-05: the size of slice n is what its own branch adds over its base (the default branch for slice 1, the branch before it for slice n, the default branch again once that one merged),
+  // never what HEAD holds, and never what main gained and was merged in.
+  const defName = (repo: string): string => (gitRun(repo, 'branch', '--list', 'main').trim() === '' ? 'master' : 'main');
+  /** main gains `n` lines in a commit made with plumbing, so the dirty fixture checkout is left alone. */
+  const mainGains = (repo: string, n: number): void => {
+    const def = 'refs/heads/' + defName(repo);
+    const index = join(repo, '.git', 'size-index');
+    const withIndex = (...args: string[]): string => execFileSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_INDEX_FILE: index } }).trim();
+    const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: lines(n, 'other') }).trim();
+    withIndex('read-tree', def);
+    withIndex('update-index', '--add', '--cacheinfo', `100644,${blob},src/other.ts`);
+    const commit = execFileSync('git', ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', 'commit-tree', withIndex('write-tree'), '-p', def, '-m', 'main moves'], { cwd: repo, encoding: 'utf8' }).trim();
+    gitRun(repo, 'update-ref', def, commit);
+  };
+  const mergeMain = (repo: string): void => {
+    gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', 'merge', '--no-edit', '-q', defName(repo));
+  };
+  const sizeReason = async (repo: string, slice: string): Promise<string | undefined> => sizeFindings((await gateDone(repo, '--slice', slice)).found)[0]?.reason;
+
+  it('risk:regression slice 1 does not count what main gained and was merged into the branch (C-WR-05)', async () => {
+    const repo = build({ extra: BIG, claim: SLICES_FROM });
+    try {
+      mainGains(repo, 5000);
+      mergeMain(repo);
+      expect(await sizeReason(repo, '1')).toMatch(/^slice 1 is 10\d\d lines \(code 3\d\d, test 600, docs 150\), over the review budget of 1000$/);
+    } finally {
+      cleanup(repo);
+    }
+  }, 240_000);
+
+  it("risk:regression slice 1 measured from the last slice's checkout is slice 1's own size, and slice 2 is its own (C-WR-05)", async () => {
+    const repo = build({ extra: BIG, claim: SLICES_FROM });
+    try {
+      gitRun(repo, 'switch', '-q', '-c', 'slice/T-1/2');
+      writeFiles(repo, { 'src/two.ts': lines(1200, 'two') });
+      gitRun(repo, 'add', 'src/two.ts');
+      gitRun(repo, 'commit', '-q', '--no-verify', '-m', 'slice 2 code');
+      expect(await sizeReason(repo, '1')).toMatch(/^slice 1 is 10\d\d lines \(code 3\d\d, test 600, docs 150\), over the review budget of 1000$/);
+      expect(await sizeReason(repo, '2')).toBe('slice 2 is 1200 lines (code 1200, test 0, docs 0), over the review budget of 1000');
+    } finally {
+      cleanup(repo);
+    }
+  }, 240_000);
+
+  it('risk:regression slice 2 starts from the default branch once slice 1 merged, and still leaves out what main gained and was merged in (C-WR-05)', async () => {
+    const repo = build({ extra: BIG, claim: SLICES_FROM });
+    try {
+      gitRun(repo, 'switch', '-q', '-c', 'slice/T-1/2');
+      writeFiles(repo, { 'src/two.ts': lines(1200, 'two') });
+      gitRun(repo, 'add', 'src/two.ts');
+      gitRun(repo, 'commit', '-q', '--no-verify', '-m', 'slice 2 code');
+      // slice 1 merged into the default branch (a fast-forward is a merge commit's ancestor all the same), then main moved on and was merged into slice 2
+      gitRun(repo, 'update-ref', 'refs/heads/' + defName(repo), gitRun(repo, 'rev-parse', 't/T-1').trim());
+      mainGains(repo, 5000);
+      mergeMain(repo);
+      expect(await sizeReason(repo, '2')).toBe('slice 2 is 1200 lines (code 1200, test 0, docs 0), over the review budget of 1000');
+    } finally {
+      cleanup(repo);
+    }
+  }, 240_000);
 });

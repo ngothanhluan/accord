@@ -8,7 +8,7 @@ import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './he
 import { CONFIG, REPORT, building, discussFiles, done, junit, P, laneTicket, pinned } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { doneOnDefaultBranch } from '../src/load/done-on-default.js';
-import { copy, lines, pushMain, useSandboxes } from './helpers/worktree.js';
+import { copy, doneBranch, lines, pushMain, useSandboxes } from './helpers/worktree.js';
 
 // the running version: the package's own unless a test moves it (the backfill is about releases around RULESET_FROM)
 const running = vi.hoisted(() => ({ v: undefined as string | undefined }));
@@ -26,13 +26,13 @@ vi.mock('../src/commands/fetch-limit.js', async (orig) => {
   const real = await orig<typeof import('../src/commands/fetch-limit.js')>();
   return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs) };
 });
-// A passthrough: the backfill case forces the done fact, every other case reads real git.
+// A passthrough: the backfill and the re-bind cases force the done fact, every other case reads real git.
 vi.mock('../src/load/done-on-default.js', async (orig) => {
   const real = await orig<typeof import('../src/load/done-on-default.js')>();
   return { ...real, doneOnDefaultBranch: vi.fn(real.doneOnDefaultBranch) };
 });
 
-useSandboxes([{ tickets: [] }]);
+useSandboxes([{ tickets: [] }, {}]);
 
 const repos: string[] = [];
 afterEach(() => {
@@ -178,4 +178,27 @@ it('risk:data-loss the ruleset backfill of a sync writes nothing into a ticket d
   const again = await run(['worktree', 'open', ID, '--continue'], c.root);
   expect([again.code, again.err]).toEqual([0, '']);
   expect(backfilledLines(again.out)).toEqual([`backfilled: ${ID} ruleset 0.4.1`]);
+}, 240_000);
+
+// A-WR-05: the re-bind that follows accord's own rebase writes verified_commit into the ticket and commit: into verification.md; into a ticket done on the default branch it writes nothing.
+it('risk:data-loss the re-bind after a rebase writes nothing into a ticket done on the default branch, says so once, and re-binds once it is not done (D-23, A-WR-05)', async () => {
+  const c = copy();
+  const { sib } = doneBranch(c, { gitKeys: ['  merge: rebase'] });
+  pushMain(c, 'notes.txt', 'main moves\n'); // an unrelated change: the ticket's files are unchanged by the rebase, so the re-bind would write
+  const ticket = 'accord/tickets/ST-9.md';
+  vi.mocked(doneOnDefaultBranch).mockReturnValue(true);
+  const held = await run(['worktree', 'sync', 'ST-9'], sib);
+  expect(held.code, held.err).toBe(0);
+  expect(lines(held.out).filter((l) => l.startsWith('rebound:'))).toEqual([]);
+  expect(held.err.split('\n').filter((l) => l.startsWith('not written: '))).toEqual(['not written: ' + LINE('ST-9')]);
+  expect(gitRun(sib, 'log', '--format=%s').split('\n').some((l) => l.includes('rebound after rebase'))).toBe(false);
+  expect(gitRun(sib, 'show', 'HEAD:' + ticket)).not.toContain(gitRun(sib, 'rev-parse', 'HEAD').trim());
+  // the same sync with the ticket not done there re-binds: the guard is what held it back
+  vi.mocked(doneOnDefaultBranch).mockReset();
+  const c2 = copy();
+  const second = doneBranch(c2, { gitKeys: ['  merge: rebase'] });
+  pushMain(c2, 'notes.txt', 'main moves\n');
+  const again = await run(['worktree', 'sync', 'ST-9'], second.sib);
+  expect([again.code, again.err]).toEqual([0, '']);
+  expect(lines(again.out).filter((l) => l.startsWith('rebound:'))).toHaveLength(1);
 }, 240_000);

@@ -11,7 +11,7 @@ import { isOff } from '../load/gitdir.js';
 import { readCleanFacts } from '../load/clean-facts.js';
 import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
-import { doneOnDefaultBranch } from '../load/done-on-default.js';
+import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { dropSlices, sliceBranch, sliceOfBranch } from '../load/slices.js';
 import { blobsOnRef } from '../load/merged-state.js';
 import { fetchLimitMs } from './fetch-limit.js';
@@ -1200,6 +1200,11 @@ function rebindAfterRebase(ctx: CommandContext, id: string, root: string): void 
     return [{ ...b, sha: sha.toLowerCase() }];
   });
   if (todo.length === 0) return;
+  // Phase 15 D-23, A-WR-05: a ticket done on the default branch is not edited, so nothing is re-bound into it; one line says what was left as it is
+  if (doneOnDefaultBranch(root, id)) {
+    ctx.stderr.write('not written: ' + doneRefusal(id) + '\n');
+    return;
+  }
   const memo: ContentMemo = {};
   const refused: string[] = [];
   for (const sha of new Set(todo.map((t) => t.sha))) {

@@ -2,9 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.21.0 — 2026-11-26
 
-A ticket that is done on the default branch is not edited, by a person or by accord (Phase 15 D-23 to D-25). A repository pinned to an older accord needs `accord upgrade`, which replaces the `lint and gate` step of its workflow with the new script. Tickets in flight are unaffected unless a pull request edits a ticket that is already done.
+Release 0.21.0 carries Phase 15, the ticket flow of a team: a ticket that is done on the default branch is no longer edited, the dashboard draws one picture per repository and lists a ticket whose code merged before verify in its own group, the pane follows a commit made in another worktree, `accord pr wait` lets a session follow its pull request to the merge, progress goes to a ref and not to the claim branch (default off), a plan may be cut into slices that are built and merged as stacked slice pull requests, and a plan with too many slices proposes an epic. A repository pinned to 0.20.x needs `accord upgrade`, which replaces the `lint and gate` step of its workflow and the skill text. Tickets in flight are unaffected except as the items below say: the slice rules apply only to a ticket claimed under 0.21.0 or later, and a pull request that edits a ticket that is already done now fails.
 
 - New rule `gate.done-ticket-edited`, an error that no strictness setting lowers (LOCKED). `accord gate done <id>` fails it when the branch changes the file of a ticket that was done at the merge base with the default branch, or any record under `accord/tickets/<id>/`, and says so in one message in place of `gate.tick-stale-commit` and `gate.stale-review`: `<id> is done on the base branch (<sha>); a done ticket is not edited - revert the change to <paths>`. A ticket finished inside the pull request is gated as before.
 - A done ticket is judged by that rule alone. A pull request that moves a test the ticket names, or deletes a file its `verification.md` cites, passes with no edit of the ticket, because the evidence of a done ticket is history.

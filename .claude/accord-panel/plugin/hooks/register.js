@@ -208,7 +208,7 @@ async function rootOf($) {
 
 async function cli($, words) {
   const root = rootText ?? (await rootOf($));
-  return $.process.run(['node', root + '/.claude/accord.mjs', '0.20.3', ...words], { timeoutMs: 120000 });
+  return $.process.run(['node', root + '/.claude/accord.mjs', '0.21.0', ...words], { timeoutMs: 120000 });
 }
 
 // Phase 08.9.2 D-06: the text of the dashboard run the pane draws now. Display only: no gate, record or decision reads it or the cache.
@@ -286,7 +286,7 @@ async function readCache($, root) {
   for (const raw of candidates) {
     try {
       const saved = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      if (typeof saved !== 'object' || saved === null || saved.v !== '0.20.3' || typeof saved.text !== 'string') continue;
+      if (typeof saved !== 'object' || saved === null || saved.v !== '0.21.0' || typeof saved.text !== 'string') continue;
       const read = outcome({ exitCode: 0, stdout: saved.text, stderr: '' });
       if (read.dashboard !== undefined) return { text: saved.text, state: read };
     } catch {
@@ -298,7 +298,7 @@ async function readCache($, root) {
 
 // Phase 08.9.2 D-06 (RESEARCH A4): into the worktree's git folder; a refusal, or no folder, moves it to the plugin store under `cache:<root>`
 async function writeCache($, root, text) {
-  const saved = { v: '0.20.3', savedAt: Date.now(), text };
+  const saved = { v: '0.21.0', savedAt: Date.now(), text };
   const dir = await gitDirOf($, root);
   if (dir !== undefined) {
     try {

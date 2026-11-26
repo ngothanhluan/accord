@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { debugStatePath } from '../src/commands/debug.js';
 import { OFF_LINE } from '../src/commands/off.js';
 import { upgradeNotice } from '../src/commands/notice.js';
+import { makePrivate } from '../src/load/debug-folder.js';
 import { cachePath, requestLatest } from '../src/commands/registry.js';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run } from './helpers/repo.js';
 import { copyClone, makeTemplate } from './helpers/worktree.js';
@@ -105,6 +106,7 @@ describe('accord hook', () => {
       // an open episode: the line follows the session line, names the file and holds none of its text
       // Phase 08.8 D-14: the hook reads only through the folder check, so the folder is made 0700 as `accord debug path` makes it (a default mkdir reads 0755 and is refused)
       mkdirSync(folder, { recursive: true, mode: 0o700 });
+      makePrivate(folder); // Windows ignores the mode: a plain folder in a shared TEMP inherits the Users group (the runner's D:\a\_temp)
       writeFileSync(file, '## Episode 1\n\nthe export drops a row\n');
       const open = await resume();
       expect(open.endsWith(unfinished), 'the line closes the output').toBe(true);

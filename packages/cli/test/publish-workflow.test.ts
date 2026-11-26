@@ -221,6 +221,10 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
       '#!/usr/bin/env bash',
       'n=$(cat npx-count 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > npx-count',
       'echo "$@" >> npx-calls',
+      // NPX_HANG replaces the process with a sleep (what a black-holed connection does, so the
+      // script's per-call cap has something to kill); NPX_SLEEP is a slow call that still answers.
+      '[ -n "${NPX_HANG:-}" ] && exec sleep "$NPX_HANG"',
+      '[ -n "${NPX_SLEEP:-}" ] && sleep "$NPX_SLEEP"',
       'line=$(sed -n "${n}p" npx-plan); [ -n "$line" ] || line=$(tail -n 1 npx-plan)',
       'code="${line%%|*}"; text="${line#*|}"',
       String.raw`if [ "$code" = 0 ]; then printf '%b\n' "$text"; else printf '%b\n' "$text" >&2; fi`,
@@ -381,6 +385,40 @@ describe.skipIf(noBash)('the publish workflow smoke step — executed', { timeou
     expect(outage.out).toContain('npx output of the last attempt:');
     expect(outage.summary).toContain('ECONNRESET');
     expect(outage.summary).toContain('could not reach the registry');
+  });
+});
+
+describe.skipIf(noBash)('the publish workflow smoke step — time bound (WR-01, D-07)', { timeout: 60_000 }, () => {
+  it('risk:regression the wait ends soft once its time budget is spent, not only after the attempt count', () => {
+    // Every call takes one second and the budget is two, so a loop bounded by attempts alone would
+    // make all twenty calls (about twenty seconds) where the budget allows two or three.
+    const result = runSmoke([etarget(PKG, FIXTURE_VERSION)], {
+      SMOKE_ATTEMPTS: '20',
+      SMOKE_BUDGET: '2',
+      NPX_SLEEP: '1',
+    });
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBeGreaterThanOrEqual(2);
+    expect(result.calls).toBeLessThanOrEqual(4);
+    expect(result.out).toContain('::warning title=not visible yet::');
+    expect(result.summary).toContain('not a failed release');
+  });
+
+  it('risk:regression one hung npx is cut at its own cap and counts as the network class', () => {
+    // The fake never answers. Without a per-call cap the first call sits until the sleep ends and the
+    // step cannot reach its soft end inside the job timeout.
+    const result = runSmoke([VISIBLE], {
+      SMOKE_ATTEMPTS: '2',
+      SMOKE_CALL_TIMEOUT: '1',
+      NPX_HANG: '5',
+    });
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBe(2);
+    const warnings = result.out.split('\n').filter((l) => l.startsWith('::warning title=not visible yet::'));
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain('could not reach the registry');
+    expect(warnings[0]).toContain('ETIMEDOUT');
+    expect(result.summary).toContain('ETIMEDOUT');
   });
 });
 

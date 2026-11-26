@@ -1116,6 +1116,63 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   if (failure !== undefined) throw failure;
 }
 
+/** Where this clone last saw `refs/accord/<id>` on origin. */
+const progressCopy = (id: string): string => 'refs/remotes/origin-accord/' + id;
+
+/** Fetch origin's `refs/accord/<id>` into its local copy; an origin that has no such ref drops a stale copy. A failed fetch is no news: the push after it says what is wrong. */
+function refreshProgressCopy(ctx: CommandContext, id: string): void {
+  try {
+    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin', `+refs/accord/${id}:${progressCopy(id)}`], undefined, ctx.ssh);
+  } catch (e) {
+    if (/couldn't find remote ref/.test(String((e as { stderr?: string }).stderr ?? ''))) gitOk(ctx.root, ['update-ref', '-d', progressCopy(id)]);
+  }
+}
+
+/**
+ * B-WR-02: may `branch` replace the progress ref? A tip that descends from the copy of the ref (or no ref on origin) is a fast-forward. A tip behind it would move another clone's progress back. A tip beside it is allowed only
+ * when this branch once held the copy's commit (a reworded commit, a rebase: the reflog says so), as `--force-if-includes` judges a branch push; otherwise the ref holds commits this branch never had (a teammate's clone, an earlier claim).
+ * Returns the sha to lease on ('' for no ref), or the reason to push nothing.
+ */
+function progressLease(ctx: CommandContext, id: string, branch: string): { seen: string } | { why: string } {
+  const tip = git(ctx.root, ['rev-parse', `refs/heads/${branch}`]).trim();
+  const copy = progressCopy(id);
+  const seen = gitOk(ctx.root, ['rev-parse', '-q', '--verify', copy]) ? git(ctx.root, ['rev-parse', copy]).trim() : '';
+  if (seen === '' || seen === tip || gitOk(ctx.root, ['merge-base', '--is-ancestor', seen, tip])) return { seen };
+  if (gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, seen])) return { why: 'is ahead of this branch (another clone or branch pushed more); it is not moved back' };
+  let held = false;
+  try {
+    held = git(ctx.root, ['reflog', 'show', '--format=%H', `refs/heads/${branch}`]).split('\n').includes(seen);
+  } catch {
+    held = false; // no reflog to prove it: refuse
+  }
+  return held ? { seen } : { why: 'holds commits this branch never had (another clone or an earlier claim); it is not replaced' };
+}
+
+/**
+ * Push `branch` to `refs/accord/<id>` with a lease on the local copy of that ref, and record the new tip in the copy. Undefined when it was pushed; the reason when it was not judged safe.
+ * A lease that origin refuses (the ref moved since this clone fetched it) refreshes the copy once and judges again; any other git failure is thrown for the caller's one failure line.
+ */
+function pushProgressRef(ctx: CommandContext, id: string, branch: string): string | undefined {
+  const ref = `refs/accord/${id}`;
+  if (!gitOk(ctx.root, ['rev-parse', '-q', '--verify', progressCopy(id)])) refreshProgressCopy(ctx, id);
+  for (let attempt = 0; ; attempt++) {
+    const judged = progressLease(ctx, id, branch);
+    if ('why' in judged) return judged.why;
+    try {
+      // no leading + on the refspec: a + forces the update whatever the lease says (reproduced with git 2.56), so the lease alone must carry the force
+      gitNoPrompt(ctx.root, ['push', `--force-with-lease=${ref}:${judged.seen}`, 'origin', `refs/heads/${branch}:${ref}`], undefined, ctx.ssh);
+    } catch (e) {
+      if (attempt === 0 && /stale info/.test(String((e as { stderr?: string }).stderr ?? ''))) {
+        refreshProgressCopy(ctx, id);
+        continue;
+      }
+      throw e;
+    }
+    git(ctx.root, ['update-ref', progressCopy(id), git(ctx.root, ['rev-parse', `refs/heads/${branch}`]).trim()]);
+    return undefined;
+  }
+}
+
 /**
  * BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0.
  * Phase 15 D-12 to D-15, D-33: with `branch` (verify's push) the claim branch goes to origin as always. Without it the progress goes to `refs/accord/<id>`, a ref that is not a branch
@@ -1139,7 +1196,7 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
     }
     if (progressPushTarget(ctx.snapshot.config, origin) === 'none') {
       const host = origin === undefined ? undefined : parseRepoUrl(origin)?.host;
-      ctx.stdout.write(`progress not pushed: progress.push is ${ctx.snapshot.config?.progress?.push ?? 'off'} for ${host ?? 'this origin'}; it reaches origin at verify\n`);
+      ctx.stdout.write(withNext('progress-not-pushed', `progress not pushed: progress.push is ${ctx.snapshot.config?.progress?.push ?? 'off'} for ${host ?? 'this origin'}; it reaches origin at verify`) + '\n');
       return 0;
     }
   }
@@ -1159,9 +1216,13 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
   }
   try {
     if (toRef) {
-      // T-15-20: the id passed ID above, and the full ref name is checked again; R8: forced, the ref mirrors the claim branch and holds no work of its own
+      // T-15-20: the id passed ID above, and the full ref name is checked again; B-WR-02: the ref moves forward, or by a rewrite of a commit this branch held, never over another clone's progress
       if (!gitOk(ctx.root, ['check-ref-format', ref])) return kept(`${ref} is not a valid ref name`);
-      gitNoPrompt(ctx.root, ['push', 'origin', `+refs/heads/${branch}:${ref}`], undefined, ctx.ssh);
+      const refused = pushProgressRef(ctx, id, branch);
+      if (refused !== undefined) {
+        ctx.stdout.write(withNext('progress-not-pushed', `progress not pushed: ${ref} on origin ${refused}`) + '\n');
+        return 0;
+      }
     } else {
       // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
       const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];

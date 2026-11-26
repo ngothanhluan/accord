@@ -24,7 +24,7 @@ function claimed(c: Clone, extra: string): string {
 }
 
 const REF = 'progress:\n  push: ref\n';
-const NOTE = (value: string) => `progress not pushed: progress.push is ${value} for this origin; it reaches origin at verify\n`;
+const NOTE = (value: string) => `progress not pushed: progress.push is ${value} for this origin; it reaches origin at verify - ${nextLine('progress-not-pushed')}\n`;
 const FAILED = 'push of refs/accord/ST-9 failed; its progress stays local until the next push - ' + nextLine('push-failed');
 const head = (dir: string) => gitRun(dir, 'rev-parse', 'HEAD').trim();
 const branchOnOrigin = (c: Clone) => gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim();
@@ -165,6 +165,107 @@ it('risk:regression --force-with-lease without --branch is refused with the new 
     c.cleanupAll();
   }
 }, 120_000);
+
+// B-WR-02 (15-REVIEWFIX-2): the ref moves only forward, or by a rewrite this branch made itself; another clone's or claimer's progress is never replaced.
+const NOT_PUSHED = 'progress not pushed: refs/accord/ST-9 on origin ';
+/** A commit another clone puts on the progress ref, built on `from` (a ref this clone fetches into FETCH_HEAD, or origin's main). */
+function otherProgress(c: Clone, from: 'ref' | 'main'): string {
+  const o = teammate(c);
+  if (from === 'ref') gitRun(o, 'fetch', '-q', 'origin', 'refs/accord/ST-9');
+  gitRun(o, 'switch', '-q', '-c', 'later', from === 'ref' ? 'FETCH_HEAD' : 'origin/main');
+  writeFiles(o, { 'later.txt': 'later\n' });
+  const sha = commitMsg(o, 'later work');
+  gitRun(o, 'push', '-q', '-f', 'origin', 'HEAD:refs/accord/ST-9');
+  return sha;
+}
+
+it('risk:data-loss a clone behind the progress ref does not move it back, and says so with one line, exit 0 (B-WR-02, D-15)', async () => {
+  const c = makeClone();
+  try {
+    const wt = claimed(c, REF);
+    expect((await run(['worktree', 'push', 'ST-9'], wt)).code).toBe(0);
+    const later = otherProgress(c, 'ref');
+    expect(refOnOrigin(c)).toBe(later);
+    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe('');
+    expect(lines(r.out)).toHaveLength(1);
+    expect(r.out.startsWith(NOT_PUSHED + 'is ahead of this branch')).toBe(true);
+    expect(r.out).toContain(' - next: ');
+    expect(refOnOrigin(c)).toBe(later);
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss a clone that never fetched the ref does not replace what is there when its branch is behind or has other commits (B-WR-02, D-15)', async () => {
+  // behind: the ref is one commit ahead of this branch, and this clone has no local copy of it
+  const c = makeClone();
+  try {
+    const wt = claimed(c, REF);
+    expect((await run(['worktree', 'push', 'ST-9'], wt)).code).toBe(0);
+    const later = otherProgress(c, 'ref');
+    gitRun(c.root, 'update-ref', '-d', 'refs/remotes/origin-accord/ST-9');
+    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(r.code).toBe(0);
+    expect(r.out.startsWith(NOT_PUSHED + 'is ahead of this branch')).toBe(true);
+    expect(refOnOrigin(c)).toBe(later);
+  } finally {
+    c.cleanupAll();
+  }
+
+  // a re-claimer, or a teammate on the same ticket: the ref holds commits this branch never had
+  const d = makeClone();
+  try {
+    const wt = claimed(d, REF);
+    const theirs = otherProgress(d, 'main');
+    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(r.code).toBe(0);
+    expect(r.out.startsWith(NOT_PUSHED + 'holds commits this branch never had')).toBe(true);
+    expect(refOnOrigin(d)).toBe(theirs);
+    expect(branchOnOrigin(d)).not.toBe(theirs);
+  } finally {
+    d.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss a push whose lease is stale because origin moved after this clone fetched is refused, and the next push judges the fresh ref (B-WR-02, D-15)', async () => {
+  const c = makeClone();
+  try {
+    const wt = claimed(c, REF);
+    expect((await run(['worktree', 'push', 'ST-9'], wt)).code).toBe(0);
+    const later = otherProgress(c, 'ref');
+    writeFiles(wt, { 'more.txt': 'more\n' });
+    commitMsg(wt, 'build: ST-9 task 2');
+    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(r.out.startsWith(NOT_PUSHED + 'holds commits this branch never had')).toBe(true);
+    expect(refOnOrigin(c)).toBe(later);
+    expect(gitRun(c.root, 'rev-parse', 'refs/remotes/origin-accord/ST-9').trim()).toBe(later);
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:regression the ref still moves forward and by this branch own rewrite, and a ref the host deleted is pushed again (B-WR-02, R8)', async () => {
+  const c = makeClone();
+  try {
+    const wt = claimed(c, REF);
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: refs/accord/ST-9\n', err: '' });
+    writeFiles(wt, { 'more.txt': 'more\n' });
+    commitMsg(wt, 'build: ST-9 task 2');
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: refs/accord/ST-9\n', err: '' });
+    gitRun(wt, 'commit', '-q', '--amend', '-m', 'build: ST-9 task 2 reworded');
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: refs/accord/ST-9\n', err: '' });
+    expect(refOnOrigin(c)).toBe(head(wt));
+    expect(gitRun(c.root, 'rev-parse', 'refs/remotes/origin-accord/ST-9').trim()).toBe(head(wt));
+
+    gitRun(c.remote, 'update-ref', '-d', 'refs/accord/ST-9');
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: refs/accord/ST-9\n', err: '' });
+    expect(refOnOrigin(c)).toBe(head(wt));
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
 
 it('risk:security a commit with a forbidden line is not sent to the progress ref either (D-15)', async () => {
   const c = makeClone();

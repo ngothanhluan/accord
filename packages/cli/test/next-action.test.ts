@@ -30,6 +30,7 @@ const MAPPED: LineKind[] = [
   'synced',
   'push-after-sync',
   'push-failed',
+  'progress-not-pushed',
   'removed',
   'deleted',
   'kept',

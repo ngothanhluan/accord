@@ -106,7 +106,7 @@ export function mergedClaims(root: string, claimRefs: Readonly<Record<string, st
   return merged;
 }
 
-/** One path the default ref has that HEAD does not hold as the default ref does: `A` added there, `M` changed there, `D` only HEAD has it. */
+/** One ticket record path that the default ref changed since the fork from HEAD: `A` added there, `M` changed there, `D` deleted there. */
 export interface RefChange {
   status: 'A' | 'M' | 'D';
   path: string;
@@ -114,14 +114,17 @@ export interface RefChange {
 }
 
 /**
- * D-17: the ticket record paths under accord/tickets/ on which HEAD and `ref` differ, from one `git diff --name-status` between the two trees (no blob is read). The loader takes the
- * `A` and `M` paths from `ref` for every ticket but the checkout's own, so a worktree cut before a merge reads the same records as the main checkout; a `D` path is one only HEAD holds
- * (an unpublished local record, Ruling R3) and stays as the checkout has it. A git failure (an unborn HEAD) gives none.
+ * D-17, A-WR-02: the ticket record paths under accord/tickets/ that `ref` changed since it forked from HEAD, from one `git diff --name-status` between the merge base and `ref` (no blob is read).
+ * The loader takes the `A` and `M` paths from `ref` and drops the `D` ones, for every ticket but the checkout's own, so a worktree cut before a merge reads the same records as the main
+ * checkout. Only what the ref did is listed, so a record HEAD changed or added on its own (a newer local record, or an unpublished draft, Ruling R3) is never in the list and stays as the
+ * checkout has it, and a ticket the ref deleted is a `D` and is gone. No merge base (unrelated histories, a shallow clone that lacks it) or a git failure (an unborn HEAD) gives none.
  */
 export function changedOnRef(root: string, ref: string): RefChange[] {
   let out: string;
   try {
-    out = execFileSync('git', ['diff', '--name-status', '-z', '--no-renames', 'HEAD', ref, '--', 'accord/tickets'], {
+    const base = git(root, ['merge-base', 'HEAD', ref]).trim();
+    if (base === '') return [];
+    out = execFileSync('git', ['diff', '--name-status', '-z', '--no-renames', base, ref, '--', 'accord/tickets'], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],

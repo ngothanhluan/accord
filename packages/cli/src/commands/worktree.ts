@@ -11,7 +11,7 @@ import { isOff } from '../load/gitdir.js';
 import { readCleanFacts } from '../load/clean-facts.js';
 import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
-import { doneOnDefaultBranch } from '../load/done-on-default.js';
+import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { dropSlices, sliceBranch, sliceOfBranch } from '../load/slices.js';
 import { blobsOnRef } from '../load/merged-state.js';
 import { fetchLimitMs } from './fetch-limit.js';
@@ -1116,6 +1116,63 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   if (failure !== undefined) throw failure;
 }
 
+/** Where this clone last saw `refs/accord/<id>` on origin. */
+const progressCopy = (id: string): string => 'refs/remotes/origin-accord/' + id;
+
+/** Fetch origin's `refs/accord/<id>` into its local copy; an origin that has no such ref drops a stale copy. A failed fetch is no news: the push after it says what is wrong. */
+function refreshProgressCopy(ctx: CommandContext, id: string): void {
+  try {
+    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin', `+refs/accord/${id}:${progressCopy(id)}`], undefined, ctx.ssh);
+  } catch (e) {
+    if (/couldn't find remote ref/.test(String((e as { stderr?: string }).stderr ?? ''))) gitOk(ctx.root, ['update-ref', '-d', progressCopy(id)]);
+  }
+}
+
+/**
+ * B-WR-02: may `branch` replace the progress ref? A tip that descends from the copy of the ref (or no ref on origin) is a fast-forward. A tip behind it would move another clone's progress back. A tip beside it is allowed only
+ * when this branch once held the copy's commit (a reworded commit, a rebase: the reflog says so), as `--force-if-includes` judges a branch push; otherwise the ref holds commits this branch never had (a teammate's clone, an earlier claim).
+ * Returns the sha to lease on ('' for no ref), or the reason to push nothing.
+ */
+function progressLease(ctx: CommandContext, id: string, branch: string): { seen: string } | { why: string } {
+  const tip = git(ctx.root, ['rev-parse', `refs/heads/${branch}`]).trim();
+  const copy = progressCopy(id);
+  const seen = gitOk(ctx.root, ['rev-parse', '-q', '--verify', copy]) ? git(ctx.root, ['rev-parse', copy]).trim() : '';
+  if (seen === '' || seen === tip || gitOk(ctx.root, ['merge-base', '--is-ancestor', seen, tip])) return { seen };
+  if (gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, seen])) return { why: 'is ahead of this branch (another clone or branch pushed more); it is not moved back' };
+  let held: boolean;
+  try {
+    held = git(ctx.root, ['rev-list', '--walk-reflogs', `refs/heads/${branch}`]).split('\n').includes(seen);
+  } catch {
+    held = false; // no reflog to prove it: refuse
+  }
+  return held ? { seen } : { why: 'holds commits this branch never had (another clone or an earlier claim); it is not replaced' };
+}
+
+/**
+ * Push `branch` to `refs/accord/<id>` with a lease on the local copy of that ref, and record the new tip in the copy. Undefined when it was pushed; the reason when it was not judged safe.
+ * A lease that origin refuses (the ref moved since this clone fetched it) refreshes the copy once and judges again; any other git failure is thrown for the caller's one failure line.
+ */
+function pushProgressRef(ctx: CommandContext, id: string, branch: string): string | undefined {
+  const ref = `refs/accord/${id}`;
+  if (!gitOk(ctx.root, ['rev-parse', '-q', '--verify', progressCopy(id)])) refreshProgressCopy(ctx, id);
+  for (let attempt = 0; ; attempt++) {
+    const judged = progressLease(ctx, id, branch);
+    if ('why' in judged) return judged.why;
+    try {
+      // no leading + on the refspec: a + forces the update whatever the lease says (reproduced with git 2.56), so the lease alone must carry the force
+      gitNoPrompt(ctx.root, ['push', `--force-with-lease=${ref}:${judged.seen}`, 'origin', `refs/heads/${branch}:${ref}`], undefined, ctx.ssh);
+    } catch (e) {
+      if (attempt === 0 && /stale info/.test(String((e as { stderr?: string }).stderr ?? ''))) {
+        refreshProgressCopy(ctx, id);
+        continue;
+      }
+      throw e;
+    }
+    git(ctx.root, ['update-ref', progressCopy(id), git(ctx.root, ['rev-parse', `refs/heads/${branch}`]).trim()]);
+    return undefined;
+  }
+}
+
 /**
  * BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0.
  * Phase 15 D-12 to D-15, D-33: with `branch` (verify's push) the claim branch goes to origin as always. Without it the progress goes to `refs/accord/<id>`, a ref that is not a branch
@@ -1123,6 +1180,8 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
  */
 export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean; branch?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  // B-WR-01: since Phase 15 a push without --branch goes to the progress ref, which the lease never applied to; the form every earlier release printed must fail loudly, not report success
+  if (o.lease === true && o.branch !== true) throw new UsageError(`--force-with-lease replaces a branch on origin: run accord worktree push ${id} --branch --force-with-lease`);
   // Phase 15 D-31: in a slice worktree the branch pushed, and mirrored into the progress ref, is the slice branch this checkout is on; anywhere else it is the claim branch, as before
   const here = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
   const branch = here !== undefined && sliceOfBranch(here)?.id === id ? here : branchOf(ctx.snapshot, id);
@@ -1137,7 +1196,7 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
     }
     if (progressPushTarget(ctx.snapshot.config, origin) === 'none') {
       const host = origin === undefined ? undefined : parseRepoUrl(origin)?.host;
-      ctx.stdout.write(`progress not pushed: progress.push is ${ctx.snapshot.config?.progress?.push ?? 'off'} for ${host ?? 'this origin'}; it reaches origin at verify\n`);
+      ctx.stdout.write(withNext('progress-not-pushed', `progress not pushed: progress.push is ${ctx.snapshot.config?.progress?.push ?? 'off'} for ${host ?? 'this origin'}; it reaches origin at verify`) + '\n');
       return 0;
     }
   }
@@ -1157,9 +1216,13 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
   }
   try {
     if (toRef) {
-      // T-15-20: the id passed ID above, and the full ref name is checked again; R8: forced, the ref mirrors the claim branch and holds no work of its own
+      // T-15-20: the id passed ID above, and the full ref name is checked again; B-WR-02: the ref moves forward, or by a rewrite of a commit this branch held, never over another clone's progress
       if (!gitOk(ctx.root, ['check-ref-format', ref])) return kept(`${ref} is not a valid ref name`);
-      gitNoPrompt(ctx.root, ['push', 'origin', `+refs/heads/${branch}:${ref}`], undefined, ctx.ssh);
+      const refused = pushProgressRef(ctx, id, branch);
+      if (refused !== undefined) {
+        ctx.stdout.write(withNext('progress-not-pushed', `progress not pushed: ${ref} on origin ${refused}`) + '\n');
+        return 0;
+      }
     } else {
       // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
       const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];
@@ -1200,6 +1263,11 @@ function rebindAfterRebase(ctx: CommandContext, id: string, root: string): void 
     return [{ ...b, sha: sha.toLowerCase() }];
   });
   if (todo.length === 0) return;
+  // Phase 15 D-23, A-WR-05: a ticket done on the default branch is not edited, so nothing is re-bound into it; one line says what was left as it is
+  if (doneOnDefaultBranch(root, id)) {
+    ctx.stderr.write('not written: ' + doneRefusal(id) + '\n');
+    return;
+  }
   const memo: ContentMemo = {};
   const refused: string[] = [];
   for (const sha of new Set(todo.map((t) => t.sha))) {
@@ -1333,7 +1401,7 @@ function syncSlice(ctx: CommandContext, id: string, branch: string, n: number): 
   return 0;
 }
 
-/** ST-LN-20 D-05: after a good fetch, prune origin's stale refs (remote-tracking, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
+/** ST-LN-20 D-05, B-WR-03: after a good fetch, prune origin's stale refs (remote-tracking, progress copies under origin-accord, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
 function pruneStale(ctx: CommandContext, report = false): Map<string, string> {
   const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)']).split('\n').filter((r) => r !== '');
   const before = refs();
@@ -1341,11 +1409,11 @@ function pruneStale(ctx: CommandContext, report = false): Map<string, string> {
   const would = new Set<string>();
   try {
     if (report) {
-      for (const l of gitNoPrompt(ctx.root, ['remote', 'prune', '--dry-run', 'origin'], undefined, ctx.ssh, { LC_ALL: 'C' }).split('\n')) {
+      for (const l of gitNoPrompt(ctx.root, ['-c', 'remote.origin.fetch=' + PROGRESS_FETCH, 'remote', 'prune', '--dry-run', 'origin'], undefined, ctx.ssh, { LC_ALL: 'C' }).split('\n')) {
         const name = /^ \* \[would prune\] (.+?)\r?$/.exec(l)?.[1];
         if (name !== undefined) would.add(name.startsWith('refs/') ? name : 'refs/remotes/' + name);
       }
-    } else gitNoPrompt(ctx.root, ['remote', 'prune', 'origin'], undefined, ctx.ssh);
+    } else gitNoPrompt(ctx.root, ['-c', 'remote.origin.fetch=' + PROGRESS_FETCH, 'remote', 'prune', 'origin'], undefined, ctx.ssh);
   } catch (e) {
     ctx.stdout.write(`prune of origin failed: ${firstLine(e)}
 `);
@@ -2142,8 +2210,9 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
     const id = ticketOfBranch(name, templates, known, ctx.snapshot.config);
     if (id !== undefined && id !== skip) ids.set(name, id);
   }
-  if (ids.size === 0) return;
-  const snap = snapshotAt(ctx.root, ref, [...new Set(ids.values())]);
+  const orphans = strandedProgress(progress, new Set(ids.values()), skip);
+  if (ids.size === 0 && orphans.length === 0) return;
+  const snap = snapshotAt(ctx.root, ref, [...new Set([...ids.values(), ...orphans])]);
   const done = new Set(statusRows(snap).filter((r) => r.stage === 'done' && r.status !== 'dropped').map((r) => r.id));
   const after = readList(ctx, s.seen);
   // Phase 08.9 D-08: on the offline dry path the commits the full-length verified commits of the done branches name come from one batch-check; a short one or a failed batch is read per branch below
@@ -2234,6 +2303,26 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
   }
+  // B-WR-10: a done ticket whose branches are gone from this clone and from origin still has its progress ref; no branch led the loop above to it
+  if (fetchFailed) return;
+  for (const id of orphans.filter((i) => done.has(i)).sort()) {
+    try {
+      if (spent(ctx, s)) return;
+      const P = progress.get(id)!;
+      const raw = snap.tickets[id]?.frontmatter?.verified_commit;
+      const vcArgs = ['rev-parse', '--verify', '-q', String(raw) + '^{commit}'];
+      const vc = typeof raw === 'string' && isSha(raw) && gitOk(ctx.root, vcArgs) ? git(ctx.root, vcArgs).trim() : undefined;
+      const v = safeTip(ctx.root, P, vc, ref, merged, s.facts);
+      deleteProgress(ctx, s, id, P, v === 'safe' ? undefined : v === 'conflict' ? `merging it into ${def} conflicts` : vc !== undefined ? 'it has commits after its verified commit' : `it has changes not on ${def}`);
+    } catch (e) {
+      cleanSay(ctx, `kept origin refs/accord/${id}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
+    }
+  }
+}
+
+/** B-WR-10: the ids that have a progress copy and no branch of this clone or origin (`held` holds the ids the branches name), ticket ids only: an id becomes a path when its ticket is read. */
+function strandedProgress(progress: ReadonlyMap<string, string>, held: ReadonlySet<string>, skip?: string): string[] {
+  return [...progress.keys()].filter((i) => i !== skip && !held.has(i) && ID.test(i));
 }
 
 /** ST-LN-13: the first research record the ticket lists at `tip` whose copy the history of `ref` never held, or undefined. */
@@ -2287,9 +2376,12 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
     const tip = (t.L ?? t.R)!;
     if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !(s.facts?.onRef(tip) ?? gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref]))) ids.set(name, id);
   }
-  if (ids.size === 0) return;
-  const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);
-  if (fetchFailed && [...ids.keys()].some((n) => dropped.has(ids.get(n)!))) {
+  // B-WR-10: ids with a progress copy and no branch at all, here or on origin (a merged branch above is no branch here, and its ref went with it on the merged path)
+  const named = new Set([...tips.keys()].flatMap((n) => ticketOfBranch(n, templates, known, ctx.snapshot.config) ?? []));
+  const orphans = strandedProgress(progress, named, skip);
+  if (ids.size === 0 && orphans.length === 0) return;
+  const dropped = droppedOn(ctx.root, ref, [...new Set([...ids.values(), ...orphans])]);
+  if (fetchFailed && ([...ids.keys()].some((n) => dropped.has(ids.get(n)!)) || orphans.some((i) => dropped.has(i)))) {
     cleanSay(ctx, 'kept dropped tickets: fetch from origin failed');
     return;
   }
@@ -2384,6 +2476,18 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       }
     } catch (e) {
       cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
+    }
+  }
+  // B-WR-10: a dropped ticket's progress ref when no branch of this clone or origin is left; with no branch to hold its commits it goes only when the default branch already does
+  if (fetchFailed) return;
+  for (const id of orphans.filter((i) => dropped.has(i)).sort()) {
+    try {
+      if (spent(ctx, s)) return;
+      const P = progress.get(id)!;
+      const held = s.facts?.onRef(P) ?? gitOk(ctx.root, ['merge-base', '--is-ancestor', P, ref]);
+      deleteProgress(ctx, s, id, P, held ? undefined : 'it has commits no branch holds');
+    } catch (e) {
+      cleanSay(ctx, `kept origin refs/accord/${id}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
   }
 }

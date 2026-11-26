@@ -164,3 +164,62 @@ it('risk:regression on the default branch itself the frozen rule is not in force
   expect(onMain.found.length).toBeGreaterThan(0);
   expect(onMain.code).toBe(1);
 }, 120_000);
+
+// ---- review fix A-WR-04: the freeze is not switched off in silence ----
+
+/** doneOnMain with the default branch named `develop` and no origin/HEAD, as the CI checkout of such a repository is (a remote-tracking copy only); `work` edits the ledger of done T-1. */
+function editedOnDevelop(): string {
+  const repo = doneOnMain();
+  gitRun(repo, 'branch', '-m', 'main', 'develop');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/develop', 'refs/heads/develop');
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': readFileSync(join(repo, 'accord/tickets/T-1/ledger.md'), 'utf8') + '- task 3 done abc1234\n' });
+  commitMsg(repo, 'touch the ledger of a done ticket');
+  return repo;
+}
+const gateIn = async (repo: string, env: NodeJS.ProcessEnv = {}): Promise<{ code: number; rules: string[]; err: string }> => {
+  const r = await run(['gate', 'done', 'T-1', '--json'], repo, env);
+  return { code: r.code, rules: (JSON.parse(r.out).findings as GateFound[]).map((f) => f.rule), err: r.err };
+};
+const NOT_CHECKED = 'done-ticket freeze not checked: ';
+
+it('risk:regression a repository whose default branch is not main is gated against the pull request target GitHub names, and says so when it cannot find one (A-WR-04)', async () => {
+  const repo = editedOnDevelop();
+  // no origin/HEAD, no main or master: nothing says what the default branch is, so the freeze cannot run and the log says that once
+  const blind = await gateIn(repo);
+  expect(blind.rules).not.toContain('gate.done-ticket-edited');
+  expect(blind.err).toContain(NOT_CHECKED + 'no default branch found in this clone');
+  expect(blind.err.split('\n').filter((l) => l.startsWith(NOT_CHECKED))).toHaveLength(1);
+  // GitHub Actions names the target of the pull request: the freeze runs and refuses the edit, with nothing printed to say it was skipped
+  const named = await gateIn(repo, { GITHUB_BASE_REF: 'develop' });
+  expect(named.rules).toEqual(['gate.done-ticket-edited']);
+  expect(named.code).toBe(1);
+  expect(named.err).not.toContain(NOT_CHECKED);
+}, 120_000);
+
+it('risk:regression git init.defaultBranch names the default branch when nothing else does (A-WR-04)', async () => {
+  const repo = editedOnDevelop();
+  gitRun(repo, 'update-ref', '-d', 'refs/remotes/origin/develop');
+  gitRun(repo, 'config', 'init.defaultBranch', 'develop');
+  const found = await gateIn(repo);
+  expect(found.rules).toEqual(['gate.done-ticket-edited']);
+  expect(found.err).not.toContain(NOT_CHECKED);
+}, 120_000);
+
+it('risk:security a GITHUB_BASE_REF that is not a plain branch name is never given to git, and the freeze says it was not checked (A-WR-04)', async () => {
+  const repo = editedOnDevelop();
+  for (const hostile of ['--upload-pack=touch pwned', '../develop', 'develop;rm -rf', '-x']) {
+    const r = await gateIn(repo, { GITHUB_BASE_REF: hostile });
+    expect(r.rules, hostile).not.toContain('gate.done-ticket-edited');
+    expect(r.err, hostile).toContain(NOT_CHECKED + 'no default branch found');
+  }
+}, 120_000);
+
+it('risk:regression a default branch with no history in common with HEAD says the freeze was not checked, naming the branch (A-WR-04)', async () => {
+  const repo = doneOnMain();
+  gitRun(repo, 'switch', '-q', '--orphan', 'island');
+  writeFiles(repo, { 'island.txt': 'x\n' });
+  commitMsg(repo, 'an unrelated history');
+  writeFiles(repo, { [P('T-1')]: 'placeholder' });
+  const r = await run(['gate', 'done', 'T-1', '--json'], repo);
+  expect(r.err).toContain(NOT_CHECKED + 'no merge base of HEAD with main');
+}, 120_000);

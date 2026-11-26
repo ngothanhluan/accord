@@ -25,12 +25,19 @@ import { writeKey } from '../write/key.js';
  * `## Slice` section and a number outside the plan's slices are usage errors (exit 2), never a verdict.
  */
 function sliceOf(ctx: CommandContext, id: string, value: string): SliceScope | undefined {
-  if (!/^[0-9]{1,3}$/.test(value)) throw new UsageError(`--slice needs a whole number from 1 to the plan's last slice, got "${value.slice(0, 40)}"`);
+  // Review C-WR-07: `auto` is how a pull request head that is no slice branch asks for its slice, so the CI script counts no heading itself: the parsed plan is the one definition of a slice section.
+  // Two or more slices make it slice 1 (the claim branch); fewer judge the whole ticket, as no flag does.
+  const auto = value === 'auto';
+  if (!auto && !/^[0-9]{1,3}$/.test(value)) throw new UsageError(`--slice needs a whole number from 1 to the plan's last slice, or auto, got "${value.slice(0, 40)}"`);
   if (!Object.hasOwn(ctx.snapshot.tickets, id)) return undefined;
   const slices = workOf(ctx.snapshot, id)?.plan?.slices;
+  if (auto && (slices === undefined || slices.length < 2)) return undefined;
   if (slices === undefined || slices.length === 0) throw new UsageError(`${id} has no "## Slice" section in its plan, so --slice does not apply`);
-  const scope = sliceScope(ctx.snapshot, id, Number(value));
+  const n = auto ? 1 : Number(value);
+  const scope = sliceScope(ctx.snapshot, id, n);
   if (scope === undefined) throw new UsageError(`--slice ${value} is not one of the plan's slices (1 to ${Math.max(...slices.map((x) => x.n))})`);
+  // Review C-WR-08: a slice below the last that names no `@ac-<n>` on its covers: line would judge no criterion and pass; it is refused instead. The last slice (and a widened one) judges them all.
+  if (!scope.last && scope.tags?.length === 0) throw new UsageError(`slice ${n} of ${id} names no criterion on its covers: line (covers: @ac-1), so --slice ${n} would judge nothing; fix plan.md and run accord gate plan ${id}`);
   return scope;
 }
 
@@ -77,7 +84,7 @@ export function gate(
       : which === 'done'
         ? // Phase 15 D-23, D-25: Done also holds the ticket's records at the merge base with the default branch, for gate.done-ticket-edited.
           // ST-LN-96 D-02: Done holds the claim fact too, for gate.ruleset-changed and gate.ruleset-missing, in every lane.
-          withClaimPins(ctx.root, { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id), ...gitContentSince(ctx.root, ctx.snapshot, id), ...gitBaseRecords(ctx.root, ctx.snapshot, id) }, id)
+          withClaimPins(ctx.root, { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id), ...gitContentSince(ctx.root, ctx.snapshot, id), ...gitBaseRecords(ctx.root, ctx.snapshot, id, { env: ctx.env, warn: (line) => ctx.stderr.write(line + '\n') }) }, id)
         : ctx.snapshot;
   // ST-LN-17: Done confirms each ## Return from verify marker with git; an unversioned round record of a ticket
   // not done on the default branch needs that branch's snapshot.
@@ -98,12 +105,12 @@ export function gate(
   const rendered = (): ReturnType<typeof render> => (list ??= render()); // at most one render per command, for the two readers
   const withFacts = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
   // Phase 15 D-06: a `--slice` run also holds the measured size of that slice, for gate.slice-diff-large; no flag reads nothing, and a size git could not measure is no fact.
-  const measured = which === 'done' && scope !== undefined ? gitSliceSize(ctx.root, ctx.snapshot, id, scope.n, rendered) : undefined;
+  const measured = which === 'done' && scope !== undefined && scope.widened !== true ? gitSliceSize(ctx.root, ctx.snapshot, id, scope.n, rendered) : undefined;
   const forGate = measured === undefined ? withFacts : { ...withFacts, sliceSize: { ...withFacts.sliceSize, [id]: measured } };
   const result =
     which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), undefined, undefined, undefined, ctx.ids), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id, scope === undefined ? {} : { slice: scope.n });
   // D-31: a slice run says which slice it judged; under --json that line goes to stderr so stdout stays the GateResult alone.
-  if (scope !== undefined) (options.json ? ctx.stderr : ctx.stdout).write(`slice ${scope.n} of ${scope.of}: ${scope.criteria} criteria judged\n`);
+  if (scope !== undefined) (options.json ? ctx.stderr : ctx.stdout).write(`slice ${scope.n} of ${scope.of}: ${scope.criteria} criteria judged${scope.widened === true ? ' (the ledger records a task of a later slice, so the whole ticket is judged)' : ''}\n`);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );
@@ -111,7 +118,7 @@ export function gate(
   // the snapshot's own key (an unknown id writes nothing), and a failed append names itself once on stderr and changes neither the verdict nor the exit code.
   // Phase 08.8.1 IN-04: with `CI` set (anything but empty, `0` or `false`) no log is written: nothing in CI reads the file and a read-only workspace printed a stderr line on every run.
   const inCi = ctx.env.CI !== undefined && !['', '0', 'false'].includes(ctx.env.CI);
-  // D-31: a run for a slice below the last is not the ticket's Done, so the pane's log of gate runs does not record it as one.
+  // D-31: a run for a slice below the last is not the ticket's Done, so the pane's log of gate runs does not record it as one. A widened run judges the whole ticket, so it is recorded.
   if (Object.hasOwn(ctx.snapshot.tickets, id) && !inCi && (scope === undefined || scope.last)) {
     try {
       appendGateRun(ctx.root, id, result, Math.floor(Date.now() / 1000));

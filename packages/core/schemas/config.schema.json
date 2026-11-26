@@ -99,7 +99,6 @@
     "review": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode"],
       "properties": {
         "mode": { "type": "string", "enum": ["human", "outcome"] },
         "post": { "type": "string", "enum": ["draft"] },

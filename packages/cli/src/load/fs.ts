@@ -222,7 +222,7 @@ function isAncestor(root: string, a: string, b: string): boolean {
 }
 
 /** Phase 15 D-15: where accord keeps the copy of origin's `refs/accord/<id>`, the progress ref; fetchOrigin writes it, nothing else does. */
-const PROGRESS_PREFIX = 'refs/remotes/origin-accord/';
+export const PROGRESS_PREFIX = 'refs/remotes/origin-accord/';
 
 /**
  * Spec §5: a branch named by a template in force (`t/{id}` always), local or on any remote, claims its ticket for
@@ -1507,12 +1507,13 @@ export function loadClaimView(
   };
   const walked = (entries: readonly AfterEntry[]) => walkOver(root, claimPositives(claimRefs, bare.claimBranches ?? {}, listed, headCommit, entries));
   // Phase 15 D-17: the repository picture reads every ticket but the checkout's own from the default ref; the records HEAD and the ref differ on are read here, once.
-  let picture: { ref: string; texts: Record<string, string>; ids: Set<string> } | undefined;
+  let picture: { ref: string; texts: Record<string, string>; ids: Set<string>; deleted: string[] } | undefined;
   if (options.picture === 'repository' && options.only === undefined) {
     const ref = doneRef(root, defaultRefs(root, true));
     if (ref !== undefined) {
-      const changed = changedOnRef(root, ref).filter((c) => c.status !== 'D' && c.id !== own);
-      picture = { ref, texts: gitFilesAt(root, ref, changed.map((c) => c.path), env), ids: new Set(changed.map((c) => c.id)) };
+      // A-WR-02: what the ref changed since the fork: added and changed records are read from it, the ones it deleted are dropped from the checkout's copy
+      const changed = changedOnRef(root, ref).filter((c) => c.id !== own);
+      picture = { ref, texts: gitFilesAt(root, ref, changed.filter((c) => c.status !== 'D').map((c) => c.path), env), ids: new Set(changed.map((c) => c.id)), deleted: changed.filter((c) => c.status === 'D').map((c) => c.path) };
     }
   }
   // One spawn for the merged set; a failure (an unborn HEAD) leaves it empty, as a non-ancestor.
@@ -1575,6 +1576,7 @@ export function loadClaimView(
   // Phase 15 D-17: the default ref's records go in first, so a claim branch that is not merged overlays them below as it always did.
   if (picture !== undefined) {
     Object.assign(files, picture.texts);
+    for (const path of picture.deleted) delete files[path];
     for (const id of picture.ids) delete trackFacts[id];
   }
   const planJobs: { id: string; ref: string; planPath: string }[] = [];
@@ -2442,7 +2444,7 @@ export function gitPeopleOnRefs(root: string): { byRef: Record<string, Record<st
   try {
     refs = execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes'], { ...opts, encoding: 'utf8' })
       .split('\n')
-      .filter((r) => r !== '' && !r.endsWith('/HEAD'));
+      .filter((r) => r !== '' && !r.endsWith('/HEAD') && !r.startsWith(PROGRESS_PREFIX)); // B-WR-08: a progress copy is no branch and holds no people
   } catch (err) {
     fail('listing refs to read people', err);
   }

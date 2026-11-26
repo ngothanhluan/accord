@@ -199,7 +199,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       .description('report whether the ticket passes the ' + which + ' gate')
       .option('--json', 'print the GateResult object instead of text');
     // Phase 15 D-31: only Done is slice-aware; Ready and Plan judge the whole ticket.
-    if (which === 'done') command.option('--slice <n>', "judge only slice <n> of the plan's slices (its covers: criteria); the last slice judges them all");
+    if (which === 'done') command.option('--slice <n>', "judge only slice <n> of the plan's slices (its covers: criteria); the last slice judges them all, and so does any slice whose branch holds a later slice's task in the ledger; auto is slice 1 for a plan of two or more slices, else no restriction");
     command
       .action((id: string, options: { json?: boolean; slice?: string }) => {
         // Phase 08.9.2 Ruling-narrow: Ready and Plan read the ticket, its epic and its dependencies; every other ticket is known by file name only.
@@ -529,7 +529,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('push <id>')
     .description("push the ticket's progress to origin as refs/accord/<id>, a ref that is not a branch and starts no CI, only where progress.push in accord/config.yml allows it (off, the default, pushes nothing and prints a note); with --branch push the claim branch itself; a failed push prints git's message and exits 0, its commits stay local until the next push")
     .option('--branch', "push the claim branch to origin instead of the progress ref; verify uses it, since the pull request needs the branch")
-    .option('--force-with-lease', 'after a commit is reworded: replace the branch on origin only while it is still where this clone last saw it and this branch once held that commit')
+    .option('--force-with-lease', 'with --branch, after a commit is reworded: replace the branch on origin only while it is still where this clone last saw it and this branch once held that commit')
     .action((id: string, o: { forceWithLease?: boolean; branch?: boolean }) => {
       setCode(worktreePush(preflight(opts), id, { lease: o.forceWithLease === true, branch: o.branch === true }));
     });

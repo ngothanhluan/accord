@@ -222,7 +222,8 @@ it('risk:security a forged gate log changes no gate verdict and a link at the re
     const linked = await run(['gate', 'done', 'T-1', '--json'], other);
     expect([linked.code, linked.out]).toEqual([first.code, first.out]);
     expect(readdirSync(outside)).toEqual([]);
-    const lines = linked.err.split('\n').filter((l) => l !== '');
+    // this fixture has no default branch, so gate done also says its done-ticket freeze was not checked (A-WR-04); that line is not the one this case is about
+    const lines = linked.err.split('\n').filter((l) => l !== '' && !l.startsWith('done-ticket freeze not checked: '));
     expect(lines).toHaveLength(1);
     expect(lines[0].startsWith('could not record the gate run in .accord-reports/')).toBe(true);
   } finally {

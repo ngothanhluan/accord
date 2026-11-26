@@ -133,7 +133,6 @@ it('risk:regression running slice again prints the same two lines and changes no
 }, 120_000);
 
 it.each([
-  ['1', 'slice 1 is the claim branch'],
   ['4', 'has 3 slices'],
   ['3', 'open it first with accord worktree slice ST-9 2'],
   ['02', 'not a slice number'],
@@ -147,6 +146,47 @@ it.each([
   expect(gitRun(box.wt, 'branch', '--list', 'slice/*').trim()).toBe('');
   expect(slices(box)).toBe('');
 }, 120_000);
+
+// Review C-WR-06: slices.md sends the agent back to an earlier slice to change it; slice 1 is the claim branch, so `worktree slice <id> 1` switches to it.
+it('risk:regression slice 1 switches a slice checkout back to the claim branch, creates and records nothing, and running it again changes nothing (C-WR-06)', async () => {
+  const box = sandbox();
+  await run(['worktree', 'slice', 'ST-9', '2'], box.wt);
+  const before = [slices(box), gitRun(box.wt, 'branch', '--list').replace('* ', '  ')];
+  const r = await run(['worktree', 'slice', 'ST-9', '1'], box.wt);
+  expect(r.err).toBe('');
+  expect(r.code).toBe(0);
+  expect(r.out).toBe('branch: t/ST-9\nbase: main\n');
+  expect(branchIn(box.wt)).toBe('t/ST-9');
+  expect([slices(box), gitRun(box.wt, 'branch', '--list').replace('* ', '  ')]).toEqual(before);
+  const again = await run(['worktree', 'slice', 'ST-9', '1'], box.wt);
+  expect(again.code).toBe(0);
+  expect(again.out).toBe(r.out);
+  expect(branchIn(box.wt)).toBe('t/ST-9');
+  // and from slice 3 the same
+  await run(['worktree', 'slice', 'ST-9', '2'], box.wt);
+  writeFiles(box.wt, { 'src/b.ts': 'b\n' });
+  commitMsg(box.wt, 'slice 2 work');
+  await run(['worktree', 'slice', 'ST-9', '3'], box.wt);
+  expect((await run(['worktree', 'slice', 'ST-9', '1'], box.wt)).code).toBe(0);
+  expect(branchIn(box.wt)).toBe('t/ST-9');
+}, 240_000);
+
+it("risk:data-loss slice 1 is refused on a dirty tree, outside the ticket's checkout and for a plan with no slices, and stays where it is (C-WR-06)", async () => {
+  const box = sandbox();
+  await run(['worktree', 'slice', 'ST-9', '2'], box.wt);
+  writeFiles(box.wt, { 'src/a.ts': 'edited, not committed\n' });
+  const dirtyRun = await run(['worktree', 'slice', 'ST-9', '1'], box.wt);
+  expect(dirtyRun.code).toBe(2);
+  expect(dirtyRun.err).toContain('uncommitted changes');
+  expect(branchIn(box.wt)).toBe('slice/ST-9/2');
+  const elsewhere = await run(['worktree', 'slice', 'ST-9', '1'], box.main);
+  expect(elsewhere.code).toBe(2);
+  expect(branchIn(box.main)).toBe('main');
+  const plain = sandbox({ plan: PLAN.replace(/## Slice[\s\S]*$/, '') });
+  const none = await run(['worktree', 'slice', 'ST-9', '1'], plain.wt);
+  expect(none.code).toBe(2);
+  expect(none.err).toContain('no ## Slice section');
+}, 240_000);
 
 it('risk:data-loss slice is refused on a dirty working tree and creates nothing (D-31)', async () => {
   const box = sandbox();
@@ -243,6 +283,22 @@ it('risk:complex-branching a ticket whose claim branch merged while slice 2 is u
   const after = await dash(repo);
   expect(ids(after, 'mergedWaiting')).toEqual(['T-1']);
   expect(ids(after, 'yours')).toEqual([]);
+}, 120_000);
+
+it('risk:complex-branching a claim branch that merged while the plan has tasks nobody built (slice 2 not cut yet) stays in yours, not in mergedWaiting (A-WR-01, C-WR-01)', async () => {
+  const repo = dashBase();
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  commitMsg(repo, 'claim: T-1', undefined, true);
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+  commitMsg(repo, 'build: T-1 task 1');
+  gitRun(repo, 'switch', '-q', 'main');
+  mergeMsg(repo, 't/T-1', 'Merge pull request #1 from t/T-1');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  const d = await dash(repo);
+  expect(ids(d, 'mergedWaiting')).toEqual([]);
+  expect(ids(d, 'yours')).toEqual(['T-1']);
+  expect(rowOf(d, 'T-1')).toMatchObject({ tasksDone: 1 });
+  expect(['review', 'verify']).not.toContain(rowOf(d, 'T-1')?.stage);
 }, 120_000);
 
 it('risk:security a slice branch of an id that is no ticket, or of a ticket nobody claimed, is ignored by the dashboard (D-31, T-15-33)', async () => {

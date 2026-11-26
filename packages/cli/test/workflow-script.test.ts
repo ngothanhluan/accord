@@ -1127,7 +1127,8 @@ it.skipIf(noBash)('risk:complex-branching the CI workflow gates a lane R pull re
 }, 300_000);
 
 // Phase 15 D-31: a slice pull request is gated on its own slice. The script reads the head branch only through the step's `env:` (`HEAD_REF`), matches it with one anchored pattern, and compares the id the
-// pattern captures with the ticket's own before it passes `--slice <n>`; on a claim branch it passes `--slice 1` when the ticket's plan.md at HEAD holds two or more `## Slice` sections.
+// pattern captures with the ticket's own before it passes `--slice <n>`; on a claim branch it passes `--slice auto` when the ticket's plan.md at HEAD holds a heading that starts `## Slice`, and the CLI
+// reads the plan (review C-WR-07): the script counts no heading, so the two cannot disagree on what a slice is.
 describe.skipIf(noBash)('the workflow script — slice pull requests (D-31)', { timeout: 120_000 }, () => {
   const SLICED = '# Plan\n\n## Task 1: a\n\n## Task 2: b\n\n## Slice 1: first\ntasks: 1\ncovers: @ac-1\n\n## Slice 2: second\ntasks: 2\ncovers: @ac-2\n';
   const ONE_SLICE = '# Plan\n\n## Task 1: a\n\n## Slice 1: only\ntasks: 1\ncovers: @ac-1\n';
@@ -1159,18 +1160,31 @@ describe.skipIf(noBash)('the workflow script — slice pull requests (D-31)', { 
     }
   });
 
-  it('risk:regression slice 1 stays on the claim branch: a plan with two or more slices passes --slice 1 (D-31)', () => {
+  it('risk:regression slice 1 stays on the claim branch: a plan with slice headings passes --slice auto, and the CLI picks the slice (D-31, C-WR-07)', () => {
     for (const [what, script] of SCRIPTS) {
       const { repo, base } = gated(SLICED);
       const r = runScript(repo, { base, script, headRef: 't/T-1' });
       expect(r.code, what + ': ' + r.out + r.err).toBe(0);
-      expect(gateCalls(r.calls), what).toEqual(['gate done T-1 --slice 1']);
+      expect(gateCalls(r.calls), what).toEqual(['gate done T-1 --slice auto']);
     }
   });
 
-  it('risk:regression a plan with no slice, one slice or no plan at all passes no flag (D-31)', () => {
+  it('risk:parsing the script counts no slice heading: any spelling that starts "## Slice" asks the CLI, a plan without one passes no flag (C-WR-07)', () => {
+    const spaced = '# Plan\n\n## Task 1: a\n\n##  Slice  1 : first\ntasks: 1\ncovers: @ac-1\n\n## Slice 2 : second\ntasks: 2\ncovers: @ac-2\n';
+    const fenced = '# Plan\n\n```\n## Slice 1: a\n## Slice 2: b\n```\n';
     for (const [what, script] of SCRIPTS) {
-      for (const plan of [UNSLICED, ONE_SLICE, undefined]) {
+      for (const plan of [spaced, fenced, ONE_SLICE]) {
+        const { repo, base } = gated(plan);
+        expect(gateCalls(runScript(repo, { base, script, headRef: 't/T-1' }).calls), what).toEqual(['gate done T-1 --slice auto']);
+      }
+      const { repo, base } = gated('# Plan\n\nSlices are discussed in prose, not as a heading.\n\n### Slice 1: a level-three heading\n');
+      expect(gateCalls(runScript(repo, { base, script, headRef: 't/T-1' }).calls), what).toEqual(['gate done T-1']);
+    }
+  });
+
+  it('risk:regression a plan with no slice heading or no plan at all passes no flag, so a repository pinned to an older release never sees --slice (D-31)', () => {
+    for (const [what, script] of SCRIPTS) {
+      for (const plan of [UNSLICED, undefined]) {
         const { repo, base } = gated(plan);
         const r = runScript(repo, { base, script, headRef: 't/T-1' });
         expect(r.code, what + ': ' + r.out + r.err).toBe(0);
@@ -1180,7 +1194,7 @@ describe.skipIf(noBash)('the workflow script — slice pull requests (D-31)', { 
       const { repo, base } = gated(UNSLICED);
       expect(gateCalls(runScript(repo, { base, script }).calls), what).toEqual(['gate done T-1']);
       const sliced = gated(SLICED);
-      expect(gateCalls(runScript(sliced.repo, { base: sliced.base, script, headRef: '' }).calls), what).toEqual(['gate done T-1 --slice 1']);
+      expect(gateCalls(runScript(sliced.repo, { base: sliced.base, script, headRef: '' }).calls), what).toEqual(['gate done T-1 --slice auto']);
     }
   });
 
@@ -1229,7 +1243,7 @@ describe.skipIf(noBash)('the workflow script — slice pull requests (D-31)', { 
       const { repo, base } = gated(SLICED);
       const r = runScript(repo, { base, script, headRef: 'slice/T-1/2;touch pwned' });
       expect(existsSync(join(repo, 'pwned')), what).toBe(false);
-      expect(gateCalls(r.calls), what).toEqual(['gate done T-1 --slice 1']);
+      expect(gateCalls(r.calls), what).toEqual(['gate done T-1 --slice auto']);
     }
   });
 

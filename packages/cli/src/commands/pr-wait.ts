@@ -13,6 +13,14 @@ import { branchOf, ID } from './worktree.js';
 /** `gh` is asked this often: 120 minutes is 160 calls, far under the hourly limit of the API (Phase 15 research 3.3). */
 export const PR_WAIT_EVERY_MS = 45_000;
 export const PR_WAIT_DEFAULT_MINUTES = 120;
+/**
+ * A-Info: Claude Code stops a background command after 120 minutes at most, and the skill gives the run a timeout of the limit plus one minute, capped there. A limit of 120 minutes would end at the
+ * very moment the host stops the run, and the final `limit` line could be lost; the command therefore ends 2 minutes before that stop at the latest (an in-flight poll of a slow `gh` included).
+ */
+export const PR_WAIT_HOST_STOP_MINUTES = 120;
+export const PR_WAIT_MARGIN_MINUTES = 2;
+/** A-WR-03: this many polls in a row that fail end the wait as unavailable (about four minutes), where `gh` was logged out or its token revoked mid-wait; the run does not sit out the limit. */
+export const PR_WAIT_FAIL_STREAK = 5;
 /** One `gh` call may run this long and print this much; a call over either is a failed poll. */
 const GH_TIMEOUT_MS = 60_000;
 const GH_MAX_BUFFER = 16 * 1024 * 1024;
@@ -20,8 +28,14 @@ const GH_MAX_BUFFER = 16 * 1024 * 1024;
 /** A verdict that ends the wait. */
 export type FinalVerdict = Exclude<WaitVerdict, { kind: 'pending' }>;
 
-/** How a wait ended: by a verdict, or by the limit; `failed` counts the polls whose `gh` call failed or whose answer did not parse. */
-export type WaitEnd = { kind: 'verdict'; verdict: FinalVerdict; failed: number } | { kind: 'limit'; failed: number; waitedMs: number };
+/**
+ * How a wait ended: by a verdict, by the limit, or by `unreadable` (a run of failed polls, with the first line of the last failure); `failed` counts the polls whose `gh` call failed or whose
+ * answer did not parse.
+ */
+export type WaitEnd =
+  | { kind: 'verdict'; verdict: FinalVerdict; failed: number }
+  | { kind: 'limit'; failed: number; waitedMs: number }
+  | { kind: 'unreadable'; failed: number; streak: number; last: string };
 
 export interface WaitDeps {
   /** One poll; a throw is a failed poll, counted and retried, and never read as merged or closed (T-15-14). */
@@ -30,18 +44,25 @@ export interface WaitDeps {
   sleep: (ms: number) => void;
   everyMs: number;
   limitMs: number;
+  /** Polls in a row that may fail before the wait ends as `unreadable`; absent means PR_WAIT_FAIL_STREAK. */
+  failStreak?: number;
 }
 
-/** Poll, sleep, poll again, until a verdict ends the wait or the limit passed. The first poll runs at once; a sleep never passes the limit. */
+/** Poll, sleep, poll again, until a verdict ends the wait, the limit passed or too many polls in a row failed. The first poll runs at once; a sleep never passes the limit. */
 export function waitLoop(deps: WaitDeps): WaitEnd {
   const start = deps.now();
+  const maxStreak = deps.failStreak ?? PR_WAIT_FAIL_STREAK;
   let failed = 0;
+  let streak = 0;
   for (;;) {
     try {
       const verdict = deps.poll();
+      streak = 0; // a poll that answered, quiet or not, ends a run of failures
       if (verdict.kind !== 'pending') return { kind: 'verdict', verdict, failed };
-    } catch {
+    } catch (err) {
       failed += 1;
+      streak += 1;
+      if (streak >= maxStreak) return { kind: 'unreadable', failed, streak, last: firstLine(err) };
     }
     const waitedMs = deps.now() - start;
     if (waitedMs >= deps.limitMs) return { kind: 'limit', failed, waitedMs };
@@ -52,6 +73,8 @@ export function waitLoop(deps: WaitDeps): WaitEnd {
 /** The final line of a run, row F1 to F5 of the grammar; `n` is the number of the pull request watched. Everything printed here is a count, a number, a login or a sanitised check name. */
 export function finalLine(end: WaitEnd, n: number): string {
   if (end.kind === 'limit') return `pr-wait: limit #${n} after ${Math.round(end.waitedMs / 60_000)} minutes (${end.failed} polls failed)`;
+  // row U1 reached after the wait had started: `gh` stopped answering (logged out, token revoked, offline); the skill reads it as unavailable, and nothing watches the pull request any more
+  if (end.kind === 'unreadable') return `pr-wait: unavailable: ${end.streak} polls in a row failed (last: ${end.last}); check gh auth status and gh --version`;
   const v = end.verdict;
   switch (v.kind) {
     case 'merged':
@@ -101,10 +124,11 @@ function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-/** The limit in milliseconds: `pr.wait_minutes` (schema: '1' to '120'), else 120 minutes. */
+/** The limit in milliseconds: `pr.wait_minutes` (schema: '1' to '120'), else 120 minutes, and never more than the host's stop less the margin (A-Info), so the last line is printed before the host stops the run. */
 function limitOf(ctx: CommandContext): number {
   const minutes = Number(ctx.snapshot.config?.pr?.wait_minutes ?? PR_WAIT_DEFAULT_MINUTES);
-  return (Number.isInteger(minutes) && minutes >= 1 && minutes <= 120 ? minutes : PR_WAIT_DEFAULT_MINUTES) * 60_000;
+  const set = Number.isInteger(minutes) && minutes >= 1 && minutes <= 120 ? minutes : PR_WAIT_DEFAULT_MINUTES;
+  return Math.min(set, PR_WAIT_HOST_STOP_MINUTES - PR_WAIT_MARGIN_MINUTES) * 60_000;
 }
 
 /** The JSON lines `gh api --paginate --jq` printed, one object per line. A line that does not parse makes the poll fail: a half-read list is never taken for a quiet one. */
@@ -150,7 +174,7 @@ export function prWait(ctx: CommandContext, id: string): number {
   const poll = (): WaitVerdict => judgePr(ctx, found.number, self, told);
   const end = waitLoop({ poll, now: Date.now, sleep: sleepSync, everyMs: PR_WAIT_EVERY_MS, limitMs });
   ctx.stdout.write(finalLine(end, found.number) + '\n');
-  return 0;
+  return end.kind === 'unreadable' ? 2 : 0;
 }
 
 /**
@@ -191,6 +215,8 @@ interface SliceWatch {
   branch: string;
   pr?: PrRef;
   merged: boolean;
+  /** The base the pull request had when it was seen merged (C-WR-02): the base move below is made only after a merge into the default branch. */
+  mergedBase?: string;
 }
 
 /** The newest pull request whose head is `branch`, with the base and head names the base move is judged by. */
@@ -243,6 +269,15 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
   const halt: { line?: string } = {};
 
   const poll = (): WaitVerdict => {
+    // C-WR-03, D-28: a slice that has no pull request yet is looked up every round, so one opened while an earlier slice is still open is watched from the next poll on
+    for (const w of watches) {
+      if (w.pr !== undefined) continue;
+      const pr = newestOf(ctx, w.branch);
+      if (pr !== undefined) {
+        w.pr = pr;
+        w.merged = pr.state === 'MERGED';
+      }
+    }
     // every pull request not merged is looked at each round, lowest slice first: a later slice's feedback or failed check ends the wait as well (D-28)
     const open = watches.filter((w) => w.pr !== undefined && !w.merged);
     const seen = new Map<SliceWatch, { view: Seen; verdict: WaitVerdict }>();
@@ -250,7 +285,11 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
       const view = viewOf(ctx, (w.pr as PrRef).number);
       seen.set(w, { view, verdict: judgeView(ctx, view, self, told) });
     }
-    for (const [w, s] of seen) if (s.verdict.kind === 'merged') w.merged = true;
+    for (const [w, s] of seen) {
+      if (s.verdict.kind !== 'merged') continue;
+      w.merged = true;
+      if (s.view.baseRefName !== undefined) w.mergedBase = s.view.baseRefName;
+    }
 
     // each merged slice's next pull request, still on the merged branch, goes to the default branch (D-08, T-15-38): judged on what `gh pr view` just said of it
     for (const w of watches) {
@@ -258,8 +297,17 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
       const look = next === undefined ? undefined : seen.get(next);
       if (next === undefined || look === undefined || next.merged || moved.has(next.k)) continue;
       const nextPr: PrRef = { number: (next.pr as PrRef).number, state: look.view.state, baseRefName: look.view.baseRefName, headRefName: look.view.headRefName };
-      const def = defaultBranch(ctx) ?? w.pr?.baseRefName;
-      if (def === undefined || !SAFE_BRANCH.test(def) || def.startsWith('-') || !baseMovable(w.branch, next.branch, nextPr)) continue;
+      if (!baseMovable(w.branch, next.branch, nextPr)) continue;
+      // C-WR-02, D-08: the next slice goes to the default branch only after the slice before it merged into the default branch. A slice merged into another branch (an earlier slice's, say) does not
+      // move it, and the merged slice's own base is never taken for the default branch.
+      const def = defaultBranch(ctx);
+      const mergedInto = w.mergedBase ?? w.pr?.baseRefName;
+      const why = def === undefined ? 'the default branch of the clone is not known' : mergedInto === def ? undefined : `#${(w.pr as PrRef).number} merged into ${mergedInto !== undefined && SAFE_BRANCH.test(mergedInto) ? mergedInto : 'another branch'}, not ${def}`;
+      if (def === undefined || why !== undefined) {
+        moved.add(next.k); // said once, not at every poll
+        ctx.stdout.write(`pr-wait: base of #${nextPr.number} not moved: ${why}\n`);
+        continue;
+      }
       moved.add(next.k);
       try {
         gh(ctx, ['pr', 'edit', String(nextPr.number), '--base', def]);
@@ -276,7 +324,7 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
       const verdict = seen.get(w)?.verdict;
       if (verdict !== undefined && verdict.kind !== 'pending' && verdict.kind !== 'merged') return verdict;
     }
-    // no pull request left to watch but a slice has none yet: look once more for the ones opened meanwhile; a slice that still has none ends the wait
+    // no pull request left to watch but a slice has none: look once more, since one may have been opened while this round ran; a slice that still has none ends the wait naming it
     if (!watches.some((w) => w.pr !== undefined && !w.merged)) {
       for (const w of watches) {
         if (w.pr !== undefined) continue;
@@ -300,5 +348,5 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
     return 2;
   }
   ctx.stdout.write(finalLine(end, end.kind === 'verdict' ? end.verdict.number : (current().pr as PrRef).number) + '\n');
-  return 0;
+  return end.kind === 'unreadable' ? 2 : 0;
 }

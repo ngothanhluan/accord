@@ -129,7 +129,7 @@ export interface ClaimRefFact {
   origin: boolean;
   /** The tip is already on the default ref. */
   merged: boolean;
-  /** Phase 15 D-15: this local branch's tip is on the progress ref `refs/accord/<id>` as this clone last fetched it, so its commits are on origin though no `origin/<name>` holds them. */
+  /** Phase 15 D-15, B-WR-07: this local branch's tip is on the progress ref `refs/accord/<id>` as this clone last fetched it: its commits are on origin, but the ref is not a claim, so the gap stays and names it. */
   progress?: boolean;
   /** Issue #341 D-07c: the id was guessed among more than one candidate the name can carry, none of them known, so no delete command is printed. */
   ambiguous?: boolean;
@@ -175,11 +175,12 @@ export function branchGaps(
     opts.unpushed === false
       ? []
       : listed
-          .filter((r) => r.local && !r.origin && r.progress !== true && !r.merged && Math.floor((now - r.tip) / 86400) > Number(staleDays))
+          .filter((r) => r.local && !r.origin && !r.merged && Math.floor((now - r.tip) / 86400) > Number(staleDays))
           .sort((a, b) => cmp(a.name, b.name))
           .map((r) => ({
             id: 'claim-unpushed',
-            text: `${r.name} (ticket ${r.id}) has no origin/${r.name}, and its tip is ${Math.floor((now - r.tip) / 86400)} days old (stale_days ${staleDays}); tip by ${by(r)}`,
+            // B-WR-07: a progress ref is never a claim (the dashboard ignores it), so it does not make the branch pushed; the text says where the commits are
+            text: `${r.name} (ticket ${r.id}) has no origin/${r.name}, and its tip is ${Math.floor((now - r.tip) / 86400)} days old (stale_days ${staleDays}); tip by ${by(r)}${r.progress === true ? `; its commits are on origin in refs/accord/${r.id}, which is not a claim, so teammates do not see this ticket` : ''}`,
             fix: !SAFE_BRANCH.test(r.name)
               ? NO_COMMAND_CLAIM
               : r.ambiguous === true

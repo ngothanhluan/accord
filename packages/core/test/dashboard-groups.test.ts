@@ -78,3 +78,19 @@ it('risk:regression a merged ticket that is done on the default ref is in neithe
   expect(without.team).toEqual(d.team);
   expect(without.ready).toEqual(d.ready);
 });
+
+it('risk:complex-branching a merged ticket whose default-ref stage is before review stays in its own group and is not waiting for verify (A-WR-01, C-WR-01)', () => {
+  // M-1: task 2 has no completion line, so the ticket is at build; its claim branch (slice 1) merged while later work is still to be built
+  const { files, claims } = repo('a@x.io');
+  files['accord/tickets/M-1/ledger.md'] = '## Tasks\n- task 1 done abc1234\n';
+  delete files['accord/tickets/M-1/review.md'];
+  const d = dashboard(loadSnapshot({ files, tree: [], claims, mergedClaims: ['M-1'] }), VIEWER);
+  expect(ids(d.mergedWaiting.rows)).toEqual([]);
+  expect(ids(d.team.rows)).toContain('M-1');
+  expect(d.summary.mergedWaiting).toBe(0);
+  expect(d.summary.inProgress).toBe(2);
+  // review is waiting too: a merged ticket at review (no verdict yet) is the gone-branch case's stage as well
+  files['accord/tickets/M-1/ledger.md'] = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n';
+  const review = dashboard(loadSnapshot({ files, tree: [], claims, mergedClaims: ['M-1'] }), VIEWER);
+  expect(ids(review.mergedWaiting.rows)).toEqual(['M-1']);
+});

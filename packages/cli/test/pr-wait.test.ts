@@ -145,7 +145,7 @@ it('risk:security accord pr wait refuses an id that is not one before it asks gh
 });
 
 it('risk:security every gh call of accord pr wait is a read with an argument array: no method flag, no field flag, an api path that names only the user or the pull request comments (D-21)', async () => {
-  pr7({ reviewDecision: 'CHANGES_REQUESTED' });
+  pr7({ reviewDecision: 'CHANGES_REQUESTED', reviews: [{ author: { login: 'bo' }, authorAssociation: 'COLLABORATOR', submittedAt: AFTER, state: 'CHANGES_REQUESTED' }] });
   await run(['pr', 'wait', 'T-1'], sandbox());
   expect(gh.calls.length).toBeGreaterThan(2);
   for (const { args } of gh.calls) {
@@ -197,19 +197,19 @@ it('risk:complex-branching waitLoop polls until the limit and reports the failed
   expect(Math.max(...sleeps)).toBe(45_000);
   expect(sleeps.reduce((a, b) => a + b, 0)).toBe(5 * 60_000);
 
-  // every poll throws: counted, retried to the limit, and the end is the limit
+  // fewer failures in a row than the streak are retried to the limit, and a poll that answers starts the count again (A-WR-03)
   t = 0;
   let calls = 0;
-  const broken = waitLoop({
+  const flaky = waitLoop({
     ...base,
     poll: () => {
       calls += 1;
+      if (calls % 5 === 0) return { kind: 'pending', ignored: 0 };
       throw new Error('gh: offline');
     },
   });
-  expect(broken.kind).toBe('limit');
-  expect(broken.failed).toBe(calls);
-  expect(calls).toBeGreaterThan(5);
+  expect(flaky.kind).toBe('limit');
+  expect(flaky.failed).toBeGreaterThan(5);
 
   // a throw, then a verdict: the verdict ends the wait and the throw is counted
   t = 0;
@@ -357,8 +357,8 @@ it('risk:complex-branching one limit covers the whole wait: slice 1 merging at 3
   const r = await run(['pr', 'wait', 'T-1'], repo);
   expect(r.code, r.out + r.err).toBe(0);
   expect(r.out).toContain('pr-wait: slice 1 merged #7, base of #8 moved to main\n');
-  expect(lastLine(r.out)).toBe('pr-wait: limit #8 after 120 minutes (0 polls failed)');
-  expect(slept.reduce((a, b) => a + b, 0)).toBe(120 * 60_000);
+  expect(lastLine(r.out)).toBe('pr-wait: limit #8 after 118 minutes (0 polls failed)');
+  expect(slept.reduce((a, b) => a + b, 0)).toBe(118 * 60_000);
 });
 
 it('risk:security the base of the next slice pull request is moved only when it is open, its head is the next slice of this ticket and its base is the merged branch (T-15-38)', async () => {
@@ -419,7 +419,7 @@ it('risk:complex-branching a slice already merged before the wait starts has its
   const r = await run(['pr', 'wait', 'T-1'], repo);
   expect(r.code, r.out + r.err).toBe(0);
   expect(s.edits.map((a) => a.join(' '))).toEqual(['pr edit 8 --base main', 'pr edit 9 --base main']);
-  expect(r.out).toContain('pr-wait: watching #8 (slice 2 of 3) https://github.com/o/r/pull/8, limit 120 minutes\n');
+  expect(r.out).toContain('pr-wait: watching #8 (slice 2 of 3) https://github.com/o/r/pull/8, limit 118 minutes\n');
   expect(r.out).toContain('pr-wait: slice 1 merged #7, base of #8 moved to main\n');
   expect(r.out).toContain('pr-wait: slice 2 merged #8, base of #9 moved to main\n');
   expect(lastLine(r.out)).toBe('pr-wait: merged #9');
@@ -430,7 +430,7 @@ it('risk:complex-branching the last slice merging while an earlier one is still 
   fakeClock();
   stack([WRITER(), ESCAPING({ views: [MERGED] })]);
   const r = await run(['pr', 'wait', 'T-1'], repo);
-  expect(lastLine(r.out)).toBe('pr-wait: limit #7 after 120 minutes (0 polls failed)');
+  expect(lastLine(r.out)).toBe('pr-wait: limit #7 after 118 minutes (0 polls failed)');
 });
 
 it('risk:complex-branching when the merged slice has no next pull request the wait ends naming the slice branch that has none, and a pull request opened meanwhile is followed (D-28)', async () => {
@@ -457,4 +457,139 @@ it('risk:complex-branching when the merged slice has no next pull request the wa
   expect(r2.code, r2.out + r2.err).toBe(0);
   expect(s.edits.map((a) => a.join(' '))).toEqual(['pr edit 8 --base main']);
   expect(lastLine(r2.out)).toBe('pr-wait: merged #8');
+});
+
+// ---- review fixes: a dead gh ends the wait early, and the limit line is printed before the host stops the run (A-WR-03, A-Info) ----
+
+it('risk:resource waitLoop ends as unreadable after five polls in a row fail, with the first line of the last failure, and does not sit out the limit (A-WR-03)', async () => {
+  const { waitLoop, finalLine, PR_WAIT_FAIL_STREAK } = await import('../src/commands/pr-wait.js');
+  expect(PR_WAIT_FAIL_STREAK).toBe(5);
+  let t = 0;
+  const sleeps: number[] = [];
+  let calls = 0;
+  const end = waitLoop({
+    now: () => t,
+    sleep: (ms) => {
+      sleeps.push(ms);
+      t += ms;
+    },
+    everyMs: 45_000,
+    limitMs: 120 * 60_000,
+    poll: () => {
+      calls += 1;
+      throw Object.assign(new Error('Command failed: gh pr view'), { stderr: 'HTTP 401: Bad credentials\nsecond line' });
+    },
+  });
+  expect(end).toEqual({ kind: 'unreadable', failed: 5, streak: 5, last: 'HTTP 401: Bad credentials' });
+  expect(calls).toBe(5);
+  expect(sleeps).toHaveLength(4);
+  expect(finalLine(end, 7)).toBe('pr-wait: unavailable: 5 polls in a row failed (last: HTTP 401: Bad credentials); check gh auth status and gh --version');
+});
+
+it('risk:resource accord pr wait whose gh stops answering after the start ends with exit 2 and the unavailable line instead of waiting out the limit (A-WR-03)', async () => {
+  const repo = sandbox();
+  const slept = fakeClock();
+  gh.answer = (args) => {
+    if (args[0] === 'api' && args[1] === 'user') return 'me\n';
+    if (args[0] === 'pr' && args[1] === 'list') return JSON.stringify([{ number: 7, state: 'OPEN', url: URL7 }]);
+    return Object.assign(new Error('Command failed: gh pr view'), { stderr: 'HTTP 401: Bad credentials\n' });
+  };
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(2);
+  expect(lastLine(r.out)).toBe('pr-wait: unavailable: 5 polls in a row failed (last: HTTP 401: Bad credentials); check gh auth status and gh --version');
+  // five polls, four sleeps of 45 seconds: about three minutes, not two hours
+  expect(slept.reduce((a, b) => a + b, 0)).toBe(4 * 45_000);
+});
+
+it('risk:resource the limit is never more than two minutes short of the host stop, so the limit line is printed before a background run is stopped at 120 minutes (A-Info)', async () => {
+  const repo = sandbox();
+  pr7({ state: 'MERGED', mergedAt: AFTER });
+  for (const [set, shown] of [
+    ['120', 118],
+    ['119', 118],
+    ['118', 118],
+    ['5', 5],
+  ] as const) {
+    await run(['config', 'set', 'pr.wait_minutes', set], repo);
+    const w = await run(['pr', 'wait', 'T-1'], repo);
+    expect(w.out, set).toContain(`pr-wait: watching #7 ${URL7}, limit ${shown} minutes\n`);
+  }
+  // unset: the default of 120 is cut the same way
+  const fresh = sandbox();
+  const w = await run(['pr', 'wait', 'T-1'], fresh);
+  expect(w.out).toContain('limit 118 minutes\n');
+});
+
+// ---- review fixes: the base move and the late-opened slice pull request (C-WR-02, C-WR-03) ----
+
+it('risk:security the base of the next slice pull request is not moved to the default branch when the merged slice merged into another branch (C-WR-02)', async () => {
+  const repo = slicedSandbox(THREE_SLICES);
+  fakeClock();
+  // slice 2 (#8) merged into slice 1's branch while slice 1 (#7) is still open; slice 3 (#9) is based on slice 2's branch
+  const s = stack([
+    WRITER(),
+    ESCAPING({ list: 'MERGED', views: [MERGED] }),
+    { number: 9, head: 'slice/T-1/3', base: 'slice/T-1/2', list: 'OPEN', views: [{}] },
+  ]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(s.edits).toEqual([]);
+  expect(r.out).toContain('pr-wait: base of #9 not moved: #8 merged into t/T-1, not main\n');
+  // said once, not at every poll
+  expect(r.out.split('base of #9 not moved').length - 1).toBe(1);
+  expect(lastLine(r.out)).toBe('pr-wait: limit #7 after 118 minutes (0 polls failed)');
+});
+
+it('risk:security with no default branch known the next slice base is not moved either, and says why (C-WR-02)', async () => {
+  const repo = slicedSandbox(TWO_SLICES, false);
+  fakeClock();
+  const s = stack([WRITER({ views: [MERGED] }), ESCAPING({ views: [{}, MERGED] })]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(s.edits).toEqual([]);
+  expect(r.out).toContain('pr-wait: base of #8 not moved: the default branch of the clone is not known\n');
+  expect(lastLine(r.out)).toBe('pr-wait: merged #8');
+});
+
+it('risk:complex-branching a slice pull request opened while an earlier one is still open is found at once, and its feedback ends the wait naming it (C-WR-03)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  const prs: Fake[] = [WRITER()];
+  stack(prs);
+  const base = gh.answer;
+  let looks = 0;
+  gh.answer = (args) => {
+    if (args[1] === 'view') {
+      looks += 1;
+      // the pull request of slice 2 is opened a few polls into the wait, and a collaborator comments on it
+      if (looks === 4) prs.push(ESCAPING({ views: [FEEDBACK] }));
+    }
+    return base(args);
+  };
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(lastLine(r.out)).toBe('pr-wait: feedback #8: 1 comments, 0 reviews, 0 inline from bo');
+});
+
+it('risk:complex-branching a late slice pull request that is closed or has a failed check ends the wait naming it while slice 1 is open (C-WR-03, D-28)', async () => {
+  for (const [view, expected] of [
+    [{ state: 'CLOSED', mergedAt: null }, 'pr-wait: closed #8'],
+    [{ statusCheckRollup: [{ name: 'lint and gate', conclusion: 'FAILURE' }] }, 'pr-wait: ci-failed #8: lint and gate'],
+  ] as const) {
+    const repo = slicedSandbox();
+    fakeClock();
+    const prs: Fake[] = [WRITER()];
+    stack(prs);
+    const base = gh.answer;
+    let looks = 0;
+    gh.answer = (args) => {
+      if (args[1] === 'view') {
+        looks += 1;
+        if (looks === 3) prs.push(ESCAPING({ views: [view] }));
+      }
+      return base(args);
+    };
+    const r = await run(['pr', 'wait', 'T-1'], repo);
+    expect(lastLine(r.out)).toBe(expected);
+  }
 });

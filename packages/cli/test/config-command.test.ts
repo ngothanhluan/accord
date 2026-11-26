@@ -339,6 +339,38 @@ it('risk:parsing commits.message is set validated and unset through accord confi
   expect(text(repo)).toBe(CONFIG);
 });
 
+// B-WR-06 (15-REVIEWFIX-2): review.slice_lines and review.post are the keys a team sets, and review.mode, which absent means human, is not a precondition for them.
+it('risk:regression review.slice_lines and review.post are set alone on a fresh init, and review keeps refusing a bad value or an unknown key (B-WR-06)', async () => {
+  const repo = makeEmptyRepo();
+  repos.push(repo);
+  gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
+  gitRun(repo, 'config', 'user.name', 'fixture');
+  expect((await run(['init'], repo)).code).toBe(0);
+  expect(text(repo)).not.toContain('review:');
+
+  const lines = await run(['config', 'set', 'review.slice_lines', '500'], repo);
+  expect([lines.code, lines.err]).toEqual([0, '']);
+  expect(lines.out).toBe('changed: review.slice_lines unset -> "500"\n');
+  expect((await run(['config', 'get', 'review.slice_lines'], repo)).out).toBe('"500"\n');
+  const post = await run(['config', 'set', 'review.post', 'draft'], repo);
+  expect([post.code, post.err]).toEqual([0, '']);
+  expect(text(repo)).toContain('review:\n  slice_lines: "500"\n  post: draft\n');
+  expect((await run(['lint'], repo)).code).toBe(0);
+
+  // the other checks hold: a value outside the pattern or the enum, and a key review does not have
+  const bytes = text(repo);
+  for (const args of [['review.slice_lines', '5'], ['review.slice_lines', '100000'], ['review.post', 'auto'], ['review.mode', 'both']]) {
+    const bad = await run(['config', 'set', ...args], repo);
+    expect(bad.code, args.join(' ')).toBe(2);
+    expect(bad.err).toContain('accord/config.yml was not changed');
+  }
+  expect((await run(['config', 'set', 'review.max_pr_lines', '400'], repo)).code).toBe(2);
+  expect(text(repo)).toBe(bytes);
+  // review.mode still sets, beside the others
+  expect((await run(['config', 'set', 'review.mode', 'outcome'], repo)).code).toBe(0);
+  expect((await run(['config', 'get', 'review.mode'], repo)).out).toBe('outcome\n');
+});
+
 // Phase 8.3 D-08, D-13 (Ruling 9): `accord config areas` prints every area with each top-level key's value, its plain-words text and init's proposals, from data and from the files; it writes nothing.
 describe('accord config areas', () => {
   const MANAGED_LINE = 'area: managed - Managed by accord (not walked: accord writes these)';

@@ -106,18 +106,34 @@ function touchesList(value: unknown, n: number, problems: string[]): string[] | 
       problems.push(label + ' entry ' + (typeof entry === 'string' ? JSON.stringify(entry.trim()) : 'that is not text') + ' must be a path inside the repository: no leading slash, no drive letter, no .. segment, no backslash');
       return undefined;
     }
-    const path = (entry as string).trim();
+    const path = spelled(entry as string);
+    if (path === undefined) {
+      problems.push(label + ' entry ' + JSON.stringify((entry as string).trim()) + ' names no path inside the repository');
+      return undefined;
+    }
     if (!out.includes(path)) out.push(path);
   }
   return out.length === 0 ? undefined : out;
 }
 
-/** The more specific of two overlapping paths, or undefined when neither is the other or inside it (a folder ends in `/`). */
+/** One spelling for a path: a leading `./`, `.` segments and doubled slashes are dropped, a trailing slash stays; undefined when no segment is left. Review C-WR-04. */
+function spelled(raw: string): string | undefined {
+  const segments = raw.trim().split('/').filter((s) => s !== '' && s !== '.');
+  return segments.length === 0 ? undefined : segments.join('/') + (raw.trim().endsWith('/') ? '/' : '');
+}
+
+const segmentsOf = (path: string): string[] => path.split('/').filter((s) => s !== '').map((s) => s.toLowerCase());
+
+/**
+ * The more specific of two overlapping paths, or undefined when neither is the other or inside it. Compared by whole segments and case-folded (Windows and macOS file systems do not tell `Src`
+ * from `src`), so a path that has children is a folder whatever its spelling: `src` holds `src/x.ts`, and `src/a/b` does not hold `src/a/bc`. Review C-WR-04.
+ */
 function sharedPath(a: string, b: string): string | undefined {
-  if (a === b) return a;
-  if (a.endsWith('/') && b.startsWith(a)) return b;
-  if (b.endsWith('/') && a.startsWith(b)) return a;
-  return undefined;
+  const x = segmentsOf(a);
+  const y = segmentsOf(b);
+  const inside = (outer: string[], inner: string[]): boolean => outer.length <= inner.length && outer.every((s, i) => s === inner[i]);
+  if (!inside(x, y) && !inside(y, x)) return undefined;
+  return x.length >= y.length ? a : b;
 }
 
 /**

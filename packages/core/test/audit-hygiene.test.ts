@@ -173,6 +173,11 @@ it('risk:complex-branching orphan and unpushed claim branches are judged once ea
   expect(branchGaps([ref({}), ref({ name: 't/ZZ-9', id: 'ZZ-9', ticketAnywhere: false })], new Set(), '14', NOW, same, { unpushed: false }).map((g) => g.id)).toEqual(['branch-orphan']);
   // D-08
   expect(branchGaps([ref({})], new Set(), '14', NOW, () => 'AX')[0].text).toContain('tip by AX');
+  // B-WR-07: a progress ref holding the tip keeps the gap (it is not a claim) and names itself in the text, with the same fix
+  const held = branchGaps([ref({ progress: true })], new Set(), '14', NOW, same);
+  expect(held).toHaveLength(1);
+  expect(held[0].text).toBe(`${unpushed[0].text}; its commits are on origin in refs/accord/T-1, which is not a claim, so teammates do not see this ticket`);
+  expect(held[0].fix).toBe(unpushed[0].fix);
 });
 
 // Issue #341 D-07c: an id guessed among several candidates (none known) never gets a delete command, so a wrong guess cannot hand the owner a delete of a live claim.

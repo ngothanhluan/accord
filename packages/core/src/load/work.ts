@@ -13,6 +13,9 @@ import { parseYamlMap } from './yaml.js';
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
 // Phase 15 D-09: `## Slice <n>: <title>`, with its own three fields. One flat quantifier per group, no nested repeat (T-15-28).
 const SLICE = /^Slice\s+([1-9][0-9]*)\s*:\s*(.*)$/;
+// Review B-WR-04: a heading that starts `Slice` and a digit but fails SLICE (an em dash, no colon, 0, a leading zero, no space) is reported, never read as a plan with no slice. The digit keeps
+// a prose heading such as `## Slice analysis` out of it.
+const SLICE_LIKE = /^slice\s*[0-9]/i;
 const SLICE_FIELD = /^(tasks|covers|estimate):(.*)$/;
 // The three fields the older rules read, and the deferral rule reads token by token. `after:` is not one of them (ST-LN-91 CR-01): its own reader is afterField,
 // and the deferral rule reads an `after:` line as free text, as it did before the line existed, so a prose line that starts with it never escapes.
@@ -103,7 +106,16 @@ function readSlice(n: number, title: string, s: Section): PlanSlice {
   }
   const est = found.estimate === undefined ? undefined : readEstimate(found.estimate.value);
   if (est !== undefined) unread.push(...est.unread);
-  return { n, title, line: s.line, tasks: numbers, covers: tokens(found.covers?.value ?? ''), ...(est === undefined ? {} : { estimate: est.estimate }), unread };
+  return {
+    n,
+    title,
+    line: s.line,
+    tasks: numbers,
+    covers: tokens(found.covers?.value ?? ''),
+    ...(est === undefined ? {} : { estimate: est.estimate }),
+    ...(est === undefined || est.unread.length === 0 ? {} : { estimateUnread: est.unread }),
+    unread,
+  };
 }
 
 /**
@@ -210,6 +222,10 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       } else {
         slices.push(readSlice(n, sl[2].trim(), s));
       }
+      continue;
+    }
+    if (SLICE_LIKE.test(s.heading)) {
+      findings.push({ file, line: s.line, rule: 'load.slice-heading', reason: `"## ${s.heading}" is not "## Slice <n>: <title>" (n from 1, no leading zero); it is not read as a slice` });
       continue;
     }
     const m = TASK.exec(s.heading);

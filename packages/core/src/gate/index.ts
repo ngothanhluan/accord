@@ -131,7 +131,7 @@ export function gateDone(snapshot: RepoSnapshot, id: string, options: { slice?: 
   if (doneAtBase(snapshot, id)) return run('done', DONE_RULES.filter((r) => r.id === 'gate.done-ticket-edited'), [], snapshot, id);
   const scope = options.slice === undefined ? undefined : sliceScope(snapshot, id, options.slice);
   const judged =
-    scope === undefined || scope.tags === undefined || scope.tasks === undefined
+    scope === undefined || scope.tags === undefined || scope.tags.length === 0 || scope.tasks === undefined
       ? snapshot
       : { ...snapshot, doneSlice: { ...snapshot.doneSlice, [id]: scope.tags }, doneSliceTasks: { ...snapshot.doneSliceTasks, [id]: scope.tasks } };
   // ST-LN-94 D-10: lane R runs its own Done table, so no lane M Done rule reads an R ticket's records.

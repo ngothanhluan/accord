@@ -81,7 +81,7 @@ it('risk:regression slices.md runs build, review, verify, push, pull request and
       'without `--slice`',
       '`accord worktree push <id> --branch`',
       '`accord pr <id> --slice <n>`',
-      '`gh pr create --draft --base <base>`',
+      '`gh pr create --draft --title "<title>" --body-file "<body-file>" --base <base>`',
       '`accord worktree slice <id> <n+1>`',
       '`./build.md`',
       'Do not wait for the merge',

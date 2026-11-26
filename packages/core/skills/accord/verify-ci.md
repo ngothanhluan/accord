@@ -29,7 +29,7 @@ reported as CI not checked, with the reason.
    `gh pr create --draft --title "<title>" --body-file "<body-file>"`
    with the `title:` and `body-file:` lines it printed. For a slice, run
    `accord pr <id> --slice <n>` and add `--base <the previous slice's branch>` to
-   `gh pr create`, with no `--base` for slice 1, as `./slices.md` says. A pull
+   that command, with no `--base` for slice 1, as `./slices.md` says. A pull
    request already open is left as it is. Never merge it: merging waits
    for the owner.
 

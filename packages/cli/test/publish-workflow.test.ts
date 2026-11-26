@@ -222,7 +222,7 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
       '#!/usr/bin/env bash',
       'cap="${1%s}"; shift',
       '"$@" & pid=$!',
-      '( sleep "$cap"; touch timed-out; kill -9 "$pid" 2>/dev/null ) & guard=$!',
+      '( sleep "$cap"; touch timed-out; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 </dev/null & guard=$!',
       'wait "$pid"; code=$?',
       'kill "$guard" 2>/dev/null',
       '[ -e timed-out ] && exit 124',

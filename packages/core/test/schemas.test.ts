@@ -167,7 +167,12 @@ describe('config.schema.json', () => {
     const review = (r: unknown) => validate('config', { ...minimal.config, review: r });
     expect(review({ mode: 'outcome' })).toEqual([]);
     expect(review({ mode: 'human' })).toEqual([]);
-    expect(has(review({}), '/review', 'schema.required')).toBe(true);
+    // B-WR-06 (15-REVIEWFIX-2): mode is no longer required, so slice_lines and post can be set alone; absent is human, as in the loader
+    expect(review({})).toEqual([]);
+    expect(review({ slice_lines: '500' })).toEqual([]);
+    expect(review({ post: 'draft' })).toEqual([]);
+    expect(has(review({ post: 'auto' }), '/review/post', 'schema.enum')).toBe(true);
+    expect(has(review({ slice_lines: '5' }), '/review/slice_lines', 'schema.pattern')).toBe(true);
     expect(has(review({ mode: 'both' }), '/review/mode', 'schema.enum')).toBe(true);
     expect(has(review({ mode: 'human', max_pr_lines: 400 }), '/review', 'schema.additionalProperties')).toBe(true);
   });

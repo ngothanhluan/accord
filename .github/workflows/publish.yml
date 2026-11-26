@@ -138,6 +138,18 @@ jobs:
           interval="${SMOKE_INTERVAL:-15}"
           budget="${SMOKE_BUDGET:-900}"
           call_cap="${SMOKE_CALL_TIMEOUT:-120}"
+          # A zero or non-number would run no attempt and end soft: a green step with no proof.
+          need_count() {
+            case "$2" in
+              ''|*[!0-9]*|0) echo "bad $1: '$2' (a whole number above 0)" >&2; exit 1 ;;
+            esac
+          }
+          need_count SMOKE_ATTEMPTS "$attempts"
+          need_count SMOKE_BUDGET "$budget"
+          need_count SMOKE_CALL_TIMEOUT "$call_cap"
+          case "$interval" in
+            ''|*[!0-9]*) echo "bad SMOKE_INTERVAL: '${interval}' (a whole number of seconds, 0 or more)" >&2; exit 1 ;;
+          esac
           deadline=$((SECONDS + budget))
           tried=0
           # The registry's URL form of the package name, for the E404 that names this package.

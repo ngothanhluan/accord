@@ -390,16 +390,17 @@ describe.skipIf(noBash)('the publish workflow smoke step — executed', { timeou
 
 describe.skipIf(noBash)('the publish workflow smoke step — time bound (WR-01, D-07)', { timeout: 60_000 }, () => {
   it('risk:regression the wait ends soft once its time budget is spent, not only after the attempt count', () => {
-    // Every call takes one second and the budget is two, so a loop bounded by attempts alone would
-    // make all twenty calls (about twenty seconds) where the budget allows two or three.
+    // Every call takes a second or more and the budget is three, so a loop bounded by attempts alone
+    // would make all twenty calls (twenty seconds or more) where the budget allows a handful. $SECONDS
+    // counts whole seconds, hence the loose bounds.
     const result = runSmoke([etarget(PKG, FIXTURE_VERSION)], {
       SMOKE_ATTEMPTS: '20',
-      SMOKE_BUDGET: '2',
+      SMOKE_BUDGET: '3',
       NPX_SLEEP: '1',
     });
     expect(result.code, result.err).toBe(0);
-    expect(result.calls).toBeGreaterThanOrEqual(2);
-    expect(result.calls).toBeLessThanOrEqual(4);
+    expect(result.calls).toBeGreaterThanOrEqual(1);
+    expect(result.calls).toBeLessThanOrEqual(8);
     expect(result.out).toContain('::warning title=not visible yet::');
     expect(result.summary).toContain('not a failed release');
   });
@@ -419,6 +420,23 @@ describe.skipIf(noBash)('the publish workflow smoke step — time bound (WR-01, 
     expect(warnings[0]).toContain('could not reach the registry');
     expect(warnings[0]).toContain('ETIMEDOUT');
     expect(result.summary).toContain('ETIMEDOUT');
+  });
+});
+
+describe.skipIf(noBash)('the publish workflow smoke step — knobs (IN-03)', { timeout: 60_000 }, () => {
+  it('risk:regression a zero or non-numeric knob fails before npx runs instead of passing with no proof', () => {
+    for (const knob of ['SMOKE_ATTEMPTS', 'SMOKE_BUDGET', 'SMOKE_CALL_TIMEOUT']) {
+      for (const value of ['0', 'abc', '-3', '1.5']) {
+        const result = runSmoke([VISIBLE], { [knob]: value });
+        expect(result.code, `${knob}=${value}`).toBe(1);
+        expect(result.calls, `${knob}=${value}`).toBe(0);
+        expect(result.err).toContain(knob);
+      }
+    }
+    const badInterval = runSmoke([VISIBLE], { SMOKE_INTERVAL: 'abc' });
+    expect(badInterval.code).toBe(1);
+    expect(badInterval.calls).toBe(0);
+    expect(badInterval.err).toContain('SMOKE_INTERVAL');
   });
 });
 

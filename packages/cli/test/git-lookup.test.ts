@@ -96,12 +96,18 @@ describe('git lookup (D-15)', () => {
 
   // Phase 08.8 review WR-03: the real case on this host: git.exe is reached only through `/cmd`, and the retry finds it.
   it.runIf(process.platform === 'win32')('risk:regression runGitSync finds git through a root-relative Git Bash PATH entry on Windows (REVIEW WR-03)', () => {
-    const gitDir = (process.env.PATH ?? process.env.Path ?? '').split(delimiter).find((d) => d !== '' && existsSync(join(d, 'git.exe')));
-    expect(gitDir, 'git.exe is on this host PATH').toBeDefined();
     // the Git for Windows root is the nearest folder above git.exe that holds usr\bin (`cmd\git.exe` or `ucrt64\bin\git.exe`)
-    let root = dirname(gitDir as string);
-    while (!existsSync(join(root, 'usr', 'bin')) && dirname(root) !== root) root = dirname(root);
-    expect(existsSync(join(root, 'usr', 'bin')), 'git.exe sits under a Git for Windows root').toBe(true);
+    const rootOf = (dir: string): string => {
+      let r = dirname(dir);
+      while (!existsSync(join(r, 'usr', 'bin')) && dirname(r) !== r) r = dirname(r);
+      return r;
+    };
+    // `bin\git.exe` is skipped: Git Bash mounts `/bin` on `/usr/bin`, so no root-relative entry names that folder (the windows-latest runner lists it first, and the person's host has `cmd` first)
+    const gitDir = (process.env.PATH ?? process.env.Path ?? '')
+      .split(delimiter)
+      .find((d) => d !== '' && existsSync(join(d, 'git.exe')) && relative(rootOf(d), d).replace(/\\/g, '/') !== 'bin' && existsSync(join(rootOf(d), 'usr', 'bin')));
+    expect(gitDir, 'git.exe is on this host PATH, under a Git for Windows root, in a folder other than bin').toBeDefined();
+    const root = rootOf(gitDir as string);
     const entry = '/' + relative(root, gitDir as string).replace(/\\/g, '/');
     const sandbox = makeLaneRepo();
     repos.push(sandbox);

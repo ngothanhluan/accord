@@ -1,4 +1,4 @@
-// CI splits the Windows suite into shards (`vitest run --shard=<i>/<n>`, .github/workflows/ci.yml). vitest's own
+// CI splits the Windows suite into shards (`vitest run --shard=<i>/<n>`, .github/workflows/windows.yml). vitest's own
 // split gives every shard the same number of files, picked by a hash of the path, and the cost per file on Windows
 // ranges from under a second to seven minutes: with 5 shards one shard got three times the work of another. This
 // sequencer splits by measured cost instead, so every shard ends at about the same time.

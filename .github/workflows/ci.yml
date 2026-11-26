@@ -26,33 +26,17 @@ jobs:
       - run: npm run typecheck
   test:
     name: test (${{ matrix.target.os }}, ${{ matrix.node }}, ${{ matrix.target.shard }}/${{ matrix.target.of }})
-    # Every test file runs on both operating systems and both Node versions. Windows takes about 25 to 30 minutes
-    # for the whole suite on one runner (each test spawns git, and process spawn is slow there), so it is split into
-    # 5 shards balanced by measured cost per file (test/shard.ts); every shard must pass. Ubuntu runs it whole in
-    # about 3 minutes.
+    # Pull requests and pushes to main run every test file here, on Ubuntu with both Node versions, whole, in about
+    # 3 minutes. Windows runs the same suite in windows.yml on a push to main and nightly, never on a pull request
+    # (Phase 08.9.1 D-01), split into 5 shards there because one Windows runner takes 25 to 30 minutes.
     strategy:
       fail-fast: false
       matrix:
         node: [22, 24]
         target:
           - { os: ubuntu-latest, shard: 1, of: 1 }
-          # TEMPORARY (owner, 2026-11-20): the Windows cells are off while the macOS demo build runs. Remove the
-          # leading "# " from the five lines below to turn them back on; until then no pull request gets Windows evidence.
-          # - { os: windows-latest, shard: 1, of: 5 }
-          # - { os: windows-latest, shard: 2, of: 5 }
-          # - { os: windows-latest, shard: 3, of: 5 }
-          # - { os: windows-latest, shard: 4, of: 5 }
-          # - { os: windows-latest, shard: 5, of: 5 }
     runs-on: ${{ matrix.target.os }}
     steps:
-      # The sandboxes go to the drive the workspace is on (D:), not the runner's default temp folder on C:; measured
-      # about 10% faster over the whole suite. Defender real-time scanning is already off on these runners.
-      - name: temp folder beside the workspace
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
-          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
@@ -66,8 +50,8 @@ jobs:
   examples:
     name: run the generated workflow's commands against the examples
     # No matrix. This job demonstrates that the two commands `accord init` writes into a user's
-    # workflow actually work against a filled-in repository; `test` above already covers both
-    # operating systems and both Node versions.
+    # workflow actually work against a filled-in repository; `test` above covers both Node
+    # versions on Ubuntu and windows.yml covers Windows.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

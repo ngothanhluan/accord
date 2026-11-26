@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { debugStatePath, readDebugState } from '../src/commands/debug.js';
+import { makePrivate } from '../src/load/debug-folder.js';
 import { cleanup, commitAll, gitRun, makeRepo, run } from './helpers/repo.js';
 
 // Phase 08.8 review WR-01: on Windows another account can write in the folder between `mkdir` and the `icacls` run that makes it private. `plant` stands for that account:
@@ -212,6 +213,7 @@ it('risk:security accord debug path refuses a state file that is not a regular f
   const file = debugStatePath(repo);
   const folder = file.slice(0, file.lastIndexOf('/'));
   mkdirSync(folder, { mode: 0o700 });
+  makePrivate(folder); // Windows ignores the mode: a plain folder in a shared TEMP inherits the Users group, and the folder check would refuse the folder before the file
   mkdirSync(file); // a directory where the file belongs
   const out = await run(['debug', 'path'], repo);
   expect(out.code).toBe(2);

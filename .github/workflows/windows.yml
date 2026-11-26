@@ -1,0 +1,48 @@
+name: windows
+# Pull requests stay Ubuntu-only in ci.yml (Phase 08.9.1 D-01); this file runs the same suite on Windows after the
+# merge and nightly. A red run is seen through GitHub's failed-workflow notification, which goes to the pusher for a
+# push run and to the person who last edited the cron line for a scheduled run (D-02). Nothing here opens an issue or
+# writes to the repository. Scheduled runs use the default branch's latest commit, and GitHub disables a schedule
+# after 60 days without activity in a public repository.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 20 * * *' # 20:23 UTC, off the top of the hour, which GitHub names as its busiest time
+  workflow_dispatch:
+permissions:
+  contents: read
+# A push to main is never cancelled. GitHub keeps one running and one pending run per group, so in a burst of merges
+# the newest main tip is tested.
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    name: test (windows-latest, ${{ matrix.node }}, ${{ matrix.shard }}/5)
+    runs-on: windows-latest
+    # A hung test on a nightly run has no one watching; one shard took 5 to 10 minutes on 2026-11-19.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        shard: [1, 2, 3, 4, 5]
+    steps:
+      # The sandboxes go to the drive the workspace is on (D:), not the runner's default temp folder on C:; measured
+      # about 10% faster over the whole suite. Defender real-time scanning is already off on these runners.
+      - name: temp folder beside the workspace
+        shell: pwsh
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Two forks on the 4-CPU runners (the default, half the CPUs): four forks finished the light shards faster but
+      # doubled the heaviest file (worktree-clean.test.ts, 223 s to 453 s), which sets the length of a shard.
+      - run: npm test -- --shard=${{ matrix.shard }}/5

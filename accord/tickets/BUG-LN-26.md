@@ -2,7 +2,7 @@
 id: "BUG-LN-26"                            # equals the file name: tickets/<id>.md
 title: "A release is not reported failed when the registry is only slow to show it"
 type: "bug" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -62,3 +62,6 @@ Feature: BUG-LN-26
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD (Phase 08.9.1, plan 02) and merged in PR #384 on 2026-11-26. Cause confirmed in 08.9.1-RESEARCH.md: npx reads the packument, which the registry's CDN caches for 5 minutes, and the registry stamps a new version 1.3 to 6.2 minutes after `npm publish` returns, so a version can stay invisible for about 11.5 minutes against the old 10-minute wait, and v0.9.0 became visible seconds after the loop gave up; a cache bypass does not help (the edge ignores it). The smoke step now waits up to 60 attempts at 15 seconds, prints npx's error on every attempt, fails at once on any error that is not this version's visibility, and passes with a warning and a step-summary line when the version never showed. The first publish run after the fix is its live proof; until then this ticket's behaviour is covered by the publish-workflow test against a fake npx, not by a live release.

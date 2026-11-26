@@ -194,6 +194,32 @@ it('risk:regression a ticket file only this checkout holds keeps showing there a
   expect(everyId(await dash(stale))).not.toContain('T-9');
 }, 120_000);
 
+// A-WR-02: the picture takes from the default ref only what the ref changed since the fork, so a newer local record is never overwritten and a ticket the ref deleted is gone everywhere.
+it('risk:regression a local commit that changed a ticket is not overwritten by the older copy on the default ref (A-WR-02)', async () => {
+  const repo = base();
+  expect(ids(await dash(repo), 'ready')).toContain('T-2');
+  // an unpushed local commit drops T-2; origin/main still holds it as it was and is an ancestor of HEAD
+  writeFiles(repo, { [P('T-2')]: laneTicket('T-2', { frontmatter: ['status: dropped'], body: ['## Dropped', 'Not wanted.', '', '## Intent', 'Gone.', ''].join('\n') }) });
+  commitMsg(repo, 'drop T-2');
+  expect(everyId(await dash(repo))).not.toContain('T-2');
+}, 120_000);
+
+it('risk:regression a ticket the default ref deleted is gone from a worktree cut before the deletion, while a draft only that checkout holds stays (A-WR-02, R3)', async () => {
+  const repo = base();
+  const stale = cutAt(repo, 'HEAD');
+  writeFiles(repo, { [P('T-9')]: laneTicket('T-9') });
+  commitMsg(repo, 'unpublished draft');
+  gitRun(stale, 'merge', '-q', '--ff-only', 'main'); // the stale worktree now holds the draft as its own commit
+  gitRun(repo, 'reset', '-q', '--hard', 'HEAD~1');
+  gitRun(repo, 'rm', '-q', P('T-2'));
+  commitMsg(repo, 'delete T-2');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  const old = await dash(stale);
+  expect(everyId(old)).not.toContain('T-2');
+  expect(everyId(old)).toContain('T-9');
+  expect(everyId(await dash(repo))).not.toContain('T-2');
+}, 120_000);
+
 // Phase 08.8 D-08 kept: a claim branch merged while its ticket is not done is a normal state; only its dashboard group changed (D-29).
 it('risk:regression audit and clean report no fault for a merged claim branch of a ticket that is not done (08.8 D-08)', async () => {
   const repo = base();

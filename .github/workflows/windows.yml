@@ -10,9 +10,6 @@ on:
   schedule:
     - cron: '23 20 * * *' # 20:23 UTC, off the top of the hour, which GitHub names as its busiest time
   workflow_dispatch:
-  # TEMPORARY: exists only to prove this workflow on its own pull request; removed before merge (Ruling 2).
-  pull_request:
-    branches: [main]
 permissions:
   contents: read
 # A push to main is never cancelled. GitHub keeps one running and one pending run per group, so in a burst of merges

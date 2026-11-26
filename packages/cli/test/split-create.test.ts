@@ -157,6 +157,55 @@ it('risk:regression a split without decisions leaves the Decisions section as th
   expect(epic).toContain('\n- ST-AN-1 Cart summary\n- ST-AN-2 Payment form — after ST-AN-1\n- ST-AN-3 Receipt email — after ST-AN-1, ST-AN-2\n');
 });
 
+/** SPLIT with the files the scout found each story likely to edit; `tail3` is story 3's `after` line. */
+const touching = (tail3: string): string =>
+  SPLIT.replace('      - Show the cart before payment.\n', '      - Show the cart before payment.\n    touches: [src/cart.ts, src/ui/]\n')
+    .replace('    intent: [Collect the card details.]\n    after: [1]\n', '    intent: [Collect the card details.]\n    after: [1]\n    touches: [src/export.ts]\n')
+    .replace('    after: [1, 2]\n', tail3 + '    touches: [src/export.ts]\n');
+/** Stories 2 and 3 both touch src/export.ts, and story 3 waits only for story 1. */
+const UNCHAINED = touching('    after: [1]\n');
+/** The same split with story 3 waiting for story 2 as well. */
+const CHAINED = touching('    after: [1, 2]\n');
+
+it('risk:data-loss a split with two unchained stories on one file is refused before anything is written, and the chain shows in the Approach (D-02, 15-19)', async () => {
+  const repo = sandbox();
+  writeFileSync(join(repo, 'split.yml'), UNCHAINED);
+  const branches = gitRun(repo, 'branch', '--list');
+  const head = gitRun(repo, 'rev-parse', 'HEAD');
+  const r = await run(['new', 'ticket', '--type', 'epic', '--lane', 'L', '--split', 'split.yml', '--related', 'none'], repo);
+  expect(r.code, r.out + r.err).toBe(2);
+  expect(r.err).toContain('stories 2 and 3 both touch src/export.ts and neither waits for the other: add after: [2] to story 3');
+  expect(r.err).toContain('nothing was written');
+  expect(listing(repo)).toEqual([]);
+  expect(gitRun(repo, 'branch', '--list')).toBe(branches);
+  expect(gitRun(repo, 'rev-parse', 'HEAD')).toBe(head);
+  expect(gitRun(repo, 'status', '--porcelain', '--untracked-files=all').trim()).toBe('?? split.yml');
+
+  // the same split with the order stated is written, and the Approach carries each story's touches beside what it waits for
+  writeFileSync(join(repo, 'split.yml'), CHAINED);
+  const ok = await run(['new', 'ticket', '--type', 'epic', '--lane', 'L', '--split', 'split.yml', '--related', 'none'], repo);
+  expect(ok.code, ok.out + ok.err).toBe(0);
+  const epic = text(repo, 'EP-AN-1');
+  expect(epic).toContain('\n- ST-AN-1 Cart summary — touches src/cart.ts, src/ui/\n- ST-AN-2 Payment form — after ST-AN-1 — touches src/export.ts\n- ST-AN-3 Receipt email — after ST-AN-1, ST-AN-2 — touches src/export.ts\n');
+  const lint = await run(['lint'], repo);
+  expect(lint.code, lint.out + lint.err).toBe(0);
+});
+
+it('risk:data-loss a queued split with unchained stories on one file leaves the clone and the remote as they were (D-02, 15-19)', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  writeFiles(c.root, { 'accord/config.yml': CONFIG + 'people:\n  "fixture@example.invalid": FX\nlegacy_ids: [ST-9, ST-10]\n', 'split.yml': UNCHAINED });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'people and a split');
+  c.git('push', '-q', 'origin', 'main');
+  const state = (): string[] => [c.git('rev-parse', 'HEAD'), c.git('status', '--porcelain', '--untracked-files=all'), c.git('worktree', 'list', '--porcelain'), c.git('for-each-ref', 'refs/heads')];
+  const before = state();
+  const pushed = gitRun(c.remote, 'for-each-ref', '--format=%(refname) %(objectname)');
+  const r = await run(['new', 'ticket', '--type', 'epic', '--lane', 'L', '--queue', '--related', 'none', '--split', 'split.yml'], c.root);
+  expect([r.code, r.err.includes('stories 2 and 3 both touch src/export.ts')]).toEqual([2, true]);
+  expect(state()).toEqual(before);
+  expect(gitRun(c.remote, 'for-each-ref', '--format=%(refname) %(objectname)')).toBe(pushed);
+}, 180_000);
+
 const today = (): string => new Date().toISOString().slice(0, 10);
 const FOUR = ['accord/tickets/EP-FX-1.md', 'accord/tickets/ST-FX-1.md', 'accord/tickets/ST-FX-2.md', 'accord/tickets/ST-FX-3.md'];
 

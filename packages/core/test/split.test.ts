@@ -85,3 +85,60 @@ it('risk:parsing a split carries the epic decisions and refuses a numbered one (
   bad(THREE.replace('stories:', 'decisions: nope\nstories:'), 'epic decisions', 'list');
   bad(THREE.replace('stories:', 'decisions:\n  - D-01 One cart — "x"\nstories:'), 'decision 1', 'D- number');
 });
+
+// 999.60 decision 3, D-02 (15-19): a story may list the files and folders the scout found it likely to edit; stories that touch the same code
+// are chained through `after`, or the split is refused before anything is written.
+const touching = (...stories: string[][]): string => split(...stories);
+const withTouches = (title: string, touches: string, after?: string): string[] =>
+  story(title, ['intent: [Go.]', ...(after === undefined ? [] : ['after: ' + after]), 'touches: ' + touches]);
+
+it('risk:data-loss two stories that touch one file and do not wait for each other are refused (D-02, 15-19)', () => {
+  const r = parseSplit(touching(withTouches('Cart', '[src/cart.ts]'), withTouches('Export', '[src/export.ts]'), withTouches('Report', '[src/export.ts]')));
+  expect(r.split).toBeUndefined();
+  expect(r.problems).toEqual(['stories 2 and 3 both touch src/export.ts and neither waits for the other: add after: [2] to story 3, or split the shared piece out']);
+
+  // the same file with the order stated is accepted, and the list is kept in the story
+  const ok = parseSplit(touching(withTouches('Cart', '[src/cart.ts]'), withTouches('Export', '[src/export.ts]'), withTouches('Report', '[src/export.ts]', '[2]')));
+  expect(ok.problems).toEqual([]);
+  expect(ok.split?.stories.map((s) => s.touches)).toEqual([['src/cart.ts'], ['src/export.ts'], ['src/export.ts']]);
+  expect(ok.split?.stories[2].after).toEqual([2]);
+});
+
+it('risk:complex-branching a folder holds the other story\'s path and the chain may run through other stories (D-02, 15-19)', () => {
+  const stories = (second: string): string[][] => [withTouches('Base', '[src/report/]'), withTouches('Middle', '[src/other.ts]', second), withTouches('Csv', '[src/report/csv.ts]', '[2]')];
+  // story 3 waits for 2, 2 waits for 1: story 3 reaches the folder's story through 2
+  const chained = parseSplit(touching(...stories('[1]')));
+  expect(chained.problems).toEqual([]);
+  // without the link from 2 to 1 the folder and its file are unchained
+  const loose = parseSplit(touching(...stories('[]')));
+  expect(loose.split).toBeUndefined();
+  expect(loose.problems).toHaveLength(1);
+  expect(loose.problems[0]).toContain('stories 1 and 3 both touch src/report/csv.ts');
+  // two stories that name the same folder, and a folder that is only a prefix of a name (src/rep is not src/report/)
+  expect(parseSplit(touching(withTouches('A', '[src/a/]'), withTouches('B', '[src/a/]'))).problems[0]).toContain('both touch src/a/');
+  expect(parseSplit(touching(withTouches('A', '[src/rep/]'), withTouches('B', '[src/report/x.ts]'))).problems).toEqual([]);
+  expect(parseSplit(touching(withTouches('A', '[src/rep.ts]'), withTouches('B', '[src/rep.tsx]'))).problems).toEqual([]);
+});
+
+it('risk:security a touches entry that is absolute, climbs out, has a backslash or is not text is a problem line (T-15-41, 15-19)', () => {
+  const one = (touches: string): string[] => parseSplit(touching(withTouches('A', touches), story('B'))).problems;
+  expect(one('[/etc/passwd]')).toEqual(['story 1: touches entry "/etc/passwd" must be a path inside the repository: no leading slash, no drive letter, no .. segment, no backslash']);
+  for (const bad of ['[../x]', '[src/../x.ts]', '[C:/x.ts]', '["src\\\\a.ts"]', '["a\\nb"]', '[""]', '[[a]]']) {
+    const problems = one(bad);
+    expect(problems, bad).toHaveLength(1);
+    expect(problems[0], bad).toContain('story 1: touches');
+  }
+  expect(one('nope')[0]).toContain('story 1: touches must be a list of paths');
+  expect(one('[' + Array.from({ length: 31 }, (_, i) => 'src/f' + i + '.ts').join(', ') + ']')).toEqual(['story 1: touches holds 31 entries: at most 30']);
+  // thirty entries pass
+  expect(one('[' + Array.from({ length: 30 }, (_, i) => 'src/f' + i + '.ts').join(', ') + ']')).toEqual([]);
+});
+
+it('risk:regression a split with no touches anywhere parses as before (D-02, 15-19)', () => {
+  const r = parseSplit(THREE);
+  expect(r.problems).toEqual([]);
+  for (const s of r.split?.stories ?? []) expect('touches' in s).toBe(false);
+  // an empty or null touches is no list at all, and stories without touches never conflict
+  expect(parseSplit(touching(withTouches('A', '[]'), withTouches('B', '[]'))).problems).toEqual([]);
+  expect(parseSplit(touching(withTouches('A', '[src/a.ts]'), story('B'))).problems).toEqual([]);
+});

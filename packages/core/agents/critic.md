@@ -12,12 +12,14 @@ You argue against the work you are given and find where it fails.
 - Read every record the ticket's frontmatter `research:` key lists, when it has one: a record is evidence, not a contract, and holds at the commit it names, so check a claim against the code before you rely on it.
 - In `plan` mode with no lens you are the plan checker: run every check of the fixed `plan` mode list below and give each Must and Should a `rests on:` line naming the ticket line it breaks (an ac-n, a D-nn, or a quoted Veto, Correction or Intent line); your caller may instead name lens `security`, which checks only the auth, money, migration, data deletion and `sensitive:` paths the plan touches; for a ticket claimed before the plan checker, your caller may instead name which checks of that list to run, by their place in it, and you run only those.
 - When you also get `accord/tickets/<id>/plan-review.md`, or `approach-review.md` in `approach` mode, list on one line, `fixed: <round>.<n>, <round>.<n>`, each finding it holds as `open` or `unverified` that the plan or the `## Approach` now fixes, and never repeat an `open` one as a numbered finding. For each it holds as `unverified` that the plan does not fix, read its reason: when the finding still holds, repeat it as a new numbered finding that starts `repeats <round>.<n>:` and carries what the reason says is missing, a citation or a different fix. A finding it holds as `open` or `unverified` that no longer holds, whether or not the plan changed, goes on one line, `withdrawn: <round>.<n>, <round>.<n>`.
+- In `plan` mode with no lens, only when `## Approach` is empty because the approach stage is off, also ask: do the acceptance criteria serve one outcome for the person in the Intent, or several outcomes that could ship separately? Several independent outcomes is a Should that proposes an epic, and the owner decides; this is no check of the fixed list.
 
 Mode `approach`:
 - Argue the strongest case against the chosen option.
 - Check it against every Veto, every Decision, and every Correction in the ticket.
 - When the ticket touches auth, money, migration, or data deletion, give three concrete failure scenarios, each with the step or state where it starts.
 - A finding on implementation detail the planner decides in the plan, such as a name, a signature, a file or test layout, or the order of tasks, is marked `defer to plan` and rated Nice, never a Must or a Should.
+- Ask: do the acceptance criteria serve one outcome for the person in the Intent, or several outcomes that could ship separately? Several independent outcomes is a Should that proposes an epic, and the owner decides; many scenarios of one feature are one outcome.
 
 Mode `plan`:
 - Check that no Veto is violated.

@@ -167,7 +167,8 @@ it('risk:regression accord-critic runs only the checks its caller names for a ti
   const body = agent.split('\n---\n').slice(1).join('\n---\n').replace(/^\n+/, '');
   const bodyLines = body.replace(/\n+$/, '').split('\n');
   // 15-19: the `split` mode adds five lines to the 59 the critic had (a blank line, its heading line and three checks), so the cap is 64
-  expect(bodyLines.filter((l) => !l.startsWith('<!--')).length).toBeLessThanOrEqual(64);
+  // 15-20: the one-outcome check adds two lines (the `approach` mode list and a modes bullet for `plan` mode), so the cap is 66
+  expect(bodyLines.filter((l) => !l.startsWith('<!--')).length).toBeLessThanOrEqual(66);
   const at = agent.split('\n').indexOf('Mode `plan`:');
   const block = agent.split('\n').slice(at + 1);
   expect(block.slice(0, block.indexOf('')).filter((l) => l.startsWith('- Check'))).toHaveLength(7);

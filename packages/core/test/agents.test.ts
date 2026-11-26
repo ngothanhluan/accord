@@ -310,7 +310,8 @@ describe('rendered agents', () => {
   it('stays short', () => {
     const files = agentTargets(config());
     // 15-19: the critic's `split` mode adds five lines (a blank line, its heading line and three checks) to the 60 it had, so its cap is 65; every other agent stays at 60
-    for (const f of files) expect(bodyOf(f.text).split('\n').length, f.path).toBeLessThanOrEqual(f.path.endsWith('accord-critic.md') ? 65 : 60);
+    // 15-20: the one-outcome check adds two lines (one in `approach` mode, one among the modes bullets for `plan` mode), so the critic's cap is 67
+    for (const f of files) expect(bodyOf(f.text).split('\n').length, f.path).toBeLessThanOrEqual(f.path.endsWith('accord-critic.md') ? 67 : 60);
   });
 
   it('every agent renders a model and an effort line', () => {

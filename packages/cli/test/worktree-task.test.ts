@@ -336,7 +336,9 @@ it('risk:regression each task worktree keeps its own tests.report and executor r
   const stale = await run(['task-done', 'T-1', '3'], b.ticket);
   expect(stale.code).toBe(1);
   expect(stale.out).toContain(`${REPORT} was written before the last commit`);
-  utimesSync(join(b.ticket, REPORT), later, later);
+  // the merge above can outlast the first margin on a slow runner (Windows CI), so this report gets a fresh one
+  const afterMerge = new Date(Date.now() + 5000);
+  utimesSync(join(b.ticket, REPORT), afterMerge, afterMerge);
   const three = await run(['task-done', 'T-1', '3'], b.ticket);
   expect(three.out).toMatch(/^recorded task 3 done at /);
   expect(three.code).toBe(0);

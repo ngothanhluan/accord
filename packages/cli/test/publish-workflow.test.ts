@@ -264,7 +264,7 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
   let out: string;
   let err = '';
   try {
-    out = execFileSync(BASH, ['-c', 'export PATH="$PWD/bin:$PATH:$PWD/shim"; exec bash script.sh'], {
+    out = execFileSync(BASH, ['-c', 'export PATH="$PWD/bin:$PATH:$PWD/shim"; exec bash -e -o pipefail script.sh'], {
       cwd: repo,
       encoding: 'utf8',
       env,

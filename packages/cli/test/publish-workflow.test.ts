@@ -239,7 +239,7 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
     ...extraEnv,
   };
   let code = 0;
-  let out = '';
+  let out: string;
   let err = '';
   try {
     out = execFileSync(BASH, ['-c', 'export PATH="$PWD/bin:$PATH"; exec bash script.sh'], {
@@ -255,7 +255,7 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
     err = String(failure.stderr ?? '');
   }
   const countFile = join(repo, 'npx-count');
-  let calls = 0;
+  let calls: number;
   try {
     calls = Number(readFileSync(countFile, 'utf8').trim());
   } catch {
@@ -268,6 +268,8 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
 const etarget = (pkg: string, version: string): string =>
   `1|npm error code ETARGET\\nnpm error notarget No matching version found for ${pkg}@${version}.`;
 const VISIBLE = `0|${FIXTURE_VERSION}`;
+const ENCODED = PKG.replace('/', '%2f');
+const netError = (code: string): string => `1|npm error code ${code}\\nnpm error network request failed`;
 
 describe.skipIf(noBash)('the publish workflow smoke step — executed', { timeout: 60_000 }, () => {
   it('risk:regression the smoke step retries while the version is not visible and prints why (D-07)', () => {
@@ -278,5 +280,121 @@ describe.skipIf(noBash)('the publish workflow smoke step — executed', { timeou
     expect(result.out).toContain(`attempt 1: not visible yet: ${notarget}`);
     expect(result.out).toContain(`attempt 2: not visible yet: ${notarget}`);
     expect(result.out).toContain(`attempt 3: ${FIXTURE_VERSION}`);
+  });
+
+  it('risk:regression the smoke step retries on an E404 for this package and on a network error (D-07)', () => {
+    const notFound = `1|npm error code E404\\nnpm error 404 Not Found - GET https://registry.npmjs.org/${ENCODED} - Not found`;
+    const missing = runSmoke([notFound, VISIBLE]);
+    expect(missing.code, missing.err).toBe(0);
+    expect(missing.calls).toBe(2);
+    expect(missing.out).toContain('attempt 1: not visible yet: npm error 404 Not Found');
+    const reset = runSmoke([netError('ECONNRESET'), VISIBLE]);
+    expect(reset.code, reset.err).toBe(0);
+    expect(reset.calls).toBe(2);
+    expect(reset.out).toContain('attempt 1: network error: npm error code ECONNRESET');
+  });
+
+  it('risk:regression the smoke step fails at once on a failure that is not visibility (D-07)', () => {
+    const integrity = `1|npm error code EINTEGRITY\\nnpm error sha512-AAAA integrity checksum failed`;
+    const broken = runSmoke([integrity]);
+    expect(broken.code).toBe(1);
+    expect(broken.calls).toBe(1);
+    expect(broken.err).toContain('npm error code EINTEGRITY');
+    expect(broken.err).toContain('npm error sha512-AAAA integrity checksum failed');
+    expect(broken.err).toContain('not visibility');
+    // A dependency's ETARGET is not this release being invisible.
+    const dependency = runSmoke([etarget('left-pad', '9.9.9')]);
+    expect(dependency.code).toBe(1);
+    expect(dependency.calls).toBe(1);
+    // Another package's E404 names another URL, so it is not this release being invisible.
+    const other = runSmoke([
+      `1|npm error code E404\\nnpm error 404 Not Found - GET https://registry.npmjs.org/${ENCODED}-extra - Not found`,
+    ]);
+    expect(other.code).toBe(1);
+    expect(other.calls).toBe(1);
+    // A visible version that prints something else is a broken package, not a slow registry.
+    const wrong = runSmoke(['0|0.0.1']);
+    expect(wrong.code).toBe(1);
+    expect(wrong.calls).toBe(1);
+    expect(wrong.err).toContain('0.0.1');
+    expect(wrong.err).toContain(FIXTURE_VERSION);
+    // A network error never softens a later real failure.
+    const later = runSmoke([netError('ECONNRESET'), integrity]);
+    expect(later.code).toBe(1);
+    expect(later.calls).toBe(2);
+    expect(later.err).toContain('npm error code EINTEGRITY');
+    expect(later.out).not.toContain('::warning');
+    expect(later.summary).toBe('');
+    // An empty VERSION would install the latest release: refuse before npx is ever called.
+    const empty = runSmoke([VISIBLE], { VERSION: '' });
+    expect(empty.code).toBe(1);
+    expect(empty.calls).toBe(0);
+  });
+
+  it('risk:regression the smoke step passes with a warning when the version never showed (D-07)', () => {
+    const result = runSmoke([etarget(PKG, FIXTURE_VERSION)]);
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBe(4);
+    expect(result.out.match(/::warning title=not visible yet::/g)?.length).toBe(1);
+    expect(result.out).toContain(`${PKG}@${FIXTURE_VERSION}`);
+    const lines = result.summary.trim().split('\n');
+    expect(lines.length).toBe(1);
+    expect(lines[0]).toContain(`${PKG}@${FIXTURE_VERSION}`);
+    expect(lines[0]).toContain('publish passed');
+    expect(lines[0]).toContain('not a failed release');
+    expect(result.out).not.toContain('could not reach the registry');
+    expect(result.summary).not.toContain('could not reach the registry');
+    // The last attempt decides the wording: network errors before a final not-visible stay plain.
+    const mixed = runSmoke([netError('ECONNRESET'), netError('ECONNRESET'), netError('ECONNRESET'), etarget(PKG, FIXTURE_VERSION)]);
+    expect(mixed.code, mixed.err).toBe(0);
+    expect(mixed.calls).toBe(4);
+    expect(mixed.out).toContain('::warning title=not visible yet::');
+    expect(mixed.out).not.toContain('could not reach the registry');
+    expect(mixed.summary).not.toContain('could not reach the registry');
+    expect(mixed.summary).toContain('publish passed');
+  });
+
+  it('risk:regression the smoke step passes with a network warning when its last attempt could not reach the registry (D-07)', () => {
+    const timeout = `1|npm error code ETIMEDOUT\\nnpm error network request to https://registry.npmjs.org/x failed`;
+    const result = runSmoke([etarget(PKG, FIXTURE_VERSION), etarget(PKG, FIXTURE_VERSION), etarget(PKG, FIXTURE_VERSION), timeout]);
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBe(4);
+    const warnings = result.out.split('\n').filter((l) => l.startsWith('::warning title=not visible yet::'));
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain(`${PKG}@${FIXTURE_VERSION}`);
+    expect(warnings[0]).toContain('could not reach the registry');
+    expect(warnings[0]).toContain('ETIMEDOUT');
+    const tail = result.out.slice(result.out.indexOf('npx output of the last attempt:'));
+    expect(tail).toContain('npm error code ETIMEDOUT');
+    expect(tail).toContain('npm error network request to https://registry.npmjs.org/x failed');
+    const lines = result.summary.trim().split('\n');
+    expect(lines.length).toBe(1);
+    for (const part of [`${PKG}@${FIXTURE_VERSION}`, 'not visible yet', 'could not reach the registry', 'ETIMEDOUT', 'not a failed release']) {
+      expect(lines[0]).toContain(part);
+    }
+    // A registry down for the whole wait is told apart from a slow one by its code.
+    const outage = runSmoke([netError('ECONNRESET')]);
+    expect(outage.code, outage.err).toBe(0);
+    expect(outage.calls).toBe(4);
+    expect(outage.out).toContain('could not reach the registry');
+    expect(outage.out).toContain('ECONNRESET');
+    expect(outage.out).toContain('npx output of the last attempt:');
+    expect(outage.summary).toContain('ECONNRESET');
+    expect(outage.summary).toContain('could not reach the registry');
+  });
+});
+
+describe('the publish workflow smoke step — what the document says', () => {
+  it('risk:security the smoke step reads its inputs through env and holds no permissions (D-07)', () => {
+    expect(SMOKE).toContain('${SMOKE_ATTEMPTS:-60}');
+    expect(SMOKE).toContain('${SMOKE_INTERVAL:-15}');
+    expect(SMOKE).not.toContain('${{');
+    const job = jobOf(YML_TEXT, 'smoke');
+    expect('permissions' in job, 'the smoke job must carry no permissions key (T-09-11)').toBe(false);
+    expect(job['timeout-minutes']).toBe(25);
+    expect(stepOf(YML_TEXT, 'smoke', 'smoke').env).toEqual({
+      PKG: '@accord-dev/accord',
+      VERSION: '${{ needs.publish.outputs.version }}',
+    });
   });
 });

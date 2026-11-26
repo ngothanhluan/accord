@@ -77,7 +77,7 @@ export function gate(
       : which === 'done'
         ? // Phase 15 D-23, D-25: Done also holds the ticket's records at the merge base with the default branch, for gate.done-ticket-edited.
           // ST-LN-96 D-02: Done holds the claim fact too, for gate.ruleset-changed and gate.ruleset-missing, in every lane.
-          withClaimPins(ctx.root, { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id), ...gitContentSince(ctx.root, ctx.snapshot, id), ...gitBaseRecords(ctx.root, ctx.snapshot, id) }, id)
+          withClaimPins(ctx.root, { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id), ...gitContentSince(ctx.root, ctx.snapshot, id), ...gitBaseRecords(ctx.root, ctx.snapshot, id, { env: ctx.env, warn: (line) => ctx.stderr.write(line + '\n') }) }, id)
         : ctx.snapshot;
   // ST-LN-17: Done confirms each ## Return from verify marker with git; an unversioned round record of a ticket
   // not done on the default branch needs that branch's snapshot.

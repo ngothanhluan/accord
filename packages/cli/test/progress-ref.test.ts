@@ -566,3 +566,46 @@ it('risk:regression a clone configured to fetch one branch keeps that refspec: t
     c.cleanupAll();
   }
 }, 180_000);
+
+// B-WR-03 (15-REVIEWFIX-2): `git remote prune` reads only the configured refspec, so a progress ref deleted on origin stayed in every other clone; prune and its dry run carry the progress refspec too.
+const copyOf = (dir: string): string | undefined => {
+  try {
+    return gitRun(dir, 'rev-parse', '--verify', '-q', 'refs/remotes/origin-accord/ST-1').trim();
+  } catch {
+    return undefined;
+  }
+};
+/** A clone holding a local copy of a progress ref that origin no longer has. */
+function strandedCopy(): { c: Clone; sha: string } {
+  const c = makeClone();
+  const sha = onOrigin(c, 'refs/heads/main') as string;
+  setProgress(c, 'ST-1', sha);
+  gitRun(c.root, 'fetch', '-q', 'origin', '+refs/accord/*:refs/remotes/origin-accord/*');
+  expect(copyOf(c.root)).toBe(sha);
+  gitRun(c.remote, 'update-ref', '-d', 'refs/accord/ST-1');
+  return { c, sha };
+}
+
+it('risk:regression clean prunes the local copy of a progress ref origin no longer has, with a pruned line (B-WR-03, D-15)', async () => {
+  const { c, sha } = strandedCopy();
+  try {
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(r.code).toBe(0);
+    expect(lines(r.out)).toEqual([`pruned refs/remotes/origin-accord/ST-1 (was ${sha})`]);
+    expect(copyOf(c.root)).toBeUndefined();
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:regression clean --dry-run names the progress copy a prune would remove and removes nothing (B-WR-03, D-15)', async () => {
+  const { c, sha } = strandedCopy();
+  try {
+    const r = await run(['worktree', 'clean', '--dry-run'], c.root);
+    expect(r.code).toBe(0);
+    expect(lines(r.out)).toEqual([`pruned refs/remotes/origin-accord/ST-1 (was ${sha})`]);
+    expect(copyOf(c.root)).toBe(sha);
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);

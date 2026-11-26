@@ -1401,7 +1401,7 @@ function syncSlice(ctx: CommandContext, id: string, branch: string, n: number): 
   return 0;
 }
 
-/** ST-LN-20 D-05: after a good fetch, prune origin's stale refs (remote-tracking, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
+/** ST-LN-20 D-05, B-WR-03: after a good fetch, prune origin's stale refs (remote-tracking, progress copies under origin-accord, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
 function pruneStale(ctx: CommandContext, report = false): Map<string, string> {
   const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)']).split('\n').filter((r) => r !== '');
   const before = refs();
@@ -1409,11 +1409,11 @@ function pruneStale(ctx: CommandContext, report = false): Map<string, string> {
   const would = new Set<string>();
   try {
     if (report) {
-      for (const l of gitNoPrompt(ctx.root, ['remote', 'prune', '--dry-run', 'origin'], undefined, ctx.ssh, { LC_ALL: 'C' }).split('\n')) {
+      for (const l of gitNoPrompt(ctx.root, ['-c', 'remote.origin.fetch=' + PROGRESS_FETCH, 'remote', 'prune', '--dry-run', 'origin'], undefined, ctx.ssh, { LC_ALL: 'C' }).split('\n')) {
         const name = /^ \* \[would prune\] (.+?)\r?$/.exec(l)?.[1];
         if (name !== undefined) would.add(name.startsWith('refs/') ? name : 'refs/remotes/' + name);
       }
-    } else gitNoPrompt(ctx.root, ['remote', 'prune', 'origin'], undefined, ctx.ssh);
+    } else gitNoPrompt(ctx.root, ['-c', 'remote.origin.fetch=' + PROGRESS_FETCH, 'remote', 'prune', 'origin'], undefined, ctx.ssh);
   } catch (e) {
     ctx.stdout.write(`prune of origin failed: ${firstLine(e)}
 `);

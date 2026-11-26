@@ -119,7 +119,11 @@ jobs:
           VERSION: ${{ needs.publish.outputs.version }}
         run: |
           # `-u` and `-o pipefail` but deliberately NOT `-e`, unlike the publish job above: the loop
-          # classifies a non-zero exit, and `-e` would stop on the first attempt.
+          # classifies a non-zero exit, and `-e` would stop on the first attempt. GitHub starts this
+          # shell as `bash -e -o pipefail`, so `set +e` is what turns `-e` off: without it the first
+          # `out=$(npx ...)` that fails (the version not visible yet) ends the step silently with
+          # exit 1, which is how the 0.21.1 smoke step failed.
+          set +e
           set -uo pipefail
           # An empty version would make npx install the latest release and call it proof.
           if [ -z "${VERSION:-}" ]; then

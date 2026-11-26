@@ -19,5 +19,6 @@ Follow this once the owner has accepted lane L for a request. An epic is one lar
 ## Rules
 
 - The epic itself gets no approach and no plan critique: the one split pass of step 5 is its only critic, the owner's yes to the split is its approval; each story its usual critique when it is picked up, and its scout, planner and reviewers read the epic's Vetoes and Decisions by themselves.
+- A story that finds later that it needs code another story builds is no part of this split: a dependency found later follows `./epic-dependency.md`.
 - Run the command only after the explicit yes to the split shown in step 6; a changed split needs a new yes.
 - Never claim, start or build a story here, never merge with admin rights, and never push by hand: the command pushes.

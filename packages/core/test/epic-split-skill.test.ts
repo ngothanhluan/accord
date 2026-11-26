@@ -4,7 +4,7 @@
 import { expect, it } from 'vitest';
 import { agentTargets, skillDirs, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
-import { stagePath } from './helpers/stage-files.js';
+import { besidePath, stagePath } from './helpers/stage-files.js';
 
 const RUNTIMES: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
 const config = (runtime: AccordConfig['runtimes'][number]): AccordConfig => ({
@@ -100,6 +100,70 @@ it('risk:regression the critic names mode split with the three checks of D-01 (D
         bad.push(f.path + ' lacks ' + p);
       const block = text.slice(text.indexOf('Mode `split`:'), text.indexOf('Do not critique'));
       if (block.length === 0 || text.indexOf('Mode `split`:') < text.indexOf('Mode `diff`:')) bad.push(f.path + ': the split mode block is missing or comes before the diff mode');
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+// Phase 15 15-20 (999.60 decision 4): a story of an epic that finds, at plan or build, that it needs code another story of the epic builds and
+// its `depends_on` does not name stops and asks the owner, with a default proposal and a bounded fallback.
+const everyDir = (runtime: AccordConfig['runtimes'][number]): string[] => [...skillDirs(config(runtime))];
+const renderedAt = (runtime: AccordConfig['runtimes'][number], path: (dir: string) => string): { path: string; text: string }[] => {
+  const wanted = new Set(everyDir(runtime).map(path));
+  return skillTargets(config(runtime)).filter((f) => wanted.has(f.path));
+};
+const dependencyFiles = (runtime: AccordConfig['runtimes'][number]) => renderedAt(runtime, (dir) => besidePath('new', 'epic-dependency.md', dir));
+
+it('risk:regression the late-dependency route stops and asks, proposes a shared small story, and bounds the wait by stale_days, in all four tools (999.60 decision 4)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const files = dependencyFiles(runtime);
+    if (files.length === 0) bad.push(runtime + ': epic-dependency.md is not rendered');
+    for (const f of files) {
+      const text = flat(f.text);
+      for (const p of lacks(text, [
+        'needs code another story of its epic builds',
+        'its `depends_on` does not name that story',
+        'stop the task and ask the owner as `./ask.md` says',
+        'default proposal splits the shared piece out as a small story that both stories depend on',
+        '`/accord queue <idea>`',
+        'in the `depends_on` of both stories',
+        'waits for the other story within `stale_days`',
+        '`accord audit` reports it as `ticket-idle`',
+        'moves the piece into this story or hands the other ticket on',
+        'never stack this story on the other story\'s branch',
+      ]))
+        bad.push(f.path + ' lacks ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression build step 4 (Blocked) points a story blocked on a sibling story\'s code to epic-dependency.md, once, in all four tools (999.60 decision 4)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const files = renderedAt(runtime, (dir) => stagePath('build', undefined, dir));
+    if (files.length === 0) bad.push(runtime + ': build.md is not rendered');
+    for (const f of files) {
+      const text = flat(f.text);
+      const step = text.slice(text.indexOf('4. **Blocked.**'), text.indexOf('5. **Files.**'));
+      if (step.length === 0) bad.push(f.path + ': step 4 is not found');
+      if (step.split('./epic-dependency.md').length !== 2) bad.push(f.path + ': step 4 names ./epic-dependency.md ' + (step.split('./epic-dependency.md').length - 1) + ' times, not once');
+      if (text.split('./epic-dependency.md').length !== 2) bad.push(f.path + ' names ./epic-dependency.md outside step 4');
+      if (!step.includes('story of an epic needs code another story of its epic builds')) bad.push(f.path + ' step 4 does not name the case');
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the epic skill names the route for a dependency found later in its Rules (999.60 decision 4)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    for (const f of epicFiles(runtime)) {
+      const text = flat(f.text);
+      const rules = text.slice(text.indexOf('## Rules'));
+      if (!rules.includes('a dependency found later follows `./epic-dependency.md`')) bad.push(f.path + ' Rules do not name ./epic-dependency.md');
+      if (text.split('./epic-dependency.md').length !== 2) bad.push(f.path + ' names ./epic-dependency.md outside its Rules');
     }
   }
   expect(bad).toEqual([]);

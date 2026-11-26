@@ -1610,7 +1610,7 @@ it('risk:regression accord-resolve-pr is the comments procedure as its own comma
   const parts = [
     "`/accord-resolve-pr <PR or ticket id>` handles the feedback on a ticket's pull request and resolves its threads; it takes a number, a link or a ticket id; with nothing, ask for it in one question and run nothing",
     'Given a number or a link',
-    'the fix commits are pushed as the stages of `/accord` already push them',
+    'the fix commits reach the pull request when verify pushes the branch again',
     'open and not merged', 'lane M from verify on, lane S from its step 6', 'Never read a pull request\'s comments unasked',
     "Take each review thread, each top-level comment and each review's summary as one comment, a reply inside a thread being part of that thread, by a person whoever it is, the owner included",
     'it marks each comment holds, does not hold, or unclear, with evidence',

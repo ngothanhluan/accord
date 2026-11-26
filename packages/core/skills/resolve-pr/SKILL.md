@@ -73,8 +73,8 @@ followed by the request, in place of the line it prints, and stop here.
    carries the judge's evidence. Show every draft to the owner together,
    apply the owner's changes to any of them, and post them to their
    threads only after the owner's yes. Post no reply, comment or review to
-   the pull request before that yes; the fix commits are pushed as the
-   stages of `/accord` already push them.
+   the pull request before that yes; the fix commits reach the pull request
+   when verify pushes the branch again.
 
 ## Rules
 

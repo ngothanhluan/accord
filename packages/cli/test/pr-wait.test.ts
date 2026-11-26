@@ -519,3 +519,77 @@ it('risk:resource the limit is never more than two minutes short of the host sto
   const w = await run(['pr', 'wait', 'T-1'], fresh);
   expect(w.out).toContain('limit 118 minutes\n');
 });
+
+// ---- review fixes: the base move and the late-opened slice pull request (C-WR-02, C-WR-03) ----
+
+it('risk:security the base of the next slice pull request is not moved to the default branch when the merged slice merged into another branch (C-WR-02)', async () => {
+  const repo = slicedSandbox(THREE_SLICES);
+  fakeClock();
+  // slice 2 (#8) merged into slice 1's branch while slice 1 (#7) is still open; slice 3 (#9) is based on slice 2's branch
+  const s = stack([
+    WRITER(),
+    ESCAPING({ list: 'MERGED', views: [MERGED] }),
+    { number: 9, head: 'slice/T-1/3', base: 'slice/T-1/2', list: 'OPEN', views: [{}] },
+  ]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(s.edits).toEqual([]);
+  expect(r.out).toContain('pr-wait: base of #9 not moved: #8 merged into t/T-1, not main\n');
+  // said once, not at every poll
+  expect(r.out.split('base of #9 not moved').length - 1).toBe(1);
+  expect(lastLine(r.out)).toBe('pr-wait: limit #7 after 118 minutes (0 polls failed)');
+});
+
+it('risk:security with no default branch known the next slice base is not moved either, and says why (C-WR-02)', async () => {
+  const repo = slicedSandbox(TWO_SLICES, false);
+  fakeClock();
+  const s = stack([WRITER({ views: [MERGED] }), ESCAPING({ views: [{}, MERGED] })]);
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(s.edits).toEqual([]);
+  expect(r.out).toContain('pr-wait: base of #8 not moved: the default branch of the clone is not known\n');
+  expect(lastLine(r.out)).toBe('pr-wait: merged #8');
+});
+
+it('risk:complex-branching a slice pull request opened while an earlier one is still open is found at once, and its feedback ends the wait naming it (C-WR-03)', async () => {
+  const repo = slicedSandbox();
+  fakeClock();
+  const prs: Fake[] = [WRITER()];
+  stack(prs);
+  const base = gh.answer;
+  let looks = 0;
+  gh.answer = (args) => {
+    if (args[1] === 'view') {
+      looks += 1;
+      // the pull request of slice 2 is opened a few polls into the wait, and a collaborator comments on it
+      if (looks === 4) prs.push(ESCAPING({ views: [FEEDBACK] }));
+    }
+    return base(args);
+  };
+  const r = await run(['pr', 'wait', 'T-1'], repo);
+  expect(r.code, r.out + r.err).toBe(0);
+  expect(lastLine(r.out)).toBe('pr-wait: feedback #8: 1 comments, 0 reviews, 0 inline from bo');
+});
+
+it('risk:complex-branching a late slice pull request that is closed or has a failed check ends the wait naming it while slice 1 is open (C-WR-03, D-28)', async () => {
+  for (const [view, expected] of [
+    [{ state: 'CLOSED', mergedAt: null }, 'pr-wait: closed #8'],
+    [{ statusCheckRollup: [{ name: 'lint and gate', conclusion: 'FAILURE' }] }, 'pr-wait: ci-failed #8: lint and gate'],
+  ] as const) {
+    const repo = slicedSandbox();
+    fakeClock();
+    const prs: Fake[] = [WRITER()];
+    stack(prs);
+    const base = gh.answer;
+    let looks = 0;
+    gh.answer = (args) => {
+      if (args[1] === 'view') {
+        looks += 1;
+        if (looks === 3) prs.push(ESCAPING({ views: [view] }));
+      }
+      return base(args);
+    };
+    const r = await run(['pr', 'wait', 'T-1'], repo);
+    expect(lastLine(r.out)).toBe(expected);
+  }
+});

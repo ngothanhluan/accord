@@ -5,6 +5,7 @@ Each section lists what changes for tickets in flight and for repositories pinne
 ## Unreleased
 
 - A deferral mark that names a ticket whose id is only digits is now read only as ` → #<n>` (Phase 08.9.1 D-03, 08.8 review IN-03). ` → 42` at the end of a deferred item is prose, as in `the count went from 3 → 42`, and no longer hides the item from `accord deferred` or from the audit's `deferred-undecided` gap. Every other id (`ST-LN-12`, `PROJ-123`) keeps ` → <id>`, and ` → declined` is unchanged. An item marked ` → 42` since 0.16.0 is listed again, so rewrite its mark as ` → #42`. Run `accord upgrade`, or `accord skills sync` once the pin is the new version, so your verify and audit skills write the new form.
+- A team's `accord/product/security.md` can hold a range-checked IPv4 pattern (0 to 255 per octet) when each octet's range check is a lookahead, for example `\b(?!25[6-9]|2[6-9][0-9]|[3-9][0-9]{2})[0-9]{1,3}(?:\.(?!25[6-9]|2[6-9][0-9]|[3-9][0-9]{2})[0-9]{1,3}){3}\b` (Phase 08.9.1 D-08, backlog 999.65). It is accepted, needs no scan budget and scans a hostile 1000-character line in well under a millisecond. The usual alternation form per octet, `(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})`, is still refused with the "more than 16 routes" reason, so write the range check as a lookahead. The guard did not change.
 
 ## 0.21.0 — 2026-11-26
 

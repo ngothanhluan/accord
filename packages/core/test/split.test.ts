@@ -142,3 +142,33 @@ it('risk:regression a split with no touches anywhere parses as before (D-02, 15-
   expect(parseSplit(touching(withTouches('A', '[]'), withTouches('B', '[]'))).problems).toEqual([]);
   expect(parseSplit(touching(withTouches('A', '[src/a.ts]'), story('B'))).problems).toEqual([]);
 });
+
+// Phase 15 review C-WR-04: two stories that write one path in different spellings are the same overlap.
+it('risk:parsing touches written as ./, //, a folder without a slash, a trailing-slash mismatch or another case still overlap (C-WR-04)', () => {
+  const pairs: Array<[string, string]> = [
+    ['./src/a.ts', 'src/a.ts'],
+    ['src', 'src/x.ts'],
+    ['src', 'src/'],
+    ['Src/a.ts', 'src/a.ts'],
+    ['src//a.ts', 'src/a.ts'],
+    ['src/./a.ts', 'src/a.ts'],
+    ['src/a/', 'src/a/b.ts'],
+    ['./src/', 'src/a.ts'],
+  ];
+  for (const [a, b] of pairs) {
+    for (const [x, y] of [[a, b], [b, a]]) {
+      const r = parseSplit(touching(withTouches('A', '["' + x + '"]'), withTouches('B', '["' + y + '"]')));
+      expect(r.problems.length, x + ' vs ' + y).toBe(1);
+      expect(r.problems[0], x + ' vs ' + y).toContain('stories 1 and 2 both touch');
+    }
+  }
+  // chained by after, they pass; and true non-overlaps still pass
+  expect(parseSplit(touching(withTouches('A', '["./src"]'), withTouches('B', '["src/x.ts"]', '[1]'))).problems).toEqual([]);
+  for (const [a, b] of [['src/a/b', 'src/a/bc'], ['src/a', 'src/ab/x.ts'], ['./a.ts', 'b.ts']]) {
+    expect(parseSplit(touching(withTouches('A', '["' + a + '"]'), withTouches('B', '["' + b + '"]'))).problems, a + ' vs ' + b).toEqual([]);
+  }
+  // an entry that names no path once spelled out is refused
+  for (const bad of ['.', './', '//']) {
+    expect(parseSplit(touching(withTouches('A', '["' + bad + '"]'), story('B'))).problems[0], bad).toContain('story 1: touches');
+  }
+});

@@ -6,7 +6,7 @@ import type { Stats } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as folder from '../src/load/debug-folder.js';
-import { checkDebugFolder, DEBUG_STATE_MAX, folderVerdict, readDebugFile, sddlAces, windowsVerdict } from '../src/load/debug-folder.js';
+import { checkDebugFolder, DEBUG_STATE_MAX, descriptorVerdict, folderVerdict, makePrivate, readDebugFile, sddlAces, windowsVerdict } from '../src/load/debug-folder.js';
 
 const USER = 'S-1-5-21-1-2-3-1001';
 
@@ -118,10 +118,25 @@ it('risk:security on Windows a debug folder or state file owned by another accou
   expect(readDebugFile(file, deps({}))).toEqual({ text: 'x', mtimeMs: 1 });
 });
 
-// Phase 08.8 review CR-01: the descriptor is read from the real folder through a System32 program, owner included (icacls /save writes no owner).
+// Windows reads the built-in Administrator account (RID 500, the account of the GitHub windows-latest runner) back from a security descriptor as the alias LA, never as its
+// SID: the person's own entry, and the owner an elevated session gives, must not be taken for another account (found by the first windows.yml run, Phase 08.9.1 plan 01).
+it('risk:security on Windows the built-in Administrator account is the person when the person is that account (08.9.1)', () => {
+  const ADMIN = 'S-1-5-21-1-2-3-500';
+  const dacl = 'D:PAI(A;OICI;FA;;;LA)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)';
+  expect(descriptorVerdict(`O:LAG:LA${dacl}`, ADMIN)).toBeUndefined();
+  expect(descriptorVerdict(`O:BA${dacl}`, ADMIN)).toBeUndefined();
+  // a person who is another account still gets the alias refused, and a domain's RID 500 does not make a different machine's person the Administrator
+  expect(descriptorVerdict(`O:${USER}${dacl}`, USER)).toContain('LA');
+  expect(descriptorVerdict(`O:LA${dacl}`, USER)).toContain('owned by another account');
+  expect(descriptorVerdict(`O:LA${dacl}`, 'S-1-5-21-1-2-3-1500')).toContain('owned by another account');
+});
+
+// Phase 08.8 review CR-01: the descriptor is read from the real folder through a System32 program, owner included (icacls /save writes no owner). The folder is made private first,
+// as accord does: a plain folder in a shared TEMP (D:\a\_temp on the GitHub runner) inherits the parent's list, which names the Users group.
 it.runIf(process.platform === 'win32')('risk:security on Windows the security descriptor read from a real folder names its owner (08.8 REVIEW CR-01)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'p88-owner-'));
   try {
+    makePrivate(dir);
     writeFileSync(join(dir, 'a.md'), 'x');
     const read = folder.securityDescriptors([dir, join(dir, 'a.md')]);
     expect(read).toHaveLength(2);

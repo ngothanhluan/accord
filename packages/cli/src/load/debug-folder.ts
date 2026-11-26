@@ -57,6 +57,9 @@ const KNOWN: Record<string, string> = {
 };
 
 const OWN = new Set(['SY', 'S-1-5-18', 'BA', 'S-1-5-32-544']);
+
+/** Whether an account (a SID, or the alias SDDL writes for it) is the person: the built-in Administrator account (RID 500) is read back from a descriptor as `LA`, never as its SID. */
+const isPerson = (sid: string, userSid: string): boolean => sid.toUpperCase() === userSid.toUpperCase() || (sid === 'LA' && /^S-1-5-21(?:-\d+)+-500$/.test(userSid));
 const CREATOR_OWNER = new Set(['CO', 'S-1-3-0']);
 
 /**
@@ -65,7 +68,7 @@ const CREATOR_OWNER = new Set(['CO', 'S-1-3-0']);
  */
 export function windowsVerdict(aces: readonly Ace[], userSid: string): string | undefined {
   for (const ace of aces) {
-    if (!ace.allow || OWN.has(ace.sid) || ace.sid.toUpperCase() === userSid.toUpperCase()) continue;
+    if (!ace.allow || OWN.has(ace.sid) || isPerson(ace.sid, userSid)) continue;
     if (ace.inheritOnly && CREATOR_OWNER.has(ace.sid)) continue;
     return `open to another account (${named(ace.sid)})`;
   }
@@ -83,7 +86,7 @@ export function descriptorVerdict(sddl: string, userSid: string): string | undef
   const parts = SDDL.exec(sddl.trim());
   if (parts === null) return 'not checkable: no owner in the security descriptor';
   const owner = parts[1] as string;
-  if (!OWN.has(owner) && owner.toUpperCase() !== userSid.toUpperCase()) return `owned by another account (${named(owner)})`;
+  if (!OWN.has(owner) && !isPerson(owner, userSid)) return `owned by another account (${named(owner)})`;
   const read = sddlAces(parts[2] ?? '');
   if ('error' in read) return `not checkable: ${read.error}`;
   return windowsVerdict(read.aces, userSid);

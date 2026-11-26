@@ -5,6 +5,7 @@ import { buildWaves, parallelOf, planFile, sequentialReason, stageOff, workOf } 
 import type { PlanTask } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
+import { currentSlice } from './anchor.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 import { taskWorktrees } from './task-tree.js';
 
@@ -24,17 +25,20 @@ export function waves(ctx: CommandContext, id: string): number {
   }
   const done = new Set(Object.keys(work?.ledger?.done ?? {}).map(Number));
   const out = ['Parallel: ' + String(parallelOf(ctx.snapshot.config))];
-  const reason = sequentialReason(tasks);
+  // Phase 15 D-07: on a slice of a sliced ticket only that slice's tasks are grouped, so the build stage builds slice n before slice n+1 opens; `planned` below keeps every task of the plan
+  const planned = new Set(tasks.map((t) => t.n));
+  const slice = stageOff(ctx.snapshot, id, 'plan') ? undefined : currentSlice(ctx, id);
+  const building = slice?.tasks === undefined ? tasks : tasks.filter((t) => slice.tasks?.includes(t.n));
+  const reason = sequentialReason(building);
   if (reason !== undefined) out.push('Order: one task at a time — ' + reason);
-  const grouped = buildWaves(tasks, done);
-  if (grouped.length === 0) out.push('No task left to build');
+  const grouped = buildWaves(building, done);
+  if (grouped.length === 0) out.push(slice?.tasks === undefined ? 'No task left to build' : `Slice ${slice.n} of ${slice.of} is built`);
   grouped.forEach((w, k) => out.push(`Wave ${k + 1}: ${w.join(', ')}`));
   // ST-LN-92 D-03, Pitfall 13: a task left to build whose worktree is still there (a wave stopped half-way), so the build skill finds its folder again;
   // review round 1 finding 5: a recorded task whose worktree is still there (a compaction between task-done and clean) too, marked for the clean
   // round 2 findings 2 and 9: a plan task's folder off its task branch (another branch, a detached HEAD, one git cannot read) is named for the owner, never dropped
   const live = taskWorktrees(ctx.root, id);
   const left = new Set(grouped.flat());
-  const planned = new Set(tasks.map((t) => t.n));
   for (const [n, { path, state }] of [...live].sort((a, b) => a[0] - b[0])) {
     // round 3 finding 9: a task folder whose number is no task of the plan is named for the owner too, never dropped
     if (!planned.has(n)) out.push(`Task ${n} worktree: ${path}${state === undefined ? '' : ` (${state})`} (not in the plan) — owner`);

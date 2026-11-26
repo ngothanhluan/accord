@@ -8,6 +8,7 @@
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { normaliseKey } from '../load/snapshot.js';
 import type { RepoSnapshot, Ticket, Verification } from '../model/snapshot.js';
+import { inSlice } from './done.js';
 import type { GateRule } from './rules.js';
 
 // D-74 discretion. One place, so extending it is one edit; a miss is preferred over a false positive,
@@ -163,9 +164,9 @@ const ticketOf = (snapshot: RepoSnapshot, id: string): Ticket | undefined =>
 const verificationOf = (snapshot: RepoSnapshot, id: string): Verification | undefined =>
   Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id] : undefined;
 /** GATE-10's driver set: the ticked tags, in numeric order, so two failing notes read the same way on
- * every host. At Done the three sets must be equal anyway (GATE-02). */
-const ticked = (ticket: Ticket): string[] =>
-  [...new Set(ticket.frontmatter?.verified ?? [])].sort((a, b) => Number(a.slice(3)) - Number(b.slice(3)));
+ * every host. At Done the three sets must be equal anyway (GATE-02). Phase 15 D-31: `gate done --slice n` reads only the ticks of the slice. */
+const ticked = (ticket: Ticket, snapshot: RepoSnapshot, id: string): string[] =>
+  [...new Set(ticket.frontmatter?.verified ?? [])].filter((t) => inSlice(snapshot, id, t)).sort((a, b) => Number(a.slice(3)) - Number(b.slice(3)));
 const cites = (text: string, snapshot: RepoSnapshot): boolean =>
   candidates(text, snapshot).some((c) => resolves(c, snapshot));
 
@@ -178,6 +179,7 @@ export const evidenceUnresolved: GateRule['check'] = (snapshot, id) => {
   const v = verificationOf(snapshot, id);
   if (v === undefined) return [];
   return v.blocks
+    .filter((b) => inSlice(snapshot, id, b.acTag))
     .filter((b) => !cites(b.evidence, snapshot))
     .map((b) => ({
       file: v.file,
@@ -191,7 +193,7 @@ export const evidenceUnresolved: GateRule['check'] = (snapshot, id) => {
 export const referenceUnknown: GateRule['check'] = (snapshot, id) => {
   const v = verificationOf(snapshot, id);
   if (v === undefined) return [];
-  return v.blocks.flatMap((b) =>
+  return v.blocks.filter((b) => inSlice(snapshot, id, b.acTag)).flatMap((b) =>
     unresolvedRefs(b.evidence, snapshot).map((t) => ({
       file: v.file,
       line: b.line,
@@ -206,7 +208,7 @@ export const noteMissing: GateRule['check'] = (snapshot, id) => {
   if (t === undefined || notesOptional(snapshot, t)) return [];
   const blocks = noteBlocks(t);
   const line = t.sections.find((s) => headingKey(s.heading) === NOTES)?.line;
-  return ticked(t)
+  return ticked(t, snapshot, id)
     .filter((tag) => !Object.hasOwn(blocks, tag))
     .map((tag) => ({
       file: ticketFile(id),
@@ -220,7 +222,7 @@ export const noteUnresolved: GateRule['check'] = (snapshot, id) => {
   const t = ticketOf(snapshot, id);
   if (t === undefined || notesOptional(snapshot, t)) return [];
   const blocks = noteBlocks(t);
-  return ticked(t)
+  return ticked(t, snapshot, id)
     .filter((tag) => Object.hasOwn(blocks, tag) && !cites(blocks[tag].text, snapshot))
     .map((tag) => ({
       file: ticketFile(id),
@@ -239,7 +241,7 @@ export const notePasted: GateRule['check'] = (snapshot, id) => {
   const t = ticketOf(snapshot, id);
   if (t === undefined || notesOptional(snapshot, t)) return [];
   const blocks = noteBlocks(t);
-  return ticked(t).flatMap((tag) => {
+  return ticked(t, snapshot, id).flatMap((tag) => {
     const block = Object.hasOwn(blocks, tag) ? blocks[tag] : undefined;
     const scenario = t.scenarios.find((s) => s.acTag === tag);
     if (block === undefined || scenario === undefined) return [];

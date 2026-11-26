@@ -10,6 +10,7 @@ import { resolveStrictness } from '../config/strictness.js';
 import { effectiveLevel, STAGE_OF, stageOff } from './floor.js';
 import { doneAtBase } from './done.js';
 import { readyHash } from './hash.js';
+import { sliceScope } from './slice.js';
 import { downgradeMaintain, DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule, RunOnce } from './rules.js';
 import { laneTicket, workOf } from './work.js';
@@ -119,12 +120,20 @@ export function gatePlan(snapshot: RepoSnapshot, id: string): GateResult {
 /**
  * GATE-02/GATE-03/GATE-11: the Done table plus every ticket-scoped lint finding at the level lint
  * stamped. No hygiene promotion and no design rule — Done does not re-run Ready (D-89 applied to Done).
+ * Phase 15 D-31: with `options.slice` below the plan's last slice, every rule that reads scenarios, evidence blocks or ticks reads only that slice's `covers:` criteria and the ledger rule asks only for the tasks
+ * of slices 1..n (see slice.ts and done.ts `inSlice`); every other rule runs whole. The last slice, a number the plan has no slice for, and a ticket with no slices judge the full set: the CLI refuses the last two
+ * before it calls (exit 2), so a caller that skipped that check fails closed.
  */
-export function gateDone(snapshot: RepoSnapshot, id: string): GateResult {
+export function gateDone(snapshot: RepoSnapshot, id: string, options: { slice?: number } = {}): GateResult {
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
   // Phase 15 D-23, D-24, D-25: a ticket done at the merge base with the default branch runs the one row that says a done ticket is not edited, and no other: its evidence is history,
   // so no rule resolves a file or a test at HEAD for it. A host that supplied no base fact leaves doneAtBase false and today's tables run.
   if (doneAtBase(snapshot, id)) return run('done', DONE_RULES.filter((r) => r.id === 'gate.done-ticket-edited'), [], snapshot, id);
+  const scope = options.slice === undefined ? undefined : sliceScope(snapshot, id, options.slice);
+  const judged =
+    scope === undefined || scope.tags === undefined || scope.tasks === undefined
+      ? snapshot
+      : { ...snapshot, doneSlice: { ...snapshot.doneSlice, [id]: scope.tags }, doneSliceTasks: { ...snapshot.doneSliceTasks, [id]: scope.tasks } };
   // ST-LN-94 D-10: lane R runs its own Done table, so no lane M Done rule reads an R ticket's records.
-  return run('done', lane === 'S' ? DONE_S_RULES : lane === 'R' ? DONE_R_RULES : DONE_RULES, [], snapshot, id);
+  return run('done', lane === 'S' ? DONE_S_RULES : lane === 'R' ? DONE_R_RULES : DONE_RULES, [], judged, id);
 }

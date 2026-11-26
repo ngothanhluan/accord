@@ -71,6 +71,28 @@ export function headCommitDate(view: PrView): string {
   return best;
 }
 
+/** One pull request as `gh pr list --json number,state,baseRefName,headRefName,url` gives it. */
+export interface PrRef {
+  number: number;
+  state?: string; // OPEN | CLOSED | MERGED
+  url?: string;
+  baseRefName?: string;
+  headRefName?: string;
+}
+
+/** The newest pull request (the highest number) of a list: a branch may have had older closed ones, and the newest is the one in play. Entries without a whole number are ignored. */
+export function newestPr<T extends { number: number }>(list: readonly T[]): T | undefined {
+  return list.filter((p) => Number.isInteger(p.number)).sort((a, b) => b.number - a.number)[0];
+}
+
+/**
+ * Phase 15 D-08, T-15-38: may the base of `next` be moved to the default branch now that the slice on `mergedBranch` merged? Only when `next` is open, its head is `nextBranch` (the next slice's
+ * branch of the same ticket, named by the caller) and its base is still `mergedBranch`. A pull request whose base the owner moved, GitHub retargeted, or that is another ticket's is never touched.
+ */
+export function baseMovable(mergedBranch: string, nextBranch: string, next: PrRef | undefined): next is PrRef {
+  return next !== undefined && next.state === 'OPEN' && next.headRefName === nextBranch && next.baseRefName === mergedBranch;
+}
+
 /** The verdict of one poll. Order: merged, closed, feedback, a failed check, else pending; a merged pull request is reported before any pending or failing check. */
 export function prWaitVerdict(view: PrView, inline: readonly InlineComment[], gate: WaitGate): WaitVerdict {
   const number = view.number ?? 0;

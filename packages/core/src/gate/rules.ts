@@ -35,6 +35,7 @@ import {
   acUncovered,
   sliceAcMissing,
   sliceAcUncovered,
+  sliceDiffLarge,
   sliceLarge,
   sliceMany,
   sliceOrder,
@@ -337,6 +338,8 @@ export const DONE_RULES: readonly GateRule[] = [
   // two identities match on nearly every honest ticket; an error here would block every solo developer.
   { id: 'gate.author-match', level: 'warning', profiles: ['build', 'maintain'], check: authorMatch },
   { id: 'gate.author-skipped', level: 'warning', profiles: ['build', 'maintain'], check: authorSkipped },
+  // Phase 15 D-06: the measured size of the slice `--slice n` judged, over the review budget; the split is shown and nothing blocks.
+  { id: 'gate.slice-diff-large', level: 'warning', profiles: ['build', 'maintain'], check: sliceDiffLarge },
 ];
 
 /**

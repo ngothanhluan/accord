@@ -1,6 +1,6 @@
 // Phase 15 plan 06 (D-22, R4): the pure verdict of one `accord pr wait` poll over the JSON `gh` returned. It holds counts, numbers, logins and sanitised check names, never a body.
 import { expect, it } from 'vitest';
-import { headCommitDate, prWaitVerdict } from '../src/index.js';
+import { baseMovable, headCommitDate, newestPr, prWaitVerdict } from '../src/index.js';
 import type { InlineComment, PrView } from '../src/index.js';
 
 const HEAD = '2026-11-25T10:00:00Z';
@@ -103,4 +103,22 @@ it('risk:parsing the head commit date is the newest of the commits, and none cou
   expect(headCommitDate({})).toBe('');
   const comment = { author: { login: 'ana' }, authorAssociation: 'OWNER', createdAt: BEFORE };
   expect(prWaitVerdict(open({ comments: [comment] }), none, { since: '', self: 'me' }).kind).toBe('feedback');
+});
+
+it('risk:parsing the newest pull request of a branch is the highest number, and an entry without a whole number is ignored (D-28)', () => {
+  expect(newestPr([{ number: 3 }, { number: 9 }, { number: 7 }])?.number).toBe(9);
+  expect(newestPr([{ number: Number.NaN }, { number: 2 }])?.number).toBe(2);
+  expect(newestPr([])).toBeUndefined();
+});
+
+it('risk:security the base of a slice pull request is movable only when it is open, its head is the next slice branch and its base is the merged branch (T-15-38, D-08)', () => {
+  const next = { number: 8, state: 'OPEN', headRefName: 'slice/T-1/2', baseRefName: 't/T-1' };
+  expect(baseMovable('t/T-1', 'slice/T-1/2', next)).toBe(true);
+  // not open, another ticket's slice branch, a base the owner already moved, a missing pull request: never touched
+  expect(baseMovable('t/T-1', 'slice/T-1/2', { ...next, state: 'MERGED' })).toBe(false);
+  expect(baseMovable('t/T-1', 'slice/T-1/2', { ...next, state: 'CLOSED' })).toBe(false);
+  expect(baseMovable('t/T-1', 'slice/T-1/2', { ...next, headRefName: 'slice/T-2/2' })).toBe(false);
+  expect(baseMovable('t/T-1', 'slice/T-1/2', { ...next, baseRefName: 'main' })).toBe(false);
+  expect(baseMovable('t/T-1', 'slice/T-1/2', { ...next, baseRefName: 'slice/T-1/3' })).toBe(false);
+  expect(baseMovable('t/T-1', 'slice/T-1/2', undefined)).toBe(false);
 });

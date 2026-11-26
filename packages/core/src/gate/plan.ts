@@ -3,6 +3,7 @@
 // it is complete. Levels live in rules.ts (D-57).
 import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
+import { sliceSplit } from '../pr/size.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { Plan, PlanSlice, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { afterCycles } from '../plan/waves.js';
@@ -540,7 +541,7 @@ export const sliceMany: GateRule['check'] = (snapshot, id) => {
 };
 
 /** The review budget of a slice in lines: `review.slice_lines` when it reads as a positive whole number, else SLICE_LINES_DEFAULT. */
-const sliceBudget = (snapshot: RepoSnapshot): number => {
+export const sliceBudget = (snapshot: RepoSnapshot): number => {
   const n = Number(snapshot.config?.review?.slice_lines);
   return Number.isSafeInteger(n) && n > 0 ? n : SLICE_LINES_DEFAULT;
 };
@@ -557,6 +558,19 @@ export const sliceLarge: GateRule['check'] = (snapshot, id) => {
       ? []
       : [{ file: read.plan.file, line: s.line, reason: `slice ${s.n} is about ${total} lines (${parts.join(', ')}), over the review budget of ${budget}` }];
   });
+};
+
+/**
+ * Phase 15 D-06, SC-3: a warning at Done when the slice `gate done --slice n` judged measures more lines (added plus deleted: code, tests, docs and skills, ticket records, rendered copies and lockfiles left
+ * out) than the review budget. The measurement is the host's (`snapshot.sliceSize`, loaded only for a `--slice` run); without it, for a ticket claimed before SLICES_FROM, or for a lane S ticket
+ * (its own Done table never holds this rule) nothing is said. It shows the split and fails nothing.
+ */
+export const sliceDiffLarge: GateRule['check'] = (snapshot, id) => {
+  const size = snapshot.sliceSize !== undefined && Object.hasOwn(snapshot.sliceSize, id) ? snapshot.sliceSize[id] : undefined;
+  if (size === undefined || laneTicket(snapshot, id) === undefined || claimPinBefore(snapshot, id, SLICES_FROM)) return [];
+  const budget = sliceBudget(snapshot);
+  if (size.total <= budget) return [];
+  return [{ file: workOf(snapshot, id)?.plan?.file ?? planFile(id), reason: `slice ${size.n} is ${size.total} lines (${sliceSplit(size)}), over the review budget of ${budget}` }];
 };
 
 /** Phase 15 D-09, T-15-29: a criterion of the ticket that no slice's `covers:` line names, so a slice pull request could pass without it. */

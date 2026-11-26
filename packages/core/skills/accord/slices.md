@@ -1,0 +1,23 @@
+---
+kind: reference
+---
+
+# Building a sliced ticket
+
+Follow this from step 8 of `./build.md` when `plan.md` holds `## Slice` sections (`./plan-slices.md`). A sliced ticket is built, reviewed and verified one slice at a time, and each slice is its own draft pull request stacked on the one before it, so the next slice is built without waiting for a merge.
+
+Slice 1 is built on the ticket's claim branch and slice n on `slice/<id>/<n>`. `accord anchor` prints `Slice: <n> of <m>, from <sha>` there, and it and `accord waves` name only the tasks of the slice this checkout is on.
+
+## Each slice
+
+1. Build the slice's tasks as `./build.md` says, then review the slice with `./review.md`. Its package reads from the slice's start before round 1.
+2. The final review of step 7 of `./review.md` reads the slice's own diff: for a slice before the last, give `--base` the sha the `Slice:` line of `accord anchor` prints after `from`, in place of the plan's `baseline:`. At the last slice it reads from the plan's `baseline:` as written: the one integration review, which reads the whole ticket once.
+3. Verify the slice as `./verify.md` says. Its step 6 runs `accord gate done <id> --slice <n>`, and the last slice runs it without `--slice`. A slice before the last ticks only the criteria its `covers:` line names; the last slice ticks the rest.
+4. Run `accord worktree push <id> --branch`.
+5. Open the slice's draft pull request as step 4 of `./verify-ci.md` says: `accord pr <id> --slice <n>`, then `gh pr create --draft --title "<title>" --body-file "<body-file>" --base <base>` with the `title:` and `body-file:` lines it printed, where `<base>` is the branch of slice n-1: the claim branch for slice 2, `slice/<id>/<n-1>` after. Give no `--base` for slice 1: the default branch for slice 1.
+6. Before the last slice: run `accord worktree slice <id> <n+1>`, then go on at `./build.md` for that slice. Do not wait for the merge of this pull request, and show no finish report.
+7. At the last slice: report the finish as `./finish.md` says, then wait as `./pr-wait.md` says. `accord pr wait <id>` follows the lowest slice pull request still open.
+
+## A change to an earlier slice
+
+A change to slice k after its review is committed on that slice's branch. Then take it into each later slice branch, in order: run `accord worktree slice <id> <j>` to switch to that branch, `accord worktree sync <id>` to merge the branch before it, and `accord worktree push <id> --branch`; go back to the slice in work last. Nothing is rebased and nothing is pushed with force: a branch with commits others hold only takes merges. Slices merge in order, and `accord pr wait` moves the next slice's base to the default branch after each merge.

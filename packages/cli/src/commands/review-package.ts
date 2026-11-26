@@ -5,12 +5,14 @@
 import { execFileSync } from 'node:child_process';
 import { epicBlock, interfaceSigns, matchedHunks, outsideScope, productBlocks, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { defaultRefOf, UsageError } from '../load/fs.js';
+import { currentBranch, defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
 import { cliRuleset, productChange, readProductText } from '../load/product.js';
 import { writeAgentFile } from '../load/report.js';
 import { exemptCopies, securityRoundRanges } from '../load/security-facts.js';
 import { shown as printable } from '../load/script-trust.js';
+import { sliceStart } from '../load/slice-size.js';
+import { sliceOfBranch } from '../load/slices.js';
 import { slopFacts } from '../load/slop-facts.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
@@ -115,6 +117,13 @@ function securityRoundPackage(ctx: CommandContext, id: string, asked: string, ou
   return 0;
 }
 
+/** The start of the slice this checkout is on when it is on `slice/<id>/<n>` of this ticket; undefined on any other branch, and when git cannot say. */
+function sliceBase(ctx: CommandContext, id: string): string | undefined {
+  const name = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
+  const slice = name === undefined ? undefined : sliceOfBranch(name);
+  return slice === undefined || slice.id !== id ? undefined : sliceStart(ctx.root, ctx.snapshot, id, slice.n);
+}
+
 export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string; security?: boolean; round?: string; out?: string }): number {
   const ticket = requireLaneTicket(ctx, id);
   refuseLaneR(ticket, id, 'review package');
@@ -185,7 +194,10 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   }
   // The default ref read for a lane S base is the one the exclusion below uses.
   const laneSDefault = laneS && (options.base === undefined || v2) ? defaultRefOf(ctx.root) : undefined;
-  const base = lastHead ?? options.base ?? roundOneBase(ctx.root, ctx.snapshot, id, { defaultRef: laneS ? laneSDefault : planOffDefault });
+  // Phase 15 D-10: on a slice branch (slice 2 or later) before any round is recorded, the package reads from where the slice starts, so each slice is reviewed on its own diff; a round's head and --base come first.
+  const roundless = rec === undefined || rec.cycles.every((c) => c.rounds.length === 0);
+  const sliceAt = !laneS && lastHead === undefined && options.base === undefined && roundless ? sliceBase(ctx, id) : undefined;
+  const base = lastHead ?? options.base ?? sliceAt ?? roundOneBase(ctx.root, ctx.snapshot, id, { defaultRef: laneS ? laneSDefault : planOffDefault });
   if (base === undefined) {
     throw new UsageError(
       laneS

@@ -33,6 +33,12 @@
 // as approved, so a doubt gates. `.github/workflows/accord.yml` carries the same script and must be changed
 // with it; `cli/test/workflow-script.test.ts` fails when the two drift.
 //
+// A slice pull request is gated on its own slice (Phase 15 D-31): the step's `env:` carries the head branch name as `HEAD_REF`, and the
+// `gate done` call adds `--slice <n>` when the head is `slice/<id>/<n>` of the gated id, or `--slice 1` when it is any other branch and the
+// ticket's plan.md at HEAD holds two or more `## Slice` sections; otherwise it adds nothing. A head name that is not exactly such a branch adds
+// nothing. `gate done --slice` exists from 0.21.0: a repository pinned to an older release fails the accord job on a slice pull request until
+// its pin moves, and passes the flag to no other pull request.
+//
 // `accord upgrade` finds the step by its name `lint and gate` (`refreshLintStep` in `scaffold/repin.ts`) and
 // replaces it with the step this function writes, so renaming the step stops upgrades from refreshing the
 // script in every repository that ran `accord init`.
@@ -109,6 +115,7 @@ jobs:
         shell: bash
         env:
           BASE: \${{ github.event.pull_request.base.sha }}
+          HEAD_REF: \${{ github.head_ref }}
         run: |
           # GitHub starts this script with -e and the next line undoes it: a lint failure and a gate failure
           # should both be reported on one push, so the script accumulates an exit code instead of stopping.
@@ -284,7 +291,18 @@ jobs:
                 continue
               fi
             fi
-            ${accord} gate done "$id" || code=1
+            # A slice pull request is gated on its own slice (D-31). HEAD_REF is the head branch name, chosen by whoever opened the pull
+            # request, so it comes in only through env:, is matched by one anchored pattern, and its id must equal "$id" before the
+            # number is used; the flag goes in as separate quoted words, never through eval. On the claim branch (any other head) the
+            # pull request is slice 1 when the ticket's plan.md at HEAD holds two or more slice sections; a failed read means no flag.
+            slice_flag=()
+            if [[ "\${HEAD_REF:-}" =~ ^slice/([A-Za-z0-9][A-Za-z0-9._-]*)/([1-9][0-9]?)$ ]]; then
+              if [ "\${BASH_REMATCH[1]}" = "$id" ]; then slice_flag=(--slice "\${BASH_REMATCH[2]}"); fi
+            elif plan_text=$(git show "HEAD:accord/tickets/$id/plan.md" 2> /dev/null); then
+              slice_count=$(grep -cE '^## Slice [0-9]+:' <<< "$plan_text" || true)
+              if [ "$slice_count" -ge 2 ]; then slice_flag=(--slice 1); fi
+            fi
+            ${accord} gate done "$id" \${slice_flag[@]+"\${slice_flag[@]}"} || code=1
           done <<< "$tickets"
           exit $code
 `;

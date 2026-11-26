@@ -49,8 +49,16 @@ function unfinishedLines(snapshot: RepoSnapshot, id: string): string[] {
  * and come before the Unfinished lines, so the header reads in one order whoever prints it.
  * Phase 8.5 D-17: `product` is what the host read of the working branch's conventions.md (D-06; core reads nothing). A lane S ticket at `build` or `review`, the stages where its session writes code
  * with no brief, gets the conventions block of `productBlocks('lane-s-session')` last, after `## Rulings`, with its duty line and every line checked; any other ticket and stage, and a call without `product`, print today's text.
+ * Phase 15 D-07: `slice` is the slice the checkout is on (the host's `currentSlice`) with that slice's task numbers; at build the anchor then names only a task of that slice, and says the slice's tasks are done when none is left.
+ * Without `slice`, which every unsliced ticket gives, the text is today's byte for byte.
  */
-export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly string[] = [], product?: { conventions: ProductRead }): string | undefined {
+export function anchorText(
+  snapshot: RepoSnapshot,
+  id: string,
+  header: readonly string[] = [],
+  product?: { conventions: ProductRead },
+  slice?: { n: number; of: number; tasks: readonly number[] },
+): string | undefined {
   if (!Object.hasOwn(snapshot.tickets, id)) return undefined;
   const ticket = snapshot.tickets[id];
   const progress = progressOf(snapshot, ticket);
@@ -58,9 +66,16 @@ export function anchorText(snapshot: RepoSnapshot, id: string, header: readonly 
   const work = workOf(snapshot, id);
   let where: string;
   if (progress.stage === 'build') {
-    const task = work?.plan?.tasks.find((t) => t.n === progress.next);
+    // Phase 15 D-07: on a slice of a sliced ticket the next task is the first one of that slice still to build; with none left the slice is built, and no task of a later slice is named
+    const done = work?.ledger?.done ?? {};
+    const next =
+      slice === undefined
+        ? progress.next
+        : [...(work?.plan?.tasks ?? [])].sort((a, b) => a.n - b.n).find((t) => slice.tasks.includes(t.n) && !Object.hasOwn(done, String(t.n)))?.n;
+    const task = work?.plan?.tasks.find((t) => t.n === next);
     where =
-      `build ${progress.tasksDone}/${progress.tasksTotal}` + (task === undefined ? '' : `, next: task ${task.n} "${task.title}"`);
+      `build ${progress.tasksDone}/${progress.tasksTotal}` +
+      (slice !== undefined && task === undefined ? `, slice ${slice.n} of ${slice.of}: its tasks are done` : task === undefined ? '' : `, next: task ${task.n} "${task.title}"`);
   } else {
     where = `${progress.stage}, next: ${nextStep(ticket, progress.stage)}`;
   }

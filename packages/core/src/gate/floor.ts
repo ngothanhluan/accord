@@ -129,6 +129,7 @@ export const OVERRIDABLE: readonly string[] = [
   'gate.plan-large',
   'gate.slice-many',
   'gate.slice-large',
+  'gate.slice-diff-large',
   'lint.ticket-title',
   'lint.depends-unknown',
   'lint.depends-cycle',

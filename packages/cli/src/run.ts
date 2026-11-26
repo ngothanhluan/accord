@@ -19,6 +19,7 @@ import { commitCheck, commitMessage } from './commands/commit.js';
 import { conventionsWrite } from './commands/conventions.js';
 import { pr } from './commands/pr.js';
 import { prWait } from './commands/pr-wait.js';
+import { sliceOpen } from './commands/slice-tree.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
 import { waves } from './commands/waves.js';
 import { budget } from './commands/budget.js';
@@ -193,11 +194,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // conditional on which gate was asked for (D-95).
   const gates = program.command('gate').description('run one gate against one ticket');
   for (const which of ['ready', 'plan', 'done'] as const) {
-    gates
+    const command = gates
       .command(which + ' <id>')
       .description('report whether the ticket passes the ' + which + ' gate')
-      .option('--json', 'print the GateResult object instead of text')
-      .action((id: string, options: { json?: boolean }) => {
+      .option('--json', 'print the GateResult object instead of text');
+    // Phase 15 D-31: only Done is slice-aware; Ready and Plan judge the whole ticket.
+    if (which === 'done') command.option('--slice <n>', "judge only slice <n> of the plan's slices (its covers: criteria); the last slice judges them all");
+    command
+      .action((id: string, options: { json?: boolean; slice?: string }) => {
         // Phase 08.9.2 Ruling-narrow: Ready and Plan read the ticket, its epic and its dependencies; every other ticket is known by file name only.
         // Phase 08.9.2 review CR-01: Done does not. `gate.test-untraced` holds each report case against the `@test:` tags of EVERY ticket, so a narrow Done named the cases another ticket traces as untraced; Done takes the full load.
         setCode(gate(preflight(opts, 'checkout', which === 'done' ? {} : { only: id }), which, id, options));
@@ -378,8 +382,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   prGroup
     .command('build <id>', { isDefault: true })
     .description("write the body file of a ticket's pull request from the repository's PR template with every heading kept and the ticket's id, title, Intent, criteria and test evidence filled in, and print title: <title>, body-file: <path>, template: <path>, and one remaining: <heading> line per section left for you to write; the skill then runs gh pr create --title <title> --body-file <path>")
-    .action((id: string) => {
-      setCode(pr(preflight(opts), id));
+    .option('--slice <n>', "the pull request of slice <n> of the plan's slices: the title ends (slice <n> of <m>) and the body opens with Slice <n> of <m>, the criteria that slice delivers and its measured size")
+    .action((id: string, o: { slice?: string }) => {
+      setCode(pr(preflight(opts), id, o));
     });
   prGroup
     .command('wait <id>')
@@ -547,6 +552,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("remove task n's worktree and delete its branch, only when the ticket branch holds its commits; otherwise exit 1 and remove nothing")
     .action((id: string, n: string) => {
       setCode(taskClean(preflight(opts), id, n));
+    });
+  // Phase 15 D-07, D-31: a ticket's later slices on stacked branches, run in the ticket's own worktree.
+  worktree
+    .command('slice <id> <n>')
+    .description("open slice n (2 to the plan's slice count) of a sliced ticket: create branch slice/<id>/<n> at the tip of the branch of slice n-1 (the claim branch for slice 2), stacked on it without waiting for its pull request to merge (D-07), switch this worktree to it, record it in the git folder's accord/slices, and print branch: and base:; run again it prints the same lines; it refuses a dirty tree and a slice the plan does not have")
+    .action((id: string, n: string) => {
+      setCode(sliceOpen(preflight(opts), id, n));
     });
 
   program

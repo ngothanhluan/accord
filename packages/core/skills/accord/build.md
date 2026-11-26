@@ -47,7 +47,7 @@ session and orchestrate: executors write the code.
    owner's yes and dispatch again. Only `./plan.md` changes the plan. Never run
    `accord tests baseline` here except as `./build-no-plan.md` says, which follows `./plan-baseline.md`; otherwise only the plan stage asks the owner about it.
 
-8. When every task has a ledger line, next: `./review.md`. When `accord anchor` names review off, follow the section `With the review stage off` of `./review-security.md`, then `./verify.md`.
+8. When every task has a ledger line, next: `./review.md`. When `accord anchor` names review off, follow the section `With the review stage off` of `./review-security.md`, then `./verify.md`. For a plan with `## Slice` sections, follow `./slices.md` in their place once every task of the slice this checkout is on has a ledger line.
 
 ## Rules
 

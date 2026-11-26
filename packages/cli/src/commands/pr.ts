@@ -3,14 +3,30 @@
 // repository's PR template with every heading kept and what the ticket knows filled in; else it is today's fixed body. It reads the repository and writes files under .git: it never calls `gh` (D-03).
 import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { epicBody, fillTemplate, findTemplate, normaliseText, prFacts, prTitle, prTitleProblem, todaysBody } from '@accord-dev/accord-core';
-import type { PrFacts } from '@accord-dev/accord-core';
+import { epicBody, fillTemplate, findTemplate, normaliseText, prFacts, prTitle, prTitleProblem, sliceBlock, sliceBudget, sliceFacts, sliceTitle, todaysBody, workOf } from '@accord-dev/accord-core';
+import type { PrFacts, SlicePart } from '@accord-dev/accord-core';
 import { gitBranchCommits, gitDefaultRef, gitFilesAt, gitTracked, UsageError, withQueued } from '../load/fs.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
+import { gitSliceSize } from '../load/slice-size.js';
 import { runTeamCommand } from '../load/team-run.js';
 import type { CommandContext } from '../run.js';
+import { renderedFilesOf } from './branch-fact.js';
 import { withNext } from './next-action.js';
 import { git, ID } from './worktree.js';
+
+/**
+ * Phase 15 D-06: slice `value` of ticket `id`'s plan, or a usage error (exit 2): the value is not a whole number of 1 to 3 digits, the plan holds no `## Slice` section, or none has that number.
+ * `of` is the plan's last slice number; `covers` the tokens of the slice's `covers:` line.
+ */
+function sliceOf(snapshot: CommandContext['snapshot'], id: string, value: string): { n: number; of: number; covers: string[] } {
+  if (!/^[0-9]{1,3}$/.test(value)) throw new UsageError(`--slice needs a whole number from 1 to the plan's last slice, got "${shown(value.slice(0, 40))}"`);
+  const slices = workOf(snapshot, id)?.plan?.slices;
+  if (slices === undefined || slices.length === 0) throw new UsageError(`${id} has no "## Slice" section in its plan, so --slice does not apply`);
+  const n = Number(value);
+  const found = slices.find((s) => s.n === n);
+  if (found === undefined) throw new UsageError(`--slice ${value} is not one of the plan's slices (1 to ${Math.max(...slices.map((s) => s.n))})`);
+  return { n, of: Math.max(...slices.map((s) => s.n)), covers: found.covers };
+}
 
 /** The title script may run this long and print this much (Ruling "pr.command contract"). */
 const PR_TIMEOUT_MS = 60_000;
@@ -82,8 +98,10 @@ function runScript(ctx: CommandContext, command: string, id: string, ticketFile:
  * Print `title:`, `body-file:`, then `template: <path>` (or `script: pr.command`, or `template: none`) and one `remaining:` line per section of the template nobody could fill, in that
  * order, and write the body to `<git-path>/accord-pr-<id>.md` (one per worktree, never tracked, overwritten on each run). Exit 2 for an id that is no ticket here or on a backlog branch,
  * for a title the quoted `gh` argument cannot carry, and for everything `pr.command` and `pr.template` can get wrong.
+ * Phase 15 D-06, SC-2: with `--slice <n>` the pull request is slice n's: the title ends `(slice <n> of <m>)`, the body opens with `Slice <n> of <m>`, the criteria that slice delivers and its measured size,
+ * and a template's criteria and evidence sections list only that slice's criteria; a plan with no `## Slice` section, or a number it has no slice for, is exit 2. Without the flag nothing changes.
  */
-export function pr(ctx: CommandContext, id: string): number {
+export function pr(ctx: CommandContext, id: string, options: { slice?: string } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   // an epic opens its pull request from a backlog branch, so its ticket is only on that branch: read it as the dashboard does
   const snapshot = Object.hasOwn(ctx.snapshot.tickets, id) ? ctx.snapshot : withQueued(ctx.root, ctx.snapshot);
@@ -93,11 +111,14 @@ export function pr(ctx: CommandContext, id: string): number {
   if (ticket.frontmatter === undefined) {
     throw new UsageError(`ticket ${id}: the frontmatter of ${ticket.file} does not parse, so its title is unknown - fix it (accord lint names the problem), then run accord pr again`);
   }
-  const facts: PrFacts = prFacts(ticket, snapshot.verifications[id]);
+  const whole: PrFacts = prFacts(ticket, snapshot.verifications[id]);
+  const slice = options.slice === undefined ? undefined : sliceOf(snapshot, id, options.slice);
+  const facts: PrFacts = slice === undefined ? whole : sliceFacts(whole, slice.covers);
+  const part: SlicePart | undefined = slice === undefined ? undefined : { n: slice.n, of: slice.of };
   const config = ctx.snapshot.config;
   const where = resolve(ctx.root, git(ctx.root, ['rev-parse', '--git-path', `accord-pr-${id}.md`]).trim());
 
-  let title = prTitle(id, facts.title);
+  let title = prTitle(id, facts.title, part);
   let body: string;
   let source: string;
   let remaining: string[] = [];
@@ -113,7 +134,7 @@ export function pr(ctx: CommandContext, id: string): number {
       }
     }
     const built = runScript(ctx, config.pr.command, id, ticketFile.replaceAll('\\', '/'));
-    title = built.title;
+    title = part === undefined ? built.title : sliceTitle(built.title, part);
     body = built.body;
     source = 'script: pr.command';
   } else {
@@ -135,6 +156,11 @@ export function pr(ctx: CommandContext, id: string): number {
   }
   const problem = prTitleProblem(title);
   if (problem !== undefined) throw new UsageError(`ticket ${id}: ${problem}`);
+  // the slice block opens the body whatever made it (template, script or today's list): it is what says which slice this pull request is (D-06)
+  if (slice !== undefined && part !== undefined) {
+    const size = gitSliceSize(ctx.root, snapshot, id, slice.n, renderedFilesOf(config));
+    body = sliceBlock(part, facts.criteria, size, sliceBudget(snapshot)) + body;
+  }
   writeFileSync(where, body);
   ctx.stdout.write(`title: ${title}\n`);
   ctx.stdout.write(`body-file: ${where.replaceAll('\\', '/')}\n`);

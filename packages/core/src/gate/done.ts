@@ -32,12 +32,25 @@ const tagsOf = (tags: readonly string[]): string[] =>
 /** `nothing` for an empty list, otherwise the `@ac-n` tokens in numeric order. */
 const fmt = (tags: readonly string[]): string => (tags.length === 0 ? 'nothing' : tags.map((t) => '@' + t).join(' '));
 
-const scenarioTags = (snapshot: RepoSnapshot, id: string): string[] =>
+/**
+ * Phase 15 D-31: the `ac-n` tags of the slice `gate done --slice n` judges, set by gateDone for a slice below the last one; undefined means the whole ticket. Every Done rule that reads scenarios,
+ * evidence blocks or `verified:` entries goes through `inSlice`; the hash, review, suite, scope, security and record rules never do.
+ */
+export const sliceTags = (snapshot: RepoSnapshot, id: string): readonly string[] | undefined =>
+  snapshot.doneSlice !== undefined && Object.hasOwn(snapshot.doneSlice, id) ? snapshot.doneSlice[id] : undefined;
+/** True when this run judges the whole ticket or the slice holds `tag`; a scenario with no `ac-n` tag belongs to no slice, so it is always judged. */
+export const inSlice = (snapshot: RepoSnapshot, id: string, tag: string | undefined): boolean => {
+  const slice = sliceTags(snapshot, id);
+  return slice === undefined || tag === undefined || slice.includes(tag);
+};
+
+const allScenarioTags = (snapshot: RepoSnapshot, id: string): string[] =>
   tagsOf((ticketOf(snapshot, id)?.scenarios ?? []).flatMap((s) => (s.acTag === undefined ? [] : [s.acTag])));
+const scenarioTags = (snapshot: RepoSnapshot, id: string): string[] => allScenarioTags(snapshot, id).filter((t) => inSlice(snapshot, id, t));
 const evidenceTags = (snapshot: RepoSnapshot, id: string): string[] =>
-  tagsOf((verificationOf(snapshot, id)?.blocks ?? []).map((b) => b.acTag));
+  tagsOf((verificationOf(snapshot, id)?.blocks ?? []).map((b) => b.acTag).filter((t) => inSlice(snapshot, id, t)));
 const tickTags = (snapshot: RepoSnapshot, id: string): string[] =>
-  tagsOf(ticketOf(snapshot, id)?.frontmatter?.verified ?? []);
+  tagsOf((ticketOf(snapshot, id)?.frontmatter?.verified ?? []).filter((t) => inSlice(snapshot, id, t)));
 
 /** D-81: at least 7 characters and every one of them hexadecimal. Shorter values never compare equal. */
 export function isSha(v: string): boolean {
@@ -60,7 +73,7 @@ export function shaEqual(a: string, b: string): boolean {
  * pass Done vacuously. This fires on every ticket type, so an `epic` cannot slip through either.
  */
 export const noScenarios: GateRule['check'] = (snapshot, id) => {
-  if (ticketOf(snapshot, id) === undefined || scenarioTags(snapshot, id).length > 0) return [];
+  if (ticketOf(snapshot, id) === undefined || allScenarioTags(snapshot, id).length > 0) return [];
   return [
     {
       file: ticketFile(id),
@@ -136,6 +149,7 @@ export const resultNotPass: GateRule['check'] = (snapshot, id) => {
   const v = verificationOf(snapshot, id);
   if (v === undefined) return [];
   return v.blocks
+    .filter((b) => inSlice(snapshot, id, b.acTag))
     .filter((b) => b.result === 'fail' || b.result === 'blocked')
     .map((b) => ({ file: v.file, line: b.line, reason: `evidence block "@${b.acTag}" records Result: ${b.result}` }));
 };
@@ -351,7 +365,7 @@ export const commitMessage: GateRule['check'] = (snapshot, id) => {
 const isTest = (tag: string) => tag.startsWith('@test:');
 /** Every scenario the machine layer applies to: `@ui` leans on the human layer instead (D-90, GATE-09). */
 const machineScenarios = (snapshot: RepoSnapshot, id: string): ScenarioRef[] =>
-  (ticketOf(snapshot, id)?.scenarios ?? []).filter((s) => !s.tags.includes('@ui'));
+  (ticketOf(snapshot, id)?.scenarios ?? []).filter((s) => !s.tags.includes('@ui') && inSlice(snapshot, id, s.acTag));
 /** The configured report path, or undefined when `config.yml` declares no `tests.report`. */
 export const reportPath = (snapshot: RepoSnapshot): string | undefined => snapshot.config?.tests?.report;
 /** True only when a report was declared *and* its file reached the snapshot; the join runs on nothing else. */

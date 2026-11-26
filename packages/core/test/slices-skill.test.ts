@@ -39,6 +39,14 @@ function rendered(file: string): Rendered[] {
   });
 }
 
+/** The text of `text` from the first occurrence of `from` to the next occurrence of `to` (or the end). */
+function between(text: string, from: string, to: string): string {
+  const start = text.indexOf(from);
+  if (start < 0) return '';
+  const end = text.indexOf(to, start + from.length);
+  return end < 0 ? text.slice(start) : text.slice(start, end);
+}
+
 it('risk:regression build step 8 hands a sliced ticket to slices.md, which renders beside it and every relative link resolves (D-07)', () => {
   const bad: string[] = [];
   for (const f of rendered('build.md')) {
@@ -112,6 +120,64 @@ it('risk:regression review.md is untouched by the slice flow and stays within it
   for (const f of rendered('review.md')) {
     if (f.text.includes('slices.md')) bad.push(f.label + ' names slices.md');
     if (Buffer.byteLength(f.raw, 'utf8') > 6000) bad.push(f.label + ' is over 6000 bytes');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression verify step 6 names the slice form through slices.md and the verify stage keeps its byte cap (D-07)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('verify.md')) {
+    const step6 = between(f.text, '6. Run `accord gate done <id>`', '7. Report the finish');
+    if (!step6.includes('`--slice <n>`') || !step6.includes('./slices.md')) bad.push(f.label + ' step 6 names no `--slice <n>` through ./slices.md');
+    if (Buffer.byteLength(f.raw, 'utf8') > 5980) bad.push(f.label + ' is over 5980 bytes');
+  }
+  const stage = rendered('verify.md').length;
+  expect(stage).toBeGreaterThan(0);
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the CI step opens a slice pull request with accord pr --slice and a base, and runs the gate on the slice (D-07, D-31)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('verify-ci.md')) {
+    const step4 = between(f.text, '4. When that list was empty', 'Then run the suite');
+    for (const p of lacks(step4, ['`accord pr <id> --slice <n>`', '`--base <the previous slice\'s branch>`', 'no `--base` for slice 1', './slices.md'])) bad.push(f.label + ' step 4 lacks: ' + p);
+    const finish2 = between(f.text, '2. Run `accord lint`', '3. Run `git status --porcelain --branch`');
+    if (!finish2.includes('`accord gate done <id> --slice <n>`')) bad.push(f.label + ' Finish step 2 lacks `accord gate done <id> --slice <n>` for a slice before the last');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression a change to an earlier slice is committed there and merged forward in order with accord worktree sync, never rebased or force-pushed (D-08)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('slices.md')) {
+    for (const p of lacks(f.text, [
+      "is committed on that slice's branch",
+      'each later slice branch, in order',
+      '`accord worktree sync <id>`',
+      '`accord worktree push <id> --branch`',
+      'Slices merge in order, and `accord pr wait` moves the next slice\'s base',
+    ])) {
+      bad.push(f.label + ' lacks: ' + p);
+    }
+    if (/git rebase/.test(f.raw)) bad.push(f.label + ' holds a git rebase command');
+    if (/--force/.test(f.raw)) bad.push(f.label + ' holds a --force flag');
+    if (/force-with-lease|push -f\b/.test(f.raw)) bad.push(f.label + ' holds a forced push');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the wait follows the lowest open slice pull request and a missing next slice mid-wait is not read as a wait that never started (D-28)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('pr-wait.md')) {
+    for (const p of lacks(f.text, [
+      'the lowest slice pull request still open',
+      'ends `merged` only when the last slice has merged',
+      '`slice/<id>/<n>`',
+      'open it with `accord pr <id> --slice <n>` as `./slices.md` says, then start the wait again as in Start',
+      'the wait never started, so nothing watches the pull request',
+    ])) {
+      bad.push(f.label + ' lacks: ' + p);
+    }
   }
   expect(bad).toEqual([]);
 });

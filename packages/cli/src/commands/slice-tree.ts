@@ -2,9 +2,9 @@
 // claim branch), each cut at the tip of the branch before it WITHOUT waiting for that slice's pull request to merge. The ticket's own worktree is switched to the new branch, and the
 // branch is recorded in `<git common dir>/accord/slices` so the dashboard, `worktree clean` and `pr wait` find it. It runs in the ticket's own worktree, on the claim branch or on one of
 // its slice branches; run again it prints the same lines and changes nothing. No rebase and no force-push ever touches a slice branch (D-08). Names reach git only from an id that passed
-// `ID` and a number of 2 to 99, as literal argument arrays (T-15-31).
+// `ID` and a number of 1 to 99, as literal argument arrays (T-15-31). Slice 1 is the claim branch: `slice <id> 1` switches the checkout back to it and cuts nothing.
 import { workOf } from '@accord-dev/accord-core';
-import { currentBranch, UsageError } from '../load/fs.js';
+import { currentBranch, defaultRefOf, UsageError } from '../load/fs.js';
 import { recordSlice, sliceBranch, sliceNumber, sliceOfBranch } from '../load/slices.js';
 import type { CommandContext } from '../run.js';
 import { requireTicket } from './lane-args.js';
@@ -21,13 +21,11 @@ const print = (ctx: CommandContext, branch: string, base: string): number => {
 /** `accord worktree slice <id> <n>`: see the file's first lines. Every refusal is exit 2 with nothing created. */
 export function sliceOpen(ctx: CommandContext, id: string, arg: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
-  const n = sliceNumber(arg);
+  // Review C-WR-06: slice 1 is the claim branch, so `slice <id> 1` is how a checkout goes back to it (slices.md sends the agent there to change an earlier slice); nothing is cut or recorded.
+  const back = arg === '1';
+  const n = back ? 1 : sliceNumber(arg);
   if (n === undefined) {
-    throw new UsageError(
-      /^[0-9]+$/.test(arg) && Number(arg) === 1
-        ? `slice 1 is the claim branch of ${id}, built where it is: slices to open start at 2; nothing was created`
-        : `not a slice number: ${arg} - a slice is 2 to 99 (slice 1 is the claim branch); nothing was created`,
-    );
+    throw new UsageError(`not a slice number: ${arg} - a slice is 1 to 99 (slice 1 is the claim branch, the later ones are cut by this command); nothing was created`);
   }
   requireTicket(ctx.snapshot, id);
   const slices = workOf(ctx.snapshot, id)?.plan?.slices;
@@ -38,6 +36,7 @@ export function sliceOpen(ctx: CommandContext, id: string, arg: string): number 
   if (here !== claim && sliceOfBranch(here ?? '')?.id !== id) {
     throw new UsageError(`accord worktree slice runs in ${id}'s own checkout, on ${claim} or one of its slice branches, and this one is on ${here ? here : 'a detached HEAD'}; nothing was created`);
   }
+  if (back) return claimOpen(ctx, id, claim, here);
   const base = n === 2 ? claim : sliceBranch(id, n - 1);
   const branch = sliceBranch(id, n);
   if (here === branch) return recordedPrint(ctx, id, n, branch, base);
@@ -52,6 +51,17 @@ export function sliceOpen(ctx: CommandContext, id: string, arg: string): number 
   }
   git(ctx.root, ['switch', '-q', branch]);
   return recordedPrint(ctx, id, n, branch, base);
+}
+
+/** `slice <id> 1`: switch the ticket's checkout to its claim branch (a refusal on a dirty tree or a missing branch changes nothing); on it already, print the same two lines. The base is the default branch. */
+function claimOpen(ctx: CommandContext, id: string, claim: string, here: string | undefined): number {
+  const def = defaultRefOf(ctx.root)?.replace(/^refs\/(?:remotes\/origin|heads)\//, '');
+  const base = def ?? 'the default branch';
+  if (here === claim) return print(ctx, claim, base);
+  if (!gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + claim])) throw new UsageError(`${claim} does not exist here; nothing was changed`);
+  if (dirty(ctx.root)) throw new UsageError(`${ctx.root.replaceAll('\\', '/')} has uncommitted changes to tracked files - commit them first; nothing was changed`);
+  git(ctx.root, ['switch', '-q', claim]);
+  return print(ctx, claim, base);
 }
 
 /** Record the branch (a line already there is kept as it is) and print the two lines; a failed record is named and the command goes on, since every reader also finds the branch by its name. */

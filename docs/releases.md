@@ -2,6 +2,10 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- A deferral mark that names a ticket whose id is only digits is now read only as ` → #<n>` (Phase 08.9.1 D-03, 08.8 review IN-03). ` → 42` at the end of a deferred item is prose, as in `the count went from 3 → 42`, and no longer hides the item from `accord deferred` or from the audit's `deferred-undecided` gap. Every other id (`ST-LN-12`, `PROJ-123`) keeps ` → <id>`, and ` → declined` is unchanged. An item marked ` → 42` since 0.16.0 is listed again, so rewrite its mark as ` → #42`. Run `accord upgrade`, or `accord skills sync` once the pin is the new version, so your verify and audit skills write the new form.
+
 ## 0.21.0 — 2026-11-26
 
 Release 0.21.0 carries Phase 15, the ticket flow of a team: a ticket that is done on the default branch is no longer edited, the dashboard draws one picture per repository and lists a ticket whose code merged before verify in its own group, the pane follows a commit made in another worktree, `accord pr wait` lets a session follow its pull request to the merge, progress goes to a ref and not to the claim branch (default off), a plan may be cut into slices that are built and merged as stacked slice pull requests, and a plan with too many slices proposes an epic. A repository pinned to 0.20.x needs `accord upgrade`, which replaces the `lint and gate` step of its workflow and the skill text. Tickets in flight are unaffected except as the items below say: the slice rules apply only to a ticket claimed under 0.21.0 or later, and a pull request that edits a ticket that is already done now fails.

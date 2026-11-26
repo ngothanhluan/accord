@@ -144,7 +144,7 @@ accord dashboard            # ranked sections for the viewer; --json for the dat
 accord commit check <file>  # judge a commit message file against commits.message (the conventional preset or a team pattern)
 accord commit message <id>  # build the message with the team's trusted script (commits.message.command), then judge it
 accord audit                # report what a machine sees about the conventions: fact, gap and gaps lines, exit 0, no model, no gate runs it
-accord deferred <id>        # print the ledger's Must and Should deferred items that carry no owner's mark (" → <id>" or " → declined"), for the owner at verify
+accord deferred <id>        # print the ledger's Must and Should deferred items that carry no owner's mark (" → <id>", " → #<n>" when the id is only digits, or " → declined"), for the owner at verify
 accord worktree clean       # remove worktrees and branches of done tickets; --dry-run prints the same lines and removes nothing; --after-merge <id> drops this session's hold on <id> first, from outside its worktree
 accord conventions write <file>  # put the accepted convention lines on their own branch conventions/<date> for a pull request the owner merges
 accord pr <id>              # write a ticket's pull request title and body file from the PR template, pr.command or today's body (`accord pr build <id>` is the same, the default of the `pr` group)

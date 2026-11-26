@@ -135,11 +135,14 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
   });
   const prio = effectivePriorities(snapshot, plain);
   // Phase 15 D-29: a ticket whose code merged (the host's `mergedClaims`) and that is not done on the default ref waits for verify; it leaves every other group and the pick-up suggestion.
+  // A-WR-01, C-WR-01: only when its stage is review or verify. The plan's tasks cover every slice, so a ticket whose claim branch (slice 1, or the newest slice cut so far) merged while later slices
+  // are not built is still at plan or build and stays in its own group: "merged" there means one pull request merged, not that the work is.
   const merged = new Set(snapshot.mergedClaims ?? []);
   const openAll = all.filter(isOpen);
-  const open = openAll.filter((r) => !merged.has(r.id));
+  const awaitsVerify = (r: StatusRow): boolean => merged.has(r.id) && (r.stage === 'review' || r.stage === 'verify');
+  const open = openAll.filter((r) => !awaitsVerify(r));
   const waiting = openAll
-    .filter((r) => merged.has(r.id))
+    .filter(awaitsVerify)
     .map((r) => (r.lane === 'M' || r.lane === 'L' || r.lane === 'P' ? { ...r, next: nextStep(snapshot.tickets[r.id], 'verify') } : r));
   const mine = (r: StatusRow) => r.claimedBy !== undefined && r.claimedBy.toLowerCase() === viewer.toLowerCase();
   const claimed = open.filter((r) => r.claimedBy !== undefined);

@@ -245,6 +245,22 @@ it('risk:complex-branching a ticket whose claim branch merged while slice 2 is u
   expect(ids(after, 'yours')).toEqual([]);
 }, 120_000);
 
+it('risk:complex-branching a claim branch that merged while the plan has tasks nobody built (slice 2 not cut yet) stays in yours, not in mergedWaiting (A-WR-01, C-WR-01)', async () => {
+  const repo = dashBase();
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  commitMsg(repo, 'claim: T-1', undefined, true);
+  writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+  commitMsg(repo, 'build: T-1 task 1');
+  gitRun(repo, 'switch', '-q', 'main');
+  mergeMsg(repo, 't/T-1', 'Merge pull request #1 from t/T-1');
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  const d = await dash(repo);
+  expect(ids(d, 'mergedWaiting')).toEqual([]);
+  expect(ids(d, 'yours')).toEqual(['T-1']);
+  expect(rowOf(d, 'T-1')).toMatchObject({ tasksDone: 1 });
+  expect(['review', 'verify']).not.toContain(rowOf(d, 'T-1')?.stage);
+}, 120_000);
+
 it('risk:security a slice branch of an id that is no ticket, or of a ticket nobody claimed, is ignored by the dashboard (D-31, T-15-33)', async () => {
   const repo = dashBase();
   gitRun(repo, 'branch', 'slice/X-1/2', 'main');

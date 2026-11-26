@@ -213,6 +213,24 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
   repos.push(repo);
   mkdirSync(join(repo, 'bin'), { recursive: true });
   writeFileSync(join(repo, 'script.sh'), SMOKE);
+  // A macOS runner has no coreutils `timeout`. This stand-in sits LAST on PATH, so a host that has the real one
+  // uses it, and it ends the call with 124 after the cap, as the real one does.
+  mkdirSync(join(repo, 'shim'), { recursive: true });
+  writeFileSync(
+    join(repo, 'shim', 'timeout'),
+    [
+      '#!/usr/bin/env bash',
+      'cap="${1%s}"; shift',
+      '"$@" & pid=$!',
+      '( sleep "$cap"; touch timed-out; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 </dev/null & guard=$!',
+      'wait "$pid"; code=$?',
+      'kill "$guard" 2>/dev/null',
+      '[ -e timed-out ] && exit 124',
+      'exit "$code"',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
   writeFileSync(join(repo, 'summary'), '');
   writeFileSync(join(repo, 'npx-plan'), `${plan.join('\n')}\n`);
   writeFileSync(
@@ -246,7 +264,7 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
   let out: string;
   let err = '';
   try {
-    out = execFileSync(BASH, ['-c', 'export PATH="$PWD/bin:$PATH"; exec bash script.sh'], {
+    out = execFileSync(BASH, ['-c', 'export PATH="$PWD/bin:$PATH:$PWD/shim"; exec bash script.sh'], {
       cwd: repo,
       encoding: 'utf8',
       env,

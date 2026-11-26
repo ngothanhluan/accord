@@ -222,7 +222,7 @@ function isAncestor(root: string, a: string, b: string): boolean {
 }
 
 /** Phase 15 D-15: where accord keeps the copy of origin's `refs/accord/<id>`, the progress ref; fetchOrigin writes it, nothing else does. */
-const PROGRESS_PREFIX = 'refs/remotes/origin-accord/';
+export const PROGRESS_PREFIX = 'refs/remotes/origin-accord/';
 
 /**
  * Spec §5: a branch named by a template in force (`t/{id}` always), local or on any remote, claims its ticket for
@@ -2444,7 +2444,7 @@ export function gitPeopleOnRefs(root: string): { byRef: Record<string, Record<st
   try {
     refs = execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes'], { ...opts, encoding: 'utf8' })
       .split('\n')
-      .filter((r) => r !== '' && !r.endsWith('/HEAD'));
+      .filter((r) => r !== '' && !r.endsWith('/HEAD') && !r.startsWith(PROGRESS_PREFIX)); // B-WR-08: a progress copy is no branch and holds no people
   } catch (err) {
     fail('listing refs to read people', err);
   }

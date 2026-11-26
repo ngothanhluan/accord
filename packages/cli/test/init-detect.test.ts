@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { initFiles } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
+import { gitPeopleOnRefs } from '../src/load/fs.js';
 import { gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 
 const CONFIG = join('accord', 'config.yml');
@@ -258,6 +259,30 @@ describe('accord init proposes the other conventions (ST-LN-50 t2-ac-8)', () => 
     const repo = build({ subjects: plain(12), branches: ['feature/ENG-1', 'feature/ENG-2', 'feature/ENG-3'] });
     const { out } = await run(['init'], repo);
     expect(proposalLines(out)).toEqual(['proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings']);
+  });
+
+  // B-WR-08 (15-REVIEWFIX-2): a progress copy under refs/remotes/origin-accord/<id> is not a branch, so it is no branch name and no source of people.
+  it('risk:regression progress refs are not counted as branches by the detectors (B-WR-08, D-15)', async () => {
+    const repo = build({ subjects: plain(12), branches: ['feature/ENG-1', 'feature/ENG-2', 'feature/ENG-3'] });
+    const tip = gitRun(repo, 'rev-parse', 'refs/heads/main').trim();
+    for (let i = 4; i <= 12; i++) gitRun(repo, 'update-ref', `refs/remotes/origin-accord/ENG-${i}`, tip);
+    const { out } = await run(['init'], repo);
+    expect(proposalLines(out)).toEqual(['proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings']);
+
+    // a real remote-tracking branch still counts: three more branches under origin make six
+    for (let i = 4; i <= 6; i++) gitRun(repo, 'update-ref', `refs/remotes/origin/feature/ENG-${i}`, tip);
+    expect(proposalLines((await run(['init'], repo)).out).some((l) => l.startsWith('proposal: branch = '))).toBe(true);
+  });
+
+  it('risk:regression people are not read from progress refs (B-WR-08, D-15)', () => {
+    const repo = build({ subjects: plain(2), files: { 'accord/config.yml': 'people:\n  a@example.com: AA\n' } });
+    const tip = gitRun(repo, 'rev-parse', 'refs/heads/main').trim();
+    gitRun(repo, 'update-ref', 'refs/remotes/origin-accord/ENG-4', tip);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/feature/x', tip);
+    const refs = Object.keys(gitPeopleOnRefs(repo).byRef);
+    expect(refs).toContain('refs/heads/main');
+    expect(refs).toContain('refs/remotes/origin/feature/x');
+    expect(refs.filter((r) => r.startsWith('refs/remotes/origin-accord/'))).toEqual([]);
   });
 
   it('risk:boundary conventional subjects below 60 percent, with no commitlint, give no subjects proposal (ST-LN-50 t2-ac-8)', async () => {

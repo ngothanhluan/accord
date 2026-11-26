@@ -27,7 +27,7 @@ import { join } from 'node:path';
 import { loadConfig, resolveKeyPath, setConfigValue, SUBJECT_NAMES, subjectCollisions } from '@accord-dev/accord-core';
 import type { SubjectName } from '@accord-dev/accord-core';
 import { editRefusal } from './config-edit.js';
-import { defaultRefOf } from './fs.js';
+import { defaultRefOf, PROGRESS_PREFIX } from './fs.js';
 
 /** One detected value: a dotted config key, its JSON value, and the evidence for it in numbers. */
 export interface Proposal {
@@ -225,7 +225,7 @@ function branchNames(root: string, defaultName: string): string[] {
   const names = raw
     .split('\0')
     .map((r) => r.replace(/^\n/, ''))
-    .filter((r) => r !== '')
+    .filter((r) => r !== '' && !r.startsWith(PROGRESS_PREFIX)) // B-WR-08: a progress copy of refs/accord/<id> is no branch; it shares the MAX_REFS cap only
     .map((r) => r.replace(/^refs\/heads\//, '').replace(/^refs\/remotes\/[^/]+\//, ''));
   return [...new Set(names)].filter((n) => n !== 'HEAD' && n !== defaultName);
 }

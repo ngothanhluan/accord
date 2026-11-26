@@ -34,9 +34,8 @@
 // with it; `cli/test/workflow-script.test.ts` fails when the two drift.
 //
 // A slice pull request is gated on its own slice (Phase 15 D-31): the step's `env:` carries the head branch name as `HEAD_REF`, and the
-// `gate done` call adds `--slice <n>` when the head is `slice/<id>/<n>` of the gated id, or `--slice 1` when it is any other branch and the
-// ticket's plan.md at HEAD holds two or more `## Slice` sections; otherwise it adds nothing. A head name that is not exactly such a branch adds
-// nothing. `gate done --slice` exists from 0.21.0: a repository pinned to an older release fails the accord job on a slice pull request until
+// `gate done` call adds `--slice <n>` when the head is `slice/<id>/<n>` of the gated id, or `--slice auto` when it is any other branch whose plan.md at HEAD
+// holds a heading that starts `## Slice` (the CLI reads the plan: slice 1 of a plan of two or more slices, else no restriction, review C-WR-07); the slice branch of another ticket adds nothing. `gate done --slice` exists from 0.21.0: a repository pinned to an older release fails the accord job on a slice pull request until
 // its pin moves, and passes the flag to no other pull request.
 //
 // `accord upgrade` finds the step by its name `lint and gate` (`refreshLintStep` in `scaffold/repin.ts`) and
@@ -293,14 +292,16 @@ jobs:
             fi
             # A slice pull request is gated on its own slice (D-31). HEAD_REF is the head branch name, chosen by whoever opened the pull
             # request, so it comes in only through env:, is matched by one anchored pattern, and its id must equal "$id" before the
-            # number is used; the flag goes in as separate quoted words, never through eval. On the claim branch (any other head) the
-            # pull request is slice 1 when the ticket's plan.md at HEAD holds two or more slice sections; a failed read means no flag.
+            # number is used; the flag goes in as separate quoted words, never through eval. Any other head is the claim branch: it asks the
+            # CLI for its slice with --slice auto, so the plan parser is the one definition of a slice section (slice 1 for a plan of two or
+            # more slices, the whole ticket otherwise; a ledger that holds a later slice's task judges the whole ticket whatever the flag
+            # says). The grep only asks whether the plan has a heading that starts "Slice" in any spelling, so a repository whose plans hold
+            # no slice passes no flag and an older pin never sees one; it counts nothing and decides nothing the CLI decides.
             slice_flag=()
             if [[ "\${HEAD_REF:-}" =~ ^slice/([A-Za-z0-9][A-Za-z0-9._-]*)/([1-9][0-9]?)$ ]]; then
               if [ "\${BASH_REMATCH[1]}" = "$id" ]; then slice_flag=(--slice "\${BASH_REMATCH[2]}"); fi
-            elif plan_text=$(git show "HEAD:accord/tickets/$id/plan.md" 2> /dev/null); then
-              slice_count=$(grep -cE '^## Slice [0-9]+:' <<< "$plan_text" || true)
-              if [ "$slice_count" -ge 2 ]; then slice_flag=(--slice 1); fi
+            elif plan_text=$(git show "HEAD:accord/tickets/$id/plan.md" 2> /dev/null) && grep -qiE '^##[[:space:]]+slice' <<< "$plan_text"; then
+              slice_flag=(--slice auto)
             fi
             ${accord} gate done "$id" \${slice_flag[@]+"\${slice_flag[@]}"} || code=1
           done <<< "$tickets"

@@ -441,6 +441,13 @@ describe.skipIf(noBash)('the publish workflow smoke step — knobs (IN-03)', { t
 });
 
 describe('the publish workflow smoke step — what the document says', () => {
+  it('risk:regression the smoke step greps its output with a here-string, never through a pipe (IN-05)', () => {
+    // Under pipefail `echo "$out" | grep -q` exits 141 when grep stops at its first match while echo is
+    // still writing a large output, and a real not-visible failure would be classed as another one.
+    expect(SMOKE).not.toMatch(/echo "\$out" \| grep -[A-Za-z]*q/);
+    expect(SMOKE).toContain('<<<"$out"');
+  });
+
   it('risk:security the smoke step reads its inputs through env and holds no permissions (D-07)', () => {
     expect(SMOKE).toContain('${SMOKE_ATTEMPTS:-60}');
     expect(SMOKE).toContain('${SMOKE_INTERVAL:-15}');

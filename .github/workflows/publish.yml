@@ -182,10 +182,12 @@ jobs:
             # Not visible yet: fixed-string matches bound to this package and version. A missing
             # dependency raises ETARGET too, and another package's E404 names another URL (the
             # trailing space keeps a longer package name from matching); neither is this release.
-            if echo "$out" | grep -Fq "No matching version found for ${PKG}@${VERSION}" \
-              || { echo "$out" | grep -Fq 'npm error code E404' \
-                && echo "$out" | grep -Fq "GET https://registry.npmjs.org/${encoded} "; } \
-              || echo "$out" | grep -Fq "'${PKG}@${VERSION}' is not in this registry"; then
+            # Here-strings, not `echo | grep -q`: under pipefail a pipe to a grep that stops at its
+            # first match can exit 141 on a large output and hide a real not-visible failure (IN-05).
+            if grep -Fq "No matching version found for ${PKG}@${VERSION}" <<<"$out" \
+              || { grep -Fq 'npm error code E404' <<<"$out" \
+                && grep -Fq "GET https://registry.npmjs.org/${encoded} " <<<"$out"; } \
+              || grep -Fq "'${PKG}@${VERSION}' is not in this registry" <<<"$out"; then
               # The line that says why (the notarget or 404 line), else the error code line.
               why=$(echo "$out" | grep -E 'notarget|npm error 404' | head -1)
               [ -n "$why" ] || why=$(echo "$out" | grep 'npm error code' | head -1)

@@ -145,7 +145,7 @@ it('risk:security accord pr wait refuses an id that is not one before it asks gh
 });
 
 it('risk:security every gh call of accord pr wait is a read with an argument array: no method flag, no field flag, an api path that names only the user or the pull request comments (D-21)', async () => {
-  pr7({ reviewDecision: 'CHANGES_REQUESTED' });
+  pr7({ reviewDecision: 'CHANGES_REQUESTED', reviews: [{ author: { login: 'bo' }, authorAssociation: 'COLLABORATOR', submittedAt: AFTER, state: 'CHANGES_REQUESTED' }] });
   await run(['pr', 'wait', 'T-1'], sandbox());
   expect(gh.calls.length).toBeGreaterThan(2);
   for (const { args } of gh.calls) {

@@ -125,8 +125,9 @@ export function prWaitVerdict(view: PrView, inline: readonly InlineComment[], ga
     if (c.in_reply_to_id !== null && c.in_reply_to_id !== undefined && gate.self !== '' && c.user?.login === gate.self) continue;
     if (isNew(c.created_at) && count(c.author_association, c.user?.login)) inlineCount += 1;
   }
-  const decided = view.reviewDecision === 'CHANGES_REQUESTED';
-  if (comments + reviews + inlineCount > 0 || decided) {
+  // A-CR-01: GitHub keeps reviewDecision CHANGES_REQUESTED until the reviewer approves or the review is dismissed, so the decision alone is not news; a request for changes counts through the
+  // `reviews` loop above, and only when it was submitted after the head commit, as a comment does.
+  if (comments + reviews + inlineCount > 0) {
     return { kind: 'feedback', number, comments, reviews, inline: inlineCount, logins: [...logins].filter((l) => l !== '').sort(), ignored };
   }
 

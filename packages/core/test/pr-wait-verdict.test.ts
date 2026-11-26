@@ -55,9 +55,14 @@ it('risk:security a collaborator review after the head commit is feedback and th
   expect(prWaitVerdict(open({ reviews: [{ ...review(AFTER), state: 'APPROVED' }] }), none, gate).kind).toBe('pending');
 });
 
-it('risk:security reviewDecision CHANGES_REQUESTED is feedback (R4)', () => {
-  const v = prWaitVerdict(open({ reviewDecision: 'CHANGES_REQUESTED' }), none, gate);
-  expect(v.kind).toBe('feedback');
+it('risk:regression a standing CHANGES_REQUESTED decision is feedback only through a review newer than the head commit, an older one waits for the re-review (A-CR-01, R4)', () => {
+  const changes = (submittedAt: string) => ({ author: { login: 'ana' }, authorAssociation: 'COLLABORATOR', submittedAt, state: 'CHANGES_REQUESTED' });
+  // the request was answered by a later push: GitHub keeps the decision until the reviewer approves, and the wait goes on
+  expect(prWaitVerdict(open({ reviewDecision: 'CHANGES_REQUESTED', reviews: [changes(BEFORE)] }), none, gate)).toEqual({ kind: 'pending', ignored: 0 });
+  // no review in the list at all: the decision alone is no news
+  expect(prWaitVerdict(open({ reviewDecision: 'CHANGES_REQUESTED' }), none, gate)).toEqual({ kind: 'pending', ignored: 0 });
+  // a request submitted after the head commit is new and ends the wait
+  expect(prWaitVerdict(open({ reviewDecision: 'CHANGES_REQUESTED', reviews: [changes(AFTER)] }), none, gate)).toEqual({ kind: 'feedback', number: 7, comments: 0, reviews: 1, inline: 0, logins: ['ana'], ignored: 0 });
   expect(prWaitVerdict(open({ reviewDecision: 'REVIEW_REQUIRED' }), none, gate).kind).toBe('pending');
 });
 

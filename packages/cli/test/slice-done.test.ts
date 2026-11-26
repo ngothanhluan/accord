@@ -266,6 +266,98 @@ describe('gate done --slice', () => {
   }, 120_000);
 });
 
+// Phase 15 review C-CR-01, C-WR-07, C-WR-08: the scope is read from the branch's own records, never from its name, and a slice that judges nothing is refused.
+describe('gate done --slice reads the branch, not its name', () => {
+  const ALL = { 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed', 'export#third': 'passed' } as const;
+
+  it('risk:security slice 1 judges the whole ticket when the ledger records a task of slice 2, so an undelivered criterion fails (C-CR-01)', async () => {
+    // one branch built both tasks and ticked only ac-1: the pull request of the claim branch is "slice 1" to CI, but it carries slice 2's work
+    const repo = build({ done: [1, 2], report: ALL, ticked: [1] });
+    try {
+      const slice = await gateDone(repo, '--slice', '1');
+      expect(slice.code).toBe(1);
+      expect(slice.err).toContain('slice 1 of 2: 3 criteria judged (the ledger records a task of a later slice, so the whole ticket is judged)');
+      const differ = slice.found.filter((f) => f.rule === 'gate.tags-differ');
+      expect(differ).toHaveLength(1);
+      expect(differ[0].reason).toContain('verified lacks @ac-2 @ac-3');
+      // the same verdict as the run with no flag, and the pane's log records it as the ticket's Done
+      expect(errors((await gateDone(repo)).found).sort()).toEqual(errors(slice.found).sort());
+      expect(existsSync(join(repo, '.accord-reports', 'T-1', 'gate.log'))).toBe(true);
+    } finally {
+      cleanup(repo);
+    }
+    // slice 1 with only task 1 recorded is still its own slice, and passes
+    const own = build({ done: [1] });
+    try {
+      const alone = await gateDone(own, '--slice', '1');
+      expect(alone.code).toBe(0);
+      expect(alone.err).not.toContain('whole ticket');
+    } finally {
+      cleanup(own);
+    }
+  }, 240_000);
+
+  it('risk:security a widened slice 1 passes once every criterion is ticked and every task is recorded (C-CR-01)', async () => {
+    const ok = build({ done: [1, 2], report: ALL, ticked: [1, 2, 3] });
+    try {
+      const r = await gateDone(ok, '--slice', '1');
+      expect(errors(r.found)).toEqual([]);
+      expect(r.code).toBe(0);
+    } finally {
+      cleanup(ok);
+    }
+  }, 240_000);
+
+  it('risk:parsing --slice auto is slice 1 for a plan of two or more slices, and no restriction for a plan with fewer or only a fenced example (C-WR-07)', async () => {
+    const sliced = build();
+    const one = build({ slices: '## Slice 1: only\ntasks: 1, 2\ncovers: @ac-1 @ac-2 @ac-3\n' });
+    const none = build({ slices: '' });
+    // a fenced example is not a slice section, whatever grep thinks of its lines
+    const fenced = build({ slices: '```\n## Slice 1: a\ntasks: 1\ncovers: @ac-1\n\n## Slice 2: b\ntasks: 2\ncovers: @ac-2\n```\n' });
+    // the parser accepts what the old script's grep missed: two spaces, and a space before the colon
+    const spaced = build({ slices: '## Slice  1 : Writer\ntasks: 1\ncovers: @ac-1\n\n## Slice 2 : Escaping\ntasks: 2\ncovers: @ac-2 @ac-3\n' });
+    try {
+      const a = await gateDone(sliced, '--slice', 'auto');
+      expect(a.err).toContain('slice 1 of 2: 1 criteria judged');
+      expect(a.code).toBe(0);
+      expect((await gateDone(spaced, '--slice', 'auto')).err).toContain('slice 1 of 2: 1 criteria judged');
+      for (const [what, repo] of [['one slice', one], ['no slice', none], ['fenced', fenced]] as const) {
+        const r = await gateDone(repo, '--slice', 'auto');
+        expect(r.code, what + r.err).not.toBe(2);
+        expect(r.err, what).not.toContain('slice 1 of');
+        // the same verdict as no flag
+        expect(errors(r.found).sort(), what).toEqual(errors((await gateDone(repo)).found).sort());
+      }
+    } finally {
+      for (const r of [sliced, one, none, fenced, spaced]) cleanup(r);
+    }
+  }, 480_000);
+
+  it('risk:regression a slice whose covers: line names no @ac token is refused with exit 2, not passed with zero criteria judged (C-WR-08)', async () => {
+    const empty = build({ slices: ['## Slice 1: Writer', 'tasks: 1', 'covers: @D-01', '', '## Slice 2: Escaping', 'tasks: 2', 'covers: @ac-2 @ac-3', ''].join('\n') });
+    const upper = build({ slices: ['## Slice 1: Writer', 'tasks: 1', 'covers: @AC-1', '', '## Slice 2: Escaping', 'tasks: 2', 'covers: @ac-2 @ac-3', ''].join('\n') });
+    try {
+      for (const repo of [empty, upper]) {
+        const r = await run(['gate', 'done', 'T-1', '--slice', '1'], repo);
+        expect(r.code).toBe(2);
+        expect(r.out).toBe('');
+        expect(r.err).toContain('slice 1 of T-1 names no criterion on its covers: line');
+        expect((await run(['gate', 'done', 'T-1', '--slice', 'auto'], repo)).code).toBe(2);
+      }
+    } finally {
+      cleanup(empty);
+      cleanup(upper);
+    }
+    // the last slice judges the whole ticket, so its own covers: line is not asked
+    const last = build({ slices: ['## Slice 1: Writer', 'tasks: 1', 'covers: @ac-1', '', '## Slice 2: Escaping', 'tasks: 2', 'covers: @D-02', ''].join('\n'), done: [1, 2], report: ALL, ticked: [1, 2, 3] });
+    try {
+      expect((await gateDone(last, '--slice', '2')).code).toBe(0);
+    } finally {
+      cleanup(last);
+    }
+  }, 480_000);
+});
+
 // Phase 15 plan 16 (D-06, SC-3): `gate done --slice n` measures slice n and warns, never blocks, when it is over the review budget.
 describe('gate done --slice measures the slice', () => {
   const lines = (n: number, what: string): string => Array.from({ length: n }, (_v, i) => `${what} ${i}\n`).join('');

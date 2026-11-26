@@ -199,7 +199,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       .description('report whether the ticket passes the ' + which + ' gate')
       .option('--json', 'print the GateResult object instead of text');
     // Phase 15 D-31: only Done is slice-aware; Ready and Plan judge the whole ticket.
-    if (which === 'done') command.option('--slice <n>', "judge only slice <n> of the plan's slices (its covers: criteria); the last slice judges them all");
+    if (which === 'done') command.option('--slice <n>', "judge only slice <n> of the plan's slices (its covers: criteria); the last slice judges them all, and so does any slice whose branch holds a later slice's task in the ledger; auto is slice 1 for a plan of two or more slices, else no restriction");
     command
       .action((id: string, options: { json?: boolean; slice?: string }) => {
         // Phase 08.9.2 Ruling-narrow: Ready and Plan read the ticket, its epic and its dependencies; every other ticket is known by file name only.

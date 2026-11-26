@@ -8,7 +8,8 @@ const AC_TOKEN = /^@(ac-[1-9][0-9]*)$/;
 export interface SliceScope {
   n: number; // the slice the run is for
   of: number; // the plan's last slice number (m)
-  last: boolean; // n = m: the full set is judged and nothing is restricted
+  last: boolean; // n = m, or the ledger records a task of a later slice: the full set is judged and nothing is restricted
+  widened?: true; // n < m, but the ledger holds a task of a later slice, so the slice's own pull request carries later work and the whole ticket is judged (review C-CR-01)
   criteria: number; // how many criteria the run judges: the slice's `@ac-n` tokens, or every tagged scenario of the ticket for the last slice
   tags?: string[]; // `ac-n` tags of the slice's covers: set; absent for the last slice
   tasks?: number[]; // task numbers of slices 1..n; absent for the last slice
@@ -21,9 +22,13 @@ export function sliceScope(snapshot: RepoSnapshot, id: string, n: number): Slice
   const of = Math.max(...slices.map((s) => s.n));
   const slice = slices.find((s) => s.n === n);
   if (n < 1 || n > of || slice === undefined) return undefined;
-  if (n === of) {
+  // Review C-CR-01: a slice pull request below the last that carries a later slice's task in the ledger is not a slice of its own any more (the author built the later slices on this branch), so
+  // it is judged whole. The ledger is part of the branch, so the evidence is the branch's, not its name.
+  const built = workOf(snapshot, id)?.ledger?.done ?? {};
+  const widened = n < of && slices.some((s) => s.n > n && s.tasks.some((t) => Object.hasOwn(built, String(t))));
+  if (n === of || widened) {
     const tagged = new Set((Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].scenarios : []).flatMap((s) => (s.acTag === undefined ? [] : [s.acTag])));
-    return { n, of, last: true, criteria: tagged.size };
+    return { n, of, last: true, ...(widened ? { widened: true as const } : {}), criteria: tagged.size };
   }
   const tags = [...new Set(slice.covers.flatMap((t) => AC_TOKEN.exec(t)?.[1] ?? []))];
   const tasks = [...new Set(slices.filter((s) => s.n <= n).flatMap((s) => s.tasks))];

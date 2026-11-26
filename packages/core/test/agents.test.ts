@@ -17,7 +17,7 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 // What each agent must name, asserted over the RENDERED agent file, as REQUIRED is over a rendered skill.
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
   executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings', 'red reason:', 'red reason: no red test — <why>', 'self-review: missing:', 'concerns:', 'Report file:', 'only what your own change caused', 'git revert', 'own fix commits', 'never a reset', 'BLOCKED: conflict', 'places checked:', 'Work dir:', 'git -C', 'never merge, rebase or push', 'commit what you changed', 'BLOCKED: permission <path>', 'no `Work dir:` line'],
-  critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should', '## Failure modes', '(new, like', 'spellings'],
+  critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should', '## Failure modes', '(new, like', 'spellings', 'Mode `split`:', 'missed logical dependencies', 'stories that cannot stand alone'],
   planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further', '(new, like', 'no model', 'spellings', '## Failure modes', UNFINISHED_MARKER, 'under it first', 'append each task when it is finished', 'remove the line as your last step', '`resume mode`', 'keep every finished task'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S', 'ADDRESSED <path>:<line>', 'NOT ADDRESSED', 'Deferred:', '--security', '## Matched hunks', '## Checklist'],
   verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md', UNFINISHED_MARKER, 'under it first', 'only once its result and its evidence are final', 'remove the line as your last step', '`resume mode`', 'keep every finished block', 'told to start over, write the file anew'],
@@ -309,7 +309,8 @@ describe('rendered agents', () => {
 
   it('stays short', () => {
     const files = agentTargets(config());
-    for (const f of files) expect(bodyOf(f.text).split('\n').length, f.path).toBeLessThanOrEqual(60);
+    // 15-19: the critic's `split` mode adds five lines (a blank line, its heading line and three checks) to the 60 it had, so its cap is 65; every other agent stays at 60
+    for (const f of files) expect(bodyOf(f.text).split('\n').length, f.path).toBeLessThanOrEqual(f.path.endsWith('accord-critic.md') ? 65 : 60);
   });
 
   it('every agent renders a model and an effort line', () => {

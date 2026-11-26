@@ -2914,7 +2914,7 @@ it('risk:regression verify offers an epic lesson and writes it only to the story
   expect(Buffer.byteLength(files.find((f) => f.path === stagePath('verify'))?.text ?? '', 'utf8')).toBeLessThanOrEqual(6000);
 });
 
-// ST-LN-28 7-ac-9 (07-25, D-14 and D-16): lane L of accord-new runs one epic interview, shows the split, takes the owner's yes and runs the one split command; no critic is dispatched for the epic.
+// ST-LN-28 7-ac-9 (07-25, D-14 and D-16): lane L of accord-new runs one epic interview, shows the split, takes the owner's yes and runs the one split command; the epic's only critic is the one pass of mode `split` (15-19, D-01).
 it('risk:regression accord-new runs an epic interview and creates the approved split in one step (ST-LN-28 7-ac-9)', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const all = skillTargets({ ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] });
@@ -2950,8 +2950,8 @@ it('risk:regression accord-new runs an epic interview and creates the approved s
     const at = (p: string) => epic.indexOf(p);
     if (!(at('for whom') < at('explicit yes') && at('explicit yes') < at('`accord new ticket --type epic --lane L --split <file> --queue`'))) bad.push(dir + ' epic.md runs the command before the yes');
     if (!(at('(the Decisions)') < at('explicit yes'))) bad.push(dir + ' epic.md asks the Decisions after the yes');
-    // no critic is dispatched for the epic
-    if (epic.includes('accord-critic')) bad.push(dir + ' epic.md names accord-critic');
+    // 15-19 (D-01, a Ruling of the 15-19 summary): the epic's only critic is the one pass of mode `split` before the owner sees the split; no approach or plan critic
+    if (epic.split('accord-critic').length !== 2 || !epic.includes('dispatch `accord-critic` once in mode `split`')) bad.push(dir + ' epic.md does not name accord-critic exactly once, in mode split');
     if (skill.includes('accord-critic')) bad.push(dir + ' accord-new SKILL.md names accord-critic');
   }
   expect(bad).toEqual([]);

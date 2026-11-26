@@ -17,19 +17,28 @@ export interface OwnerDeferred {
 export type DeferredMark = { kind: 'queued'; id: string } | { kind: 'declined' };
 
 /**
- * A mark is the end of the full line: a space, `→` (U+2192), a space, and either `declined` or a token of the ticket id shape (`LEGACY_ID`, the one id shape of lint: ST-LN-12, PROJ-123, 42, web.login_7).
- * Phase 08.8 D-07: the token counts as a mark only when `known` says it is a ticket that exists, so a team whose ids are bare numbers can mark an item queued, while a prose arrow
- * that names no ticket (`0.9 → 0.10`, `v1 → v2`) stays listed and is never hidden from the owner. ASCII `->` is not read on purpose: a note that happens to end in `-> name` must
- * never hide a Must item, and `→` is what the verify skill writes. Read on the normalised line before the 160-character short form, so a long item keeps its mark.
+ * A mark is the end of the full line: a space, `→` (U+2192), a space, and either `declined`, a token of the ticket id shape (`LEGACY_ID`, the one id shape of lint: ST-LN-12, PROJ-123, web.login_7),
+ * or `#<n>` when the id is only digits (Phase 08.9.1 D-03, so a prose arrow such as `3 → 5` stays prose). Phase 08.8 D-07: the id counts as a mark only when `known` says it is a ticket that exists,
+ * so a team whose ids are bare numbers can mark an item queued, while a prose arrow that names no ticket (`0.9 → 0.10`, `v1 → v2`) stays listed and is never hidden from the owner. ASCII `->`
+ * is not read on purpose: a note that happens to end in `-> name` must never hide a Must item, and `→` is what the verify skill writes. Read on the normalised line before the 160-character
+ * short form, so a long item keeps its mark.
  */
 const DEFERRED_MARK = / → (\S+)$/;
+/** 08.9.1 D-03: an id of ASCII digits only; written bare it is prose, written with a leading `#` it is the mark. */
+const DIGITS = /^[0-9]+$/;
+const HASH_DIGITS = /^#([0-9]+)$/;
 
-/** The mark ending `line` (a bullet may lead it), or undefined; `known(id)` says whether an id names a ticket. When a line ends with two marks the last counts. */
+/** The mark ending `line` (a bullet may lead it), or undefined; `known(id)` says whether an id names a ticket (asked without any `#`). When a line ends with two marks the last counts. */
 export function deferredMark(line: string, known: (id: string) => boolean): DeferredMark | undefined {
   const m = DEFERRED_MARK.exec(line.trimEnd());
   if (m === null) return undefined;
-  if (m[1] === 'declined') return { kind: 'declined' };
-  return LEGACY_ID.test(m[1]) && known(m[1]) ? { kind: 'queued', id: m[1] } : undefined;
+  const token = m[1];
+  if (token === 'declined') return { kind: 'declined' };
+  // 08.9.1 D-03: only an all-digit id changes; any other token reads as before.
+  if (DIGITS.test(token)) return undefined;
+  const hashed = HASH_DIGITS.exec(token);
+  if (hashed !== null) return known(hashed[1]) ? { kind: 'queued', id: hashed[1] } : undefined;
+  return LEGACY_ID.test(token) && known(token) ? { kind: 'queued', id: token } : undefined;
 }
 
 /** The longest short form, the ellipsis included. */

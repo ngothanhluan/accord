@@ -1,7 +1,8 @@
 // 8-ac-3 (D-07): the static guard `backtrackProblem(source, flags)` refuses a team line pattern that can backtrack catastrophically. Every test asserts only the guard's verdict:
 // a refused regex is never run on any input here (a hang would be the failure the guard exists to prevent).
 import { expect, it } from 'vitest';
-import { backtrackProblem, overlapRepeats } from '../src/security/backtrack.js';
+import { parseSecurityFile, securityTriggers } from '../src/index.js';
+import { WAYS_REASON, backtrackProblem, overlapRepeats } from '../src/security/backtrack.js';
 
 const r = String.raw;
 
@@ -206,4 +207,77 @@ it('risk:security nested fixed counts and a bounded IPv4 are accepted and stay f
     for (const line of lines) re.test(line);
     expect(performance.now() - start, source).toBeLessThan(500);
   }
+});
+
+// Phase 08.9.1 D-08 (backlog 999.65): a range-checked IPv4 pattern is readable when each octet's 0-255 check is a negative lookahead: the guard counts fewer than two overlapping repeats, so no scan budget is needed.
+// The textbook alternation per octet is refused by the route count (MAX_WAYS), not by the overlap-repeat budget; the guard and the scan are unchanged.
+const IPV4 = r`\b(?!25[6-9]|2[6-9][0-9]|[3-9][0-9]{2})[0-9]{1,3}(?:\.(?!25[6-9]|2[6-9][0-9]|[3-9][0-9]{2})[0-9]{1,3}){3}\b`;
+const IPV4_ALTERNATION = r`\b(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})(?:\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})){3}\b`;
+
+/** A diff of one file `src/net.ts` that adds one line. */
+const addLineDiff = (line: string): string =>
+  ['diff --git a/src/net.ts b/src/net.ts', 'index 1111111..2222222 100644', '--- a/src/net.ts', '+++ b/src/net.ts', '@@ -1,1 +1,2 @@', ' export {};', `+${line}`].join('\n');
+
+/** The reference: at some word boundary, four groups of 1 to 3 digits (value 0 to 255, leading zeros allowed) joined by single dots, ending at a word boundary; every split is tried. */
+function referenceIpv4(s: string): boolean {
+  const isWord = (c: string | undefined): boolean => c !== undefined && /\w/.test(c);
+  const boundary = (i: number): boolean => isWord(s[i - 1]) !== isWord(s[i]);
+  const group = (p: number, k: number): boolean => {
+    for (let len = 1; len <= 3; len++) {
+      const digits = s.slice(p, p + len);
+      if (digits.length < len || !/^[0-9]+$/.test(digits) || Number(digits) > 255) continue;
+      const end = p + len;
+      if (k === 3 ? boundary(end) : s[end] === '.' && group(end + 1, k + 1)) return true;
+    }
+    return false;
+  };
+  for (let i = 0; i < s.length; i++) if (boundary(i) && group(i, 0)) return true;
+  return false;
+}
+
+it('risk:security a range-checked IPv4 pattern with a lookahead per octet is read, scans fast and matches only 0-255 quads (08.9.1 D-08)', () => {
+  // (a) the team's security.md line is read with no problem
+  const spec = parseSecurityFile(`## Patterns\n\n- ipv4: line /${IPV4}/ — a hard-coded IPv4 address\n`);
+  expect(spec.problems).toEqual([]);
+  expect(spec.patterns.map((p) => p.id)).toEqual(['ipv4']);
+
+  // (b) it triggers on a changed line holding a valid address and not on one holding 256.1.1.1
+  const hit = securityTriggers(spec, addLineDiff("const host = '10.0.0.1';"), ['src/net.ts'], { generated: [] });
+  expect(hit.map((t) => t.pattern)).toEqual(['ipv4']);
+  expect(securityTriggers(spec, addLineDiff("const v = '256.1.1.1';"), ['src/net.ts'], { generated: [] })).toEqual([]);
+
+  // (c) the guard accepts it with fewer than two overlapping repeats, so the scan budget never applies
+  expect(backtrackProblem(IPV4, '')).toBeUndefined();
+  expect(overlapRepeats(IPV4, '')).toBeLessThan(2);
+
+  // (d) hostile lines of 1000 characters scan fast
+  const lines = ['a'.repeat(1000), '9'.repeat(1000), '1'.repeat(1000), '1.1.1.'.repeat(166) + '1', '255.255.255.255.'.repeat(62) + 'x', 'ab'.repeat(500), '1'.repeat(24) + 'b'];
+  const re = new RegExp(IPV4);
+  const start = performance.now();
+  for (const line of lines) re.test(line);
+  expect(performance.now() - start).toBeLessThan(500);
+
+  // (e) it agrees with the reference on a fixed list and on 2000 strings of a seeded generator
+  const fixed = ['0.0.0.0', '10.0.0.1', '192.168.1.255', '255.255.255.255', 'host=1.2.3.4;', '1.2.3.4.5', '256.1.1.1', '1.2.3.256', '999.1.1.1', '1.2.3', 'a1.2.3.4', '1.2.3.4a', '2510.0.0.1', '007.1.1.1'];
+  const tokens = ['0', '1', '2', '5', '9', '.', '.', '.', ' ', 'a', '_', '=', '255', '256', '25', '300', '007', '1.2.3.4', '10.0.0.1', '256.1.1.1', '1.2.3.256'];
+  let seed = 12345;
+  const next = (n: number): number => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return Math.floor((seed / 2 ** 32) * n);
+  };
+  const generated: string[] = [];
+  for (let i = 0; i < 2000; i++) {
+    let s = '';
+    for (let k = 1 + next(12); k > 0; k--) s += tokens[next(tokens.length)];
+    generated.push(s);
+  }
+  const matching = generated.filter(referenceIpv4).length;
+  expect(matching, 'the generated set holds matches and non-matches').toBeGreaterThan(0);
+  expect(matching).toBeLessThan(generated.length);
+  const mismatches = [...fixed, ...generated].filter((s) => new RegExp(IPV4).test(s) !== referenceIpv4(s));
+  expect(mismatches).toEqual([]);
+});
+
+it('risk:security the alternation form of a range-checked IPv4 stays refused with the routes reason (08.9.1 D-08)', () => {
+  expect(backtrackProblem(IPV4_ALTERNATION, '')).toBe(WAYS_REASON);
 });

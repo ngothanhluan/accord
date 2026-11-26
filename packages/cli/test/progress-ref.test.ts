@@ -129,7 +129,7 @@ it('risk:regression --branch pushes the claim branch whatever progress.push says
   }
 }, 120_000);
 
-it('risk:data-loss --force-with-lease applies to the --branch push only, and the ref push is not refused for it (R8)', async () => {
+it('risk:data-loss --force-with-lease applies to the --branch push only, and the ref push is refused for it (R8, B-WR-01)', async () => {
   const c = makeClone();
   try {
     const wt = claimed(c, REF);
@@ -141,8 +141,26 @@ it('risk:data-loss --force-with-lease applies to the --branch push only, and the
     expect(branchOnOrigin(c)).not.toBe(head(wt));
     expect(await run(['worktree', 'push', 'ST-9', '--branch', '--force-with-lease'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
     expect(branchOnOrigin(c)).toBe(head(wt));
-    expect(await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt)).toEqual({ code: 0, out: 'pushed: refs/accord/ST-9\n', err: '' });
-    expect(refOnOrigin(c)).toBe(head(wt));
+    // B-WR-01 (Ruling in 15-REVIEWFIX-2): the lease is about the branch only; without --branch it is a usage error, never a silent no-op
+    const bare = await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt);
+    expect(bare.code).toBe(2);
+    expect(bare.err).toContain('--force-with-lease replaces a branch on origin: run accord worktree push ST-9 --branch --force-with-lease');
+    expect(bare.out).toBe('');
+    expect(refOnOrigin(c)).toBeUndefined();
+  } finally {
+    c.cleanupAll();
+  }
+}, 120_000);
+
+it('risk:regression --force-with-lease without --branch is refused with the new form, with progress.push off too (B-WR-01)', async () => {
+  const c = makeClone();
+  try {
+    const wt = claimed(c, '');
+    const claimTip = branchOnOrigin(c);
+    const r = await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('run accord worktree push ST-9 --branch --force-with-lease');
+    expect(branchOnOrigin(c)).toBe(claimTip);
   } finally {
     c.cleanupAll();
   }

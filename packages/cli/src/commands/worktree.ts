@@ -1123,6 +1123,8 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
  */
 export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean; branch?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  // B-WR-01: since Phase 15 a push without --branch goes to the progress ref, which the lease never applied to; the form every earlier release printed must fail loudly, not report success
+  if (o.lease === true && o.branch !== true) throw new UsageError(`--force-with-lease replaces a branch on origin: run accord worktree push ${id} --branch --force-with-lease`);
   // Phase 15 D-31: in a slice worktree the branch pushed, and mirrored into the progress ref, is the slice branch this checkout is on; anywhere else it is the claim branch, as before
   const here = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
   const branch = here !== undefined && sliceOfBranch(here)?.id === id ? here : branchOf(ctx.snapshot, id);

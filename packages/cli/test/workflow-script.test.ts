@@ -1277,7 +1277,9 @@ describe.skipIf(noBash)('the workflow script — slice pull requests (D-31)', { 
         return runScript(repo, { base, script, headRef: head });
       });
       expect(results[1].code, head).toBe(results[0].code);
-      expect(results[1].calls.map((c) => c.slice(c.indexOf(' ') + 1)), head).toEqual(results[0].calls.map((c) => c.slice(c.indexOf(' ') + 1)));
+      // the committed copy stays pinned to the previous release until the pin PR, so the pinned version is not part of the comparison
+      const same = (calls: string[]): string[] => calls.map((c) => c.slice(c.indexOf(' ') + 1).replace(/@\d+\.\d+\.\d+(?= )/, '@<version>'));
+      expect(same(results[1].calls), head).toEqual(same(results[0].calls));
     }
   });
 });

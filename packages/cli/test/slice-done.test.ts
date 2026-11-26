@@ -5,7 +5,7 @@ import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { recordTaskDone, setFrontmatterKey, SLICES_FROM } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
-import { approve, CONFIG, discussFiles, discussPath, done, gateReadyIn, junit, laneTicket, LANE_BODY, P, PLAN, REPORT, type Files } from '../../../test/helpers/lane.js';
+import { approve, CONFIG, discussFiles, discussPath, done, gateReadyIn, junit, laneTicket, LANE_BODY, P, PLAN, pinned, REPORT, type Files } from '../../../test/helpers/lane.js';
 import { claimedUnder, cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 interface Found { rule: string; level: string; file: string; reason: string }
@@ -413,7 +413,8 @@ describe('gate done --slice measures the slice', () => {
   }, 120_000);
 
   it('risk:regression a ticket claimed before SLICES_FROM gets no size warning, however large the slice (D-06)', async () => {
-    const repo = build({ extra: BIG, claim: '0.20.3' });
+    // cut and claimed under 0.20.3: the base pin is the claim pin too (a base pinned higher than the claim pin means main moved up under the branch, and the new rules apply)
+    const repo = build({ extra: BIG, claim: '0.20.3', config: () => pinned('0.20.3') });
     try {
       expect(sizeFindings((await gateDone(repo, '--slice', '1')).found)).toEqual([]);
     } finally {

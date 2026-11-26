@@ -4,7 +4,7 @@ import { gatePlan, loadSnapshot, OVERRIDABLE, SLICES_FROM, validate } from '../s
 import type { GateResult } from '../src/index.js';
 import { parsePlan } from '../src/load/work.js';
 import { approved } from './helpers/approve.js';
-import { CONFIG, junit, laneTicket, LANE_S_BODY, PLAN, REPORT, sized } from '../../../test/helpers/lane.js';
+import { CONFIG, junit, laneTicket, LANE_S_BODY, PLAN, pinned, REPORT, sized } from '../../../test/helpers/lane.js';
 
 const SPLIT = 'split the work into an epic of smaller stories with /accord <request> (lane L)';
 
@@ -216,7 +216,7 @@ describe('the slice rules', () => {
     const broken = FOUR + slice(1, '1, 9', '') + slice(3, '1', '@ac-1', 'code 5000');
     expect(slices(check({ plan: broken }))).not.toEqual([]);
     expect(slices(check({ plan: broken, claim: { pin: '0.20.3' } }))).toEqual([]);
-    expect(slices(check({ plan: broken, claim: null }))).toEqual([]); // the working-tree pin is the running release, below SLICES_FROM
+    expect(slices(check({ plan: broken, claim: null, config: pinned('0.20.3') }))).toEqual([]); // no claim fact: the working-tree pin decides, here a release below SLICES_FROM
     expect(slices(check({ plan: FOUR }))).toEqual([]);
     expect(slices(check({ plan: broken, lane: 'S', body: LANE_S_BODY }))).toEqual([]);
     // a failed claim read fails closed: the rules apply

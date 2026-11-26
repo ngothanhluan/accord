@@ -202,7 +202,7 @@ export function deferredGaps(tickets: readonly { id: string; items: readonly Own
         id: 'deferred-undecided',
         text: `${t.id} has an undecided ${i.rating} item: ${i.text}`,
         fix: SAFE_ID.test(t.id)
-          ? `queue it with /accord queue <idea> and append " → <new id>" (" → #<new id>" when the new id is only digits) to its line in accord/tickets/${t.id}/ledger.md, or append " → declined" there; a pull request that changes only that ledger`
+          ? `queue it with /accord queue <idea> and append " → <new id>" (" → #<new id>" when the new id is only digits) to its line in accord/tickets/${t.id}/ledger.md, or append " → declined" there; a pull request that changes only that ledger. An old " → 42" line on a ticket that is already done is listed again: the ledger of a done ticket is not edited (gate.done-ticket-edited), so ask the owner; only an open ticket has its line rewritten as " → #42"`
           : NO_COMMAND,
       })),
     );

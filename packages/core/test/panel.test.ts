@@ -2563,43 +2563,51 @@ it('risk:parsing log sentences say who did it in plain words and a repeat reads 
 it('risk:regression the lately log reads in sentences with who did it and fills the room (issue 342 D-02)', async () => {
   const { gradientAt, PALETTES, ticketView, settingsOf } = await loadView();
   const aurora = PALETTES.aurora as string[];
-  const now = Math.floor(Date.now() / 1000);
-  const log = [
-    { at: now - 20, kind: 'commit', text: 'build: export' },
-    { at: now - 120, kind: 'report', text: 'executor report task 2' },
-    { at: now - 660, kind: 'gate', text: 'gate plan PASS' },
-    { at: now - 700, kind: 'gate', text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true },
-    { at: now - 900, kind: 'gate', text: 'gate plan PASS' },
-  ];
-  const h = await paneWith({ log }, (x) => void x.store.set('settings', NO_MOTION));
-  const t = h.texts();
-  expect(h.cell('lately').text.dimColor).toBe(true);
-  const rest = t.slice(t.indexOf('lately') + 1);
-  expect(rest).toHaveLength(12);
-  expect(rest.filter((_, i) => i % 3 === 0)).toEqual(['20s', '2m', '11m', '11m']);
-  expect(rest.filter((_, i) => i % 3 === 1)).toEqual(['commit', 'executor', 'gate', 'gate']);
-  expect(rest.filter((_, i) => i % 3 === 2)).toEqual(['build: export', 'finished task 2', 'plan passed (2 times)', 'done failed: criterion ac-2 has no passing test']);
-  expect(t).not.toContain('LOG');
-  const logColor = gradientAt(aurora, 0.55);
-  expect(h.cell('build: export').text).toMatchObject({ bold: true, color: logColor });
-  expect(h.cell('commit').text.color).toBe(logColor);
-  expect(h.cell('finished task 2').text.bold).toBeUndefined();
-  expect(h.cell('executor').text.dimColor).toBe(true);
-  expect(h.cell('done failed: criterion ac-2 has no passing test').text.color).toBe('#ff6b6b');
-  // the failed gate as the newest entry is in the failure colour, not the log colour
-  const red = await paneWith({ log: [log[3], log[0]] }, (x) => void x.store.set('settings', NO_MOTION));
-  expect(red.cell('done failed: criterion ac-2 has no passing test').text).toMatchObject({ bold: true, color: '#ff6b6b' });
-  // the room decides how many rows show: at least eight, more with room, and no reported room keeps the eight
-  const many = Array.from({ length: 30 }, (_, i) => ({ at: now - 30 - i * 40, kind: 'commit', text: `commit number ${i}` }));
-  const count = (p: Awaited<ReturnType<typeof host>>): number => (p.texts().length - p.texts().indexOf('lately') - 1) / 3;
-  expect(count(await paneWith({ log: many }))).toBe(8);
-  expect(count(await paneWith({ log: many }, (x) => void (x.rows = 10)))).toBe(8);
-  expect(count(await paneWith({ log: many }, (x) => void (x.rows = 40)))).toBeGreaterThan(8);
-  // the mission ticker scrolls `<age> <who> <say>` lines
-  const T = 1_800_000_000_000;
-  const ticket = { id: 'ST-1', state: { ticket: detailOf({ log: [{ at: T / 1000 - 5, kind: 'commit', text: 'build: x' }, { at: T / 1000 - 9, kind: 'report', text: 'executor report task 1' }] }) } };
-  const ticked = ticketView({ ticket, now: T / 1000, nowMs: 0, settings: settingsOf(undefined), motion: { effects: new Set(['ticker']), columns: 100 } });
-  expect(ticked.log[0].ticker.startsWith('✦ 5s commit build: x  ✦ 9s executor finished task 1')).toBe(true);
+  // The ages are read from the clock when the pane draws, which on a loaded CI runner is a second or more after the log is built ('21s' for '20s'): the clock is held still for the whole
+  // test, and only Date is faked so the awaits and the pane's own timers run as they do.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-26T10:00:00Z'));
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const log = [
+      { at: now - 20, kind: 'commit', text: 'build: export' },
+      { at: now - 120, kind: 'report', text: 'executor report task 2' },
+      { at: now - 660, kind: 'gate', text: 'gate plan PASS' },
+      { at: now - 700, kind: 'gate', text: 'gate done FAIL: criterion ac-2 has no passing test', fail: true },
+      { at: now - 900, kind: 'gate', text: 'gate plan PASS' },
+    ];
+    const h = await paneWith({ log }, (x) => void x.store.set('settings', NO_MOTION));
+    const t = h.texts();
+    expect(h.cell('lately').text.dimColor).toBe(true);
+    const rest = t.slice(t.indexOf('lately') + 1);
+    expect(rest).toHaveLength(12);
+    expect(rest.filter((_, i) => i % 3 === 0)).toEqual(['20s', '2m', '11m', '11m']);
+    expect(rest.filter((_, i) => i % 3 === 1)).toEqual(['commit', 'executor', 'gate', 'gate']);
+    expect(rest.filter((_, i) => i % 3 === 2)).toEqual(['build: export', 'finished task 2', 'plan passed (2 times)', 'done failed: criterion ac-2 has no passing test']);
+    expect(t).not.toContain('LOG');
+    const logColor = gradientAt(aurora, 0.55);
+    expect(h.cell('build: export').text).toMatchObject({ bold: true, color: logColor });
+    expect(h.cell('commit').text.color).toBe(logColor);
+    expect(h.cell('finished task 2').text.bold).toBeUndefined();
+    expect(h.cell('executor').text.dimColor).toBe(true);
+    expect(h.cell('done failed: criterion ac-2 has no passing test').text.color).toBe('#ff6b6b');
+    // the failed gate as the newest entry is in the failure colour, not the log colour
+    const red = await paneWith({ log: [log[3], log[0]] }, (x) => void x.store.set('settings', NO_MOTION));
+    expect(red.cell('done failed: criterion ac-2 has no passing test').text).toMatchObject({ bold: true, color: '#ff6b6b' });
+    // the room decides how many rows show: at least eight, more with room, and no reported room keeps the eight
+    const many = Array.from({ length: 30 }, (_, i) => ({ at: now - 30 - i * 40, kind: 'commit', text: `commit number ${i}` }));
+    const count = (p: Awaited<ReturnType<typeof host>>): number => (p.texts().length - p.texts().indexOf('lately') - 1) / 3;
+    expect(count(await paneWith({ log: many }))).toBe(8);
+    expect(count(await paneWith({ log: many }, (x) => void (x.rows = 10)))).toBe(8);
+    expect(count(await paneWith({ log: many }, (x) => void (x.rows = 40)))).toBeGreaterThan(8);
+    // the mission ticker scrolls `<age> <who> <say>` lines
+    const T = 1_800_000_000_000;
+    const ticket = { id: 'ST-1', state: { ticket: detailOf({ log: [{ at: T / 1000 - 5, kind: 'commit', text: 'build: x' }, { at: T / 1000 - 9, kind: 'report', text: 'executor report task 1' }] }) } };
+    const ticked = ticketView({ ticket, now: T / 1000, nowMs: 0, settings: settingsOf(undefined), motion: { effects: new Set(['ticker']), columns: 100 } });
+    expect(ticked.log[0].ticker.startsWith('✦ 5s commit build: x  ✦ 9s executor finished task 1')).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 // issue 342 D-02 D-04: `criteria k of N tested`, a row of chips (✓ passing or verified, ✗ failing, ◌ in flight, ○ open) and then the list; the chip ids take the criteria gradient.

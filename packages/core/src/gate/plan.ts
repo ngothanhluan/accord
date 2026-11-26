@@ -554,9 +554,14 @@ export const sliceLarge: GateRule['check'] = (snapshot, id) => {
   return read.slices.flatMap((s) => {
     const parts = (['code', 'test', 'docs'] as const).flatMap((k) => (s.estimate?.[k] === undefined ? [] : [`${k} ${s.estimate[k]}`]));
     const total = (s.estimate?.code ?? 0) + (s.estimate?.test ?? 0) + (s.estimate?.docs ?? 0);
+    // Review B-WR-05: an estimate token that does not read adds nothing to the total, so a typo would dodge the budget; it is said next to the size, which is judged on what did read.
+    const typo =
+      s.estimateUnread === undefined
+        ? []
+        : [{ file: read.plan.file, line: s.line, reason: `slice ${s.n} has an estimate that does not read: ${s.estimateUnread.map((t) => JSON.stringify(t)).join(', ')} (write estimate: code 300, test 600, docs 150)` }];
     return total <= budget
-      ? []
-      : [{ file: read.plan.file, line: s.line, reason: `slice ${s.n} is about ${total} lines (${parts.join(', ')}), over the review budget of ${budget}` }];
+      ? typo
+      : [...typo, { file: read.plan.file, line: s.line, reason: `slice ${s.n} is about ${total} lines (${parts.join(', ')}), over the review budget of ${budget}` }];
   });
 };
 

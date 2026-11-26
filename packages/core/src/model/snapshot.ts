@@ -250,6 +250,7 @@ export interface PlanSlice {
   covers: string[]; // ['@ac-2'], from 'covers: @ac-2'
   estimate?: { code?: number; test?: number; docs?: number }; // from 'estimate: code 300, test 600, docs 150'; absent with no such line
   unread: string[]; // tokens of tasks: and estimate: that are not read
+  estimateUnread?: string[]; // the estimate: tokens among them; absent when every token read (review B-WR-05)
 }
 
 export interface Plan {

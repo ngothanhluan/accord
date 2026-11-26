@@ -180,6 +180,38 @@ describe('the slice rules', () => {
     expect(rule(check({ plan: SOUND }), 'gate.slice-large')).toEqual([]);
   });
 
+  it('risk:parsing a heading that starts "Slice <digit>" but is not "## Slice <n>: <title>" is reported, never read as an unsliced plan (B-WR-04)', () => {
+    for (const bad of ['Slice 1 — Export', 'Slice 1 Export', 'Slice 0: x', 'Slice 01: x', 'slice 1: x', 'Slice1: x']) {
+      const text = '## Task 1: a\n\n## ' + bad + '\ntasks: 1\ncovers: @ac-1\n';
+      const { plan, findings } = parsePlan('plan.md', text);
+      expect(plan.slices, bad).toBeUndefined();
+      expect(findings, bad).toHaveLength(1);
+      expect(findings[0], bad).toMatchObject({ file: 'plan.md', line: 3, rule: 'load.slice-heading' });
+      expect(findings[0].reason, bad).toContain('"## Slice <n>: <title>"');
+      // it reaches the plan gate as an error
+      const r = check({ plan: FOUR + '\n## ' + bad + '\ntasks: 1\ncovers: @ac-1\n' });
+      expect(r.findings.filter((f) => f.rule === 'load.slice-heading'), bad).toHaveLength(1);
+      expect(r.verdict, bad).toBe('fail');
+    }
+    // a heading that is not a slice at all, a slice inside a fence, and a well-formed plan stay quiet
+    const quiet = parsePlan('plan.md', '## Slice analysis\n\n```\n## Slice 1 Export\n```\n\n## Slice 1: ok\ntasks: 1\ncovers: @ac-1\n');
+    expect(quiet.findings).toEqual([]);
+    expect(quiet.plan.slices).toHaveLength(1);
+  });
+
+  it('risk:parsing an estimate that does not read is a warning on gate.slice-large, so a typo cannot dodge the budget (B-WR-05)', () => {
+    for (const [estimate, tokens] of [['code 1,200 tests 5', '"200", "tests", "5"'], ['code 300, tests 700', '"tests", "700"'], ['lots', '"lots"']] as const) {
+      const r = check({ plan: FOUR + slice(1, '1, 2', '@ac-1 @ac-2', estimate) + slice(2, '3, 4', '@ac-1', 'code 10') });
+      const f = rule(r, 'gate.slice-large');
+      expect(f, estimate).toHaveLength(1);
+      expect(f[0].level, estimate).toBe('warning');
+      expect(f[0].reason, estimate).toBe(`slice 1 has an estimate that does not read: ${tokens} (write estimate: code 300, test 600, docs 150)`);
+      expect(r.verdict, estimate).toBe('pass');
+    }
+    // a readable estimate under the budget stays silent
+    expect(rule(check({ plan: FOUR + slice(1, '1, 2', '@ac-1 @ac-2', 'code 10, test 20, docs 5, skills 3') + slice(2, '3, 4', '@ac-1', 'code 10') }), 'gate.slice-large')).toEqual([]);
+  });
+
   it('risk:regression every slice rule is silent for a ticket claimed before SLICES_FROM and for a plan with no slice', () => {
     const broken = FOUR + slice(1, '1, 9', '') + slice(3, '1', '@ac-1', 'code 5000');
     expect(slices(check({ plan: broken }))).not.toEqual([]);

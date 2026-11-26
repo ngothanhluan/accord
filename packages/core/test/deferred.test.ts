@@ -125,6 +125,31 @@ it('risk:regression a deferred line ending in a version arrow stays listed and i
   ]);
 });
 
+// Phase 08.9.1 D-03: with ids that are only digits the mark is `#<n>`; every other id and token reads as before, and `known` is asked without the `#`.
+it('risk:parsing a bare-number id is a deferred mark only as #<n> (08.9.1 D-03)', () => {
+  const known = knows('42', '3', 'ST-LN-9', '0.10');
+  // an unknown number, an id with a letter written with a #, and a lone or doubled # are no mark
+  expect(deferredMark('- (Must) x → #43', known)).toBeUndefined();
+  expect(deferredMark('- (Must) x → #ST-LN-9', known)).toBeUndefined();
+  expect(deferredMark('- (Must) x → #', known)).toBeUndefined();
+  expect(deferredMark('- (Must) x → ##42', known)).toBeUndefined();
+  // an id with a letter keeps the bare form
+  expect(deferredMark('- (Must) x → ST-LN-9', known)).toEqual({ kind: 'queued', id: 'ST-LN-9' });
+  // the last mark wins, in both orders
+  expect(deferredMark('- (Must) x → #42 → declined', known)).toEqual({ kind: 'declined' });
+  expect(deferredMark('- (Must) x → declined → #42', known)).toEqual({ kind: 'queued', id: '42' });
+  // known is asked about the id without its #
+  const asked: string[] = [];
+  deferredMark('- (Must) x → #42', (id) => (asked.push(id), true));
+  expect(asked).toEqual(['42']);
+  // D-03 names only ids that are all digits: 0.10 reads as today, with or without a #
+  expect(deferredMark('- (Must) x → 0.10', known)).toEqual({ kind: 'queued', id: '0.10' });
+  expect(deferredMark('- (Must) x → #0.10', known)).toBeUndefined();
+  // the lister hides the #<n> item and lists the prose arrow, with tickets 3 and 42 both present
+  const ledger = ['## Deferred', '- (Must) a → #42', '- (Must) the count went from 3 → 42', ''].join('\n');
+  expect(ownerDeferred(ledger, known)).toEqual([{ rating: 'Must', text: '(Must) the count went from 3 → 42' }]);
+});
+
 // Phase 08.8 D-07, 08.9.1 D-03: a mark counts for an id that names a known ticket; a bare number only as `#<n>`; a prose arrow that names no ticket stays listed, and ASCII -> is still never read.
 it('risk:parsing a deferred mark counts for a known ticket id, a bare number only as #<n> (D-07, 08.9.1 D-03)', () => {
   const known = knows('42', 'ST-LN-9', 'web.login_7');

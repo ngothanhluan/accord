@@ -217,7 +217,7 @@ it('risk:complex-branching each undecided Must or Should item of a judged ticket
     {
       id: 'deferred-undecided',
       text: 'D-1 has an undecided Must item: review 1.3: a lock (Must)',
-      fix: 'queue it with /accord queue <idea> and append " → <new id>" to its line in accord/tickets/D-1/ledger.md, or append " → declined" there; a pull request that changes only that ledger',
+      fix: 'queue it with /accord queue <idea> and append " → <new id>" (" → #<new id>" when the new id is only digits) to its line in accord/tickets/D-1/ledger.md, or append " → declined" there; a pull request that changes only that ledger',
     },
   ]);
   // D-10: no lane is read, so neither the text nor the fix holds one

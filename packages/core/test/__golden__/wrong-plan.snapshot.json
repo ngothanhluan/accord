@@ -1,6 +1,6 @@
 {
   "config": {
-    "accord": "0.21.0",
+    "accord": "0.21.1",
     "design": {
       "tokens": "src/styles/tokens.css"
     },

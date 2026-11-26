@@ -136,3 +136,5 @@ from the repository root. To prove the gate actually ran, it must exit 0 or 1, n
 refusal exits 2 and evaluates nothing), and its JSON must hold a `verdict` and a `findings` array. That array must
 hold no finding whose `rule` is `gate.reference-unknown`. Run the same command at the baseline first and record
 the count of those findings it shows, so the drop is visible.
+
+<!-- live check: a done ticket is not edited -->

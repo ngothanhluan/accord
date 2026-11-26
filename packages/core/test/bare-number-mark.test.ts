@@ -19,6 +19,19 @@ it('risk:regression the audit fix names the #<n> mark for a bare-number id (08.9
   expect(gap.fix).toContain(' → declined');
 });
 
+// 08.9.1 review WR-03: an old ` → 42` line on a done ticket cannot be rewritten (gate.done-ticket-edited), so the text says to ask the owner.
+it('risk:regression the audit fix and the audit skill say a done ticket ledger is not edited and the owner is asked (08.9.1 WR-03)', () => {
+  const [gap] = deferredGaps([{ id: 'D-1', items: [{ rating: 'Must', text: 'x (Must)' }] }]);
+  for (const p of ['listed again', 'gate.done-ticket-edited', 'ask the owner', 'only an open ticket']) expect(gap.fix).toContain(p);
+  for (const runtime of ['claude', 'codex'] as const) {
+    const audit = skillTargets(config(runtime)).find((f) => f.path.endsWith('/accord-audit/SKILL.md'));
+    const text = (audit?.text ?? '').replace(/\s+/g, ' ');
+    // The skill never names a rule id (SKILL-04), so the id appears in the fix text only.
+    for (const p of ['listed again', 'is not edited', 'ask the owner', 'only an open ticket'])
+      expect(text, runtime + ' audit skill lacks: ' + p).toContain(p);
+  }
+});
+
 it('risk:regression the verify and audit skills name the #<n> mark for a bare-number id (08.9.1 D-03)', () => {
   const bad: string[] = [];
   for (const runtime of ['claude', 'codex'] as const) {

@@ -221,6 +221,10 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
       '#!/usr/bin/env bash',
       'n=$(cat npx-count 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > npx-count',
       'echo "$@" >> npx-calls',
+      // NPX_HANG replaces the process with a sleep (what a black-holed connection does, so the
+      // script's per-call cap has something to kill); NPX_SLEEP is a slow call that still answers.
+      '[ -n "${NPX_HANG:-}" ] && exec sleep "$NPX_HANG"',
+      '[ -n "${NPX_SLEEP:-}" ] && sleep "$NPX_SLEEP"',
       'line=$(sed -n "${n}p" npx-plan); [ -n "$line" ] || line=$(tail -n 1 npx-plan)',
       'code="${line%%|*}"; text="${line#*|}"',
       String.raw`if [ "$code" = 0 ]; then printf '%b\n' "$text"; else printf '%b\n' "$text" >&2; fi`,
@@ -384,7 +388,66 @@ describe.skipIf(noBash)('the publish workflow smoke step — executed', { timeou
   });
 });
 
+describe.skipIf(noBash)('the publish workflow smoke step — time bound (WR-01, D-07)', { timeout: 60_000 }, () => {
+  it('risk:regression the wait ends soft once its time budget is spent, not only after the attempt count', () => {
+    // Every call takes a second or more and the budget is three, so a loop bounded by attempts alone
+    // would make all twenty calls (twenty seconds or more) where the budget allows a handful. $SECONDS
+    // counts whole seconds, hence the loose bounds.
+    const result = runSmoke([etarget(PKG, FIXTURE_VERSION)], {
+      SMOKE_ATTEMPTS: '20',
+      SMOKE_BUDGET: '3',
+      NPX_SLEEP: '1',
+    });
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBeGreaterThanOrEqual(1);
+    expect(result.calls).toBeLessThanOrEqual(8);
+    expect(result.out).toContain('::warning title=not visible yet::');
+    expect(result.summary).toContain('not a failed release');
+  });
+
+  it('risk:regression one hung npx is cut at its own cap and counts as the network class', () => {
+    // The fake never answers. Without a per-call cap the first call sits until the sleep ends and the
+    // step cannot reach its soft end inside the job timeout.
+    const result = runSmoke([VISIBLE], {
+      SMOKE_ATTEMPTS: '2',
+      SMOKE_CALL_TIMEOUT: '1',
+      NPX_HANG: '5',
+    });
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBe(2);
+    const warnings = result.out.split('\n').filter((l) => l.startsWith('::warning title=not visible yet::'));
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain('could not reach the registry');
+    expect(warnings[0]).toContain('ETIMEDOUT');
+    expect(result.summary).toContain('ETIMEDOUT');
+  });
+});
+
+describe.skipIf(noBash)('the publish workflow smoke step — knobs (IN-03)', { timeout: 60_000 }, () => {
+  it('risk:regression a zero or non-numeric knob fails before npx runs instead of passing with no proof', () => {
+    for (const knob of ['SMOKE_ATTEMPTS', 'SMOKE_BUDGET', 'SMOKE_CALL_TIMEOUT']) {
+      for (const value of ['0', 'abc', '-3', '1.5']) {
+        const result = runSmoke([VISIBLE], { [knob]: value });
+        expect(result.code, `${knob}=${value}`).toBe(1);
+        expect(result.calls, `${knob}=${value}`).toBe(0);
+        expect(result.err).toContain(knob);
+      }
+    }
+    const badInterval = runSmoke([VISIBLE], { SMOKE_INTERVAL: 'abc' });
+    expect(badInterval.code).toBe(1);
+    expect(badInterval.calls).toBe(0);
+    expect(badInterval.err).toContain('SMOKE_INTERVAL');
+  });
+});
+
 describe('the publish workflow smoke step — what the document says', () => {
+  it('risk:regression the smoke step greps its output with a here-string, never through a pipe (IN-05)', () => {
+    // Under pipefail `echo "$out" | grep -q` exits 141 when grep stops at its first match while echo is
+    // still writing a large output, and a real not-visible failure would be classed as another one.
+    expect(SMOKE).not.toMatch(/echo "\$out" \| grep -[A-Za-z]*q/);
+    expect(SMOKE).toContain('<<<"$out"');
+  });
+
   it('risk:security the smoke step reads its inputs through env and holds no permissions (D-07)', () => {
     expect(SMOKE).toContain('${SMOKE_ATTEMPTS:-60}');
     expect(SMOKE).toContain('${SMOKE_INTERVAL:-15}');

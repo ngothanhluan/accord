@@ -1139,7 +1139,7 @@ function progressLease(ctx: CommandContext, id: string, branch: string): { seen:
   const seen = gitOk(ctx.root, ['rev-parse', '-q', '--verify', copy]) ? git(ctx.root, ['rev-parse', copy]).trim() : '';
   if (seen === '' || seen === tip || gitOk(ctx.root, ['merge-base', '--is-ancestor', seen, tip])) return { seen };
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, seen])) return { why: 'is ahead of this branch (another clone or branch pushed more); it is not moved back' };
-  let held = false;
+  let held: boolean;
   try {
     held = git(ctx.root, ['reflog', 'show', '--format=%H', `refs/heads/${branch}`]).split('\n').includes(seen);
   } catch {

@@ -24,27 +24,49 @@ import { cleanup, makeEmptyRepo } from './helpers/repo.js';
 interface Step {
   id?: string;
   run?: string;
+  env?: Record<string, string>;
+}
+interface Job {
+  steps: Step[];
+  permissions?: Record<string, string>;
+  'timeout-minutes'?: number;
 }
 interface Workflow {
-  jobs: { publish: { steps: Step[] } };
+  jobs: Record<string, Job>;
 }
 
 const YML = fileURLToPath(new URL('../../../.github/workflows/publish.yml', import.meta.url));
 
+/** One job of the document, by name. */
+function jobOf(yml: string, job: string): Job {
+  const found = (parse(yml) as unknown as Workflow).jobs[job];
+  expect(found, `the document has a job named ${job}`).toBeDefined();
+  return found;
+}
+
+/** One step of a job, by `id:`. */
+function stepOf(yml: string, job: string, id: string): Step {
+  const steps = jobOf(yml, job).steps.filter((s) => s.id === id);
+  expect(steps.length, `exactly one step in job ${job} carries id: ${id}`).toBe(1);
+  return steps[0];
+}
+
 /**
- * The version-check script, taken from the document rather than from a literal.
+ * A step's script, taken from the document rather than from a literal.
  *
  * Selected by `id:`, not by "the one step with a `run:`": the `publish` job carries three of those,
  * so a count of one would be wrong here. `toBe(1)` on the selection is still what matters — a rename
  * that left the selector matching nothing would silently test an empty string, which passes.
  */
-function scriptOf(yml: string, id: string): string {
-  const steps = (parse(yml) as unknown as Workflow).jobs.publish.steps.filter((s) => s.id === id);
-  expect(steps.length, `exactly one step in job publish carries id: ${id}`).toBe(1);
-  return steps[0].run as string;
+function scriptOf(yml: string, job: string, id: string): string {
+  return stepOf(yml, job, id).run as string;
 }
 
-const SCRIPT = scriptOf(readFileSync(YML, 'utf8'), 'version');
+const YML_TEXT = readFileSync(YML, 'utf8');
+const SCRIPT = scriptOf(YML_TEXT, 'publish', 'version');
+const SMOKE = scriptOf(YML_TEXT, 'smoke', 'smoke');
+// The package name comes out of the smoke step's own env, never from a literal here.
+const PKG = stepOf(YML_TEXT, 'smoke', 'smoke').env?.PKG ?? '';
 
 // A-25: one environment knob, because a Windows host whose PATH resolves `bash` to the WSL shim sees a
 // different filesystem and would fail for a reason that has nothing to do with the script.
@@ -169,5 +191,92 @@ describe.skipIf(noBash)('the publish workflow version check — executed', { tim
     const result = runCheck(FIXTURE_VERSION);
     expect(result.code, result.err).toBe(0);
     expect(result.env.trim()).toBe(`VERSION=${FIXTURE_VERSION}`);
+  });
+});
+
+interface Smoke {
+  code: number;
+  out: string;
+  err: string;
+  calls: number;
+  summary: string;
+}
+
+/**
+ * Run the smoke script with a fake `npx` that replays `plan`, one line per call (the last line repeats):
+ * `<exit code>|<text>`, with a literal backslash-n for a line break. Text goes to stdout on exit 0
+ * and to stderr otherwise, as npx does. The fake sits first on PATH inside bash, so no Windows path is ever
+ * converted by the shell.
+ */
+function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke {
+  const repo = makeEmptyRepo();
+  repos.push(repo);
+  mkdirSync(join(repo, 'bin'), { recursive: true });
+  writeFileSync(join(repo, 'script.sh'), SMOKE);
+  writeFileSync(join(repo, 'summary'), '');
+  writeFileSync(join(repo, 'npx-plan'), `${plan.join('\n')}\n`);
+  writeFileSync(
+    join(repo, 'bin', 'npx'),
+    [
+      '#!/usr/bin/env bash',
+      'n=$(cat npx-count 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > npx-count',
+      'echo "$@" >> npx-calls',
+      'line=$(sed -n "${n}p" npx-plan); [ -n "$line" ] || line=$(tail -n 1 npx-plan)',
+      'code="${line%%|*}"; text="${line#*|}"',
+      String.raw`if [ "$code" = 0 ]; then printf '%b\n' "$text"; else printf '%b\n' "$text" >&2; fi`,
+      'exit "$code"',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  const env = {
+    ...process.env,
+    PKG,
+    VERSION: FIXTURE_VERSION,
+    SMOKE_ATTEMPTS: '4',
+    SMOKE_INTERVAL: '0',
+    GITHUB_STEP_SUMMARY: 'summary',
+    ...extraEnv,
+  };
+  let code = 0;
+  let out = '';
+  let err = '';
+  try {
+    out = execFileSync(BASH, ['-c', 'export PATH="$PWD/bin:$PATH"; exec bash script.sh'], {
+      cwd: repo,
+      encoding: 'utf8',
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    const failure = e as { status?: number; stdout?: string; stderr?: string };
+    code = failure.status ?? -1;
+    out = String(failure.stdout ?? '');
+    err = String(failure.stderr ?? '');
+  }
+  const countFile = join(repo, 'npx-count');
+  let calls = 0;
+  try {
+    calls = Number(readFileSync(countFile, 'utf8').trim());
+  } catch {
+    calls = 0;
+  }
+  return { code, out, err, calls, summary: readFileSync(join(repo, 'summary'), 'utf8') };
+}
+
+// npm 11's own texts (RESEARCH, BUG-LN-26): the two lines npx prints when a version is not visible.
+const etarget = (pkg: string, version: string): string =>
+  `1|npm error code ETARGET\\nnpm error notarget No matching version found for ${pkg}@${version}.`;
+const VISIBLE = `0|${FIXTURE_VERSION}`;
+
+describe.skipIf(noBash)('the publish workflow smoke step — executed', { timeout: 60_000 }, () => {
+  it('risk:regression the smoke step retries while the version is not visible and prints why (D-07)', () => {
+    const result = runSmoke([etarget(PKG, FIXTURE_VERSION), etarget(PKG, FIXTURE_VERSION), VISIBLE]);
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBe(3);
+    const notarget = `npm error notarget No matching version found for ${PKG}@${FIXTURE_VERSION}`;
+    expect(result.out).toContain(`attempt 1: not visible yet: ${notarget}`);
+    expect(result.out).toContain(`attempt 2: not visible yet: ${notarget}`);
+    expect(result.out).toContain(`attempt 3: ${FIXTURE_VERSION}`);
   });
 });

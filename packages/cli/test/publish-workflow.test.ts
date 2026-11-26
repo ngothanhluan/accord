@@ -24,27 +24,49 @@ import { cleanup, makeEmptyRepo } from './helpers/repo.js';
 interface Step {
   id?: string;
   run?: string;
+  env?: Record<string, string>;
+}
+interface Job {
+  steps: Step[];
+  permissions?: Record<string, string>;
+  'timeout-minutes'?: number;
 }
 interface Workflow {
-  jobs: { publish: { steps: Step[] } };
+  jobs: Record<string, Job>;
 }
 
 const YML = fileURLToPath(new URL('../../../.github/workflows/publish.yml', import.meta.url));
 
+/** One job of the document, by name. */
+function jobOf(yml: string, job: string): Job {
+  const found = (parse(yml) as unknown as Workflow).jobs[job];
+  expect(found, `the document has a job named ${job}`).toBeDefined();
+  return found;
+}
+
+/** One step of a job, by `id:`. */
+function stepOf(yml: string, job: string, id: string): Step {
+  const steps = jobOf(yml, job).steps.filter((s) => s.id === id);
+  expect(steps.length, `exactly one step in job ${job} carries id: ${id}`).toBe(1);
+  return steps[0];
+}
+
 /**
- * The version-check script, taken from the document rather than from a literal.
+ * A step's script, taken from the document rather than from a literal.
  *
  * Selected by `id:`, not by "the one step with a `run:`": the `publish` job carries three of those,
  * so a count of one would be wrong here. `toBe(1)` on the selection is still what matters — a rename
  * that left the selector matching nothing would silently test an empty string, which passes.
  */
-function scriptOf(yml: string, id: string): string {
-  const steps = (parse(yml) as unknown as Workflow).jobs.publish.steps.filter((s) => s.id === id);
-  expect(steps.length, `exactly one step in job publish carries id: ${id}`).toBe(1);
-  return steps[0].run as string;
+function scriptOf(yml: string, job: string, id: string): string {
+  return stepOf(yml, job, id).run as string;
 }
 
-const SCRIPT = scriptOf(readFileSync(YML, 'utf8'), 'version');
+const YML_TEXT = readFileSync(YML, 'utf8');
+const SCRIPT = scriptOf(YML_TEXT, 'publish', 'version');
+const SMOKE = scriptOf(YML_TEXT, 'smoke', 'smoke');
+// The package name comes out of the smoke step's own env, never from a literal here.
+const PKG = stepOf(YML_TEXT, 'smoke', 'smoke').env?.PKG ?? '';
 
 // A-25: one environment knob, because a Windows host whose PATH resolves `bash` to the WSL shim sees a
 // different filesystem and would fail for a reason that has nothing to do with the script.
@@ -169,5 +191,210 @@ describe.skipIf(noBash)('the publish workflow version check — executed', { tim
     const result = runCheck(FIXTURE_VERSION);
     expect(result.code, result.err).toBe(0);
     expect(result.env.trim()).toBe(`VERSION=${FIXTURE_VERSION}`);
+  });
+});
+
+interface Smoke {
+  code: number;
+  out: string;
+  err: string;
+  calls: number;
+  summary: string;
+}
+
+/**
+ * Run the smoke script with a fake `npx` that replays `plan`, one line per call (the last line repeats):
+ * `<exit code>|<text>`, with a literal backslash-n for a line break. Text goes to stdout on exit 0
+ * and to stderr otherwise, as npx does. The fake sits first on PATH inside bash, so no Windows path is ever
+ * converted by the shell.
+ */
+function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke {
+  const repo = makeEmptyRepo();
+  repos.push(repo);
+  mkdirSync(join(repo, 'bin'), { recursive: true });
+  writeFileSync(join(repo, 'script.sh'), SMOKE);
+  writeFileSync(join(repo, 'summary'), '');
+  writeFileSync(join(repo, 'npx-plan'), `${plan.join('\n')}\n`);
+  writeFileSync(
+    join(repo, 'bin', 'npx'),
+    [
+      '#!/usr/bin/env bash',
+      'n=$(cat npx-count 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > npx-count',
+      'echo "$@" >> npx-calls',
+      'line=$(sed -n "${n}p" npx-plan); [ -n "$line" ] || line=$(tail -n 1 npx-plan)',
+      'code="${line%%|*}"; text="${line#*|}"',
+      String.raw`if [ "$code" = 0 ]; then printf '%b\n' "$text"; else printf '%b\n' "$text" >&2; fi`,
+      'exit "$code"',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  const env = {
+    ...process.env,
+    PKG,
+    VERSION: FIXTURE_VERSION,
+    SMOKE_ATTEMPTS: '4',
+    SMOKE_INTERVAL: '0',
+    GITHUB_STEP_SUMMARY: 'summary',
+    ...extraEnv,
+  };
+  let code = 0;
+  let out: string;
+  let err = '';
+  try {
+    out = execFileSync(BASH, ['-c', 'export PATH="$PWD/bin:$PATH"; exec bash script.sh'], {
+      cwd: repo,
+      encoding: 'utf8',
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    const failure = e as { status?: number; stdout?: string; stderr?: string };
+    code = failure.status ?? -1;
+    out = String(failure.stdout ?? '');
+    err = String(failure.stderr ?? '');
+  }
+  const countFile = join(repo, 'npx-count');
+  let calls: number;
+  try {
+    calls = Number(readFileSync(countFile, 'utf8').trim());
+  } catch {
+    calls = 0;
+  }
+  return { code, out, err, calls, summary: readFileSync(join(repo, 'summary'), 'utf8') };
+}
+
+// npm 11's own texts (RESEARCH, BUG-LN-26): the two lines npx prints when a version is not visible.
+const etarget = (pkg: string, version: string): string =>
+  `1|npm error code ETARGET\\nnpm error notarget No matching version found for ${pkg}@${version}.`;
+const VISIBLE = `0|${FIXTURE_VERSION}`;
+const ENCODED = PKG.replace('/', '%2f');
+const netError = (code: string): string => `1|npm error code ${code}\\nnpm error network request failed`;
+
+describe.skipIf(noBash)('the publish workflow smoke step — executed', { timeout: 60_000 }, () => {
+  it('risk:regression the smoke step retries while the version is not visible and prints why (D-07)', () => {
+    const result = runSmoke([etarget(PKG, FIXTURE_VERSION), etarget(PKG, FIXTURE_VERSION), VISIBLE]);
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBe(3);
+    const notarget = `npm error notarget No matching version found for ${PKG}@${FIXTURE_VERSION}`;
+    expect(result.out).toContain(`attempt 1: not visible yet: ${notarget}`);
+    expect(result.out).toContain(`attempt 2: not visible yet: ${notarget}`);
+    expect(result.out).toContain(`attempt 3: ${FIXTURE_VERSION}`);
+  });
+
+  it('risk:regression the smoke step retries on an E404 for this package and on a network error (D-07)', () => {
+    const notFound = `1|npm error code E404\\nnpm error 404 Not Found - GET https://registry.npmjs.org/${ENCODED} - Not found`;
+    const missing = runSmoke([notFound, VISIBLE]);
+    expect(missing.code, missing.err).toBe(0);
+    expect(missing.calls).toBe(2);
+    expect(missing.out).toContain('attempt 1: not visible yet: npm error 404 Not Found');
+    const reset = runSmoke([netError('ECONNRESET'), VISIBLE]);
+    expect(reset.code, reset.err).toBe(0);
+    expect(reset.calls).toBe(2);
+    expect(reset.out).toContain('attempt 1: network error: npm error code ECONNRESET');
+  });
+
+  it('risk:regression the smoke step fails at once on a failure that is not visibility (D-07)', () => {
+    const integrity = `1|npm error code EINTEGRITY\\nnpm error sha512-AAAA integrity checksum failed`;
+    const broken = runSmoke([integrity]);
+    expect(broken.code).toBe(1);
+    expect(broken.calls).toBe(1);
+    expect(broken.err).toContain('npm error code EINTEGRITY');
+    expect(broken.err).toContain('npm error sha512-AAAA integrity checksum failed');
+    expect(broken.err).toContain('not visibility');
+    // A dependency's ETARGET is not this release being invisible.
+    const dependency = runSmoke([etarget('left-pad', '9.9.9')]);
+    expect(dependency.code).toBe(1);
+    expect(dependency.calls).toBe(1);
+    // Another package's E404 names another URL, so it is not this release being invisible.
+    const other = runSmoke([
+      `1|npm error code E404\\nnpm error 404 Not Found - GET https://registry.npmjs.org/${ENCODED}-extra - Not found`,
+    ]);
+    expect(other.code).toBe(1);
+    expect(other.calls).toBe(1);
+    // A visible version that prints something else is a broken package, not a slow registry.
+    const wrong = runSmoke(['0|0.0.1']);
+    expect(wrong.code).toBe(1);
+    expect(wrong.calls).toBe(1);
+    expect(wrong.err).toContain('0.0.1');
+    expect(wrong.err).toContain(FIXTURE_VERSION);
+    // A network error never softens a later real failure.
+    const later = runSmoke([netError('ECONNRESET'), integrity]);
+    expect(later.code).toBe(1);
+    expect(later.calls).toBe(2);
+    expect(later.err).toContain('npm error code EINTEGRITY');
+    expect(later.out).not.toContain('::warning');
+    expect(later.summary).toBe('');
+    // An empty VERSION would install the latest release: refuse before npx is ever called.
+    const empty = runSmoke([VISIBLE], { VERSION: '' });
+    expect(empty.code).toBe(1);
+    expect(empty.calls).toBe(0);
+  });
+
+  it('risk:regression the smoke step passes with a warning when the version never showed (D-07)', () => {
+    const result = runSmoke([etarget(PKG, FIXTURE_VERSION)]);
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBe(4);
+    expect(result.out.match(/::warning title=not visible yet::/g)?.length).toBe(1);
+    expect(result.out).toContain(`${PKG}@${FIXTURE_VERSION}`);
+    const lines = result.summary.trim().split('\n');
+    expect(lines.length).toBe(1);
+    expect(lines[0]).toContain(`${PKG}@${FIXTURE_VERSION}`);
+    expect(lines[0]).toContain('publish passed');
+    expect(lines[0]).toContain('not a failed release');
+    expect(result.out).not.toContain('could not reach the registry');
+    expect(result.summary).not.toContain('could not reach the registry');
+    // The last attempt decides the wording: network errors before a final not-visible stay plain.
+    const mixed = runSmoke([netError('ECONNRESET'), netError('ECONNRESET'), netError('ECONNRESET'), etarget(PKG, FIXTURE_VERSION)]);
+    expect(mixed.code, mixed.err).toBe(0);
+    expect(mixed.calls).toBe(4);
+    expect(mixed.out).toContain('::warning title=not visible yet::');
+    expect(mixed.out).not.toContain('could not reach the registry');
+    expect(mixed.summary).not.toContain('could not reach the registry');
+    expect(mixed.summary).toContain('publish passed');
+  });
+
+  it('risk:regression the smoke step passes with a network warning when its last attempt could not reach the registry (D-07)', () => {
+    const timeout = `1|npm error code ETIMEDOUT\\nnpm error network request to https://registry.npmjs.org/x failed`;
+    const result = runSmoke([etarget(PKG, FIXTURE_VERSION), etarget(PKG, FIXTURE_VERSION), etarget(PKG, FIXTURE_VERSION), timeout]);
+    expect(result.code, result.err).toBe(0);
+    expect(result.calls).toBe(4);
+    const warnings = result.out.split('\n').filter((l) => l.startsWith('::warning title=not visible yet::'));
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain(`${PKG}@${FIXTURE_VERSION}`);
+    expect(warnings[0]).toContain('could not reach the registry');
+    expect(warnings[0]).toContain('ETIMEDOUT');
+    const tail = result.out.slice(result.out.indexOf('npx output of the last attempt:'));
+    expect(tail).toContain('npm error code ETIMEDOUT');
+    expect(tail).toContain('npm error network request to https://registry.npmjs.org/x failed');
+    const lines = result.summary.trim().split('\n');
+    expect(lines.length).toBe(1);
+    for (const part of [`${PKG}@${FIXTURE_VERSION}`, 'not visible yet', 'could not reach the registry', 'ETIMEDOUT', 'not a failed release']) {
+      expect(lines[0]).toContain(part);
+    }
+    // A registry down for the whole wait is told apart from a slow one by its code.
+    const outage = runSmoke([netError('ECONNRESET')]);
+    expect(outage.code, outage.err).toBe(0);
+    expect(outage.calls).toBe(4);
+    expect(outage.out).toContain('could not reach the registry');
+    expect(outage.out).toContain('ECONNRESET');
+    expect(outage.out).toContain('npx output of the last attempt:');
+    expect(outage.summary).toContain('ECONNRESET');
+    expect(outage.summary).toContain('could not reach the registry');
+  });
+});
+
+describe('the publish workflow smoke step — what the document says', () => {
+  it('risk:security the smoke step reads its inputs through env and holds no permissions (D-07)', () => {
+    expect(SMOKE).toContain('${SMOKE_ATTEMPTS:-60}');
+    expect(SMOKE).toContain('${SMOKE_INTERVAL:-15}');
+    expect(SMOKE).not.toContain('${{');
+    const job = jobOf(YML_TEXT, 'smoke');
+    expect('permissions' in job, 'the smoke job must carry no permissions key (T-09-11)').toBe(false);
+    expect(job['timeout-minutes']).toBe(25);
+    expect(stepOf(YML_TEXT, 'smoke', 'smoke').env).toEqual({
+      PKG: '@accord-dev/accord',
+      VERSION: '${{ needs.publish.outputs.version }}',
+    });
   });
 });

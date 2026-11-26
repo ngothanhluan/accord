@@ -125,7 +125,7 @@ it('risk:security on Windows the built-in Administrator account is the person wh
   const dacl = 'D:PAI(A;OICI;FA;;;LA)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)';
   expect(descriptorVerdict(`O:LAG:LA${dacl}`, ADMIN)).toBeUndefined();
   expect(descriptorVerdict(`O:BA${dacl}`, ADMIN)).toBeUndefined();
-  // a person who is another account still gets the alias refused, and a domain's RID 500 does not make a different machine's person the Administrator
+  // a person who is another account still gets the alias refused, and a SID ending 1500 is not RID 500 (the test pins the regex boundary; a domain's own RID 500 is not told apart from the machine's)
   expect(descriptorVerdict(`O:${USER}${dacl}`, USER)).toContain('LA');
   expect(descriptorVerdict(`O:LA${dacl}`, USER)).toContain('owned by another account');
   expect(descriptorVerdict(`O:LA${dacl}`, 'S-1-5-21-1-2-3-1500')).toContain('owned by another account');

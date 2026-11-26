@@ -188,6 +188,17 @@ describe('lane templates (spec §4)', () => {
     expect(fm).toMatchObject({ type: 'story', status: 'draft', lane: 'S' });
   });
 
+  // Phase 15 15-20 D-05: stories of an epic run lane M, so the template's lane comment names M as one feature (a story of an epic too) and L as an epic.
+  it('risk:regression ticket-lane.md names lane L as an epic and lane M as one feature, a story of an epic included (D-05)', () => {
+    const line = templates['ticket-lane.md'].split('\n').find((l) => l.startsWith('lane:')) ?? '';
+    expect(line).toContain('# M: one feature, also a story of an epic | L: an epic | P: part of a whole project');
+    expect(line).not.toContain('L: a story of an epic');
+    // the comment column stays where the other keys' comments are
+    const hash = (l: string): number => l.indexOf('#');
+    const type = templates['ticket-lane.md'].split('\n').find((l) => l.startsWith('type:')) ?? '';
+    expect(hash(line)).toBe(hash(type));
+  });
+
   it('lane headings are in spec order', () => {
     expect(headings(templates['ticket-lane.md'])).toEqual([
       '## Intent', '## Acceptance criteria', '## Vetoes', '## Decisions', '## Corrections', '## Open questions', '## Approach',

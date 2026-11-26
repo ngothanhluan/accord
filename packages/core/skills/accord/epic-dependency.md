@@ -1,0 +1,12 @@
+---
+kind: reference
+---
+
+# A story that needs code another story builds
+
+Follow this from step 4 of `./build.md`, or at the plan stage, when a story of an epic (its `parent:` names the epic) finds that it needs code another story of its epic builds, and its `depends_on` does not name that story. The work does not go on around the gap: stop the task and ask the owner as `./ask.md` says, and never stack this story on the other story's branch.
+
+1. Say in plain words what the story needs, which story builds it, and where this story meets it (a `path:line` or the test that fails without it). Ask the owner, with these options, the first recommended.
+2. The default proposal splits the shared piece out as a small story that both stories depend on. On the owner's yes, queue it with `/accord queue <idea>`, then put its id in the `depends_on` of both stories, so each waits for it and neither waits for the other. This story waits for the small story's merge; the other story is not held longer than before.
+3. Fallback, when the owner would rather not split: this story waits for the other story within `stale_days` (`config.yml`, default 14). Once the other ticket has had no activity for longer, `accord audit` reports it as `ticket-idle`, and the owner moves the piece into this story or hands the other ticket on. Ask which of the two when that report comes.
+4. Record the owner's answer as a Ruling in the ticket's ledger, with why and the cost if it was wrong.

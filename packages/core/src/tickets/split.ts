@@ -13,6 +13,8 @@ export interface SplitStory {
   after: number[];
   /** the story's ticket id, only in a repository where accord assigns none */
   id?: string;
+  /** 15-19, D-02: repository files and folders (a folder ends in `/`) the scout found the story likely to edit; absent when the split gives none */
+  touches?: string[];
 }
 
 export interface Split {
@@ -31,7 +33,8 @@ const MIN_STORIES = 2;
 const MAX_STORIES = 10;
 const MAX_INTENT = 5;
 const EPIC_KEYS = ['id', 'title', 'intent', 'vetoes', 'decisions', 'stories'];
-const STORY_KEYS = ['id', 'title', 'intent', 'after'];
+const MAX_TOUCHES = 30;
+const STORY_KEYS = ['id', 'title', 'intent', 'after', 'touches'];
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -81,6 +84,66 @@ function afterList(value: unknown, n: number, count: number, problems: string[])
   return out.sort((a, b) => a - b);
 }
 
+/**
+ * A story's `touches`: a list of repository paths, each one line of text, relative and inside the repository (no leading slash, no drive
+ * letter, no `..` segment, no backslash, no control character), at most thirty. Entries are only compared and printed, never opened (T-15-41).
+ */
+function touchesList(value: unknown, n: number, problems: string[]): string[] | undefined {
+  const label = 'story ' + n + ': touches';
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) {
+    problems.push(label + ' must be a list of paths, one "- path" entry per line');
+    return undefined;
+  }
+  if (value.length > MAX_TOUCHES) {
+    problems.push(label + ' holds ' + value.length + ' entries: at most ' + MAX_TOUCHES);
+    return undefined;
+  }
+  const out: string[] = [];
+  for (const entry of value) {
+    const bad = typeof entry !== 'string' || entry.trim() === '' || [...entry].some((c) => c === '\\' || c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127) || /^([/]|[A-Za-z]:)/.test(entry.trim()) || entry.trim().split('/').includes('..');
+    if (bad) {
+      problems.push(label + ' entry ' + (typeof entry === 'string' ? JSON.stringify(entry.trim()) : 'that is not text') + ' must be a path inside the repository: no leading slash, no drive letter, no .. segment, no backslash');
+      return undefined;
+    }
+    const path = (entry as string).trim();
+    if (!out.includes(path)) out.push(path);
+  }
+  return out.length === 0 ? undefined : out;
+}
+
+/** The more specific of two overlapping paths, or undefined when neither is the other or inside it (a folder ends in `/`). */
+function sharedPath(a: string, b: string): string | undefined {
+  if (a === b) return a;
+  if (a.endsWith('/') && b.startsWith(a)) return b;
+  if (b.endsWith('/') && a.startsWith(b)) return a;
+  return undefined;
+}
+
+/**
+ * D-02 (15-19): every pair of stories whose `touches` share a file, or where one names a folder holding the other's path, must be
+ * chained: the later story reaches the earlier one through `after`, directly or through other stories. One problem per pair, naming both
+ * stories and the shared path. `after` only names earlier stories, so reachability is a walk back from the later story.
+ */
+function unchained(stories: readonly SplitStory[], problems: string[]): void {
+  const waits = stories.map(() => new Set<number>());
+  stories.forEach((s, i) => {
+    for (const k of s.after) {
+      waits[i].add(k);
+      for (const deeper of waits[k - 1]) waits[i].add(deeper);
+    }
+  });
+  for (let j = 1; j < stories.length; j++) {
+    for (let i = 0; i < j; i++) {
+      if (waits[j].has(i + 1)) continue;
+      const found = (stories[i].touches ?? []).flatMap((a) => (stories[j].touches ?? []).flatMap((b) => sharedPath(a, b) ?? []))[0];
+      if (found !== undefined) {
+        problems.push('stories ' + (i + 1) + ' and ' + (j + 1) + ' both touch ' + found + ' and neither waits for the other: add after: [' + (i + 1) + '] to story ' + (j + 1) + ', or split the shared piece out');
+      }
+    }
+  }
+}
+
 /** `id` of the epic or a story: optional, one line when given. */
 function idOf(value: unknown, what: string, problems: string[]): string | undefined {
   if (value === undefined) return undefined;
@@ -96,7 +159,7 @@ function unknownKeys(map: Record<string, unknown>, known: readonly string[], wha
 
 /**
  * Read a split file: the epic's `title`, `intent` (one to five lines) and `vetoes`, and two to ten `stories`, each with a `title`,
- * an `intent` and an optional `after` of earlier story numbers. An optional `decisions` list holds the epic's Decisions, one line each and
+ * an `intent` and an optional `after` of earlier story numbers and an optional `touches` (the files and folders the scout found it likely to edit; two stories that share one are chained by `after` or refused). An optional `decisions` list holds the epic's Decisions, one line each and
  * without a D- number. Returns the split when nothing is wrong, else only the problems,
  * one per fault, each naming the epic or the story. Nothing here touches a file; a story that names itself or a later story in
  * `after` is refused, so the depends_on graph the stories get is acyclic by construction.
@@ -154,8 +217,13 @@ export function parseSplit(text: string): { split?: Split; problems: string[] } 
         }
       }
       const after = afterList(item.after, n, count, problems);
-      if (typeof t === 'string' && lines !== undefined) stories.push({ title: t, intent: lines, after, ...(sid === undefined ? {} : { id: sid }) });
+      const touches = touchesList(item.touches, n, problems);
+      if (typeof t === 'string' && lines !== undefined) {
+        stories.push({ title: t, intent: lines, after, ...(sid === undefined ? {} : { id: sid }), ...(touches === undefined ? {} : { touches }) });
+      }
     });
+    // the chain check reads whole stories, so it runs only when every story read cleanly
+    if (problems.length === 0 && stories.length === count) unchained(stories, problems);
   }
 
   if (problems.length > 0 || typeof title !== 'string' || intent === undefined || vetoes === undefined || decisions === undefined) return { problems };

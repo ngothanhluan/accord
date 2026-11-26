@@ -158,7 +158,11 @@ export function writeSplit(ctx: CommandContext, split: Split, options: { queue?:
   epic = fillSection(
     epic,
     'Approach',
-    split.stories.map((s, i) => '- ' + storyIds[i] + ' ' + s.title + (s.after.length > 0 ? ' — after ' + s.after.map((n) => storyIds[n - 1]).join(', ') : '')),
+    // 15-19 D-02: what the scout found each story likely to edit sits beside the stories it waits for
+    split.stories.map(
+      (s, i) =>
+        '- ' + storyIds[i] + ' ' + s.title + (s.after.length > 0 ? ' — after ' + s.after.map((n) => storyIds[n - 1]).join(', ') : '') + (s.touches === undefined ? '' : ' — touches ' + s.touches.join(', ')),
+    ),
   );
   files['accord/tickets/' + epicId + '.md'] = epic;
   split.stories.forEach((s, i) => {

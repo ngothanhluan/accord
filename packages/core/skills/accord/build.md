@@ -31,6 +31,8 @@ session and orchestrate: executors write the code.
      dispatch a fresh executor for more tries. A new package: ask the
      owner.
    - `BLOCKED: conflict`: ask the owner, as for a veto.
+   - A story of an epic needs code another story of its epic builds and its
+     `depends_on` does not name that story: follow `./epic-dependency.md`.
    - `BLOCKED: context`: dispatch a fresh executor with the same brief
      plus the diff and the ledger so far.
    - `NEEDS_CONTEXT`: answer, and dispatch again.

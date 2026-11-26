@@ -533,19 +533,32 @@ function unpushedClaim(): Clone {
 }
 const unpushedGaps = async (c: Clone): Promise<string[]> => (await run(['audit'], c.root)).out.split('\n').filter((l) => l.startsWith('gap: claim-unpushed:'));
 
-it('risk:regression audit counts a claim whose tip is on the progress ref as pushed, and still reports one the ref does not hold (D-15)', async () => {
+it('risk:regression audit still reports a claim branch that is not on origin when the progress ref holds its tip, and says that the ref is not a claim (B-WR-07, D-13, D-15)', async () => {
   const c = unpushedClaim();
   try {
-    expect(await unpushedGaps(c)).toHaveLength(1);
+    const bare = await unpushedGaps(c);
+    expect(bare).toHaveLength(1);
+    expect(bare[0]).not.toContain('refs/accord');
     gitRun(c.root, 'push', '-q', 'origin', 't/T-1:refs/accord/T-1');
     gitRun(c.root, 'fetch', '-q', 'origin', '+refs/accord/*:refs/remotes/origin-accord/*');
-    expect(await unpushedGaps(c)).toEqual([]);
+    // the progress ref is not a claim (the dashboard ignores it), so teammates still see nothing: the gap stays, with the ref named and the same fix
+    const held = await unpushedGaps(c);
+    expect(held).toHaveLength(1);
+    expect(held[0]).toContain('its commits are on origin in refs/accord/T-1, which is not a claim');
+    expect(held[0]).toContain('git push -u origin t/T-1');
 
-    // the ref is behind the tip: the newest commit has not reached origin
+    // the ref is behind the tip: the newest commit has not reached origin either, and the note is not made
     gitRun(c.root, 'switch', '-q', 't/T-1');
     commitMsg(c.root, 'build: T-1 task 1', IDLE, true);
     gitRun(c.root, 'switch', '-q', 'main');
-    expect(await unpushedGaps(c)).toHaveLength(1);
+    const behind = await unpushedGaps(c);
+    expect(behind).toHaveLength(1);
+    expect(behind[0]).not.toContain('refs/accord');
+
+    // the claim branch itself pushed: no gap at all
+    gitRun(c.root, 'push', '-q', 'origin', 't/T-1');
+    gitRun(c.root, 'fetch', '-q', 'origin');
+    expect(await unpushedGaps(c)).toEqual([]);
   } finally {
     c.cleanupAll();
   }

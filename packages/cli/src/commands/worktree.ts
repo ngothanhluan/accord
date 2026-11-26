@@ -2210,8 +2210,9 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
     const id = ticketOfBranch(name, templates, known, ctx.snapshot.config);
     if (id !== undefined && id !== skip) ids.set(name, id);
   }
-  if (ids.size === 0) return;
-  const snap = snapshotAt(ctx.root, ref, [...new Set(ids.values())]);
+  const orphans = strandedProgress(progress, new Set(ids.values()), skip);
+  if (ids.size === 0 && orphans.length === 0) return;
+  const snap = snapshotAt(ctx.root, ref, [...new Set([...ids.values(), ...orphans])]);
   const done = new Set(statusRows(snap).filter((r) => r.stage === 'done' && r.status !== 'dropped').map((r) => r.id));
   const after = readList(ctx, s.seen);
   // Phase 08.9 D-08: on the offline dry path the commits the full-length verified commits of the done branches name come from one batch-check; a short one or a failed batch is read per branch below
@@ -2302,6 +2303,26 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
   }
+  // B-WR-10: a done ticket whose branches are gone from this clone and from origin still has its progress ref; no branch led the loop above to it
+  if (fetchFailed) return;
+  for (const id of orphans.filter((i) => done.has(i)).sort()) {
+    try {
+      if (spent(ctx, s)) return;
+      const P = progress.get(id)!;
+      const raw = snap.tickets[id]?.frontmatter?.verified_commit;
+      const vcArgs = ['rev-parse', '--verify', '-q', String(raw) + '^{commit}'];
+      const vc = typeof raw === 'string' && isSha(raw) && gitOk(ctx.root, vcArgs) ? git(ctx.root, vcArgs).trim() : undefined;
+      const v = safeTip(ctx.root, P, vc, ref, merged, s.facts);
+      deleteProgress(ctx, s, id, P, v === 'safe' ? undefined : v === 'conflict' ? `merging it into ${def} conflicts` : vc !== undefined ? 'it has commits after its verified commit' : `it has changes not on ${def}`);
+    } catch (e) {
+      cleanSay(ctx, `kept origin refs/accord/${id}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
+    }
+  }
+}
+
+/** B-WR-10: the ids that have a progress copy and no branch of this clone or origin (`held` holds the ids the branches name), ticket ids only: an id becomes a path when its ticket is read. */
+function strandedProgress(progress: ReadonlyMap<string, string>, held: ReadonlySet<string>, skip?: string): string[] {
+  return [...progress.keys()].filter((i) => i !== skip && !held.has(i) && ID.test(i));
 }
 
 /** ST-LN-13: the first research record the ticket lists at `tip` whose copy the history of `ref` never held, or undefined. */
@@ -2355,9 +2376,12 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
     const tip = (t.L ?? t.R)!;
     if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !(s.facts?.onRef(tip) ?? gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref]))) ids.set(name, id);
   }
-  if (ids.size === 0) return;
-  const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);
-  if (fetchFailed && [...ids.keys()].some((n) => dropped.has(ids.get(n)!))) {
+  // B-WR-10: ids with a progress copy and no branch at all, here or on origin (a merged branch above is no branch here, and its ref went with it on the merged path)
+  const named = new Set([...tips.keys()].flatMap((n) => ticketOfBranch(n, templates, known, ctx.snapshot.config) ?? []));
+  const orphans = strandedProgress(progress, named, skip);
+  if (ids.size === 0 && orphans.length === 0) return;
+  const dropped = droppedOn(ctx.root, ref, [...new Set([...ids.values(), ...orphans])]);
+  if (fetchFailed && ([...ids.keys()].some((n) => dropped.has(ids.get(n)!)) || orphans.some((i) => dropped.has(i)))) {
     cleanSay(ctx, 'kept dropped tickets: fetch from origin failed');
     return;
   }
@@ -2452,6 +2476,18 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       }
     } catch (e) {
       cleanSay(ctx, `kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
+    }
+  }
+  // B-WR-10: a dropped ticket's progress ref when no branch of this clone or origin is left; with no branch to hold its commits it goes only when the default branch already does
+  if (fetchFailed) return;
+  for (const id of orphans.filter((i) => dropped.has(i)).sort()) {
+    try {
+      if (spent(ctx, s)) return;
+      const P = progress.get(id)!;
+      const held = s.facts?.onRef(P) ?? gitOk(ctx.root, ['merge-base', '--is-ancestor', P, ref]);
+      deleteProgress(ctx, s, id, P, held ? undefined : 'it has commits no branch holds');
+    } catch (e) {
+      cleanSay(ctx, `kept origin refs/accord/${id}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}`);
     }
   }
 }

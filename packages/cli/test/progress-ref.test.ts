@@ -622,3 +622,95 @@ it('risk:regression clean --dry-run names the progress copy a prune would remove
     c.cleanupAll();
   }
 }, 180_000);
+
+// B-WR-10 (15-REVIEWFIX-2): the claim branch is gone from this clone and from origin (the host deleted the head branch on merge, the work was built in another clone), so no branch leads clean to the ticket's progress ref.
+/** The branches of ST-9 gone from the clone and from origin, the progress ref still on origin. */
+function strandProgress(c: Clone, scenario: 'done' | 'dropped', at?: string): { tip: string } {
+  let tip: string;
+  if (scenario === 'done') {
+    tip = doneWithProgress(c).tip;
+  } else {
+    tip = claimWorktree(c, 'ST-9');
+    dropOnRemote(c, ['ST-9']);
+    setProgress(c, 'ST-9', at ?? (onOrigin(c, 'refs/heads/t/ST-9') as string));
+  }
+  c.git('worktree', 'remove', '--force', c.sibling('ST-9'));
+  c.git('branch', '-D', 't/ST-9');
+  gitRun(c.remote, 'update-ref', '-d', 'refs/heads/t/ST-9');
+  return { tip: at ?? tip };
+}
+
+it('risk:data-loss clean deletes the progress ref of a done ticket whose branch is gone from the clone and from origin (B-WR-10, D-15)', async () => {
+  const c = makeClone();
+  try {
+    const { tip } = strandProgress(c, 'done');
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(r.code).toBe(0);
+    expect(lines(r.out).filter((l) => l.includes('refs/accord'))).toEqual([withAction(`deleted origin refs/accord/ST-9 (was ${tip})`)]);
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBeUndefined();
+    expect(has(c.root, 'refs/remotes/origin-accord/ST-9')).toBe(false);
+    expect((await run(['worktree', 'clean'], c.root)).out).toBe('');
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss clean keeps the stranded progress ref of a done ticket when it has commits after the verified commit, and with --dry-run deletes nothing (B-WR-10, D-15)', async () => {
+  const c = makeClone();
+  try {
+    const { tip } = strandProgress(c, 'done');
+    const dry = await run(['worktree', 'clean', '--dry-run'], c.root);
+    expect(lines(dry.out)).toContain(withAction(`deleted origin refs/accord/ST-9 (was ${tip})`));
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBe(tip);
+
+    const o = c.otherClone();
+    gitRun(o, 'fetch', '-q', 'origin', 'refs/accord/ST-9');
+    gitRun(o, 'switch', '-q', '-c', 'more', 'FETCH_HEAD');
+    writeFiles(o, { 'later.txt': 'later\n' });
+    const later = commitMsg(o, 'later work');
+    gitRun(o, 'push', '-q', 'origin', 'HEAD:refs/accord/ST-9');
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(lines(r.out)).toContain(withAction('kept origin refs/accord/ST-9: it has commits after its verified commit'));
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBe(later);
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss clean deletes the stranded progress ref of a dropped ticket only when the default branch holds it, else keeps it with a line (B-WR-10, D-15)', async () => {
+  const c = makeClone();
+  try {
+    const main = onOrigin(c, 'refs/heads/main') as string;
+    strandProgress(c, 'dropped', main);
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(lines(r.out).filter((l) => l.includes('refs/accord'))).toEqual([withAction(`deleted origin refs/accord/ST-9 (was ${main})`)]);
+    expect(onOrigin(c, 'refs/accord/ST-9')).toBeUndefined();
+  } finally {
+    c.cleanupAll();
+  }
+
+  const d = makeClone();
+  try {
+    const { tip } = strandProgress(d, 'dropped');
+    const r = await run(['worktree', 'clean'], d.root);
+    expect(lines(r.out).filter((l) => l.includes('refs/accord'))).toEqual([withAction('kept origin refs/accord/ST-9: it has commits no branch holds')]);
+    expect(onOrigin(d, 'refs/accord/ST-9')).toBe(tip);
+  } finally {
+    d.cleanupAll();
+  }
+}, 180_000);
+
+it('risk:data-loss a progress ref of a ticket that is not done or dropped, or whose branch still exists, is left alone by clean (B-WR-10, D-15)', async () => {
+  const c = makeClone();
+  try {
+    const wt = claimed(c, REF);
+    expect((await run(['worktree', 'push', 'ST-9'], wt)).code).toBe(0);
+    gitRun(c.remote, 'update-ref', '-d', 'refs/heads/t/ST-9');
+    // a ticket in progress: its branch is gone from origin, its ref is its only copy there
+    const r = await run(['worktree', 'clean'], c.root);
+    expect(lines(r.out).filter((l) => l.includes('refs/accord'))).toEqual([]);
+    expect(refOnOrigin(c)).toBe(head(wt));
+  } finally {
+    c.cleanupAll();
+  }
+}, 180_000);

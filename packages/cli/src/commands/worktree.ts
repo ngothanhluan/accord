@@ -1141,7 +1141,7 @@ function progressLease(ctx: CommandContext, id: string, branch: string): { seen:
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, seen])) return { why: 'is ahead of this branch (another clone or branch pushed more); it is not moved back' };
   let held: boolean;
   try {
-    held = git(ctx.root, ['reflog', 'show', '--format=%H', `refs/heads/${branch}`]).split('\n').includes(seen);
+    held = git(ctx.root, ['rev-list', '--walk-reflogs', `refs/heads/${branch}`]).split('\n').includes(seen);
   } catch {
     held = false; // no reflog to prove it: refuse
   }

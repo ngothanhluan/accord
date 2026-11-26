@@ -124,19 +124,25 @@ it('risk:regression accord deferred hides marked items and gate done passes with
   }
 }, 120_000);
 
-// Phase 08.8 D-07: a team whose ticket ids are bare numbers can mark a deferred item queued; a prose arrow that names no ticket stays listed.
-it('risk:regression accord deferred hides an item marked to a bare-number ticket and lists a prose arrow (D-07)', async () => {
+// Phase 08.8 D-07, 08.9.1 D-03: a team whose ticket ids are bare numbers marks a deferred item queued with ` → #<n>`; a prose arrow (`3 → 42`, `0.9 → 0.10`) stays listed.
+it('risk:regression accord deferred hides an item marked #<n> and lists a bare-number prose arrow (D-07, 08.9.1 D-03)', async () => {
   const repo = makeEmptyRepo();
   try {
     writeFiles(repo, {
       'accord/config.yml': CONFIG,
       [P('42')]: laneTicket('42', { lane: 'S', body: LANE_S_BODY }),
       [P('T-1')]: laneTicket('T-1', { lane: 'S', body: LANE_S_BODY }),
-      'accord/tickets/T-1/ledger.md': ['## Deferred', '- (Must) the export drops a comma → 42', '- (Must) the version moved 0.9 → 0.10', ''].join('\n'),
+      'accord/tickets/T-1/ledger.md': [
+        '## Deferred',
+        '- (Must) the export drops a comma → #42',
+        '- (Must) the count went from 3 → 42',
+        '- (Must) the version moved 0.9 → 0.10',
+        '',
+      ].join('\n'),
     });
     const r = await run(['deferred', 'T-1'], repo);
     expect(r.code, r.err).toBe(0);
-    expect(r.out).toBe('Must: (Must) the version moved 0.9 → 0.10\n');
+    expect(r.out).toBe('Must: (Must) the count went from 3 → 42\nMust: (Must) the version moved 0.9 → 0.10\n');
   } finally {
     cleanup(repo);
   }

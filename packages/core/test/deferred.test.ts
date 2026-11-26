@@ -125,10 +125,11 @@ it('risk:regression a deferred line ending in a version arrow stays listed and i
   ]);
 });
 
-// Phase 08.8 D-07: a mark counts for any id that names a known ticket, whatever its shape; a prose arrow that names no ticket stays listed, and ASCII -> is still never read.
-it('risk:parsing a deferred mark counts for any id that names a known ticket (D-07)', () => {
+// Phase 08.8 D-07, 08.9.1 D-03: a mark counts for an id that names a known ticket; a bare number only as `#<n>`; a prose arrow that names no ticket stays listed, and ASCII -> is still never read.
+it('risk:parsing a deferred mark counts for a known ticket id, a bare number only as #<n> (D-07, 08.9.1 D-03)', () => {
   const known = knows('42', 'ST-LN-9', 'web.login_7');
-  expect(deferredMark('- (Must) x → 42', known)).toEqual({ kind: 'queued', id: '42' });
+  expect(deferredMark('- (Must) x → #42', known)).toEqual({ kind: 'queued', id: '42' });
+  expect(deferredMark('- (Must) x → 42', known)).toBeUndefined();
   expect(deferredMark('- (Must) x → ST-LN-9', known)).toEqual({ kind: 'queued', id: 'ST-LN-9' });
   expect(deferredMark('- (Must) x → web.login_7', known)).toEqual({ kind: 'queued', id: 'web.login_7' });
   // prose arrows and an unknown id are no mark: 0.10 and v2 name no ticket here, and 43 is not a ticket
@@ -138,7 +139,8 @@ it('risk:parsing a deferred mark counts for any id that names a known ticket (D-
   // declined is a mark whatever is known, and ASCII -> is never read, even for a known id
   expect(deferredMark('- (Must) x → declined', knows())).toEqual({ kind: 'declined' });
   expect(deferredMark('- (Must) x -> 42', known)).toBeUndefined();
+  expect(deferredMark('- (Must) x -> #42', known)).toBeUndefined();
   // the lister hides only the item marked to a known ticket
-  const ledger = ['## Deferred', '- (Must) hidden → 42', '- (Must) moved 0.9 → 0.10', ''].join('\n');
+  const ledger = ['## Deferred', '- (Must) hidden → #42', '- (Must) moved 0.9 → 0.10', ''].join('\n');
   expect(ownerDeferred(ledger, known)).toEqual([{ rating: 'Must', text: '(Must) moved 0.9 → 0.10' }]);
 });

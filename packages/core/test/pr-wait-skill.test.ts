@@ -144,3 +144,17 @@ it('risk:regression nothing in the wait writes the merge into a ticket and no in
   }
   expect(bad).toEqual([]);
 });
+
+it('risk:resource the skill says the command cuts its limit before the host stop and what a run of failed polls means (A-Info, A-WR-03)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('pr-wait.md')) {
+    for (const p of lacks(f.text, [
+      'The command cuts its own limit to 118 minutes at most, so its last line is printed before the host stops a run at 120',
+      'An `unavailable` line that says `polls in a row failed` ends a wait that had started because `gh` stopped answering',
+      'with `gh auth status` and `gh --version` to check',
+    ])) {
+      bad.push(f.label + ' lacks: ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
+});

@@ -42,8 +42,10 @@ const FLOOR: Record<string, readonly string[]> = {
   ],
   // Phase 8.5 R-4: lint.conventions-file guards the trust boundary of product text delivered to agents (D-08)
   // Phase 08.8 D-03: gate.security-unreviewed is here, not in STAGE_OF, so switching the review stage off keeps the security review of a lane M, L or P ticket
+  // Phase 11 D-02, D-17: the agents-config rule below guards what each agent may run: no write tool on a read-only role, no inline stdio server from a committed file
   'the security and data-loss rules': [
     'gate.sensitive-touched', 'gate.out-of-scope', 'gate.interface-sign', 'gate.branch-unknown', 'gate.security-unreviewed', 'lint.lane-s-lane-m-records', 'lint.conventions-file',
+    'lint.agents-config',
   ],
   'which rules apply, which lane a ticket is in and what the config says': [
     'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor', 'lint.security-file', 'lint.template-section',

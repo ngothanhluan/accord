@@ -11,9 +11,12 @@
 // (`RETIRED_FILES`) is removed, and reported `removed`, only while its marker shows nobody edited it; then a skill folder
 // that removal emptied is removed too. A file nobody listed, or one someone edited, is never touched.
 import { lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
   agentDir,
+  agentsProblems,
+  agentsRefusal,
   agentTargets,
   allSkillDirs,
   contentHash,
@@ -381,6 +384,57 @@ export function renderHealth(root: string, config: AccordConfig): RenderHealth {
   return out;
 }
 
+/** A real file at `path`, read the way the orphan scan reads: `lstat`, so a link is never followed and never counts. */
+const isFile = (path: string): boolean => lstatSync(path, { throwIfNoEntry: false })?.isFile() === true;
+
+/** The names of the real folders under `dir`; a link, a file or a folder that cannot be read is skipped. */
+function subfolders(dir: string): string[] {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Phase 11 RESEARCH Pitfall 3: whether `name` is a skill Claude Code can find without a plugin prefix: in this repository's or the user's `.claude/skills/<name>/SKILL.md`, or in an installed
+ * plugin's skill folder, in the layout 11-A2-PROBE.md records: `<config>/plugins/cache/<marketplace>/<plugin>/<version>/{skills,.claude/skills}/<name>/SKILL.md` and
+ * `<config>/plugins/marketplaces/<marketplace>/{skills,.claude/skills}/<name>/SKILL.md`. `<config>` is CLAUDE_CONFIG_DIR, else `~/.claude`.
+ */
+function skillFound(root: string, config: string, name: string): boolean {
+  if (isFile(join(root, '.claude', 'skills', name, 'SKILL.md')) || isFile(join(config, 'skills', name, 'SKILL.md'))) return true;
+  const inPlugin = (base: string): boolean => isFile(join(base, 'skills', name, 'SKILL.md')) || isFile(join(base, '.claude', 'skills', name, 'SKILL.md'));
+  const cache = join(config, 'plugins', 'cache');
+  for (const marketplace of subfolders(cache)) {
+    for (const plugin of subfolders(join(cache, marketplace))) {
+      for (const version of subfolders(join(cache, marketplace, plugin))) if (inPlugin(join(cache, marketplace, plugin, version))) return true;
+    }
+  }
+  const marketplaces = join(config, 'plugins', 'marketplaces');
+  return subfolders(marketplaces).some((marketplace) => inPlugin(join(marketplaces, marketplace)));
+}
+
+/**
+ * Pitfall 3, one `note:` line per skill name under `agents.<role>.skills` that is found nowhere: Claude Code skips a missing skill without an error, so the person would otherwise never learn
+ * the preload did nothing. A `<plugin>:<skill>` name is not checked (its folder layout is the plugin's own), and a name that is not a plain folder name is left to the schema. Reads only; the
+ * note never refuses and never changes a file.
+ */
+export function skillNotes(root: string, config: AccordConfig, env: NodeJS.ProcessEnv): string[] {
+  const base = env.CLAUDE_CONFIG_DIR !== undefined && env.CLAUDE_CONFIG_DIR !== '' ? env.CLAUDE_CONFIG_DIR : join(homedir(), '.claude');
+  const out: string[] = [];
+  for (const [role, add] of Object.entries(config.agents ?? {})) {
+    for (const name of add?.skills ?? []) {
+      if (name.includes(':') || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) continue;
+      if (!skillFound(root, base, name)) {
+        out.push(`note: agents.${role}.skills: "${name}" is in no skills folder of this repository or user; Claude Code skips a missing skill without an error`);
+      }
+    }
+  }
+  return out;
+}
+
 export function skills(ctx: CommandContext): number {
   // D-121: `sync` reads `roles:` and `runtimes:`, so a repository without a valid config has nothing to
   // filter by. A config-free mode defaulting to every role and every runtime would make that filtering
@@ -389,6 +443,10 @@ export function skills(ctx: CommandContext): number {
   if (config === undefined) {
     throw new UsageError('accord/config.yml is missing or failed its schema; run accord lint');
   }
+
+  // Phase 11 D-02, D-17: an `agents:` entry that breaks a role's rule is refused before any path is computed or written, so a refused config leaves .claude/ and .agents/ as they were.
+  const problems = agentsProblems(config);
+  if (problems.length > 0) throw new UsageError(agentsRefusal(problems));
 
   const targets = [...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg)];
   // T-06-03: refuse before the first byte, over every destination. The loop below writes as it iterates, so
@@ -408,6 +466,8 @@ export function skills(ctx: CommandContext): number {
   ctx.stdout.write(results.map((r) => r.status + ' ' + r.path + '\n').join(''));
   // D-16: one line per accord hook the owner edited, which sync kept; printed on every run, `unchanged` included.
   ctx.stdout.write((hooks?.notes ?? []).map((n) => n + '\n').join(''));
+  // Phase 11 Pitfall 3: a skill named under `agents:` that no skills folder holds; printed on every run, never a refusal.
+  ctx.stdout.write(skillNotes(ctx.root, config, ctx.env).map((n) => n + '\n').join(''));
   // stderr, like status's advisory line: an orphan is something to tell the reader about, not part of
   // the report of what was written — and it must not change the exit code (D-113).
   ctx.stderr.write(

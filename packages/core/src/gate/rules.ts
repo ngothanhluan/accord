@@ -16,6 +16,7 @@ import {
   commitTrailer,
   doneTicketEdited,
   noScenarios,
+  repoRecordMissing,
   reportMissing,
   resultNotPass,
   shaTooShort,
@@ -316,6 +317,8 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.tick-stale-hash', level: 'error', profiles: ['build', 'maintain'], check: tickStaleHash },
   { id: 'gate.tick-stale-commit', level: 'error', profiles: ['build', 'maintain'], check: tickStaleCommit },
   { id: 'gate.stale-review', level: 'error', profiles: ['build', 'maintain'], check: staleReview },
+  // Phase 08.9.3 D-07, D-13, Pitfall 9: the other repository's part of the ticket, from the verifier's record in verification.md; each behind REPOS_FROM through claimPinBefore
+  { id: 'gate.repo-record-missing', level: 'error', profiles: ['build', 'maintain'], check: repoRecordMissing },
   COMMIT_TRAILER,
   COMMIT_MESSAGE,
   BRANCH_UNKNOWN,

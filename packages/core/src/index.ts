@@ -14,6 +14,8 @@ export type {
   Verification,
   VerificationFrontmatter,
   EvidenceBlock,
+  RepoRecord,
+  RepoRecordSlice,
   Section,
   Line,
   AccordConfig,
@@ -96,7 +98,7 @@ export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
 export { sliceScope } from './gate/slice.js';
 export type { SliceScope } from './gate/slice.js';
-export { isSha, ownRecordsOnly, shaEqual } from './gate/done.js';
+export { isSha, ownRecordsOnly, repoRecordComplete, shaEqual } from './gate/done.js';
 export { approvedHash, laneRHash } from './gate/hash.js';
 export {
   budgetVerdict,

@@ -7,12 +7,12 @@ import { normaliseText } from '../load/frontmatter.js';
 import { headingKey } from '../load/sections.js';
 import { normaliseKey } from '../load/snapshot.js';
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
-import type { AfterVerifyCommit, RepoSnapshot, ScenarioRef, Ticket, TicketFrontmatter, Verification } from '../model/snapshot.js';
+import type { AfterVerifyCommit, Plan, RepoRecord, RepoSnapshot, ScenarioRef, Ticket, TicketFrontmatter, Verification } from '../model/snapshot.js';
 import { acHash } from './hash.js';
 import type { GateRule } from './rules.js';
 import { forbiddenLines, trailerReason } from './trailers.js';
 import { commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal } from '../commits/rule.js';
-import { claimPinBefore, COMMIT_MESSAGE_FROM } from '../round/pin.js';
+import { claimPinBefore, COMMIT_MESSAGE_FROM, REPOS_FROM } from '../round/pin.js';
 
 const ticketFile = (id: string) => 'accord/tickets/' + id + '.md';
 const verificationFile = (id: string) => 'accord/tickets/' + id + '/verification.md';
@@ -330,6 +330,159 @@ export const staleReview: GateRule['check'] = (snapshot, id) => {
   return [{ file: verificationFile(id), pointer: '/commit', reason: content === undefined ? today : content.reason }];
 };
 
+// --- Phase 08.9.3 D-07, D-12, D-13: the other repository's part of the ticket, as the verifier recorded it in verification.md ---
+
+/** The plan of ticket `id`; work.ts has its own reader, but imports this file. */
+const planOf = (snapshot: RepoSnapshot, id: string): Plan | undefined =>
+  snapshot.work !== undefined && Object.hasOwn(snapshot.work, id) ? snapshot.work[id].plan : undefined;
+
+/** A slice of another repository this run judges, and whether its group must hold the merged commit (D-13). */
+interface Need {
+  repo: string;
+  n: number;
+  merged: boolean;
+}
+
+/**
+ * D-13: the slices of other repositories the run's scope holds, each with what its group must hold. `gate done --slice n` stamps `doneSliceN`: a slice of another repository below n has merged in deploy order, so it needs its pull request,
+ * its verified head and its merged commit; slice n itself, when it is another repository's, needs its pull request and verified head only (it merges after this run). The last slice and a run with no flag judge every slice in full.
+ * Nothing is asked of a ticket claimed before REPOS_FROM (claimPinBefore: a failed read applies the rules), of a lane S, lane R or lane-less ticket, or of a plan with no slice of another repository.
+ */
+const repoNeeds = (snapshot: RepoSnapshot, id: string): Need[] => {
+  if (stageLaneTicket(snapshot, id) === undefined || claimPinBefore(snapshot, id, REPOS_FROM)) return [];
+  const upTo: number | undefined = undefined;
+  const seen = new Set<string>();
+  return (planOf(snapshot, id)?.slices ?? []).flatMap((s) => {
+    const key = `${s.repo}/${s.n}`;
+    if (s.repo === undefined || seen.has(key) || (upTo !== undefined && s.n > upTo)) return [];
+    seen.add(key);
+    return [{ repo: s.repo, n: s.n, merged: upTo === undefined || s.n < upTo }];
+  });
+};
+
+/** One thing wrong with a repository's record: `missing` (a section or a group is not there), `incomplete` (a line is absent or does not read, or the suite is not the declared passed one), `failed` (the suite is recorded failed). */
+interface Problem {
+  kind: 'missing' | 'incomplete' | 'failed';
+  line?: number;
+  reason: string;
+}
+
+const LABEL_FORM: Record<RepoRecord['unread'][number]['label'], string> = {
+  Suite: '"Suite: passed <command>" or "Suite: failed <command>"',
+  Slice: '"Slice: <n>" with n a whole number from 1',
+  PR: '"PR: #<number>"',
+  'Verified head': 'a full 40-character commit sha',
+  Merged: 'a full 40-character commit sha',
+};
+
+/**
+ * Every problem of repository `name`'s record for this run: the section, the suite line (passed, and the command `repos.<name>.tests` names), and per needed slice one group with PR and Verified head, and Merged where D-13 asks for it. A label line that did
+ * not read, or repeats, is one problem naming its line; a field that is absent is not reported again when its line is there but unread. Empty when no slice of `name` is in the run's scope: the caller decides what that means.
+ */
+const repoProblems = (snapshot: RepoSnapshot, id: string, name: string): Problem[] => {
+  const needs = repoNeeds(snapshot, id).filter((x) => x.repo === name);
+  const v = verificationOf(snapshot, id);
+  if (needs.length === 0 || v === undefined) return []; // a missing verification.md is gate.verification-missing's
+  const which = needs.map((x) => x.n).join(', ');
+  const record = (v.repos ?? []).find((r) => r.name === name);
+  if (record === undefined) {
+    return [{ kind: 'missing', reason: `${verificationFile(id)} has no "## Repository ${name}" section for slice ${which}; the verifier records another repository's suite, pull request and merged commit there` }];
+  }
+  const out: Problem[] = [];
+  const here = `Repository ${name}`;
+  const declared = snapshot.config?.repos !== undefined && Object.hasOwn(snapshot.config.repos, name) ? snapshot.config.repos[name].tests : undefined;
+  const unreadAt = (label: string, n: number | undefined) => record.unread.filter((u) => u.label === label && u.n === n);
+  // the suite
+  if (record.suite === undefined) {
+    if (unreadAt('Suite', undefined).length === 0) out.push({ kind: 'incomplete', line: record.line, reason: `${here} has no "Suite: passed <command>" line` });
+  } else if (record.suite.result === 'failed') {
+    out.push({ kind: 'failed', line: record.suite.line, reason: `${here}: the suite is recorded failed; Done needs it passed` });
+  } else if (declared === undefined) {
+    out.push({ kind: 'incomplete', line: record.suite.line, reason: `${here}: accord/config.yml declares no repos.${name}.tests, so the suite line cannot be compared with it` });
+  } else if (record.suite.command !== declared) {
+    out.push({ kind: 'incomplete', line: record.suite.line, reason: `${here}: the suite ran "${record.suite.command}", not repos.${name}.tests "${declared}"` });
+  }
+  // the groups of the slices in scope
+  for (const need of needs) {
+    const groups = record.slices.filter((g) => g.n === need.n);
+    const at = `${here}, slice ${need.n}`;
+    if (groups.length === 0) {
+      out.push({ kind: 'missing', line: record.line, reason: `${at}: no "Slice: ${need.n}" group; the record names the pull request, the verified head${need.merged ? ' and the merged commit' : ''}` });
+      continue;
+    }
+    const [first, ...again] = groups;
+    for (const g of again) out.push({ kind: 'incomplete', line: g.line, reason: `${at}: a second "Slice: ${need.n}" group (the first is at line ${first.line}); a slice has one` });
+    const field = (label: 'PR' | 'Verified head' | 'Merged', present: boolean): void => {
+      if (!present && unreadAt(label, need.n).length === 0) out.push({ kind: 'incomplete', line: first.line, reason: `${at}: no "${label}:" line` });
+    };
+    field('PR', first.pr !== undefined);
+    field('Verified head', first.verifiedHead !== undefined);
+    if (need.merged) field('Merged', first.merged !== undefined);
+  }
+  // every line that did not read, in a group of a slice in scope or in none
+  const inScope = new Set(needs.map((x) => x.n));
+  for (const u of record.unread) {
+    if (u.n !== undefined && !inScope.has(u.n)) continue;
+    const at = u.n === undefined ? here : `${here}, slice ${u.n}`;
+    out.push({ kind: 'incomplete', line: u.line, reason: u.repeated === true ? `${at}: "${u.text}" repeats the ${u.label} line already read` : `${at}: "${u.text}" is not ${LABEL_FORM[u.label]}` });
+  }
+  return out.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
+};
+
+const recordFinding = (id: string, p: Problem) => ({ file: verificationFile(id), ...at(p.line), reason: p.reason });
+const repoNames = (snapshot: RepoSnapshot, id: string): string[] => [...new Set(repoNeeds(snapshot, id).map((x) => x.repo))];
+
+/**
+ * D-07, D-13: a `## Repository <name>` section, or a `Slice: <n>` group of it, that a slice of another repository in the run's scope needs and verification.md lacks. CI reads the record and never the other repository, so the
+ * absence is a failure and not a skip. A ticket claimed before REPOS_FROM is not asked (claimPinBefore).
+ */
+export const repoRecordMissing: GateRule['check'] = (snapshot, id) =>
+  repoNames(snapshot, id).flatMap((name) => repoProblems(snapshot, id, name).filter((p) => p.kind === 'missing').map((p) => recordFinding(id, p)));
+
+/**
+ * D-07, D-13: a required line absent or not read (PR as `#<number>`, Verified head and Merged as 40 hexadecimal characters, a Suite line), a suite recorded failed, or a suite command that is not `repos.<name>.tests`, so a different, easier command
+ * cannot stand in for the declared suite; and a slice recorded twice. One finding per line, naming it.
+ */
+export const repoRecordIncomplete: GateRule['check'] = (snapshot, id) =>
+  repoNames(snapshot, id).flatMap((name) => repoProblems(snapshot, id, name).filter((p) => p.kind !== 'missing').map((p) => recordFinding(id, p)));
+
+/** D-12: repository `name`'s record is complete for this run: a slice of it is in scope, its section and groups are whole, and its suite passed with the declared command. A record with no slice in scope is never complete, so a tag cannot name a repository the plan never built in. */
+export function repoRecordComplete(snapshot: RepoSnapshot, id: string, name: string): boolean {
+  return verificationOf(snapshot, id) !== undefined && repoNeeds(snapshot, id).some((x) => x.repo === name) && repoProblems(snapshot, id, name).length === 0;
+}
+
+/**
+ * Pitfall 9, D-07: with a host fact of the slices' branch tips in the other repository (a machine that has the clone, `accord gate done`), a slice whose branch moved past its recorded `Verified head` fails: what the verifier looked at is not what
+ * stands. Silent without the fact, as in CI, where the record is what is trusted.
+ */
+export const repoHeadMoved: GateRule['check'] = (snapshot, id) => {
+  const heads = snapshot.repoHeads;
+  const v = verificationOf(snapshot, id);
+  if (heads === undefined || v === undefined) return [];
+  return repoNeeds(snapshot, id).flatMap((need) => {
+    const tip = Object.hasOwn(heads, need.repo) && Object.hasOwn(heads[need.repo], String(need.n)) ? heads[need.repo][String(need.n)] : undefined;
+    const group = (v.repos ?? []).find((r) => r.name === need.repo)?.slices.find((g) => g.n === need.n);
+    if (tip === undefined || group?.verifiedHead === undefined || shaEqual(tip, group.verifiedHead)) return [];
+    return [recordFinding(id, { kind: 'incomplete', line: group.line, reason: `Repository ${need.repo}, slice ${need.n}: the branch is at ${tip}, but the record's Verified head is ${group.verifiedHead}; verify the slice again` })];
+  });
+};
+
+/** The configured repository an `@test:<name>:<id>` names, when the cut-off lets the prefix mean one (REPOS_FROM, claimPinBefore); undefined when the id is this repository's own. */
+const foreignRepo = (snapshot: RepoSnapshot, id: string, testId: string): string | undefined => {
+  const name = testId.slice(0, Math.max(testId.indexOf(':'), 0));
+  const repos = snapshot.config?.repos;
+  return name === '' || repos === undefined || !Object.hasOwn(repos, name) || claimPinBefore(snapshot, id, REPOS_FROM) ? undefined : name;
+};
+
+/** D-12: what stands in for a test of repository `name`: `complete`, `failed` (its suite is recorded failed: gate.test-not-passed's) or the reason its record does not (gate.test-unknown's). */
+const foreignVerdict = (snapshot: RepoSnapshot, id: string, name: string): 'complete' | 'failed' | string => {
+  if (repoRecordComplete(snapshot, id, name)) return 'complete';
+  if (verificationOf(snapshot, id) === undefined) return `${verificationFile(id)} does not exist`;
+  if (!repoNeeds(snapshot, id).some((x) => x.repo === name)) return `the plan has no slice of ${name} in this run's scope, so no record can stand for it`;
+  const problems = repoProblems(snapshot, id, name);
+  return problems.some((p) => p.kind === 'failed') ? 'failed' : (problems[0]?.reason ?? 'its record is not complete');
+};
+
 // --- The Machine layer: does the report say the test that proves this scenario passed? (GATE-08, D-80) ---
 
 const CONFIG = 'accord/config.yml';
@@ -424,13 +577,19 @@ const testIds = (snapshot: RepoSnapshot, id: string): { line: number; testId: st
 export const testUnknown: GateRule['check'] = (snapshot, id) => {
   if (!reportLoaded(snapshot)) return [];
   const report = reportPath(snapshot);
-  return testIds(snapshot, id)
-    .filter(({ testId }) => !Object.hasOwn(snapshot.tests ?? {}, testId))
-    .map(({ line, testId }) => ({
-      file: ticketFile(id),
-      line,
-      reason: `@test:${testId} not found in ${report}; ids are classname#name with spaces as '-'`,
-    }));
+  return testIds(snapshot, id).flatMap(({ line, testId }) => {
+    // D-12: `@test:<name>:<id>` is proved in repository <name>: never looked up here, and it passes only on a complete record with a passed suite (never a bypass: otherwise it fails, naming the record)
+    const repo = foreignRepo(snapshot, id, testId);
+    if (repo !== undefined) {
+      const verdict = foreignVerdict(snapshot, id, repo);
+      return verdict === 'complete' || verdict === 'failed'
+        ? []
+        : [{ file: ticketFile(id), line, reason: `@test:${testId} is proved in repository ${repo}, whose record in ${verificationFile(id)} is not complete: ${verdict}` }];
+    }
+    return Object.hasOwn(snapshot.tests ?? {}, testId)
+      ? []
+      : [{ file: ticketFile(id), line, reason: `@test:${testId} not found in ${report}; ids are classname#name with spaces as '-'` }];
+  });
 };
 
 /**
@@ -441,13 +600,18 @@ export const testNotPassed: GateRule['check'] = (snapshot, id) => {
   if (!reportLoaded(snapshot)) return [];
   const tests = snapshot.tests ?? {};
   const report = reportPath(snapshot);
-  return testIds(snapshot, id)
-    .filter(({ testId }) => Object.hasOwn(tests, testId) && tests[testId] !== 'passed')
-    .map(({ line, testId }) => ({
-      file: ticketFile(id),
-      line,
-      reason: `@test:${testId} is recorded ${tests[testId]} in ${report}; Done passes on passed alone`,
-    }));
+  return testIds(snapshot, id).flatMap(({ line, testId }) => {
+    // D-12: a test of another repository is not in this report; its suite recorded failed is what fails here (an incomplete record is gate.test-unknown's)
+    const repo = foreignRepo(snapshot, id, testId);
+    if (repo !== undefined) {
+      return foreignVerdict(snapshot, id, repo) === 'failed'
+        ? [{ file: ticketFile(id), line, reason: `@test:${testId} is proved in repository ${repo}, whose suite is recorded failed in ${verificationFile(id)}; Done passes on passed alone` }]
+        : [];
+    }
+    return Object.hasOwn(tests, testId) && tests[testId] !== 'passed'
+      ? [{ file: ticketFile(id), line, reason: `@test:${testId} is recorded ${tests[testId]} in ${report}; Done passes on passed alone` }]
+      : [];
+  });
 };
 
 // --- GATE-05: was the review written by the same person as the commit it reviews? (D-79) ---

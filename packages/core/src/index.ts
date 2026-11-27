@@ -122,6 +122,9 @@ export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';
 export { PLAN_LARGE_TASKS, SIZE_MULTIPLE, sizeRefusal, SLICE_LINES_DEFAULT, sliceBudget, SLICES_MANY, TASK_LINE_CAP, taskLength } from './gate/plan.js';
 export { afterCycles, buildWaves, DEFAULT_PARALLEL, parallelOf, sequentialReason } from './plan/waves.js';
+// Phase 08.9.3 D-14: where a slice lives, said once for every slice reader.
+export { firstMainSlice, sliceBranchName, sliceHome, sliceInWork } from './plan/slice-home.js';
+export type { SliceHome } from './plan/slice-home.js';
 export { CALL_SIGN, interfaceSigns, matches, outsideScope, scopeLines } from './gate/scope.js';
 export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from './security/spec.js';
 export type { SecurityCheck, SecurityPattern, SecuritySpec } from './security/spec.js';

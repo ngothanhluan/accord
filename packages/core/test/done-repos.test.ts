@@ -138,7 +138,7 @@ const incomplete = (r: GateResult) => rule(r, 'gate.repo-record-incomplete');
 const lineOf = (text: string, needle: string): number => text.split('\n').indexOf(needle) + 1;
 
 describe('each slice run asks for the record its deploy order allows (D-13)', () => {
-  it('the ticket of these cases has three criteria', () => {
+  it('risk:regression the ticket of these cases has three criteria (D-13)', () => {
     expect(BODY).toContain('@ac-3');
     expect(BODY).toContain('@test:tools:Tools.Tests#adds');
   });

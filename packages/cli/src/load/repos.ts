@@ -137,8 +137,28 @@ export function mainCheckoutOf(root: string): string {
 
 const quote = (s: string): string => "'" + s.replace(/'/g, "'\\''") + "'";
 
-/** The `git clone` line for a repository that has no clone: each argument single-quoted POSIX style. `parent` is the folder above the main checkout and `name` a validated repository name, so the path is never built from the URL (R3). */
-export const cloneLine = (url: string, parent: string, name: string): string => `git clone ${quote(url)} ${quote(parent + '/' + name)}`;
+/**
+ * Review WR-01: a URL as it is printed, with any credential left out. A remote may carry `user:token@` (a CI clone's origin, a pasted declared remote), and what a command prints lands in an agent's transcript
+ * and a CI log. `scheme://<userinfo>@host/...`: the userinfo of https (and any scheme but ssh) is `***`, since a bare user there is a token; an ssh user is a name the clone line needs, kept unless it
+ * carries a password (`user:***`). The scp form `user:secret@host:path` hides its credential the same way, while `git@host:path` is kept. Every URL the repository commands print goes through this one function.
+ */
+export function redactUrl(url: string): string {
+  const m = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]*)([\s\S]*)$/.exec(url);
+  if (m !== null) {
+    const [, scheme, authority, rest] = m;
+    const at = authority.lastIndexOf('@');
+    if (at < 0) return url;
+    const info = authority.slice(0, at);
+    const ssh = scheme.toLowerCase() === 'ssh';
+    const user = !ssh ? '***' : info.includes(':') ? info.slice(0, info.indexOf(':')) + ':***' : info;
+    return `${scheme}://${user}@${authority.slice(at + 1)}${rest}`;
+  }
+  const at = url.indexOf('@');
+  return at > 0 && url.slice(0, at).includes(':') ? '***' + url.slice(at) : url;
+}
+
+/** The `git clone` line for a repository that has no clone: each argument single-quoted POSIX style. `parent` is the folder above the main checkout and `name` a validated repository name, so the path is never built from the URL (R3). The URL is printed without a credential (WR-01). */
+export const cloneLine = (url: string, parent: string, name: string): string => `git clone ${quote(redactUrl(url))} ${quote(parent + '/' + name)}`;
 
 /** The two lines a missing or refused clone ends in: the clone to make, or the existing one to give. */
 function ways(name: string, url: string, root: string): string {
@@ -241,7 +261,7 @@ export function resolveRepo(root: string, config: Pick<AccordConfig, 'repos'> | 
   const check = checkClone(stored.path, entry.remote);
   if (check.ok) return { path: stored.path, how: 'stored' };
   if (check.why === 'origin') {
-    return { refused: `${name}: refused - the clone at ${stored.path} has origin ${check.origin ?? 'none'}, not ${entry.remote} (repos.${name}.remote), so the stored path was not used; give the right clone with accord repos set ${name} <path>` };
+    return { refused: `${name}: refused - the clone at ${stored.path} has origin ${check.origin === undefined ? 'none' : redactUrl(check.origin)}, not ${redactUrl(entry.remote)} (repos.${name}.remote), so the stored path was not used; give the right clone with accord repos set ${name} <path>` };
   }
   return { refused: `${name}: not found - the stored path ${stored.path} is no longer a clone; ${ways(name, entry.remote, root)}` };
 }

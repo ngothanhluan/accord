@@ -10,7 +10,7 @@ import { isSha, newestPr, SAFE_ID, workOf } from '@accord-dev/accord-core';
 import { assertNoLink } from '../guard.js';
 import { defaultRefOf, gitSliceTip, UsageError } from '../load/fs.js';
 import { ghFirstLine, ghRepoOf, ghRun } from '../load/gh.js';
-import { checkClone, REPO_NAME, resolveRepo, storeRepoPath, toPosix } from '../load/repos.js';
+import { checkClone, REPO_NAME, redactUrl, resolveRepo, storeRepoPath, toPosix } from '../load/repos.js';
 import { REPORT_DIR } from '../load/report.js';
 import { shown } from '../load/script-trust.js';
 import { sliceHomeOf } from '../load/slice-size.js';
@@ -39,7 +39,7 @@ export function reposSet(ctx: CommandContext, name: string, path: string, cwd: s
   const remote = entry[name].remote;
   const check = checkClone(where, remote);
   if (!check.ok) {
-    if (check.why === 'origin') throw new UsageError(`the clone at ${where} has origin ${check.origin ?? 'none'}, not ${remote} (repos.${name}.remote); nothing was stored`);
+    if (check.why === 'origin') throw new UsageError(`the clone at ${where} has origin ${check.origin === undefined ? 'none' : redactUrl(check.origin)}, not ${redactUrl(remote)} (repos.${name}.remote); nothing was stored`);
     throw new UsageError(
       check.why === 'no-folder'
         ? `${where} is not a folder; nothing was stored`

@@ -189,7 +189,7 @@ describe('a ticket claimed before the release is judged as before (T-08.9.3-09)'
   });
 });
 
-describe('the classification', () => {
+describe('the classification of the multi-repository plan rules', () => {
   const IDS = ['gate.repo-unknown', 'gate.repo-tests-missing', 'gate.repo-baseline-missing', 'gate.repo-baseline-unknown', 'gate.task-repo-mixed', 'gate.slice-repo-mixed', 'gate.repo-slices'];
 
   it('risk:security none of the new rules is overridable, and each belongs to the plan stage', () => {

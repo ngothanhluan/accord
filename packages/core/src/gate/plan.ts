@@ -4,11 +4,11 @@
 import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import { sliceSplit } from '../pr/size.js';
-import { FIELD, fieldLines, taskRepos, tokens } from '../load/work.js';
+import { FIELD, fieldLines, splitRepoPath, taskRepos, tokens } from '../load/work.js';
 import type { Plan, PlanSlice, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { afterCycles } from '../plan/waves.js';
 import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore, REPOS_FROM, SLICES_FROM } from '../round/pin.js';
-import { isSha } from './done.js';
+import { isSha, shaEqual } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, stageLaneTicket, workOf } from './work.js';
 
@@ -360,20 +360,82 @@ export const taskTooLong: GateRule['check'] = withNote((snapshot, id) =>
   }),
 );
 
-/** Spec §7: only when the host supplied the baseline's files; the baseline rules own a missing or unknown baseline. */
+/** A path of another repository as written in plan.md: `tools:src/Tools.cs`. */
+const qualified = (p: { repo: string; path: string }): string => `${p.repo}:${p.path}`;
+
+/**
+ * Phase 08.9.3 D-05: the task as a rule that reads its paths as plain text sees it before REPOS_FROM: the paths of another repository folded back in, as written (`tools:src/x`), so a ticket claimed before the release is
+ * judged by the checks it always had. A task that names no other repository is returned as it is.
+ */
+const plainTask = (t: PlanTask): PlanTask =>
+  t.repoFiles === undefined && t.repoNewFiles === undefined && t.repoModels === undefined
+    ? t
+    : {
+        ...t,
+        files: [...t.files, ...(t.repoFiles ?? []).map(qualified)],
+        newFiles: [...t.newFiles, ...(t.repoNewFiles ?? []).map(qualified)],
+        models: [...t.models, ...(t.repoModels ?? []).map(({ repo, path, ...m }) => ({ ...m, path: qualified({ repo, path }) }))],
+      };
+
+/**
+ * Phase 08.9.3 D-05, T-08.9.3-09: the tasks a path rule reads, and whether the other-repository checks apply. A ticket claimed before REPOS_FROM (claimPinBefore: a failed read applies the rules) gets its `<name>:<path>` tokens back as the
+ * plain paths they were, and no other-repository check; any other gets its tasks as parsed.
+ */
+const pathTasks = (tasks: PlanTask[], snapshot: RepoSnapshot, id: string): { tasks: PlanTask[]; elsewhere: boolean } => {
+  if (!tasks.some((t) => otherRepos(t).length > 0)) return { tasks, elsewhere: false };
+  return claimPinBefore(snapshot, id, REPOS_FROM) ? { tasks: tasks.map(plainTask), elsewhere: false } : { tasks, elsewhere: true };
+};
+
+/**
+ * Phase 08.9.3 D-05, D-06: what the host read of repository `repo`, when it is the baseline plan.md names: the host fact (`snapshot.repoFacts`, from `accord gate plan` only) for a `baseline_<repo>:` that is a commit sha and equal to
+ * the fact's own (an abbreviation counts). Undefined without the fact, so the rules that use it stay silent in CI and for a plan whose baseline moved.
+ */
+const repoFactOf = (snapshot: RepoSnapshot, plan: Plan, repo: string): { written: string; fact: NonNullable<RepoSnapshot['repoFacts']>[string] } | undefined => {
+  const written = plan.repoBaselines !== undefined && Object.hasOwn(plan.repoBaselines, repo) ? plan.repoBaselines[repo] : undefined;
+  const fact = snapshot.repoFacts !== undefined && Object.hasOwn(snapshot.repoFacts, repo) ? snapshot.repoFacts[repo] : undefined;
+  return written !== undefined && fact !== undefined && isSha(written) && shaEqual(fact.baseline, written) ? { written, fact } : undefined;
+};
+
+/**
+ * Spec §7: only when the host supplied the baseline's files; the baseline rules own a missing or unknown baseline. Phase 08.9.3 D-05: a `<name>:<path>` is checked the same way against that repository's baseline listing
+ * (`snapshot.repoFacts`, host-supplied by `accord gate plan`) and is silent without it, for a ticket claimed at REPOS_FROM or after; before it, the token is the plain path it was.
+ */
 export const taskFileUnknown: GateRule['check'] = (snapshot, id) => {
-  const sha = planOf(snapshot, id)?.baseline;
-  if (sha === undefined || snapshot.baselineFiles === undefined || !Object.hasOwn(snapshot.baselineFiles, sha)) return [];
-  const exist = new Set(snapshot.baselineFiles[sha]);
-  return tasksOf(snapshot, id).flatMap((t) =>
-    t.files
-      .filter((f) => !t.newFiles.includes(f) && !exist.has(f))
+  const plan = planOf(snapshot, id);
+  const sha = plan?.baseline;
+  const { tasks, elsewhere } = pathTasks(tasksOf(snapshot, id), snapshot, id);
+  const own =
+    sha === undefined || snapshot.baselineFiles === undefined || !Object.hasOwn(snapshot.baselineFiles, sha)
+      ? []
+      : (() => {
+          const exist = new Set(snapshot.baselineFiles![sha]);
+          return tasks.flatMap((t) =>
+            t.files
+              .filter((f) => !t.newFiles.includes(f) && !exist.has(f))
+              .map((f) => ({
+                file: planFile(id),
+                line: t.line,
+                reason: `task ${t.n} names ${f}, which does not exist at baseline ${sha}; correct the path, or write (new) after it if the task creates it`,
+              })),
+          );
+        })();
+  if (!elsewhere || plan === undefined) return own;
+  const listing = new Map<string, Set<string> | undefined>();
+  const there = (repo: string): Set<string> | undefined => {
+    if (!listing.has(repo)) listing.set(repo, new Set(repoFactOf(snapshot, plan, repo)?.fact.files ?? []));
+    return repoFactOf(snapshot, plan, repo) === undefined ? undefined : listing.get(repo);
+  };
+  const other = tasks.flatMap((t) =>
+    (t.repoFiles ?? [])
+      .filter((f) => !(t.repoNewFiles ?? []).some((n) => n.repo === f.repo && n.path === f.path))
+      .filter((f) => there(f.repo)?.has(f.path) === false)
       .map((f) => ({
         file: planFile(id),
         line: t.line,
-        reason: `task ${t.n} names ${f}, which does not exist at baseline ${sha}; correct the path, or write (new) after it if the task creates it`,
+        reason: `task ${t.n} names ${qualified(f)}, which does not exist at ${f.repo} baseline ${repoFactOf(snapshot, plan, f.repo)!.written}; correct the path, or write (new) after it if the task creates it`,
       })),
   );
+  return [...own, ...other];
 };
 
 /**
@@ -388,7 +450,8 @@ const modelTasks = (snapshot: RepoSnapshot, id: string): PlanTask[] => {
 
 /** ST-LN-10 10-ac-1: a new path names no model file: it is a bare `(new)`, or its clause is neither `(new, like <path>)` nor `(new, no model: <reason>)`. */
 export const taskModelMissing: GateRule['check'] = withNote((snapshot, id) =>
-  modelTasks(snapshot, id).flatMap((t) =>
+  // Phase 08.9.3 D-05: a new path of another repository names its model like one of this repository, and a ticket claimed before the release is judged as before: plainTask folds its `<name>:<path>` back in as written
+  modelTasks(snapshot, id).map(plainTask).flatMap((t) =>
     t.models.flatMap((m) =>
       m.like !== undefined || m.none !== undefined
         ? []
@@ -411,22 +474,47 @@ export const taskModelMissing: GateRule['check'] = withNote((snapshot, id) =>
  * names itself, are not at the baseline either, so they are refused here.
  */
 export const taskModelUnknown: GateRule['check'] = withNote((snapshot, id) => {
-  const sha = planOf(snapshot, id)?.baseline;
-  if (sha === undefined || snapshot.baselineFiles === undefined || !Object.hasOwn(snapshot.baselineFiles, sha)) return [];
-  const exist = new Set(snapshot.baselineFiles[sha]);
-  return modelTasks(snapshot, id).flatMap((t) =>
-    t.models.flatMap((m) =>
-      m.like === undefined || exist.has(m.like)
+  const plan = planOf(snapshot, id);
+  const sha = plan?.baseline;
+  const { tasks, elsewhere } = pathTasks(modelTasks(snapshot, id), snapshot, id);
+  const own =
+    sha === undefined || snapshot.baselineFiles === undefined || !Object.hasOwn(snapshot.baselineFiles, sha)
+      ? []
+      : (() => {
+          const exist = new Set(snapshot.baselineFiles![sha]);
+          return tasks.flatMap((t) =>
+            t.models.flatMap((m) =>
+              // a model written `<name>:<path>` on a path of this repository is gate.task-repo-mixed's
+              m.like === undefined || exist.has(m.like) || (elsewhere && splitRepoPath(m.like).repo !== undefined)
+                ? []
+                : [
+                    {
+                      file: planFile(id),
+                      line: t.line,
+                      reason: `task ${t.n} models ${m.path} on ${m.like}, which does not exist at baseline ${sha}; name a file that exists at the baseline, or write (new, no model: <reason>)`,
+                    },
+                  ],
+            ),
+          );
+        })();
+  if (!elsewhere || plan === undefined) return own;
+  // Phase 08.9.3 D-05: a model in the same repository as its new file, against that repository's baseline listing; a model in another repository is gate.task-repo-mixed's.
+  const other = tasks.flatMap((t) =>
+    (t.repoModels ?? []).flatMap((m) => {
+      const model = m.like === undefined ? undefined : splitRepoPath(m.like);
+      const read = repoFactOf(snapshot, plan, m.repo);
+      return m.like === undefined || model?.repo !== m.repo || read === undefined || read.fact.files.includes(model.path)
         ? []
         : [
             {
               file: planFile(id),
               line: t.line,
-              reason: `task ${t.n} models ${m.path} on ${m.like}, which does not exist at baseline ${sha}; name a file that exists at the baseline, or write (new, no model: <reason>)`,
+              reason: `task ${t.n} models ${qualified(m)} on ${m.like}, which does not exist at ${m.repo} baseline ${read.written}; name a file that exists at that baseline, or write (new, no model: <reason>)`,
             },
-          ],
-    ),
+          ];
+    }),
   );
+  return [...own, ...other];
 });
 
 export const acUncovered: GateRule['check'] = (snapshot, id) => {
@@ -606,6 +694,26 @@ export const repoBaselineMissing: GateRule['check'] = withNote((snapshot, id) =>
           `; write the commit the plan was written against in ${r}: run accord repos baseline ${r} --id ${id} and put the baseline_${r} line it prints into the frontmatter`,
       },
     ];
+  });
+});
+
+/**
+ * Phase 08.9.3 D-05: a `baseline_<name>:` that is not a commit on the history of that repository's default branch, only when the host supplied that fact (`snapshot.repoFacts`, from `accord gate plan`); without it, or for a
+ * baseline the host read another sha for, nothing is said, as planBaselineUnknown does.
+ */
+export const repoBaselineUnknown: GateRule['check'] = withNote((snapshot, id) => {
+  const plan = reposOf(snapshot, id);
+  if (plan === undefined || snapshot.repoFacts === undefined) return [];
+  return namedRepos(plan).flatMap((r) => {
+    const read = repoFactOf(snapshot, plan, r);
+    return read === undefined || read.fact.onDefault
+      ? []
+      : [
+          {
+            file: plan.file,
+            reason: `baseline_${r}: ${read.written} is not a commit on the history of the default branch of ${r}; run accord repos baseline ${r} --id ${id} and put the baseline_${r} line it prints into the frontmatter`,
+          },
+        ];
   });
 });
 

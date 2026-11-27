@@ -1,5 +1,6 @@
 // ST-LN-92 92-ac-1, D-01, D-05: the build stage's waves. A plan's tasks are grouped from their `after:` and `files:` lines alone: every task an
 // `after:` line names sits in an earlier wave, and no two tasks of one wave share a path. Pure: no stage graph, no file system, no code run at load.
+import { taskRepos } from '../load/work.js';
 import type { AccordConfig, PlanTask } from '../model/snapshot.js';
 
 /** The number of executors that run at once when config.yml has no build.parallel (D-05). */
@@ -79,8 +80,16 @@ export function sequentialReason(tasks: PlanTask[]): string | undefined {
   return cycle.length === 1 ? `task ${cycle[0]} after: names itself` : `tasks ${cycle.join(', ')} form a cycle`;
 }
 
-/** The task's paths, existing and new, lower-cased: two paths that differ only in letter case collide on Windows and macOS. */
-const pathsOf = (t: PlanTask): string[] => [...new Set([...t.files, ...t.newFiles].map((p) => p.toLowerCase()))];
+/**
+ * The task's paths, existing and new, lower-cased: two paths that differ only in letter case collide on Windows and macOS. Phase 08.9.3 Decision 4: plus one token `\0<name>` for each other repository the task is built in, so two tasks of the
+ * same other repository never share a wave, whatever their paths (one worktree per repository per ticket, D-10: no task worktree exists there). A path of this repository never holds a NUL, so the token collides with nothing else.
+ */
+const pathsOf = (t: PlanTask): string[] => [
+  ...new Set([...t.files, ...t.newFiles].map((p) => p.toLowerCase())),
+  ...taskRepos(t)
+    .filter((r) => r !== '')
+    .map((r) => '\0' + r),
+];
 
 /**
  * The tasks not in `done`, in waves, each wave's tasks ascending. With a sequential reason, one task per wave in number order. Otherwise a

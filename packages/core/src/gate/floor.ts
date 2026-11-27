@@ -85,6 +85,7 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.repo-unknown': 'plan',
   'gate.repo-tests-missing': 'plan',
   'gate.repo-baseline-missing': 'plan',
+  'gate.repo-baseline-unknown': 'plan',
   'gate.task-repo-mixed': 'plan',
   'gate.slice-repo-mixed': 'plan',
   'gate.repo-slices': 'plan',

@@ -4,7 +4,7 @@
 // accord never clones (D-02); a missing clone is reported with the exact `git clone` line to run and the `accord repos set` line that gives an existing one.
 // A leaf module like slices.ts (it imports no load/fs.ts, so fs.ts can import it); it returns `{ refused }` text instead of throwing UsageError, and a failed write throws a plain Error.
 import { execFileSync } from 'node:child_process';
-import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import { sameRepository } from '@accord-dev/accord-core';
 import type { AccordConfig } from '@accord-dev/accord-core';
@@ -26,6 +26,25 @@ export type Resolved = { path: string; how: 'stored' | 'found' } | { refused: st
 
 /** A path with forward slashes only (`C:\Work\tools` is `C:/Work/tools`): the form stored, printed and compared. */
 export const toPosix = (p: string): string => p.replace(/\\/g, '/');
+
+/**
+ * Review WR-02: a folder by where it really is, absolute and with forward slashes (`realpathSync.native`: a link, a junction, a `subst` drive and an 8.3 short name resolved), or the path as given when it cannot be
+ * resolved (it is not there). `git worktree add` records and `git worktree list` prints the real path, so a clone kept under its typed path would never be matched with the worktrees git lists beside it.
+ */
+export function canonical(p: string): string {
+  try {
+    return toPosix(realpathSync.native(p));
+  } catch {
+    return toPosix(p);
+  }
+}
+
+/** Whether two folders are one place: compared by their real paths, and case does not count on Windows. */
+export const samePath = (a: string, b: string): boolean => {
+  const x = canonical(a).replace(/\/+$/, '');
+  const y = canonical(b).replace(/\/+$/, '');
+  return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
+};
 
 /** The record lines that read as `<name>\t<absolute posix path>`; any other line is skipped when read and kept when rewritten. */
 function parse(text: string): RepoPath[] {
@@ -137,8 +156,28 @@ export function mainCheckoutOf(root: string): string {
 
 const quote = (s: string): string => "'" + s.replace(/'/g, "'\\''") + "'";
 
-/** The `git clone` line for a repository that has no clone: each argument single-quoted POSIX style. `parent` is the folder above the main checkout and `name` a validated repository name, so the path is never built from the URL (R3). */
-export const cloneLine = (url: string, parent: string, name: string): string => `git clone ${quote(url)} ${quote(parent + '/' + name)}`;
+/**
+ * Review WR-01: a URL as it is printed, with any credential left out. A remote may carry `user:token@` (a CI clone's origin, a pasted declared remote), and what a command prints lands in an agent's transcript
+ * and a CI log. `scheme://<userinfo>@host/...`: the userinfo of https (and any scheme but ssh) is `***`, since a bare user there is a token; an ssh user is a name the clone line needs, kept unless it
+ * carries a password (`user:***`). The scp form `user:secret@host:path` hides its credential the same way, while `git@host:path` is kept. Every URL the repository commands print goes through this one function.
+ */
+export function redactUrl(url: string): string {
+  const m = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]*)([\s\S]*)$/.exec(url);
+  if (m !== null) {
+    const [, scheme, authority, rest] = m;
+    const at = authority.lastIndexOf('@');
+    if (at < 0) return url;
+    const info = authority.slice(0, at);
+    const ssh = scheme.toLowerCase() === 'ssh';
+    const user = !ssh ? '***' : info.includes(':') ? info.slice(0, info.indexOf(':')) + ':***' : info;
+    return `${scheme}://${user}@${authority.slice(at + 1)}${rest}`;
+  }
+  const at = url.indexOf('@');
+  return at > 0 && url.slice(0, at).includes(':') ? '***' + url.slice(at) : url;
+}
+
+/** The `git clone` line for a repository that has no clone: each argument single-quoted POSIX style. `parent` is the folder above the main checkout and `name` a validated repository name, so the path is never built from the URL (R3). The URL is printed without a credential (WR-01). */
+export const cloneLine = (url: string, parent: string, name: string): string => `git clone ${quote(redactUrl(url))} ${quote(parent + '/' + name)}`;
 
 /** The two lines a missing or refused clone ends in: the clone to make, or the existing one to give. */
 function ways(name: string, url: string, root: string): string {
@@ -162,8 +201,11 @@ function originInConfig(text: string): string | undefined {
       continue;
     }
     if (!inOrigin) continue;
-    const m = /^\s*url\s*=\s*(.*?)\s*$/i.exec(line);
-    if (m !== null) url = m[1].replace(/^"(.*)"$/, '$1');
+    // W-2: trimmed and compared by position, never a backtracking pattern over the whole line (a lazy `(.*?)\s*$` is quadratic on a line of blanks)
+    const key = line.trimStart();
+    if (key.slice(0, 3).toLowerCase() !== 'url') continue;
+    const assign = key.slice(3).trimStart();
+    if (assign[0] === '=') url = assign.slice(1).trim().replace(/^"(.*)"$/, '$1');
   }
   return url === '' ? undefined : url;
 }
@@ -192,8 +234,10 @@ export function scanParent(root: string, config: Pick<AccordConfig, 'repos'> | u
       const own = lstatSync(path);
       if (own.isSymbolicLink() || !own.isDirectory()) continue;
       if (!lstatSync(path + '/.git').isDirectory()) continue;
+      // W-2: a regular file only (lstat follows no link, and a pipe or a device is never read), and only up to the limit
       const file = path + '/.git/config';
-      if (statSync(file).size > CONFIG_LIMIT) continue;
+      const config = lstatSync(file);
+      if (!config.isFile() || config.size > CONFIG_LIMIT) continue;
       const origin = originInConfig(readFileSync(file, 'utf8'));
       if (origin !== undefined && sameRepository(origin, remote)) found.push(path);
     } catch {
@@ -223,20 +267,20 @@ export function resolveRepo(root: string, config: Pick<AccordConfig, 'repos'> | 
     if (scan.found.length === 1 && checkClone(scan.found[0], entry.remote).ok) {
       if (options.store !== false) {
         try {
-          storeRepoPath(root, name, scan.found[0]);
+          storeRepoPath(root, name, canonical(scan.found[0]));
         } catch {
           // the clone is verified; a store that failed is searched for again next time
         }
       }
-      return { path: scan.found[0], how: 'found' };
+      return { path: canonical(scan.found[0]), how: 'found' };
     }
     const more = scan.capped ? `; the folder ${dirname(mainCheckoutOf(root))} holds more than ${SCAN_LIMIT} entries, so it was not searched to the end` : '';
     return { refused: `${name}: not found - ${ways(name, entry.remote, root)}${more}` };
   }
   const check = checkClone(stored.path, entry.remote);
-  if (check.ok) return { path: stored.path, how: 'stored' };
+  if (check.ok) return { path: canonical(stored.path), how: 'stored' };
   if (check.why === 'origin') {
-    return { refused: `${name}: refused - the clone at ${stored.path} has origin ${check.origin ?? 'none'}, not ${entry.remote} (repos.${name}.remote), so the stored path was not used; give the right clone with accord repos set ${name} <path>` };
+    return { refused: `${name}: refused - the clone at ${stored.path} has origin ${check.origin === undefined ? 'none' : redactUrl(check.origin)}, not ${redactUrl(entry.remote)} (repos.${name}.remote), so the stored path was not used; give the right clone with accord repos set ${name} <path>` };
   }
   return { refused: `${name}: not found - the stored path ${stored.path} is no longer a clone; ${ways(name, entry.remote, root)}` };
 }

@@ -9,6 +9,7 @@ import { currentBranch, gitVerifySince, ticketOfBranch, withDefaultRef } from '.
 import { cliRuleset, readProductText } from '../load/product.js';
 import { shown } from '../load/script-trust.js';
 import { sliceStart } from '../load/slice-size.js';
+import type { Find } from '../load/slice-size.js';
 import { sliceOfBranch } from '../load/slices.js';
 import { stagesOffLines } from '../render/stages-off.js';
 import type { CommandContext } from '../run.js';
@@ -60,10 +61,10 @@ export function currentSlice(ctx: CommandContext, id: string): { n: number; of: 
  * Phase 15 D-10: `Slice: <n> of <m>, from <short sha>` when this checkout is working a slice of the ticket's sliced plan (`currentSlice`); a slice of another repository reads `Slice: <n> of <m> in repository <name>, from
  * <short sha>` (Phase 08.9.3 D-08). `from` is where the slice starts (`sliceStart`, in that repository's clone for another repository), left out when git cannot say. Any other checkout prints nothing.
  */
-function sliceLine(ctx: CommandContext, id: string, slice: { n: number; of: number; repo?: string } | undefined): string[] {
+function sliceLine(ctx: CommandContext, id: string, slice: { n: number; of: number; repo?: string } | undefined, find: Find): string[] {
   if (slice === undefined) return [];
   try {
-    const start = sliceStart(ctx.root, ctx.snapshot, id, slice.n);
+    const start = sliceStart(ctx.root, ctx.snapshot, id, slice.n, find);
     return [`Slice: ${slice.n} of ${slice.of}${slice.repo === undefined ? '' : ` in repository ${slice.repo}`}${start === undefined ? '' : `, from ${start.slice(0, 7)}`}`];
   } catch {
     return [];
@@ -76,14 +77,16 @@ function sliceLine(ctx: CommandContext, id: string, slice: { n: number; of: numb
  * verify resume line reads (gitVerifySince) is added here too, so both paths print the same lines.
  * Phase 8.5 D-17: for a lane S ticket the working branch's conventions.md (D-06) is read here, by the one reader of product files (a regular file only, no git, no link followed), and core prints it last at build and
  * review; any other lane reads nothing. Being shared, it also makes the session-resume hook re-deliver the block after a compaction, which is when a lane S session loses it.
+ * T-08.9.3-06: `find` is how the clone of another repository is looked for when the slice in work is built there. `accord anchor`, typed by a person, searches and stores as any ticket command does; the two hooks pass
+ * `{ scan: false, store: false }`, so they never read the parent folder or write the stored paths (a clone with no stored path leaves the `from` sha out).
  */
-export const anchorOf = (ctx: CommandContext, id: string): string | undefined => {
+export const anchorOf = (ctx: CommandContext, id: string, find: Find = {}): string | undefined => {
   const lane = ctx.snapshot.tickets[id]?.frontmatter?.lane;
   const slice = currentSlice(ctx, id);
   return anchorText(
     { ...epicSnapshot(ctx, id), ...gitVerifySince(ctx.root, ctx.snapshot, id) },
     id,
-    [...sliceLine(ctx, id, slice), ...stagesOffLines(ctx.snapshot.config, lane), ...commitRuleHeader(ctx)],
+    [...sliceLine(ctx, id, slice, find), ...stagesOffLines(ctx.snapshot.config, lane), ...commitRuleHeader(ctx)],
     lane === 'S' ? { conventions: readProductText(ctx.root, { from: 'working' }) } : undefined,
     slice?.tasks === undefined ? undefined : { n: slice.n, of: slice.of, tasks: slice.tasks },
   );

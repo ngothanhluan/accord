@@ -1,13 +1,17 @@
 // Phase 08.9.3 D-10, D-11, D-14, D-04: `accord worktree slice <id> <n>` follows the slice home for every slice. A slice of another repository opens in a linked worktree of that repository's clone, beside the
 // clone (`<clone folder>-<id lower case>`), on `slice/<id>/<n>` cut at that repository's `baseline_<name>`; the worktree and the slice are recorded in this repository's git folder; the person's own checkout
 // of the other repository is never switched or touched; and `accord worktree push <id> --repo <name>` pushes that branch to the clone's origin. Real git in two sibling clones (helpers/repos.ts).
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { REPOS_FROM } from '@accord-dev/accord-core';
+import { spawnLog } from './helpers/git-spawns.js';
 import { claimedUnder, commitAll, run, writeFiles } from './helpers/repo.js';
 import { besides, reposCopy, useRepoSandboxes, type Repos } from './helpers/repos.js';
 
+// WR-05: the fetches accord starts in the other clone are read from the spawn log
+vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 useRepoSandboxes();
 
 const CLAIM = 't/ST-9';
@@ -208,6 +212,83 @@ it('risk:complex-branching a slice branch that exists only on the tools origin i
   expect(r.git(toolsWt(r), 'rev-parse', 'HEAD').trim()).toBe(pushed);
   expect(r.git(toolsWt(r), 'config', '--get', 'branch.slice/ST-9/1.remote').trim()).toBe('origin');
   expect(r.git(r.tools, 'branch', '--show-current').trim()).toBe('main');
+}, 180_000);
+
+it('risk:data-loss WR-05 the fetch that looks for a slice branch on the tools origin is --no-tags and --no-recurse-submodules, and brings in no tag (D-10, Ruling R13)', async () => {
+  const r = reposCopy();
+  await planned(r, ONE_TWO);
+  r.git(r.tools, 'switch', '-q', '-c', 'slice/ST-9/1');
+  writeFiles(r.tools, { 'src/Tools.cs': 'class Tools { int pushed; }\n' });
+  commitAll(r.tools, 'pushed from elsewhere');
+  r.git(r.tools, 'tag', 'v-from-elsewhere');
+  r.git(r.tools, 'push', '-q', 'origin', 'slice/ST-9/1', 'v-from-elsewhere');
+  r.git(r.tools, 'switch', '-q', 'main');
+  r.git(r.tools, 'branch', '-q', '-D', 'slice/ST-9/1');
+  r.git(r.tools, 'tag', '-d', 'v-from-elsewhere');
+  r.git(r.tools, 'update-ref', '-d', 'refs/remotes/origin/slice/ST-9/1');
+  const toolsDir = posix(r.tools).toLowerCase();
+  const fetches: string[][] = [];
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  spawnLog.fail = (args, options) => {
+    const cwd = posix(options?.cwd ?? '').toLowerCase();
+    if (args.includes('fetch') && (cwd === toolsDir || cwd.startsWith(toolsDir + '/'))) fetches.push([...args]);
+    return false;
+  };
+  let res: Awaited<ReturnType<typeof run>>;
+  try {
+    res = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+  } finally {
+    spawnLog.on = false;
+    spawnLog.fail = undefined;
+  }
+  expect(res.code, res.out + res.err).toBe(0);
+  // the check is not vacuous: the branch was looked for, and fetched, on the tools origin
+  expect(fetches.length).toBeGreaterThan(0);
+  for (const args of fetches) {
+    expect(args, args.join(' ')).toContain('--no-tags');
+    expect(args, args.join(' ')).toContain('--no-recurse-submodules');
+  }
+  // git follows a tag that points into what a fetch brings, unless told not to: none was added to the person's clone
+  expect(r.git(r.tools, 'tag', '--list').trim()).toBe('');
+}, 180_000);
+
+it('risk:complex-branching WR-02 a clone given through a link is stored by its real path, so its worktree is recognised on the next run, by push and by clean (D-10)', async (ctx) => {
+  const r = reposCopy();
+  await planned(r, ONE_TWO);
+  // the parent folder reached through a link (a junction is the one a person can make on Windows without a privilege; elsewhere it is an ordinary symlink)
+  const aliasHome = mkdtempSync(join(tmpdir(), 'accord-repos-alias-'));
+  const alias = join(aliasHome, 'work');
+  try {
+    symlinkSync(r.parent, alias, 'junction');
+  } catch (e) {
+    rmSync(aliasHome, { recursive: true, force: true });
+    ctx.skip('this system refuses to create a link: ' + (e as NodeJS.ErrnoException).code);
+  }
+  try {
+    const set = await run(['repos', 'set', 'tools', join(alias, 'tools')], r.svc);
+    expect(set.code, set.out + set.err).toBe(0);
+    // the stored path is where the folder really is
+    expect(recordOf(r, 'repos')).toBe(`tools\t${posix(realpathSync.native(r.tools))}\n`);
+    const first = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+    expect(first.code, first.out + first.err).toBe(0);
+    // the second run is the documented idempotent one: it finds the worktree it made, where git lists it
+    const second = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+    expect(second.code, second.out + second.err).toBe(0);
+    expect(second.out).toBe(first.out);
+    writeFiles(toolsWt(r), { 'src/Tools.cs': 'class Tools { int one; }\n' });
+    const tip = commitAll(toolsWt(r), 'tools slice one');
+    const pushed = await run(['worktree', 'push', 'ST-9', '--repo', 'tools'], r.svc);
+    expect(pushed.code, pushed.out + pushed.err).toBe(0);
+    expect(r.git(r.toolsRemote, 'rev-parse', 'refs/heads/slice/ST-9/1').trim()).toBe(tip);
+    // a store written before this fix holds the link form: it is read by its real path as well
+    writeFileSync(join(r.svc, '.git', 'accord', 'repos'), `tools\t${posix(join(alias, 'tools'))}\n`);
+    const again = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+    expect(again.code, again.out + again.err).toBe(0);
+    expect(again.out).toBe(first.out);
+  } finally {
+    rmSync(aliasHome, { recursive: true, force: true });
+  }
 }, 180_000);
 
 it("risk:regression accord worktree push --repo pushes the slice branch of the recorded tools worktree to the clone's origin, and refuses a name that is not declared or a flag that does not go with it (D-04)", async () => {

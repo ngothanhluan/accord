@@ -438,3 +438,33 @@ it('risk:regression the session-start clean of a clone with no stored path reads
   expect(seen.cwds.filter((c) => !(c.toLowerCase() === svc || c.toLowerCase().startsWith(svc + '/')))).toEqual([]);
   expect(existsSync(join(decoy, '.git', 'config'))).toBe(true);
 }, 300_000);
+
+it('risk:data-loss WR-05 every fetch the clean runs in the tools clone is --no-tags and --no-recurse-submodules, so no tag or submodule lands in the clone (D-10)', async () => {
+  const r = reposCopy();
+  await pushedTools(r);
+  mergedOnTools(r);
+  doneOnSvc(r);
+  const toolsDir = posix(r.tools).toLowerCase();
+  const fetches: { args: string[]; cwd: string }[] = [];
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  spawnLog.fail = (args, options) => {
+    const cwd = posix(options?.cwd ?? '').toLowerCase();
+    if (args.includes('fetch') && (cwd === toolsDir || cwd.startsWith(toolsDir + '/'))) fetches.push({ args: [...args], cwd });
+    return false;
+  };
+  let res: Awaited<ReturnType<typeof run>>;
+  try {
+    res = await run(['worktree', 'clean'], r.svc);
+  } finally {
+    spawnLog.on = false;
+    spawnLog.fail = undefined;
+  }
+  expect(res.code, res.out + res.err).toBe(0);
+  // the check is not vacuous: the clean did fetch in the tools clone
+  expect(fetches.length).toBeGreaterThan(0);
+  for (const f of fetches) {
+    expect(f.args, f.args.join(' ')).toContain('--no-tags');
+    expect(f.args, f.args.join(' ')).toContain('--no-recurse-submodules');
+  }
+}, 240_000);

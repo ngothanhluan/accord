@@ -1,14 +1,16 @@
 // Phase 08.9.3 D-01, D-02, Decision 9: the clone of another repository is looked for beside the main checkout, by its origin, and only by the commands that need it. Nothing found ends in one line that
 // names the `git clone` to run; two found are refused; a symlink, a junction and a linked worktree are never taken for the clone; a crowded folder is searched only to its first 200 entries; and
 // `accord status`, `accord dashboard` and `accord hook session-start` never look for the clone at all. Real git in temporary sandboxes, no network.
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
+import { REPOS_FROM } from '@accord-dev/accord-core';
 import { gitDirsOf } from '../src/load/gitdir.js';
+import { scanParent } from '../src/load/repos.js';
 import { openLog } from './helpers/fs-opens.js';
 import { spawnLog } from './helpers/git-spawns.js';
-import { cleanup, gitRun, run } from './helpers/repo.js';
+import { claimedUnder, cleanup, commitAll, gitRun, run, writeFiles } from './helpers/repo.js';
 import { reposCopy, TOOLS_URL, useRepoSandboxes } from './helpers/repos.js';
 
 // the spies of helpers/git-spawns.ts and helpers/fs-opens.ts: the git processes accord starts and the files it reads
@@ -168,4 +170,110 @@ it('risk:regression guard the guard: the same spies see the other clone read and
   expect(value.code).toBe(0);
   expect(opens.filter((p) => under(p, r.tools)).length).toBeGreaterThan(0);
   expect(git.filter((c) => under(c.cwd, r.tools)).length).toBeGreaterThan(0);
+});
+
+const task = (n: number, files: string): string => `## Task ${n}: Step ${n}\ncovers: @ac-${n}\nfiles: ${files}\nverify: export#step-${n} (@ac-${n})\nafter: none\nDo step ${n}.\n`;
+const sliceOf = (n: number, tasks: string, repo?: string): string => `## Slice ${n}: Part ${n}\n${repo === undefined ? '' : `repo: ${repo}\n`}tasks: ${tasks}\ncovers: @ac-${n}\n`;
+
+/** ST-9 claimed on t/ST-9 of the svc clone, its plan of slice 1 in tools and slice 2 here committed; no clone path is stored, so the slice in work (slice 1) is built in another repository. */
+async function activeInTools(off = false): Promise<ReturnType<typeof reposCopy>> {
+  const r = reposCopy();
+  r.git(r.svc, 'switch', '-q', '-c', 't/ST-9');
+  claimedUnder(r.svc, REPOS_FROM, 'ST-9');
+  expect((await run(['approve', 'ST-9'], r.svc)).code).toBe(0);
+  writeFiles(r.svc, { 'src/svc.ts': 'export const svc = 1;\n' });
+  const base = commitAll(r.svc);
+  const toolsSha = r.git(r.tools, 'rev-parse', 'refs/remotes/origin/main').trim();
+  const text = ['---', `baseline: ${base}`, `baseline_tools: ${toolsSha}`, '---', '', '# Plan', '', task(1, 'tools:src/Tools.cs'), task(2, 'src/svc.ts'), sliceOf(1, '1', 'tools'), sliceOf(2, '2')].join('\n');
+  writeFiles(r.svc, { 'accord/tickets/ST-9/plan.md': text });
+  commitAll(r.svc);
+  // the wake hook answers a typed /accord only for a person who switched accord off (or in a quiet session off a ticket branch)
+  if (off) expect((await run(['off'], r.svc)).code).toBe(0);
+  expect(existsSync(storeOf(r.svc))).toBe(false);
+  return r;
+}
+
+/** The hooks that print the anchor of the active ticket: the session-resume hook and the wake hook of a typed /accord (its stdin names a plain session id). */
+const ANCHORING: [string, string[], string | undefined][] = [
+  ['accord hook session-resume', ['hook', 'session-resume'], undefined],
+  ['accord hook prompt-expansion (the wake)', ['hook', 'prompt-expansion'], 's-t0'],
+];
+
+it('risk:security T-08.9.3-06 the resume and wake hooks of a ticket whose slice in work is in another repository never search for its clone: no file read and no git process under its folder, nothing stored (Decision 9)', async () => {
+  for (const [label, argv, session] of ANCHORING) {
+    const r = await activeInTools(session !== undefined);
+    const stdin = session === undefined ? undefined : JSON.stringify({ cwd: r.svc, session_id: session, hook_event_name: 'UserPromptExpansion', command_name: 'accord', command_args: '' });
+    const { value, opens, git } = await traced(() => run(argv, r.svc, {}, stdin));
+    expect(value.code, label + value.err).toBe(0);
+    // the anchor still names the slice and its repository; only the start, which needs the clone, is left out
+    expect(value.out, label).toContain('Slice: 1 of 2 in repository tools');
+    expect(value.out, label).not.toContain('Slice: 1 of 2 in repository tools, from');
+    expect(git.length, label + ' did start git processes in the main checkout').toBeGreaterThan(0);
+    expect(opens.filter((p) => under(p, r.tools)), label + ' read a file of the other clone').toEqual([]);
+    expect(git.filter((c) => under(c.cwd, r.tools)), label + ' ran git in the other clone').toEqual([]);
+    expect(existsSync(storeOf(r.svc)), label + ' stored a clone path').toBe(false);
+  }
+}, 120_000);
+
+it('risk:regression guard the guard: accord anchor, typed by a person, does search for the clone of the slice in work and stores it (Decision 9)', async () => {
+  const r = await activeInTools();
+  const { value, opens, git } = await traced(() => run(['anchor'], r.svc));
+  expect(value.code, value.out + value.err).toBe(0);
+  expect(value.out).toContain('Slice: 1 of 2 in repository tools, from');
+  expect(opens.filter((p) => under(p, r.tools)).length).toBeGreaterThan(0);
+  expect(git.filter((c) => under(c.cwd, r.tools)).length).toBeGreaterThan(0);
+}, 120_000);
+
+/** A sibling folder that looks like a clone: its `.git/config` holds `text`. */
+function fakeClone(parent: string, name: string, text: string): string {
+  const dir = join(parent, name);
+  mkdirSync(join(dir, '.git'), { recursive: true });
+  writeFileSync(join(dir, '.git', 'config'), text);
+  return dir;
+}
+const DECLARED = { repos: { tools: { remote: TOOLS_URL } } } as unknown as Parameters<typeof scanParent>[1];
+
+it('risk:resource W-2 a hostile .git/config line of a sibling folder is read in linear time, and the real clone beside it is still found', () => {
+  const r = reposCopy();
+  // `url = a`, about a mebibyte of blanks and a last character: a lazy `(.*?)\s*$` backtracks over every blank for each shorter value (80,000 blanks took 2.6 s, a mebibyte takes minutes)
+  const hostile = '[remote "origin"]\n\turl = a' + ' '.repeat(1024 * 1024 - 4096) + 'x\n';
+  fakeClone(r.parent, 'aaa-hostile', hostile);
+  const started = performance.now();
+  const scan = scanParent(r.svc, DECLARED, 'tools');
+  const took = performance.now() - started;
+  // wide enough for a loaded machine, far below the stall it guards
+  expect(took, 'the scan of one hostile line took ' + Math.round(took) + ' ms').toBeLessThan(1000);
+  expect(scan.found.map(posix)).toEqual([posix(r.tools)]);
+});
+
+it('risk:regression the origin of a sibling config is read as before: blanks around the key and the value, a quoted value, the last url of the section, and no other section (W-2)', () => {
+  const r = reposCopy();
+  cleanup(r.tools);
+  const foundWith = (name: string, text: string): string[] => {
+    fakeClone(r.parent, name, text);
+    const found = scanParent(r.svc, DECLARED, 'tools').found.map(posix);
+    cleanup(join(r.parent, name));
+    return found;
+  };
+  const at = (name: string): string[] => [posix(join(r.parent, name))];
+  expect(foundWith('c1', `[remote "origin"]\n  URL\t=\t ${TOOLS_URL}  \n`)).toEqual(at('c1'));
+  expect(foundWith('c2', `[remote "origin"]\n\turl = "${TOOLS_URL}"\r\n`)).toEqual(at('c2'));
+  expect(foundWith('c3', `[remote "origin"]\n\turl = https://github.com/acme/other.git\n\turl = ${TOOLS_URL}\n`)).toEqual(at('c3'));
+  expect(foundWith('c4', `[remote "upstream"]\n\turl = ${TOOLS_URL}\n`)).toEqual([]);
+  expect(foundWith('c5', `[remote "origin"]\n\turlx = ${TOOLS_URL}\n`)).toEqual([]);
+});
+
+it('risk:security W-2 a .git/config that is a link is skipped, not read: the folder is no candidate (D-01)', (ctx) => {
+  const r = reposCopy();
+  const real = moveAway(r.tools);
+  const dir = join(r.parent, 'tools');
+  mkdirSync(join(dir, '.git'), { recursive: true });
+  try {
+    symlinkSync(join(real, '.git', 'config'), join(dir, '.git', 'config'), 'file');
+  } catch (e) {
+    // Windows refuses a file link without the privilege or developer mode; there is nothing to test without one
+    ctx.skip('this system refuses to create a file symlink: ' + (e as NodeJS.ErrnoException).code);
+  }
+  expect(readFileSync(join(dir, '.git', 'config'), 'utf8')).toContain(TOOLS_URL);
+  expect(scanParent(r.svc, DECLARED, 'tools').found).toEqual([]);
 });

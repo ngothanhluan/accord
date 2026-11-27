@@ -13,7 +13,7 @@ import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { sliceHomeOf } from '../load/slice-size.js';
-import { readRepoPaths, resolveRepo } from '../load/repos.js';
+import { readRepoPaths, resolveRepo, samePath } from '../load/repos.js';
 import { dropSlices, readSlices, sliceBranch, sliceOfBranch } from '../load/slices.js';
 import type { SliceRecord } from '../load/slices.js';
 import { blobsOnRef } from '../load/merged-state.js';
@@ -1205,7 +1205,7 @@ function pushRepoSlice(ctx: CommandContext, id: string, repo: string, o: { lease
   if ('refused' in resolved) throw new UsageError(resolved.refused + '; nothing was pushed');
   const recorded = readRecorded(ctx.root).find((e) => e.id === id && e.repo === repo);
   if (recorded === undefined) throw new UsageError(`no worktree of ${repo} is recorded for ${id}: open a slice there first with accord worktree slice ${id} <n>; nothing was pushed`);
-  const entry = listWorktrees(resolved.path).find((w) => norm(w.path) === norm(recorded.path));
+  const entry = listWorktrees(resolved.path).find((w) => samePath(w.path, recorded.path));
   if (entry === undefined || entry.prunable !== undefined) throw new UsageError(`${recorded.path} is no worktree of the ${repo} clone at ${resolved.path} any more; nothing was pushed`);
   const branch = entry.branch;
   if (branch === undefined || sliceOfBranch(branch)?.id !== id) {
@@ -2240,7 +2240,8 @@ function openClone(ctx: CommandContext, s: GuardState, name: string): OpenClone 
   let failed = false;
   if (s.dry !== 'offline') {
     try {
-      gitNoPrompt(clone, ['fetch', '--no-prune', 'origin'], s.until === undefined ? undefined : fetchLimitMs(), ctx.ssh);
+      // WR-05: as `accord repos baseline` fetches, remote-tracking refs only: no tag followed and no submodule fetched in the person's clone, whatever its own settings say
+      gitNoPrompt(clone, ['fetch', '--no-prune', '--no-tags', '--no-recurse-submodules', 'origin'], s.until === undefined ? undefined : fetchLimitMs(), ctx.ssh);
     } catch (e) {
       failed = true;
       cleanSay(ctx, `fetch from origin failed in ${name}, judging against the refs already in that clone: ${firstLine(e)}`);
@@ -2255,7 +2256,7 @@ function openClone(ctx: CommandContext, s: GuardState, name: string): OpenClone 
 function cleanRepoWorktree(ctx: CommandContext, s: GuardState, o: OpenClone, id: string, e: Recorded): void {
   const where = ` (repository ${o.name})`;
   const list = listWorktrees(o.clone);
-  const W = list.find((w) => norm(w.path) === norm(e.path));
+  const W = list.find((w) => samePath(w.path, e.path));
   if (W === undefined) {
     // nothing of it is left to remove; a folder that is still there is not a worktree of that clone, and no sweep judges it
     if (lstatSync(e.path, { throwIfNoEntry: false }) === undefined) {

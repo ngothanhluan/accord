@@ -10,7 +10,7 @@ import { isSha, newestPr, SAFE_ID, workOf } from '@accord-dev/accord-core';
 import { assertNoLink } from '../guard.js';
 import { defaultRefOf, gitSliceTip, UsageError } from '../load/fs.js';
 import { ghFirstLine, ghRepoOf, ghRun } from '../load/gh.js';
-import { checkClone, REPO_NAME, resolveRepo, storeRepoPath, toPosix } from '../load/repos.js';
+import { canonical, checkClone, REPO_NAME, redactUrl, resolveRepo, samePath, storeRepoPath, toPosix } from '../load/repos.js';
 import { REPORT_DIR } from '../load/report.js';
 import { shown } from '../load/script-trust.js';
 import { sliceHomeOf } from '../load/slice-size.js';
@@ -35,11 +35,11 @@ export function reposSet(ctx: CommandContext, name: string, path: string, cwd: s
         : `${name} is not declared in accord/config.yml; it declares ${names.join(', ')}; nothing was stored`,
     );
   }
-  const where = toPosix(resolve(cwd, path));
+  const where = canonical(resolve(cwd, path));
   const remote = entry[name].remote;
   const check = checkClone(where, remote);
   if (!check.ok) {
-    if (check.why === 'origin') throw new UsageError(`the clone at ${where} has origin ${check.origin ?? 'none'}, not ${remote} (repos.${name}.remote); nothing was stored`);
+    if (check.why === 'origin') throw new UsageError(`the clone at ${where} has origin ${check.origin === undefined ? 'none' : redactUrl(check.origin)}, not ${redactUrl(remote)} (repos.${name}.remote); nothing was stored`);
     throw new UsageError(
       check.why === 'no-folder'
         ? `${where} is not a folder; nothing was stored`
@@ -118,8 +118,6 @@ function prLine(pr: Pr): string {
   return pr.state === 'draft' ? `${n} open draft` : pr.state === 'merged' ? `${n} merged${pr.merge === undefined ? '' : ' ' + pr.merge}` : `${n} ${pr.state}`;
 }
 
-const sameFolder = (a: string, b: string): boolean => toPosix(a).replace(/\/+$/, '').toLowerCase() === toPosix(b).replace(/\/+$/, '').toLowerCase();
-
 /**
  * Phase 08.9.3 D-07, D-04, D-06, D-08: `accord repos status <id>` prints, for each other repository of the ticket's plan (name order), what the verifier copies into `## Repository <name>` of verification.md: the clone,
  * the worktree this repository recorded for the ticket there, the suite (`repos.<name>.tests`) and where to run it, and per slice of that repository its branch, the branch's head in the clone, the newest pull request
@@ -153,7 +151,7 @@ function reposTicketStatus(ctx: CommandContext, id: string): number {
     const recorded = readRecorded(ctx.root).find((e) => e.id === id && e.repo === name);
     let wt: string | undefined;
     try {
-      wt = recorded !== undefined && listWorktrees(found.path).some((w) => w.prunable === undefined && sameFolder(w.path, recorded.path)) ? toPosix(recorded.path) : undefined;
+      wt = recorded !== undefined && listWorktrees(found.path).some((w) => w.prunable === undefined && samePath(w.path, recorded.path)) ? toPosix(recorded.path) : undefined;
     } catch {
       wt = undefined; // a clone git cannot list is no worktree to run a suite in
     }

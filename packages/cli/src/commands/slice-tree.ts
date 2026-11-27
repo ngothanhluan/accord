@@ -7,12 +7,11 @@ import { existsSync } from 'node:fs';
 import { isSha, workOf } from '@accord-dev/accord-core';
 import type { SliceHome } from '@accord-dev/accord-core';
 import { currentBranch, defaultRefOf, UsageError } from '../load/fs.js';
-import { resolveRepo, toPosix } from '../load/repos.js';
+import { resolveRepo, samePath, toPosix } from '../load/repos.js';
 import { sliceHomeOf } from '../load/slice-size.js';
 import { recordSlice, sliceNumber, sliceOfBranch } from '../load/slices.js';
 import type { CommandContext } from '../run.js';
 import { requireTicket } from './lane-args.js';
-import { norm } from './leftover.js';
 import { branchOf, git, gitNoPrompt, gitOk, ID, listWorktrees, recordWorktree, readRecorded, siblingOf } from './worktree.js';
 
 /** Tracked files changed in `dir` (untracked files are git's own concern: a switch refuses to lose them). */
@@ -94,7 +93,8 @@ function originCopy(ctx: CommandContext, clone: string, branch: string): { ref?:
   if (gitOk(clone, ['rev-parse', '--verify', '-q', ref])) return { ref };
   try {
     gitNoPrompt(clone, ['ls-remote', '--exit-code', '--heads', 'origin', `refs/heads/${branch}`], 30_000, ctx.ssh);
-    gitNoPrompt(clone, ['fetch', '-q', 'origin', `+refs/heads/${branch}:${ref}`], 60_000, ctx.ssh);
+    // WR-05: as `accord repos baseline` fetches, nothing but the one remote-tracking ref changes in the person's clone (no tag followed, no submodule fetched whatever the clone's own settings say)
+    gitNoPrompt(clone, ['fetch', '-q', '--no-tags', '--no-recurse-submodules', 'origin', `+refs/heads/${branch}:${ref}`], 60_000, ctx.ssh);
     return gitOk(clone, ['rev-parse', '--verify', '-q', ref]) ? { ref } : {};
   } catch (e) {
     if ((e as { status?: number }).status === 2) return {}; // ls-remote --exit-code: origin has no such branch
@@ -137,8 +137,8 @@ function repoSliceOpen(ctx: CommandContext, id: string, home: SliceHome & { repo
   }
   const list = listWorktrees(clone);
   const recorded = readRecorded(ctx.root).find((e) => e.id === id && e.repo === repo);
-  const folder = toPosix(recorded !== undefined && list.some((w) => norm(w.path) === norm(recorded.path)) ? recorded.path : siblingOf(clone, id));
-  const entry = list.find((w) => norm(w.path) === norm(folder));
+  const folder = toPosix(recorded !== undefined && list.some((w) => samePath(w.path, recorded.path)) ? recorded.path : siblingOf(clone, id));
+  const entry = list.find((w) => samePath(w.path, folder));
   const local = gitOk(clone, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
   const holder = list.find((w) => w.branch === branch);
   let note: string | undefined;

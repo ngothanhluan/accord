@@ -8,7 +8,7 @@ import { claimPinBefore, matches, PLAN_WAVES_FROM, planFile, workOf } from '@acc
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { currentBranch, UsageError } from '../load/fs.js';
-import { resolveRepo } from '../load/repos.js';
+import { resolveRepo, samePath } from '../load/repos.js';
 import { scriptDigest, scriptRefusal } from '../load/script-trust.js';
 import { sliceHomeOf } from '../load/slice-size.js';
 import type { CommandContext } from '../run.js';
@@ -124,7 +124,7 @@ export function repoWorkRoot(root: string, snapshot: RepoSnapshot, id: string, n
   if (recorded === undefined) throw new UsageError(`${what}: no worktree of ${repo} is recorded for ${id} - open it with ${open}; nothing was changed`);
   const resolved = resolveRepo(root, snapshot.config, repo, { scan: false });
   if ('refused' in resolved) throw new UsageError(`${what}: ${resolved.refused}; nothing was changed`);
-  const entry = listWorktrees(resolved.path).find((w) => norm(w.path) === norm(recorded.path));
+  const entry = listWorktrees(resolved.path).find((w) => samePath(w.path, recorded.path));
   if (entry === undefined || entry.prunable !== undefined) {
     throw new UsageError(`${what}: ${recorded.path} is no worktree of the ${repo} clone at ${resolved.path} any more - open it with ${open}; nothing was changed`);
   }

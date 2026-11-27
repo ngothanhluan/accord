@@ -50,7 +50,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
         body = `this session works ${held.id}: call EnterWorktree with the path on the next line, then run accord anchor there and go on at the stage it prints\nenter: ${held.path}\n`;
       } else {
         const id = activeTicket(root, ctx.snapshot, branchFor(root, ctx));
-        const anchored = id === undefined ? undefined : anchorOf(ctx, id);
+        const anchored = id === undefined ? undefined : anchorOf(ctx, id, NO_SEARCH);
         body = anchored === undefined ? body : anchored + stageLine(rows.find((r) => r.id === id), root, ctx.snapshot.config);
         if (id === undefined) body += unfinishedLine(root);
       }
@@ -65,6 +65,9 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   sessionClean(ctx, event);
   return 0;
 }
+
+/** T-08.9.3-06: a hook never searches the parent folder for another repository's clone and never writes the stored paths (Decision 9). */
+const NO_SEARCH = { scan: false, store: false };
 
 /**
  * Phase 8.3 D-04: after the anchor of an active lane ticket, the one line that names the file of the /accord skill for the ticket's lane and stage, so a session cleared or compacted
@@ -200,7 +203,7 @@ export function wake(ctx: CommandContext): number {
     let body = sessionLine(rows) + '\n';
     try {
       const id = activeTicket(root, ctx.snapshot, branchFor(root, ctx));
-      const anchored = id === undefined ? undefined : anchorOf(ctx, id);
+      const anchored = id === undefined ? undefined : anchorOf(ctx, id, NO_SEARCH);
       if (anchored !== undefined) body = anchored + stageLine(rows.find((r) => r.id === id), root, ctx.snapshot.config);
     } catch (e) {
       // the session line stands in for an anchor that cannot be read

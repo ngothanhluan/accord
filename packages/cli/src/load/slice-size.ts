@@ -53,9 +53,12 @@ export function sliceHomeOf(snapshot: RepoSnapshot, id: string, n: number, claim
   return sliceHome(slicesFor(snapshot, id, n), n, { id, claim });
 }
 
+/** How a clone is looked for: the options of `resolveRepo`. `{ scan: false, store: false }` is for a hook or a display, which never searches the parent folder and never writes the stored paths (T-08.9.3-06). */
+export type Find = { scan?: boolean; store?: boolean };
+
 /** The clone of another repository on this machine, or undefined when there is none (not declared, not found, refused): no size or start is claimed that nobody measured. */
-function cloneOf(root: string, snapshot: RepoSnapshot, repo: string): string | undefined {
-  const resolved = resolveRepo(root, snapshot.config, repo);
+function cloneOf(root: string, snapshot: RepoSnapshot, repo: string, find: Find = {}): string | undefined {
+  const resolved = resolveRepo(root, snapshot.config, repo, find);
   return 'refused' in resolved ? undefined : resolved.path;
 }
 
@@ -63,8 +66,8 @@ function cloneOf(root: string, snapshot: RepoSnapshot, repo: string): string | u
  * The start of a slice of another repository, read in that repository's clone: the first slice there starts at the plan's `baseline_<repo>` (a commit of the clone), a later one at the merge base of its own
  * branch with the previous slice's branch there, or at the previous slice's tip when its own branch is not cut yet (where it will be cut).
  */
-function otherStart(root: string, snapshot: RepoSnapshot, id: string, home: SliceHome & { repo: string }): string | undefined {
-  const dir = cloneOf(root, snapshot, home.repo);
+function otherStart(root: string, snapshot: RepoSnapshot, id: string, home: SliceHome & { repo: string }, find: Find): string | undefined {
+  const dir = cloneOf(root, snapshot, home.repo, find);
   if (dir === undefined) return undefined;
   if (home.previous === undefined) {
     const baselines = workOf(snapshot, id)?.plan?.repoBaselines;
@@ -82,13 +85,13 @@ function otherStart(root: string, snapshot: RepoSnapshot, id: string, home: Slic
 /**
  * The commit slice `n` of ticket `id` starts at, as a full sha, or undefined when git cannot say (no such branch, no common history, no baseline, no clone). The first slice of this repository (the claim
  * branch's): the plan's `baseline:`. A later slice of this repository: the merge base of HEAD with the previous slice's branch of this repository, a local branch first and then origin's copy of it. A slice of
- * another repository is read in that repository's clone (`otherStart`).
+ * another repository is read in that repository's clone (`otherStart`); `find` says how that clone is looked for (a hook passes `{ scan: false, store: false }`).
  */
-export function sliceStart(root: string, snapshot: RepoSnapshot, id: string, n: number): string | undefined {
+export function sliceStart(root: string, snapshot: RepoSnapshot, id: string, n: number, find: Find = {}): string | undefined {
   try {
     const home = sliceHome(slicesFor(snapshot, id, n), n, { id, claim: claimBranchOf(snapshot, id) });
     if (home === undefined) return undefined;
-    if (home.repo !== undefined) return otherStart(root, snapshot, id, { ...home, repo: home.repo });
+    if (home.repo !== undefined) return otherStart(root, snapshot, id, { ...home, repo: home.repo }, find);
     if (home.previous === undefined) {
       const baseline = workOf(snapshot, id)?.plan?.baseline;
       return baseline === undefined ? undefined : commitOf(root, baseline);

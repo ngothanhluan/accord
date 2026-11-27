@@ -44,7 +44,7 @@ jobs:
           set +e
           set -uo pipefail
           code=0
-          npx --yes @accord-dev/accord@0.21.1 lint || code=1
+          npx --yes @accord-dev/accord@0.22.0 lint || code=1
           # The tickets to gate are the ticket files this pull request changes and the tickets whose folder it changes
           # (D-23: a done ticket is not edited, and its folder goes with it). --diff-filter=d leaves deleted ticket
           # files out; the deletion check below decides whether a deletion may land. [^/]+ is one level: accord/tickets/<id>.md
@@ -226,6 +226,6 @@ jobs:
             elif plan_text=$(git show "HEAD:accord/tickets/$id/plan.md" 2> /dev/null) && grep -qiE '^##[[:space:]]+slice' <<< "$plan_text"; then
               slice_flag=(--slice auto)
             fi
-            npx --yes @accord-dev/accord@0.21.1 gate done "$id" ${slice_flag[@]+"${slice_flag[@]}"} || code=1
+            npx --yes @accord-dev/accord@0.22.0 gate done "$id" ${slice_flag[@]+"${slice_flag[@]}"} || code=1
           done <<< "$tickets"
           exit $code

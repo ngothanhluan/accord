@@ -3,15 +3,16 @@
 // Phase 8.5 D-03, D-05, D-07, D-23: after `## Slop` the package carries the reviewer's product blocks (the ruleset, the epic block of a story, the default branch's `## Conventions` and the
 // branch's own `## Product files changed`, from core's `productBlocks`), so a branch cannot loosen a rule for its own reviewer; `--out <file>` writes the package into the report folder.
 import { execFileSync } from 'node:child_process';
-import { epicBlock, interfaceSigns, matchedHunks, outsideScope, productBlocks, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { epicBlock, interfaceSigns, isSha, matchedHunks, outsideScope, productBlocks, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
 import { cliRuleset, productChange, readProductText } from '../load/product.js';
+import { resolveRepo, toPosix } from '../load/repos.js';
 import { writeAgentFile } from '../load/report.js';
 import { exemptCopies, securityRoundRanges } from '../load/security-facts.js';
 import { shown as printable } from '../load/script-trust.js';
-import { sliceStart } from '../load/slice-size.js';
+import { branchRef, sliceHomeOf, sliceStart } from '../load/slice-size.js';
 import { sliceOfBranch } from '../load/slices.js';
 import { slopFacts } from '../load/slop-facts.js';
 import { nearestCode, readWalk } from '../load/walk.js';
@@ -19,6 +20,7 @@ import type { CommandContext } from '../run.js';
 import { epicSnapshot } from './anchor.js';
 import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
+import { readRecorded } from './worktree.js';
 
 const cannot = (why: string) => `(cannot tell: ${why})`;
 const NONE = '(none: no pattern matched)';
@@ -115,6 +117,106 @@ function securityRoundPackage(ctx: CommandContext, id: string, asked: string, ou
   }
   emit(ctx, id, securityText(`# Security package: ${id} (${range})\nHead: ${abbrev(at.head)}`, securitySections(ctx.snapshot, pkg.diff, pkg.changed, true, { root: ctx.root, head: at.head }, pkg.unread)), out, abbrev(at.head));
   return 0;
+}
+
+const gitIn = (dir: string, args: string[]): string =>
+  execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+
+/** The full sha a ref resolves to in `dir`, or undefined: only a hexadecimal name ever reaches a later git argument. */
+function shaIn(dir: string, ref: string): string | undefined {
+  try {
+    const sha = gitIn(dir, ['rev-parse', '--verify', '--quiet', ref + '^{commit}']).trim();
+    return isSha(sha) ? sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One other repository's change as the security reading takes it: the diff text and the changed paths as git in its clone printed them (no prefix), and the files its `--text` read left unread. */
+export interface OtherDiff {
+  name: string;
+  diff: string;
+  changed: string[];
+  unread?: string[];
+}
+
+/**
+ * Phase 08.9.3 D-04, D-05: the `## Repository <name>` section of every other repository the plan names (its tasks' `repo` and its slices' `repo:`), in name order, and what the security reading needs of each. The section's range is read in that
+ * repository's clone (`packageDiff(clone, ...)`, so no session runs git there): its base is `baseline_<name>`, its tip the newest slice branch of that repository there (this clone's copy, else origin's). A repository with no clone
+ * is a UsageError carrying the D-02 line; one with no slice branch yet, or no baseline that names a commit, is a `(cannot tell: ...)` section. Text of that repository (commit subjects, diff lines) is data under headings this function prints.
+ * A plan naming no other repository gives no text and runs no git.
+ */
+export function repositorySections(ctx: CommandContext, id: string): { text: string; repos: OtherDiff[] } {
+  const plan = workOf(ctx.snapshot, id)?.plan;
+  const names = new Set<string>();
+  for (const t of plan?.tasks ?? []) if (t.repo !== undefined) names.add(t.repo);
+  for (const s of plan?.slices ?? []) if (s.repo !== undefined) names.add(s.repo);
+  if (plan === undefined || names.size === 0) return { text: '', repos: [] };
+  const blocks: string[] = [];
+  const repos: OtherDiff[] = [];
+  for (const name of [...names].sort()) {
+    const heading = `## Repository ${name}`;
+    const resolved = resolveRepo(ctx.root, ctx.snapshot.config, name);
+    if ('refused' in resolved) throw new UsageError(resolved.refused);
+    const clone = resolved.path;
+    // the tip: the newest slice of this repository whose branch exists in its clone
+    let tip: string | undefined;
+    let tipN = 0;
+    for (const n of (plan.slices ?? []).filter((x) => x.repo === name).map((x) => x.n).sort((a, b) => b - a)) {
+      const home = sliceHomeOf(ctx.snapshot, id, n);
+      const ref = home === undefined ? undefined : branchRef(clone, home.branch);
+      tip = ref === undefined ? undefined : shaIn(clone, ref);
+      if (tip !== undefined) {
+        tipN = n;
+        break;
+      }
+    }
+    if (tip === undefined) {
+      blocks.push(`${heading}\n\n${cannot(`no slice branch of ${name} exists yet in ${toPosix(clone)}, so there is nothing to read there`)}`);
+      continue;
+    }
+    const given = plan.repoBaselines !== undefined && Object.hasOwn(plan.repoBaselines, name) ? plan.repoBaselines[name] : undefined;
+    const base = given !== undefined && isSha(given) ? shaIn(clone, given) : undefined;
+    if (base === undefined) {
+      blocks.push(`${heading}\n\n${cannot(`baseline_${name} of the plan names no commit of the clone at ${toPosix(clone)}`)}`);
+      continue;
+    }
+    let pkg;
+    try {
+      pkg = packageDiff(clone, { base, head: tip, def: defaultRefOf(clone), allowPlainLog: false, parts: true });
+    } catch (e) {
+      if (e instanceof UsageError) throw e;
+      throw new UsageError(`cannot diff ${name} ${abbrev(base)}...${abbrev(tip)}: ${why(e)}`);
+    }
+    // the changed paths no task of that repository names, as this repository's `## Undeclared files` reads its own
+    const declared = plan.tasks.flatMap((t) => [...(t.repoFiles ?? []), ...(t.repoNewFiles ?? [])]).filter((x) => x.repo === name).map((x) => x.path);
+    const undeclared = [...new Set(pkg.changed)]
+      .filter((p) => !declared.some((d) => (d.endsWith('/') ? p.startsWith(d) : p === d)))
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    let worktree: string | undefined;
+    try {
+      worktree = readRecorded(ctx.root).find((e) => e.id === id && e.repo === name)?.path;
+    } catch {
+      worktree = undefined;
+    }
+    const range = `${abbrev(base)}...${abbrev(tip)}${pkg.excluded ? `, without ${pkg.short}` : ''}`;
+    blocks.push(
+      [
+        heading,
+        `Range: ${range} (slice ${tipN}${worktree === undefined ? '' : `, worktree ${toPosix(worktree)}`})`,
+        '### Commits',
+        pkg.commits || '(none)',
+        '### Stat',
+        pkg.stat || '(no changes)',
+        '### Undeclared files',
+        undeclared.join('\n') || '(none)',
+        '### Diff',
+        pkg.diff || '(no changes)',
+      ].join('\n\n'),
+    );
+    repos.push({ name, diff: pkg.diff, changed: pkg.changed, ...(pkg.unread === undefined ? {} : { unread: pkg.unread }) });
+  }
+  return { text: blocks.join('\n\n'), repos };
 }
 
 /** The start of the slice this checkout is on when it is on `slice/<id>/<n>` of this ticket; undefined on any other branch, and when git cannot say. */
@@ -279,6 +381,8 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     '## Interface signs',
     'error' in f ? cannot(f.error) : signs?.map((x) => `${x.path}: ${x.sign}`).join('\n') || '(none)',
   );
+  // Phase 08.9.3 D-04, D-05: read before anything is written, so a repository with no clone stops the command with its D-02 line and no package.
+  const others = repositorySections(ctx, id);
   if (options.security === true) {
     // The security package: the same range and diff, but only the checklist, the triggers and the hunks they match.
     const at = parts[0].indexOf('\nHead: ');
@@ -295,6 +399,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     changed: productChange(ctx.root, def, 'HEAD'),
   });
   parts.splice(parts.indexOf('## Stat'), 0, ...shown, ...product);
+  if (others.text !== '') parts.push(others.text);
   emit(ctx, id, parts.join('\n\n') + '\n', options.out, headLine);
   return 0;
 }

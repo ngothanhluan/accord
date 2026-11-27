@@ -115,7 +115,7 @@ function parseNumstat(text: string): NumstatLine[] {
 }
 
 /** A local branch of that name, else origin's copy (as in CI, where only the remote ref exists), as a ref name; undefined when neither resolves. */
-function branchRef(root: string, name: string): string | undefined {
+export function branchRef(root: string, name: string): string | undefined {
   return [`refs/heads/${name}`, `refs/remotes/origin/${name}`].find((ref) => commitOf(root, ref) !== undefined);
 }
 

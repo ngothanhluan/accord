@@ -7,8 +7,8 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, r
 import { REPO_NAME, SAFE_ID, sliceBranchName } from '@accord-dev/accord-core';
 import { gitDirsOf } from './gitdir.js';
 
-/** The number a person types to `accord worktree slice <id> <n>`: 2 to 99, no sign, point or leading zero (plan 08.9.3-06 converts that command to `sliceHome`). */
-const SLICE_ARG = /^([2-9]|[1-9][0-9])$/;
+/** The number a person types to `accord worktree slice <id> <n>`: 1 to 99, no sign, point or leading zero (`sliceHome` says where it lives, so any slice of the plan may be asked for). */
+const SLICE_ARG = /^([1-9]|[1-9][0-9])$/;
 /** The slice number of a branch name: 1 to 99 (a `slice/<id>/1` is slice 1 of another repository's clone). */
 const SLICE_BRANCH = /^slice\/([A-Za-z0-9][A-Za-z0-9._-]*)\/([1-9]|[1-9][0-9])$/;
 
@@ -18,7 +18,7 @@ export function sliceOfBranch(name: string): { id: string; n: number } | undefin
   return m === null ? undefined : { id: m[1], n: Number(m[2]) };
 }
 
-/** The number of a typed slice argument when it is 2 to 99, else undefined. */
+/** The number of a typed slice argument when it is 1 to 99, else undefined. */
 export const sliceNumber = (arg: string): number | undefined => (SLICE_ARG.test(arg) ? Number(arg) : undefined);
 
 /** The branch of slice `n` of ticket `id` (core's `sliceBranchName`); throws when either could not name a slice branch (T-15-31: no name is built from anything else). */

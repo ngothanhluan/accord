@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, parseRepoUrl, pinBefore, pinOf, progressPushTarget, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
+import { branchFieldsOf, branchTypesOf, changeProblem, DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, parseRepoUrl, pinBefore, pinOf, progressPushTarget, REPO_NAME, renderBranch, renderSubject, RULESET_FROM, rulesetOfTicket, SAFE_ID, setFrontmatterKey, shaEqual, statusRows, subjectsFor, trailerReason } from '@accord-dev/accord-core';
 import type { AccordConfig, RepoSnapshot } from '@accord-dev/accord-core';
 import type { ContentMemo } from '../load/fs.js';
 import { gitClaimFacts } from '../load/claim-facts.js';
@@ -269,14 +269,28 @@ export function withHolds(root: string, fn: (holds: Record<string, Hold>) => Rec
   });
 }
 
-/** ST-LN-55 D-07: the record of the worktrees accord created, one `<id>\t<path>` line each; a line that does not split into a valid id and a path is skipped when read and kept when rewritten. */
-function parseRecord(text: string): { id: string; path: string }[] {
-  const out: { id: string; path: string }[] = [];
-  for (const l of text.split('\n')) {
-    const t = l.indexOf('\t');
-    if (t > 0 && ID.test(l.slice(0, t)) && l.length > t + 1) out.push({ id: l.slice(0, t), path: l.slice(t + 1) });
-  }
-  return out;
+/** One readable line of the worktree record: `<id>\t<path>`, or `<id>\t<path>\t<repo>` for a worktree of another repository's clone (Phase 08.9.3 D-10). */
+export interface Recorded {
+  id: string;
+  path: string;
+  repo?: string;
+}
+
+/** The readable form of one record line, or undefined: a valid id, a path, and a third column that is absent or a repository name (a line with any other third column is not read, and is kept when the file is rewritten). */
+function recordLine(l: string): Recorded | undefined {
+  const t = l.indexOf('\t');
+  if (t <= 0 || !ID.test(l.slice(0, t)) || l.length <= t + 1) return undefined;
+  const id = l.slice(0, t);
+  const rest = l.slice(t + 1);
+  const u = rest.lastIndexOf('\t');
+  if (u < 0) return { id, path: rest };
+  const repo = rest.slice(u + 1);
+  return u > 0 && REPO_NAME.test(repo) ? { id, path: rest.slice(0, u), repo } : undefined;
+}
+
+/** ST-LN-55 D-07: the record of the worktrees accord created, one `<id>\t<path>` line each (Phase 08.9.3: a third column names the repository whose clone the worktree belongs to); a line that does not read is skipped when read and kept when rewritten. */
+function parseRecord(text: string): Recorded[] {
+  return text.split('\n').flatMap((l) => recordLine(l) ?? []);
 }
 
 /** Write `text` over the record through a temporary file, as the holds file is written. */
@@ -286,31 +300,32 @@ function writeRecord(file: string, text: string): void {
   renameSync(tmp, file);
 }
 
-/** Record a worktree accord just created; a path already in the record is not written twice. */
-export function recordWorktree(root: string, id: string, path: string): void {
+/** Record a worktree accord just created (with `repo`, a worktree of that repository's clone); a path already in the record is not written twice. Throws when `repo` is no repository name. */
+export function recordWorktree(root: string, id: string, path: string, repo?: string): void {
+  if (repo !== undefined && !REPO_NAME.test(repo)) throw new UsageError('not a repository name: ' + repo);
   withLock(root, (dir) => {
     const file = dir + '/worktrees';
     const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
     if (parseRecord(text).some((e) => norm(e.path) === norm(path))) return;
-    writeRecord(file, (text === '' || text.endsWith('\n') ? text : text + '\n') + `${id}\t${path}\n`);
+    writeRecord(file, (text === '' || text.endsWith('\n') ? text : text + '\n') + `${id}\t${path}${repo === undefined ? '' : '\t' + repo}\n`);
   });
 }
 
 /** The record without a lock (it is written by rename); a missing file gives `[]`. `dir` is `<git-common-dir>/accord` when the caller already has it. */
-export function readRecorded(root: string, dir?: string): { id: string; path: string }[] {
+export function readRecorded(root: string, dir?: string): Recorded[] {
   const file = (dir ?? git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord') + '/worktrees';
   return existsSync(file) ? parseRecord(readFileSync(file, 'utf8')) : [];
 }
 
-/** Drop the record lines whose path is `path`; nothing is written when there are none. */
+/** Drop the record lines whose path is `path` (the path column only); nothing is written when there are none. */
 function dropRecorded(root: string, path: string): void {
   withLock(root, (dir) => {
     const file = dir + '/worktrees';
     if (!existsSync(file)) return;
     const lines = readFileSync(file, 'utf8').split('\n');
     const keep = lines.filter((l) => {
-      const t = l.indexOf('\t');
-      return !(t > 0 && ID.test(l.slice(0, t)) && l.length > t + 1 && norm(l.slice(t + 1)) === norm(path));
+      const e = recordLine(l);
+      return !(e !== undefined && norm(e.path) === norm(path));
     });
     if (keep.length !== lines.length) writeRecord(file, keep.join('\n'));
   });

@@ -1,10 +1,13 @@
 // Phase 11 D-04, D-05, D-06: a team lens is a checklist a team writes at `accord/lenses/<name>.md`, optionally with `paths:` (the security file's entry forms) and an `on_finding:` mode. The CLI, never a
 // model, decides which lenses a review package names: this file reads one lens file and matches it against the changed paths of a package. Pure: the host reads the files and the diff.
 import { pathEntryMatches } from '../security/match.js';
-import { loadFrontmatter, splitFrontmatter } from '../load/frontmatter.js';
+import { loadFrontmatter, normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 
 /** The folder of lens files, directly under which each `<name>.md` is one lens. */
 export const LENS_DIR = 'accord/lenses/';
+
+/** A lens file is `<name>.md` directly under the lens folder; a file deeper down or of another type is no lens. */
+export const isLensFile = (path: string): boolean => path.startsWith(LENS_DIR) && /^[^/]+[.]md$/.test(path.slice(LENS_DIR.length));
 
 /** The lenses accord's own review roles run; a team lens may not take one of these names. */
 export const BUILT_IN_LENS_NAMES = ['intent', 'quality', 'security', 'integration', 'both', 'ui'] as const;
@@ -30,11 +33,16 @@ export interface LensFile {
   problems: LensProblem[];
 }
 
+/** What a lens file's frontmatter may hold, as the fix every frontmatter problem names. */
+const KEYS_FIX = 'a lens file may hold only paths (a list of repository paths) and on_finding (block, ask or warn)';
+
 /** The part of one other repository a package carries: its name and the paths its diff changed. */
 export interface OtherChange {
   name: string;
   changed: string[];
 }
+
+const NEWLINE = /\n/;
 
 const stemOf = (path: string): string => {
   const file = path.slice(path.lastIndexOf('/') + 1);
@@ -52,7 +60,14 @@ export function parseLens(path: string, text: string): LensFile {
   if (split.yaml === null || split.yaml.split('\n').every((l) => l.trim() === '' || l.trim().startsWith('#'))) return { name, mode: 'ask', body: split.body, problems: [] };
   const loaded = loadFrontmatter<{ paths?: string[]; on_finding?: LensMode }>(path, text, 'lens');
   if (loaded.value === undefined) {
-    return { name, mode: 'ask', body: loaded.body, problems: loaded.findings.map((f) => ({ line: f.line, reason: f.reason })) };
+    // the fix goes with every reason: the schema's own text ("must NOT have additional properties") names neither the key nor what a lens file may hold
+    const lines = normaliseText(text).split(NEWLINE);
+    const reasonOf = (f: { line?: number; rule: string; reason: string }): string => {
+      if (f.rule === 'load.yaml-syntax') return f.reason;
+      const key = f.line === undefined ? undefined : /^\s*([A-Za-z0-9_-]+)\s*:/.exec(lines[f.line - 1] ?? '')?.[1];
+      return `${key === undefined ? '' : `the key "${key}": `}${f.reason}; ${KEYS_FIX}`;
+    };
+    return { name, mode: 'ask', body: loaded.body, problems: loaded.findings.map((f) => ({ line: f.line, reason: reasonOf(f) })) };
   }
   const { paths, on_finding } = loaded.value;
   return { name, ...(paths === undefined ? {} : { paths }), mode: on_finding ?? 'ask', body: loaded.body, problems: [] };

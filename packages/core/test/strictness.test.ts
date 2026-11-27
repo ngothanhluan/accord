@@ -83,6 +83,8 @@ const LOCKED_LIST = [
   'lint.heading-missing',
   'lint.id-mismatch',
   'lint.lane-s-lane-m-records',
+  // Phase 11 D-05: a malformed lens file is a review check silently lost
+  'lint.lens-file',
   'lint.no-scenarios',
   'lint.security-file',
   'lint.step-empty',

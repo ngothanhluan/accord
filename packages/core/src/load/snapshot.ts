@@ -19,6 +19,7 @@ import { parseRounds } from '../round/record.js';
 import { SECURITY_FILE } from '../security/spec.js';
 import { SLOP_FILE } from '../slop/spec.js';
 import { CONVENTIONS_FILE } from '../product/lines.js';
+import { isLensFile } from '../lens/spec.js';
 import { parseVerification } from './verification.js';
 import { parseBaseline, parseDebug, parseDiscuss, parseLedger, parsePlan, parseReview } from './work.js';
 
@@ -189,6 +190,8 @@ export function loadSnapshot(input: SnapshotInput, options: LoadOptions = {}): R
   if (Object.hasOwn(files, SLOP_FILE)) snapshotFiles[SLOP_FILE] = normaliseText(files[SLOP_FILE]);
   // Phase 8.5 D-09, D-11: the team's conventions, read by lint.conventions-file; after the slop file, so a repository without one keeps its goldens.
   if (Object.hasOwn(files, CONVENTIONS_FILE)) snapshotFiles[CONVENTIONS_FILE] = normaliseText(files[CONVENTIONS_FILE]);
+  // Phase 11 D-05, 11-ac-5: the team's lens files (`<name>.md` directly under accord/lenses/), read by lint.lens-file; after the conventions file, so a repository without one keeps its goldens.
+  for (const file of Object.keys(files).sort()) if (isLensFile(file)) snapshotFiles[file] = normaliseText(files[file]);
 
   for (const id of Object.keys(verifications)) {
     if (Object.hasOwn(tickets, id)) continue;

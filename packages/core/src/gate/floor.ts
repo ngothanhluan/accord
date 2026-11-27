@@ -49,6 +49,8 @@ const FLOOR: Record<string, readonly string[]> = {
   ],
   'which rules apply, which lane a ticket is in and what the config says': [
     'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor', 'lint.security-file', 'lint.template-section',
+    // Phase 11 D-05: a malformed lens file is a review check silently lost, so no team can lower the rule that reports it
+    'lint.lens-file',
   ],
 };
 

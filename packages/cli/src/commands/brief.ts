@@ -12,7 +12,7 @@ import { checkAgentFile, fixReportPath, prepareFixReport, prepareReport, reportP
 import { shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
-import { briefWorkRoot, fixWorkRoot } from './task-tree.js';
+import { briefWorkRoot, fixWorkRoot, repoWorkRoot } from './task-tree.js';
 import { ID } from './worktree.js';
 
 const ONLY = 'This is the only test command the executor runs for this task.';
@@ -47,6 +47,28 @@ function testBlock(ctx: CommandContext, t: PlanTask): string {
   return NO_COMMAND + '\n';
 }
 
+const repoNoPaths = (repo: string): string => `No test command is configured for this task: its files: line names no path of repository ${repo} for {files}.`;
+
+/** Phase 08.9.3 D-06: the paths a task's test command runs in ANOTHER repository: the `<name>:<path>` tokens of its `files:` line that name `repo`, as that repository's own paths. */
+function repoTaskPaths(t: PlanTask, repo: string): string[] {
+  return [...new Set((t.repoFiles ?? []).filter((f) => f.repo === repo).map((f) => f.path))];
+}
+
+/**
+ * Phase 08.9.3 D-06: the one test command the executor of a task of repository `repo` runs, from `repos.<repo>` of THIS repository's config: `affected` filled with the task's paths of that repository, else `tests`
+ * with the full-suite note, else a line saying none is configured. The CLI prints it and runs nothing; the other repository's own accord is never read (D-03).
+ */
+function repoTestBlock(ctx: CommandContext, t: PlanTask, repo: string): string {
+  const entry = ctx.snapshot.config?.repos !== undefined && Object.hasOwn(ctx.snapshot.config.repos, repo) ? ctx.snapshot.config.repos[repo] : undefined;
+  if (entry?.affected !== undefined) {
+    const paths = repoTaskPaths(t, repo);
+    if (entry.affected.includes('{files}') && paths.length === 0) return repoNoPaths(repo) + '\n';
+    return 'Test command: ' + entry.affected.split('{files}').join(paths.map(quote).join(' ')) + '\n' + ONLY + '\n';
+  }
+  if (entry?.tests !== undefined) return 'Test command: ' + entry.tests + '\n' + ONLY + '\n' + `repos.${repo}.tests is printed because accord/config.yml has no repos.${repo}.affected.\n`;
+  return `No test command is configured for repository ${repo}: accord/config.yml has no repos.${repo}.tests.\n`;
+}
+
 const NO_FILES = 'No file list applies: the plan stage is off, so no task names files; {files} is left out of the command.';
 
 /** The plan-off form of testBlock: the whole ticket is the task, so tests.affected runs with no file list. */
@@ -73,9 +95,10 @@ export const WORK_DIR_RULE = 'Work only in this folder: run every command and ma
  * ST-LN-92 D-03, D-16: above them, `Work dir:` and WORK_DIR_RULE when `workRoot` is defined (a ticket not claimed before 0.6.0, `briefWorkRoot`, which refuses a
  * checkout on neither the ticket branch nor the task's own); the report then lies under that folder, the task worktree while one exists, so the executor writes only where
  * it works (the report-place Ruling).
+ * Phase 08.9.3 D-04, D-05: for a task of ANOTHER repository (`repo`) `Repository: <name>` is printed above `Work dir:`, which is that repository's worktree (`repoWorkRoot`), and the report lies under it.
  */
-function reportBlock(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: number, workRoot: string | undefined): string {
-  const dir = workRoot === undefined ? '' : 'Work dir: ' + workRoot + '\n' + WORK_DIR_RULE + '\n';
+function reportBlock(ctx: CommandContext, claimed: RepoSnapshot, id: string, n: number, workRoot: string | undefined, repo?: string): string {
+  const dir = (repo === undefined ? '' : 'Repository: ' + repo + '\n') + (workRoot === undefined ? '' : 'Work dir: ' + workRoot + '\n' + WORK_DIR_RULE + '\n');
   if (claimPinBefore(claimed, id, TASK_REPORT_FROM)) return dir;
   const root = workRoot ?? ctx.root;
   prepareReport(root, id, n);
@@ -276,8 +299,12 @@ export function brief(ctx: CommandContext, id: string, task: string | undefined,
   while (pre.length > 0 && pre[0].trim() === '') pre.shift();
   while (pre.length > 0 && pre[pre.length - 1].trim() === '') pre.pop();
   const rules = pre.length > 0 ? pre.join('\n') + '\n\n' : '';
-  const report = reportBlock(ctx, claimed, id, n, briefWorkRoot(ctx.root, claimed, id, n));
-  const legacy = claimPinBefore(claimed, id, PRODUCT_TEXT_FROM);
-  const body = legacy ? legacyBrief(ctx, id, text, rules, section, report, t) : sharedBrief(ctx, text, rules + section, [...linesOf(report), ...linesOf(testBlock(ctx, t)), ...commitRuleLines(ctx, id)]);
+  // Phase 08.9.3 D-04, D-06, Ruling R15: a task of another repository is briefed in that repository's worktree with its test command and no commit rule of this repository (D-03: its conventions are its own)
+  const workDir = repoWorkRoot(ctx.root, claimed, id, n);
+  const repo = workDir === undefined ? undefined : t.repo;
+  const report = reportBlock(ctx, claimed, id, n, workDir ?? briefWorkRoot(ctx.root, claimed, id, n), repo);
+  const legacy = repo === undefined && claimPinBefore(claimed, id, PRODUCT_TEXT_FROM);
+  const tests = repo === undefined ? testBlock(ctx, t) : repoTestBlock(ctx, t, repo);
+  const body = legacy ? legacyBrief(ctx, id, text, rules, section, report, t) : sharedBrief(ctx, text, rules + section, [...linesOf(report), ...linesOf(tests), ...(repo === undefined ? commitRuleLines(ctx, id) : [])]);
   return emit(ctx, id, body, options.out);
 }

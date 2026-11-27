@@ -4,15 +4,17 @@
 // forced remove (`sensitive.data-deletion`). Every command runs in the ticket's own checkout, where task-done and the ledger live. Names reach git only from the
 // loader's ticket key and the validated task number, as literal argument arrays.
 import { existsSync } from 'node:fs';
-import { claimPinBefore, matches, PLAN_WAVES_FROM } from '@accord-dev/accord-core';
+import { claimPinBefore, matches, PLAN_WAVES_FROM, planFile, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { currentBranch, UsageError } from '../load/fs.js';
+import { resolveRepo } from '../load/repos.js';
 import { scriptDigest, scriptRefusal } from '../load/script-trust.js';
+import { sliceHomeOf } from '../load/slice-size.js';
 import type { CommandContext } from '../run.js';
 import { requireTicket, taskNumber } from './lane-args.js';
 import { norm } from './leftover.js';
-import { branchOf, git, gitOk, ID, listWorktrees, prepare, rebaseBranch, setupMarker, siblingOf, worktrees } from './worktree.js';
+import { branchOf, git, gitOk, ID, listWorktrees, prepare, readRecorded, rebaseBranch, setupMarker, siblingOf, worktrees } from './worktree.js';
 import type { PrunableEntry } from './worktree.js';
 
 /**
@@ -102,6 +104,34 @@ export function workRootOf(root: string, claimed: RepoSnapshot, id: string, n: n
   // round 3 finding 4: a task folder off its task branch holds the task's work, so the ticket checkout is never taken for it (exit 2, as a wrong checkout)
   if (at?.other !== undefined) throw new UsageError(`${what} reads task ${n}'s worktree, and ${at.other} - put it back on its task branch, or tell the owner; nothing was changed`);
   return at === undefined ? slash(root) : slash(at.w.path);
+}
+
+/**
+ * Phase 08.9.3 D-04, D-05, D-10: the folder an executor of task `n` works in when the task is built in ANOTHER repository (`repo:` of its task line): that repository's worktree recorded for the ticket, which must be a worktree of the clone
+ * `resolveRepo` verified (stored path only: the worktree was recorded from it) and on the slice branch of the slice that holds the task. Undefined for a task of this repository, whose folder is `workRootOf`'s. Every other state is a UsageError
+ * naming `accord worktree slice <id> <k>` that opens it, before `accord brief` or `accord task-done` writes anything; no git write is made here, and the other repository's own accord folder is never read (D-03, T-08.9.3-21).
+ */
+export function repoWorkRoot(root: string, snapshot: RepoSnapshot, id: string, n: number, what = `accord brief ${id} ${n}`): string | undefined {
+  const plan = workOf(snapshot, id)?.plan;
+  const repo = plan?.tasks.find((t) => t.n === n)?.repo;
+  if (plan === undefined || repo === undefined) return undefined;
+  const held = plan.slices?.find((s) => s.tasks.includes(n));
+  if (held === undefined) throw new UsageError(`${what}: task ${n} is built in repository ${repo}, but no ## Slice of ${planFile(id)} holds it, so no worktree of ${repo} is meant for it; nothing was changed`);
+  const home = sliceHomeOf(snapshot, id, held.n);
+  const open = `accord worktree slice ${id} ${held.n}`;
+  if (home === undefined || home.repo !== repo) throw new UsageError(`${what}: slice ${held.n} of ${planFile(id)} is not built in repository ${repo}, where task ${n} is; fix the plan; nothing was changed`);
+  const resolved = resolveRepo(root, snapshot.config, repo, { scan: false });
+  if ('refused' in resolved) throw new UsageError(`${what}: ${resolved.refused}; nothing was changed`);
+  const recorded = readRecorded(root).find((e) => e.id === id && e.repo === repo);
+  if (recorded === undefined) throw new UsageError(`${what}: no worktree of ${repo} is recorded for ${id} - open it with ${open}; nothing was changed`);
+  const entry = listWorktrees(resolved.path).find((w) => norm(w.path) === norm(recorded.path));
+  if (entry === undefined || entry.prunable !== undefined) {
+    throw new UsageError(`${what}: ${recorded.path} is no worktree of the ${repo} clone at ${resolved.path} any more - open it with ${open}; nothing was changed`);
+  }
+  if (entry.branch !== home.branch) {
+    throw new UsageError(`${what}: ${slash(entry.path)} is on ${entry.branch ?? 'a detached HEAD'}, not on ${home.branch}, the slice that holds task ${n} - open it with ${open}; nothing was changed`);
+  }
+  return slash(entry.path);
 }
 
 /** The refusal of a command run outside the ticket's own checkout, naming the checkout that holds the ticket branch, or how to open one. */

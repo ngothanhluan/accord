@@ -338,7 +338,7 @@ function rootFiles(clone: string, ref: string): string[] | undefined {
   const raw = git(clone, ['ls-tree', '-z', ref]);
   if (raw === undefined) return undefined;
   const files: string[] = [];
-  for (const entry of raw.split(' ').slice(0, MAX_ROOT_ENTRIES)) {
+  for (const entry of raw.split('\0').slice(0, MAX_ROOT_ENTRIES)) {
     const tab = entry.indexOf('	');
     if (tab < 0) continue;
     const [mode, type] = entry.slice(0, tab).split(' ');

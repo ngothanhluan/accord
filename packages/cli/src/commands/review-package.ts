@@ -6,8 +6,9 @@ import { execFileSync } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { epicBlock, interfaceSigns, isSha, lensesFor, matchedHunks, outsideScope, parseLens, productBlocks, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
-import type { RepoSnapshot } from '@accord-dev/accord-core';
+import type { LensFile, RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, defaultRefOf, UsageError } from '../load/fs.js';
+import { lensRoundPackages } from '../load/lens-facts.js';
 import { readLensFiles } from '../load/lens-files.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
 import { cliRuleset, productChange, readProductText } from '../load/product.js';
@@ -249,6 +250,12 @@ const LATER_ROUNDS = '(none: later rounds re-check the fixes of the lenses round
 /** One line of a lens file as the package prints it: no control character and no backslash (a lens file that holds one is a lint problem, and a reviewer never reads it as a path). */
 const lensLine = (text: string): string => printable(text).replace(/\\/g, '/');
 
+/** One lens as the package prints it: its `### Lens <name>` heading, its mode and paths and the dispatch to run, then its checklist. */
+function lensBlock(l: LensFile): string {
+  const paths = l.paths === undefined ? 'every lane M ticket' : l.paths.map(lensLine).join(', ');
+  return `### Lens ${lensLine(l.name)}\non_finding: ${l.mode}; paths: ${paths}; dispatch accord-reviewer with lens ${lensLine(l.name)}\n\n${l.body.trim()}`;
+}
+
 /**
  * Phase 11 D-04, D-05, Rulings R4 to R8: the `## Team lenses` text of a package, from the lens files of the default branch and the package's own changed paths (this repository's and each other
  * repository's), by git, files and config alone. `later` is a package after a recorded round: it names none. Undefined when the repository holds no lens file at all (the package is then byte for byte
@@ -263,14 +270,59 @@ function lensSection(ctx: CommandContext, lane: string | undefined, def: string 
   if (later) lines.push(LATER_ROUNDS);
   else if (picked.length === 0) lines.push('(none)');
   else {
-    for (const l of picked) {
-      const paths = l.paths === undefined ? 'every lane M ticket' : l.paths.map(lensLine).join(', ');
-      lines.push(`### Lens ${lensLine(l.name)}\non_finding: ${l.mode}; paths: ${paths}; dispatch accord-reviewer with lens ${lensLine(l.name)}\n\n${l.body.trim()}`);
-    }
+    for (const l of picked) lines.push(lensBlock(l));
   }
   if (read.note === 'no-default-ref') lines.push('(read from this checkout: no default branch)');
   for (const name of read.branchOnly) lines.push(`branch only, applies after merge: ${lensLine(name)}`);
   return lines.join('\n\n');
+}
+
+/**
+ * Phase 11 D-05, Ruling R9: `--lens <name> --round <k>`: the package of the k-th `## Round` section of review.md over the range the lens record rule reads (lensRoundRanges, through lensRoundPackages: the one
+ * range function), with only that lens's `### Lens <name>` section, so a session refused for a skipped lens can run exactly that review. Refused: a name outside the lens name rule or with no lens file at the
+ * default branch, a round out of range, a round whose package printed no lens, and a round whose package did not print that lens.
+ */
+function lensRoundPackage(ctx: CommandContext, id: string, name: string, asked: string, out: string | undefined): number {
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) throw new UsageError(`--lens takes a lens name, lower-case letters, digits and dashes: ${printable(name)}`);
+  if (!/^[1-9][0-9]*$/.test(asked)) throw new UsageError(`--round takes a round number, 1 or more: ${asked}`);
+  const k = Number(asked);
+  const read = lensRoundPackages(ctx.root, ctx.snapshot, id);
+  if ('error' in read) throw new UsageError(`cannot read the rounds of ${id}: ${read.error}`);
+  const lens = read.lenses.find((l) => l.name === name);
+  if (lens === undefined) {
+    throw new UsageError(`--lens ${name}: no lens file accord/lenses/${name}.md at the default branch; the lens files there are: ${read.lenses.map((l) => l.name).join(', ') || '(none)'}`);
+  }
+  const at = read.rounds[k - 1];
+  if (at === undefined) {
+    const n = read.rounds.length;
+    throw new UsageError(n === 0 ? `--round ${k}: review.md of ${id} records no round` : `--round ${k}: review.md of ${id} records ${n} ${n === 1 ? 'round' : 'rounds'}`);
+  }
+  if (!at.lenses) throw new UsageError(`--round ${k}: the package of that round names no lens (only round 1 and a (final review) round name lenses; later rounds re-check the fixes)`);
+  if (!at.printed.includes(name)) {
+    throw new UsageError(`--round ${k}: the package of that round did not name lens ${name} (it named: ${at.printed.join(', ') || 'none'})`);
+  }
+  const range = `${abbrev(at.base)}...${abbrev(at.head)}`;
+  let pkg;
+  try {
+    pkg = packageDiff(ctx.root, { base: at.base, head: at.head, def: defaultRefOf(ctx.root), allowPlainLog: false, parts: true });
+  } catch (e) {
+    if (e instanceof UsageError) throw e;
+    throw new UsageError(`cannot diff round ${k} (${range}): ${why(e)}`);
+  }
+  const note = read.note === 'no-default-ref' ? ['(read from this checkout: no default branch)'] : [];
+  const parts = [
+    `# Lens package: ${id} (${pkg.excluded ? `${range}, without ${pkg.short}` : range})\nHead: ${abbrev(at.head)}`,
+    '## Team lenses',
+    [lensBlock(lens), ...note].join('\n\n'),
+    '## Commits',
+    pkg.commits || '(none)',
+    '## Stat',
+    pkg.stat || '(no changes)',
+    '## Diff',
+    pkg.diff || '(no changes)',
+  ];
+  emit(ctx, id, parts.join('\n\n') + '\n', out, abbrev(at.head));
+  return 0;
 }
 
 /** The start of the slice this checkout is on when it is on `slice/<id>/<n>` of this ticket; undefined on any other branch, and when git cannot say. */
@@ -280,9 +332,16 @@ function sliceBase(ctx: CommandContext, id: string): string | undefined {
   return slice === undefined || slice.id !== id ? undefined : sliceStart(ctx.root, ctx.snapshot, id, slice.n);
 }
 
-export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string; security?: boolean; round?: string; out?: string }): number {
+export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string; security?: boolean; round?: string; lens?: string; out?: string }): number {
   const ticket = requireLaneTicket(ctx, id);
   refuseLaneR(ticket, id, 'review package');
+  if (options.lens !== undefined) {
+    // Phase 11 D-05: the lens package of a recorded round; the lens, the round and the security package never mix
+    if (options.security === true) throw new UsageError('--lens and --security are two different packages: give one of them');
+    if (options.round === undefined) throw new UsageError('--lens takes the recorded round to review: give --round <k>');
+    if (options.base !== undefined) throw new UsageError('--round takes the range of the recorded round; give no --base');
+    return lensRoundPackage(ctx, id, options.lens, options.round, options.out);
+  }
   if (options.round !== undefined && options.security !== true) throw new UsageError('--round is for the security package: give --security too');
   if (options.security === true && options.round !== undefined) {
     if (options.base !== undefined) throw new UsageError('--round takes the range of the recorded round; give no --base');

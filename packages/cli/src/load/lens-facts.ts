@@ -3,7 +3,7 @@
 // (lensRoundRanges), so the package, the rule and the dispatch the rule prints never disagree. A round's package printed lenses only for the first round of the record and each `(final review)` round (Ruling
 // R6 of plan 11-04). Every git failure is an `error` fact, which the rule reports (fail closed); nothing here writes.
 import { lensesFor, lensOn, parseLens, workOf } from '@accord-dev/accord-core';
-import type { LensFacts, LensMode, RepoSnapshot } from '@accord-dev/accord-core';
+import type { LensFacts, LensFile, LensMode, RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, defaultRefOf, UsageError } from './fs.js';
 import { readLensFiles } from './lens-files.js';
 import { packageDiff, why } from './package-diff.js';
@@ -50,31 +50,54 @@ export function lensRoundRanges(root: string, snapshot: RepoSnapshot, id: string
   };
 }
 
-function factsFor(root: string, snapshot: RepoSnapshot, id: string): LensFacts | undefined {
+/** One recorded round's range and the lenses its package printed: `printed` is empty for a round whose package names none (`lenses` false) and for a repository with no lens file. */
+export interface LensPackage extends LensRange {
+  printed: string[];
+}
+
+/** What the lens reading of a ticket's rounds holds: each round's package, the lens files as parsed (name order of the default branch's tree) and the note the package prints when it read the checkout. */
+export interface LensRounds {
+  rounds: LensPackage[];
+  lenses: LensFile[];
+  note?: 'no-default-ref';
+}
+
+/**
+ * Ruling R9: the lenses each recorded round's own package printed, from the lens files at the default branch (readLensFiles) and each lens-printing round's changed paths (packageDiff, the function the package
+ * reads from) through lensesFor, the one matcher. With no lens file nothing else is read (`rounds` is empty). An `error` for a round the ranges cannot read or a git failure; nothing here writes.
+ */
+export function lensRoundPackages(root: string, snapshot: RepoSnapshot, id: string): { error: string } | LensRounds {
   try {
     const def = defaultRefOf(root);
     const read = readLensFiles(root, def);
-    if (read.lenses.length === 0) return undefined; // no lens file at the default branch (or none in the checkout): no package printed a lens, and nothing is asked
     const lane = snapshot.tickets[id]?.frontmatter?.lane;
     const parsed = read.lenses.map((l) => parseLens(l.path, l.text));
-    const modes: Record<string, LensMode> = {};
-    for (const l of parsed) modes[l.name] = l.mode;
+    if (parsed.length === 0) return { rounds: [], lenses: [], ...(read.note === undefined ? {} : { note: read.note }) }; // no lens file: nothing was printed, and no range or git read is needed
     const ranges = lensRoundRanges(root, snapshot, id);
-    if ('error' in ranges) return { error: ranges.error };
-    const rounds = ranges.rounds.map((r, k) => {
-      if (!r.lenses) return { head: r.head, lenses: [] as string[] };
+    if ('error' in ranges) return ranges;
+    const rounds = ranges.rounds.map((r, k): LensPackage => {
+      if (!r.lenses) return { ...r, printed: [] };
       let pkg;
       try {
         pkg = packageDiff(root, { base: r.base, head: r.head, def, allowPlainLog: false });
       } catch (e) {
         throw new Error(`git failed reading the package of review round ${k + 1}: ${e instanceof UsageError ? e.message : why(e)}`, { cause: e });
       }
-      return { head: r.head, lenses: lensesFor(parsed, { lane, changed: pkg.changed, others: [] }).map((l) => l.name) };
+      return { ...r, printed: lensesFor(parsed, { lane, changed: pkg.changed, others: [] }).map((l) => l.name) };
     });
-    return { rounds, modes, ...(read.note === undefined ? {} : { note: read.note }) };
+    return { rounds, lenses: parsed, ...(read.note === undefined ? {} : { note: read.note }) };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'git failed reading the team lenses: ' + whyGit(e) };
   }
+}
+
+function factsFor(root: string, snapshot: RepoSnapshot, id: string): LensFacts | undefined {
+  const read = lensRoundPackages(root, snapshot, id);
+  if ('error' in read) return read;
+  if (read.lenses.length === 0) return undefined; // no lens file at the default branch (or none in the checkout): no package printed a lens, and nothing is asked
+  const modes: Record<string, LensMode> = {};
+  for (const l of read.lenses) modes[l.name] = l.mode;
+  return { rounds: read.rounds.map((r) => ({ head: r.head, lenses: r.printed })), modes, ...(read.note === undefined ? {} : { note: read.note }) };
 }
 
 /**

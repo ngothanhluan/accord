@@ -52,7 +52,8 @@ export function lensProblems(snapshot: RepoSnapshot, id: string): LensRecordProb
         line: at.round.line,
         reason:
           `${where}: its review package named lens ${name} (on_finding ${mode}), and the round records no "Lens: ${name} ran"; ` +
-          `run accord review-package ${id} --lens ${name} --round ${at.j} --out lens-${name}-${at.j}.md, dispatch accord-reviewer with lens ${name} on it, and write "Lens: ${name} ran" in the round`,
+          `to run it, dispatch accord-reviewer with lens ${name} on the package the command at the end of this line writes, then write "Lens: ${name} ran" in the round: ` +
+          `accord review-package ${id} --lens ${name} --round ${at.j} --out lens-${name}-${at.j}.md`,
       });
     }
     for (const u of at.round.lensUnread ?? []) out.push({ line: u.line, reason: `${where}: "${u.text}" is not read; write "Lens: <name> ran" with the name of a lens its package printed` });

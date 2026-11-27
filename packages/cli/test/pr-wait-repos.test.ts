@@ -242,3 +242,48 @@ it('risk:regression no pull request for the lowest slice is exit 2 naming its br
   expect(lastLine(off.out)).toBe("pr-wait: unavailable: tools's remote is not a github.com repository");
   expect(gh.calls.every((c) => c.args[0] === 'api' && c.args[1] === 'user')).toBe(true);
 }, 120_000);
+
+const ZED = { author: { login: 'zed-collab' }, authorAssociation: 'COLLABORATOR', createdAt: AFTER };
+
+it('risk:security W-1 feedback and a failed check on a pull request of another repository end the wait with counts only: no login and no check name of that repository is printed (T-08.9.3-29)', async () => {
+  const r = reposCopy();
+  await planned(r, TOOLS_THEN_HERE);
+  fakeClock();
+  world([
+    { number: 41, repo: TOOLS, head: 'slice/ST-9/1', base: 'main', list: 'OPEN', views: [{ comments: [ZED], reviews: [{ ...ZED, submittedAt: AFTER, state: 'COMMENTED' }] }] },
+    { number: 57, repo: '', head: CLAIM, base: 'main', list: 'OPEN', draft: true, views: [{}] },
+  ]);
+  const feedback = await run(['pr', 'wait', 'ST-9'], r.svc);
+  expect(feedback.code, feedback.out + feedback.err).toBe(0);
+  expect(lastLine(feedback.out)).toBe('pr-wait: feedback #41: 1 comments, 1 reviews, 0 inline (repository tools, logins not printed)');
+  expect(feedback.out).not.toContain('zed-collab');
+
+  world([
+    { number: 41, repo: TOOLS, head: 'slice/ST-9/1', base: 'main', list: 'OPEN', views: [{ statusCheckRollup: [{ name: 'secret-tools-check', conclusion: 'FAILURE' }, { name: 'other-tools-check', conclusion: 'TIMED_OUT' }] }] },
+    { number: 57, repo: '', head: CLAIM, base: 'main', list: 'OPEN', draft: true, views: [{}] },
+  ]);
+  const failed = await run(['pr', 'wait', 'ST-9'], r.svc);
+  expect(failed.code, failed.out + failed.err).toBe(0);
+  expect(lastLine(failed.out)).toBe('pr-wait: ci-failed #41: 2 checks (repository tools, names not printed)');
+  expect(failed.out).not.toContain('tools-check');
+}, 120_000);
+
+it('risk:regression the same feedback and failed check on a slice of this repository keep the full line: logins and check names (W-1)', async () => {
+  const r = reposCopy();
+  await planned(r, TOOLS_THEN_HERE);
+  fakeClock();
+  world([
+    { number: 41, repo: TOOLS, head: 'slice/ST-9/1', base: 'main', list: 'MERGED', views: [MERGED] },
+    { number: 57, repo: '', head: CLAIM, base: 'main', list: 'OPEN', views: [{ comments: [ZED] }] },
+  ]);
+  const feedback = await run(['pr', 'wait', 'ST-9'], r.svc);
+  expect(feedback.code, feedback.out + feedback.err).toBe(0);
+  expect(lastLine(feedback.out)).toBe('pr-wait: feedback #57: 1 comments, 0 reviews, 0 inline from zed-collab');
+
+  world([
+    { number: 41, repo: TOOLS, head: 'slice/ST-9/1', base: 'main', list: 'MERGED', views: [MERGED] },
+    { number: 57, repo: '', head: CLAIM, base: 'main', list: 'OPEN', views: [{ statusCheckRollup: [{ name: 'lint and gate', conclusion: 'FAILURE' }] }] },
+  ]);
+  const failed = await run(['pr', 'wait', 'ST-9'], r.svc);
+  expect(lastLine(failed.out)).toBe('pr-wait: ci-failed #57: lint and gate');
+}, 120_000);

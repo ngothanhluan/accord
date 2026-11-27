@@ -67,8 +67,12 @@ export function waitLoop(deps: WaitDeps): WaitEnd {
   }
 }
 
-/** The final line of a run, row F1 to F5 of the grammar; `n` is the number of the pull request watched. Everything printed here is a count, a number, a login or a sanitised check name. */
-export function finalLine(end: WaitEnd, n: number): string {
+/**
+ * The final line of a run, row F1 to F5 of the grammar; `n` is the number of the pull request watched. Everything printed here is a count, a number, a login or a sanitised check name.
+ * `other` is the declared name of another repository when the pull request that ended the wait is that repository's (Phase 08.9.3 W-1): its feedback and failed checks are printed as counts only, since a login
+ * and a check name there are text that this repository's people and workflows do not control; the number is that repository's too, so the line says which.
+ */
+export function finalLine(end: WaitEnd, n: number, other?: string): string {
   if (end.kind === 'limit') return `pr-wait: limit #${n} after ${Math.round(end.waitedMs / 60_000)} minutes (${end.failed} polls failed)`;
   // row U1 reached after the wait had started: `gh` stopped answering (logged out, token revoked, offline); the skill reads it as unavailable, and nothing watches the pull request any more
   if (end.kind === 'unreadable') return `pr-wait: unavailable: ${end.streak} polls in a row failed (last: ${end.last}); check gh auth status and gh --version`;
@@ -79,8 +83,10 @@ export function finalLine(end: WaitEnd, n: number): string {
     case 'closed':
       return `pr-wait: closed #${n}`;
     case 'feedback':
+      if (other !== undefined) return `pr-wait: feedback #${n}: ${v.comments} comments, ${v.reviews} reviews, ${v.inline} inline (repository ${other}, logins not printed)`;
       return `pr-wait: feedback #${n}: ${v.comments} comments, ${v.reviews} reviews, ${v.inline} inline from ${v.logins.length === 0 ? 'reviewers' : v.logins.join(', ')}`;
     case 'ci-failed':
+      if (other !== undefined) return `pr-wait: ci-failed #${n}: ${v.names.length} checks (repository ${other}, names not printed)`;
       return `pr-wait: ci-failed #${n}: ${v.names.join(', ')}`;
   }
 }
@@ -300,6 +306,8 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, numb
   const pending: WaitVerdict = { kind: 'pending', ignored: 0 };
   /** Set when the wait cannot go on and is not one of the verdicts: the next slice has no pull request (row U2, exit 2), or a held slice is released (R18, exit 0). Printed after the loop. */
   const halt: { line?: string; code?: number } = {};
+  /** The slice whose pull request ended the wait with feedback or a failed check: its repository decides how much of the final line is printed (W-1). */
+  let ended: SliceWatch | undefined;
 
   const poll = (): WaitVerdict => {
     // C-WR-03, D-28: a slice that has no pull request yet is looked up every round, so one opened while an earlier slice is still open is watched from the next poll on
@@ -372,7 +380,10 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, numb
 
     for (const w of watches) {
       const verdict = seen.get(w)?.verdict;
-      if (verdict !== undefined && verdict.kind !== 'pending' && verdict.kind !== 'merged') return verdict;
+      if (verdict !== undefined && verdict.kind !== 'pending' && verdict.kind !== 'merged') {
+        ended = w;
+        return verdict;
+      }
     }
     // no pull request left to watch but a slice has none: look once more, since one may have been opened while this round ran; a slice that still has none ends the wait naming it
     if (!watches.some((w) => w.pr !== undefined && !w.merged)) {
@@ -397,6 +408,7 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, numb
     ctx.stdout.write(halt.line + '\n');
     return halt.code ?? 2;
   }
-  ctx.stdout.write(finalLine(end, end.kind === 'verdict' ? end.verdict.number : (current().pr as PrRef).number) + '\n');
+  const endedIn = end.kind === 'verdict' ? (ended as SliceWatch | undefined)?.repo : undefined;
+  ctx.stdout.write(finalLine(end, end.kind === 'verdict' ? end.verdict.number : (current().pr as PrRef).number, endedIn) + '\n');
   return end.kind === 'unreadable' ? 2 : 0;
 }

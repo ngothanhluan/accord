@@ -5,12 +5,15 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { norm } from '../src/commands/leftover.js';
 import { gitDirsOf } from '../src/load/gitdir.js';
+import { openLog } from './helpers/fs-opens.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { cleanup, gitRun, run } from './helpers/repo.js';
 import { reposCopy, SVC_URL, TOOLS_URL, useRepoSandboxes } from './helpers/repos.js';
 
 // D-02: the not-found case counts the git processes accord starts, to show none of them clones
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig()));
+// D-01: the scan reads a candidate's `.git/config` as a file, so the test asks which files accord read
+vi.mock('node:fs', async (orig) => (await import('./helpers/fs-opens.js')).wrapFs(await orig()));
 useRepoSandboxes();
 
 const posix = (p: string): string => p.replace(/\\/g, '/');
@@ -147,8 +150,9 @@ it('risk:data-loss a stored path whose folder is no longer a clone is reported a
   expect(status.out).toContain(`git clone '${TOOLS_URL}' '${posix(r.parent)}/tools'`);
 });
 
-it('risk:data-loss no clone is stored: the not-found line names the exact git clone and accord repos set lines, and no git call clones (D-02)', async () => {
+it('risk:data-loss no clone is stored or found: the not-found line names the exact git clone and accord repos set lines, and no git call clones (D-02)', async () => {
   const r = reposCopy();
+  cleanup(r.tools); // D-01: a clone beside the main checkout is found by its origin, so the case needs none there
   spawnLog.calls = [];
   spawnLog.on = true;
   let status: { code: number; out: string; err: string };
@@ -164,4 +168,41 @@ it('risk:data-loss no clone is stored: the not-found line names the exact git cl
   // the check is not vacuous: accord did start git processes, and none of them clones
   expect(spawnLog.calls.length).toBeGreaterThan(0);
   expect(spawnLog.calls.filter((args) => args.includes('clone'))).toEqual([]);
+});
+
+// D-01: no path is stored; the CLI finds the clone itself in the parent folder of the main checkout, by its origin
+it('risk:regression a clone beside the main checkout is found by its origin, stored, and the scan starts one git process in it (D-01)', async () => {
+  const r = reposCopy();
+  expect(existsSync(storeOf(r.svc))).toBe(false);
+  const calls: { args: string[]; cwd: string }[] = [];
+  spawnLog.calls = [];
+  spawnLog.on = true;
+  spawnLog.fail = (args, options) => {
+    calls.push({ args: [...args], cwd: posix(options?.cwd ?? '') });
+    return false;
+  };
+  openLog.paths = [];
+  openLog.on = true;
+  let first: { code: number; out: string; err: string };
+  try {
+    first = await run(['repos', 'status'], r.svc);
+  } finally {
+    spawnLog.on = false;
+    spawnLog.fail = undefined;
+    openLog.on = false;
+  }
+  expect(first.err).toBe('');
+  expect(first.code).toBe(0);
+  expect(first.out.trim()).toBe(`tools: ${posix(r.tools)} (found)`);
+  // stored as if `accord repos set` had been run
+  expect(readFileSync(storeOf(r.svc), 'utf8')).toBe(`tools	${posix(r.tools)}
+`);
+  // the candidate's own config was read as a file, and the one match was confirmed with one `git config --get remote.origin.url` in it; no other git process ran outside the main checkout
+  expect(openLog.paths.map((p) => p.toLowerCase())).toContain(posix(r.tools).toLowerCase() + '/.git/config');
+  const outside = calls.filter((c) => !c.cwd.toLowerCase().startsWith(posix(r.svc).toLowerCase()));
+  expect(outside.map((c) => c.args)).toEqual([['config', '--local', '--get', 'remote.origin.url']]);
+  expect(outside[0].cwd.toLowerCase()).toBe(posix(r.tools).toLowerCase());
+  const second = await run(['repos', 'status'], r.svc);
+  expect(second.code).toBe(0);
+  expect(second.out.trim()).toBe(`tools: ${posix(r.tools)} (stored)`);
 });

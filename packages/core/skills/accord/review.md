@@ -11,7 +11,7 @@ fix.
 1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming review, do not run this stage: tell the
    owner so in one line and go to the stage it names next, `./verify.md`.
 
-2. **Package.** Run `accord review-package <id> --out package-<n>.md`; it prints `Head: <sha>` for the round's heading and `file: <path>`, the reviewers' package. After a round with a head in `review.md`, it holds the commits, the stat, and the diff after that head, without what a merge brought in from the default branch; before round 1, from the plan's `baseline:` (when the plan stage is off there is none: from the default branch). It lists under `## Undeclared files` every changed file no task's `files:` line names, and under `## Interface signs` each sign of a new interface the branch adds.
+2. **Package.** Run `accord review-package <id> --out package-<n>.md`; it prints `Head: <sha>` for the round's heading and `file: <path>`, the reviewers' package. After a round with a head in `review.md`, it holds the commits, the stat and the diff after that head, without what a merge brought from the default branch; before round 1, from the plan's `baseline:` (plan stage off: from the default branch). It lists under `## Undeclared files` every changed file no task's `files:` line names, and under `## Interface signs` each sign of a new interface the branch adds. Another repository: `./repos.md`.
 
 3. **Reviewers.** Choose by the unit's diff size and risk:
    - up to about 500 changed lines: one `accord-reviewer`, lens `both`;

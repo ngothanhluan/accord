@@ -223,3 +223,76 @@ it('risk:regression slices.md sends a slice whose anchor line says in repository
   }
   expect(bad).toEqual([]);
 });
+
+it('risk:regression plan.md step 2 takes the baseline of each other repository from accord repos baseline and gives the planner its listing path (D-05)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('plan.md')) {
+    const step2 = between(f.text, '2. **Plan.**', '3. **Slices.**');
+    for (const p of lacks(step2, [
+      '`accord repos baseline <name> --id <id>`',
+      'another repository',
+      '`baseline_<name>`',
+      'the `files:` listing path',
+      '`./repos.md`',
+    ])) {
+      bad.push(f.label + ' step 2 lacks: ' + p);
+    }
+    if (f.text.split('`accord repos baseline <name> --id <id>`').length !== 2) bad.push(f.label + ' names accord repos baseline other than once');
+    if (Buffer.byteLength(f.raw, 'utf8') > 5980) bad.push(f.label + ' is over 5980 bytes');
+  }
+  expect(rendered('plan.md').length).toBeGreaterThan(0);
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression plan-slices.md says a slice of another repository carries repo: <name> and holds that repository\'s tasks only, the slices are the deploy order, and the last is in this repository (D-08, D-09, D-14)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('plan-slices.md')) {
+    for (const p of lacks(f.text, [
+      '`repo: <name>`',
+      "that repository's tasks only",
+      'one repository',
+      'The slices are the deploy order',
+      'the last slice is in this repository',
+    ])) {
+      bad.push(f.label + ' lacks: ' + p);
+    }
+    for (const part of ['`repo: <name>`', 'The slices are the deploy order']) {
+      if (f.text.split(part).length !== 2) bad.push(f.label + ' names ' + part + ' other than once');
+    }
+  }
+  expect(rendered('plan-slices.md').length).toBeGreaterThan(0);
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression build step 8 and review step 2 each send the multi-repository case to repos.md once, and review.md keeps its byte cap (D-04, R15)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('build.md')) {
+    const step8 = between(f.text, '8. When every task has a ledger line', '## Rules');
+    if (!step8.includes('`./repos.md`')) bad.push(f.label + ' step 8 names no `./repos.md`');
+    if (f.text.split('./repos.md').length !== 2) bad.push(f.label + ' names ./repos.md other than once');
+    if (!/another repository[^.]*`\.\/repos\.md`|`\.\/repos\.md`[^.]*another repository/i.test(step8)) bad.push(f.label + ' step 8 does not say the pointer is for another repository');
+    if (Buffer.byteLength(f.raw, 'utf8') > 6000) bad.push(f.label + ' is over 6000 bytes');
+  }
+  for (const f of rendered('review.md')) {
+    const step2 = between(f.text, '2. **Package.**', '3. **Reviewers.**');
+    if (!step2.includes('`./repos.md`')) bad.push(f.label + ' step 2 names no `./repos.md`');
+    if (f.text.split('./repos.md').length !== 2) bad.push(f.label + ' names ./repos.md other than once');
+    if (!/another repository[^.]*`\.\/repos\.md`|`\.\/repos\.md`[^.]*another repository/i.test(step2)) bad.push(f.label + ' step 2 does not say the pointer is for another repository');
+    if (Buffer.byteLength(f.raw, 'utf8') > 6000) bad.push(f.label + ' is over 6000 bytes');
+  }
+  expect(rendered('build.md').length).toBeGreaterThan(0);
+  expect(rendered('review.md').length).toBeGreaterThan(0);
+  expect(bad).toEqual([]);
+});
+
+it('risk:security no line the plan, build and review stage files gain for another repository holds git -C or an instruction to clone (T-08.9.3-34)', () => {
+  const bad: string[] = [];
+  for (const file of ['plan.md', 'plan-slices.md', 'build.md', 'review.md']) {
+    for (const f of rendered(file)) {
+      for (const sentence of f.text.split(/(?<=\.) /).filter((s) => /another repository|`\.\/repos\.md`|`repo: <name>`/.test(s))) {
+        if (/git\s+-C|git clone|\bclone\b/i.test(sentence)) bad.push(f.label + ': ' + sentence);
+      }
+    }
+  }
+  expect(bad).toEqual([]);
+});

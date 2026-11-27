@@ -1,7 +1,7 @@
 // Phase 11 plan 08 (11-ac-7, D-06): a finding a team lens made carries ` — lens: <name>`; what it does follows the lens's `on_finding`: `warn` is listed and never blocks, `block` blocks as a built-in lens's finding
 // does, `ask` (the default) is put to the owner at the end of the loop, and a `risk:` finding blocks under all three. The mark is honoured only for a lens the finding's own round printed, by the host's lens fact.
 import { expect, it } from 'vitest';
-import { LENSES_FROM, gateDone, lensAsks, lensDeferred, nextRound, parseRounds, roundText } from '../src/index.js';
+import { LENSES_FROM, gateDone, lensAsks, lensDeferred, lensFindings, lensMarkProblems, nextRound, parseRounds, roundText } from '../src/index.js';
 import type { LensFacts, LensMode, RepoSnapshot, RoundAnswer } from '../src/index.js';
 import { claimedUnder, facts, H, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
@@ -125,9 +125,6 @@ it('risk:regression an ask lens (the default) puts its open Should to the owner 
   expect(text).toContain('ask: 1.1 lens db: the owner decides: fix, defer with a ## Deferred line, or accept with verdict: accepted-by-owner');
   expect(text).not.toContain('warn:');
 
-  // a lens the modes do not name is ask too
-  expect(answerOf(build({ cycles: askRounds(db('Should', 1)), lenses: ASK_LENSES, modes: {} })).ask).toEqual(['1.1 lens db']);
-
   // another open Must or Should of the cycle goes on as before: a fix executor is sent for it, and the ask finding waits
   const mixed = build({ cycles: askRounds(db('Should', 1), 'Must 2: a plain finding — src/a.ts:9 — open'), lenses: ASK_LENSES });
   const next = answerOf(mixed);
@@ -195,4 +192,80 @@ it('risk:security a finding marked risk: security or risk: data-loss blocks unde
   const deferred = build({ cycles: withFinal([asDeferred(db('Must', 1, 'risk: security', 'lens: db'))]), lenses: FINAL_LENSES, modes: { db: 'warn' }, ledger: deferredLine.replace('1.1', '3.1') });
   expect(answerOf(deferred).kind).toBe('stop');
   expect(lensAsks(deferred, 'T-1', 0)).toEqual([]);
+});
+
+/** The line of review.md that starts with `prefix`, from the record the snapshot was built from. */
+const lineOf = (cycles: RoundSpec[][], prefix: string): number => v2Review(cycles).split('\n').findIndex((l) => l.startsWith(prefix)) + 1;
+const marks = (snap: RepoSnapshot) => lensMarkProblems(snap, 'T-1');
+/** Round 1 (prints the lenses) with nothing, then round 2, a fix round whose package printed none, holding `last`. */
+const laterRound = (last: string): RoundSpec[][] => [[{ lines: ['No findings', ran] }, { lines: [last] }]];
+
+it('risk:security a lens mark cannot turn a built-in finding into a warning: a later round, a built-in name and a lens with no file are record problems with their line (11-ac-7, D-06)', () => {
+  // round 2 is a fix round: its package printed no lens, so the mark is forged or misplaced
+  const cycles = laterRound(db('Must', 1));
+  const snap = build({ cycles, lenses: [['db'], []], modes: { db: 'warn' } });
+  const found = marks(snap);
+  expect(found).toHaveLength(1);
+  expect(found[0].line).toBe(lineOf(cycles, 'Must 1'));
+  expect(found[0].reason).toContain('round 2 printed no team lens');
+  // accord round refuses it with the line, and gate done reports it as a review-rounds finding at the same line
+  const answer = answerOf(snap);
+  expect(answer.kind).toBe('refused');
+  expect(answer.reasons.join('\n')).toContain(`line ${found[0].line}: round 2 of cycle 1, finding 1: round 2 printed no team lens`);
+  const done = doneRounds(snap);
+  expect(done.some((f) => f.line === found[0].line && f.reason.includes('round 2 printed no team lens'))).toBe(true);
+  // and the mark does nothing: the finding is no warning
+  expect(lensDeferred(snap, 'T-1', 0).size).toBe(0);
+  expect(answer).not.toHaveProperty('warn');
+
+  // a built-in lens name: its finding carries no lens mark
+  for (const name of ['quality', 'ui']) {
+    const built = build({ cycles: [[{ lines: [db('Must', 1, `lens: ${name}`), ran] }]], lenses: [['db']], modes: { db: 'warn' } });
+    const p = marks(built);
+    expect(p, name).toHaveLength(1);
+    expect(p[0].reason, name).toContain(`lens ${name} is a built-in lens`);
+    expect(answerOf(built).kind, name).toBe('refused');
+    expect(doneRounds(built).some((f) => f.reason.includes('built-in lens')), name).toBe(true);
+  }
+
+  // a lens with no file at the default branch is named
+  const perf = build({ cycles: [[{ lines: [db('Must', 1, 'lens: perf'), ran] }]], lenses: [['db']], modes: { db: 'warn' } });
+  expect(marks(perf)).toHaveLength(1);
+  expect(marks(perf)[0].reason).toContain('no lens perf exists at the default branch (accord/lenses/perf.md)');
+  expect(answerOf(perf).reasons.join('\n')).toContain('perf');
+
+  // a lens the round's package did not print, though another did
+  const other = build({ cycles: [[{ lines: [db('Must', 1, 'lens: api'), ran] }]], lenses: [['db']], modes: { db: 'warn', api: 'warn' } });
+  expect(marks(other)[0].reason).toContain("round 1's review package printed lens db, not api");
+});
+
+it('risk:security a forged mark never lowers a finding: it is refused, honoured nowhere, and a lens the round did print is no problem (11-ac-7, D-06)', () => {
+  // the honoured mark (round 1 printed db) is no problem
+  expect(marks(build({ cycles: [[{ lines: [db('Must', 1), ran] }]], lenses: [['db']], modes: { db: 'warn' } }))).toEqual([]);
+  expect(marks(build({ cycles: withFinal([db('Should', 1)]), lenses: FINAL_LENSES }))).toEqual([]);
+  // a forged mark on the stopping round of a block-or-warn loop: round 3 is a plain fix round, so the mark is a problem and the finding stops the loop as a built-in one does
+  const forged = build({ cycles: [[{ lines: ['No findings', ran] }, { lines: ['No findings'] }, { lines: [db('Must', 1)] }]], lenses: FINAL_LENSES.map((l, j) => (j === 2 ? [] : l)), modes: { db: 'warn' } });
+  expect(marks(forged)).toHaveLength(1);
+  expect(lensFindings(forged, 'T-1')).toEqual([]);
+  expect(answerOf(forged).kind).toBe('refused');
+  expect(doneRounds(forged).length).toBeGreaterThan(0);
+  // a mark that names a lens, with a fact that says nothing about it, blocks and is refused only for what needs no fact (a built-in name)
+  const nofact = build({ cycles: [[{ lines: [db('Must', 1, 'lens: perf'), ran] }]], lenses: [['db']], fact: null });
+  expect(marks(nofact)).toEqual([]);
+  expect(lensFindings(nofact, 'T-1')).toEqual([]);
+  const builtinNoFact = build({ cycles: [[{ lines: [db('Must', 1, 'lens: security'), ran] }]], lenses: [['db']], fact: null });
+  expect(marks(builtinNoFact)).toHaveLength(1);
+  // a failed fact is "cannot be checked" from lensProblems, and no second problem is added here for a named lens
+  const failed = build({ cycles: [[{ lines: [db('Must', 1), ran] }]], lenses: [['db']], fact: { error: 'git failed' } });
+  expect(marks(failed)).toEqual([]);
+});
+
+it('risk:regression a ticket claimed before LENSES_FROM reads a lens mark as before: no problem, no effect (11-ac-7, D-06)', () => {
+  const old = build({ cycles: laterRound(db('Must', 1)), lenses: [['db'], []], modes: { db: 'warn' }, pin: '0.22.0' });
+  expect(marks(old)).toEqual([]);
+  expect(lensFindings(old, 'T-1')).toEqual([]);
+  expect(answerOf(old).reasons.join('\n')).not.toContain('lens');
+  const oldBuiltIn = build({ cycles: [[{ lines: [db('Must', 1, 'lens: quality'), ran] }]], lenses: [['db']], pin: '0.22.0' });
+  expect(marks(oldBuiltIn)).toEqual([]);
+  expect(doneRounds(oldBuiltIn).some((f) => f.reason.includes('built-in lens'))).toBe(false);
 });

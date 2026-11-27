@@ -5,6 +5,7 @@
 import { stageOff } from '../gate/floor.js';
 import type { GateRule } from '../gate/rules.js';
 import { laneTicket, workOf } from '../gate/work.js';
+import { BUILT_IN_LENS_NAMES } from '../lens/spec.js';
 import type { LensMode } from '../lens/spec.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding } from '../model/snapshot.js';
 import { LENSES_FROM, claimPinBefore } from './pin.js';
@@ -151,4 +152,39 @@ export function lensAsks(snapshot: RepoSnapshot, id: string, cycle: number): Len
   return lensFindings(snapshot, id).filter(
     (x) => x.cycle === cycle + 1 && x.mode === 'ask' && (isOpen(x.f) || (x.f.state === 'deferred' && !deferredWithLine(snapshot, id, x.p, x.f.n, x.cycle))),
   );
+}
+
+/**
+ * Ruling R12 (finding to lens), T-11-18: each `lens:` mark of review.md that is not honoured, as a record problem at its finding's line, in line order: a built-in lens name (a built-in lens's finding carries no
+ * mark), a lens that has no file at the default branch, a round whose package printed no lens (a later fix round), and a lens that round's package did not print. Applies only when the lens record rule does
+ * (lensOn): a ticket claimed before LENSES_FROM reads the mark as before. The last three need the host's lens fact; with none (no lens file, no git) or a fact that failed (lensProblems says so) there is no
+ * problem here and the mark is simply not honoured, so the finding blocks, the safe side. A finding that is risk-marked is no exception: its mark is checked like any other, and it blocks either way.
+ */
+export function lensMarkProblems(snapshot: RepoSnapshot, id: string): LensRecordProblem[] {
+  const rec = workOf(snapshot, id)?.rounds;
+  if (rec === undefined || !lensOn(snapshot, id)) return [];
+  const fact = Object.hasOwn(snapshot.lensFacts ?? {}, id) ? snapshot.lensFacts![id] : undefined;
+  const placed = placedRounds(rec);
+  const readable = fact !== undefined && !('error' in fact) && fact.rounds.length === placed.length ? fact : undefined;
+  const out: LensRecordProblem[] = [];
+  for (const at of placed) {
+    for (const f of at.round.findings) {
+      const name = f.lens;
+      if (name === undefined) continue;
+      const where = `round ${at.p} of cycle ${at.cycle}, finding ${f.n}`;
+      const add = (reason: string) => out.push({ line: f.line, reason: `${where}: ${reason}` });
+      if ((BUILT_IN_LENS_NAMES as readonly string[]).includes(name)) {
+        add(`lens ${name} is a built-in lens, and a built-in lens's finding carries no lens mark; remove " — lens: ${name}"`);
+      } else if (readable === undefined) {
+        continue;
+      } else if (!Object.hasOwn(readable.modes, name)) {
+        add(`no lens ${name} exists at the default branch (accord/lenses/${name}.md); remove " — lens: ${name}" or name a lens this round ran`);
+      } else {
+        const printed = readable.rounds[at.j - 1].lenses;
+        if (printed.length === 0) add(`round ${at.p} printed no team lens (only the first round and a (final review) round do), so its findings carry no lens mark; remove " — lens: ${name}"`);
+        else if (!printed.includes(name)) add(`round ${at.p}'s review package printed lens ${printed.join(', ')}, not ${name}; remove " — lens: ${name}"`);
+      }
+    }
+  }
+  return out.sort((a, b) => a.line - b.line);
 }

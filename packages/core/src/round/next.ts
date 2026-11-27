@@ -7,7 +7,7 @@ import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
-import { lensAsks, lensDeferred, lensProblems, lensWarns } from './lens.js';
+import { lensAsks, lensDeferred, lensMarkProblems, lensProblems, lensWarns } from './lens.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import { securityProblems } from './security.js';
@@ -301,6 +301,8 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
       }
     }
   }
+  // Phase 11 D-06, Ruling R12: a `lens:` mark that names a built-in lens, a lens with no file, or a lens the finding's own round did not print is refused with its line, by `accord round` and `gate done` alike.
+  if (kind === 'review') for (const p of lensMarkProblems(snapshot, id)) add(p.line, p.reason);
   rec.cycles.forEach((cycle, i) => {
     if (kind === 'review' && i >= 1) {
       const before = rec.cycles[i - 1];

@@ -118,3 +118,14 @@ it('risk:regression README section 7 lists the repository commands and the cli R
   }
   expect(bad).toEqual([]);
 });
+
+// Task 3: every rule id the phase registered (the seven plan rules and the three done rules) is named in the notes, so a team that reads them can find the rule a refusal names.
+it('risk:regression release notes name every new rule (D-07, D-08, D-09, D-12, D-13)', () => {
+  const PLAN_RULES = ['gate.repo-unknown', 'gate.repo-tests-missing', 'gate.repo-baseline-missing', 'gate.repo-baseline-unknown', 'gate.task-repo-mixed', 'gate.slice-repo-mixed', 'gate.repo-slices'];
+  const DONE_RULES = ['gate.repo-record-missing', 'gate.repo-record-incomplete', 'gate.repo-head-moved'];
+  expect(lacks(unreleased(), [...PLAN_RULES, ...DONE_RULES])).toEqual([]);
+  // and no rule the phase registered is missing from the list above: every `repos` rule id of the registry is one of them
+  const registry = readFileSync(new URL('../src/gate/rules.ts', import.meta.url), 'utf8');
+  const registered = [...registry.matchAll(/id: '(gate\.(?:repo-[a-z-]+|task-repo-mixed|slice-repo-mixed))'/g)].map((m) => m[1]).sort();
+  expect(registered).toEqual([...PLAN_RULES, ...DONE_RULES].sort());
+});

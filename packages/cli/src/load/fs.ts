@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchGlob, branchIdOf, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, splitRepoPath, workOf } from '@accord-dev/accord-core';
+import { branchGlob, branchIdOf, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, sliceBranchName, splitRepoPath, workOf } from '@accord-dev/accord-core';
 import type { AccordConfig, BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitStartFailure, runGitSync } from './git-spawn.js';
 import { resolveRepo } from './repos.js';
@@ -519,6 +519,36 @@ export function gitSliceTip(clone: string, branch: string): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Phase 08.9.3 Pitfall 9, D-07, Decision 9: what `accord gate done` reads of every other repository the plan has a slice in, on a machine that has the clone: repository name -> slice number (as a string) -> the tip of that
+ * slice's branch there (`gitSliceTip`), for `gate.repo-head-moved` to hold against the record's `Verified head`. The clone is the STORED path only (`resolveRepo` with `scan: false`, `store: false`): the parent folder is never
+ * searched and nothing is written. A repository with no usable clone is not an error here: `note` is called once with `note: repository <name> was not checked on this machine: <reason>` and the repository is left out, so the
+ * record is what is trusted (as in CI, where the caller does not ask at all). A slice whose branch cannot be read is left out the same way. `{}` when nothing was read.
+ */
+export function gitRepoHeads(root: string, snapshot: RepoSnapshot, id: string, note?: (line: string) => void): { repoHeads?: Record<string, Record<string, string>> } {
+  const slices = workOf(snapshot, id)?.plan?.slices ?? [];
+  const repos = [...new Set(slices.flatMap((s) => (s.repo === undefined ? [] : [s.repo])))].sort();
+  const out: Record<string, Record<string, string>> = {};
+  for (const repo of repos) {
+    if (snapshot.config?.repos === undefined || !Object.hasOwn(snapshot.config.repos, repo)) continue;
+    const resolved = resolveRepo(root, snapshot.config, repo, { scan: false, store: false });
+    if ('refused' in resolved) {
+      const reason = resolved.refused.startsWith(repo + ': ') ? resolved.refused.slice(repo.length + 2) : resolved.refused;
+      note?.(`note: repository ${repo} was not checked on this machine: ${reason}`);
+      continue;
+    }
+    const tips: Record<string, string> = {};
+    for (const s of slices) {
+      if (s.repo !== repo) continue;
+      const branch = sliceBranchName(id, s.n);
+      const tip = branch === undefined ? undefined : gitSliceTip(resolved.path, branch);
+      if (tip !== undefined) tips[String(s.n)] = tip;
+    }
+    if (Object.keys(tips).length > 0) out[repo] = tips;
+  }
+  return Object.keys(out).length === 0 ? {} : { repoHeads: out };
 }
 
 /**

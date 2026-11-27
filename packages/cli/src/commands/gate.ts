@@ -6,7 +6,7 @@
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { capRulesOf, claimPinBefore, firstMainSlice, gateDone, gatePlan, gateReady, renderText, REPOS_FROM, sliceScope, stageOff, workOf } from '@accord-dev/accord-core';
 import type { SliceScope } from '@accord-dev/accord-core';
-import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitRepoFacts, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
+import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitRepoFacts, gitRepoHeads, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { gitBaseRecords } from '../load/base-records.js';
 import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { withClaimPins } from '../load/claim-facts.js';
@@ -49,6 +49,9 @@ export function gate(
 ): number {
   // Phase 15 D-31: `gate done --slice <n>`, checked before anything is loaded or written; a refusal here is exit 2.
   const scope = options.slice === undefined ? undefined : sliceOf(ctx, id, options.slice);
+  // Phase 08.8.1 IN-04: with `CI` set (anything but empty, `0` or `false`) no log is written: nothing in CI reads the file and a read-only workspace printed a stderr line on every run.
+  // Phase 08.9.3 Pitfall 9: nor does `gate done` start a git process in another repository's clone.
+  const inCi = ctx.env.CI !== undefined && !['', '0', 'false'].includes(ctx.env.CI);
   // ST-LN-8 D-02: under commits.trailers forbid the host loads the whole branch's commits; an unborn HEAD spawns no git log.
   // Phase 8.1 D-07: so it does when commits.message is set, whose gate.commit-message reads the same commits.
   const withCommits =
@@ -107,7 +110,10 @@ export function gate(
   const withFacts = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
   // Phase 15 D-06: a `--slice` run also holds the measured size of that slice, for gate.slice-diff-large; no flag reads nothing, and a size git could not measure is no fact.
   const measured = which === 'done' && scope !== undefined && scope.widened !== true ? gitSliceSize(ctx.root, ctx.snapshot, id, scope.n, rendered) : undefined;
-  const forGate = measured === undefined ? withFacts : { ...withFacts, sliceSize: { ...withFacts.sliceSize, [id]: measured } };
+  const sized = measured === undefined ? withFacts : { ...withFacts, sliceSize: { ...withFacts.sliceSize, [id]: measured } };
+  // Phase 08.9.3 Pitfall 9, D-07, Decision 9: `gate done` on a machine whose stored clone of the other repository verifies also reads the tip of each of its slice branches, for gate.repo-head-moved. With `CI` set no git process
+  // starts there (CI trusts the record), a ticket claimed before REPOS_FROM is not asked, and the parent folder is never searched: a repository with no stored clone is one stderr note and no fact.
+  const forGate = which === 'done' && !inCi && !claimPinBefore(sized, id, REPOS_FROM) ? { ...sized, ...gitRepoHeads(ctx.root, sized, id, (line) => ctx.stderr.write(line + '\n')) } : sized;
   const result =
     which === 'ready' ? gateReady(withDefaultRef(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), undefined, undefined, undefined, ctx.ids), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id, scope === undefined ? {} : { slice: scope.n });
   // D-31: a slice run says which slice it judged; under --json that line goes to stderr so stdout stays the GateResult alone.
@@ -117,8 +123,6 @@ export function gate(
   );
   // Phase 08.7 D-04, A-03: the run is recorded as one line of the git-ignored `.accord-reports/<id>/gate.log` for the pane's log only; no gate, lint rule or round command reads it. The folder is
   // the snapshot's own key (an unknown id writes nothing), and a failed append names itself once on stderr and changes neither the verdict nor the exit code.
-  // Phase 08.8.1 IN-04: with `CI` set (anything but empty, `0` or `false`) no log is written: nothing in CI reads the file and a read-only workspace printed a stderr line on every run.
-  const inCi = ctx.env.CI !== undefined && !['', '0', 'false'].includes(ctx.env.CI);
   // D-31: a run for a slice below the last is not the ticket's Done, so the pane's log of gate runs does not record it as one. A widened run judges the whole ticket, so it is recorded.
   if (Object.hasOwn(ctx.snapshot.tickets, id) && !inCi && (scope === undefined || scope.last)) {
     try {

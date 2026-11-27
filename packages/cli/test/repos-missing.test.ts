@@ -1,12 +1,13 @@
 // Phase 08.9.3 D-01, D-02, Decision 9: the clone of another repository is looked for beside the main checkout, by its origin, and only by the commands that need it. Nothing found ends in one line that
 // names the `git clone` to run; two found are refused; a symlink, a junction and a linked worktree are never taken for the clone; a crowded folder is searched only to its first 200 entries; and
 // `accord status`, `accord dashboard` and `accord hook session-start` never look for the clone at all. Real git in temporary sandboxes, no network.
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { REPOS_FROM } from '@accord-dev/accord-core';
 import { gitDirsOf } from '../src/load/gitdir.js';
+import { scanParent } from '../src/load/repos.js';
 import { openLog } from './helpers/fs-opens.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { claimedUnder, cleanup, commitAll, gitRun, run, writeFiles } from './helpers/repo.js';
@@ -222,3 +223,57 @@ it('risk:regression guard the guard: accord anchor, typed by a person, does sear
   expect(opens.filter((p) => under(p, r.tools)).length).toBeGreaterThan(0);
   expect(git.filter((c) => under(c.cwd, r.tools)).length).toBeGreaterThan(0);
 }, 120_000);
+
+/** A sibling folder that looks like a clone: its `.git/config` holds `text`. */
+function fakeClone(parent: string, name: string, text: string): string {
+  const dir = join(parent, name);
+  mkdirSync(join(dir, '.git'), { recursive: true });
+  writeFileSync(join(dir, '.git', 'config'), text);
+  return dir;
+}
+const DECLARED = { repos: { tools: { remote: TOOLS_URL } } } as unknown as Parameters<typeof scanParent>[1];
+
+it('risk:resource W-2 a hostile .git/config line of a sibling folder is read in linear time, and the real clone beside it is still found', () => {
+  const r = reposCopy();
+  // `url = a`, about a mebibyte of blanks and a last character: a lazy `(.*?)\s*$` backtracks over every blank for each shorter value (80,000 blanks took 2.6 s, a mebibyte takes minutes)
+  const hostile = '[remote "origin"]\n\turl = a' + ' '.repeat(1024 * 1024 - 4096) + 'x\n';
+  fakeClone(r.parent, 'aaa-hostile', hostile);
+  const started = performance.now();
+  const scan = scanParent(r.svc, DECLARED, 'tools');
+  const took = performance.now() - started;
+  // wide enough for a loaded machine, far below the stall it guards
+  expect(took, 'the scan of one hostile line took ' + Math.round(took) + ' ms').toBeLessThan(1000);
+  expect(scan.found.map(posix)).toEqual([posix(r.tools)]);
+});
+
+it('risk:regression the origin of a sibling config is read as before: blanks around the key and the value, a quoted value, the last url of the section, and no other section (W-2)', () => {
+  const r = reposCopy();
+  cleanup(r.tools);
+  const foundWith = (name: string, text: string): string[] => {
+    fakeClone(r.parent, name, text);
+    const found = scanParent(r.svc, DECLARED, 'tools').found.map(posix);
+    cleanup(join(r.parent, name));
+    return found;
+  };
+  const at = (name: string): string[] => [posix(join(r.parent, name))];
+  expect(foundWith('c1', `[remote "origin"]\n  URL\t=\t ${TOOLS_URL}  \n`)).toEqual(at('c1'));
+  expect(foundWith('c2', `[remote "origin"]\n\turl = "${TOOLS_URL}"\r\n`)).toEqual(at('c2'));
+  expect(foundWith('c3', `[remote "origin"]\n\turl = https://github.com/acme/other.git\n\turl = ${TOOLS_URL}\n`)).toEqual(at('c3'));
+  expect(foundWith('c4', `[remote "upstream"]\n\turl = ${TOOLS_URL}\n`)).toEqual([]);
+  expect(foundWith('c5', `[remote "origin"]\n\turlx = ${TOOLS_URL}\n`)).toEqual([]);
+});
+
+it('risk:security W-2 a .git/config that is a link is skipped, not read: the folder is no candidate (D-01)', (ctx) => {
+  const r = reposCopy();
+  const real = moveAway(r.tools);
+  const dir = join(r.parent, 'tools');
+  mkdirSync(join(dir, '.git'), { recursive: true });
+  try {
+    symlinkSync(join(real, '.git', 'config'), join(dir, '.git', 'config'), 'file');
+  } catch (e) {
+    // Windows refuses a file link without the privilege or developer mode; there is nothing to test without one
+    ctx.skip('this system refuses to create a file symlink: ' + (e as NodeJS.ErrnoException).code);
+  }
+  expect(readFileSync(join(dir, '.git', 'config'), 'utf8')).toContain(TOOLS_URL);
+  expect(scanParent(r.svc, DECLARED, 'tools').found).toEqual([]);
+});

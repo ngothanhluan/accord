@@ -162,8 +162,11 @@ function originInConfig(text: string): string | undefined {
       continue;
     }
     if (!inOrigin) continue;
-    const m = /^\s*url\s*=\s*(.*?)\s*$/i.exec(line);
-    if (m !== null) url = m[1].replace(/^"(.*)"$/, '$1');
+    // W-2: trimmed and compared by position, never a backtracking pattern over the whole line (a lazy `(.*?)\s*$` is quadratic on a line of blanks)
+    const key = line.trimStart();
+    if (key.slice(0, 3).toLowerCase() !== 'url') continue;
+    const assign = key.slice(3).trimStart();
+    if (assign[0] === '=') url = assign.slice(1).trim().replace(/^"(.*)"$/, '$1');
   }
   return url === '' ? undefined : url;
 }
@@ -192,8 +195,10 @@ export function scanParent(root: string, config: Pick<AccordConfig, 'repos'> | u
       const own = lstatSync(path);
       if (own.isSymbolicLink() || !own.isDirectory()) continue;
       if (!lstatSync(path + '/.git').isDirectory()) continue;
+      // W-2: a regular file only (lstat follows no link, and a pipe or a device is never read), and only up to the limit
       const file = path + '/.git/config';
-      if (statSync(file).size > CONFIG_LIMIT) continue;
+      const config = lstatSync(file);
+      if (!config.isFile() || config.size > CONFIG_LIMIT) continue;
       const origin = originInConfig(readFileSync(file, 'utf8'));
       if (origin !== undefined && sameRepository(origin, remote)) found.push(path);
     } catch {

@@ -133,7 +133,13 @@ export function gateDone(snapshot: RepoSnapshot, id: string, options: { slice?: 
   const judged =
     scope === undefined || scope.tags === undefined || scope.tags.length === 0 || scope.tasks === undefined
       ? snapshot
-      : { ...snapshot, doneSlice: { ...snapshot.doneSlice, [id]: scope.tags }, doneSliceTasks: { ...snapshot.doneSliceTasks, [id]: scope.tasks } };
+      : {
+          ...snapshot,
+          doneSlice: { ...snapshot.doneSlice, [id]: scope.tags },
+          doneSliceTasks: { ...snapshot.doneSliceTasks, [id]: scope.tasks },
+          // Phase 08.9.3 D-13: the slice a run is for, so the record rules ask each repository's group for what its deploy order has merged by then
+          doneSliceN: { ...snapshot.doneSliceN, [id]: scope.n },
+        };
   // ST-LN-94 D-10: lane R runs its own Done table, so no lane M Done rule reads an R ticket's records.
   return run('done', lane === 'S' ? DONE_S_RULES : lane === 'R' ? DONE_R_RULES : DONE_RULES, [], judged, id);
 }

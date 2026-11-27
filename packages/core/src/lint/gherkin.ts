@@ -89,13 +89,19 @@ export const testIdUnknown: Rule['check'] = (snapshot) => {
     if (!frozen.has(t.id)) frozen.set(t.id, isDone(snapshot, t.id));
     return frozen.get(t.id) === true;
   };
+  // Phase 08.9.3 D-12: `@test:<name>:<id>` with <name> under `repos:` is proved in that repository, so it is never looked up in this repository's report; `gate.test-unknown` asks the verifier's record for it at Done
+  const repos = snapshot.config?.repos;
+  const elsewhere = (id: string): boolean => {
+    const name = id.slice(0, Math.max(id.indexOf(':'), 0));
+    return name !== '' && repos !== undefined && Object.hasOwn(repos, name);
+  };
   return perScenario(snapshot, (s, t) =>
     isFrozen(t)
       ? []
       : s.tags
           .filter(isTest)
           .map((tag) => tag.slice(6))
-          .filter((id) => !Object.hasOwn(tests, id))
+          .filter((id) => !elsewhere(id) && !Object.hasOwn(tests, id))
           .map((id) => `@test:${id} not found in ${report}; ids are classname#name with spaces as '-'`),
   );
 };

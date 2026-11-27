@@ -213,11 +213,33 @@ export interface EvidenceBlock {
   evidence: string; // text after 'Evidence:' to the end of the block, trimmed; may be ''
 }
 
+/**
+ * Phase 08.9.3 D-07: one `## Repository <name>` section of verification.md, the verifier's record of another repository's part of the ticket. `suite` is its `Suite: passed|failed <command>` line; each `Slice: <n>` line opens a group
+ * that the `PR: #<number>`, `Verified head: <40 hex>` and `Merged: <40 hex>` lines after it belong to (a value that does not read is not stored: its line is in `unread`). A group is listed as written, so two groups of one slice are both here.
+ */
+export interface RepoRecordSlice {
+  n: number;
+  line: number; // Markdown line of the `Slice:` line
+  pr?: number;
+  verifiedHead?: string; // 40 hexadecimal characters as written
+  merged?: string;
+}
+export interface RepoRecord {
+  name: string;
+  line: number; // Markdown line of the section heading
+  suite?: { result: 'passed' | 'failed'; command: string; line: number };
+  slices: RepoRecordSlice[];
+  // every label line that was not read, and why: `malformed` (its value does not read), `repeated` (the label is already read in its group, or the suite line already read) or `orphan` (it follows no `Slice:` line that reads: before the first
+  // group, or after a `Slice:` line that did not read). `n` is the slice number of the group the line sits in; absent for the suite line and an orphan
+  unread: { line: number; label: 'Suite' | 'Slice' | 'PR' | 'Verified head' | 'Merged'; text: string; why: 'malformed' | 'repeated' | 'orphan'; n?: number }[];
+}
+
 export interface Verification {
   ticket: string; // folder name: 'LOGIN-1'
   file: string; // 'accord/tickets/LOGIN-1/verification.md'
   frontmatter?: VerificationFrontmatter; // undefined when the document fails the schema (D-32)
   blocks: EvidenceBlock[];
+  repos?: RepoRecord[]; // Phase 08.9.3 D-07: the `## Repository <name>` sections in document order, the first of a name only; absent when the file has none
   unfinished?: number; // ST-LN-72 D-11: 1-based line of the `<!-- accord: unfinished -->` marker in the raw text; absent when the file does not carry it
 }
 
@@ -445,6 +467,7 @@ export interface RepoSnapshot {
   doneSlice?: Record<string, readonly string[]>; // Phase 15 D-31: ticket id -> the `ac-n` tags of the slice `gate done --slice n` judges (n below the last slice); set by gateDone, never loaded. Absent: the full set
   sliceSize?: Record<string, { n: number; code: number; test: number; docs: number; total: number }>; // Phase 15 D-06: ticket id -> the measured size of slice n (lines added plus deleted, split); host-supplied by `gate done --slice n`, absent when it was not asked or git could not say
   doneSliceTasks?: Record<string, readonly number[]>; // Phase 15 D-31: ticket id -> the task numbers of slices 1..n that the same run requires in the ledger; set with doneSlice
+  doneSliceN?: Record<string, number>; // Phase 08.9.3 D-13: ticket id -> n, the slice `gate done --slice n` judges (n below the last slice); set by gateDone with doneSlice, never loaded. Absent: the whole ticket, every record in full
   commits?: { sha: string; message: string; merge?: boolean }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid; Phase 8.1 D-06: or commits.message is set, with merge true for a commit of two or more parents
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput
@@ -488,4 +511,7 @@ export interface RepoSnapshot {
   // Phase 08.9.3 D-05, D-06: host-supplied by `accord gate plan` only, keyed by repository name: the baseline sha the host read for that repository (the one plan.md names as `baseline_<name>`), whether it is a commit on the history of that
   // repository's default branch, and the tracked paths at it. Absent in CI and for every other command: the rules that read it stay silent without it.
   repoFacts?: Record<string, { baseline: string; onDefault: boolean; files: string[] }>;
+  // Phase 08.9.3 Pitfall 9: host-supplied by `accord gate done` on a machine that has the clone of the other repository (plan 08.9.3-11): repository name -> slice number (as a string) -> the tip of that slice's branch there.
+  // Absent in CI and wherever the host cannot read it: gate.repo-head-moved is silent without it.
+  repoHeads?: Record<string, Record<string, string>>;
 }

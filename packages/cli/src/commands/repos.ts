@@ -6,15 +6,17 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { isSha, SAFE_ID } from '@accord-dev/accord-core';
+import { isSha, newestPr, SAFE_ID, workOf } from '@accord-dev/accord-core';
 import { assertNoLink } from '../guard.js';
-import { defaultRefOf, UsageError } from '../load/fs.js';
+import { defaultRefOf, gitSliceTip, UsageError } from '../load/fs.js';
+import { ghFirstLine, ghRepoOf, ghRun } from '../load/gh.js';
 import { checkClone, REPO_NAME, resolveRepo, storeRepoPath, toPosix } from '../load/repos.js';
 import { REPORT_DIR } from '../load/report.js';
 import { shown } from '../load/script-trust.js';
+import { sliceHomeOf } from '../load/slice-size.js';
 import type { CommandContext } from '../run.js';
 import { requireTicket } from './lane-args.js';
-import { gitNoPrompt } from './worktree.js';
+import { gitNoPrompt, listWorktrees, readRecorded } from './worktree.js';
 
 /** The names `repos:` declares, in name order. */
 const declared = (ctx: CommandContext): string[] => Object.keys(ctx.snapshot.config?.repos ?? {}).sort();
@@ -53,8 +55,12 @@ export function reposSet(ctx: CommandContext, name: string, path: string, cwd: s
   return 0;
 }
 
-/** `accord repos status`: one line per declared repository, `<name>: <path> (stored)` for a verified clone and the refusal line otherwise; exit 2 after the last line when any is refused or not found. */
-export function reposStatus(ctx: CommandContext): number {
+/**
+ * `accord repos status`: one line per declared repository, `<name>: <path> (stored)` for a verified clone and the refusal line otherwise; exit 2 after the last line when any is refused or not found.
+ * With a ticket id (Phase 08.9.3 D-07) it prints the facts of that ticket's other repositories instead: see `reposTicketStatus`.
+ */
+export function reposStatus(ctx: CommandContext, id?: string): number {
+  if (id !== undefined) return reposTicketStatus(ctx, id);
   const names = declared(ctx);
   if (names.length === 0) {
     ctx.stdout.write('repos: none declared in accord/config.yml\n');
@@ -69,6 +75,124 @@ export function reposStatus(ctx: CommandContext): number {
     } else {
       ctx.stdout.write(`${name}: ${found.path} (${found.how})\n`);
     }
+  }
+  return code;
+}
+
+/** What the newest pull request of a slice branch is, as parsed fields only (Ruling R17, T-08.9.3-29): a number, a state, a draft flag and a 40-hex merge commit; nothing else of the pull request is kept. */
+type Pr =
+  | { kind: 'none' }
+  | { kind: 'found'; number: number; state: 'open' | 'draft' | 'merged' | 'closed'; merge?: string }
+  | { kind: 'unavailable'; why: string };
+
+const HEX40 = /^[0-9a-f]{40}$/i;
+const SHAPE = 'gh answered with a pull request list accord does not read';
+
+/** The newest pull request of `branch` in the repository `slug` (`<owner>/<repo>`, or undefined when the remote is not a github.com one) by `gh pr list`, a read verb. A failed call or an answer that does not parse is `unavailable`, never `none`. */
+function readPr(ctx: CommandContext, name: string, slug: string | undefined, branch: string): Pr {
+  if (slug === undefined) return { kind: 'unavailable', why: `${name}'s remote is not a github.com repository` };
+  let list: unknown;
+  try {
+    list = JSON.parse(ghRun(ctx.root, ['pr', 'list', '--head', branch, '--state', 'all', '--json', 'number,state,isDraft,mergeCommit', '--limit', '30'], ctx.env, slug));
+  } catch (err) {
+    return { kind: 'unavailable', why: ghFirstLine(err) };
+  }
+  if (!Array.isArray(list)) return { kind: 'unavailable', why: SHAPE };
+  const rows = list.filter((p): p is { number: number; state?: unknown; isDraft?: unknown; mergeCommit?: { oid?: unknown } | null } => typeof p === 'object' && p !== null && Number.isSafeInteger((p as { number?: unknown }).number) && (p as { number: number }).number > 0);
+  const newest = newestPr(rows);
+  if (newest === undefined) return list.length === 0 ? { kind: 'none' } : { kind: 'unavailable', why: SHAPE };
+  if (newest.state === 'OPEN') return { kind: 'found', number: newest.number, state: newest.isDraft === true ? 'draft' : 'open' };
+  if (newest.state === 'CLOSED') return { kind: 'found', number: newest.number, state: 'closed' };
+  if (newest.state === 'MERGED') {
+    const oid = newest.mergeCommit?.oid;
+    return { kind: 'found', number: newest.number, state: 'merged', ...(typeof oid === 'string' && HEX40.test(oid) ? { merge: oid.toLowerCase() } : {}) };
+  }
+  return { kind: 'unavailable', why: SHAPE };
+}
+
+/** The line a pull request is told in: `pr #41 open draft`, `pr #41 open`, `pr #41 merged <sha>`, `pr #41 closed`, `pr none` or `pr unavailable: <line>`. */
+function prLine(pr: Pr): string {
+  if (pr.kind === 'none') return 'pr none';
+  if (pr.kind === 'unavailable') return `pr unavailable: ${pr.why}`;
+  const n = `pr #${pr.number}`;
+  return pr.state === 'draft' ? `${n} open draft` : pr.state === 'merged' ? `${n} merged${pr.merge === undefined ? '' : ' ' + pr.merge}` : `${n} ${pr.state}`;
+}
+
+const sameFolder = (a: string, b: string): boolean => toPosix(a).replace(/\/+$/, '').toLowerCase() === toPosix(b).replace(/\/+$/, '').toLowerCase();
+
+/**
+ * Phase 08.9.3 D-07, D-04, D-06, D-08: `accord repos status <id>` prints, for each other repository of the ticket's plan (name order), what the verifier copies into `## Repository <name>` of verification.md: the clone,
+ * the worktree this repository recorded for the ticket there, the suite (`repos.<name>.tests`) and where to run it, and per slice of that repository its branch, the branch's head in the clone, the newest pull request
+ * of that branch read with `gh` (`GH_REPO` from the declared remote, Ruling R17) and the `record:` lines to copy; then, for each slice of this repository that comes after a slice whose pull request is not merged, a
+ * `held:` line (D-08). It reads and writes nothing: no file, no ref, no `gh` write verb. Exit 2 after the last line when a clone is missing or refused, a pull request cannot be read, or a remote is not a
+ * github.com one. Only numbers, states, branch names and shas leave `gh` and git; no text of the other repository is printed.
+ */
+function reposTicketStatus(ctx: CommandContext, id: string): number {
+  if (!SAFE_ID.test(id)) throw new UsageError(`not a ticket id: ${plain(id)}`);
+  requireTicket(ctx.snapshot, id);
+  const slices = workOf(ctx.snapshot, id)?.plan?.slices ?? [];
+  const others = [...new Set(slices.flatMap((s) => (s.repo === undefined ? [] : [s.repo])))].sort();
+  if (others.length === 0) {
+    ctx.stdout.write(`repos: ${id} has no slice in another repository\n`);
+    return 0;
+  }
+  const out = (line: string): void => void ctx.stdout.write(line + '\n');
+  let code = 0;
+  /** The slices of other repositories whose pull request is not merged, for the held lines. */
+  const waiting: { repo: string; n: number; pr?: number }[] = [];
+  for (const name of others) {
+    const found = resolveRepo(ctx.root, ctx.snapshot.config, name, { store: false });
+    if ('refused' in found) {
+      out(found.refused);
+      code = 2;
+      continue;
+    }
+    out(`repository: ${name}`);
+    out(`clone: ${found.path}`);
+    const entry = ctx.snapshot.config?.repos?.[name];
+    const recorded = readRecorded(ctx.root).find((e) => e.id === id && e.repo === name);
+    let wt: string | undefined;
+    try {
+      wt = recorded !== undefined && listWorktrees(found.path).some((w) => w.prunable === undefined && sameFolder(w.path, recorded.path)) ? toPosix(recorded.path) : undefined;
+    } catch {
+      wt = undefined; // a clone git cannot list is no worktree to run a suite in
+    }
+    out(`worktree: ${wt ?? 'none'}`);
+    const tests = entry?.tests;
+    if (tests === undefined) out(`suite: none - set repos.${name}.tests`);
+    else if (/[^\x20-\x7e\u0080-￿]/.test(tests)) {
+      out(`suite: unreadable - repos.${name}.tests holds a control character`);
+      code = 2;
+    } else out(`suite: ${tests}`);
+    out(`suite-dir: ${wt ?? 'none'}`);
+    const slug = entry === undefined ? undefined : ghRepoOf(entry.remote);
+    const seen = new Set<number>();
+    for (const s of slices.filter((x) => x.repo === name).sort((a, b) => a.n - b.n)) {
+      if (seen.has(s.n)) continue;
+      seen.add(s.n);
+      const home = sliceHomeOf(ctx.snapshot, id, s.n);
+      if (home === undefined) {
+        out(`slice ${s.n}: pr unavailable: ${id} slice ${s.n} names no branch`);
+        code = 2;
+        continue;
+      }
+      const head = gitSliceTip(found.path, home.branch);
+      const pr = readPr(ctx, name, slug, home.branch);
+      out(`slice ${s.n}: branch ${home.branch}`);
+      out(`slice ${s.n}: head ${head ?? 'none'}`);
+      out(`slice ${s.n}: ${prLine(pr)}`);
+      out(`record: Slice: ${s.n}`);
+      if (pr.kind === 'found') out(`record: PR: #${pr.number}`);
+      if (head !== undefined) out(`record: Verified head: ${head}`);
+      if (pr.kind === 'found' && pr.merge !== undefined) out(`record: Merged: ${pr.merge}`);
+      if (pr.kind === 'unavailable') code = 2;
+      else if (!(pr.kind === 'found' && pr.state === 'merged')) waiting.push({ repo: name, n: s.n, ...(pr.kind === 'found' ? { pr: pr.number } : {}) });
+    }
+  }
+  // D-08: a slice of this repository after a slice of another repository whose pull request has not merged waits for it
+  const own = [...new Set(slices.filter((s) => s.repo === undefined).map((s) => s.n))].sort((a, b) => a - b);
+  for (const n of own) {
+    for (const w of waiting.filter((x) => x.n < n)) out(`held: slice ${n} waits for ${w.repo} slice ${w.n} (${w.pr === undefined ? 'no pull request yet' : '#' + w.pr})`);
   }
   return code;
 }

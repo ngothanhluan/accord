@@ -14,6 +14,8 @@ export type {
   Verification,
   VerificationFrontmatter,
   EvidenceBlock,
+  RepoRecord,
+  RepoRecordSlice,
   Section,
   Line,
   AccordConfig,
@@ -96,7 +98,7 @@ export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
 export { sliceScope } from './gate/slice.js';
 export type { SliceScope } from './gate/slice.js';
-export { isSha, ownRecordsOnly, shaEqual } from './gate/done.js';
+export { isSha, ownRecordsOnly, repoRecordComplete, shaEqual } from './gate/done.js';
 export { approvedHash, laneRHash } from './gate/hash.js';
 export {
   budgetVerdict,
@@ -188,7 +190,7 @@ export type { SubjectCollision, SubjectName } from './commits/subjects.js';
 export { commitRuleLine, commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal, CONVENTIONAL_EXAMPLE, CONVENTIONAL_PATTERN } from './commits/rule.js';
 export type { CommitRule, CommitRuleOf } from './commits/rule.js';
 // Phase 8.1 D-01, D-03: the pull request body from the team's template, every heading kept.
-export { epicBody, fillTemplate, findTemplate, prFacts, prTitle, prTitleProblem, sliceBlock, sliceFacts, sliceTitle, templateSections, todaysBody } from './pr/template.js';
+export { deployOrderBlock, epicBody, fillTemplate, findTemplate, prFacts, prTitle, prTitleProblem, sliceBlock, sliceFacts, sliceTitle, templateSections, todaysBody } from './pr/template.js';
 export type { PrFacts, SlicePart, TemplateSection } from './pr/template.js';
 // Phase 15 D-06: the measured size of a slice.
 export { sizeKind, sliceSizeOf, sliceSplit } from './pr/size.js';

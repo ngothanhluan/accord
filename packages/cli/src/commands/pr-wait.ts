@@ -2,11 +2,12 @@
 // new feedback from a collaborator, a failed check, or the time limit. It only reads: no ticket, record or ref is written (D-21), and nothing outlives the command (D-16).
 // The sentence at the top of pr.ts, "it never calls gh" (Phase 8.1 D-03), binds `accord pr build`, the body builder; this is a separate command and is the one place that asks `gh`.
 // Every line it prints is a row of the output grammar in 15-06-PLAN.md (P1 to P2 progress, F1 to F5 final with exit 0, U1 and U2 with exit 2): the last stdout line of a run is one final line.
-import { execFileSync } from 'node:child_process';
 import { baseMovable, headCommitDate, newestPr, prWaitVerdict, SAFE_BRANCH, workOf } from '@accord-dev/accord-core';
 import type { InlineComment, PrRef, PrView, WaitVerdict } from '@accord-dev/accord-core';
 import { gitDefaultRef, UsageError } from '../load/fs.js';
-import { sliceBranch } from '../load/slices.js';
+import { ghFirstLine, ghRepoOfDeclared, ghRun } from '../load/gh.js';
+import { resolveRepo } from '../load/repos.js';
+import { sliceHomeOf } from '../load/slice-size.js';
 import type { CommandContext } from '../run.js';
 import { branchOf, ID } from './worktree.js';
 
@@ -21,10 +22,6 @@ export const PR_WAIT_HOST_STOP_MINUTES = 120;
 export const PR_WAIT_MARGIN_MINUTES = 2;
 /** A-WR-03: this many polls in a row that fail end the wait as unavailable (about four minutes), where `gh` was logged out or its token revoked mid-wait; the run does not sit out the limit. */
 export const PR_WAIT_FAIL_STREAK = 5;
-/** One `gh` call may run this long and print this much; a call over either is a failed poll. */
-const GH_TIMEOUT_MS = 60_000;
-const GH_MAX_BUFFER = 16 * 1024 * 1024;
-
 /** A verdict that ends the wait. */
 export type FinalVerdict = Exclude<WaitVerdict, { kind: 'pending' }>;
 
@@ -62,7 +59,7 @@ export function waitLoop(deps: WaitDeps): WaitEnd {
     } catch (err) {
       failed += 1;
       streak += 1;
-      if (streak >= maxStreak) return { kind: 'unreadable', failed, streak, last: firstLine(err) };
+      if (streak >= maxStreak) return { kind: 'unreadable', failed, streak, last: ghFirstLine(err) };
     }
     const waitedMs = deps.now() - start;
     if (waitedMs >= deps.limitMs) return { kind: 'limit', failed, waitedMs };
@@ -88,27 +85,15 @@ export function finalLine(end: WaitEnd, n: number): string {
   }
 }
 
-/** The first line of what a failed `gh` said, with control characters dropped and at most 200 characters: it is text from outside and is printed as one line. */
-function firstLine(err: unknown): string {
-  const e = err as { stderr?: unknown; message?: unknown };
-  const said = String(e.stderr ?? '').trim() !== '' ? String(e.stderr) : String(e.message ?? err);
-  const line = (said.trim().split(/\r?\n/)[0] ?? '').replace(/[^\x20-\x7e]/g, '').trim();
-  return (line === '' ? 'gh failed' : line).slice(0, 200);
+/**
+ * Run `gh` by name with an argument array and no shell (`ghRun` of load/gh.ts, Phase 08.9.3 R17): from this checkout, prompt-free, and aimed at another repository only with `repo` (its `<owner>/<repo>`, set as
+ * `GH_REPO` from the declared remote); without it `gh` reads this repository, as it always did.
+ */
+function gh(ctx: CommandContext, args: string[], repo?: string): string {
+  return ghRun(ctx.root, args, ctx.env, repo);
 }
 
-/** Run `gh` by name with an argument array and no shell; the environment is the process's with the context's over it, and a prompt is never allowed. */
-function gh(ctx: CommandContext, args: string[]): string {
-  return execFileSync('gh', args, {
-    cwd: ctx.root,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: GH_TIMEOUT_MS,
-    maxBuffer: GH_MAX_BUFFER,
-    env: { ...process.env, ...ctx.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' },
-  });
-}
-
-const VIEW_FIELDS = 'state,mergedAt,closedAt,reviewDecision,comments,reviews,statusCheckRollup,commits,number,url,headRefName,baseRefName';
+const VIEW_FIELDS = 'state,isDraft,mergedAt,closedAt,reviewDecision,comments,reviews,statusCheckRollup,commits,number,url,headRefName,baseRefName';
 /** The inline review comments of a pull request, cut at the source to the fields the verdict reads: the text of a comment is never fetched. `{owner}` and `{repo}` are filled by `gh` from the repository it runs in. */
 const INLINE_JQ = '.[] | {user: {login: .user.login}, author_association: .author_association, created_at: .created_at, in_reply_to_id: .in_reply_to_id}';
 
@@ -147,9 +132,11 @@ export function prWait(ctx: CommandContext, id: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
   if (!SAFE_BRANCH.test(branch) || branch.startsWith('-')) throw new UsageError(`ticket ${id}: the branch ${branch} is not a name this command passes to gh`);
-  // Phase 15 D-28: a ticket whose plan has two or more slices is followed slice by slice; any other ticket makes exactly the calls below and no slice lookup
-  const slices = sliceCountOf(ctx, id);
-  if (slices >= 2) return prWaitSliced(ctx, id, branch, slices);
+  // Phase 15 D-28: a ticket whose plan has two or more slices is followed slice by slice; any other ticket makes exactly the calls below and no slice lookup.
+  // Phase 08.9.3: a plan with a slice in another repository is followed slice by slice as well, whatever the number of slices.
+  const numbers = sliceNumbersOf(ctx, id);
+  const elsewhere = (workOf(ctx.snapshot, id)?.plan?.slices ?? []).some((s) => s.repo !== undefined);
+  if (numbers.length >= 2 || (numbers.length === 1 && elsewhere)) return prWaitSliced(ctx, id, branch, numbers);
 
   // start: who `gh` acts as (its own thread replies are not feedback), and the newest pull request of the branch; a failure of either is U1, since nothing can be followed
   let self: string;
@@ -164,13 +151,13 @@ export function prWait(ctx: CommandContext, id: string): number {
     }
     found = { number: newest.number, url: String(newest.url ?? '').replace(/[^\x21-\x7e]/g, '') };
   } catch (err) {
-    ctx.stdout.write(`pr-wait: unavailable: ${firstLine(err)}\n`);
+    ctx.stdout.write(`pr-wait: unavailable: ${ghFirstLine(err)}\n`);
     return 2;
   }
 
   const limitMs = limitOf(ctx);
   ctx.stdout.write(`pr-wait: watching #${found.number} ${found.url}, limit ${limitMs / 60_000} minutes\n`);
-  const told = new Map<number, number>();
+  const told = new Map<string, number>();
   const poll = (): WaitVerdict => judgePr(ctx, found.number, self, told);
   const end = waitLoop({ poll, now: Date.now, sleep: sleepSync, everyMs: PR_WAIT_EVERY_MS, limitMs });
   ctx.stdout.write(finalLine(end, found.number) + '\n');
@@ -181,79 +168,125 @@ export function prWait(ctx: CommandContext, id: string): number {
  * One look at pull request `n`: `gh pr view`, then the inline comments while it is open, then the verdict. `told` holds, for each pull request, how many non-collaborator items were already named
  * on an `ignored` line, so a count is printed when it grows and never twice.
  */
-function judgePr(ctx: CommandContext, n: number, self: string, told: Map<number, number>): WaitVerdict {
+function judgePr(ctx: CommandContext, n: number, self: string, told: Map<string, number>): WaitVerdict {
   return judgeView(ctx, viewOf(ctx, n), self, told);
 }
 
-/** What `gh pr view --json` says of pull request `n`, with the number set: the part the verdict reads, and the base and head names the base move is judged by. */
-type Seen = PrView & { baseRefName?: string; headRefName?: string };
-function viewOf(ctx: CommandContext, n: number): Seen {
-  return { ...(JSON.parse(gh(ctx, ['pr', 'view', String(n), '--json', VIEW_FIELDS])) as Seen), number: n };
+/**
+ * What `gh pr view --json` says of pull request `n`, with the number set: the part the verdict reads, and the base and head names the base move is judged by. `repo` is the `<owner>/<repo>` of another
+ * repository (Phase 08.9.3 R17); the draft flag is what the released end of a held slice reads (R18).
+ */
+type Seen = PrView & { baseRefName?: string; headRefName?: string; isDraft?: boolean };
+function viewOf(ctx: CommandContext, n: number, repo?: string): Seen {
+  return { ...(JSON.parse(gh(ctx, ['pr', 'view', String(n), '--json', VIEW_FIELDS], repo)) as Seen), number: n };
 }
 
-function judgeView(ctx: CommandContext, view: Seen, self: string, told: Map<number, number>): WaitVerdict {
+function judgeView(ctx: CommandContext, view: Seen, self: string, told: Map<string, number>, repo?: string): WaitVerdict {
   const n = view.number as number;
   // a merged or closed state needs nothing else, so a failing list of inline comments never hides it
-  const inline = view.state === 'MERGED' || view.state === 'CLOSED' ? [] : inlineOf(gh(ctx, ['api', `repos/{owner}/{repo}/pulls/${n}/comments`, '--paginate', '--jq', INLINE_JQ]));
+  const inline = view.state === 'MERGED' || view.state === 'CLOSED' ? [] : inlineOf(gh(ctx, ['api', `repos/{owner}/{repo}/pulls/${n}/comments`, '--paginate', '--jq', INLINE_JQ], repo));
   const verdict = prWaitVerdict(view, inline, { since: headCommitDate(view), self });
-  if ((verdict.kind === 'pending' || verdict.kind === 'feedback') && verdict.ignored > (told.get(n) ?? 0)) {
-    told.set(n, verdict.ignored);
+  // a count of ignored items is kept per pull request; the same number in two repositories is two pull requests
+  const key = `${repo ?? ''}#${n}`;
+  if ((verdict.kind === 'pending' || verdict.kind === 'feedback') && verdict.ignored > (told.get(key) ?? 0)) {
+    told.set(key, verdict.ignored);
     ctx.stdout.write(`pr-wait: ignored ${verdict.ignored} from non-collaborators\n`);
   }
   return verdict;
 }
 
-/** The number of the last slice of the ticket's plan, 0 when the plan has no `## Slice` section. */
-function sliceCountOf(ctx: CommandContext, id: string): number {
-  const slices = workOf(ctx.snapshot, id)?.plan?.slices;
-  return slices === undefined || slices.length === 0 ? 0 : Math.max(...slices.map((s) => s.n));
+/** The slice numbers of the ticket's plan, ascending: empty when the plan has no `## Slice` section. */
+function sliceNumbersOf(ctx: CommandContext, id: string): number[] {
+  const slices = workOf(ctx.snapshot, id)?.plan?.slices ?? [];
+  return [...new Set(slices.map((s) => s.n))].sort((a, b) => a - b);
 }
 
-/** One slice of a sliced ticket: its branch (slice 1 is the claim branch), its newest pull request once there is one, and whether that pull request merged. */
+/** One slice of a sliced ticket: where it lives (`sliceHome`, Phase 08.9.3 D-14), its newest pull request once there is one, and whether that pull request merged. */
 interface SliceWatch {
   k: number;
   branch: string;
-  pr?: PrRef;
+  /** The declared name of another repository's clone; absent for this repository. */
+  repo?: string;
+  /** The `<owner>/<repo>` `gh` is aimed at for this slice's pull request, from the declared remote; absent for this repository (Ruling R17). */
+  ghRepo?: string;
+  /** The previous slice of the SAME repository, the one this slice's pull request is stacked on; absent for the first slice of a repository. */
+  previousN?: number;
+  pr?: PrRef & { isDraft?: boolean };
   merged: boolean;
   /** The base the pull request had when it was seen merged (C-WR-02): the base move below is made only after a merge into the default branch. */
   mergedBase?: string;
 }
 
-/** The newest pull request whose head is `branch`, with the base and head names the base move is judged by. */
-function newestOf(ctx: CommandContext, branch: string): PrRef | undefined {
-  const list = JSON.parse(gh(ctx, ['pr', 'list', '--head', branch, '--state', 'all', '--json', 'number,state,baseRefName,headRefName,url', '--limit', '30'])) as PrRef[];
-  return newestPr(list);
+/**
+ * The newest pull request whose head is the slice's branch, with the base and head names the base move is judged by. In another repository only entries with a whole positive number are kept: nothing else of
+ * that repository's answer is read (T-08.9.3-29).
+ */
+export function newestOf(ctx: CommandContext, w: { branch: string; ghRepo?: string }): (PrRef & { isDraft?: boolean }) | undefined {
+  const list = JSON.parse(gh(ctx, ['pr', 'list', '--head', w.branch, '--state', 'all', '--json', 'number,state,isDraft,baseRefName,headRefName,url', '--limit', '30'], w.ghRepo)) as (PrRef & { isDraft?: boolean })[];
+  return newestPr(w.ghRepo === undefined ? list : list.filter((p) => Number.isSafeInteger(p.number) && p.number > 0));
 }
 
-/** The default branch's name as the pull request base: origin's default ref (a full ref name) without its remote, and nothing when it is not a name this command passes to gh. */
-function defaultBranch(ctx: CommandContext): string | undefined {
-  const name = gitDefaultRef(ctx.root)?.replace(/^(?:refs\/remotes\/)?origin\//, '');
+/** The pull request link told on the `watching` line: the one `gh` gave for this repository (control characters out), and for another repository one built from its validated `<owner>/<repo>` and the number. */
+function linkOf(w: SliceWatch, pr: PrRef): string {
+  return w.ghRepo === undefined ? String(pr.url ?? '').replace(/[^\x21-\x7e]/g, '') : `https://github.com/${w.ghRepo}/pull/${pr.number}`;
+}
+
+/**
+ * The default branch's name as the pull request base: origin's default ref (a full ref name) without its remote, and nothing when it is not a name this command passes to gh. For a slice of another repository
+ * it is read in that repository's STORED clone (nothing is searched or stored here); a clone that is not there, or is refused, gives nothing.
+ */
+export function defaultBranch(ctx: CommandContext, repo?: string): string | undefined {
+  let dir = ctx.root;
+  if (repo !== undefined) {
+    const found = resolveRepo(ctx.root, ctx.snapshot.config, repo, { scan: false, store: false });
+    if ('refused' in found) return undefined;
+    dir = found.path;
+  }
+  const name = gitDefaultRef(dir)?.replace(/^(?:refs\/remotes\/)?origin\//, '');
   return name !== undefined && SAFE_BRANCH.test(name) && !name.startsWith('-') ? name : undefined;
 }
 
 /**
- * Phase 15 D-28, D-08: the wait of a sliced ticket. The pull requests are the newest of each slice's branch (the claim branch for slice 1, `slice/<id>/<k>` for the others). The wait follows the lowest
- * slice whose pull request is not merged; when that one merges, the base of the next slice's pull request is moved to the default branch, and the wait goes on with it. It ends `merged` when the last
- * slice's pull request merged. One clock, the one limit, covers the whole wait. The one write this command makes is that base move (D-21 read otherwise): it never merges, closes or comments.
+ * Phase 15 D-28, D-08 and Phase 08.9.3 D-08, D-13: the wait of a sliced ticket, slice by slice in deploy order across repositories. Each slice's branch and repository come from `sliceHome` (the claim branch for the first
+ * slice of this repository, `slice/<id>/<k>` for the others); a slice of another repository is read with `gh` aimed at it by `GH_REPO` (Ruling R17). The wait follows the lowest slice whose pull request is not merged;
+ * when that one merges, the base of the next slice of the SAME repository, stacked on it, is moved to that repository's default branch (never across repositories, T-08.9.3-31), and the wait goes on with it. It ends
+ * `merged` when every slice's pull request merged, and `released` (Ruling R18) when every slice below a held slice merged and the held slice is in another repository than the one before it with its pull request
+ * missing or draft: the verify skill then writes the held slice's block. One clock, the one limit, covers the whole wait. The one write this command makes is the base move (D-21 read otherwise): it never merges, closes or comments.
  */
-function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, count: number): number {
+function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, numbers: number[]): number {
   const watches: SliceWatch[] = [];
+  const count = numbers[numbers.length - 1];
   let self: string;
   try {
     self = loginOnly(gh(ctx, ['api', 'user', '--jq', '.login']));
-    for (let k = 1; k <= count; k++) {
-      const branch = k === 1 ? claimBranch : sliceBranch(id, k);
+    for (const k of numbers) {
+      const home = sliceHomeOf(ctx.snapshot, id, k, claimBranch);
+      if (home === undefined) throw new UsageError(`ticket ${id}: slice ${k} names no branch this command passes to gh`);
+      const branch = home.branch;
       if (!SAFE_BRANCH.test(branch) || branch.startsWith('-')) throw new UsageError(`ticket ${id}: the branch ${branch} is not a name this command passes to gh`);
-      const pr = newestOf(ctx, branch);
-      if (k === 1 && pr === undefined) {
+      let ghRepo: string | undefined;
+      if (home.repo !== undefined) {
+        ghRepo = ghRepoOfDeclared(ctx.snapshot.config, home.repo);
+        if (ghRepo === undefined) {
+          ctx.stdout.write(`pr-wait: unavailable: ${home.repo}'s remote is not a github.com repository\n`);
+          return 2;
+        }
+      }
+      const w: SliceWatch = { k, branch, ...(home.repo === undefined ? {} : { repo: home.repo }), ...(ghRepo === undefined ? {} : { ghRepo }), ...(home.previous === undefined ? {} : { previousN: home.previous.n }), merged: false };
+      const pr = newestOf(ctx, w);
+      if (watches.length === 0 && pr === undefined) {
         ctx.stdout.write(`pr-wait: no pull request for ${branch}\n`);
         return 2;
       }
-      watches.push({ k, branch, ...(pr === undefined ? {} : { pr }), merged: pr?.state === 'MERGED' });
+      if (pr !== undefined) {
+        w.pr = pr;
+        w.merged = pr.state === 'MERGED';
+      }
+      watches.push(w);
     }
   } catch (err) {
     if (err instanceof UsageError) throw err;
-    ctx.stdout.write(`pr-wait: unavailable: ${firstLine(err)}\n`);
+    ctx.stdout.write(`pr-wait: unavailable: ${ghFirstLine(err)}\n`);
     return 2;
   }
 
@@ -261,18 +294,18 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
   /** The slice the wait is on: the lowest whose pull request is not merged, else the last that has one. */
   const current = (): SliceWatch => watches.find((w) => w.pr !== undefined && !w.merged) ?? (watches.filter((w) => w.pr !== undefined).at(-1) as SliceWatch);
   const first = current();
-  ctx.stdout.write(`pr-wait: watching #${(first.pr as PrRef).number} (slice ${first.k} of ${count}) ${String((first.pr as PrRef).url ?? '').replace(/[^\x21-\x7e]/g, '')}, limit ${limitMs / 60_000} minutes\n`);
-  const told = new Map<number, number>();
+  ctx.stdout.write(`pr-wait: watching #${(first.pr as PrRef).number} (slice ${first.k} of ${count}) ${linkOf(first, first.pr as PrRef)}, limit ${limitMs / 60_000} minutes\n`);
+  const told = new Map<string, number>();
   const moved = new Set<number>(); // the slices whose pull request had its base move tried: once each, so a refusal is not repeated every 45 seconds (Ruling R14)
   const pending: WaitVerdict = { kind: 'pending', ignored: 0 };
-  /** Set when the wait cannot go on and is not one of the verdicts: the next slice has no pull request. Printed as row U2 after the loop (`halt.line`). */
-  const halt: { line?: string } = {};
+  /** Set when the wait cannot go on and is not one of the verdicts: the next slice has no pull request (row U2, exit 2), or a held slice is released (R18, exit 0). Printed after the loop. */
+  const halt: { line?: string; code?: number } = {};
 
   const poll = (): WaitVerdict => {
     // C-WR-03, D-28: a slice that has no pull request yet is looked up every round, so one opened while an earlier slice is still open is watched from the next poll on
     for (const w of watches) {
       if (w.pr !== undefined) continue;
-      const pr = newestOf(ctx, w.branch);
+      const pr = newestOf(ctx, w);
       if (pr !== undefined) {
         w.pr = pr;
         w.merged = pr.state === 'MERGED';
@@ -282,8 +315,8 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
     const open = watches.filter((w) => w.pr !== undefined && !w.merged);
     const seen = new Map<SliceWatch, { view: Seen; verdict: WaitVerdict }>();
     for (const w of open) {
-      const view = viewOf(ctx, (w.pr as PrRef).number);
-      seen.set(w, { view, verdict: judgeView(ctx, view, self, told) });
+      const view = viewOf(ctx, (w.pr as PrRef).number, w.ghRepo);
+      seen.set(w, { view, verdict: judgeView(ctx, view, self, told, w.ghRepo) });
     }
     for (const [w, s] of seen) {
       if (s.verdict.kind !== 'merged') continue;
@@ -291,16 +324,17 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
       if (s.view.baseRefName !== undefined) w.mergedBase = s.view.baseRefName;
     }
 
-    // each merged slice's next pull request, still on the merged branch, goes to the default branch (D-08, T-15-38): judged on what `gh pr view` just said of it
+    // each merged slice's next pull request of the same repository, still on the merged branch, goes to that repository's default branch (D-08, T-15-38): judged on what `gh pr view` just said of it.
+    // A slice of another repository is never the next one: its base is that repository's own (T-08.9.3-31).
     for (const w of watches) {
-      const next = w.merged && w.k < count ? watches[w.k] : undefined; // slice k + 1
+      const next = w.merged ? watches.find((x) => x.previousN === w.k && x.repo === w.repo) : undefined;
       const look = next === undefined ? undefined : seen.get(next);
       if (next === undefined || look === undefined || next.merged || moved.has(next.k)) continue;
       const nextPr: PrRef = { number: (next.pr as PrRef).number, state: look.view.state, baseRefName: look.view.baseRefName, headRefName: look.view.headRefName };
       if (!baseMovable(w.branch, next.branch, nextPr)) continue;
       // C-WR-02, D-08: the next slice goes to the default branch only after the slice before it merged into the default branch. A slice merged into another branch (an earlier slice's, say) does not
       // move it, and the merged slice's own base is never taken for the default branch.
-      const def = defaultBranch(ctx);
+      const def = defaultBranch(ctx, w.repo);
       const mergedInto = w.mergedBase ?? w.pr?.baseRefName;
       const why = def === undefined ? 'the default branch of the clone is not known' : mergedInto === def ? undefined : `#${(w.pr as PrRef).number} merged into ${mergedInto !== undefined && SAFE_BRANCH.test(mergedInto) ? mergedInto : 'another branch'}, not ${def}`;
       if (def === undefined || why !== undefined) {
@@ -310,16 +344,32 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
       }
       moved.add(next.k);
       try {
-        gh(ctx, ['pr', 'edit', String(nextPr.number), '--base', def]);
+        gh(ctx, ['pr', 'edit', String(nextPr.number), '--base', def], next.ghRepo);
         ctx.stdout.write(`pr-wait: slice ${w.k} merged #${(w.pr as PrRef).number}, base of #${nextPr.number} moved to ${def}\n`);
       } catch (err) {
-        ctx.stdout.write(`pr-wait: base of #${nextPr.number} not moved: ${firstLine(err)}\n`);
+        ctx.stdout.write(`pr-wait: base of #${nextPr.number} not moved: ${ghFirstLine(err)}\n`);
       }
     }
 
     // merged ends the wait only when every slice's pull request merged (D-28)
-    const last = watches[count - 1];
+    const last = watches[watches.length - 1];
     if (watches.every((w) => w.pr !== undefined && w.merged)) return { kind: 'merged', number: (last.pr as PrRef).number };
+
+    // D-08, D-13, Ruling R18: every slice below the lowest unmerged slice merged, and that slice is in another repository than the one before it, with its pull request missing or still a draft: it is free, and
+    // the wait ends so the verify skill writes its block after the earlier slice merged (a draft cannot merge until verify finishes, so waiting on it would never end)
+    const held = watches.findIndex((w) => !w.merged);
+    if (held > 0 && watches[held].repo !== watches[held - 1].repo) {
+      const w = watches[held];
+      const state = seen.get(w)?.view.state ?? w.pr?.state;
+      const draft = w.pr === undefined || (state === 'OPEN' && (seen.get(w)?.view.isDraft ?? w.pr.isDraft) === true);
+      if (draft) {
+        const before = watches[held - 1];
+        halt.line = `pr-wait: released slice ${w.k}: slice ${before.k} (${before.repo ?? 'this repository'}) merged #${(before.pr as PrRef).number}`;
+        halt.code = 0;
+        return { kind: 'closed', number: 0 };
+      }
+    }
+
     for (const w of watches) {
       const verdict = seen.get(w)?.verdict;
       if (verdict !== undefined && verdict.kind !== 'pending' && verdict.kind !== 'merged') return verdict;
@@ -328,7 +378,7 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
     if (!watches.some((w) => w.pr !== undefined && !w.merged)) {
       for (const w of watches) {
         if (w.pr !== undefined) continue;
-        const pr = newestOf(ctx, w.branch);
+        const pr = newestOf(ctx, w);
         if (pr !== undefined) {
           w.pr = pr;
           w.merged = pr.state === 'MERGED';
@@ -345,7 +395,7 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, coun
   const end = waitLoop({ poll, now: Date.now, sleep: sleepSync, everyMs: PR_WAIT_EVERY_MS, limitMs });
   if (halt.line !== undefined) {
     ctx.stdout.write(halt.line + '\n');
-    return 2;
+    return halt.code ?? 2;
   }
   ctx.stdout.write(finalLine(end, end.kind === 'verdict' ? end.verdict.number : (current().pr as PrRef).number) + '\n');
   return end.kind === 'unreadable' ? 2 : 0;

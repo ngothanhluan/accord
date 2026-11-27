@@ -178,7 +178,14 @@ it('risk:complex-branching the verdicts are the same while the tools checkout is
 /** A path as a comparison key: forward slashes, lower case (Windows drive letters and case vary between a stored path and the fixture's). */
 const key = (p: string | undefined): string => (p ?? '').replace(/\\/g, '/').toLowerCase();
 
-it('risk:regression gate done, lint and status start no git process in the tools clone, and gate plan does (D-04)', async () => {
+// Phase 08.9.3 D-07 (plan 11): gate done on a machine whose stored clone verifies reads the tip of each slice branch there so gate.repo-head-moved can fire: the origin check and `rev-parse --verify` of `refs/heads/slice/<id>/<n>` and
+// `refs/remotes/origin/slice/<id>/<n>`, and nothing else. Any other git process in the tools clone (a fetch, a status, a checkout) is still a failure, and lint and status start none.
+const TIP_READS: readonly RegExp[] = [
+  /^config --local --get remote\.origin\.url$/,
+  /^rev-parse --verify --quiet --end-of-options refs\/(?:heads|remotes\/origin)\/slice\/ST-9\/[1-9][0-9]?\^\{commit\}$/,
+];
+
+it('risk:regression lint and status start no git process in the tools clone, gate done only the read of the slice tips, and gate plan does (D-04, D-07)', async () => {
   const r = reposCopy();
   await planned(r, { tools: 'tools:src/Tools.cs' });
   const seen: { args: string[]; cwd?: string }[] = [];
@@ -197,7 +204,10 @@ it('risk:regression gate done, lint and status start no git process in the tools
     const before = seen.length;
     await run(argv, r.svc);
     expect(seen.length, argv.join(' ') + ' ran git in the checkout').toBeGreaterThan(before);
-    expect(inTools(), argv.join(' ')).toEqual([]);
+    // only the processes this command started: the ones of the commands before it are already judged
+    const mine = inTools().filter((c) => seen.indexOf(c) >= before);
+    if (argv[0] === 'gate') expect(mine.filter((c) => !TIP_READS.some((re) => re.test(c.args.join(' ')))), argv.join(' ')).toEqual([]);
+    else expect(mine, argv.join(' ')).toEqual([]);
   }
   spawnLog.on = false;
 });

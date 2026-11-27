@@ -17,7 +17,7 @@ import type { BriefOptions } from './commands/brief.js';
 import { audit } from './commands/audit.js';
 import { commitCheck, commitMessage } from './commands/commit.js';
 import { conventionsWrite } from './commands/conventions.js';
-import { pr } from './commands/pr.js';
+import { pr, prReady } from './commands/pr.js';
 import { prWait } from './commands/pr-wait.js';
 import { sliceOpen } from './commands/slice-tree.js';
 import { taskClean, taskMerge, taskOpen } from './commands/task-tree.js';
@@ -379,13 +379,20 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   // Phase 8.1 D-01, D-03: the title and the body file of a ticket's pull request, from the team's template and what the ticket knows; `gh pr create` itself stays in the skills.
   // Phase 15 D-22: `pr` is a group so `pr wait <id>` can sit beside the body builder; `accord pr <id>` still means `accord pr build <id>`.
-  const prGroup = program.command('pr').description("a ticket's pull request: build writes its title and body file (the default: accord pr <id>), wait follows it until it merged, closed, got feedback or a failed check, or the limit passed");
+  const prGroup = program.command('pr').description("a ticket's pull request: build writes its title and body file (the default: accord pr <id>), wait follows it until it merged, closed, got feedback or a failed check, or the limit passed, ready marks a slice's pull request ready once the earlier slices of other repositories merged");
   prGroup
     .command('build <id>', { isDefault: true })
     .description("write the body file of a ticket's pull request from the repository's PR template with every heading kept and the ticket's id, title, Intent, criteria and test evidence filled in, and print title: <title>, body-file: <path>, template: <path>, and one remaining: <heading> line per section left for you to write; the skill then runs gh pr create --title <title> --body-file <path>")
     .option('--slice <n>', "the pull request of slice <n> of the plan's slices: the title ends (slice <n> of <m>) and the body opens with Slice <n> of <m>, the criteria that slice delivers and its measured size")
     .action((id: string, o: { slice?: string }) => {
       setCode(pr(preflight(opts), id, o));
+    });
+  prGroup
+    .command('ready <id>')
+    .description("mark the pull request of a slice ready for review (gh pr ready, aimed at the other repository for a slice built there) only when every earlier slice built in another repository has a merged pull request: it prints ready: #<n>, ready: #<n> (already), or held: slice <n> waits for <repository> slice <k> (#<pr>) with exit 1 and changes nothing; without --slice it is the claim branch's pull request; merges, closes and comments on nothing")
+    .option('--slice <n>', "slice <n> of the plan's slices")
+    .action((id: string, o: { slice?: string }) => {
+      setCode(prReady(preflight(opts), id, o));
     });
   prGroup
     .command('wait <id>')
@@ -496,10 +503,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(reposSet(preflight(opts), name, path, opts.cwd));
     });
   repos
-    .command('status')
-    .description("print one line per declared repository: <name>: <path> (stored) for a clone whose origin still names its URL, and a line naming why not otherwise (D-02: the exact git clone line, and accord repos set); exit 2 when any has no usable clone; nothing is cloned")
-    .action(() => {
-      setCode(reposStatus(preflight(opts)));
+    .command('status [id]')
+    .description("print one line per declared repository: <name>: <path> (stored) for a clone whose origin still names its URL, and a line naming why not otherwise (D-02: the exact git clone line, and accord repos set); exit 2 when any has no usable clone; nothing is cloned. With a ticket id it prints, per other repository of the ticket's plan, the clone, the recorded worktree, the suite (repos.<name>.tests) and where to run it, each slice's branch, head and pull request read with gh (numbers, states and shas only), the record: lines the verifier copies into verification.md, and held: for a slice of this repository that waits for a pull request that has not merged; it writes nothing")
+    .action((id: string | undefined) => {
+      setCode(reposStatus(preflight(opts), id));
     });
   repos
     .command('baseline <name>')

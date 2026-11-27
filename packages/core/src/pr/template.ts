@@ -255,6 +255,18 @@ export function sliceBlock(slice: SlicePart, delivers: readonly string[], size: 
 }
 
 /**
+ * Phase 08.9.3 D-08: the lines every slice pull request of a plan that names another repository carries, after the slice block: `Deploy order:` and one numbered line per slice, in slice order, naming the repository
+ * it is built in (`this repository` for a slice with no `repo:`). `names` maps a declared repository name to the label printed for it (absent: the declared name). An empty string when no slice names another
+ * repository, so a plan of one repository writes the body it always did. Pure; the names are the ones the plan's `repo:` lines carry and the numbers are the slices'.
+ */
+export function deployOrderBlock(slices: readonly { n: number; repo?: string }[], names: Readonly<Record<string, string>> = {}): string {
+  if (!slices.some((s) => s.repo !== undefined)) return '';
+  const ordered = [...slices].sort((a, b) => a.n - b.n);
+  const label = (s: { repo?: string }): string => (s.repo === undefined ? 'this repository' : Object.hasOwn(names, s.repo) ? names[s.repo] : s.repo);
+  return ['Deploy order:', ...ordered.map((s, i) => `${i + 1}. ${label(s)} (slice ${s.n})`), '', ''].join('\n');
+}
+
+/**
  * Why a pull request title cannot go through the quoted `--title "<title>"` argument the skills write, or undefined when it can (Ruling "title"). A double quote, a backtick, `$` and a backslash
  * mean something to bash and PowerShell inside double quotes, and `%` is expanded by cmd.exe there (D-16 item 7); a control character, a line break or an invisible format character would
  * show as one thing and be another. `'`, `!`, `;` and `&` pass on purpose (Phase 08.8 session Ruling 2): they are literal inside double quotes in cmd.exe, PowerShell and non-interactive bash, and

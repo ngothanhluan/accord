@@ -42,9 +42,10 @@ export function pullRequestOf(url: string): PullRequest | undefined {
 
 const HOST = '([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)';
 const PATH = '([A-Za-z0-9][A-Za-z0-9._-]*)/([A-Za-z0-9._-]+?)(?:\\.git)?/?';
-const HTTPS = new RegExp(`^https://(?:[^/@\\s]+@)?${HOST}(?::\\d+)?/${PATH}$`);
-const SSH = new RegExp(`^ssh://(?:[^/@\\s]+@)?${HOST}(?::\\d+)?/${PATH}$`);
-const SCP = new RegExp(`^(?:[^/@:\\s]+@)?${HOST}:${PATH}$`);
+// a user part never starts with `-` (Phase 08.9.3 W-3): the same rule as the schema's remote patterns, so no form accord reads could be taken for an option of ssh or git
+const HTTPS = new RegExp(`^https://(?:[^/@\\s-][^/@\\s]*@)?${HOST}(?::\\d+)?/${PATH}$`);
+const SSH = new RegExp(`^ssh://(?:[^/@\\s-][^/@\\s]*@)?${HOST}(?::\\d+)?/${PATH}$`);
+const SCP = new RegExp(`^(?:[^/@:\\s-][^/@:\\s]*@)?${HOST}:${PATH}$`);
 
 /**
  * R-9: host, owner and repository of a remote's URL, or undefined for any other form. Read: `https://<host>/<owner>/<repo>[.git][/]`, `ssh://[<user>@]<host>[:<port>]/<owner>/<repo>[.git]`, and

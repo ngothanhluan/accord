@@ -37,10 +37,17 @@ it('risk:security a remote that is a path, an option, a transport or too long is
     ' https://github.com/acme/tools.git',
     'https://github.com/acme/tools.git\n',
     'gh-work:acme/tools',
+    // W-3: a user part that starts with `-` is refused in every form with a user, as the scp form already did
+    'ssh://-oProxyCommand=sh@host.com/a/b',
+    'ssh://-o@github.com/acme/tools.git',
+    'https://-user@github.com/acme/tools.git',
+    '-o@github.com:acme/tools.git',
     'https://github.com/acme/' + 'a'.repeat(300 - 'https://github.com/acme/'.length + 1),
   ];
   expect(refused[refused.length - 1].length).toBe(301);
   for (const remote of refused) expect(findings({ tools: entry({ remote }) }).length, JSON.stringify(remote)).toBeGreaterThan(0);
+  // the origin of a clone is read by the same rules, so a user that starts with `-` is no remote there either
+  for (const remote of refused.filter((r) => r.includes('@'))) expect(parseRepoUrl(remote), JSON.stringify(remote)).toBeUndefined();
   // the longest accepted value is 300 characters
   expect(findings({ tools: entry({ remote: 'https://github.com/acme/' + 'a'.repeat(300 - 'https://github.com/acme/'.length) }) })).toEqual([]);
 });

@@ -4,9 +4,10 @@ import { mkdtempSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { REPOS_FROM } from '@accord-dev/accord-core';
+import { loadSnapshot, REPOS_FROM } from '@accord-dev/accord-core';
 import { claimedUnder, cleanup, commitAll, run, writeFiles } from './helpers/repo.js';
 import { spawnLog } from './helpers/git-spawns.js';
+import { gitRepoFacts, loadFromFs } from '../src/load/fs.js';
 import { reposCopy, useRepoSandboxes, type Repos } from './helpers/repos.js';
 
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig()));
@@ -172,4 +173,73 @@ it('risk:complex-branching the verdicts are the same while the tools checkout is
   const unknown = only(res.found, 'gate.task-file-unknown');
   expect(unknown).toHaveLength(1);
   expect(unknown[0].reason).toContain('tools:src/Missing.cs');
+});
+
+/** A path as a comparison key: forward slashes, lower case (Windows drive letters and case vary between a stored path and the fixture's). */
+const key = (p: string | undefined): string => (p ?? '').replace(/\\/g, '/').toLowerCase();
+
+it('risk:regression gate done, lint and status start no git process in the tools clone, and gate plan does (D-04)', async () => {
+  const r = reposCopy();
+  await planned(r, { tools: 'tools:src/Tools.cs' });
+  const seen: { args: string[]; cwd?: string }[] = [];
+  const tools = key(r.tools);
+  const inTools = (): { args: string[]; cwd?: string }[] => seen.filter((c) => key(c.cwd) === tools || key(c.cwd).startsWith(tools + '/') || c.args.some((a) => key(a).includes(tools + '/') || key(a) === tools));
+  spawnLog.fail = (args, options) => {
+    seen.push({ args: [...args], cwd: options?.cwd });
+    return false;
+  };
+  spawnLog.on = true;
+  // guard-the-guard: gate plan reads the clone, so the clone is stored and findable by every later command
+  await run(['gate', 'plan', 'ST-9'], r.svc);
+  expect(inTools().length).toBeGreaterThan(0);
+  seen.length = 0;
+  for (const argv of [['gate', 'done', 'ST-9'], ['lint'], ['status']]) {
+    const before = seen.length;
+    await run(argv, r.svc);
+    expect(seen.length, argv.join(' ') + ' ran git in the checkout').toBeGreaterThan(before);
+    expect(inTools(), argv.join(' ')).toEqual([]);
+  }
+  spawnLog.on = false;
+});
+
+/** Task text and slices of a plan that names no other repository, with the claim pinned at `pin`. */
+async function plainPlanned(r: Repos, pin: string): Promise<void> {
+  claimedUnder(r.svc, pin, 'ST-9');
+  expect((await run(['approve', 'ST-9'], r.svc)).code).toBe(0);
+  writeFiles(r.svc, { 'src/svc.ts': 'export const svc = 1;\n' });
+  const base = commitAll(r.svc);
+  writeFiles(r.svc, { 'accord/tickets/ST-9/plan.md': ['---', `baseline: ${base}`, '---', '', '# Plan', '', task(1, 'src/svc.ts'), task(2, 'src/svc.ts')].join('\n') });
+  commitAll(r.svc);
+}
+
+it('risk:regression a plan that names no other repository gets no repoFacts, no process in the clone and the verdict it had before the release (D-05)', async () => {
+  const before = reposCopy();
+  await plainPlanned(before, '0.21.1');
+  const after = reposCopy();
+  await plainPlanned(after, REPOS_FROM);
+  expect(gitRepoFacts(after.svc, loadSnapshot(loadFromFs(after.svc)), 'ST-9')).toEqual({});
+  // the same plan, judged for a ticket claimed before the release and for one claimed at it: the same findings, up to the commit hashes each fixture has
+  const seen: string[] = [];
+  spawnLog.fail = (_args, options) => {
+    seen.push(key(options?.cwd));
+    return false;
+  };
+  spawnLog.on = true;
+  const was = await run(['gate', 'plan', 'ST-9', '--json'], before.svc);
+  seen.length = 0;
+  const now = await run(['gate', 'plan', 'ST-9', '--json'], after.svc);
+  spawnLog.on = false;
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen.filter((c) => c === key(after.tools) || c.startsWith(key(after.tools) + '/'))).toEqual([]);
+  const normal = (text: string): unknown => JSON.parse(text.replace(/[0-9a-f]{7,40}/g, '<sha>'));
+  expect(now.code).toBe(was.code);
+  expect(normal(now.out)).toEqual(normal(was.out));
+  expect(JSON.parse(now.out).findings.some((f: Found) => f.rule.startsWith('gate.repo-'))).toBe(false);
+});
+
+it('risk:regression gitRepoFacts holds, for a plan that names tools, the baseline, whether it is on the default branch and the paths found there (D-05)', async () => {
+  const r = reposCopy();
+  const { toolsSha } = await planned(r, { tools: 'tools:src/Tools.cs, tools:src/Missing.cs' });
+  const facts = gitRepoFacts(r.svc, loadSnapshot(loadFromFs(r.svc)), 'ST-9');
+  expect(facts).toEqual({ repoFacts: { tools: { baseline: toolsSha, onDefault: true, files: ['src/Tools.cs'] } } });
 });

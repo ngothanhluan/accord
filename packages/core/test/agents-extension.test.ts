@@ -2,7 +2,7 @@
 // renderer merges them into the agent's frontmatter after the authored fields. The judge and the foreign reviewer take none.
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { AGENT_DEFAULTS, agents, agentTargets, renderAgent } from '../src/index.js';
+import { AGENT_DEFAULTS, agents, agentTargets, loadConfig, NO_ADDITIONS, renderAgent } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 
 const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
@@ -39,5 +39,110 @@ describe('agents: additions render into the agent files (D-01)', () => {
       const found = plain.find((f) => f.path === `.claude/agents/${authored.name}.md`)?.text;
       expect(found).toBe(renderAgent(key, AGENT_DEFAULTS[authored.route]));
     }
+  });
+});
+
+const mcpOf = (c: AccordConfig, name: string): unknown => frontmatter(fileOf(c, name)).mcpServers;
+const toolsOf = (c: AccordConfig, name: string): string => String(frontmatter(fileOf(c, name)).tools);
+
+describe('agents: each role gets exactly its own additions (11-ac-3, Security Ruling)', () => {
+  it('risk:regression a server added to a role with an allowlist adds mcp__<server>__* once (11-ac-3, D-01)', () => {
+    expect(toolsOf(config({ agents: { reviewer: { mcp: ['docs'] } } }), 'accord-reviewer')).toBe('Read, Grep, Glob, Bash, mcp__docs__*');
+    expect(toolsOf(config({ agents: { reviewer: { mcp: ['reports__v2'] } } }), 'accord-reviewer')).toBe('Read, Grep, Glob, Bash, mcp__reports__v2__*');
+    // a server an added tools entry already covers is not listed twice, and the covering entry stays where the team wrote it
+    expect(toolsOf(config({ agents: { reviewer: { mcp: ['docs'], tools: ['mcp__docs__*'] } } }), 'accord-reviewer')).toBe('Read, Grep, Glob, Bash, mcp__docs__*');
+    expect(toolsOf(config({ agents: { reviewer: { mcp: ['docs'], tools: ['mcp__docs'] } } }), 'accord-reviewer')).toBe('Read, Grep, Glob, Bash, mcp__docs');
+  });
+
+  it('risk:regression an agent that authors no tools line gains none (11-ac-3, D-01, T-11-05)', () => {
+    const fm = frontmatter(fileOf(config({ agents: { researcher: { mcp: ['docs'], tools: ['WebFetch'] } } }), 'accord-researcher'));
+    expect(fm.mcpServers).toEqual(['docs']);
+    expect(Object.hasOwn(fm, 'tools')).toBe(false);
+    const plain = frontmatter(fileOf(config(), 'accord-researcher'));
+    expect(fm.disallowedTools).toBe(plain.disallowedTools);
+    expect(String(fm.disallowedTools)).toContain('Edit');
+  });
+
+  it('risk:regression agents.executor.tools appends each tool once after the authored ones, in the order written (D-01)', () => {
+    expect(toolsOf(config({ agents: { executor: { tools: ['WebFetch', 'Read', 'WebSearch'] } } }), 'accord-executor')).toBe('Read, Write, Edit, Bash, Grep, Glob, WebFetch, WebSearch');
+  });
+
+  it('risk:security the judge and the foreign reviewer render the same with and without additions (Security Ruling, T-11-02)', () => {
+    expect([...NO_ADDITIONS].sort()).toEqual(['foreign-reviewer.md', 'judge.md']);
+    const all = { mcp: ['docs', { playwright: { type: 'http', url: 'https://example.test/mcp' } }], skills: ['x'], tools: ['WebFetch', 'Write'] };
+    const loaded = config({ agents: { reviewer: all, 'reviewer.final': all } } as Partial<AccordConfig>);
+    for (const name of ['accord-judge', 'accord-foreign-reviewer']) {
+      const without = fileOf(config(), name);
+      expect(without.length).toBeGreaterThan(0);
+      expect(fileOf(loaded, name)).toBe(without);
+    }
+    // and the same additions do reach the two agents they address
+    expect(mcpOf(loaded, 'accord-reviewer')).toBeDefined();
+    expect(mcpOf(loaded, 'accord-final-reviewer')).toBeDefined();
+  });
+
+  it('risk:regression agents.reviewer reaches accord-reviewer.md only and agents.reviewer.final accord-final-reviewer.md only (Security Ruling, D-01)', () => {
+    const base = config({ agents: { reviewer: { skills: ['x'] } } });
+    expect(frontmatter(fileOf(base, 'accord-reviewer')).skills).toEqual(['x']);
+    expect(frontmatter(fileOf(base, 'accord-final-reviewer')).skills).toBeUndefined();
+    const final = config({ agents: { 'reviewer.final': { skills: ['y'] } } });
+    expect(frontmatter(fileOf(final, 'accord-final-reviewer')).skills).toEqual(['y']);
+    expect(frontmatter(fileOf(final, 'accord-reviewer')).skills).toBeUndefined();
+  });
+
+  it('risk:regression an inline http, sse or ws definition renders as the one-key object and adds mcp__<name>__* (D-17 render half, 11-ac-3)', () => {
+    const inline = { playwright: { type: 'http', url: 'https://example.test/mcp' } } as const;
+    const fm = frontmatter(fileOf(config({ agents: { executor: { mcp: [inline] } } }), 'accord-executor'));
+    expect(fm.mcpServers).toEqual([inline]);
+    expect(String(fm.tools).endsWith('mcp__playwright__*')).toBe(true);
+    for (const type of ['sse', 'ws'] as const) {
+      const other = { remote: { type, url: type === 'ws' ? 'wss://example.test/x' : 'https://example.test/x' } };
+      expect(mcpOf(config({ agents: { verifier: { mcp: [other] } } }), 'accord-verifier')).toEqual([other]);
+    }
+  });
+});
+
+describe('agents: the schema refuses what the lock cannot take (Security Ruling, D-17)', () => {
+  const base = 'accord: "0.22.0"\nprofile: build\ntracker:\n  adapter: none\ndesign:\n  tokens: ""\nroles: [ba, dev]\nruntimes: [claude]\n';
+  const check = (text: string): { ok: boolean; found: string[] } => {
+    const { config: loaded, findings } = loadConfig('accord/config.yml', base + 'agents:\n' + text);
+    return { ok: loaded !== undefined, found: findings.map((f) => f.pointer ?? f.reason) };
+  };
+  const loads = (text: string): void => expect(check(text), text).toMatchObject({ ok: true });
+  const refuses = (text: string): void => {
+    const got = check(text);
+    expect(got.ok, text).toBe(false);
+    expect(got.found.some((p) => p.startsWith('/agents')), text + ' -> ' + JSON.stringify(got.found)).toBe(true);
+  };
+
+  it('risk:security a well-formed agents block loads, every route key included (11-ac-1, D-01)', () => {
+    loads('  scout: { skills: [a] }\n  critic: { skills: [a] }\n  planner: { skills: [a] }\n  executor: { mcp: [playwright], tools: [WebFetch, "mcp__docs__*"] }\n');
+    loads('  reviewer: { mcp: [docs] }\n  reviewer.final: { mcp: [docs] }\n  verifier: { skills: [a] }\n  debugger: { skills: [a] }\n  researcher: { mcp: [docs] }\n');
+    loads('  executor:\n    mcp:\n      - playwright:\n          type: http\n          url: https://example.test/mcp\n');
+  });
+
+  it('risk:security a role that is not a route key is a schema error, the judge and foreign reviewer included (Security Ruling, T-11-02)', () => {
+    for (const role of ['judge', 'foreign-reviewer', 'auditor', 'architect', 'nosuch']) refuses('  ' + role + ': { skills: [a] }\n');
+  });
+
+  it('risk:security 33 skills, a bad server name and a bad skill or tool name are schema errors (T-11-06, D-01)', () => {
+    const names = Array.from({ length: 33 }, (_, i) => 's' + i);
+    refuses('  reviewer: { skills: [' + names.join(', ') + '] }\n');
+    loads('  reviewer: { skills: [' + names.slice(0, 32).join(', ') + '] }\n');
+    refuses('  executor: { mcp: ["-leading"] }\n');
+    refuses('  executor: { mcp: ["has space"] }\n');
+    refuses('  reviewer: { skills: ["Has Upper"] }\n');
+    refuses('  reviewer: { skills: [a, a] }\n');
+    refuses('  reviewer: { tools: ["two words"] }\n');
+  });
+
+  it('risk:security an inline definition carries no env, headers or credential in its url (T-11-04, D-17)', () => {
+    const inline = (lines: string): string => '  executor:\n    mcp:\n      - s:\n          type: http\n' + lines;
+    loads(inline('          url: https://example.test/mcp\n'));
+    refuses(inline('          url: https://example.test/mcp\n          env: { TOKEN: abc }\n'));
+    refuses(inline('          url: https://example.test/mcp\n          headers: { Authorization: abc }\n'));
+    refuses(inline('          url: https://user:pass@example.test/mcp\n'));
+    refuses('  executor:\n    mcp:\n      - s:\n          type: ftp\n          url: https://example.test/mcp\n');
+    refuses('  executor:\n    mcp:\n      - a: { type: http }\n        b: { type: http }\n');
   });
 });

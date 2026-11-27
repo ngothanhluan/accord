@@ -37,7 +37,7 @@ import { upgradeNotice } from './commands/notice.js';
 import { dashboardCommand } from './commands/dashboard.js';
 import { diffPackage } from './commands/diff-package.js';
 import { reviewPackage } from './commands/review-package.js';
-import { reposSet, reposStatus } from './commands/repos.js';
+import { reposBaseline, reposSet, reposStatus } from './commands/repos.js';
 import { round } from './commands/round.js';
 import { scoutCheckCommand } from './commands/scout.js';
 import { skills } from './commands/skills.js';
@@ -500,6 +500,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("print one line per declared repository: <name>: <path> (stored) for a clone whose origin still names its URL, and a line naming why not otherwise (D-02: the exact git clone line, and accord repos set); exit 2 when any has no usable clone; nothing is cloned")
     .action(() => {
       setCode(reposStatus(preflight(opts)));
+    });
+  repos
+    .command('baseline <name>')
+    .description("D-05: fetch the origin of repository <name>'s clone without a prompt (remote-tracking refs only: its HEAD, index, working tree and local branches are not touched), print baseline_<name>: <40-hex sha> of its default branch tip on origin, and write that commit's tracked paths, one per line, to .accord-reports/<id>/repos/<name>.files (git-ignored) with files: <path> and count: <n>; exit 2 and nothing written for a missing --id, an unknown ticket or name, no clone, a linked report folder or a failed fetch")
+    .option('--id <id>', "the ticket whose report folder gets the file list (required: refused with exit 2 when missing or no ticket of this checkout)")
+    .action((name: string, o: { id?: string }) => {
+      setCode(reposBaseline(preflight(opts), name, o));
     });
 
   // Phase 8.1 D-09: the convention lines the owner accepted in /accord-audit, on their own branch for a pull request the owner merges; the skill opens it.

@@ -3,12 +3,41 @@
 // Real git in two sibling clones (helpers/repos.ts); nothing here reaches a network.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { deployOrderBlock, REPOS_FROM } from '@accord-dev/accord-core';
 import { claimedUnder, commitAll, run, writeFiles } from './helpers/repo.js';
 import { reposCopy, useRepoSandboxes, type Repos } from './helpers/repos.js';
 
+interface Opts {
+  cwd?: string;
+  shell?: unknown;
+  env?: Record<string, string | undefined>;
+}
+/** What the fake `gh` answers (`accord pr` never calls it; `accord pr ready` does): a string is stdout, an Error is a failed call. Set per case. */
+const gh = vi.hoisted(() => ({
+  calls: [] as { args: string[]; opts: Opts }[],
+  answer: (() => '') as (args: string[], opts: Opts) => string | Error,
+}));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    execFileSync: (file: string, args: string[], opts: unknown) => {
+      if (file !== 'gh') return (actual.execFileSync as unknown as (...a: unknown[]) => unknown)(file, args, opts);
+      gh.calls.push({ args, opts: opts as Opts });
+      const out = gh.answer(args, opts as Opts);
+      if (out instanceof Error) throw out;
+      return out;
+    },
+  };
+});
+
 useRepoSandboxes();
+beforeEach(() => {
+  gh.calls.length = 0;
+  gh.answer = () => '';
+  delete process.env.GH_REPO;
+});
 
 const CLAIM = 't/ST-9';
 const task = (n: number, files: string): string => `## Task ${n}: Step ${n}\ncovers: @ac-${n}\nfiles: ${files}\nverify: export#step-${n} (@ac-${n})\nafter: none\nDo step ${n}.\n`;
@@ -122,4 +151,145 @@ it('risk:regression a slice in tools whose clone is not stored here is refused w
   expect(res.code).toBe(2);
   expect(res.err + res.out).toMatch(/default branch of tools/);
   expect(res.err + res.out).toMatch(/accord repos set tools/);
+}, 120_000);
+
+// ---- accord pr ready holds the deploy order (D-08, Ruling R19) ----
+
+const TOOLS = 'acme/tools';
+interface FakePr {
+  number: number;
+  repo: string; // the GH_REPO the pull request lives in; '' for this repository
+  head: string;
+  state: string;
+  draft: boolean;
+}
+/** A fake `gh` for pull requests of two repositories, told apart by the `GH_REPO` of each call: `pr list` by head branch and `pr ready`, which clears the draft flag. Any other call is a failure, so a write verb shows. */
+function remote(prs: FakePr[]): void {
+  gh.answer = (args, opts) => {
+    const repo = opts.env?.GH_REPO ?? '';
+    if (args[0] === 'pr' && args[1] === 'list') {
+      const head = args[args.indexOf('--head') + 1];
+      return JSON.stringify(prs.filter((p) => p.repo === repo && p.head === head).map((p) => ({ number: p.number, state: p.state, isDraft: p.draft, baseRefName: 'main', headRefName: p.head, url: `https://github.com/x/y/pull/${p.number}` })));
+    }
+    if (args[0] === 'pr' && args[1] === 'ready') {
+      const p = prs.find((x) => x.repo === repo && String(x.number) === args[2]);
+      if (p === undefined) return new Error('no such pull request');
+      p.draft = false;
+      return '';
+    }
+    return new Error('unexpected gh call: ' + args.join(' '));
+  };
+}
+const readyCalls = (): { args: string[]; opts: Opts }[] => gh.calls.filter((c) => c.args[0] === 'pr' && c.args[1] === 'ready');
+
+it('risk:complex-branching accord pr ready ST-9 --slice 2 is held while the tools pull request is not merged, and calls gh pr ready for this repository once it is (D-08, Ruling R19)', async () => {
+  const r = reposCopy();
+  await planned(r, TOOLS_THEN_HERE);
+  const prs: FakePr[] = [
+    { number: 41, repo: TOOLS, head: 'slice/ST-9/1', state: 'OPEN', draft: false },
+    { number: 57, repo: '', head: CLAIM, state: 'OPEN', draft: true },
+  ];
+  remote(prs);
+  const held = await run(['pr', 'ready', 'ST-9', '--slice', '2'], r.svc);
+  expect(held.code, held.out + held.err).toBe(1);
+  expect(held.out).toBe('held: slice 2 waits for tools slice 1 (#41)\n');
+  expect(readyCalls()).toEqual([]);
+  expect(prs[1].draft).toBe(true);
+
+  prs[0].state = 'MERGED';
+  const freed = await run(['pr', 'ready', 'ST-9', '--slice', '2'], r.svc);
+  expect(freed.code, freed.out + freed.err).toBe(0);
+  expect(freed.out).toBe('ready: #57\n');
+  expect(readyCalls()).toHaveLength(1);
+  expect(readyCalls()[0].args).toEqual(['pr', 'ready', '57']);
+  expect(readyCalls()[0].opts.env?.GH_REPO).toBeUndefined();
+  expect(readyCalls()[0].opts.shell).toBeUndefined();
+}, 120_000);
+
+it('risk:complex-branching accord pr ready ST-9 --slice 1 marks the tools pull request ready with GH_REPO, and says already for one that is (D-08, Ruling R19)', async () => {
+  const r = reposCopy();
+  await planned(r, TOOLS_THEN_HERE);
+  remote([{ number: 41, repo: TOOLS, head: 'slice/ST-9/1', state: 'OPEN', draft: true }]);
+  const first = await run(['pr', 'ready', 'ST-9', '--slice', '1'], r.svc);
+  expect(first.code, first.out + first.err).toBe(0);
+  expect(first.out).toBe('ready: #41\n');
+  expect(readyCalls()).toHaveLength(1);
+  expect(readyCalls()[0].args).toEqual(['pr', 'ready', '41']);
+  expect(readyCalls()[0].opts.env?.GH_REPO).toBe(TOOLS);
+  const again = await run(['pr', 'ready', 'ST-9', '--slice', '1'], r.svc);
+  expect(again.code, again.out + again.err).toBe(0);
+  expect(again.out).toBe('ready: #41 (already)\n');
+  expect(readyCalls()).toHaveLength(1);
+}, 120_000);
+
+it('risk:complex-branching [1 here, 2 tools]: slice 2 waits for this repository slice 1, and an earlier slice with no pull request holds as well (D-08)', async () => {
+  const r = reposCopy();
+  await planned(r, [{ n: 1 }, { n: 2, repo: 'tools' }]);
+  const prs: FakePr[] = [
+    { number: 57, repo: '', head: CLAIM, state: 'OPEN', draft: false },
+    { number: 41, repo: TOOLS, head: 'slice/ST-9/2', state: 'OPEN', draft: true },
+  ];
+  remote(prs);
+  const held = await run(['pr', 'ready', 'ST-9', '--slice', '2'], r.svc);
+  expect(held.code, held.out + held.err).toBe(1);
+  expect(held.out).toBe('held: slice 2 waits for this repository slice 1 (#57)\n');
+  expect(readyCalls()).toEqual([]);
+  prs.shift();
+  const none = await run(['pr', 'ready', 'ST-9', '--slice', '2'], r.svc);
+  expect(none.code).toBe(1);
+  expect(none.out).toBe('held: slice 2 waits for this repository slice 1 (no pull request yet)\n');
+}, 120_000);
+
+it('risk:complex-branching a slice of the same repository as the one before it is not held by it: only earlier slices of another repository hold (D-08)', async () => {
+  const r = reposCopy();
+  await planned(r, [{ n: 1, repo: 'tools' }, { n: 2 }, { n: 3 }]);
+  remote([
+    { number: 41, repo: TOOLS, head: 'slice/ST-9/1', state: 'MERGED', draft: false },
+    { number: 57, repo: '', head: CLAIM, state: 'OPEN', draft: true },
+    { number: 70, repo: '', head: 'slice/ST-9/3', state: 'OPEN', draft: true },
+  ]);
+  const res = await run(['pr', 'ready', 'ST-9', '--slice', '3'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  expect(res.out).toBe('ready: #70\n');
+  expect(readyCalls().map((c) => c.args.join(' '))).toEqual(['pr ready 70']);
+}, 120_000);
+
+it('risk:regression pr ready names a slice the plan lacks, a slice with no pull request and a pull request that is merged or closed, as exit 2 with nothing marked (D-08)', async () => {
+  const r = reposCopy();
+  await planned(r, TOOLS_THEN_HERE);
+  const prs: FakePr[] = [{ number: 41, repo: TOOLS, head: 'slice/ST-9/1', state: 'MERGED', draft: false }];
+  remote(prs);
+  const lacks = await run(['pr', 'ready', 'ST-9', '--slice', '9'], r.svc);
+  expect(lacks.code).toBe(2);
+  expect(lacks.err + lacks.out).toContain('--slice 9 is not one of the plan');
+  const noPr = await run(['pr', 'ready', 'ST-9', '--slice', '2'], r.svc);
+  expect(noPr.code).toBe(2);
+  expect(noPr.err + noPr.out).toContain('ST-9 slice 2 has no pull request for t/ST-9');
+  const merged = await run(['pr', 'ready', 'ST-9', '--slice', '1'], r.svc);
+  expect(merged.code).toBe(2);
+  expect(merged.err + merged.out).toContain('pull request #41 of slice/ST-9/1 is merged');
+  prs[0].state = 'CLOSED';
+  const closed = await run(['pr', 'ready', 'ST-9', '--slice', '1'], r.svc);
+  expect(closed.code).toBe(2);
+  expect(closed.err + closed.out).toContain('is closed');
+  expect(readyCalls()).toEqual([]);
+}, 120_000);
+
+it('risk:security accord pr ready makes only read calls and the one ready write: never a merge, a close or a comment, and a gh that cannot answer is exit 2 (D-21, T-08.9.3-32)', async () => {
+  const r = reposCopy();
+  await planned(r, TOOLS_THEN_HERE);
+  remote([
+    { number: 41, repo: TOOLS, head: 'slice/ST-9/1', state: 'MERGED', draft: false },
+    { number: 57, repo: '', head: CLAIM, state: 'OPEN', draft: true },
+  ]);
+  await run(['pr', 'ready', 'ST-9', '--slice', '2'], r.svc);
+  for (const { args } of gh.calls) {
+    expect(args[0]).toBe('pr');
+    expect(['list', 'ready']).toContain(args[1]);
+    expect(args.some((a) => ['merge', 'close', 'comment', 'edit', 'review'].includes(a))).toBe(false);
+  }
+  gh.answer = () => Object.assign(new Error('Command failed: gh pr list'), { stderr: 'To get started with GitHub CLI, please run:  gh auth login\nsecond line\n' });
+  const off = await run(['pr', 'ready', 'ST-9', '--slice', '2'], r.svc);
+  expect(off.code).toBe(2);
+  expect(off.out).toBe('pr-ready: unavailable: To get started with GitHub CLI, please run:  gh auth login\n');
 }, 120_000);

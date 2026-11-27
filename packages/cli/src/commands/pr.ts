@@ -3,10 +3,10 @@
 // repository's PR template with every heading kept and what the ticket knows filled in; else it is today's fixed body. It reads the repository and writes files under .git: it never calls `gh` (D-03).
 import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { deployOrderBlock, epicBody, fillTemplate, findTemplate, normaliseText, prFacts, prTitle, parseRepoUrl, prTitleProblem, SAFE_BRANCH, sliceBlock, sliceBudget, sliceFacts, sliceTitle, todaysBody, workOf } from '@accord-dev/accord-core';
+import { deployOrderBlock, epicBody, fillTemplate, findTemplate, normaliseText, prFacts, prTitle, parseRepoUrl, prTitleProblem, SAFE_BRANCH, firstMainSlice, sliceBlock, sliceBudget, sliceFacts, sliceTitle, todaysBody, workOf } from '@accord-dev/accord-core';
 import type { PrFacts, SliceHome, SlicePart } from '@accord-dev/accord-core';
 import { gitBranchCommits, gitDefaultRef, gitFilesAt, gitTracked, UsageError, withQueued } from '../load/fs.js';
-import { ghRepoOf } from '../load/gh.js';
+import { ghFirstLine, ghRepoOf, ghRepoOfDeclared, ghRun } from '../load/gh.js';
 import { originOf } from '../load/repos.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
 import { gitSliceSize, sliceHomeOf } from '../load/slice-size.js';
@@ -14,7 +14,7 @@ import { runTeamCommand } from '../load/team-run.js';
 import type { CommandContext } from '../run.js';
 import { renderedFilesOf } from './branch-fact.js';
 import { withNext } from './next-action.js';
-import { defaultBranch } from './pr-wait.js';
+import { defaultBranch, newestOf } from './pr-wait.js';
 import { branchOf, git, ID } from './worktree.js';
 
 /**
@@ -129,9 +129,7 @@ function otherRepositoryPr(
   const { home, part, facts, title, where } = at;
   const problem = prTitleProblem(title);
   if (problem !== undefined) throw new UsageError(`ticket ${id}: ${problem}`);
-  const repos = ctx.snapshot.config?.repos;
-  const entry = repos !== undefined && Object.hasOwn(repos, home.repo) ? repos[home.repo] : undefined;
-  const slug = entry === undefined ? undefined : ghRepoOf(entry.remote);
+  const slug = ghRepoOfDeclared(ctx.snapshot.config, home.repo);
   if (slug === undefined) throw new UsageError(`${home.repo}: its remote is not a github.com repository, so the pull request of slice ${part.n} cannot be made with gh pr create --repo; nothing was written`);
   let base: string;
   if (home.previous !== undefined) base = home.previous.branch;
@@ -233,4 +231,61 @@ export function pr(ctx: CommandContext, id: string, options: { slice?: string } 
   ctx.stdout.write(source + '\n');
   for (const heading of remaining) ctx.stdout.write(`remaining: ${shown(heading)}\n`);
   return 0;
+}
+
+/**
+ * Phase 08.9.3 D-08, Ruling R19: `accord pr ready <id> [--slice <n>]` marks slice n's pull request ready for review (`gh pr ready`, aimed at the other repository by `GH_REPO` for a slice built there) only when every EARLIER slice
+ * built in another repository than slice n has a merged pull request: the later pull request stays a draft until `gh` shows the earlier one merged, so the tool server merges and deploys before the service that calls it.
+ * Prints `ready: #<n>`, `ready: #<n> (already)` (exit 0), or `held: slice <n> waits for <repository> slice <k> (#<pr> | no pull request yet)` (exit 1, nothing changed). Exit 2 for a slice the plan lacks, a slice with no pull
+ * request, a pull request that is merged or closed, a remote that is not github.com, or a `gh` that cannot answer. Without `--slice` the pull request is the claim branch's (the first slice of this repository when the plan has
+ * slices). The slices of one repository keep the Phase 15 stack and its base move (`accord pr wait`): they hold nothing here. It never merges, closes or comments (Phase 15 D-21); marking ready is its one write.
+ */
+export function prReady(ctx: CommandContext, id: string, options: { slice?: string } = {}): number {
+  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  if (!Object.hasOwn(ctx.snapshot.tickets, id)) throw new UsageError(`no ticket ${id} in accord/tickets/ - give the id of a ticket of this checkout`);
+  const planned = workOf(ctx.snapshot, id)?.plan?.slices ?? [];
+  let n: number | undefined;
+  if (options.slice !== undefined) n = sliceOf(ctx.snapshot, id, options.slice).n;
+  else if (planned.length > 0) {
+    n = firstMainSlice(planned);
+    if (n === undefined) throw new UsageError(`every slice of ${id} is built in another repository, so there is no claim branch pull request - give --slice <n>`);
+  }
+  const home = n === undefined ? undefined : sliceHomeOf(ctx.snapshot, id, n);
+  if (n !== undefined && home === undefined) throw new UsageError(`${id}: slice ${n} names no branch this command passes to gh`);
+  const branch = home?.branch ?? branchOf(ctx.snapshot, id);
+  if (!SAFE_BRANCH.test(branch) || branch.startsWith('-')) throw new UsageError(`ticket ${id}: the branch ${branch} is not a name this command passes to gh`);
+  const where = (repo: string | undefined): string | undefined => {
+    if (repo === undefined) return undefined;
+    const slug = ghRepoOfDeclared(ctx.snapshot.config, repo);
+    if (slug === undefined) throw new UsageError(`${repo}: its remote is not a github.com repository, so its pull requests cannot be read or marked ready with gh`);
+    return slug;
+  };
+  const say = (line: string): void => void ctx.stdout.write(line + '\n');
+  try {
+    const slug = where(home?.repo);
+    // D-08: the earlier slices built in another repository than this slice, lowest first; the first one whose pull request is not merged holds this one
+    for (const earlier of [...new Map(planned.filter((s) => n !== undefined && s.n < n && s.repo !== home?.repo).map((s) => [s.n, s])).values()].sort((a, b) => a.n - b.n)) {
+      const at = sliceHomeOf(ctx.snapshot, id, earlier.n);
+      if (at === undefined) throw new UsageError(`${id}: slice ${earlier.n} names no branch this command passes to gh`);
+      const there = newestOf(ctx, { branch: at.branch, ...(at.repo === undefined ? {} : { ghRepo: where(at.repo) as string }) });
+      if (there === undefined || there.state !== 'MERGED') {
+        say(`held: slice ${n} waits for ${earlier.repo ?? 'this repository'} slice ${earlier.n} (${there === undefined ? 'no pull request yet' : '#' + there.number})`);
+        return 1;
+      }
+    }
+    const mine = newestOf(ctx, { branch, ...(slug === undefined ? {} : { ghRepo: slug }) });
+    if (mine === undefined) throw new UsageError(`${n === undefined ? id : `${id} slice ${n}`} has no pull request for ${branch} yet - open it first`);
+    if (mine.state === 'MERGED' || mine.state === 'CLOSED') throw new UsageError(`pull request #${mine.number} of ${branch} is ${mine.state === 'MERGED' ? 'merged' : 'closed'}, so it cannot be marked ready`);
+    if (mine.isDraft !== true) {
+      say(`ready: #${mine.number} (already)`);
+      return 0;
+    }
+    ghRun(ctx.root, ['pr', 'ready', String(mine.number)], ctx.env, slug);
+    say(`ready: #${mine.number}`);
+    return 0;
+  } catch (err) {
+    if (err instanceof UsageError) throw err;
+    say(`pr-ready: unavailable: ${ghFirstLine(err)}`);
+    return 2;
+  }
 }

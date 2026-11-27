@@ -5,7 +5,7 @@
 import { baseMovable, headCommitDate, newestPr, prWaitVerdict, SAFE_BRANCH, workOf } from '@accord-dev/accord-core';
 import type { InlineComment, PrRef, PrView, WaitVerdict } from '@accord-dev/accord-core';
 import { gitDefaultRef, UsageError } from '../load/fs.js';
-import { ghFirstLine, ghRepoOf, ghRun } from '../load/gh.js';
+import { ghFirstLine, ghRepoOfDeclared, ghRun } from '../load/gh.js';
 import { resolveRepo } from '../load/repos.js';
 import { sliceHomeOf } from '../load/slice-size.js';
 import type { CommandContext } from '../run.js';
@@ -221,7 +221,7 @@ interface SliceWatch {
  * The newest pull request whose head is the slice's branch, with the base and head names the base move is judged by. In another repository only entries with a whole positive number are kept: nothing else of
  * that repository's answer is read (T-08.9.3-29).
  */
-function newestOf(ctx: CommandContext, w: Pick<SliceWatch, 'branch' | 'ghRepo'>): (PrRef & { isDraft?: boolean }) | undefined {
+export function newestOf(ctx: CommandContext, w: { branch: string; ghRepo?: string }): (PrRef & { isDraft?: boolean }) | undefined {
   const list = JSON.parse(gh(ctx, ['pr', 'list', '--head', w.branch, '--state', 'all', '--json', 'number,state,isDraft,baseRefName,headRefName,url', '--limit', '30'], w.ghRepo)) as (PrRef & { isDraft?: boolean })[];
   return newestPr(w.ghRepo === undefined ? list : list.filter((p) => Number.isSafeInteger(p.number) && p.number > 0));
 }
@@ -266,8 +266,7 @@ function prWaitSliced(ctx: CommandContext, id: string, claimBranch: string, numb
       if (!SAFE_BRANCH.test(branch) || branch.startsWith('-')) throw new UsageError(`ticket ${id}: the branch ${branch} is not a name this command passes to gh`);
       let ghRepo: string | undefined;
       if (home.repo !== undefined) {
-        const repos = ctx.snapshot.config?.repos;
-        ghRepo = repos !== undefined && Object.hasOwn(repos, home.repo) ? ghRepoOf(repos[home.repo].remote) : undefined;
+        ghRepo = ghRepoOfDeclared(ctx.snapshot.config, home.repo);
         if (ghRepo === undefined) {
           ctx.stdout.write(`pr-wait: unavailable: ${home.repo}'s remote is not a github.com repository\n`);
           return 2;

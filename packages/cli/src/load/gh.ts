@@ -53,3 +53,11 @@ export function ghFirstLine(err: unknown): string {
   const line = (said.trim().split(/\r?\n/)[0] ?? '').replace(/[^\x20-\x7e]/g, '').trim();
   return (line === '' ? 'gh failed' : line).slice(0, 200);
 }
+
+/**
+ * The `<owner>/<repo>` `gh` is aimed at for the declared repository `name` (Ruling R17): `ghRepoOf` of `repos.<name>.remote`, or undefined when `name` is not declared or its remote is not a github.com one.
+ */
+export function ghRepoOfDeclared(config: { repos?: Readonly<Record<string, { remote: string }>> } | undefined, name: string): string | undefined {
+  const repos = config?.repos;
+  return repos !== undefined && Object.hasOwn(repos, name) ? ghRepoOf(repos[name].remote) : undefined;
+}

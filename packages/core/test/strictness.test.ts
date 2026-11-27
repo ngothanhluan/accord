@@ -76,6 +76,8 @@ const LOCKED_LIST = [
   'lint.ac-tag-duplicate',
   'lint.ac-tag-missing',
   'lint.ac-tag-multiple',
+  // Phase 11 D-02, D-17: a team that could lower it would hand a read-only role a write tool, or run a command from a committed file on every teammate's machine
+  'lint.agents-config',
   'lint.config-floor',
   'lint.conventions-file',
   'lint.heading-missing',

@@ -107,3 +107,43 @@ it('risk:security an inline http server with no url, on any role, makes skills s
   expect(refused.err).toContain('agents.verifier.mcp: docs:');
   expect(snapshot(repo)).toEqual({});
 });
+
+type Found = { rule: string; level: string; file?: string; pointer?: string; reason: string };
+const lintFound = async (repo: string): Promise<{ code: number; found: Found[] }> => {
+  const r = await run(['lint', '--json'], repo);
+  return { code: r.code, found: (JSON.parse(r.out) as { findings: Found[] }).findings };
+};
+
+it('risk:security accord lint exits 1 with a lint.agents-config error naming agents.reviewer and Write on accord/config.yml at /agents/reviewer/tools/0 (11-ac-2, D-02)', async () => {
+  const repo = makeRepo();
+  repos.push(repo);
+  writeFiles(repo, { 'accord/config.yml': WRITE_ON_REVIEWER });
+  const lint = await lintFound(repo);
+  expect(lint.code).toBe(1);
+  const found = lint.found.filter((f) => f.rule === 'lint.agents-config');
+  expect(found).toHaveLength(1);
+  expect(found[0]).toMatchObject({ file: 'accord/config.yml', level: 'error', pointer: '/agents/reviewer/tools/0' });
+  expect(found[0]?.reason).toContain('agents.reviewer.tools: Write');
+});
+
+it('risk:security accord lint names agents.executor and the server local for an inline stdio server (D-17)', async () => {
+  const repo = makeRepo();
+  repos.push(repo);
+  writeFiles(repo, { 'accord/config.yml': STDIO_ON_EXECUTOR });
+  const lint = await lintFound(repo);
+  expect(lint.code).toBe(1);
+  const found = lint.found.filter((f) => f.rule === 'lint.agents-config');
+  expect(found).toHaveLength(1);
+  expect(found[0]).toMatchObject({ file: 'accord/config.yml', level: 'error', pointer: '/agents/executor/mcp/0' });
+  expect(found[0]?.reason).toContain('agents.executor.mcp: local');
+  expect(found[0]?.reason).toContain("run a command from a committed file on every teammate's machine");
+});
+
+it('risk:regression a config with no agents key, or only permitted entries, gives no lint.agents-config finding (11-ac-2, D-02)', async () => {
+  const repo = makeRepo();
+  repos.push(repo);
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  expect((await lintFound(repo)).found.filter((f) => f.rule === 'lint.agents-config')).toEqual([]);
+  writeFiles(repo, { 'accord/config.yml': CONFIG + 'agents:\n  reviewer:\n    tools: [WebFetch, "mcp__docs__*"]\n    mcp: [docs]\n  executor:\n    skills: [x]\n' });
+  expect((await lintFound(repo)).found.filter((f) => f.rule === 'lint.agents-config')).toEqual([]);
+});

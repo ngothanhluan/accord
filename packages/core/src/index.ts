@@ -97,6 +97,7 @@ export type { ConfigStage, RuleLevel, StageName } from './gate/floor.js';
 export { checkFixDispatch } from './round/dispatch.js';
 export { configPin, loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
+export { agentsConfig } from './lint/agents.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
 export { sliceScope } from './gate/slice.js';

@@ -2,6 +2,7 @@
 // `rule` and `level` from the row (D-58), so a level literal for a `lint.*` rule appears nowhere else.
 import type { Finding, Level } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { agentsConfig } from './agents.js';
 import { branchTypeRoot, commitRule, configFloor, modelRetired, subjectDuplicate, templateSection } from './config.js';
 import { dependsCycle, dependsUnknown } from './depends.js';
 import { idConvention, initialsDuplicate } from './ids.js';
@@ -105,6 +106,8 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.commit-rule', level: 'error', profiles: ['build', 'maintain'], check: commitRule },
   { id: 'lint.config-floor', level: 'error', profiles: ['build', 'maintain'], check: configFloor },
   { id: 'lint.security-file', level: 'error', profiles: ['build', 'maintain'], check: securityFile },
+  // Phase 11 D-02, D-17 (11-ac-2): an `agents:` entry that gives a role a tool its rule forbids, or an inline stdio server, is an error. LOCKED (gate/floor.ts); config-level, so no claim cut-off.
+  { id: 'lint.agents-config', level: 'error', profiles: ['build', 'maintain'], check: agentsConfig },
   // Phase 8.1 D-15: overridable (a team may lower it), and no claim cut-off: it reads the team's file, not a ticket.
   { id: 'lint.slop-file', level: 'error', profiles: ['build', 'maintain'], check: slopFile },
   // Phase 8.5 D-09, D-11, R-4: an unsafe line of accord/product/conventions.md is an error over the whole file, lines written before the upgrade included, with no claim cut-off.

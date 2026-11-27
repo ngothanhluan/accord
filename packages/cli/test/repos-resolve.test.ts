@@ -97,10 +97,10 @@ it('risk:security repos set refuses a linked worktree, a plain folder and a name
   expect(existsSync(storeOf(r.svc))).toBe(false);
 });
 
-it('risk:parsing a path given with backslashes is stored and printed with forward slashes, and matches the clone with norm (D-01)', async () => {
+/** One body for both forms of the path: what is stored and printed is posix, and norm says it is the clone. */
+async function storedAs(given: (tools: string) => string): Promise<void> {
   const r = reposCopy();
-  const given = process.platform === 'win32' ? r.tools.replace(/\//g, '\\') : r.tools;
-  const set = await run(['repos', 'set', 'tools', given], r.svc);
+  const set = await run(['repos', 'set', 'tools', given(r.tools)], r.svc);
   expect(set.code).toBe(0);
   const line = readFileSync(storeOf(r.svc), 'utf8').trim();
   expect(line).not.toContain('\\');
@@ -108,6 +108,14 @@ it('risk:parsing a path given with backslashes is stored and printed with forwar
   const status = await run(['repos', 'status'], r.svc);
   expect(status.out).not.toContain('\\');
   expect(status.code).toBe(0);
+}
+
+it('risk:parsing a path given with forward slashes is stored and printed as it is, and matches the clone with norm (D-01)', async () => {
+  await storedAs((tools) => tools.replace(/\\/g, '/'));
+});
+
+it.runIf(process.platform === 'win32')('risk:parsing a path given with backslashes is stored and printed with forward slashes, and matches the clone with norm (D-01)', async () => {
+  await storedAs((tools) => tools.replace(/\//g, '\\'));
 });
 
 it('risk:parsing a clone whose origin is an ssh alias of the declared repository is accepted (D-01)', async () => {

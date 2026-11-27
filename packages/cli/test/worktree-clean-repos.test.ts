@@ -1,14 +1,20 @@
 // Phase 08.9.3 D-10, Pitfall 8, Decision 9: `accord worktree clean` cleans the other repository's worktree and `slice/<id>/<n>` branches of a done or dropped ticket, after the merge and under the same guards as this
 // repository's claim branch, judged in that clone against its own default branch. Unmerged work and a dirty worktree of the other repository are never deleted, a recorded worktree of another repository is never
-// judged by this repository's worktree list, and the person's own checkout of the other repository is never touched. Real git in two sibling clones (helpers/repos.ts).
+// judged by this repository's worktree list, and the person's own checkout of the other repository is never touched. The session-start clean finds a clone by its stored path only. Real git in two sibling clones (helpers/repos.ts).
 import { existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { REPOS_FROM } from '@accord-dev/accord-core';
+import { LANE_BODY, laneTicket } from '../../../test/helpers/lane.js';
+import { countedOpens } from './helpers/fs-opens.js';
+import { spawnLog } from './helpers/git-spawns.js';
 import { claimedUnder, cleanup, commitAll, commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
-import { reposCopy, useRepoSandboxes, type Repos } from './helpers/repos.js';
+import { reposCopy, TOOLS_URL, useRepoSandboxes, type Repos } from './helpers/repos.js';
 import { doneTicket, lines, verifyStage, withAction } from './helpers/worktree.js';
+
+vi.mock('node:fs', async (orig) => (await import('./helpers/fs-opens.js')).wrapFs(await orig()));
+vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 
 useRepoSandboxes();
 
@@ -302,4 +308,133 @@ it('risk:data-loss --dry-run prints the removals and deletions a real clean prin
   const real = await run(['worktree', 'clean'], r.svc);
   expect(real.code, real.out + real.err).toBe(0);
   for (const l of ['removed', 'deleted branch', 'deleted origin']) expect(lines(real.out).filter((x) => x.startsWith(l)).sort()).toEqual(L.filter((x) => x.startsWith(l)).sort());
+}, 300_000);
+
+/** ST-9 dropped on svc's default branch, as a teammate's clone leaves it. */
+function droppedOnSvc(r: Repos): void {
+  r.git(r.svc, 'switch', '-q', 'main');
+  writeFiles(r.svc, { 'accord/tickets/ST-9.md': laneTicket('ST-9', { frontmatter: ['status: dropped'], body: LANE_BODY + '\n## Dropped\ngone\n' }) });
+  commitAll(r.svc, 'drop ST-9');
+  r.git(r.svc, 'push', '-q', 'origin', 'main');
+}
+
+/** The three lines a clean prints for a merged tools slice. */
+const MERGED_LINES = (r: Repos): string[] => [withAction(`removed ${toolsWt(r)} (repository tools)`), withAction('deleted branch slice/ST-9/1 in tools'), withAction('deleted origin/slice/ST-9/1 in tools')];
+
+it('risk:data-loss a tools slice squash-merged into the tools default branch (one commit, equal content) is cleaned as merged (D-10)', async () => {
+  const r = reposCopy();
+  await pushedTools(r);
+  mergedOnTools(r, 'squash');
+  doneOnSvc(r);
+  // the branch tip is on no history of the default branch: only its content is
+  expect(r.git(r.toolsRemote, 'rev-list', '--count', 'main', '--not', 'slice/ST-9/1').trim()).toBe('1');
+  const res = await run(['worktree', 'clean'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  for (const l of MERGED_LINES(r)) expect(lines(res.out)).toContain(l);
+  expect(existsSync(toolsWt(r))).toBe(false);
+  expect(r.git(r.tools, 'for-each-ref', '--format=%(refname)', 'refs/heads').trim()).toBe('refs/heads/main');
+  expect(r.git(r.toolsRemote, 'for-each-ref', '--format=%(refname)', 'refs/heads').trim()).toBe('refs/heads/main');
+  expect(recordOf(r, 'worktrees')).toBe('');
+  expect(recordOf(r, 'slices')).toBe('');
+}, 240_000);
+
+it('risk:data-loss a dropped ticket has its merged tools slice cleaned and its unmerged one kept (D-10)', async () => {
+  const merged = reposCopy();
+  await pushedTools(merged);
+  mergedOnTools(merged);
+  droppedOnSvc(merged);
+  const res = await run(['worktree', 'clean'], merged.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  for (const l of MERGED_LINES(merged)) expect(lines(res.out)).toContain(l);
+  expect(existsSync(toolsWt(merged))).toBe(false);
+  expect(recordOf(merged, 'worktrees')).toBe('');
+  const unmerged = reposCopy();
+  const tip = await pushedTools(unmerged);
+  droppedOnSvc(unmerged);
+  const before = stateOf(unmerged);
+  const res2 = await run(['worktree', 'clean'], unmerged.svc);
+  expect(res2.code, res2.out + res2.err).toBe(0);
+  expect(lines(res2.out)).toContain(withAction(`kept ${toolsWt(unmerged)}: its branch slice/ST-9/1 has changes not on origin/main (repository tools)`));
+  expect(stateOf(unmerged)).toBe(before);
+  expect(unmerged.git(unmerged.toolsRemote, 'rev-parse', 'refs/heads/slice/ST-9/1').trim()).toBe(tip);
+}, 360_000);
+
+it('risk:regression worktree clean --after-merge from the main checkout also cleans the tools worktree (D-10)', async () => {
+  const r = reposCopy();
+  await pushedTools(r);
+  mergedOnTools(r);
+  doneOnSvc(r);
+  const res = await run(['worktree', 'clean', '--after-merge', 'ST-9'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  for (const l of MERGED_LINES(r)) expect(lines(res.out)).toContain(l);
+  expect(existsSync(toolsWt(r))).toBe(false);
+  expect(recordOf(r, 'worktrees')).toBe('');
+}, 240_000);
+
+/** Another clone of the tools origin beside svc, which a search of the parent folder would take for tools. */
+function decoyClone(r: Repos): string {
+  gitRun(r.parent, 'clone', '-q', r.toolsRemote, 'tools-copy');
+  const d = posix(join(r.parent, 'tools-copy'));
+  gitRun(d, 'remote', 'set-url', 'origin', TOOLS_URL);
+  return d;
+}
+
+/** The session-start hook with git and file reads counted: the folders every git process ran in and every file that was read. */
+async function sessionStart(r: Repos): Promise<{ out: string; cwds: string[]; reads: string[] }> {
+  const input = JSON.stringify({ session_id: 'sess-M', cwd: r.svc, source: 'startup' });
+  const cwds: string[] = [];
+  spawnLog.calls = [];
+  spawnLog.fail = (_args, options) => {
+    cwds.push(posix(String(options?.cwd ?? '<none>')));
+    return false;
+  };
+  spawnLog.on = true;
+  try {
+    const seen = await countedOpens(async () => run(['hook', 'session-start'], r.svc, {}, input));
+    expect(seen.value.code, seen.value.out + seen.value.err).toBe(0);
+    return { out: seen.value.out, cwds, reads: seen.paths };
+  } finally {
+    spawnLog.on = false;
+    spawnLog.fail = undefined;
+    spawnLog.calls = [];
+  }
+}
+
+it('risk:regression the session-start clean resolves tools by its stored path only: no folder of the parent but svc, the stored clone and its worktree is read, and no git process runs elsewhere (Decision 9)', async () => {
+  const r = reposCopy();
+  await pushedTools(r);
+  mergedOnTools(r);
+  doneOnSvc(r);
+  const decoy = decoyClone(r);
+  const own = [posix(r.svc), posix(r.tools), toolsWt(r)].map((p) => p.toLowerCase());
+  const inOwn = (p: string): boolean => own.some((o) => p.toLowerCase() === o || p.toLowerCase().startsWith(o + '/'));
+  const seen = await sessionStart(r);
+  for (const l of MERGED_LINES(r)) expect(lines(seen.out)).toContain(l);
+  expect(seen.cwds.length).toBeGreaterThan(0);
+  expect(seen.cwds.filter((c) => !inOwn(c))).toEqual([]);
+  const parent = posix(r.parent).toLowerCase() + '/';
+  expect(seen.reads.filter((p) => p.toLowerCase().startsWith(parent) && !inOwn(p))).toEqual([]);
+  expect(seen.reads.some((p) => p.toLowerCase().startsWith(posix(decoy).toLowerCase() + '/'))).toBe(false);
+  // guard the guard: the spy does see the reads under svc, and a read of the decoy would be seen
+  expect(seen.reads.some((p) => p.toLowerCase().startsWith(posix(r.svc).toLowerCase() + '/'))).toBe(true);
+  const on = await countedOpens(async () => readFileSync(join(decoy, '.git', 'config'), 'utf8'));
+  expect(on.paths.map((p) => p.toLowerCase())).toContain(posix(join(decoy, '.git', 'config')).toLowerCase());
+}, 300_000);
+
+it('risk:regression the session-start clean of a clone with no stored path reads no other folder of the parent, keeps the record and says why (Decision 9)', async () => {
+  const r = reposCopy();
+  await pushedTools(r);
+  mergedOnTools(r);
+  doneOnSvc(r);
+  const decoy = decoyClone(r);
+  rmSync(join(r.svc, '.git', 'accord', 'repos'));
+  const before = stateOf(r);
+  const seen = await sessionStart(r);
+  expect(lines(seen.out).some((l) => l.startsWith(`kept ${toolsWt(r)}: repository tools is not found here: `))).toBe(true);
+  expect(stateOf(r)).toBe(before);
+  const parent = posix(r.parent).toLowerCase() + '/';
+  const svc = posix(r.svc).toLowerCase();
+  expect(seen.reads.filter((p) => p.toLowerCase().startsWith(parent) && !(p.toLowerCase() === svc || p.toLowerCase().startsWith(svc + '/')))).toEqual([]);
+  expect(seen.cwds.filter((c) => !(c.toLowerCase() === svc || c.toLowerCase().startsWith(svc + '/')))).toEqual([]);
+  expect(existsSync(join(decoy, '.git', 'config'))).toBe(true);
 }, 300_000);

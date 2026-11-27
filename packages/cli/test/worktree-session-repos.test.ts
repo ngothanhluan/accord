@@ -169,7 +169,7 @@ it('risk:data-loss accord worktree clean keeps a recorded tools worktree whose s
   const res = await run(['worktree', 'clean'], r.svc);
   expect(res.code, res.out + res.err).toBe(0);
   // plan 08.9.3-07: tools judges its own worktree, and the one commit on its slice is not on tools's default branch
-  expect(res.out).toContain(`kept ${folder}: slice/ST-9/1 has changes not on origin/main (repository tools)`);
+  expect(res.out).toContain(`kept ${folder}: its branch slice/ST-9/1 has changes not on origin/main (repository tools)`);
   expect(existsSync(folder)).toBe(true);
   expect(inventory(folder)).toEqual(files);
   expect(readFileSync(recordFile(r), 'utf8')).toContain(line);

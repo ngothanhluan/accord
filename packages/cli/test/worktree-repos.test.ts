@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { REPOS_FROM } from '@accord-dev/accord-core';
 import { claimedUnder, commitAll, run, writeFiles } from './helpers/repo.js';
-import { reposCopy, useRepoSandboxes, type Repos } from './helpers/repos.js';
+import { besides, reposCopy, useRepoSandboxes, type Repos } from './helpers/repos.js';
 
 useRepoSandboxes();
 
@@ -21,15 +21,16 @@ interface Part {
   repo?: string;
 }
 const ONE_TWO: Part[] = [{ n: 1, repo: 'tools' }, { n: 2 }];
+const FOUR: Part[] = [{ n: 1, repo: 'tools' }, { n: 2 }, { n: 3 }, { n: 4, repo: 'tools' }];
 
-/** ST-9 claimed at REPOS_FROM on t/ST-9 of the svc clone, planned with `parts` (task n is slice n's), the plan committed. `toolsSha` is the plan's `baseline_tools`: the tools tip. */
-async function planned(r: Repos, parts: Part[]): Promise<{ toolsSha: string }> {
+/** ST-9 claimed at REPOS_FROM on t/ST-9 of the svc clone, planned with `parts` (task n is slice n's), the plan committed. `toolsSha` is the plan's `baseline_tools`: the tools tip, or `baseline` when given. */
+async function planned(r: Repos, parts: Part[], baseline?: string): Promise<{ toolsSha: string }> {
   r.git(r.svc, 'switch', '-q', '-c', CLAIM);
   claimedUnder(r.svc, REPOS_FROM, 'ST-9');
   expect((await run(['approve', 'ST-9'], r.svc)).code).toBe(0);
   writeFiles(r.svc, { 'src/svc.ts': 'export const svc = 1;\n' });
   const base = commitAll(r.svc);
-  const toolsSha = r.git(r.tools, 'rev-parse', 'refs/remotes/origin/main').trim();
+  const toolsSha = baseline ?? r.git(r.tools, 'rev-parse', 'refs/remotes/origin/main').trim();
   const where = (p: Part): string => (p.repo === undefined ? 'src/svc.ts' : p.n === 1 ? 'tools:src/Tools.cs' : 'tools:src/Other.cs');
   const text = ['---', `baseline: ${base}`, `baseline_tools: ${toolsSha}`, '---', '', '# Plan', '', ...parts.map((p) => task(p.n, where(p))), ...parts.map((p) => slice(p.n, p.repo))].join('\n');
   writeFiles(r.svc, { 'accord/tickets/ST-9/plan.md': text });
@@ -89,3 +90,143 @@ it('risk:regression the first slice here, when slice 1 is in tools, is the claim
   expect(recordOf(r, 'slices')).toBe('');
 }, 120_000);
 
+/** Everything a command of this file may change, as text: the two records, every local branch of both clones, and the branch each folder is on. */
+function stateOf(r: Repos): string {
+  const wt = toolsWt(r);
+  return [
+    recordOf(r, 'worktrees'),
+    recordOf(r, 'slices'),
+    r.git(r.svc, 'for-each-ref', '--format=%(refname) %(objectname)', 'refs/heads'),
+    r.git(r.tools, 'for-each-ref', '--format=%(refname) %(objectname)', 'refs/heads'),
+    r.git(r.svc, 'branch', '--show-current'),
+    existsSync(wt) ? r.git(wt, 'branch', '--show-current') : 'no worktree',
+  ].join('\n--\n');
+}
+
+/** The tools worktree of ST-9 after slice 1 is open, with one commit on it. Returns the commit. */
+async function toolsOneCommitted(r: Repos): Promise<string> {
+  const res = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  writeFiles(toolsWt(r), { 'src/Tools.cs': 'class Tools { int one; }\n' });
+  return commitAll(toolsWt(r), 'tools slice one');
+}
+
+it('risk:complex-branching every slice opens where its home says: the first one here is the claim branch, a later one here is cut from the claim branch, and a later one in tools is cut from slice 1 in the tools worktree (D-10, D-14)', async () => {
+  const r = reposCopy();
+  await planned(r, FOUR);
+  const claimTip = r.git(r.svc, 'rev-parse', 'HEAD').trim();
+  const two = await run(['worktree', 'slice', 'ST-9', '2'], r.svc);
+  expect(two.code, two.out + two.err).toBe(0);
+  expect(two.out).toMatch(new RegExp(`^branch: ${CLAIM}\\nbase: `));
+  const three = await run(['worktree', 'slice', 'ST-9', '3'], r.svc);
+  expect(three.code, three.out + three.err).toBe(0);
+  expect(three.out).toBe(`branch: slice/ST-9/3\nbase: ${CLAIM}\n`);
+  expect(r.git(r.svc, 'branch', '--show-current').trim()).toBe('slice/ST-9/3');
+  expect(r.git(r.svc, 'rev-parse', 'slice/ST-9/3').trim()).toBe(claimTip);
+  const oneTip = await toolsOneCommitted(r);
+  const four = await run(['worktree', 'slice', 'ST-9', '4'], r.svc);
+  expect(four.code, four.out + four.err).toBe(0);
+  expect(four.out).toBe(`branch: slice/ST-9/4\nbase: slice/ST-9/1\nrepository: tools\nworktree: ${toolsWt(r)}\n`);
+  // cut at the tip of slice 1 in the tools worktree, which is switched to it; this repository's checkout stays where it was
+  expect(r.git(toolsWt(r), 'branch', '--show-current').trim()).toBe('slice/ST-9/4');
+  expect(r.git(toolsWt(r), 'rev-parse', 'HEAD').trim()).toBe(oneTip);
+  expect(r.git(r.svc, 'branch', '--show-current').trim()).toBe('slice/ST-9/3');
+  expect(recordOf(r, 'worktrees')).toBe(`ST-9\t${toolsWt(r)}\ttools\n`);
+  expect(recordOf(r, 'slices')).toContain(`ST-9 4 ${oneTip} tools\n`);
+  expect(recordOf(r, 'slices')).toContain(`ST-9 3 ${claimTip}\n`);
+  // this repository's later slices are no slice of tools: no branch of the plan's slice 2 or 3 exists in the tools clone
+  expect(r.git(r.tools, 'for-each-ref', '--format=%(refname)', 'refs/heads').split('\n').filter((b) => b !== '')).toEqual(['refs/heads/main', 'refs/heads/slice/ST-9/1', 'refs/heads/slice/ST-9/4']);
+}, 180_000);
+
+it('risk:regression running any slice again prints the same lines and changes nothing (D-10, D-14)', async () => {
+  const r = reposCopy();
+  await planned(r, FOUR);
+  await toolsOneCommitted(r);
+  for (const n of ['2', '3', '4', '1']) {
+    const first = await run(['worktree', 'slice', 'ST-9', n], r.svc);
+    expect(first.code, first.out + first.err).toBe(0);
+    const state = stateOf(r);
+    const again = await run(['worktree', 'slice', 'ST-9', n], r.svc);
+    expect(again.code, again.out + again.err).toBe(0);
+    expect(again.out).toBe(first.out);
+    expect(stateOf(r)).toBe(state);
+  }
+}, 180_000);
+
+it('risk:data-loss a later slice of tools is refused while its worktree has uncommitted tracked changes, and creates nothing (D-10)', async () => {
+  const r = reposCopy();
+  await planned(r, FOUR);
+  await toolsOneCommitted(r);
+  writeFiles(toolsWt(r), { 'src/Tools.cs': 'class Tools { int unsaved; }\n' });
+  const before = stateOf(r);
+  const res = await run(['worktree', 'slice', 'ST-9', '4'], r.svc);
+  expect(res.code).toBe(2);
+  expect(res.err).toContain('uncommitted changes to tracked files');
+  expect(res.err).toContain('nothing was created');
+  expect(stateOf(r)).toBe(before);
+  expect(readFileSync(join(toolsWt(r), 'src/Tools.cs'), 'utf8')).toBe('class Tools { int unsaved; }\n');
+}, 180_000);
+
+it('risk:complex-branching a refused slice creates nothing: the previous slice of tools not open, a baseline the clone lacks, a number past the plan, a bad id (D-10)', async () => {
+  const r = reposCopy();
+  await planned(r, FOUR);
+  const notOpen = await run(['worktree', 'slice', 'ST-9', '4'], r.svc);
+  expect(notOpen.code).toBe(2);
+  expect(notOpen.err).toContain('slice 1 of ST-9 is not open yet in tools');
+  const past = await run(['worktree', 'slice', 'ST-9', '5'], r.svc);
+  expect(past.code).toBe(2);
+  expect(past.err).toContain('so there is no slice 5');
+  const bad = await run(['worktree', 'slice', 'bad id', '1'], r.svc);
+  expect(bad.code).toBe(2);
+  expect(besides(r.tools)).toEqual([]);
+  expect(recordOf(r, 'worktrees')).toBe('');
+  expect(r.git(r.tools, 'for-each-ref', '--format=%(refname)', 'refs/heads').trim()).toBe('refs/heads/main');
+  // a baseline_tools that is no commit of the clone
+  const lacking = reposCopy();
+  await planned(lacking, FOUR, 'a'.repeat(40));
+  const none = await run(['worktree', 'slice', 'ST-9', '1'], lacking.svc);
+  expect(none.code).toBe(2);
+  expect(none.err).toContain('baseline_tools');
+  expect(besides(lacking.tools)).toEqual([]);
+  expect(recordOf(lacking, 'worktrees')).toBe('');
+}, 180_000);
+
+it('risk:complex-branching a slice branch that exists only on the tools origin is checked out into the new worktree at its pushed tip, never cut again (D-10, Ruling R13)', async () => {
+  const r = reposCopy();
+  const { toolsSha } = await planned(r, ONE_TWO);
+  // pushed from another machine: on origin, in no local branch of this clone and in none of its remote-tracking refs
+  r.git(r.tools, 'switch', '-q', '-c', 'slice/ST-9/1');
+  writeFiles(r.tools, { 'src/Tools.cs': 'class Tools { int pushed; }\n' });
+  const pushed = commitAll(r.tools, 'pushed from elsewhere');
+  r.git(r.tools, 'push', '-q', 'origin', 'slice/ST-9/1');
+  r.git(r.tools, 'switch', '-q', 'main');
+  r.git(r.tools, 'branch', '-q', '-D', 'slice/ST-9/1');
+  r.git(r.tools, 'update-ref', '-d', 'refs/remotes/origin/slice/ST-9/1');
+  const res = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  expect(res.out).toBe(`branch: slice/ST-9/1\nbase: ${toolsSha.slice(0, 12)}\nrepository: tools\nworktree: ${toolsWt(r)}\n`);
+  expect(r.git(toolsWt(r), 'rev-parse', 'HEAD').trim()).toBe(pushed);
+  expect(r.git(toolsWt(r), 'config', '--get', 'branch.slice/ST-9/1.remote').trim()).toBe('origin');
+  expect(r.git(r.tools, 'branch', '--show-current').trim()).toBe('main');
+}, 180_000);
+
+it("risk:regression accord worktree push --repo pushes the slice branch of the recorded tools worktree to the clone's origin, and refuses a name that is not declared or a flag that does not go with it (D-04)", async () => {
+  const r = reposCopy();
+  await planned(r, ONE_TWO);
+  const tip = await toolsOneCommitted(r);
+  const res = await run(['worktree', 'push', 'ST-9', '--repo', 'tools'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  expect(res.out).toBe("pushed: slice/ST-9/1 to tools's origin\n");
+  expect(r.git(r.toolsRemote, 'rev-parse', 'refs/heads/slice/ST-9/1').trim()).toBe(tip);
+  // the svc remote got nothing, and the person's tools checkout is still on main
+  expect(r.git(r.svcRemote, 'for-each-ref', '--format=%(refname)', 'refs/heads').trim()).toBe('refs/heads/main');
+  expect(r.git(r.tools, 'branch', '--show-current').trim()).toBe('main');
+  const nope = await run(['worktree', 'push', 'ST-9', '--repo', 'nope'], r.svc);
+  expect(nope.code).toBe(2);
+  expect(nope.err).toContain('nope');
+  for (const flag of ['--branch', '--force-with-lease']) {
+    const both = await run(['worktree', 'push', 'ST-9', '--repo', 'tools', flag], r.svc);
+    expect(both.code).toBe(2);
+    expect(both.err).toContain('--repo');
+  }
+}, 180_000);

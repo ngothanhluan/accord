@@ -13,6 +13,7 @@ import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { sliceHomeOf } from '../load/slice-size.js';
+import { resolveRepo } from '../load/repos.js';
 import { dropSlices, sliceOfBranch } from '../load/slices.js';
 import { blobsOnRef } from '../load/merged-state.js';
 import { fetchLimitMs } from './fetch-limit.js';
@@ -1190,12 +1191,47 @@ function pushProgressRef(ctx: CommandContext, id: string, branch: string): strin
 }
 
 /**
+ * Phase 08.9.3 D-04, D-10, T-08.9.3-17: `accord worktree push <id> --repo <name>` pushes the slice branch the recorded worktree of that repository is on to that clone's origin, run by the CLI and prompt-free, so a session
+ * isolated in a worktree never runs git in another folder. The worktree is the one this repository's record names for the id and the repository, checked to be a worktree of the clone `resolveRepo` verified by its origin
+ * and to be on a `slice/<id>/<n>` branch of this id; the push names `origin`, an explicit refspec and no force, and `-u` sets the branch's upstream. A failed push is named with git's message and exits 0, as the claim
+ * branch's push does. Nothing in the other repository's `accord/` folder is read (D-03).
+ */
+function pushRepoSlice(ctx: CommandContext, id: string, repo: string, o: { lease?: boolean; branch?: boolean }): number {
+  if (o.branch === true || o.lease === true) {
+    throw new UsageError('--repo pushes the slice branch of the recorded worktree of another repository: --branch and --force-with-lease do not go with it, and nothing was pushed');
+  }
+  const resolved = resolveRepo(ctx.root, ctx.snapshot.config, repo);
+  if ('refused' in resolved) throw new UsageError(resolved.refused + '; nothing was pushed');
+  const recorded = readRecorded(ctx.root).find((e) => e.id === id && e.repo === repo);
+  if (recorded === undefined) throw new UsageError(`no worktree of ${repo} is recorded for ${id}: open a slice there first with accord worktree slice ${id} <n>; nothing was pushed`);
+  const entry = listWorktrees(resolved.path).find((w) => norm(w.path) === norm(recorded.path));
+  if (entry === undefined || entry.prunable !== undefined) throw new UsageError(`${recorded.path} is no worktree of the ${repo} clone at ${resolved.path} any more; nothing was pushed`);
+  const branch = entry.branch;
+  if (branch === undefined || sliceOfBranch(branch)?.id !== id) {
+    throw new UsageError(`${recorded.path} is on ${branch ?? 'a detached HEAD'}, not on a slice branch of ${id}; nothing was pushed`);
+  }
+  try {
+    gitNoPrompt(recorded.path, ['push', '-u', 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
+  } catch (e) {
+    const why = String((e as { stderr?: string }).stderr ?? '').trim();
+    ctx.stdout.write(withNext('push-failed', `push of ${branch} to ${repo}'s origin failed; its commits stay local until the next push`) + `
+${why === '' ? String(e) : why}
+`);
+    return 0;
+  }
+  ctx.stdout.write(`pushed: ${branch} to ${repo}'s origin
+`);
+  return 0;
+}
+
+/**
  * BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0.
  * Phase 15 D-12 to D-15, D-33: with `branch` (verify's push) the claim branch goes to origin as always. Without it the progress goes to `refs/accord/<id>`, a ref that is not a branch
  * and starts no CI, only where `progress.push` allows (`progressPushTarget`); otherwise nothing is pushed, one note line is printed, and it reaches origin at verify.
  */
-export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean; branch?: boolean } = {}): number {
+export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean; branch?: boolean; repo?: string } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  if (o.repo !== undefined) return pushRepoSlice(ctx, id, o.repo, o);
   // B-WR-01: since Phase 15 a push without --branch goes to the progress ref, which the lease never applied to; the form every earlier release printed must fail loudly, not report success
   if (o.lease === true && o.branch !== true) throw new UsageError(`--force-with-lease replaces a branch on origin: run accord worktree push ${id} --branch --force-with-lease`);
   // Phase 15 D-31: in a slice worktree the branch pushed, and mirrored into the progress ref, is the slice branch this checkout is on; anywhere else it is the claim branch, as before

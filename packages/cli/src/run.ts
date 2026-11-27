@@ -553,8 +553,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("push the ticket's progress to origin as refs/accord/<id>, a ref that is not a branch and starts no CI, only where progress.push in accord/config.yml allows it (off, the default, pushes nothing and prints a note); with --branch push the claim branch itself; a failed push prints git's message and exits 0, its commits stay local until the next push")
     .option('--branch', "push the claim branch to origin instead of the progress ref; verify uses it, since the pull request needs the branch")
     .option('--force-with-lease', 'with --branch, after a commit is reworded: replace the branch on origin only while it is still where this clone last saw it and this branch once held that commit')
-    .action((id: string, o: { forceWithLease?: boolean; branch?: boolean }) => {
-      setCode(worktreePush(preflight(opts), id, { lease: o.forceWithLease === true, branch: o.branch === true }));
+    .option('--repo <name>', "push the slice branch the ticket's recorded worktree of another repository (repos: in accord/config.yml) is on to that clone's origin, with prompts off and no force: slice/<id>/<n>; it goes with neither --branch nor --force-with-lease")
+    .action((id: string, o: { forceWithLease?: boolean; branch?: boolean; repo?: string }) => {
+      setCode(worktreePush(preflight(opts), id, { lease: o.forceWithLease === true, branch: o.branch === true, ...(o.repo === undefined ? {} : { repo: o.repo }) }));
     });
   // ST-LN-92 D-03: a task of a wave in its own worktree, run in the ticket's own checkout, for a ticket claimed from 0.6.0.
   const taskTree = worktree.command('task').description("a build task's own worktree beside the ticket's, for a ticket claimed at 0.6.0 or later; run in the ticket's checkout");
@@ -579,7 +580,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // Phase 15 D-07, D-31: a ticket's later slices on stacked branches, run in the ticket's own worktree.
   worktree
     .command('slice <id> <n>')
-    .description("open slice n (2 to the plan's slice count) of a sliced ticket: create branch slice/<id>/<n> at the tip of the branch of slice n-1 (the claim branch for slice 2), stacked on it without waiting for its pull request to merge (D-07), switch this worktree to it, record it in the git folder's accord/slices, and print branch: and base:; run again it prints the same lines; it refuses a dirty tree and a slice the plan does not have")
+    .description("open slice n (1 to the plan's slice count) of a sliced ticket where its slice home says: the first slice of this repository is the claim branch (this worktree is switched back to it, nothing is cut, whatever its number); a later slice of this repository is cut as slice/<id>/<n> at the tip of the previous slice of this repository, stacked on it without waiting for its pull request to merge (D-07), and this worktree is switched to it; a slice of another repository (repo: in plan.md) opens in a linked worktree of that repository's clone, <clone folder>-<id>, on slice/<id>/<n> cut at its baseline_<name> or at the previous slice of that repository, which the person's own checkout of it never sees (D-10); each is recorded in the git folder's accord/ and printed as branch: and base:, with repository: and worktree: for another repository; run again it prints the same lines; it refuses a dirty tree and a slice the plan does not have")
     .action((id: string, n: string) => {
       setCode(sliceOpen(preflight(opts), id, n));
     });

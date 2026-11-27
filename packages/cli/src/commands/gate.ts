@@ -4,9 +4,9 @@
 // stdout before the write is attempted, so a write failure is reported after the true verdict rather
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
-import { capRulesOf, gateDone, gatePlan, gateReady, renderText, sliceScope, stageOff, workOf } from '@accord-dev/accord-core';
+import { capRulesOf, claimPinBefore, gateDone, gatePlan, gateReady, renderText, REPOS_FROM, sliceScope, stageOff, workOf } from '@accord-dev/accord-core';
 import type { SliceScope } from '@accord-dev/accord-core';
-import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
+import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitRepoFacts, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { gitBaseRecords } from '../load/base-records.js';
 import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { withClaimPins } from '../load/claim-facts.js';
@@ -73,8 +73,9 @@ export function gate(
       ? { ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }
       : forDone;
   // ST-LN-63: the history Plan and Done read is loaded here for the gated ticket alone, never at load for every ticket.
-  const claimPinned =
-    which === 'plan' ? withClaimPins(ctx.root, { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id) : undefined;
+  const pinnedPlan = which === 'plan' ? withClaimPins(ctx.root, { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id) : undefined;
+  // Phase 08.9.3 D-04, D-05: only `gate plan` asks another repository's clone for its baseline facts, and only for a ticket claimed at REPOS_FROM or after; no other command and no CI run starts a git process there.
+  const claimPinned = pinnedPlan !== undefined && !claimPinBefore(pinnedPlan, id, REPOS_FROM) ? { ...pinnedPlan, ...gitRepoFacts(ctx.root, pinnedPlan, id) } : pinnedPlan;
   const gated =
     claimPinned !== undefined
       ? // ST-LN-91 D-12: a deferral leaves the stop at gate plan as it does at accord round, so the record's pin is read when a stop is possible: from round 2

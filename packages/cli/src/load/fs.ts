@@ -3,9 +3,10 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchGlob, branchIdOf, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
+import { branchGlob, branchIdOf, branchTemplateOf, branchTypesOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, expandBranchTypes, isIntactRender, isResearchPath, isResearchRecord, isSha, loadConfig, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, SAFE_ID, scopeLines, shaEqual, splitRepoPath, workOf } from '@accord-dev/accord-core';
 import type { AccordConfig, BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitStartFailure, runGitSync } from './git-spawn.js';
+import { resolveRepo } from './repos.js';
 import { sliceOfBranch } from './slices.js';
 import { changedOnRef, mergedClaims, recordPaths } from './merged-state.js';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
@@ -351,7 +352,7 @@ function gitAncestors(root: string, shas: string[]): Record<string, boolean> {
  * One `git ls-tree` per baseline; `--literal-pathspecs` keeps a path from reading as pathspec magic, `isSha`
  * keeps the sha from reading as an option. A git failure is an environment error, not a verdict.
  */
-function gitBaselineFiles(root: string, wanted: Record<string, string[]>, ancestors: Record<string, boolean>): Record<string, string[]> {
+function gitBaselineFiles(root: string, wanted: Record<string, string[]>, ancestors: Record<string, boolean>, repo?: string): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const [sha, paths] of Object.entries(wanted)) {
     if (!ancestors[sha]) continue;
@@ -377,6 +378,8 @@ function gitBaselineFiles(root: string, wanted: Record<string, string[]>, ancest
       });
     } catch (err) {
       const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+      // Phase 08.9.3 D-05: in another repository's clone the error names the repository and keeps git's first line only.
+      if (repo !== undefined) throw new UsageError(`repository ${repo}: git ls-tree failed at baseline ${sha}` + (stderr === '' ? '' : ': ' + stderr.split('\n')[0]));
       throw new UsageError(`git ls-tree failed at baseline ${sha}` + (stderr === '' ? '' : '\n' + stderr));
     }
   }
@@ -441,6 +444,65 @@ export function gitPlanHistory(
     ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
     ...(Object.keys(pins).length === 0 ? {} : { planPins: { [id]: pins } }),
   };
+}
+
+/** git's first stderr line of a failed call, or its message when it never started. */
+const gitWhy = (err: unknown): string => {
+  const stderr = String((err as { stderr?: unknown }).stderr ?? '').trim();
+  return stderr === '' ? (err instanceof Error ? err.message : String(err)) : stderr.split('\n')[0];
+};
+
+/**
+ * Phase 08.9.3 D-04, D-05: what `accord gate plan` reads of every other repository the plan names with a commit `baseline_<name>`, keyed by repository name: that baseline, whether it is on the history of that clone's default ref
+ * (never its HEAD: the person's checkout may be on any branch), and which of the plan's paths in that repository exist at it. git runs in the resolved clone (`cwd`), with `isSha` checked first, `-z` and `--literal-pathspecs` as
+ * gitBaselineFiles has them and its escaping filter kept. Only `gate plan` calls this, so no other command and no CI run starts a process in another clone. A repository with no usable clone ends the command with the refusal
+ * `resolveRepo` words (exit 2); a baseline the clone does not hold ends it with one line naming the repository and the fetch, never a finding per path. A repository the config does not declare, or with no commit baseline, is left out:
+ * the plan rules report it. `{}` when no repository qualifies, so a plan that names none gets exactly today's facts.
+ */
+export function gitRepoFacts(root: string, snapshot: RepoSnapshot, id: string): { repoFacts?: Record<string, { baseline: string; onDefault: boolean; files: string[] }> } {
+  const plan = workOf(snapshot, id)?.plan;
+  const baselines = plan?.repoBaselines;
+  if (plan === undefined || baselines === undefined) return {};
+  const asked = new Map<string, Set<string>>();
+  const want = (repo: string): Set<string> => asked.get(repo) ?? asked.set(repo, new Set()).get(repo)!;
+  for (const t of plan.tasks) {
+    const made = t.repoNewFiles ?? [];
+    for (const f of t.repoFiles ?? []) if (!made.some((n) => n.repo === f.repo && n.path === f.path)) want(f.repo).add(f.path);
+    for (const m of t.repoModels ?? []) {
+      // a model in the same repository as its new file; one in another repository is gate.task-repo-mixed's
+      const model = m.like === undefined ? undefined : splitRepoPath(m.like);
+      if (model?.repo === m.repo) want(m.repo).add(model.path);
+    }
+  }
+  for (const s of plan.slices ?? []) if (s.repo !== undefined) want(s.repo);
+  const out: Record<string, { baseline: string; onDefault: boolean; files: string[] }> = {};
+  for (const [repo, paths] of asked) {
+    const sha = Object.hasOwn(baselines, repo) ? baselines[repo] : undefined;
+    if (sha === undefined || !isSha(sha) || snapshot.config?.repos === undefined || !Object.hasOwn(snapshot.config.repos, repo)) continue;
+    const resolved = resolveRepo(root, snapshot.config, repo);
+    if ('refused' in resolved) throw new UsageError(resolved.refused);
+    const clone = resolved.path;
+    try {
+      execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd: clone, ...GIT_QUIET });
+    } catch (err) {
+      if (typeof (err as { status?: unknown }).status !== 'number') throw new UsageError(`repository ${repo}: could not run git in ${clone}: ${gitWhy(err)}`);
+      throw new UsageError(`repository ${repo} has no commit ${sha}: fetch it (accord repos baseline ${repo} --id ${id} fetches) and run accord gate plan ${id} again`);
+    }
+    // ancestry is judged against the clone's default ref, never its HEAD
+    const def = defaultRefOf(clone);
+    let onDefault = false;
+    if (def !== undefined && !def.startsWith('-')) {
+      try {
+        execFileSync('git', ['merge-base', '--is-ancestor', sha, def], { cwd: clone, ...GIT_QUIET });
+        onDefault = true;
+      } catch (err) {
+        if ((err as { status?: unknown }).status !== 1) throw new UsageError(`repository ${repo}: git merge-base failed for ${sha}: ${gitWhy(err)}`);
+      }
+    }
+    const files = paths.size === 0 ? [] : (gitBaselineFiles(clone, { [sha]: [...paths] }, { [sha]: true }, repo)[sha] ?? []);
+    out[repo] = { baseline: sha, onDefault, files };
+  }
+  return Object.keys(out).length === 0 ? {} : { repoFacts: out };
 }
 
 /**

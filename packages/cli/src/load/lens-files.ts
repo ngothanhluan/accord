@@ -56,7 +56,7 @@ function workingLenses(root: string): { path: string; text: string }[] {
 
 /**
  * R4: the lens files at `defaultRef`'s tree (regular blobs only). `defaultRef` undefined, starting with `-`, or any git failure gives the checkout's files with note `no-default-ref` and never throws.
- * `branchOnly` names the checkout's lens files the default branch does not hold as a regular file.
+ * `branchOnly` names the checkout's lens files the default branch's tree does not list at all.
  */
 export function readLensFiles(root: string, defaultRef: string | undefined): LensRead {
   const fallback = (): LensRead => ({ lenses: workingLenses(root), note: 'no-default-ref', branchOnly: [] });
@@ -68,10 +68,14 @@ export function readLensFiles(root: string, defaultRef: string | undefined): Len
     return fallback();
   }
   const lenses: { path: string; text: string }[] = [];
+  // every lens-named entry of the default branch's tree, a link included: a link is never read, and it is not a file the branch added
+  const listed = new Set<string>();
   for (const entry of listing.split('\0')) {
     if (entry === '') continue;
     const m = ENTRY.exec(entry);
-    if (m === null || m[2] !== 'blob' || !REGULAR_MODES.includes(m[1]) || !LENS_PATH.test(m[4])) continue;
+    if (m === null || !LENS_PATH.test(m[4])) continue;
+    listed.add(m[4]);
+    if (m[2] !== 'blob' || !REGULAR_MODES.includes(m[1])) continue;
     try {
       lenses.push({ path: m[4], text: git(root, ['cat-file', 'blob', m[3]]) });
     } catch {
@@ -79,9 +83,8 @@ export function readLensFiles(root: string, defaultRef: string | undefined): Len
     }
   }
   lenses.sort(byPath);
-  const atDefault = new Set(lenses.map((l) => l.path));
   const branchOnly = workingLenses(root)
-    .filter((l) => !atDefault.has(l.path))
+    .filter((l) => !listed.has(l.path))
     .map((l) => l.path.slice(LENS_DIR.length, -3));
   return { lenses, branchOnly };
 }

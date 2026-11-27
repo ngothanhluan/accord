@@ -12,7 +12,8 @@ import { readCleanFacts } from '../load/clean-facts.js';
 import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
-import { dropSlices, sliceBranch, sliceOfBranch } from '../load/slices.js';
+import { sliceHomeOf } from '../load/slice-size.js';
+import { dropSlices, sliceOfBranch } from '../load/slices.js';
 import { blobsOnRef } from '../load/merged-state.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { cleanLine, nextLine, withNext, withNextOnFirst } from './next-action.js';
@@ -1372,14 +1373,17 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
 
 /**
  * Phase 15 D-08, D-31 (Rulings R11, R12): `accord worktree sync <id>` on slice branch `slice/<id>/<n>`. Review changes slice n-1 after slice n was cut, and the change is MERGED forward, never rebased and never
- * force-pushed, whatever `git.merge` or `git.sync` says: the previous slice's branch (the claim branch for slice 2) while it is not merged into the default branch, else the default branch itself. A merge that
+ * force-pushed, whatever `git.merge` or `git.sync` says: the previous slice's branch of this repository (the claim branch for the first one after it; Phase 08.9.3 D-14, never a slice of another repository) while it is not merged into the default branch, else the default branch itself. A merge that
  * conflicts is aborted and named (exit 2) and the branch is as it was. It runs at any stage (slices are built before verify), pushes nothing and re-binds no verification: the slice's own push is `worktree push --branch`.
  */
 function syncSlice(ctx: CommandContext, id: string, branch: string, n: number): number {
   if (git(ctx.root, ['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
     throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree sync ${id} again; nothing was merged`);
   }
-  const previous = n === 2 ? branchOf(ctx.snapshot, id) : sliceBranch(id, n - 1);
+  // Phase 08.9.3 D-14: the previous slice of THIS repository (the claim branch for the first one), never a slice of another repository
+  const home = sliceHomeOf(ctx.snapshot, id, n, branchOf(ctx.snapshot, id));
+  if (home?.previous === undefined) throw new UsageError(`slice ${n} of ${id} has no earlier slice of this repository to merge - nothing was merged`);
+  const previous = home.previous.branch;
   if (gitOk(ctx.root, ['remote', 'get-url', 'origin'])) fetchOrigin(ctx, true);
   const tipOf = (ref: string): string | undefined => (gitOk(ctx.root, ['rev-parse', '--verify', '-q', ref + '^{commit}']) ? git(ctx.root, ['rev-parse', '--verify', ref + '^{commit}']).trim() : undefined);
   // the branch of slice n-1: this clone's copy, or origin's when that is ahead of it (a teammate pushed the review fix) or the only one
@@ -1387,7 +1391,7 @@ function syncSlice(ctx: CommandContext, id: string, branch: string, n: number): 
   const origin = 'refs/remotes/origin/' + previous;
   const tips = { local: tipOf(local), origin: tipOf(origin) };
   const prevRef = tips.local === undefined ? (tips.origin === undefined ? undefined : origin) : tips.origin !== undefined && tips.origin !== tips.local && gitOk(ctx.root, ['merge-base', '--is-ancestor', tips.local, tips.origin]) ? origin : local;
-  if (prevRef === undefined) throw new UsageError(`slice ${n - 1}'s branch ${previous} is neither here nor on origin - nothing was merged`);
+  if (prevRef === undefined) throw new UsageError(`slice ${home.previous.n}'s branch ${previous} is neither here nor on origin - nothing was merged`);
   const def = gitDefaultRef(ctx.root);
   const prevTip = (prevRef === local ? tips.local : tips.origin) as string;
   const prevMerged = def !== undefined && safeTip(ctx.root, prevTip, undefined, def) === 'safe';

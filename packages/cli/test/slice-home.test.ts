@@ -209,3 +209,81 @@ it('risk:regression a plan with no repo: line has the Phase 15 start for slices 
   expect(sliceStart(r.svc, snap, 'ST-9', 2)).toBe(claimTip);
   expect(sliceStart(r.svc, snap, 'ST-9', 3)).toBe(twoTip);
 }, 120_000);
+
+/** ST-9 on t/ST-9 of the svc clone with tasks 1 and 3 here and task 2 in tools: slice 1 here, slice 2 in tools, slice 3 here. The claim branch holds slice 1; the checkout is left on it. */
+async function plannedMid(r: Repos): Promise<void> {
+  r.git(r.svc, 'switch', '-q', '-c', CLAIM);
+  claimedUnder(r.svc, REPOS_FROM, 'ST-9');
+  expect((await run(['approve', 'ST-9'], r.svc)).code).toBe(0);
+  writeFiles(r.svc, { 'src/svc.ts': 'export const svc = 1;\n' });
+  const base = commitAll(r.svc);
+  const toolsSha = r.git(r.tools, 'rev-parse', 'refs/remotes/origin/main').trim();
+  const text = ['---', `baseline: ${base}`, `baseline_tools: ${toolsSha}`, '---', '', '# Plan', '', task(1, 'src/svc.ts'), task(2, 'tools:src/Tools.cs'), task(3, 'src/svc.ts'), slice(1, '1'), slice(2, '2', 'tools'), slice(3, '3')].join('\n');
+  writeFiles(r.svc, { 'accord/tickets/ST-9/plan.md': text });
+  commitAll(r.svc);
+}
+
+const ledger = (...tasks: number[]): string => ['## Tasks', ...tasks.map((t) => `- task ${t} done abc1234`), ''].join('\n');
+const judged = (out: string): string | undefined => out.split('\n').find((l) => l.startsWith('slice 1 of 3:'));
+
+it('risk:complex-branching worktree sync on a later slice of this repository merges the previous slice of this repository, never a slice of tools (D-14)', async () => {
+  const r = reposCopy();
+  await plannedMid(r);
+  // slice 3 is cut at the claim branch's tip; a review fix then lands on the claim branch (slice 1)
+  r.git(r.svc, 'switch', '-q', '-c', 'slice/ST-9/3');
+  writeFiles(r.svc, { 'src/three.ts': 'three\n' });
+  commitAll(r.svc, 'slice three');
+  r.git(r.svc, 'switch', '-q', CLAIM);
+  writeFiles(r.svc, { 'src/fix.ts': 'fix\n' });
+  const fix = commitAll(r.svc, 'review fix on slice one');
+  r.git(r.svc, 'switch', '-q', 'slice/ST-9/3');
+  const res = await run(['worktree', 'sync', 'ST-9'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  expect(res.out).toContain(`merged: 1 commit of ${CLAIM} into slice/ST-9/3`);
+  expect(res.out).not.toContain('tools');
+  r.git(r.svc, 'merge-base', '--is-ancestor', fix, 'HEAD');
+}, 120_000);
+
+it('risk:complex-branching a slice below the last is judged alone while the ledger holds tasks of a later slice of tools; only a later slice of this repository widens it (D-14, Ruling R10)', async () => {
+  const r = reposCopy();
+  await plannedMid(r);
+  // task 2 is slice 2's, built in tools: its ledger line is written on this branch while its code lives in the tools clone
+  writeFiles(r.svc, { 'accord/tickets/ST-9/ledger.md': ledger(1, 2) });
+  const alone = await run(['gate', 'done', 'ST-9', '--slice', '1'], r.svc);
+  expect(judged(alone.out)).toBe('slice 1 of 3: 1 criteria judged');
+  expect(alone.out).not.toContain('whole ticket');
+  // task 3 is slice 3's, built here: this branch carries later work of this repository, so the whole ticket is judged
+  writeFiles(r.svc, { 'accord/tickets/ST-9/ledger.md': ledger(1, 2, 3) });
+  const widened = await run(['gate', 'done', 'ST-9', '--slice', '1'], r.svc);
+  expect(judged(widened.out)).toMatch(/^slice 1 of 3: \d+ criteria judged \(the ledger records a task of a later slice, so the whole ticket is judged\)$/);
+}, 120_000);
+
+it('risk:regression a plan with no repo: line syncs from the slice before it and is widened by any later slice, as in Phase 15 (D-14, Ruling R10)', async () => {
+  const r = reposCopy();
+  r.git(r.svc, 'switch', '-q', '-c', CLAIM);
+  claimedUnder(r.svc, REPOS_FROM, 'ST-9');
+  expect((await run(['approve', 'ST-9'], r.svc)).code).toBe(0);
+  writeFiles(r.svc, { 'src/svc.ts': 'export const svc = 1;\n' });
+  const base = commitAll(r.svc);
+  const plain = ['---', `baseline: ${base}`, '---', '', '# Plan', '', task(1, 'src/svc.ts'), task(2, 'src/svc.ts'), task(3, 'src/svc.ts'), slice(1, '1'), slice(2, '2'), slice(3, '3')].join('\n');
+  writeFiles(r.svc, { 'accord/tickets/ST-9/plan.md': plain });
+  commitAll(r.svc);
+  r.git(r.svc, 'switch', '-q', '-c', 'slice/ST-9/2');
+  writeFiles(r.svc, { 'src/two.ts': 'two\n' });
+  commitAll(r.svc, 'slice two');
+  r.git(r.svc, 'switch', '-q', '-c', 'slice/ST-9/3');
+  writeFiles(r.svc, { 'src/three.ts': 'three\n' });
+  commitAll(r.svc, 'slice three');
+  r.git(r.svc, 'switch', '-q', 'slice/ST-9/2');
+  writeFiles(r.svc, { 'src/fix2.ts': 'fix\n' });
+  commitAll(r.svc, 'review fix on slice two');
+  r.git(r.svc, 'switch', '-q', 'slice/ST-9/3');
+  const res = await run(['worktree', 'sync', 'ST-9'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  expect(res.out).toContain('merged: 1 commit of slice/ST-9/2 into slice/ST-9/3');
+  // a ledger line of slice 2 widens slice 1, which is no slice of another repository
+  r.git(r.svc, 'switch', '-q', CLAIM);
+  writeFiles(r.svc, { 'accord/tickets/ST-9/ledger.md': ledger(1, 2) });
+  const widened = await run(['gate', 'done', 'ST-9', '--slice', '1'], r.svc);
+  expect(judged(widened.out)).toContain('the whole ticket is judged');
+}, 120_000);

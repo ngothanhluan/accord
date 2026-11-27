@@ -25,7 +25,9 @@ export function sliceScope(snapshot: RepoSnapshot, id: string, n: number): Slice
   // Review C-CR-01: a slice pull request below the last that carries a later slice's task in the ledger is not a slice of its own any more (the author built the later slices on this branch), so
   // it is judged whole. The ledger is part of the branch, so the evidence is the branch's, not its name.
   const built = workOf(snapshot, id)?.ledger?.done ?? {};
-  const widened = n < of && slices.some((s) => s.n > n && s.tasks.some((t) => Object.hasOwn(built, String(t))));
+  // Phase 08.9.3 D-14, Ruling R10: only a later slice of the SAME repository as this slice widens it. The ledger lines of another repository's slice are written on this branch while its code lives in that clone, so
+  // widening on them would fail CI on an open earlier pull request; the later slice's own run judges them again.
+  const widened = n < of && slices.some((s) => s.n > n && s.repo === slice.repo && s.tasks.some((t) => Object.hasOwn(built, String(t))));
   if (n === of || widened) {
     const tagged = new Set((Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].scenarios : []).flatMap((s) => (s.acTag === undefined ? [] : [s.acTag])));
     return { n, of, last: true, ...(widened ? { widened: true as const } : {}), criteria: tagged.size };

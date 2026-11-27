@@ -423,10 +423,10 @@ describe('accord config areas', () => {
     expect(none.code).toBe(2);
     expect(none.err).toContain('nowhere');
     expect(none.err).toContain(CONFIG_AREAS.map((a) => a.id).join(', '));
-    // --json holds the same: 8 areas, 34 keys (branch_types and branch_slug_length joined the git area, hook_mode the team area, progress the git area), a null for an unset key, walk false for managed
+    // --json holds the same: 8 areas, 35 keys (branch_types and branch_slug_length joined the git area, hook_mode the team area, progress and repos the git area), a null for an unset key, walk false for managed
     const json = JSON.parse((await run(['config', 'areas', '--json'], repo)).out) as { areas: { id: string; title: string; walk: boolean; keys: { key: string; text: string; value: unknown; proposals: unknown[] }[] }[] };
     expect(json.areas).toHaveLength(8);
-    expect(json.areas.flatMap((a) => a.keys)).toHaveLength(34);
+    expect(json.areas.flatMap((a) => a.keys)).toHaveLength(35);
     expect(json.areas.map((a) => a.id)).toEqual(CONFIG_AREAS.map((a) => a.id));
     expect(json.areas.find((a) => a.id === 'managed')?.walk).toBe(false);
     expect(json.areas.find((a) => a.id === 'git')?.walk).toBe(true);

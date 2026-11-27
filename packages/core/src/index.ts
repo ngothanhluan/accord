@@ -136,7 +136,7 @@ export {
   REJECTED_HEADING, RELATED_DUTY, ROLE_BLOCKS, TEST_ONLY_LINE, WRITER_DUTY, WRITER_ROLES, briefText, changedBlock, conventionsBlock, findingsBlock, otherRepositoryLine, productBlocks, subagentContext,
   unknownRepositoryLine,
 } from './product/assemble.js';
-export { NOT_A_PULL_LINK, ORIGIN_UNREADABLE, PROGRESS_REF_PROVEN, fetchLine, parseRepoUrl, progressPushTarget, pullRequestOf, repositoryOf } from './product/repo.js';
+export { NOT_A_PULL_LINK, ORIGIN_UNREADABLE, PROGRESS_REF_PROVEN, fetchLine, parseRepoUrl, progressPushTarget, pullRequestOf, repositoryOf, sameRepository } from './product/repo.js';
 export type { ProgressConfig, ProvenHost, PullRequest, RepositoryOf } from './product/repo.js';
 export type { BlockKind, ProductChange, ProductInputs, ProductRead, ProductRole, RelatedParts } from './product/assemble.js';
 export { DEFAULT_MAX_FILE_LINES, growthHits, isManifest, maxFileLines, newDependencies, orphanCandidates, orphanHits, orphanTerms } from './slop/structural.js';

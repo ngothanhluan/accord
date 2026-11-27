@@ -37,6 +37,7 @@ import { upgradeNotice } from './commands/notice.js';
 import { dashboardCommand } from './commands/dashboard.js';
 import { diffPackage } from './commands/diff-package.js';
 import { reviewPackage } from './commands/review-package.js';
+import { reposBaseline, reposSet, reposStatus } from './commands/repos.js';
 import { round } from './commands/round.js';
 import { scoutCheckCommand } from './commands/scout.js';
 import { skills } from './commands/skills.js';
@@ -484,6 +485,28 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .action(async () => {
       // D-18: the second stated exception to the pin check, beside `upgrade`: the audit reports a mismatch as a gap (pinCheck 'report'); every other command still refuses it.
       setCode(await audit(preflight(opts, 'checkout', { pinCheck: 'report' })));
+    });
+
+  // Phase 08.9.3 D-01, D-02: where the clones of the other repositories a ticket may change live on this machine; read and write only, nothing is ever cloned.
+  const repos = program.command('repos').description("the other repositories accord/config.yml declares under repos: by their remote URL, and where their clones live on this machine (per clone, never committed)");
+  repos
+    .command('set <name> <path>')
+    .description("store the clone of repository <name> at <path> (D-01): only when <path> is a clone (a .git folder, not a linked worktree) whose configured origin names the URL repos.<name>.remote declares; the path is kept absolute with forward slashes in <git common dir>/accord/repos and prints repos: <name> -> <path>; refused (exit 2, nothing stored) otherwise")
+    .action((name: string, path: string) => {
+      setCode(reposSet(preflight(opts), name, path, opts.cwd));
+    });
+  repos
+    .command('status')
+    .description("print one line per declared repository: <name>: <path> (stored) for a clone whose origin still names its URL, and a line naming why not otherwise (D-02: the exact git clone line, and accord repos set); exit 2 when any has no usable clone; nothing is cloned")
+    .action(() => {
+      setCode(reposStatus(preflight(opts)));
+    });
+  repos
+    .command('baseline <name>')
+    .description("D-05: fetch the origin of repository <name>'s clone without a prompt (remote-tracking refs only: its HEAD, index, working tree and local branches are not touched), print baseline_<name>: <40-hex sha> of its default branch tip on origin, and write that commit's tracked paths, one per line, to .accord-reports/<id>/repos/<name>.files (git-ignored) with files: <path> and count: <n>; exit 2 and nothing written for a missing --id, an unknown ticket or name, no clone, a linked report folder or a failed fetch")
+    .option('--id <id>', "the ticket whose report folder gets the file list (required: refused with exit 2 when missing or no ticket of this checkout)")
+    .action((name: string, o: { id?: string }) => {
+      setCode(reposBaseline(preflight(opts), name, o));
     });
 
   // Phase 8.1 D-09: the convention lines the owner accepted in /accord-audit, on their own branch for a pull request the owner merges; the skill opens it.

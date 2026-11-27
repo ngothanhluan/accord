@@ -64,6 +64,18 @@ export function parseRepoUrl(url: string): { host: string; owner: string; repo: 
 }
 
 /**
+ * Phase 08.9.3 D-01: whether two remote URLs name one repository: both are a form `parseRepoUrl` reads, owner and repository are equal case-insensitively (`.git` and a trailing slash do not count), and the
+ * hosts are equal or both github.com (itself, its ssh-over-443 host or a `github.com-<name>` alias). `false`, never a throw, for any form it cannot read: a path is never trusted as an identity.
+ */
+export function sameRepository(a: string, b: string): boolean {
+  const x = parseRepoUrl(a);
+  const y = parseRepoUrl(b);
+  if (x === undefined || y === undefined) return false;
+  if (x.owner.toLowerCase() !== y.owner.toLowerCase() || x.repo.toLowerCase() !== y.repo.toLowerCase()) return false;
+  return x.host === y.host || (isGithubHost(x.host) && isGithubHost(y.host));
+}
+
+/**
  * R-9, D-14: whether the pull request is this clone's own. `pull` undefined (the link was not in the accepted shape) and an origin that is missing or not a form `parseRepoUrl` reads are
  * `unknown`; github.com (or its ssh host or a `github.com-<name>` alias) with the same owner and repository (case-insensitively) is `this`; the same name on a host accord cannot place is `unknown`; anything else is `other`, a fork included: a clone whose origin is the fork is another repository
  * to a pull request of the upstream, and the other way round.

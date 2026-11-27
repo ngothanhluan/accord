@@ -2,15 +2,17 @@
 // of task n passed and the report is newer than HEAD. The CLI never runs a test command; the orchestrator
 // runs the tests, and this reads the evidence the Done gate reads.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { claimPinBefore, COMMIT_MESSAGE_FROM, commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal, forbiddenLines, normaliseKey, recordTaskDone, reportReasons, stageOff, TASK_REPORT_FROM, taskVerdict, ticketTaskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
+import type { TestStatus } from '@accord-dev/accord-core';
+import { claimPinBefore, COMMIT_MESSAGE_FROM, commitRuleNotInForce, commitRuleOf, commitRuleProblem, commitRuleRefusal, forbiddenLines, normaliseKey, normaliseText, recordTaskDone, reportReasons, scanJUnit, stageOff, TASK_REPORT_FROM, taskVerdict, ticketTaskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
+import { assertNoLink } from '../guard.js';
 import { withClaimPins } from '../load/claim-facts.js';
 import { gitBranchCommits, UsageError } from '../load/fs.js';
 import { readReport, reportPath, reportRel } from '../load/report.js';
 import type { CommandContext } from '../run.js';
 import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
-import { workRootOf } from './task-tree.js';
+import { repoWorkRoot, workRootOf } from './task-tree.js';
 import { ID } from './worktree.js';
 
 /** `git show -s --format=%ct` output as seconds; anything but digits would make every report look fresh. */
@@ -56,15 +58,27 @@ export function staleReport(ctx: CommandContext, times: () => HeadTimes = headTi
 }
 
 /**
+ * Phase 08.9.3 D-06: `staleReport` for the report of another repository: the file written before that worktree's last commit (whole seconds, as `staleReport`) does not show the tests of that commit. Only judged when the
+ * verdict passed and the file was read; a report that is missing is its own reason.
+ */
+function staleOther(other: Elsewhere, judge: boolean): string | undefined {
+  const read = other.report?.read;
+  if (!judge || other.report === undefined || read === undefined) return undefined;
+  const written = Math.floor(read.mtimeMs / 1000) * 1000;
+  return written < other.head.ct * 1000 ? `${other.report.label} was written before the last commit of the ${other.repo} worktree; run the tests again` : undefined;
+}
+
+/**
  * ST-LN-59 D-07, D-16: the reasons the executor's report file does not let task `n` be recorded: missing, written before HEAD's author time (author time, because the rebase of a
  * wave's integration moves committer time and not this), or without its red-reason and self-review lines. None for a ticket claimed before TASK_REPORT_FROM; the same claim read
  * decides `accord brief`'s ask, and a failed read gives the check (fail closed). The CLI checks that the lines are there, not that they are true, and never reads `config.runtimes` (D-18).
  */
-function reportProblems(ctx: CommandContext, id: string, n: number, sha: string, times: () => HeadTimes): string[] {
+function reportProblems(ctx: CommandContext, id: string, n: number, sha: string, times: () => HeadTimes, elsewhere?: string): string[] {
   const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
   if (claimPinBefore(claimed, id, TASK_REPORT_FROM)) return [];
   // ST-LN-92 D-03: the report lies where `accord brief` put it, under the task's worktree while it exists (it is cleaned only after task-done), named there by its absolute path.
-  const root = workRootOf(ctx.root, claimed, id, n, `accord task-done ${id} ${n}`) ?? ctx.root;
+  // Phase 08.9.3 D-04: a task of another repository wrote its report under that repository's worktree, and the report is fresh against that worktree's own HEAD
+  const root = elsewhere ?? workRootOf(ctx.root, claimed, id, n, `accord task-done ${id} ${n}`) ?? ctx.root;
   const inTicket = root === ctx.root.replace(/\\/g, '/');
   const rel = inTicket ? reportRel(id, n) : reportPath(root, id, n);
   const report = readReport(root, id, n);
@@ -78,6 +92,44 @@ function reportProblems(ctx: CommandContext, id: string, n: number, sha: string,
     return [`the executor report ${rel} was written before HEAD's commit ${head}: the executor writes it after its last commit`];
   }
   return reportReasons(report.text);
+}
+
+/**
+ * Phase 08.9.3 D-04, D-06, D-12: a task built in another repository as task-done sees it: its worktree (`repoWorkRoot`, a UsageError when it is not open on the slice holding the task), that worktree's HEAD, and the report
+ * `repos.<name>.report` declares, read there (`report` is absent when none is declared; `read` is absent when it is declared and no regular file is there).
+ */
+interface Elsewhere {
+  repo: string;
+  dir: string;
+  head: HeadTimes;
+  report?: { rel: string; label: string; read?: { tests: Record<string, TestStatus>; mtimeMs: number } };
+}
+
+/** The declared report of the other repository, read under its worktree: undefined for a missing file, a link, a non-file or a path that leaves the worktree. Parsed with core's `scanJUnit`, as the loader reads this repository's. */
+function readOtherReport(dir: string, rel: string): { tests: Record<string, TestStatus>; mtimeMs: number } | undefined {
+  if (rel.startsWith('/') || rel.split('/').includes('..')) return undefined;
+  try {
+    assertNoLink(dir, rel);
+  } catch (e) {
+    if (e instanceof UsageError) return undefined;
+    throw e;
+  }
+  const file = join(dir, ...rel.split('/'));
+  const found = lstatSync(file, { throwIfNoEntry: false });
+  if (found === undefined || !found.isFile()) return undefined;
+  return { tests: scanJUnit(normaliseText(readFileSync(file, 'utf8'))), mtimeMs: found.mtimeMs };
+}
+
+function elsewhereOf(ctx: CommandContext, id: string, n: number, repo: string): Elsewhere | undefined {
+  const dir = repoWorkRoot(ctx.root, ctx.snapshot, id, n, `accord task-done ${id} ${n}`);
+  if (dir === undefined) return undefined;
+  const entry = ctx.snapshot.config?.repos !== undefined && Object.hasOwn(ctx.snapshot.config.repos, repo) ? ctx.snapshot.config.repos[repo] : undefined;
+  const head = headTimes(dir);
+  if (entry?.report === undefined) return { repo, dir, head };
+  // D-51: the raw config value may carry a backslash
+  const rel = normaliseKey(entry.report);
+  const read = readOtherReport(dir, rel);
+  return { repo, dir, head, report: { rel, label: `${repo}:${rel}`, ...(read === undefined ? {} : { read }) } };
 }
 
 // T-03.1-28: an anchored pattern, so a pair is exactly `ac-<n>=<test id>` and the id is one tag with no whitespace.
@@ -115,21 +167,30 @@ export function taskDone(ctx: CommandContext, id: string, task: string, pairs: s
   // (a stem alone can be `..`, from a ticket file `accord/tickets/...md`).
   const rel = 'accord/tickets/' + id + '/ledger.md';
   const file = join(ctx.root, 'accord', 'tickets', id, 'ledger.md');
-  const sha = commit.slice(0, 12);
+  // Phase 08.9.3 D-04, D-12: a task built in another repository is recorded here at that repository's worktree HEAD
+  const planTask = planOff ? undefined : workOf(ctx.snapshot, id)?.plan?.tasks.find((x) => x.n === n);
+  const other = planTask?.repo === undefined ? undefined : elsewhereOf(ctx, id, n, planTask.repo);
+  const sha = other === undefined ? commit.slice(0, 12) : other.head.sha.slice(0, 12);
   const next = recordTaskDone(existsSync(file) ? readFileSync(file, 'utf8') : undefined, n, sha);
-  const verdict = planOff ? ticketTaskVerdict(ctx.snapshot, id, testMaps) : taskVerdict(ctx.snapshot, id, n);
+  // D-06: the cases are joined against the report read in the other worktree when `repos.<name>.report` is declared and there; with none, no case is joined (the note below says so)
+  const otherReport = other === undefined ? undefined : { report: other.report?.label ?? '', ...(other.report?.read === undefined ? {} : { tests: other.report.read.tests }) };
+  const verdict = planOff ? ticketTaskVerdict(ctx.snapshot, id, testMaps) : taskVerdict(ctx.snapshot, id, n, otherReport);
   const ticket = ctx.snapshot.tickets[id];
   const ticketFile = join(ctx.root, ...ticket.file.split('/'));
-  const maps = planOff ? testMaps : (workOf(ctx.snapshot, id)?.plan?.tasks.find((t) => t.n === n)?.maps ?? []);
+  // D-12: the tag of a case of another repository carries its name, `@test:<name>:<case id>`
+  const planned = planOff ? testMaps : (planTask?.maps ?? []);
+  const maps = other === undefined ? planned : planned.map((m) => ({ ...m, test: `${other.repo}:${m.test}` }));
   // A recorded task is re-checked only for tags: the committed ledger makes HEAD newer than the report.
   const times = headTimesOnce(ctx.root);
-  const stale = next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx, times) : undefined;
-  const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale]), ...(next === undefined ? [] : reportProblems(ctx, id, n, sha, times))];
+  const stale = other === undefined ? (next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx, times) : undefined) : staleOther(other, next !== undefined && verdict.verdict === 'pass');
+  const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale]), ...(next === undefined ? [] : reportProblems(ctx, id, n, sha, times, other?.dir))];
+  if (other?.report !== undefined && other.report.read === undefined) reasons.push(`${other.report.label} is not a file in the ${other.repo} worktree ${other.dir}; run the tests there (repos.${other.repo}.report)`);
   // Phase 8.1 D-06, D-07: commits.message is judged over the same range as commits.trailers (the first task reads back to the default ref, so accord's claim and planning commits are judged there too),
   // for a ticket claimed at or after COMMIT_MESSAGE_FROM; a pattern that is not in force is one reason naming `accord lint`.
-  const trailers = ctx.snapshot.config?.commits?.trailers === 'forbid';
+  // Ruling R15: this repository's commit rules are judged over this repository's commits only; the other repository's conventions are its own (D-03)
+  const trailers = other === undefined && ctx.snapshot.config?.commits?.trailers === 'forbid';
   const rule =
-    next !== undefined && ctx.snapshot.config?.commits?.message !== undefined && !claimPinBefore(withClaimPins(ctx.root, ctx.snapshot, id), id, COMMIT_MESSAGE_FROM)
+    next !== undefined && other === undefined && ctx.snapshot.config?.commits?.message !== undefined && !claimPinBefore(withClaimPins(ctx.root, ctx.snapshot, id), id, COMMIT_MESSAGE_FROM)
       ? commitRuleOf(ctx.snapshot.config)
       : undefined;
   if (next !== undefined && (trailers || rule !== undefined)) {
@@ -169,5 +230,8 @@ export function taskDone(ctx: CommandContext, id: string, task: string, pairs: s
   mkdirSync(join(ctx.root, 'accord', 'tickets', id), { recursive: true });
   writeFileSync(file, next);
   ctx.stdout.write(`recorded task ${n} done at ${sha} in ${rel}\n`);
+  if (other !== undefined && other.report === undefined) {
+    ctx.stdout.write(`note: repository ${other.repo} declares no repos.${other.repo}.report, so task ${n}'s verify cases were not read here; verify runs repos.${other.repo}.tests in full (D-06, D-12)\n`);
+  }
   return 0;
 }

@@ -6,7 +6,7 @@ import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { isResearchRecord } from '../load/research.js';
 import { parseYamlMap } from '../load/yaml.js';
 import { LINE_CAP, patternShape } from './pattern.js';
-import { parseScoutReport } from './report.js';
+import { otherPath, parseScoutReport } from './report.js';
 import type { Citation } from './report.js';
 
 export interface ScoutFacts {
@@ -17,6 +17,9 @@ export interface ScoutFacts {
   read: (paths: readonly string[]) => (string | undefined)[]; // text of each tracked path, undefined when unreadable
   config?: string; // the working tree's accord/config.yml text
   rendered?: readonly string[]; // the paths accord skills sync writes
+  // Phase 08.9.3 D-05: the files of each other repository the report names (`<name>:<path>`), as that repository's own tracked list and reads at its default-branch tip, keyed by the repository name. A name absent from the map is a
+  // repository the report names and the host could not offer (config declares no such `repos.<name>`): each path of it fails, naming the repository.
+  others?: ReadonlyMap<string, Pick<ScoutFacts, 'tracked' | 'read'>>;
 }
 export interface ScoutLane {
   expected: string[];
@@ -125,8 +128,20 @@ const isTestFile = (path: string): boolean => {
 function laneOf(facts: ScoutFacts, listed: readonly string[]): ScoutLane {
   const lists = configLists(facts.config);
   const rendered = new Set(facts.rendered ?? []);
-  const expected = listed.filter((p) => !isTestFile(p) && !rendered.has(p) && !lists.generated.some((e) => matches(e, p)));
-  const areas = [...new Set(expected.map((p) => (p.includes('/') ? p.split('/').slice(0, -1).slice(0, 4).join('/') : '.')))].sort(byCodePoint);
+  // D-05: a file of another repository counts as an expected file and sits in an area of its own (`<name>:<folder>`); this repository's generated and rendered paths and its test-folder names are read over that repository's own path
+  const expected = listed.filter((p) => {
+    const other = otherPath(p);
+    return !isTestFile(other?.path ?? p) && (other !== undefined || (!rendered.has(p) && !lists.generated.some((e) => matches(e, p))));
+  });
+  const areaOf = (path: string): string => (path.includes('/') ? path.split('/').slice(0, -1).slice(0, 4).join('/') : '.');
+  const areas = [
+    ...new Set(
+      expected.map((p) => {
+        const other = otherPath(p);
+        return other === undefined ? areaOf(p) : `${other.repo}:${areaOf(other.path)}`;
+      }),
+    ),
+  ].sort(byCodePoint);
   const sensitive = listed.flatMap((path) =>
     lists.sensitive.filter((e) => matches(e.path, path)).map((e) => ({ path, entry: e.path, area: e.area, line: e.line })),
   );
@@ -138,15 +153,60 @@ function laneOf(facts: ScoutFacts, listed: readonly string[]): ScoutLane {
   return { expected, areas, sensitive, lifts };
 }
 
+/** The facts of the other repositories a report names (D-05), each one's tracked set made once. */
+interface OtherFiles {
+  facts(repo: string): Pick<ScoutFacts, 'tracked' | 'read'> | undefined;
+  holds(repo: string, path: string): boolean;
+}
+
+function otherFilesOf(map: ScoutFacts['others']): OtherFiles | undefined {
+  if (map === undefined) return undefined;
+  const sets = new Map<string, Set<string>>();
+  return {
+    facts: (repo) => map.get(repo),
+    holds: (repo, path) => {
+      const found = map.get(repo);
+      if (found === undefined) return false;
+      let set = sets.get(repo);
+      if (set === undefined) {
+        set = new Set(found.tracked);
+        sets.set(repo, set);
+      }
+      return set.has(path);
+    },
+  };
+}
+
+const notDeclared = (repo: string): string => `the report names repository ${repo}, and accord/config.yml has no repos.${repo}`;
+
 /** The failures of citations whose path is already expanded: a path git does not track, one that cannot be read, a line beyond the file. Each tracked cited path is read once. */
-function citationProblems(citations: readonly Citation[], trackedSet: ReadonlySet<string>, facts: Pick<ScoutFacts, 'read'>): string[] {
+function citationProblems(citations: readonly Citation[], trackedSet: ReadonlySet<string>, facts: Pick<ScoutFacts, 'read'>, others?: OtherFiles): string[] {
   const failures: string[] = [];
-  const cited = [...new Set(citations.map((c) => c.path).filter((p) => trackedSet.has(p)))];
+  const own = citations.filter((c) => otherPath(c.path) === undefined);
+  const cited = [...new Set(own.map((c) => c.path).filter((p) => trackedSet.has(p)))];
   const citedTexts = new Map<string, string | undefined>();
   readAll(facts, cited).forEach((text, i) => citedTexts.set(cited[i], text));
+  // D-05: the files of another repository are read in batches of that repository's own facts, keyed by the path as cited (`<name>:<path>`)
+  const byRepo = new Map<string, string[]>();
+  for (const c of citations) {
+    const other = otherPath(c.path);
+    if (other === undefined || !others?.holds(other.repo, other.path)) continue;
+    byRepo.set(other.repo, [...new Set([...(byRepo.get(other.repo) ?? []), other.path])]);
+  }
+  for (const [repo, paths] of byRepo) readAll(others!.facts(repo)!, paths).forEach((text, i) => citedTexts.set(`${repo}:${paths[i]}`, text));
   for (const c of citations) {
     const where = 'citation ' + c.text + ' does not resolve: ';
-    if (!trackedSet.has(c.path)) {
+    const other = otherPath(c.path);
+    if (other !== undefined) {
+      if (others?.facts(other.repo) === undefined) {
+        failures.push(where + notDeclared(other.repo));
+        continue;
+      }
+      if (!others.holds(other.repo, other.path)) {
+        failures.push(where + 'git does not track ' + c.path);
+        continue;
+      }
+    } else if (!trackedSet.has(c.path)) {
       failures.push(where + 'git does not track ' + c.path);
       continue;
     }
@@ -174,7 +234,8 @@ export function citationFailures(evidence: string, facts: Pick<ScoutFacts, 'trac
 }
 
 export function scoutCheck(facts: ScoutFacts): ScoutResult {
-  const report = parseScoutReport(facts.text);
+  const report = parseScoutReport(facts.text, { repos: true });
+  const others = otherFilesOf(facts.others);
   const tracked = [...facts.tracked].sort(byCodePoint);
   const trackedSet = new Set(tracked);
   const failures: string[] = [];
@@ -182,7 +243,7 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
   // recorded so the caller can print what the check assumed. `## New files` is never expanded.
   const expanded: { from: string; to: string }[] = [];
   const expand = (path: string): string => {
-    if (trackedSet.has(path)) return path;
+    if (trackedSet.has(path) || otherPath(path) !== undefined) return path;
     const to = expandPath(path, tracked);
     if (to === undefined) return path;
     if (!expanded.some((e) => e.from === path)) expanded.push({ from: path, to });
@@ -193,13 +254,21 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
   if (report.files === undefined) failures.push('the report has no ## Files section, so no lane numbers can be computed');
   failures.push(...report.faults);
   for (const path of files ?? []) {
-    if (!trackedSet.has(path)) failures.push('## Files lists ' + path + ', which git does not track');
+    const other = otherPath(path);
+    if (other === undefined) {
+      if (!trackedSet.has(path)) failures.push('## Files lists ' + path + ', which git does not track');
+    } else if (others?.facts(other.repo) === undefined) failures.push('## Files lists ' + path + ': ' + notDeclared(other.repo));
+    else if (!others.holds(other.repo, other.path)) failures.push('## Files lists ' + path + ', which git does not track in repository ' + other.repo);
   }
   for (const path of report.newFiles) {
-    if (trackedSet.has(path)) failures.push('## New files lists ' + path + ', which git already tracks');
+    const other = otherPath(path);
+    if (other === undefined) {
+      if (trackedSet.has(path)) failures.push('## New files lists ' + path + ', which git already tracks');
+    } else if (others?.facts(other.repo) === undefined) failures.push('## New files lists ' + path + ': ' + notDeclared(other.repo));
+    else if (others.holds(other.repo, other.path)) failures.push('## New files lists ' + path + ', which git already tracks in repository ' + other.repo);
   }
 
-  failures.push(...citationProblems(citations, trackedSet, facts));
+  failures.push(...citationProblems(citations, trackedSet, facts, others));
 
   const own = report.absent.length > 0 ? ownFiles(facts, tracked) : new Set<string>();
   for (const row of report.absent) {

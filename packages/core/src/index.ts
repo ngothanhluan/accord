@@ -111,12 +111,15 @@ export {
   sectionValue,
   spentLine,
 } from './gate/lane-r.js';
-export { parseScoutReport } from './scout/report.js';
+export { parseScoutReport, scoutRepoNames } from './scout/report.js';
 export { citationFailures, expandPath, printedClaim, scoutCheck } from './scout/check.js';
 export type { AbsentRow, Citation, ScoutReport } from './scout/report.js';
 export type { ScoutFacts, ScoutLane, ScoutResult } from './scout/check.js';
 export type { GateResult } from './gate/index.js';
 export { taskVerdict, ticketTaskVerdict } from './gate/task.js';
+export type { OtherReport } from './gate/task.js';
+export { scanJUnit } from './load/junit.js';
+export type { TestStatus } from './load/junit.js';
 export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { rulesetChanged, rulesetMissing } from './gate/ruleset.js';

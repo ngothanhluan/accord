@@ -1,10 +1,12 @@
 // ST-LN-81 `accord scout check <file>`: core judges a scout report against the files git tracks; this file
 // contributes the facts (git's tracked list, the files on disk) and the printed form.
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { parseScoutReport, scoutCheck } from '@accord-dev/accord-core';
+import { parseScoutReport, scoutCheck, scoutRepoNames } from '@accord-dev/accord-core';
 import type { ScoutFacts, ScoutResult } from '@accord-dev/accord-core';
-import { gitTracked, gitTreeAt, hasLocalChanges, lastCommitOf, readBlobs, UsageError } from '../load/fs.js';
+import { defaultRefOf, gitTracked, gitTreeAt, hasLocalChanges, lastCommitOf, readBlobs, UsageError } from '../load/fs.js';
+import { resolveRepo } from '../load/repos.js';
 import type { CommandContext } from '../run.js';
 import { renderedFiles } from './branch-fact.js';
 
@@ -46,6 +48,33 @@ function repoPath(root: string, abs: string): string | undefined {
   return rel === '' || rel.startsWith('..') || isAbsolute(rel) ? undefined : rel;
 }
 
+/**
+ * Phase 08.9.3 D-05, D-04: the files of each other repository the report names (`<name>:<path>` in `## Files`, `## New files` or a citation), read by git in that repository's clone at the tip of its default branch.
+ * Only a repository the report names and `repos.<name>` of accord/config.yml declares is read, and only then is its clone looked up (`resolveRepo`): a report naming none makes no git call outside this repository.
+ * A name config does not declare is left out, so the check fails its paths naming the repository; a clone that is not found (the D-02 line) or has no default branch is a UsageError, never a repository silently left out.
+ */
+function otherFacts(ctx: CommandContext, text: string): ScoutFacts['others'] {
+  const names = scoutRepoNames(text);
+  if (names.length === 0) return undefined;
+  const repos = ctx.snapshot.config?.repos;
+  const found = new Map<string, Pick<ScoutFacts, 'tracked' | 'read'>>();
+  for (const name of names) {
+    if (repos === undefined || !Object.hasOwn(repos, name)) continue;
+    const resolved = resolveRepo(ctx.root, ctx.snapshot.config, name);
+    if ('refused' in resolved) throw new UsageError(resolved.refused);
+    const ref = defaultRefOf(resolved.path);
+    if (ref === undefined) throw new UsageError(`${name}: the clone at ${resolved.path} has no default branch (origin/HEAD, origin/main, origin/master, main or master), so its files cannot be read; nothing was read`);
+    let tip: string;
+    try {
+      tip = execFileSync('git', ['rev-parse', '--verify', '--end-of-options', ref + '^{commit}'], { cwd: resolved.path, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    } catch {
+      throw new UsageError(`${name}: ${ref} names no commit in the clone at ${resolved.path}; nothing was read`);
+    }
+    found.set(name, commitFacts(resolved.path, tip));
+  }
+  return found;
+}
+
 /** The one judging call, for either tree: the facts of that tree plus the working tree's config and generated paths. */
 function judge(
   ctx: CommandContext,
@@ -61,10 +90,12 @@ function judge(
     config = undefined;
   }
   const rendered = ctx.snapshot.config === undefined ? [] : renderedFiles(ctx.snapshot.config).map((f) => f.path);
+  const others = otherFacts(ctx, text);
   return scoutCheck({
     ...facts,
     text,
     rendered,
+    ...(others === undefined ? {} : { others }),
     ...(config === undefined ? {} : { config }),
     ...(path === undefined ? {} : { path }),
     ...(ticket === undefined ? {} : { ticket }),

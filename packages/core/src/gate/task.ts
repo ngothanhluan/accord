@@ -1,5 +1,6 @@
 // Spec §8 `task-done`: a task is done when every report case its verify: line names is recorded passed.
 // Pure: the CLI adds the two host facts core cannot see — the commit, and whether the report is fresh.
+import type { TestStatus } from '../load/junit.js';
 import { normaliseKey } from '../load/snapshot.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { reportLoaded, reportPath } from './done.js';
@@ -12,7 +13,20 @@ export interface TaskVerdict {
 
 const fail = (reason: string): TaskVerdict => ({ verdict: 'fail', reasons: [reason] });
 
-export function taskVerdict(snapshot: RepoSnapshot, id: string, n: number): TaskVerdict {
+/**
+ * Phase 08.9.3 D-06, D-12: the report of ANOTHER repository, as the host read it in that repository's worktree: `report` is how a reason names it (`tools:build/junit.xml`), `tests` its cases by id; absent
+ * when `repos.<name>.report` is not declared, and then no case is joined.
+ */
+export interface OtherReport {
+  report: string;
+  tests?: Record<string, TestStatus>;
+}
+
+/**
+ * A task is done when every report case its verify: line names is recorded passed. For a task built in another repository (`other` given) the plan checks run as for any task and the cases are joined against `other.tests`
+ * (the report of that repository's worktree) instead of this repository's `tests.report`; with no `other.tests` no case is joined, and what the executor report and verify's full run of that repository check is the host's.
+ */
+export function taskVerdict(snapshot: RepoSnapshot, id: string, n: number, other?: OtherReport): TaskVerdict {
   const plan = workOf(snapshot, id)?.plan;
   if (plan === undefined) return fail('no plan at ' + planFile(id));
   const task = plan.tasks.find((t) => t.n === n);
@@ -24,10 +38,12 @@ export function taskVerdict(snapshot: RepoSnapshot, id: string, n: number): Task
   }
   if (task === undefined) return fail(`the plan has no "## Task ${n}"`);
   if (task.verify.length === 0) return fail(`task ${n} has no verify: line`);
-  const tests = snapshot.tests;
-  if (!reportLoaded(snapshot) || tests === undefined) return fail('no test report is loaded; set tests.report and run the tests');
+  if (other !== undefined && other.tests === undefined) return { verdict: 'pass', reasons: [] };
+  const tests = other === undefined ? snapshot.tests : other.tests;
+  if (other === undefined && (!reportLoaded(snapshot) || tests === undefined)) return fail('no test report is loaded; set tests.report and run the tests');
+  if (tests === undefined) return { verdict: 'pass', reasons: [] };
   // D-51: the raw config value may carry a backslash; a reason never does.
-  const report = normaliseKey(reportPath(snapshot) ?? '');
+  const report = other === undefined ? normaliseKey(reportPath(snapshot) ?? '') : other.report;
   const reasons = task.verify.flatMap((v) =>
     !Object.hasOwn(tests, v)
       ? [`${v} is not in ${report}`]

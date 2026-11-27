@@ -1,7 +1,7 @@
 // Phase 08.9.3 D-05, D-06, D-08, D-09, D-14: the plan rules of a ticket that is built in more than one repository, and the claim-pin cut-off that keeps them silent for a ticket claimed before the release.
 import { describe, expect, it } from 'vitest';
-import { gatePlan, loadSnapshot, OVERRIDABLE, REPOS_FROM, STAGE_OF } from '../src/index.js';
-import type { GateResult } from '../src/index.js';
+import { buildWaves, gatePlan, loadSnapshot, OVERRIDABLE, REPOS_FROM, STAGE_OF } from '../src/index.js';
+import type { GateResult, RepoSnapshot } from '../src/index.js';
 import { parsePlan } from '../src/load/work.js';
 import { approved } from './helpers/approve.js';
 import { CONFIG, junit, laneTicket, pinned, REPORT, sized } from '../../../test/helpers/lane.js';
@@ -20,8 +20,9 @@ const planOf = (tasks: string[], slices: string[] = [], fm: string[] = [`baselin
 interface Opts {
   config?: string;
   claim?: { pin: string } | { error: string } | null; // null: no claim fact
+  extra?: Partial<RepoSnapshot>; // host facts: repoFacts, baselineFiles
 }
-const check = (text: string, { config = CONFIG + REPOS, claim = { pin: REPOS_FROM } }: Opts = {}): GateResult => {
+const check = (text: string, { config = CONFIG + REPOS, claim = { pin: REPOS_FROM }, extra = {} }: Opts = {}): GateResult => {
   const files: Record<string, string> = approved(
     {
       'accord/config.yml': config,
@@ -32,7 +33,7 @@ const check = (text: string, { config = CONFIG + REPOS, claim = { pin: REPOS_FRO
     'T-1',
   );
   const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
-  return gatePlan(claim === null ? snapshot : { ...snapshot, claimPins: { 'T-1': claim } }, 'T-1');
+  return gatePlan({ ...(claim === null ? snapshot : { ...snapshot, claimPins: { 'T-1': claim } }), ...extra }, 'T-1');
 };
 const rule = (r: GateResult, id: string) => r.findings.filter((f) => f.rule === id);
 const REPO_RULE = /^gate\.(repo-|task-repo-mixed|slice-repo-mixed)/;
@@ -189,12 +190,91 @@ describe('a ticket claimed before the release is judged as before (T-08.9.3-09)'
 });
 
 describe('the classification', () => {
-  const IDS = ['gate.repo-unknown', 'gate.repo-tests-missing', 'gate.repo-baseline-missing', 'gate.task-repo-mixed', 'gate.slice-repo-mixed', 'gate.repo-slices'];
+  const IDS = ['gate.repo-unknown', 'gate.repo-tests-missing', 'gate.repo-baseline-missing', 'gate.repo-baseline-unknown', 'gate.task-repo-mixed', 'gate.slice-repo-mixed', 'gate.repo-slices'];
 
   it('risk:security none of the new rules is overridable, and each belongs to the plan stage', () => {
     for (const id of IDS) {
       expect(OVERRIDABLE, id).not.toContain(id);
       expect(STAGE_OF[id], id).toBe('plan');
     }
+  });
+});
+
+// Task 3: the other repository's paths against its own baseline, when the host could read it.
+const FACTS = { tools: { baseline: SHA, onDefault: true, files: ['src/Tools.cs', 'src/Other.cs'] } };
+const withFacts = (facts: NonNullable<RepoSnapshot['repoFacts']>): Opts => ({ extra: { repoFacts: facts } });
+
+describe("a path of another repository is checked at that repository's baseline (D-05)", () => {
+  it('risk:complex-branching gate.task-file-unknown names a tools path that does not exist at the tools baseline, and passes the ones that do', () => {
+    const f = rule(check(planOf([task(1, 'tools:src/Tools.cs, tools:src/Missing.cs'), task(2, 'src/svc.ts')], [slice(1, '1', 'tools'), slice(2, '2')]), withFacts(FACTS)), 'gate.task-file-unknown');
+    expect(f).toHaveLength(1);
+    expect(f[0].reason).toContain(`task 1 names tools:src/Missing.cs, which does not exist at tools baseline ${SHA}; `);
+  });
+
+  it('risk:complex-branching a new tools file is not asked for, and one modelled on a tools file that is not there is one gate.task-model-unknown finding naming tools', () => {
+    const text = planOf([task(1, 'tools:src/New.cs (new, like tools:src/Gone.cs), tools:src/Tools.cs (new, like tools:src/Other.cs)'), task(2, 'src/svc.ts')], [slice(1, '1', 'tools'), slice(2, '2')]);
+    const r = check(text, withFacts(FACTS));
+    expect(rule(r, 'gate.task-file-unknown')).toEqual([]);
+    const f = rule(r, 'gate.task-model-unknown');
+    expect(f).toHaveLength(1);
+    expect(f[0].reason).toContain('tools:src/New.cs');
+    expect(f[0].reason).toContain('tools:src/Gone.cs');
+    expect(f[0].reason).toContain('tools baseline');
+  });
+
+  it('risk:complex-branching a new tools file with a bare (new) names no model, as a path of this repository does', () => {
+    const text = planOf([task(1, 'tools:src/New.cs (new)'), task(2, 'src/svc.ts')], [slice(1, '1', 'tools'), slice(2, '2')]);
+    const f = rule(check(text), 'gate.task-model-missing');
+    expect(f).toHaveLength(1);
+    expect(f[0].reason).toContain('tools:src/New.cs');
+  });
+
+  it('risk:regression without repoFacts (CI), or with facts for another sha than baseline_tools, none of them speaks', () => {
+    const text = planOf([task(1, 'tools:src/Missing.cs (new, like tools:src/Gone.cs)'), task(2, 'src/svc.ts')], [slice(1, '1', 'tools'), slice(2, '2')]);
+    const open = text.replace('tools:src/Missing.cs (new, like tools:src/Gone.cs)', 'tools:src/Missing.cs');
+    for (const t of [text, open]) {
+      for (const opts of [undefined, withFacts({ tools: { ...FACTS.tools, baseline: 'b'.repeat(40), onDefault: false } })]) {
+        const r = check(t, opts);
+        expect(rule(r, 'gate.task-file-unknown')).toEqual([]);
+        expect(rule(r, 'gate.task-model-unknown')).toEqual([]);
+        expect(rule(r, 'gate.repo-baseline-unknown')).toEqual([]);
+      }
+    }
+  });
+
+  it('risk:complex-branching gate.repo-baseline-unknown names the default-branch history of a baseline that is not on it, only with the host fact', () => {
+    const f = rule(check(SOUND, withFacts({ tools: { ...FACTS.tools, onDefault: false } })), 'gate.repo-baseline-unknown');
+    expect(f).toHaveLength(1);
+    expect(f[0].level).toBe('error');
+    expect(f[0].reason).toContain('tools');
+    expect(f[0].reason).toContain('default branch');
+    expect(rule(check(SOUND, withFacts(FACTS)), 'gate.repo-baseline-unknown')).toEqual([]);
+    expect(rule(check(SOUND), 'gate.repo-baseline-unknown')).toEqual([]);
+  });
+
+  it('risk:regression a ticket claimed at 0.21.1 gets no repository rule, and its tools:src/x is judged as the plain path it was', () => {
+    const text = planOf([task(1, 'tools:src/x'), task(2, 'src/svc.ts')]);
+    const r = check(text, { claim: { pin: '0.21.1' }, extra: { baselineFiles: { abc1234: ['src/svc.ts'] }, repoFacts: { tools: { ...FACTS.tools, onDefault: false } } } });
+    expect(repoRules(r)).toEqual([]);
+    const f = rule(r, 'gate.task-file-unknown');
+    expect(f).toHaveLength(1);
+    expect(f[0].reason).toContain('task 1 names tools:src/x, which does not exist at baseline abc1234');
+    // a bare (new) on that token names no model, as it did before the release
+    const bare = check(planOf([task(1, 'tools:src/x (new)')]), { claim: { pin: '0.21.1' } });
+    expect(rule(bare, 'gate.task-model-missing')).toHaveLength(1);
+  });
+});
+
+describe('two tasks in the same other repository never share a build wave (Decision 4)', () => {
+  it('risk:complex-branching tasks 1 and 2 of tools, with disjoint paths, build one after the other; a task of this repository may share a wave', () => {
+    const { plan } = parsePlan('plan.md', planOf([task(1, 'tools:src/a.cs'), task(2, 'tools:src/b.cs'), task(3, 'src/c.ts')]));
+    const waves = buildWaves(plan.tasks, new Set());
+    expect(waves.every((w) => !(w.includes(1) && w.includes(2)))).toBe(true);
+    expect(waves).toEqual([[1, 3], [2]]);
+  });
+
+  it('risk:regression tasks of this repository with disjoint paths still share a wave', () => {
+    const { plan } = parsePlan('plan.md', planOf([task(1, 'src/a.ts'), task(2, 'src/b.ts')]));
+    expect(buildWaves(plan.tasks, new Set())).toEqual([[1, 2]]);
   });
 });

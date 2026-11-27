@@ -94,7 +94,8 @@ function originCopy(ctx: CommandContext, clone: string, branch: string): { ref?:
   if (gitOk(clone, ['rev-parse', '--verify', '-q', ref])) return { ref };
   try {
     gitNoPrompt(clone, ['ls-remote', '--exit-code', '--heads', 'origin', `refs/heads/${branch}`], 30_000, ctx.ssh);
-    gitNoPrompt(clone, ['fetch', '-q', 'origin', `+refs/heads/${branch}:${ref}`], 60_000, ctx.ssh);
+    // WR-05: as `accord repos baseline` fetches, nothing but the one remote-tracking ref changes in the person's clone (no tag followed, no submodule fetched whatever the clone's own settings say)
+    gitNoPrompt(clone, ['fetch', '-q', '--no-tags', '--no-recurse-submodules', 'origin', `+refs/heads/${branch}:${ref}`], 60_000, ctx.ssh);
     return gitOk(clone, ['rev-parse', '--verify', '-q', ref]) ? { ref } : {};
   } catch (e) {
     if ((e as { status?: number }).status === 2) return {}; // ls-remote --exit-code: origin has no such branch

@@ -2240,7 +2240,8 @@ function openClone(ctx: CommandContext, s: GuardState, name: string): OpenClone 
   let failed = false;
   if (s.dry !== 'offline') {
     try {
-      gitNoPrompt(clone, ['fetch', '--no-prune', 'origin'], s.until === undefined ? undefined : fetchLimitMs(), ctx.ssh);
+      // WR-05: as `accord repos baseline` fetches, remote-tracking refs only: no tag followed and no submodule fetched in the person's clone, whatever its own settings say
+      gitNoPrompt(clone, ['fetch', '--no-prune', '--no-tags', '--no-recurse-submodules', 'origin'], s.until === undefined ? undefined : fetchLimitMs(), ctx.ssh);
     } catch (e) {
       failed = true;
       cleanSay(ctx, `fetch from origin failed in ${name}, judging against the refs already in that clone: ${firstLine(e)}`);

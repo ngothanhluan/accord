@@ -229,8 +229,9 @@ export interface RepoRecord {
   line: number; // Markdown line of the section heading
   suite?: { result: 'passed' | 'failed'; command: string; line: number };
   slices: RepoRecordSlice[];
-  // every label line that was not read: its value does not read, or the label repeats within its group (`n` the group's slice number; absent before the first group or after a `Slice:` line that did not read)
-  unread: { line: number; label: 'Suite' | 'Slice' | 'PR' | 'Verified head' | 'Merged'; text: string; n?: number; repeated?: true }[];
+  // every label line that was not read, and why: `malformed` (its value does not read), `repeated` (the label is already read in its group, or the suite line already read) or `orphan` (it follows no `Slice:` line that reads: before the first
+  // group, or after a `Slice:` line that did not read). `n` is the slice number of the group the line sits in; absent for the suite line and an orphan
+  unread: { line: number; label: 'Suite' | 'Slice' | 'PR' | 'Verified head' | 'Merged'; text: string; why: 'malformed' | 'repeated' | 'orphan'; n?: number }[];
 }
 
 export interface Verification {

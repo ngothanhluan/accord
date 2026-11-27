@@ -350,7 +350,7 @@ interface Need {
  */
 const repoNeeds = (snapshot: RepoSnapshot, id: string): Need[] => {
   if (stageLaneTicket(snapshot, id) === undefined || claimPinBefore(snapshot, id, REPOS_FROM)) return [];
-  const upTo: number | undefined = undefined;
+  const upTo = snapshot.doneSliceN !== undefined && Object.hasOwn(snapshot.doneSliceN, id) ? snapshot.doneSliceN[id] : undefined;
   const seen = new Set<string>();
   return (planOf(snapshot, id)?.slices ?? []).flatMap((s) => {
     const key = `${s.repo}/${s.n}`;
@@ -375,6 +375,13 @@ const LABEL_FORM: Record<RepoRecord['unread'][number]['label'], string> = {
   Merged: 'a full 40-character commit sha',
 };
 
+type Unread = RepoRecord['unread'][number];
+/** What a label line that did not read is told, by why it did not. */
+const UNREAD_WHY: Record<Unread['why'], (at: string, u: Unread) => string> = {
+  malformed: (at, u) => `${at}: "${u.text}" is not ${LABEL_FORM[u.label]}`,
+  repeated: (at, u) => `${at}: "${u.text}" repeats the ${u.label} line already read`,
+  orphan: (at, u) => `${at}: "${u.text}" follows no "Slice: <n>" line that reads, so it belongs to no slice`,
+};
 /**
  * Every problem of repository `name`'s record for this run: the section, the suite line (passed, and the command `repos.<name>.tests` names), and per needed slice one group with PR and Verified head, and Merged where D-13 asks for it. A label line that did
  * not read, or repeats, is one problem naming its line; a field that is absent is not reported again when its line is there but unread. Empty when no slice of `name` is in the run's scope: the caller decides what that means.
@@ -424,7 +431,7 @@ const repoProblems = (snapshot: RepoSnapshot, id: string, name: string): Problem
   for (const u of record.unread) {
     if (u.n !== undefined && !inScope.has(u.n)) continue;
     const at = u.n === undefined ? here : `${here}, slice ${u.n}`;
-    out.push({ kind: 'incomplete', line: u.line, reason: u.repeated === true ? `${at}: "${u.text}" repeats the ${u.label} line already read` : `${at}: "${u.text}" is not ${LABEL_FORM[u.label]}` });
+    out.push({ kind: 'incomplete', line: u.line, reason: UNREAD_WHY[u.why](at, u) });
   }
   return out.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
 };

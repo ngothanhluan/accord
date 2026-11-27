@@ -34,30 +34,30 @@ function readRecord(name: string, section: Section, fenced: (line: number) => bo
     const label = m[1] as RepoRecord['unread'][number]['label'];
     const value = m[2].trim();
     const text = l.text.trimEnd();
-    const bad = (repeated?: true): void => {
-      record.unread.push({ line: l.line, label, text, ...(group === undefined ? {} : { n: group.n }), ...(repeated === undefined ? {} : { repeated }) });
+    const bad = (why: 'malformed' | 'repeated' | 'orphan'): void => {
+      record.unread.push({ line: l.line, label, text, why, ...(group === undefined || label === 'Suite' ? {} : { n: group.n }) });
     };
     if (label === 'Suite') {
       const suite = SUITE.exec(value);
-      if (record.suite !== undefined) bad(true);
-      else if (suite === null) bad();
+      if (record.suite !== undefined) bad('repeated');
+      else if (suite === null) bad('malformed');
       else record.suite = { result: suite[1] as 'passed' | 'failed', command: suite[2].trim(), line: l.line };
     } else if (label === 'Slice') {
       const n = SLICE_N.exec(value)?.[1];
       // a Slice: line that does not read opens no group, and closes the one before it, so the labels after it are never taken for that group's
       group = n === undefined ? undefined : { n: Number(n), line: l.line };
-      if (group === undefined) bad();
+      if (group === undefined) bad('malformed');
       else record.slices.push(group);
-    } else if (group === undefined) bad();
+    } else if (group === undefined) bad('orphan');
     else if (label === 'PR') {
       const pr = PR_NUMBER.exec(value)?.[1];
-      if (group.pr !== undefined) bad(true);
-      else if (pr === undefined) bad();
+      if (group.pr !== undefined) bad('repeated');
+      else if (pr === undefined) bad('malformed');
       else group.pr = Number(pr);
     } else {
       const key = label === 'Merged' ? 'merged' : 'verifiedHead';
-      if (group[key] !== undefined) bad(true);
-      else if (!SHA40.test(value)) bad();
+      if (group[key] !== undefined) bad('repeated');
+      else if (!SHA40.test(value)) bad('malformed');
       else group[key] = value;
     }
   }

@@ -40,6 +40,7 @@ const LOCKED_LIST = [
   'gate.out-of-scope',
   'gate.ready-missing',
   // Phase 08.9.3 D-07: the other repository's part of a ticket is recorded and checked before Done
+  'gate.repo-record-incomplete',
   'gate.repo-record-missing',
   'gate.report-missing',
   'gate.research-budget-unanswered',

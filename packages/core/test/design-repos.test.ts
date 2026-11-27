@@ -19,9 +19,10 @@ const paragraph = (name: string): string => {
   const end = design.indexOf('\n\n', start);
   return design.slice(start, end < 0 ? undefined : end);
 };
-/** The `## Unreleased` section of the release notes, up to the next `## ` heading; empty when there is none. */
+/** The section of the release notes that holds this phase: `## 0.22.0 — <date>` once released, `## Unreleased` before; up to the next `## ` heading; empty when there is none. */
 const unreleased = (): string => {
-  const start = releases.indexOf('\n## Unreleased\n');
+  let start = releases.indexOf('\n## 0.22.0 — ');
+  if (start < 0) start = releases.indexOf('\n## Unreleased\n');
   if (start < 0) return '';
   const end = releases.indexOf('\n## ', start + 1);
   return releases.slice(start, end < 0 ? undefined : end);
@@ -68,9 +69,9 @@ it('risk:regression the design record states how a ticket spans repositories and
 });
 
 // D-01..D-14: the next release's notes tell a team what the phase adds and that tickets in flight keep their rules.
-it('risk:regression the release notes open with Unreleased, list what the phase built and say a ticket claimed before 0.22.0 is judged as before (D-01..D-14)', () => {
-  expect(releases.match(/^## Unreleased$/gm)).toHaveLength(1);
-  expect(releases.indexOf('## Unreleased')).toBeLessThan(releases.indexOf('## 0.21.1'));
+it('risk:regression the release notes open with the 0.22.0 section, list what the phase built and say a ticket claimed before 0.22.0 is judged as before (D-01..D-14)', () => {
+  expect(releases.match(/^## 0\.22\.0 — \d{4}-\d{2}-\d{2}$/gm)).toHaveLength(1);
+  expect(releases.indexOf('## 0.22.0 — ')).toBeLessThan(releases.indexOf('## 0.21.1 — '));
   const notes = flat(unreleased());
   expect(
     lacks(notes, [

@@ -2,7 +2,7 @@
 // `Verified head` fails Done (`gate.repo-head-moved`); with `CI` set, with no stored clone, or for a ticket claimed before REPOS_FROM it reads nothing there and the record is what is trusted. Real git in two sibling clones
 // (helpers/repos.ts) and the real command; `git` spawns are logged by an interception of node:child_process that passes every call through, so a process started in the tools clone shows.
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { REPOS_FROM } from '@accord-dev/accord-core';
 import { claimedUnder, commitAll, run, writeFiles } from './helpers/repo.js';
@@ -32,8 +32,21 @@ const TESTS = 'node -e "process.exit(0)"';
 
 /** ST-9 claimed under `pin` on t/ST-9 of the svc clone, planned with slice 1 in tools and slice 2 here, the plan committed. */
 async function planned(r: Repos, pin: string = REPOS_FROM): Promise<void> {
+  // A ticket claimed before REPOS_FROM was claimed on a branch cut from a main that held that older pin (a claim below the pin of its base is read as a hand edit and fails closed), and the branch took
+  // the running pin when it merged the upgrade after. So an older `pin` is committed on main first and the running one on the branch after the claim.
+  const config = join(r.svc, 'accord', 'config.yml');
+  const running = readFileSync(config, 'utf8');
+  if (pin !== REPOS_FROM) {
+    writeFiles(r.svc, { 'accord/config.yml': running.replace(/accord: "[^"]*"/, `accord: "${pin}"`) });
+    commitAll(r.svc, 'main still at an older pin');
+    r.git(r.svc, 'push', '-q', 'origin', 'main'); // the default ref the base pin is read at is origin/main
+  }
   r.git(r.svc, 'switch', '-q', '-c', CLAIM);
   claimedUnder(r.svc, pin, 'ST-9');
+  if (pin !== REPOS_FROM) {
+    writeFiles(r.svc, { 'accord/config.yml': running });
+    commitAll(r.svc, 'merge the upgrade of main');
+  }
   expect((await run(['approve', 'ST-9'], r.svc)).code).toBe(0);
   writeFiles(r.svc, { 'src/svc.ts': 'export const svc = 1;\n' });
   const base = commitAll(r.svc);

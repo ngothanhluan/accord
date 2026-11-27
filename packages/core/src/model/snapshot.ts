@@ -231,6 +231,13 @@ export interface PlanTask {
   // ST-LN-10 D-12: one entry per newFiles path, in `files:` line order: `like` the model path of `(new, like <path>)`, `none` the reason of `(new, no model: <reason>)`, `unread` a `(new…` clause
   // that is neither form, as written; all absent for a bare `(new)`. The model path is never in `files`.
   models: { path: string; like?: string; none?: string; unread?: string }[];
+  // Phase 08.9.3 D-05, D-09: the paths of `files:` written `<name>:<path>` (another repository's, in `repoFiles`; a new one also in `repoNewFiles`, with its clause in `repoModels`, where `like` stays as written,
+  // `<name>:<path>` or a plain path), and `repo` the one other repository a task is built in (every path and model path in it, none in this repository). `files`, `newFiles` and `models` keep this repository's paths only. All four are
+  // absent for a task that names no `<name>:<path>` token, so a plan without one parses to exactly the object it did before.
+  repoFiles?: { repo: string; path: string }[];
+  repoNewFiles?: { repo: string; path: string }[];
+  repoModels?: { repo: string; path: string; like?: string; none?: string; unread?: string }[];
+  repo?: string;
   verify: string[]; // report case ids of the first 'verify:' line, `(@ac-n)` markers dropped
   maps: { test: string; ac: string }[]; // each `(@ac-n)` marker with the test id before it: { test: 'a#x', ac: '@ac-1' }
   // ST-LN-91 D-09: the first `after:` line outside a fence and a comment: the task numbers it names and the tokens it holds that are neither `none` nor a task number; absent with no such line or no token on it
@@ -249,7 +256,8 @@ export interface PlanSlice {
   tasks: number[]; // [3, 4], from 'tasks: 3, 4'
   covers: string[]; // ['@ac-2'], from 'covers: @ac-2'
   estimate?: { code?: number; test?: number; docs?: number }; // from 'estimate: code 300, test 600, docs 150'; absent with no such line
-  unread: string[]; // tokens of tasks: and estimate: that are not read
+  unread: string[]; // tokens of tasks: and estimate: that are not read; Phase 08.9.3 D-09: a second token of repo: too
+  repo?: string; // Phase 08.9.3 D-09: the first token of the first `repo:` line; absent means this repository
   estimateUnread?: string[]; // the estimate: tokens among them; absent when every token read (review B-WR-05)
 }
 
@@ -259,6 +267,7 @@ export interface Plan {
   slices?: PlanSlice[]; // Phase 15 D-09: every '## Slice n' section in document order; absent when the plan has none
   preamble: string; // the plan body above the first '## Task n' or '## Slice n' heading, verbatim
   baseline?: string; // frontmatter `baseline:`, a string as written; absent when there is none
+  repoBaselines?: Record<string, string>; // Phase 08.9.3 D-05: every frontmatter `baseline_<name>:` string, keyed by the repository name as written; absent when there is none
   planHash?: string; // frontmatter `plan_hash:` as written, recorded by `gate plan`; absent when there is none
   bodyHash: string; // fnv1a64 of the normalised text below the frontmatter
   unfinished?: number; // ST-LN-72 D-11: 1-based line of the `<!-- accord: unfinished -->` marker in the raw text; absent when the file does not carry it
@@ -476,4 +485,7 @@ export interface RepoSnapshot {
   // Phase 15 D-29, D-21: host-supplied by the dashboard: the ids of tickets whose code merged into the default ref (their claim branch merged by ancestry or by equal record blobs, or no branch is left and the default ref's
   // records show review or verify); read from git, never written. The dashboard lists such a ticket under `mergedWaiting` while it is not done on the default ref. Absent when the host supplies none.
   mergedClaims?: readonly string[];
+  // Phase 08.9.3 D-05, D-06: host-supplied by `accord gate plan` only, keyed by repository name: the baseline sha the host read for that repository (the one plan.md names as `baseline_<name>`), whether it is a commit on the history of that
+  // repository's default branch, and the tracked paths at it. Absent in CI and for every other command: the rules that read it stay silent without it.
+  repoFacts?: Record<string, { baseline: string; onDefault: boolean; files: string[] }>;
 }

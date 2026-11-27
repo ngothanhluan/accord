@@ -81,6 +81,8 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.slice-ac-missing': 'plan',
   'gate.slice-ac-uncovered': 'plan',
   'gate.slice-order': 'plan',
+  // Phase 08.9.3 D-05, D-06, D-08, D-09, D-14: the rules of a plan that names another repository, each behind REPOS_FROM
+  'gate.repo-unknown': 'plan',
   'gate.plan-decision-uncited': 'plan',
   'gate.plan-ref-unknown': 'plan',
   'gate.plan-test-unmapped': 'plan',

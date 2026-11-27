@@ -4,10 +4,10 @@
 import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
 import { UNFINISHED_MARKER } from '../load/unfinished.js';
 import { sliceSplit } from '../pr/size.js';
-import { FIELD, fieldLines, tokens } from '../load/work.js';
+import { FIELD, fieldLines, taskRepos, tokens } from '../load/work.js';
 import type { Plan, PlanSlice, PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { afterCycles } from '../plan/waves.js';
-import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore, SLICES_FROM } from '../round/pin.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, pinBefore, REPOS_FROM, SLICES_FROM } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, stageLaneTicket, workOf } from './work.js';
@@ -449,6 +449,51 @@ const slicesOf = (snapshot: RepoSnapshot, id: string): { plan: Plan; slices: Pla
   if (t === undefined || t.frontmatter?.lane === 'S' || plan?.slices === undefined || claimPinBefore(snapshot, id, SLICES_FROM)) return undefined;
   return { plan, slices: plan.slices };
 };
+
+/**
+ * Phase 08.9.3 D-05, D-09: the repositories other than this one a task is built in (its paths, and the models it names, written `<name>:<path>`), in order of first appearance.
+ */
+const otherRepos = (t: PlanTask): string[] => taskRepos(t).filter((r) => r !== '');
+
+/**
+ * Phase 08.9.3: the plan a repository rule reads: that of a lane ticket other than lane S whose plan names another repository (a `<name>:<path>` token or model, or a slice `repo:`), unless its claim pin is below REPOS_FROM
+ * (claimPinBefore: a failed read and a non-plain pin apply the rules). Its own reader, as slicesOf is for the slice rules, so a ticket claimed before the release, and a plan that names no other repository, answer as before.
+ */
+const reposOf = (snapshot: RepoSnapshot, id: string): Plan | undefined => {
+  const t = laneTicket(snapshot, id);
+  const plan = workOf(snapshot, id)?.plan;
+  if (t === undefined || t.frontmatter?.lane === 'S' || plan === undefined || claimPinBefore(snapshot, id, REPOS_FROM)) return undefined;
+  return plan.tasks.some((x) => otherRepos(x).length > 0) || (plan.slices ?? []).some((s) => s.repo !== undefined) ? plan : undefined;
+};
+
+/** The first path a task writes for repository `repo`, as written (`tools:src/Tools.cs`): a path of `files:`, else the model of a new file. */
+const writtenIn = (t: PlanTask, repo: string): string => {
+  const own = t.repoFiles?.find((f) => f.repo === repo);
+  if (own !== undefined) return `${repo}:${own.path}`;
+  const model = [...t.models, ...(t.repoModels ?? [])].find((m) => m.like?.startsWith(repo + ':'));
+  return model?.like ?? repo + ':';
+};
+
+/** Phase 08.9.3 D-05, D-09: a `<name>:<path>` or a slice `repo:` that names a repository accord/config.yml does not declare under `repos:`. One finding per task or slice and repository. Silent when the config is unreadable: its own findings say so. */
+export const repoUnknown: GateRule['check'] = withNote((snapshot, id) => {
+  const plan = reposOf(snapshot, id);
+  if (plan === undefined || snapshot.config === undefined) return [];
+  const declared = snapshot.config.repos ?? {};
+  const unknown = (name: string): boolean => !Object.hasOwn(declared, name);
+  const file = planFile(id);
+  return [
+    ...plan.tasks.flatMap((t) =>
+      otherRepos(t)
+        .filter(unknown)
+        .map((r) => ({ file, line: t.line, reason: `task ${t.n} names ${writtenIn(t, r)}, and accord/config.yml declares no repository ${r} under repos:; declare it there with its remote, or correct the name` })),
+    ),
+    ...(plan.slices ?? []).flatMap((s) =>
+      s.repo !== undefined && unknown(s.repo)
+        ? [{ file, line: s.line, reason: `slice ${s.n} names repo: ${s.repo}, and accord/config.yml declares no repository ${s.repo} under repos:; declare it there with its remote, or correct the name` }]
+        : [],
+    ),
+  ];
+});
 
 /** Phase 15 D-03: a plan of more than this many slices gets the warning gate.slice-many. A constant, not a config.yml key. */
 export const SLICES_MANY = 3;

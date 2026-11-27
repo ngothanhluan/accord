@@ -176,6 +176,14 @@ export const SECURITY_OFF_FROM = '0.16.0';
  */
 export const SLICES_FROM = '0.21.0';
 
+/**
+ * Phase 08.9.3 D-05, D-06, D-08, D-09, D-14: the release from which `accord gate plan` reads the other repositories a plan names (`<name>:<path>` in `files:`, `repo:` on a slice, `baseline_<name>:` in the frontmatter): the errors
+ * gate.repo-unknown, gate.repo-tests-missing, gate.repo-baseline-missing, gate.repo-baseline-unknown, gate.task-repo-mixed, gate.slice-repo-mixed and gate.repo-slices, and the check of a `<name>:<path>` against that repository's baseline
+ * by gate.task-file-unknown and gate.task-model-unknown. Read only through claimPinBefore: a ticket claimed under a pin below it is judged by none of them, and its `<name>:<path>` tokens are checked as the plain paths they were. It is the next
+ * minor after the newest released heading of docs/releases.md at planning, 0.21.1; the release that ships Phase 08.9.3 sets it to its own version if another release came first, and migration-pin.test.ts follows.
+ */
+export const REPOS_FROM = '0.22.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

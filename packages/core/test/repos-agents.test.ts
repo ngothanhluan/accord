@@ -69,3 +69,25 @@ it("risk:regression the executor's Work dir may be another repository's worktree
   expect(rendered('executor').length).toBeGreaterThan(0);
   expect(lacking('executor', [WORK_DIR_RULE, "another repository's worktree", 'work only there'])).toEqual([]);
 });
+
+it('risk:regression the scout cites a file of another repository as <name>:<path>:<line> (D-05)', () => {
+  expect(rendered('scout').length).toBeGreaterThan(0);
+  expect(lacking('scout', ['`<name>:<path>:<line>`', 'a key of `repos:`'])).toEqual([]);
+});
+
+it('risk:regression the reviewer judges the ## Repository <name> sections of its package as part of the change (D-05)', () => {
+  expect(rendered('reviewer').length).toBeGreaterThan(0);
+  expect(lacking('reviewer', ['`## Repository <name>` sections', 'part of the change'])).toEqual([]);
+});
+
+// D-04, T-08.9.3-37: no agent runs git outside its Work dir. The executor's Work-dir sentence is the one `git -C` of the agent files, and none says `git clone`.
+it('risk:security across every rendered agent file `git -C` occurs once, in the executor, and `git clone` never (D-04)', () => {
+  const files = RUNTIMES.flatMap((runtime) => agentTargets(config(runtime)).map((f) => ({ runtime, path: f.path, text: f.text })));
+  expect(files.length).toBeGreaterThan(0);
+  const count = (needle: string, text: string): number => text.split(needle).length - 1;
+  for (const runtime of RUNTIMES) {
+    const own = files.filter((f) => f.runtime === runtime);
+    expect(own.filter((f) => count('git -C', f.text) > 0).map((f) => roleOf(f.path) + ':' + count('git -C', f.text))).toEqual(own.length === 0 ? [] : ['executor:1']);
+    expect(own.filter((f) => f.text.includes('git clone')).map((f) => f.path)).toEqual([]);
+  }
+});

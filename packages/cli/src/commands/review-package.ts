@@ -3,13 +3,15 @@
 // Phase 8.5 D-03, D-05, D-07, D-23: after `## Slop` the package carries the reviewer's product blocks (the ruleset, the epic block of a story, the default branch's `## Conventions` and the
 // branch's own `## Product files changed`, from core's `productBlocks`), so a branch cannot loosen a rule for its own reviewer; `--out <file>` writes the package into the report folder.
 import { execFileSync } from 'node:child_process';
+import { lstatSync } from 'node:fs';
+import { join } from 'node:path';
 import { epicBlock, interfaceSigns, isSha, matchedHunks, outsideScope, productBlocks, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, defaultRefOf, UsageError } from '../load/fs.js';
 import { packageDiff, REF, roundOneBase, why } from '../load/package-diff.js';
 import { cliRuleset, productChange, readProductText } from '../load/product.js';
 import { resolveRepo, toPosix } from '../load/repos.js';
-import { writeAgentFile } from '../load/report.js';
+import { REPORT_DIR, writeAgentFile } from '../load/report.js';
 import { exemptCopies, securityRoundRanges } from '../load/security-facts.js';
 import { shown as printable } from '../load/script-trust.js';
 import { branchRef, sliceHomeOf, sliceStart } from '../load/slice-size.js';
@@ -17,7 +19,7 @@ import { sliceOfBranch } from '../load/slices.js';
 import { slopFacts } from '../load/slop-facts.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
-import { epicSnapshot } from './anchor.js';
+import { currentSlice, epicSnapshot } from './anchor.js';
 import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 import { readRecorded } from './worktree.js';
@@ -34,15 +36,18 @@ interface SecuritySections {
 /**
  * ST-LN-36 D-05 (4): the security sections of a package, from its own diff text and changed list so they run no git command of their own. `triggers` is the `## Security triggers`
  * text; with `full`, `checklist` (every item in force, default and team) and `hunks` (matchedHunks, or the none line) are read too.
+ * Phase 08.9.3 D-04: `others` are the diffs of the other repositories, scanned by the same patterns each over its own paths (a path pattern is a path of that repository) and printed with the `<name>:` prefix; their hunks
+ * follow this repository's under a `### Repository <name>` heading. The generated paths and the exempt skill copies are this repository's, so none applies to another one.
  */
-export function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean, at: { root: string; head: string }, unreadable?: string[]): SecuritySections {
+export function securitySections(s: RepoSnapshot, diffText: string, changed: string[], full: boolean, at: { root: string; head: string }, unreadable?: string[], others: OtherDiff[] = []): SecuritySections {
   try {
     const spec = securitySpec(s);
     const generated = s.config?.generated ?? [];
     // BUG-LN-25 D-06, D-08: the copies left out are the ones gate done leaves out, read at this package's own head; a read that fails is `(cannot tell: …)` below.
     const exempt = exemptCopies(at.root, at.head, changed, renderedFilesOf(s.config));
     const found = securityTriggers(spec, diffText, changed, { generated, unreadable, exempt });
-    let triggers = found.map(triggerText).join('\n') || NONE;
+    const foundOthers = others.flatMap((o) => securityTriggers(spec, o.diff, o.changed, { generated: [], unreadable: o.unread }).map((t) => ({ ...t, path: `${o.name}:${t.path}` })));
+    let triggers = [...found, ...foundOthers].map(triggerText).join('\n') || NONE;
     // ST-LN-36 D-06: a line of the repository's file that did not read is said here too, so a reviewer is never told the list is whole when it is not.
     const unread = spec.problems.length;
     if (unread > 0) triggers += `\n(accord/product/security.md: ${unread} ${unread === 1 ? 'line' : 'lines'} not read; run accord lint)`;
@@ -50,7 +55,10 @@ export function securitySections(s: RepoSnapshot, diffText: string, changed: str
     return {
       triggers,
       checklist: spec.checklist.map((c) => `- ${c.id}: ${c.text}`).join('\n') || '(none)',
-      hunks: matchedHunks(spec, diffText, changed, { generated, unreadable, exempt }).join('\n') || NONE,
+      hunks: [
+        matchedHunks(spec, diffText, changed, { generated, unreadable, exempt }).join('\n') || NONE,
+        ...others.map((o) => `### Repository ${o.name}\n\n${matchedHunks(spec, o.diff, o.changed, { generated: [], unreadable: o.unread }).join('\n') || NONE}`),
+      ].join('\n\n'),
     };
   } catch (e) {
     const unread = cannot(e instanceof Error ? e.message : String(e));
@@ -132,6 +140,15 @@ function shaIn(dir: string, ref: string): string | undefined {
   }
 }
 
+/** Whether `path` is a regular file itself (a link is not followed). */
+function isFile(path: string): boolean {
+  try {
+    return lstatSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
 /** One other repository's change as the security reading takes it: the diff text and the changed paths as git in its clone printed them (no prefix), and the files its `--text` read left unread. */
 export interface OtherDiff {
   name: string;
@@ -146,12 +163,14 @@ export interface OtherDiff {
  * is a UsageError carrying the D-02 line; one with no slice branch yet, or no baseline that names a commit, is a `(cannot tell: ...)` section. Text of that repository (commit subjects, diff lines) is data under headings this function prints.
  * A plan naming no other repository gives no text and runs no git.
  */
-export function repositorySections(ctx: CommandContext, id: string): { text: string; repos: OtherDiff[] } {
+export function repositorySections(ctx: CommandContext, id: string, options: { base?: string } = {}): { text: string; repos: OtherDiff[] } {
   const plan = workOf(ctx.snapshot, id)?.plan;
   const names = new Set<string>();
   for (const t of plan?.tasks ?? []) if (t.repo !== undefined) names.add(t.repo);
   for (const s of plan?.slices ?? []) if (s.repo !== undefined) names.add(s.repo);
   if (plan === undefined || names.size === 0) return { text: '', repos: [] };
+  // D-05: while the slice in work is a slice of a repository, its section starts where that slice starts; the final review (--base, which only the plan's baseline can be) reads every repository from its baseline_<name>
+  const inWork = options.base === undefined ? currentSlice(ctx, id) : undefined;
   const blocks: string[] = [];
   const repos: OtherDiff[] = [];
   for (const name of [...names].sort()) {
@@ -176,7 +195,8 @@ export function repositorySections(ctx: CommandContext, id: string): { text: str
       continue;
     }
     const given = plan.repoBaselines !== undefined && Object.hasOwn(plan.repoBaselines, name) ? plan.repoBaselines[name] : undefined;
-    const base = given !== undefined && isSha(given) ? shaIn(clone, given) : undefined;
+    const start = inWork?.repo === name ? sliceStart(ctx.root, ctx.snapshot, id, inWork.n) : undefined;
+    const base = start !== undefined && isSha(start) ? shaIn(clone, start) : given !== undefined && isSha(given) ? shaIn(clone, given) : undefined;
     if (base === undefined) {
       blocks.push(`${heading}\n\n${cannot(`baseline_${name} of the plan names no commit of the clone at ${toPosix(clone)}`)}`);
       continue;
@@ -200,10 +220,13 @@ export function repositorySections(ctx: CommandContext, id: string): { text: str
       worktree = undefined;
     }
     const range = `${abbrev(base)}...${abbrev(tip)}${pkg.excluded ? `, without ${pkg.short}` : ''}`;
+    // the listing `accord repos baseline` wrote, so a reviewer reads the other repository's tree from a file the CLI wrote (Ruling, research question 4); a link or a missing file is not named
+    const listing = `${REPORT_DIR}/${id}/repos/${name}.files`;
+    const listed = isFile(join(ctx.root, ...listing.split('/')));
     blocks.push(
       [
         heading,
-        `Range: ${range} (slice ${tipN}${worktree === undefined ? '' : `, worktree ${toPosix(worktree)}`})`,
+        `Range: ${range} (slice ${tipN}${worktree === undefined ? '' : `, worktree ${toPosix(worktree)}`})` + (listed ? `\nFiles: ${toPosix(ctx.root).replace(/\/+$/, '')}/${listing}` : ''),
         '### Commits',
         pkg.commits || '(none)',
         '### Stat',
@@ -382,14 +405,14 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     'error' in f ? cannot(f.error) : signs?.map((x) => `${x.path}: ${x.sign}`).join('\n') || '(none)',
   );
   // Phase 08.9.3 D-04, D-05: read before anything is written, so a repository with no clone stops the command with its D-02 line and no package.
-  const others = repositorySections(ctx, id);
+  const others = repositorySections(ctx, id, options);
   if (options.security === true) {
     // The security package: the same range and diff, but only the checklist, the triggers and the hunks they match.
     const at = parts[0].indexOf('\nHead: ');
-    emit(ctx, id, securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true, { root: ctx.root, head: 'HEAD' }, unread)), options.out, headLine);
+    emit(ctx, id, securityText(`# Security package: ${id} (${label})${at < 0 ? '' : parts[0].slice(at)}`, securitySections(s, diffText, changedFiles, true, { root: ctx.root, head: 'HEAD' }, unread, others.repos)), options.out, headLine);
     return 0;
   }
-  shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false, { root: ctx.root, head: 'HEAD' }, unread).triggers);
+  shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false, { root: ctx.root, head: 'HEAD' }, unread, others.repos).triggers);
   shown.push('## Slop', slopSection(ctx, s, id, def));
   // D-03, D-05, D-07: the reviewer's product blocks, read from the default ref this function already read (no second lookup); a clone with no default ref gets the working copy and the one line saying so.
   const product = productBlocks('reviewer', {

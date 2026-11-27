@@ -1,10 +1,10 @@
 // Phase 08.9.3 D-04, D-05, D-06, D-12: the fixtures of the build-stage tests of another repository's tasks (brief-repos, task-done-repos): ST-9 claimed at REPOS_FROM in svc, planned with tasks in tools, the tools worktree
 // opened, built in and given the executor's report. Real git in two sibling clones (helpers/repos.ts).
-import { readFileSync } from 'node:fs';
+import { readFileSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect } from 'vitest';
 import { loadSnapshot, REPOS_FROM, workOf } from '@accord-dev/accord-core';
-import { writeReport } from '../../../../test/helpers/lane.js';
+import { junit, writeReport } from '../../../../test/helpers/lane.js';
 import { claimedUnder, commitAll, run, writeFiles } from './repo.js';
 import { REPOS_CONFIG, type Repos } from './repos.js';
 
@@ -28,9 +28,9 @@ export interface Planned {
  * ST-9 claimed at REPOS_FROM on t/ST-9 of the svc clone, its config declaring `repos.tools` with `extra` lines after `tests:`, its scenarios untagged, approved and planned with `tasks` and `slices` (the plan's text below
  * the frontmatter), the plan hash recorded, everything committed.
  */
-export async function plannedTools(r: Repos, body: string, extra: string[] = [TOOLS_AFFECTED]): Promise<Planned> {
+export async function plannedTools(r: Repos, body: string, extra: string[] = [TOOLS_AFFECTED], top = ''): Promise<Planned> {
   r.git(r.svc, 'switch', '-q', '-c', CLAIM);
-  const config = REPOS_CONFIG.replace(SHELL, [SHELL, ...extra].join('\n'));
+  const config = REPOS_CONFIG.replace(SHELL, [SHELL, ...extra].join('\n')) + top;
   const ticket = untagged(readFileSync(join(r.svc, 'accord', 'tickets', 'ST-9.md'), 'utf8'));
   writeFiles(r.svc, { 'accord/config.yml': config, 'accord/tickets/ST-9.md': ticket });
   claimedUnder(r.svc, REPOS_FROM, 'ST-9');
@@ -52,13 +52,20 @@ export const ONE_TOOLS_TASK = [task(1, 'tools:src/Tools.cs', 'Tools.Tests#adds')
 
 export const toolsWt = (r: Repos): string => posix(join(r.parent, 'tools-st-9'));
 
-/** The tools worktree of ST-9 opened on slice 1, one commit on it and the executor's report written after it. Returns the worktree's HEAD. */
-export async function builtInTools(r: Repos): Promise<string> {
+/** The tools worktree of ST-9 opened on slice 1, one commit on it (`message`) and, unless `executorReport` is false, the executor's report written after it. Returns the worktree's HEAD. */
+export async function builtInTools(r: Repos, o: { executorReport?: boolean; message?: string } = {}): Promise<string> {
   const open = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
   expect(open.code, open.out + open.err).toBe(0);
   writeFiles(toolsWt(r), { 'src/Tools.cs': 'class Tools { int one; }\n' });
-  const head = commitAll(toolsWt(r), 'tools task one');
-  writeReport(toolsWt(r), 'ST-9', 1);
+  const head = commitAll(toolsWt(r), o.message ?? 'tools task one');
+  if (o.executorReport !== false) writeReport(toolsWt(r), 'ST-9', 1);
   return head;
+}
+
+/** The JUnit report `repos.tools.report` names, written under the tools worktree with the modification time `secondsFromNow` (positive: after HEAD's commit, negative: before it). */
+export function junitInTools(r: Repos, cases: Record<string, 'passed' | 'failed' | 'skipped'>, secondsFromNow = 5): void {
+  writeFiles(toolsWt(r), { 'build/junit.xml': junit(cases) });
+  const when = new Date(Date.now() + secondsFromNow * 1000);
+  utimesSync(join(toolsWt(r), 'build', 'junit.xml'), when, when);
 }
 

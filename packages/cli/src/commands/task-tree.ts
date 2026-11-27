@@ -120,10 +120,10 @@ export function repoWorkRoot(root: string, snapshot: RepoSnapshot, id: string, n
   const home = sliceHomeOf(snapshot, id, held.n);
   const open = `accord worktree slice ${id} ${held.n}`;
   if (home === undefined || home.repo !== repo) throw new UsageError(`${what}: slice ${held.n} of ${planFile(id)} is not built in repository ${repo}, where task ${n} is; fix the plan; nothing was changed`);
-  const resolved = resolveRepo(root, snapshot.config, repo, { scan: false });
-  if ('refused' in resolved) throw new UsageError(`${what}: ${resolved.refused}; nothing was changed`);
   const recorded = readRecorded(root).find((e) => e.id === id && e.repo === repo);
   if (recorded === undefined) throw new UsageError(`${what}: no worktree of ${repo} is recorded for ${id} - open it with ${open}; nothing was changed`);
+  const resolved = resolveRepo(root, snapshot.config, repo, { scan: false });
+  if ('refused' in resolved) throw new UsageError(`${what}: ${resolved.refused}; nothing was changed`);
   const entry = listWorktrees(resolved.path).find((w) => norm(w.path) === norm(recorded.path));
   if (entry === undefined || entry.prunable !== undefined) {
     throw new UsageError(`${what}: ${recorded.path} is no worktree of the ${repo} clone at ${resolved.path} any more - open it with ${open}; nothing was changed`);

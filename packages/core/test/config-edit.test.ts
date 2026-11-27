@@ -131,6 +131,12 @@ it('risk:parsing a key path is resolved against the schema (ST-LN-50 t2-ac-9)', 
   expect(resolveKeyPath('models.executor')).toEqual(['models', 'executor']);
   expect(resolveKeyPath('models.executor.effort')).toEqual(['models', 'executor', 'effort']);
   expect(resolveKeyPath('models.reviewer.final.model')).toEqual(['models', 'reviewer.final', 'model']);
+  // Phase 08.9.3 D-06: a map of objects (repos) takes the name as one segment and descends into the object's own keys
+  expect(resolveKeyPath('repos.tools')).toEqual(['repos', 'tools']);
+  expect(resolveKeyPath('repos.tools.tests')).toEqual(['repos', 'tools', 'tests']);
+  expect(resolveKeyPath('repos.tools.remote')).toEqual(['repos', 'tools', 'remote']);
+  expect(resolveKeyPath('repos.tools.nope')).toBeUndefined();
+  expect(resolveKeyPath('repos.tools.tests.deep')).toBeUndefined();
   // unknown keys, empty segments and a path below a scalar or a list are not keys
   for (const bad of ['nosuch.key', 'nosuch', 'git.nosuch', 'git.merge.deep', 'profile.x', 'legacy_ids.0', 'git.', '.git', 'git..merge', '', 'models.nosuch', 'models.executor.nosuch', '__proto__.x']) {
     expect(resolveKeyPath(bad), bad).toBeUndefined();

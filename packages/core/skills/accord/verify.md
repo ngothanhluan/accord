@@ -22,7 +22,7 @@ judges, the owner decides.
    failed sync, or a refusal), show the message and stop. The owner resolves a conflict, or you do when the owner says so; then this stage
    starts again. Start CI as `./verify-ci.md` says, then run the `tests.full` command from `accord/config.yml` at the commit now checked
    out, so the report `tests.report` names is fresh: that commit is the one verified. Right after it, before the verifier, run `accord
-   tests skipped` and keep what it prints.
+   tests skipped` and keep what it prints. The suite of another repository and a held slice follow `./repos.md`.
 
 3. **Verifier.** Run `accord anchor` again, as step 2 may move HEAD; on `Unfinished:` follow `./resume.md`, else dispatch `accord-verifier`
    in a fresh context with the path of `accord/tickets/<id>.md`. It writes `accord/tickets/<id>/verification.md` and nothing else; nothing

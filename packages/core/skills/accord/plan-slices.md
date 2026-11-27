@@ -21,6 +21,8 @@ estimate: code 300, test 600, docs 150
 - Every slice delivers at least one criterion: its `covers:` line names an `@ac-n`. Every criterion of the ticket is delivered by some slice.
 - Every slice leaves the default branch working once it is merged, with no feature flag. When the planner cannot cut such a slice, the tasks stay in one slice.
 
+A slice built in another repository carries a `repo: <name>` line right after its heading and holds that repository's tasks only: one repository per slice. The slices are the deploy order, so the repository deployed first is slice 1 and the last slice is in this repository, as `./repos.md` says.
+
 `accord gate plan <id>` checks all of this; fix what it prints as for any plan error.
 
 - `gate.slice-large` warns that a slice's estimate is over the budget and shows its split. Read it; it stops nothing.

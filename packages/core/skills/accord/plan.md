@@ -29,7 +29,9 @@ one at a time. You run it in the main session.
    plan sets `baseline:`. In `verify:`, write `(@ac-n)` after the id of the
    test that proves scenario `@ac-n`. Of test files, `verify:` and `files:`
    name only those the task writes or extends; a long existing regression
-   file runs at wave end and in CI.
+   file runs at wave end and in CI. For a change that touches another repository, run
+   `accord repos baseline <name> --id <id>` for it before dispatching, and give the planner its
+   `baseline_<name>` and the `files:` listing path it printed, as `./repos.md` says.
 
    **Re-plan**, entered from a change of course or a review plan gap:
    dispatch the planner with the ticket path, the `baseline:` already in

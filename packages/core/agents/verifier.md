@@ -39,4 +39,6 @@ Evidence: <what you ran or inspected, and what you saw>
 
 One `## @ac-n <scenario name>` block per scenario, in tag order; matching is by tag. The result is `pass`, `fail`, or `blocked`. Each label begins its line: never a list item, never indented. The evidence names the command, the path, or the output, for each of the four levels. Cite a file by its path from the repository root, with `:n` or `:n-m` after it for a line or a range of lines. "Looks correct" is not evidence.
 
+For each other repository the ticket's plan names, write `## Repository <name>` after the criterion blocks: first `Suite: passed <command>` or `Suite: failed <command>`, from the run your caller reports, then each `record:` line of `accord repos status <id>` verbatim without its `record: ` prefix, one per line, labels beginning their line, never list items. Write nothing it did not give you: no `Merged:`, `PR:` or `Verified head:` line the CLI did not print.
+
 You never edit any file but `verification.md`, never fix what you find, and never touch the ticket's frontmatter. You never dispatch another agent.

@@ -6,7 +6,7 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, realpathSync } from 'node:
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeAll } from 'vitest';
-import { CONFIG, discussFor, discussPath, laneTicket } from '../../../../test/helpers/lane.js';
+import { CONFIG, discussFor, discussPath, laneTicket, RUNNING } from '../../../../test/helpers/lane.js';
 import { cleanup, gitRun, writeFiles } from './repo.js';
 
 const IDENTITY = [
@@ -39,6 +39,9 @@ export interface Repos {
 /** The accord/config.yml of the main checkout: the lane CONFIG plus the `repos:` block that declares `tools` by its URL and its two test commands. */
 export const REPOS_CONFIG = CONFIG + ['repos:', '  tools:', `    remote: ${TOOLS_URL}`, '    tests: node -e "process.exit(0)"', ''].join('\n');
 
+/** The pin the tools clone's own accord install holds when `toolsAccord` is set: not the running release, so a command that read it would refuse. */
+export const TOOLS_PIN = '0.0.1';
+
 /** An empty bare remote in its own temporary folder. */
 function bare(): string {
   const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'accord-repos-remote-')));
@@ -66,8 +69,13 @@ function initClone(dir: string, url: string, remote: string, files: Record<strin
   gitRun(dir, 'remote', 'set-head', 'origin', 'main');
 }
 
+export interface ReposOptions {
+  /** The tools clone uses accord itself: its own `accord/config.yml` (pin `TOOLS_PIN`) and one ticket, TL-1, committed on main (Phase 08.9.3 D-03). */
+  toolsAccord?: boolean;
+}
+
 /** The template: a parent folder holding `svc` and `tools`, each with its own bare remote. A test takes a copy with `copyRepos`; no linked worktree is ever made in a template. */
-export function makeReposTemplate(): Repos {
+export function makeReposTemplate(o: ReposOptions = {}): Repos {
   const parent = realpathSync.native(mkdtempSync(join(tmpdir(), 'accord-repos-')));
   const svcRemote = bare();
   const toolsRemote = bare();
@@ -84,6 +92,7 @@ export function makeReposTemplate(): Repos {
     'src/Tools.cs': 'class Tools {}\n',
     'src/Other.cs': 'class Other {}\n',
     'tests/ToolsTests.cs': 'class ToolsTests {}\n',
+    ...(o.toolsAccord === true ? { 'accord/config.yml': CONFIG.replace(`accord: "${RUNNING}"`, `accord: "${TOOLS_PIN}"`), 'accord/tickets/TL-1.md': laneTicket('TL-1') } : {}),
   });
   return handle(parent, svcRemote, toolsRemote);
 }
@@ -163,9 +172,9 @@ let template: Repos | undefined;
 const copies: Repos[] = [];
 
 /** Registers the file's hooks: the template is built once in `beforeAll`, and each test's copy is removed after it. */
-export function useRepoSandboxes(): void {
+export function useRepoSandboxes(o: ReposOptions = {}): void {
   beforeAll(() => {
-    template = makeReposTemplate();
+    template = makeReposTemplate(o);
   }, 180_000);
   afterAll(() => {
     template?.cleanupAll();

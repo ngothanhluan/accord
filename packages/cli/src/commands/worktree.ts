@@ -319,7 +319,7 @@ export function readRecorded(root: string, dir?: string): Recorded[] {
 }
 
 /** Drop the record lines whose path is `path` (the path column only); nothing is written when there are none. */
-function dropRecorded(root: string, path: string): void {
+export function dropRecorded(root: string, path: string): void {
   withLock(root, (dir) => {
     const file = dir + '/worktrees';
     if (!existsSync(file)) return;
@@ -1543,7 +1543,7 @@ interface GuardState {
   /** `<git-common-dir>/accord`, read once per clean. */
   accord?: string;
   /** The record entries `cleanRecorded` read. */
-  recorded?: { id: string; path: string }[];
+  recorded?: Recorded[];
   /** ST-LN-55 fix 5: the time (ms since the epoch) after which a hook clean starts no new unit of work. */
   until?: number;
   stopped?: boolean;
@@ -2080,7 +2080,8 @@ function cleanRecorded(ctx: CommandContext, ref: string, s: GuardState, fetchFai
   const done = new Set(statusRows(snapshotAt(ctx.root, ref, ids)).filter((r) => r.stage === 'done' && r.status !== 'dropped').map((r) => r.id));
   // a stale drop is not trusted, as cleanDropped refuses it
   const dropped = fetchFailed ? new Set<string>() : droppedOn(ctx.root, ref, ids);
-  const todo = s.recorded.filter((e) => done.has(e.id) || dropped.has(e.id)).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  // Phase 08.9.3 D-10, Pitfall 8: a record line with a repository column names a worktree of ANOTHER repository's clone, which this repository's git does not list; the forgotten-folder sweep below would judge it as a folder git forgot. Until plan 08.9.3-07 judges it in its own clone it is left as it is.
+  const todo = s.recorded.filter((e) => e.repo === undefined && (done.has(e.id) || dropped.has(e.id))).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   if (todo.length === 0) return;
   const list = readList(ctx, s.seen);
   for (const e of todo) {

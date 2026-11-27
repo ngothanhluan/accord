@@ -21,6 +21,9 @@ export type {
   AccordConfig,
   RouteKey,
   Effort,
+  AgentAdditions,
+  McpDefinition,
+  McpEntry,
   PlanTask,
   Plan,
   Ledger,
@@ -234,7 +237,8 @@ export { markDropped } from './write/dropped.js';
 export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
 export { pluginDir, pluginTargets } from './skills/plugin.js';
-export { AGENT_DEFAULTS, agentDir, agentTargets, isIntactRender, renderAgent, RETIRED_FILES, RETIRED_SKILL_FOLDERS } from './skills/agents.js';
+export { AGENT_DEFAULTS, agentDir, agentFields, agentTargets, isIntactRender, NO_ADDITIONS, renderAgent, RETIRED_FILES, RETIRED_SKILL_FOLDERS } from './skills/agents.js';
+export type { AgentExtra } from './skills/agents.js';
 export { allSkillDirs, installedName, skillDirs, skillTargets, STAGE_FILES, stageFile, STAGES } from './skills/targets.js';
 export type { SkillFile } from './skills/targets.js';
 // `ScaffoldFile` is structurally identical to `SkillFile` and deliberately separate: a scaffold file is

@@ -401,6 +401,21 @@ export type RouteKey =
   | 'executor' | 'reviewer' | 'reviewer.final' | 'verifier' | 'debugger' | 'researcher';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
+// Phase 11 D-01, D-17: what a team adds to one agent. An MCP entry is a server name the session already knows, or an inline definition: one key, the server name,
+// holding its type and its url (http, sse, ws) or command (stdio). The schema allows no env, headers or credential, so a committed config never carries a secret.
+export interface McpDefinition {
+  type: 'stdio' | 'http' | 'sse' | 'ws';
+  url?: string;
+  command?: string;
+  args?: string[];
+}
+export type McpEntry = string | Record<string, McpDefinition>;
+export interface AgentAdditions {
+  mcp?: McpEntry[];
+  skills?: string[];
+  tools?: string[];
+}
+
 export interface AccordConfig {
   accord: string; // '0.1.0'
   profile: 'build' | 'maintain';
@@ -412,6 +427,7 @@ export interface AccordConfig {
   build?: { parallel?: string; regenerate?: string }; // ST-LN-92 D-05: parallel, the executors that run at once, '1'..'99', absent means 3; YAML numerics stay strings. D-06: regenerate, the command the build skill runs on a conflict only in generated files; the CLI never runs it
   review?: { mode: 'human' | 'outcome'; post?: 'draft'; slice_lines?: string }; // Phase 15 D-32: post is how far a reply to pull request feedback goes without the owner: draft (the only level, and the default) holds every reply for the owner's yes; // spec §7: absent means 'human', the 0.1.0 behaviour
   models?: Partial<Record<RouteKey | 'architect' | 'auditor', { model: string; effort?: Effort }>>; // absent entries use the default routing; architect and auditor are still accepted and have no effect (ST-LN-80, Phase 08.6 D-05)
+  agents?: Partial<Record<RouteKey, AgentAdditions>>; // Phase 11 D-01, D-17: per role, MCP servers, skills and tools added to that agent's file by `skills sync`; keyed by the route keys of models (reviewer.final is the final reviewer), and the judge and the foreign reviewer take none (Security Ruling)
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
   stale_days?: string; // digits; YAML numerics stay strings
   hook_mode?: 'full' | 'quiet'; // Phase 08.9.2 D-02: quiet makes a session start print one line until /accord or a ticket's branch wakes accord; absent means full

@@ -7,7 +7,7 @@ import { agents } from '../generated/agents.js';
 import { normaliseText, stringNumerics } from '../load/frontmatter.js';
 import { contentHash, markerHash, readSource, stamp, withoutMarker } from './render.js';
 import type { AgentKey } from '../generated/agents.js';
-import type { AccordConfig, Effort, RouteKey } from '../model/snapshot.js';
+import type { AccordConfig, Effort, McpEntry, RouteKey } from '../model/snapshot.js';
 import type { SkillFile } from './targets.js';
 
 export const agentDir = '.claude/agents';
@@ -73,6 +73,10 @@ export const RETIRED_FILES: readonly string[] = [
   ),
 ];
 
+// Phase 11 Security Ruling (T-11-02): the judge and the foreign reviewer route to `reviewer`, but their guarantee is that no text in a pull request can make
+// them run a command (docs/design.md, Agents). So no `agents:` addition ever reaches their files: `agentTargets` renders them with no extra, whatever `agents:` holds.
+export const NO_ADDITIONS: readonly AgentKey[] = ['judge.md', 'foreign-reviewer.md'];
+
 /** True for a copy accord rendered that nobody edited: its marker hash equals the hash of the text around it. */
 export function isIntactRender(text: string): boolean {
   const onDisk = normaliseText(text);
@@ -91,8 +95,49 @@ function source(key: AgentKey): { yaml: Record<string, unknown>; body: string } 
   return read;
 }
 
-/** The agent as it lands on disk: name, description, tools and disallowedTools (when authored), model, effort, marker, body. */
-export function renderAgent(key: AgentKey, route: { model: string; effort: Effort }, name?: string): string {
+/** What a team's `agents:` entry adds to one rendered agent (Phase 11 D-01): the merged `tools` string (only when the authored source has one), `skills`, `mcpServers`. */
+export interface AgentExtra {
+  tools?: string;
+  skills?: readonly string[];
+  mcpServers?: readonly McpEntry[];
+}
+
+const serverName = (entry: McpEntry): string => (typeof entry === 'string' ? entry : (Object.keys(entry)[0] as string));
+
+/** An authored `tools:` value as a list: a comma-separated string (the form every agent source uses) or a YAML list. */
+function toolList(authored: unknown): string[] {
+  if (typeof authored === 'string') return authored.split(',').map((t) => t.trim()).filter((t) => t !== '');
+  if (Array.isArray(authored)) return authored.filter((t): t is string => typeof t === 'string');
+  return [];
+}
+
+/**
+ * The extra frontmatter for one render of one agent (D-01). `routeKey` is the key of `agents:` that addresses it; `authored` is the agent source's own frontmatter.
+ * `tools` is written only when the source authored one: an agent with none inherits every tool, and a `tools:` line would turn it into a narrow allowlist
+ * (the researcher, T-11-05). Where there is one, the added tools follow the authored ones, and each server not already covered gets `mcp__<server>__*`, so it is reachable.
+ * Empty lists and an absent entry give an empty object, so a config with no `agents:` renders every file as before.
+ */
+export function agentFields(config: AccordConfig, routeKey: RouteKey, authored: Record<string, unknown>): AgentExtra {
+  const add = config.agents?.[routeKey];
+  if (add === undefined) return {};
+  const out: AgentExtra = {};
+  if (add.skills !== undefined && add.skills.length > 0) out.skills = [...add.skills];
+  const servers = add.mcp ?? [];
+  if (servers.length > 0) out.mcpServers = [...servers];
+  if (authored.tools !== undefined && authored.tools !== null) {
+    const tools = toolList(authored.tools);
+    for (const extra of add.tools ?? []) if (!tools.includes(extra)) tools.push(extra);
+    for (const entry of servers) {
+      const name = serverName(entry);
+      if (!tools.includes('mcp__' + name + '__*') && !tools.includes('mcp__' + name)) tools.push('mcp__' + name + '__*');
+    }
+    if (add.tools !== undefined || servers.length > 0) out.tools = tools.join(', ');
+  }
+  return out;
+}
+
+/** The agent as it lands on disk: name, description, tools and disallowedTools (when authored), model, effort, skills and mcpServers (when added), marker, body. */
+export function renderAgent(key: AgentKey, route: { model: string; effort: Effort }, name?: string, extra: AgentExtra = {}): string {
   const { yaml, body } = source(key);
   if (typeof yaml.route !== 'string' || !Object.hasOwn(AGENT_DEFAULTS, yaml.route)) {
     throw new Error(`agent ${key}: unknown route ${String(yaml.route)}`);
@@ -100,10 +145,12 @@ export function renderAgent(key: AgentKey, route: { model: string; effort: Effor
   const fields: [string, unknown][] = [
     ['name', name ?? yaml.name],
     ['description', yaml.description],
-    ['tools', yaml.tools],
+    ['tools', extra.tools ?? yaml.tools],
     ['disallowedTools', yaml.disallowedTools],
     ['model', route.model],
     ['effort', route.effort],
+    ['skills', extra.skills],
+    ['mcpServers', extra.mcpServers],
   ];
   const doc = new Document({}, options);
   for (const [field, value] of fields) {
@@ -122,12 +169,15 @@ export function agentTargets(config: AccordConfig): SkillFile[] {
   const out: SkillFile[] = [];
   for (const key of Object.keys(agents) as AgentKey[]) {
     const { yaml } = source(key);
-    out.push({ path: agentDir + '/' + String(yaml.name) + '.md', text: renderAgent(key, route(yaml.route as RouteKey)) });
-    // The final reviewer is a second render of the reviewer definition, routed separately.
+    const routeKey = yaml.route as RouteKey;
+    // Phase 11 D-01: the additions of `agents.<route key>`; the judge and the foreign reviewer take none (NO_ADDITIONS).
+    const extra = (rk: RouteKey): AgentExtra => (NO_ADDITIONS.includes(key) ? {} : agentFields(config, rk, yaml));
+    out.push({ path: agentDir + '/' + String(yaml.name) + '.md', text: renderAgent(key, route(routeKey), undefined, extra(routeKey)) });
+    // The final reviewer is a second render of the reviewer definition, routed separately and given only `agents.reviewer.final`.
     if (key === 'reviewer.md') {
       out.push({
         path: agentDir + '/accord-final-reviewer.md',
-        text: renderAgent(key, route('reviewer.final'), 'accord-final-reviewer'),
+        text: renderAgent(key, route('reviewer.final'), 'accord-final-reviewer', extra('reviewer.final')),
       });
     }
   }

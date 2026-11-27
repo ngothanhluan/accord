@@ -1,7 +1,8 @@
 // Phase 08.9.3 D-10, D-11, D-14, D-04: `accord worktree slice <id> <n>` follows the slice home for every slice. A slice of another repository opens in a linked worktree of that repository's clone, beside the
 // clone (`<clone folder>-<id lower case>`), on `slice/<id>/<n>` cut at that repository's `baseline_<name>`; the worktree and the slice are recorded in this repository's git folder; the person's own checkout
 // of the other repository is never switched or touched; and `accord worktree push <id> --repo <name>` pushes that branch to the clone's origin. Real git in two sibling clones (helpers/repos.ts).
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { REPOS_FROM } from '@accord-dev/accord-core';
@@ -250,6 +251,44 @@ it('risk:data-loss WR-05 the fetch that looks for a slice branch on the tools or
   }
   // git follows a tag that points into what a fetch brings, unless told not to: none was added to the person's clone
   expect(r.git(r.tools, 'tag', '--list').trim()).toBe('');
+}, 180_000);
+
+it('risk:complex-branching WR-02 a clone given through a link is stored by its real path, so its worktree is recognised on the next run, by push and by clean (D-10)', async (ctx) => {
+  const r = reposCopy();
+  await planned(r, ONE_TWO);
+  // the parent folder reached through a link (a junction is the one a person can make on Windows without a privilege; elsewhere it is an ordinary symlink)
+  const aliasHome = mkdtempSync(join(tmpdir(), 'accord-repos-alias-'));
+  const alias = join(aliasHome, 'work');
+  try {
+    symlinkSync(r.parent, alias, 'junction');
+  } catch (e) {
+    rmSync(aliasHome, { recursive: true, force: true });
+    ctx.skip('this system refuses to create a link: ' + (e as NodeJS.ErrnoException).code);
+  }
+  try {
+    const set = await run(['repos', 'set', 'tools', join(alias, 'tools')], r.svc);
+    expect(set.code, set.out + set.err).toBe(0);
+    // the stored path is where the folder really is
+    expect(recordOf(r, 'repos')).toBe(`tools\t${posix(realpathSync.native(r.tools))}\n`);
+    const first = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+    expect(first.code, first.out + first.err).toBe(0);
+    // the second run is the documented idempotent one: it finds the worktree it made, where git lists it
+    const second = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+    expect(second.code, second.out + second.err).toBe(0);
+    expect(second.out).toBe(first.out);
+    writeFiles(toolsWt(r), { 'src/Tools.cs': 'class Tools { int one; }\n' });
+    const tip = commitAll(toolsWt(r), 'tools slice one');
+    const pushed = await run(['worktree', 'push', 'ST-9', '--repo', 'tools'], r.svc);
+    expect(pushed.code, pushed.out + pushed.err).toBe(0);
+    expect(r.git(r.toolsRemote, 'rev-parse', 'refs/heads/slice/ST-9/1').trim()).toBe(tip);
+    // a store written before this fix holds the link form: it is read by its real path as well
+    writeFileSync(join(r.svc, '.git', 'accord', 'repos'), `tools\t${posix(join(alias, 'tools'))}\n`);
+    const again = await run(['worktree', 'slice', 'ST-9', '1'], r.svc);
+    expect(again.code, again.out + again.err).toBe(0);
+    expect(again.out).toBe(first.out);
+  } finally {
+    rmSync(aliasHome, { recursive: true, force: true });
+  }
 }, 180_000);
 
 it("risk:regression accord worktree push --repo pushes the slice branch of the recorded tools worktree to the clone's origin, and refuses a name that is not declared or a flag that does not go with it (D-04)", async () => {

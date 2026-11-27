@@ -7,12 +7,11 @@ import { existsSync } from 'node:fs';
 import { isSha, workOf } from '@accord-dev/accord-core';
 import type { SliceHome } from '@accord-dev/accord-core';
 import { currentBranch, defaultRefOf, UsageError } from '../load/fs.js';
-import { resolveRepo, toPosix } from '../load/repos.js';
+import { resolveRepo, samePath, toPosix } from '../load/repos.js';
 import { sliceHomeOf } from '../load/slice-size.js';
 import { recordSlice, sliceNumber, sliceOfBranch } from '../load/slices.js';
 import type { CommandContext } from '../run.js';
 import { requireTicket } from './lane-args.js';
-import { norm } from './leftover.js';
 import { branchOf, git, gitNoPrompt, gitOk, ID, listWorktrees, recordWorktree, readRecorded, siblingOf } from './worktree.js';
 
 /** Tracked files changed in `dir` (untracked files are git's own concern: a switch refuses to lose them). */
@@ -138,8 +137,8 @@ function repoSliceOpen(ctx: CommandContext, id: string, home: SliceHome & { repo
   }
   const list = listWorktrees(clone);
   const recorded = readRecorded(ctx.root).find((e) => e.id === id && e.repo === repo);
-  const folder = toPosix(recorded !== undefined && list.some((w) => norm(w.path) === norm(recorded.path)) ? recorded.path : siblingOf(clone, id));
-  const entry = list.find((w) => norm(w.path) === norm(folder));
+  const folder = toPosix(recorded !== undefined && list.some((w) => samePath(w.path, recorded.path)) ? recorded.path : siblingOf(clone, id));
+  const entry = list.find((w) => samePath(w.path, folder));
   const local = gitOk(clone, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
   const holder = list.find((w) => w.branch === branch);
   let note: string | undefined;

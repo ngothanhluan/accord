@@ -4,7 +4,7 @@
 // accord never clones (D-02); a missing clone is reported with the exact `git clone` line to run and the `accord repos set` line that gives an existing one.
 // A leaf module like slices.ts (it imports no load/fs.ts, so fs.ts can import it); it returns `{ refused }` text instead of throwing UsageError, and a failed write throws a plain Error.
 import { execFileSync } from 'node:child_process';
-import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import { sameRepository } from '@accord-dev/accord-core';
 import type { AccordConfig } from '@accord-dev/accord-core';
@@ -26,6 +26,25 @@ export type Resolved = { path: string; how: 'stored' | 'found' } | { refused: st
 
 /** A path with forward slashes only (`C:\Work\tools` is `C:/Work/tools`): the form stored, printed and compared. */
 export const toPosix = (p: string): string => p.replace(/\\/g, '/');
+
+/**
+ * Review WR-02: a folder by where it really is, absolute and with forward slashes (`realpathSync.native`: a link, a junction, a `subst` drive and an 8.3 short name resolved), or the path as given when it cannot be
+ * resolved (it is not there). `git worktree add` records and `git worktree list` prints the real path, so a clone kept under its typed path would never be matched with the worktrees git lists beside it.
+ */
+export function canonical(p: string): string {
+  try {
+    return toPosix(realpathSync.native(p));
+  } catch {
+    return toPosix(p);
+  }
+}
+
+/** Whether two folders are one place: compared by their real paths, and case does not count on Windows. */
+export const samePath = (a: string, b: string): boolean => {
+  const x = canonical(a).replace(/\/+$/, '');
+  const y = canonical(b).replace(/\/+$/, '');
+  return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
+};
 
 /** The record lines that read as `<name>\t<absolute posix path>`; any other line is skipped when read and kept when rewritten. */
 function parse(text: string): RepoPath[] {
@@ -248,18 +267,18 @@ export function resolveRepo(root: string, config: Pick<AccordConfig, 'repos'> | 
     if (scan.found.length === 1 && checkClone(scan.found[0], entry.remote).ok) {
       if (options.store !== false) {
         try {
-          storeRepoPath(root, name, scan.found[0]);
+          storeRepoPath(root, name, canonical(scan.found[0]));
         } catch {
           // the clone is verified; a store that failed is searched for again next time
         }
       }
-      return { path: scan.found[0], how: 'found' };
+      return { path: canonical(scan.found[0]), how: 'found' };
     }
     const more = scan.capped ? `; the folder ${dirname(mainCheckoutOf(root))} holds more than ${SCAN_LIMIT} entries, so it was not searched to the end` : '';
     return { refused: `${name}: not found - ${ways(name, entry.remote, root)}${more}` };
   }
   const check = checkClone(stored.path, entry.remote);
-  if (check.ok) return { path: stored.path, how: 'stored' };
+  if (check.ok) return { path: canonical(stored.path), how: 'stored' };
   if (check.why === 'origin') {
     return { refused: `${name}: refused - the clone at ${stored.path} has origin ${check.origin === undefined ? 'none' : redactUrl(check.origin)}, not ${redactUrl(entry.remote)} (repos.${name}.remote), so the stored path was not used; give the right clone with accord repos set ${name} <path>` };
   }

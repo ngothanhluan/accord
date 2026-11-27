@@ -9,7 +9,7 @@
 // a document stays a manual act, and the version pin is what makes the mismatch visible.
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { agentTargets, initFiles, loadConfig, loadSnapshot, pluginTargets, POINTER_FILES, pointerText, requiredCheckSteps, skillTargets } from '@accord-dev/accord-core';
+import { agentsProblems, agentsRefusal, agentTargets, initFiles, loadConfig, loadSnapshot, pluginTargets, POINTER_FILES, pointerText, requiredCheckSteps, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { detectProposals } from '../load/detect.js';
@@ -60,6 +60,9 @@ export function init(ctx: InitContext): number {
     // this never fires; on a D-132 run against a repository pinned elsewhere it does.
     const message = pinMessage(snapshot.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
+    // Phase 11 D-02, D-17: an `agents:` entry that breaks a role's rule is refused here, before the first write, with the text `skills sync` prints.
+    const problems = agentsProblems(snapshot.config);
+    if (problems.length > 0) throw new UsageError(agentsRefusal(problems));
     // D-131: the same function `skills sync` calls, with the same pre-pass guard, over the roster the
     // config on disk declares — the defaults this run wrote on a greenfield repository, the human's
     // existing roster on a D-132 one. The orphan scan is deliberately not run: D-113 scopes that advisory

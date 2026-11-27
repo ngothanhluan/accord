@@ -48,8 +48,16 @@ function walk(node: Schema, segs: string[]): string[] | undefined {
     }
     return undefined;
   }
-  // a map keyed by anything (`people`, `sensitive`): the rest of the path is one key, dots and all
-  if (typeof schema.additionalProperties === 'object') return [segs.join('.')];
+  if (typeof schema.additionalProperties === 'object') {
+    // a map of objects (`repos`: a name, then the object's own keys): the name is one segment, the rest descends (`repos.tools.tests`; a name holds no dot)
+    const value = deref(schema.additionalProperties);
+    if (value.properties !== undefined) {
+      const sub = walk(value, segs.slice(1));
+      return sub === undefined ? undefined : [head, ...sub];
+    }
+    // a map keyed by anything (`people`, `sensitive`): the rest of the path is one key, dots and all
+    return [segs.join('.')];
+  }
   return undefined;
 }
 

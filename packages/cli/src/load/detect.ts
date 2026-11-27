@@ -10,6 +10,10 @@
 // here reaches the network. A git failure of any kind gives no proposal for that key, never a throw: init must still
 // finish its own work on a repository whose history cannot be read.
 //
+// Phase 08.9.3 D-06 (Ruling R20): the suite of another repository (`repos.<name>.tests`) is proposed from the files that repository's clone tracks at its default tip: its root entries from one `git ls-tree`
+// (at most `MAX_ROOT_ENTRIES`) and, for a package.json, that blob from one `git cat-file` (at most 1 MiB). The clone is resolved with `store: false`, so nothing is written to the per-clone repos file, and no git
+// process writes to it; no test command is ever run, and the proposal reaches config only through the owner's `accord config set`.
+//
 // Evidence floor (Ruling, plans 03.1-33 and 03.1-34): a shape is proposed only when at least `MIN_COMMITS` commits (or
 // `MIN_BRANCHES` branches) were read and one shape holds at least `MIN_SHARE_PERCENT` percent of them. A weak guess is a
 // question the user would answer for nothing; the key stays unproposed and the team sets it later through `accord config`.
@@ -25,9 +29,10 @@ import { execFileSync } from 'node:child_process';
 import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig, resolveKeyPath, setConfigValue, SUBJECT_NAMES, subjectCollisions } from '@accord-dev/accord-core';
-import type { SubjectName } from '@accord-dev/accord-core';
+import type { AccordConfig, SubjectName } from '@accord-dev/accord-core';
 import { editRefusal } from './config-edit.js';
 import { defaultRefOf, PROGRESS_PREFIX } from './fs.js';
+import { resolveRepo } from './repos.js';
 
 /** One detected value: a dotted config key, its JSON value, and the evidence for it in numbers. */
 export interface Proposal {
@@ -41,6 +46,7 @@ const MAX_REFS = 500;
 const MAX_FILES = 200;
 const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_PROJECTS = 10;
+const MAX_ROOT_ENTRIES = 1000;
 const MIN_COMMITS = 10;
 const MIN_BRANCHES = 5;
 const MIN_SHARE_PERCENT = 60;
@@ -56,10 +62,12 @@ const holds = (n: number, of: number): boolean => n * 100 >= of * MIN_SHARE_PERC
 /** What a repository's own text can put on a terminal: printable ASCII only, so a tracked file name never carries a control sequence. */
 export const printable = (text: string): string => text.replace(/[^\x20-\x7e]/g, '?');
 
-/** Every proposal this repository supports, in the order the output contract lists the keys: git.merge, commits.subjects, branch, ids, tracker. */
+/** Every proposal this repository supports, in the order the output contract lists the keys: git.merge, commits.subjects, branch, ids, tracker, then repos.<name>.tests. */
 export function detectProposals(root: string): Proposal[] {
   const ref = defaultRefOf(root) ?? 'HEAD';
   const on = shortName(ref);
+  const configText = readBounded(root, 'accord/config.yml');
+  const config = configText === undefined ? undefined : loadConfig('accord/config.yml', configText).config;
   const firstParent = readLog(root, ref, ['--first-parent']);
   const own = readLog(root, ref, ['--no-merges']) ?? [];
   const branches = branchNames(root, on);
@@ -69,6 +77,7 @@ export function detectProposals(root: string): Proposal[] {
     branchShape(branches, on),
     trackerKeys(own, branches),
     trackerLinks(root, own),
+    ...repoTestProposals(root, config),
   ].filter((p): p is Proposal => p !== undefined);
   return found.filter(accepted(root));
 }
@@ -311,6 +320,75 @@ function trackerLinks(root: string, commits: Commit[]): Proposal | undefined {
     return { key: 'tracker', value, evidence: `${n} ${host} link${n === 1 ? '' : 's'} in ${where}` };
   }
   return undefined;
+}
+
+/** A root entry of the other clone that decides the test command: the first row whose `match` holds wins, in this order (Ruling R20). */
+const SUITES: { match: (file: string) => boolean; command: string }[] = [
+  { match: (f) => /.(?:sln|csproj)$/.test(f), command: 'dotnet test' },
+  { match: (f) => f === 'package.json', command: 'npm test' },
+  { match: (f) => f === 'go.mod', command: 'go test ./...' },
+  { match: (f) => f === 'Cargo.toml', command: 'cargo test' },
+  { match: (f) => f === 'pyproject.toml' || f === 'pytest.ini', command: 'pytest' },
+  { match: (f) => f === 'pom.xml', command: 'mvn test' },
+  { match: (f) => f === 'build.gradle' || f === 'build.gradle.kts', command: 'gradle test' },
+];
+
+/** The regular files at the root of `ref` in `clone` (a folder, a link and a submodule are left out), at most `MAX_ROOT_ENTRIES`; `undefined` when git could not list it. */
+function rootFiles(clone: string, ref: string): string[] | undefined {
+  const raw = git(clone, ['ls-tree', '-z', ref]);
+  if (raw === undefined) return undefined;
+  const files: string[] = [];
+  for (const entry of raw.split(' ').slice(0, MAX_ROOT_ENTRIES)) {
+    const tab = entry.indexOf('	');
+    if (tab < 0) continue;
+    const [mode, type] = entry.slice(0, tab).split(' ');
+    if (type === 'blob' && (mode === '100644' || mode === '100755')) files.push(entry.slice(tab + 1));
+  }
+  return files;
+}
+
+/** Whether the package.json blob at `ref` has a `scripts.test` that is not npm init's placeholder (`echo "Error: no test specified" && exit 1`). */
+function hasTestScript(clone: string, ref: string): boolean {
+  let text: string;
+  try {
+    text = execFileSync('git', ['cat-file', 'blob', `${ref}:package.json`], { cwd: clone, ...GIT, maxBuffer: MAX_FILE_BYTES });
+  } catch {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    const scripts = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>).scripts : undefined;
+    const test = typeof scripts === 'object' && scripts !== null && Object.hasOwn(scripts, 'test') ? (scripts as Record<string, unknown>).test : undefined;
+    return typeof test === 'string' && test.trim() !== '' && !/no test specified/i.test(test);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Phase 08.9.3 D-06, Ruling R20: `repos.<name>.tests` for each declared repository that has none, from the files its clone tracks at its default tip. The clone is found like any command finds it but
+ * nothing is stored (`store: false`); a repository with no usable clone, no default ref, or no build file at the root of its tip gets no proposal. Read-only: a tracked list, one blob, no command run.
+ */
+export function repoTestProposals(root: string, config: Pick<AccordConfig, 'repos'> | undefined): Proposal[] {
+  if (config?.repos === undefined) return [];
+  const out: Proposal[] = [];
+  for (const name of Object.keys(config.repos).sort()) {
+    if (config.repos[name].tests !== undefined) continue;
+    const clone = resolveRepo(root, config, name, { store: false });
+    if ('refused' in clone) continue;
+    const ref = defaultRefOf(clone.path);
+    if (ref === undefined || ref.startsWith('-')) continue;
+    const files = rootFiles(clone.path, ref);
+    if (files === undefined) continue;
+    files.sort();
+    for (const suite of SUITES) {
+      const file = files.find((f) => suite.match(f) && (f !== 'package.json' || hasTestScript(clone.path, ref)));
+      if (file === undefined) continue;
+      out.push({ key: `repos.${name}.tests`, value: suite.command, evidence: `${name} tracks ${printable(file)}` });
+      break;
+    }
+  }
+  return out;
 }
 
 /**

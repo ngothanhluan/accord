@@ -32,6 +32,18 @@ const SKIPPED = /^\s*(?:[-*+]\s+)?skipped:\s*(\S.*)$/;
 // so a URL or an absolute path is no citation.
 const CITATION =
   /(?<![\p{L}\p{N}_.@+\-[\]/:])((?:[\p{L}\p{N}_.@+\-[\]]+\/)*[\p{L}\p{N}_.@+\-[\]]+):(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)(?![\p{L}\p{N}_])/gu;
+// Phase 08.9.3 D-05: the same with an optional repository name before the path (`tools:src/Tools.cs:12`). The name is two characters or more of a-z, 0-9 and `-`, starting with a letter, so a drive letter (`C:/x.ts:3`)
+// never reads as one, and the path after it never starts with `/`, so a URL (`https://host/a.ts:3`) is no citation either.
+const CITATION_REPOS =
+  /(?<![\p{L}\p{N}_.@+\-[\]/:])((?:[a-z][a-z0-9-]+:)?(?:[\p{L}\p{N}_.@+\-[\]]+\/)*[\p{L}\p{N}_.@+\-[\]]+):(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)(?![\p{L}\p{N}_])/gu;
+// `<name>:<path>`: the form a path of another repository is written in (the plan's `files:` line writes the same). A path starting with `/` after the colon is a URL, not a repository path.
+const OTHER_PATH = /^([a-z][a-z0-9-]+):(?!\/)(.+)$/;
+
+/** Phase 08.9.3 D-05: a path written `<name>:<path>` as its repository and the path in it; undefined for any other path. */
+export function otherPath(path: string): { repo: string; path: string } | undefined {
+  const m = OTHER_PATH.exec(path);
+  return m === null ? undefined : { repo: m[1], path: m[2] };
+}
 
 /** One wrapping pair of backticks, when the text is at least two characters and starts and ends with one. */
 function unwrap(text: string): string {
@@ -73,7 +85,11 @@ function entriesOf(cell: string): string[] {
     .filter((e) => e !== '');
 }
 
-export function parseScoutReport(text: string): ScoutReport {
+/**
+ * Parse a scout report. With `repos` a citation may name a file of another repository (`<name>:<path>:<line>`, kept whole in `path`); without it the parse is what it always was, which the evidence of a config
+ * proposal and of a finding read (`citationFailures`, `hasCitation`) so a `<name>:` before a path changes nothing there. A `## Files` row is kept as written either way.
+ */
+export function parseScoutReport(text: string, options: { repos?: boolean } = {}): ScoutReport {
   const norm = normaliseText(text);
   const { sections, fences } = scan(norm, 0);
   const section = (key: string) => sections.find((s) => headingKey(s.heading) === key);
@@ -118,9 +134,10 @@ export function parseScoutReport(text: string): ScoutReport {
   const seen = new Set<string>();
   // A citation may be written with backslashes (`path\to\file.ts:12`); only this scan reads the slash form, the
   // ## Absent cells above keep their original text because a regular expression holds backslashes of its own.
-  for (const m of norm.replace(/\\/g, '/').matchAll(CITATION)) {
+  for (const m of norm.replace(/\\/g, '/').matchAll(options.repos === true ? CITATION_REPOS : CITATION)) {
     const path = m[1];
-    if ((!path.includes('/') && !path.includes('.')) || seen.has(m[0])) continue;
+    const shape = otherPath(path)?.path ?? path;
+    if ((!shape.includes('/') && !shape.includes('.')) || seen.has(m[0])) continue;
     seen.add(m[0]);
     report.citations.push({ text: m[0], path, numbers: (m[2].match(/\d+/g) ?? []).map(Number) });
   }
@@ -136,4 +153,18 @@ export function parseScoutReport(text: string): ScoutReport {
     }
   }
   return report;
+}
+
+/**
+ * Phase 08.9.3 D-05: the repositories a report names, sorted: the `<name>:` of its `## Files` and `## New files` rows and of its citations (read with `repos`). The host loads the files of exactly these, so a report that
+ * names none makes it read nothing outside its own repository.
+ */
+export function scoutRepoNames(text: string): string[] {
+  const report = parseScoutReport(text, { repos: true });
+  const names = new Set<string>();
+  for (const path of [...(report.files ?? []), ...report.newFiles, ...report.citations.map((c) => c.path)]) {
+    const other = otherPath(path);
+    if (other !== undefined) names.add(other.repo);
+  }
+  return [...names].sort();
 }

@@ -4,7 +4,7 @@
 // stdout before the write is attempted, so a write failure is reported after the true verdict rather
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
-import { capRulesOf, claimPinBefore, gateDone, gatePlan, gateReady, renderText, REPOS_FROM, sliceScope, stageOff, workOf } from '@accord-dev/accord-core';
+import { capRulesOf, claimPinBefore, firstMainSlice, gateDone, gatePlan, gateReady, renderText, REPOS_FROM, sliceScope, stageOff, workOf } from '@accord-dev/accord-core';
 import type { SliceScope } from '@accord-dev/accord-core';
 import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitRepoFacts, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { gitBaseRecords } from '../load/base-records.js';
@@ -26,14 +26,14 @@ import { writeKey } from '../write/key.js';
  */
 function sliceOf(ctx: CommandContext, id: string, value: string): SliceScope | undefined {
   // Review C-WR-07: `auto` is how a pull request head that is no slice branch asks for its slice, so the CI script counts no heading itself: the parsed plan is the one definition of a slice section.
-  // Two or more slices make it slice 1 (the claim branch); fewer judge the whole ticket, as no flag does.
+  // Two or more slices make it the first slice of this repository (the claim branch's, Phase 08.9.3 D-14; slice 1 when no slice has a `repo:` line); fewer judge the whole ticket, as no flag does.
   const auto = value === 'auto';
   if (!auto && !/^[0-9]{1,3}$/.test(value)) throw new UsageError(`--slice needs a whole number from 1 to the plan's last slice, or auto, got "${value.slice(0, 40)}"`);
   if (!Object.hasOwn(ctx.snapshot.tickets, id)) return undefined;
   const slices = workOf(ctx.snapshot, id)?.plan?.slices;
   if (auto && (slices === undefined || slices.length < 2)) return undefined;
   if (slices === undefined || slices.length === 0) throw new UsageError(`${id} has no "## Slice" section in its plan, so --slice does not apply`);
-  const n = auto ? 1 : Number(value);
+  const n = auto ? (firstMainSlice(slices) ?? 1) : Number(value);
   const scope = sliceScope(ctx.snapshot, id, n);
   if (scope === undefined) throw new UsageError(`--slice ${value} is not one of the plan's slices (1 to ${Math.max(...slices.map((x) => x.n))})`);
   // Review C-WR-08: a slice below the last that names no `@ac-<n>` on its covers: line would judge no criterion and pass; it is refused instead. The last slice (and a widened one) judges them all.

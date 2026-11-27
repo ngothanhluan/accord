@@ -3,9 +3,10 @@
 // the remote ref exists): the claim branch for slice 2, `slice/<id>/<n-1>` after it; slice 1 starts at the plan's `baseline:`. The size is `git diff --numstat` from that start, left to the pure
 // `sliceSizeOf` to count; the files accord itself renders and the lockfiles are not counted (Ruling R13). Every failure is "no answer" (undefined): the callers warn about nothing they could not measure.
 import { execFileSync } from 'node:child_process';
-import { DEFAULT_BRANCH_TEMPLATE, renderBranch, sliceSizeOf, workOf } from '@accord-dev/accord-core';
-import type { NumstatLine, RepoSnapshot, SkillFile, SliceSize } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, isSha, renderBranch, sliceHome, sliceSizeOf, workOf } from '@accord-dev/accord-core';
+import type { NumstatLine, RepoSnapshot, SkillFile, SliceHome, SliceSize } from '@accord-dev/accord-core';
 import { defaultRefOf } from './fs.js';
+import { resolveRepo } from './repos.js';
 import { sliceBranch } from './slices.js';
 
 /** The lockfiles of the usual package managers, by file name at any depth: never a reviewer's reading. */
@@ -37,18 +38,58 @@ function claimBranchOf(snapshot: RepoSnapshot, id: string): string {
 }
 
 /**
- * The commit slice `n` of ticket `id` starts at, as a full sha, or undefined when git cannot say (no such branch, no common history, no baseline). Slice 1: the plan's `baseline:`. Slice n of 2 or more: the merge
- * base of HEAD with the branch of slice n-1, a local branch first and then origin's copy of it.
+ * Phase 08.9.3 D-14: where slice `n` of ticket `id` lives, by core's `sliceHome` over the plan's slices. A slice number the plan does not list is taken as a slice of this repository, so a slice branch of a plan
+ * without `## Slice` sections (or one the plan lost) is answered as in Phase 15. `claim` is the ticket's claim branch when the caller knows it.
+ */
+export function sliceHomeOf(snapshot: RepoSnapshot, id: string, n: number, claim: string = claimBranchOf(snapshot, id)): SliceHome | undefined {
+  if (!Number.isInteger(n) || n < 1 || n > 99) return undefined;
+  const planned = workOf(snapshot, id)?.plan?.slices ?? [];
+  const listed = new Set(planned.map((s) => s.n));
+  const slices = [...planned, ...Array.from({ length: n }, (_, i) => i + 1).filter((k) => !listed.has(k)).map((k) => ({ n: k }))];
+  return sliceHome(slices, n, { id, claim });
+}
+
+/** The clone of another repository on this machine, or undefined when there is none (not declared, not found, refused): no size or start is claimed that nobody measured. */
+function cloneOf(root: string, snapshot: RepoSnapshot, repo: string): string | undefined {
+  const resolved = resolveRepo(root, snapshot.config, repo);
+  return 'refused' in resolved ? undefined : resolved.path;
+}
+
+/**
+ * The start of a slice of another repository, read in that repository's clone: the first slice there starts at the plan's `baseline_<repo>` (a commit of the clone), a later one at the merge base of its own
+ * branch with the previous slice's branch there, or at the previous slice's tip when its own branch is not cut yet (where it will be cut).
+ */
+function otherStart(root: string, snapshot: RepoSnapshot, id: string, home: SliceHome & { repo: string }): string | undefined {
+  const dir = cloneOf(root, snapshot, home.repo);
+  if (dir === undefined) return undefined;
+  if (home.previous === undefined) {
+    const baselines = workOf(snapshot, id)?.plan?.repoBaselines;
+    const sha = baselines !== undefined && Object.hasOwn(baselines, home.repo) ? baselines[home.repo] : undefined;
+    return sha === undefined || !isSha(sha) ? undefined : commitOf(dir, sha);
+  }
+  const previous = branchRef(dir, home.previous.branch);
+  if (previous === undefined) return undefined;
+  const own = branchRef(dir, home.branch);
+  if (own === undefined) return commitOf(dir, previous);
+  const base = git(dir, ['merge-base', own, previous]).trim();
+  return base === '' ? undefined : base;
+}
+
+/**
+ * The commit slice `n` of ticket `id` starts at, as a full sha, or undefined when git cannot say (no such branch, no common history, no baseline, no clone). The first slice of this repository (the claim
+ * branch's): the plan's `baseline:`. A later slice of this repository: the merge base of HEAD with the previous slice's branch of this repository, a local branch first and then origin's copy of it. A slice of
+ * another repository is read in that repository's clone (`otherStart`).
  */
 export function sliceStart(root: string, snapshot: RepoSnapshot, id: string, n: number): string | undefined {
   try {
-    if (!Number.isInteger(n) || n < 1) return undefined;
-    if (n === 1) {
+    const home = sliceHomeOf(snapshot, id, n);
+    if (home === undefined) return undefined;
+    if (home.repo !== undefined) return otherStart(root, snapshot, id, { ...home, repo: home.repo });
+    if (home.previous === undefined) {
       const baseline = workOf(snapshot, id)?.plan?.baseline;
       return baseline === undefined ? undefined : commitOf(root, baseline);
     }
-    const previous = n === 2 ? claimBranchOf(snapshot, id) : sliceBranch(id, n - 1);
-    for (const ref of [`refs/heads/${previous}`, `refs/remotes/origin/${previous}`]) {
+    for (const ref of [`refs/heads/${home.previous.branch}`, `refs/remotes/origin/${home.previous.branch}`]) {
       if (commitOf(root, ref) === undefined) continue;
       const base = git(root, ['merge-base', 'HEAD', ref]).trim();
       if (base !== '') return base;

@@ -3,7 +3,7 @@
 // the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
 // Phase 8.5 D-16, D-25: outside Claude Code this command is also the main session's channel for the ruleset, which Claude Code's session hooks print themselves: it comes first, built by the shared
 // core assembly with the hooks' exact text, and only here, never in `anchorOf`, so the session-resume hook, which already prints it, never prints it twice.
-import { anchorText, commitRuleLine, commitRuleOf, DEFAULT_BRANCH_TEMPLATE, productBlocks, workOf } from '@accord-dev/accord-core';
+import { anchorText, commitRuleLine, commitRuleOf, DEFAULT_BRANCH_TEMPLATE, firstMainSlice, productBlocks, sliceInWork, workOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, gitVerifySince, ticketOfBranch, withDefaultRef } from '../load/fs.js';
 import { cliRuleset, readProductText } from '../load/product.js';
@@ -35,32 +35,36 @@ function commitRuleHeader(ctx: CommandContext): string[] {
 }
 
 /**
- * Phase 15 D-07, D-10: the slice this checkout is on when the ticket's plan has `## Slice` sections: a `slice/<id>/<n>` branch, or the ticket's claim branch, which is slice 1. `tasks` are the task numbers the plan gives
- * that slice, absent when the plan has no slice with that number. A ticket whose plan has no `## Slice` section, a branch of another ticket and a checkout git cannot name give undefined, and no git runs for a plan without slices.
+ * Phase 15 D-07, D-10, Phase 08.9.3 D-08, D-14: the slice this checkout is working when the ticket's plan has `## Slice` sections. The checkout's own slice is a `slice/<id>/<n>` branch's, or on the ticket's claim branch the
+ * first slice of this repository (`firstMainSlice`; slice 1 for a plan with no `repo:` line); the slice in work is the lowest of it and the other-repository slices worked from it whose criteria are not all in `verified:`
+ * (`sliceInWork`, Ruling R11), so the ticks alone say which slice is finished. `repo` names the repository of the slice in work when it is another one; `tasks` are the task numbers the plan gives that slice, absent when the plan has
+ * no slice with that number. A ticket whose plan has no `## Slice` section, a branch of another ticket and a checkout git cannot name give undefined, and no git runs for a plan without slices.
  */
-export function currentSlice(ctx: CommandContext, id: string): { n: number; of: number; tasks?: number[] } | undefined {
+export function currentSlice(ctx: CommandContext, id: string): { n: number; of: number; tasks?: number[]; repo?: string } | undefined {
   const slices = workOf(ctx.snapshot, id)?.plan?.slices;
   if (slices === undefined || slices.length === 0) return undefined;
   try {
     const name = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
     if (name === undefined || activeTicket(ctx.root, ctx.snapshot, { name }) !== id) return undefined;
-    const n = sliceOfBranch(name)?.n ?? 1;
-    const tasks = slices.find((s) => s.n === n)?.tasks;
-    return { n, of: Math.max(...slices.map((x) => x.n)), ...(tasks === undefined ? {} : { tasks }) };
+    const own = sliceOfBranch(name)?.n ?? firstMainSlice(slices) ?? 1;
+    const verified = ctx.snapshot.tickets[id].frontmatter?.verified ?? [];
+    const n = sliceInWork(slices, own, verified);
+    const found = slices.find((s) => s.n === n);
+    return { n, of: Math.max(...slices.map((x) => x.n)), ...(found === undefined ? {} : { tasks: found.tasks }), ...(found?.repo === undefined ? {} : { repo: found.repo }) };
   } catch {
     return undefined;
   }
 }
 
 /**
- * Phase 15 D-10: `Slice: <n> of <m>, from <short sha>` when this checkout is on a slice of the ticket's sliced plan (`currentSlice`). `from` is where the slice starts (`sliceStart`), left out when git cannot say.
- * Any other checkout prints nothing.
+ * Phase 15 D-10: `Slice: <n> of <m>, from <short sha>` when this checkout is working a slice of the ticket's sliced plan (`currentSlice`); a slice of another repository reads `Slice: <n> of <m> in repository <name>, from
+ * <short sha>` (Phase 08.9.3 D-08). `from` is where the slice starts (`sliceStart`, in that repository's clone for another repository), left out when git cannot say. Any other checkout prints nothing.
  */
-function sliceLine(ctx: CommandContext, id: string, slice: { n: number; of: number } | undefined): string[] {
+function sliceLine(ctx: CommandContext, id: string, slice: { n: number; of: number; repo?: string } | undefined): string[] {
   if (slice === undefined) return [];
   try {
     const start = sliceStart(ctx.root, ctx.snapshot, id, slice.n);
-    return [`Slice: ${slice.n} of ${slice.of}${start === undefined ? '' : `, from ${start.slice(0, 7)}`}`];
+    return [`Slice: ${slice.n} of ${slice.of}${slice.repo === undefined ? '' : ` in repository ${slice.repo}`}${start === undefined ? '' : `, from ${start.slice(0, 7)}`}`];
   } catch {
     return [];
   }

@@ -232,7 +232,7 @@ const MAX_SKILL_LINES = 120;
 
 /** The commands the CLI actually registers, longest path first so `gate ready` wins over a bare `gate`. */
 const COMMAND =
-  /\baccord (debug path|gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|worktree check|config areas|config get|config set|diff-package|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
+  /\baccord (repos status|repos set|repos baseline|pr ready|debug path|gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|worktree task|worktree check|config areas|config get|config set|diff-package|review-package|task-done|approve|anchor|brief|dashboard|status|waves|next|lint|hook|audit)\b/g;
 
 /** Spec §2: each skill targets at most 6000 bytes. */
 const MAX_SKILL_BYTES = 6000;

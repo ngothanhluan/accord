@@ -6,7 +6,7 @@ kind: reference
 
 Follow this from step 8 of `./build.md` when `plan.md` holds `## Slice` sections (`./plan-slices.md`). A sliced ticket is built, reviewed and verified one slice at a time, and each slice is its own draft pull request stacked on the one before it, so the next slice is built without waiting for a merge.
 
-Slice 1 is built on the ticket's claim branch and slice n on `slice/<id>/<n>`. `accord anchor` prints `Slice: <n> of <m>, from <sha>` there, and it and `accord waves` name only the tasks of the slice this checkout is on.
+Slice 1 is built on the ticket's claim branch and slice n on `slice/<id>/<n>`. `accord anchor` prints `Slice: <n> of <m>, from <sha>` there, and it and `accord waves` name only the tasks of the slice this checkout is on. When that line says `in repository <name>`, follow `./repos.md` for the slice.
 
 ## Each slice
 

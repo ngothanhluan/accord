@@ -824,7 +824,6 @@ packages/core/test/schemas.test.ts#config.schema.json->-review.mode-is-human-or-
 packages/core/test/schemas.test.ts#config.schema.json->-roles-are-ba|dev|designer,-ba-and-dev-required,-no-duplicates
 packages/core/test/schemas.test.ts#config.schema.json->-tests.report-is-optional;-when-present-it-is-a-non-empty-string-and-the-only-key-(D-72)
 packages/core/test/schemas.test.ts#config.schema.json->-the-D-16-default-document-is-valid
-packages/core/test/schemas.test.ts#config.schema.json->-top-level-properties-are-the-six-D-16-keys-plus-optional-tests-(D-72)-review-(spec-§7),-models,-escalation,-and-stale_days
 packages/core/test/schemas.test.ts#finding-order-is-deterministic->-two-consecutive-runs-on-the-config-probe-produce-identical-output
 packages/core/test/schemas.test.ts#phase-2-config-keys->-accepts-routing,-escalation,-test-commands,-and-stale_days
 packages/core/test/schemas.test.ts#phase-2-config-keys->-refuses-a-non-numeric-stale_days-and-a-tier-up-outside-1..5

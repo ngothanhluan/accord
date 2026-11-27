@@ -218,7 +218,7 @@ describe('config.schema.json', () => {
     expect(validate('config', { ...minimal.config, slop: { other: '1' } }).length).toBeGreaterThan(0);
   });
 
-  it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, agents, escalation, and stale_days', () => {
+  it('risk:regression top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, agents, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
     expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'build', 'review', 'models', 'agents', 'escalation', 'stale_days', 'hook_mode', 'stale_draft_days', 'people', 'legacy_ids', 'branch', 'branch_types', 'branch_slug_length', 'setup', 'commits', 'generated', 'sensitive', 'repos', 'disposable', 'queue', 'progress', 'git', 'ids', 'strictness', 'template', 'titles', 'pr', 'audit', 'slop']);
     expect(configSchema.required).toEqual(keys);

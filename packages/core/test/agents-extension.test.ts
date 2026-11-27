@@ -2,8 +2,8 @@
 // renderer merges them into the agent's frontmatter after the authored fields. The judge and the foreign reviewer take none.
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { AGENT_DEFAULTS, agentsProblems, agentsRefusal, agents, agentTargets, loadConfig, NO_ADDITIONS, renderAgent } from '../src/index.js';
-import type { AccordConfig, AgentKey } from '../src/index.js';
+import { AGENT_DEFAULTS, AGENT_LOCKS, agentsProblems, agentsRefusal, agents, agentTargets, loadConfig, NO_ADDITIONS, renderAgent } from '../src/index.js';
+import type { AccordConfig, AgentKey, AgentProblem, McpEntry, RouteKey } from '../src/index.js';
 
 const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
   ({ accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'], ...over }) as AccordConfig;
@@ -179,5 +179,104 @@ describe('agents: a tool the rule of a role forbids is refused by name (11-ac-2,
     expect(agentTargets(c)).toHaveLength(agentTargets(config()).length);
     expect(toolsOf(c, 'accord-reviewer')).toBe('Read, Grep, Glob, Bash, WebFetch');
     expect(agentsProblems(config())).toEqual([]);
+  });
+
+  const refusedBy = (role: RouteKey, tools: string[]): string[] =>
+    agentsProblems(config({ agents: { [role]: { tools } } } as Partial<AccordConfig>)).map((p) => p.entry);
+  const every = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'Task'];
+
+  it('risk:security each role refuses the tools its authored rule forbids and takes the rest (11-ac-2, D-02)', () => {
+    const forbidden: Record<string, string[]> = {
+      scout: every,
+      critic: every,
+      reviewer: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task'],
+      'reviewer.final': ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task'],
+      planner: ['Bash', 'PowerShell', 'NotebookEdit', 'Agent', 'Task'],
+      verifier: ['NotebookEdit', 'Agent', 'Task'],
+      debugger: ['NotebookEdit', 'Agent', 'Task'],
+      executor: ['Agent', 'Task'],
+    };
+    for (const [role, tools] of Object.entries(forbidden)) {
+      for (const tool of every) {
+        expect(refusedBy(role as RouteKey, [tool]), role + ' ' + tool).toEqual(tools.includes(tool) ? [tool] : []);
+      }
+      expect(refusedBy(role as RouteKey, ['WebFetch', 'WebSearch', 'Read']), role).toEqual([]);
+    }
+  });
+
+  it('risk:security a specifier is compared on the name before its parenthesis, and a name on its case (11-ac-2, D-02)', () => {
+    expect(refusedBy('scout', ['Bash(git push *)'])).toEqual(['Bash(git push *)']);
+    expect(refusedBy('reviewer', ['Write(src/**)', 'Bash(git log *)'])).toEqual(['Write(src/**)']);
+    expect(refusedBy('critic', ['write'])).toEqual(['write']);
+    // a comma inside one entry would split in the rendered list, so each piece is judged: a locked tool cannot ride behind a permitted one
+    expect(refusedBy('reviewer', ['Bash(x), Write(y)'])).toEqual(['Bash(x), Write(y)']);
+  });
+
+  it('risk:security an mcp__<server>__* tools entry is never refused, on any role (D-03)', () => {
+    for (const role of Object.keys(AGENT_DEFAULTS) as RouteKey[]) {
+      expect(refusedBy(role, ['mcp__docs__*', 'mcp__docs', 'mcp__docs__Write']), role).toEqual([]);
+    }
+    // and a server on a read-only role renders: reachable, not refused
+    expect(toolsOf(config({ agents: { scout: { mcp: ['docs'] } } }), 'accord-scout')).toBe('Read, Grep, Glob, mcp__docs__*');
+  });
+
+  it('risk:security AGENT_LOCKS holds, for the researcher, every name of its authored disallowedTools, and no role locks a tool its own source allows (11-ac-2, D-02)', () => {
+    const authored = (key: AgentKey): Record<string, unknown> => parse(agents[key].split('---\n')[1] as string) as Record<string, unknown>;
+    const names = (value: unknown): string[] => String(value ?? '').split(',').map((t) => t.trim()).filter((t) => t !== '');
+    expect([...AGENT_LOCKS.researcher].sort()).toEqual(names(authored('researcher.md').disallowedTools).sort());
+    for (const key of Object.keys(agents) as AgentKey[]) {
+      const source = authored(key);
+      const role = source.route as RouteKey;
+      if (NO_ADDITIONS.includes(key) || key === 'researcher.md') continue;
+      for (const name of names(source.tools)) expect(AGENT_LOCKS[role], key + ' ' + name).not.toContain(name);
+    }
+    expect(Object.keys(AGENT_LOCKS).sort()).toEqual(Object.keys(AGENT_DEFAULTS).sort());
+  });
+
+  it('risk:security every agents.researcher.tools entry is refused, since it authors no allowlist and an entry adds nothing, and its file gains no tools line (11-ac-2, D-02, T-11-05)', () => {
+    const problems = agentsProblems(config({ agents: { researcher: { tools: ['WebFetch', 'Read', 'Write'] } } }));
+    expect(problems.map((p) => p.entry)).toEqual(['WebFetch', 'Read', 'Write']);
+    for (const p of problems) expect(p.reason).toContain('authors no tools allowlist');
+    // D-03 still holds there: a server entry is not refused (it adds nothing to the researcher either, and the server itself renders through mcp)
+    expect(agentsProblems(config({ agents: { researcher: { tools: ['mcp__docs__*'] } } }))).toEqual([]);
+    expect(Object.hasOwn(frontmatter(fileOf(config({ agents: { researcher: { tools: ['WebFetch'] } } }), 'accord-researcher')), 'tools')).toBe(false);
+  });
+});
+
+describe('agents: an inline server that would run a command is refused (D-17, T-11-03)', () => {
+  const local: McpEntry = { local: { type: 'stdio', command: 'node', args: ['x.js'] } };
+  const problemsOf = (mcp: McpEntry[]): AgentProblem[] => agentsProblems(config({ agents: { executor: { mcp } } }));
+
+  it('risk:security an inline stdio server is one problem naming the role, the server, the reason and the fix (D-17)', () => {
+    const [problem, ...rest] = problemsOf([local]);
+    expect(rest).toEqual([]);
+    expect(problem).toMatchObject({ role: 'executor', field: 'mcp', index: 0, entry: 'local' });
+    expect(problem?.reason).toContain("run a command from a committed file on every teammate's machine");
+    expect(problem?.reason).toContain('install the server in Claude Code and name it');
+    expect(agentsRefusal(problemsOf([local])).split('\n')[0]).toBe('agents.executor.mcp: local: ' + problem?.reason);
+  });
+
+  it('risk:security a plain server name and an inline http, sse or ws with a url pass; one with no url is refused (D-17)', () => {
+    expect(problemsOf(['playwright', { docs: { type: 'http', url: 'https://example.test/mcp' } }, { w: { type: 'ws', url: 'wss://example.test/x' } }])).toEqual([]);
+    for (const type of ['http', 'sse', 'ws'] as const) {
+      const [problem] = problemsOf([{ docs: { type } }]);
+      expect(problem, type).toMatchObject({ role: 'executor', field: 'mcp', index: 0, entry: 'docs' });
+      expect(problem?.reason).toContain('no url');
+    }
+  });
+
+  it('risk:security a command or args on an http, sse or ws server is refused as well (D-17)', () => {
+    expect(problemsOf([{ docs: { type: 'http', url: 'https://example.test/mcp', command: 'node' } }])).toHaveLength(1);
+    expect(problemsOf([{ docs: { type: 'sse', url: 'https://example.test/mcp', args: ['x'] } }])).toHaveLength(1);
+  });
+
+  it('risk:security agentTargets leaves a refused server out and never throws, so the rest of the config still renders (D-17)', () => {
+    const c = config({ agents: { executor: { mcp: [local, 'playwright', { docs: { type: 'http' } }] } } });
+    const fm = frontmatter(fileOf(c, 'accord-executor'));
+    expect(fm.mcpServers).toEqual(['playwright']);
+    expect(String(fm.tools).endsWith(', mcp__playwright__*')).toBe(true);
+    expect(String(fm.tools)).not.toContain('local');
+    // every server refused: no mcpServers key at all
+    expect(Object.hasOwn(frontmatter(fileOf(config({ agents: { executor: { mcp: [local] } } }), 'accord-executor')), 'mcpServers')).toBe(false);
   });
 });

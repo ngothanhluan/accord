@@ -7,7 +7,7 @@ import { agents } from '../generated/agents.js';
 import { normaliseText, stringNumerics } from '../load/frontmatter.js';
 import { contentHash, markerHash, readSource, stamp, withoutMarker } from './render.js';
 import type { AgentKey } from '../generated/agents.js';
-import type { AccordConfig, AgentAdditions, Effort, McpEntry, RouteKey } from '../model/snapshot.js';
+import type { AccordConfig, AgentAdditions, Effort, McpDefinition, McpEntry, RouteKey } from '../model/snapshot.js';
 import type { SkillFile } from './targets.js';
 
 export const agentDir = '.claude/agents';
@@ -81,16 +81,23 @@ export const NO_ADDITIONS: readonly AgentKey[] = ['judge.md', 'foreign-reviewer.
 // agent's own text rules out; a tool is compared on the name before its `(` (`Bash(git push *)` is `Bash`), without regard to case. An `mcp__<server>__*` entry
 // is never refused (D-03). `agentTargets` renders around a refused entry and never throws; `accord skills sync` and `lint.agents-config` report it by name.
 export const AGENT_LOCKS: Readonly<Record<RouteKey, readonly string[]>> = {
-  scout: [],
-  critic: [],
-  planner: [],
-  executor: [],
+  // scout.md and critic.md: "you read; you never edit a file", and neither runs a command or dispatches another agent
+  scout: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'Task'],
+  critic: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'Task'],
+  // planner.md: "you write only plan.md (direction.md in direction mode)"; it holds Write and Edit for that, runs no command and dispatches no agent
+  planner: ['Bash', 'PowerShell', 'NotebookEdit', 'Agent', 'Task'],
+  // executor.md: it builds, writes code, runs commands and commits, and never dispatches another agent
+  executor: ['Agent', 'Task'],
   // reviewer.md: "you never edit a file"; a reviewer reads, runs tests and runs git to read, and never dispatches another agent
   reviewer: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task'],
   'reviewer.final': ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task'],
-  verifier: [],
-  debugger: [],
-  researcher: [],
+  // verifier.md and debugger.md: each writes one file (verification.md, debug.md) with Write and Edit and runs commands; neither edits a notebook or dispatches another agent
+  verifier: ['NotebookEdit', 'Agent', 'Task'],
+  debugger: ['NotebookEdit', 'Agent', 'Task'],
+  // researcher.md: "you write no file and run no command"; it authors `disallowedTools` and no `tools`, so this row is that list, and any `tools` entry is refused (RESEARCHER_NO_TOOLS)
+  researcher: [
+    'Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell', 'Monitor', 'EnterWorktree', 'ExitWorktree', 'Artifact', 'ShareOnboardingGuide', 'RemoteTrigger', 'CronCreate', 'SendMessage', 'TaskStop', 'Agent', 'Task',
+  ],
 };
 
 /** The rule text of each role that a refused entry quotes: what the agent's own definition says it never does. */
@@ -106,6 +113,9 @@ const LOCK_RULE: Readonly<Record<RouteKey, string>> = {
   researcher: 'the researcher only reads and searches',
 };
 
+/** The researcher authors no `tools` allowlist (it inherits what a subagent gets, less its `disallowedTools`), so an `agents.researcher.tools` entry adds nothing and is refused whatever it names (T-11-05). */
+const RESEARCHER_NO_TOOLS = 'the researcher authors no tools allowlist, so a tools entry adds nothing; it reads and searches with what its subagent gets, less the tools its rule forbids';
+
 /** One entry of `agents.<role>` that accord refuses. `index` is the entry's place in its list, for the lint pointer; `reason` is one text with its fix. */
 export interface AgentProblem {
   role: RouteKey;
@@ -118,10 +128,40 @@ export interface AgentProblem {
 /** The tool name an entry stands for: the text before `(`, trimmed. An entry holding a comma is judged piece by piece, as the renderer's comma-joined list is read piece by piece. */
 const toolNames = (entry: string): string[] => entry.split(',').map((piece) => piece.replace(/\(.*$/s, '').trim());
 
-/** The locked name an `agents.<role>.tools` entry holds, or undefined. */
-function lockedTool(role: RouteKey, entry: string): string | undefined {
+/** The reason an `agents.<role>.tools` entry is refused, or undefined when the role takes it. An `mcp__` entry is never refused (D-03): it names a server, not a built-in tool. */
+function toolProblem(role: RouteKey, entry: string): string | undefined {
+  const fix = ` - fix: remove ${entry} from agents.${role}.tools in accord/config.yml`;
+  // D-03: a server is allowed on every role, read-only ones included; the shape holds no comma or space, so it cannot carry a second tool.
+  if (/^mcp__[A-Za-z0-9._*-]+$/.test(entry)) return undefined;
+  if (role === 'researcher') return RESEARCHER_NO_TOOLS + fix;
   const locked = AGENT_LOCKS[role].map((name) => name.toLowerCase());
-  return toolNames(entry).find((name) => locked.includes(name.toLowerCase()));
+  return toolNames(entry).some((name) => locked.includes(name.toLowerCase())) ? LOCK_RULE[role] + fix : undefined;
+}
+
+/** The name an inline server definition is written under, and its definition; a plain name has no definition. */
+const serverParts = (entry: McpEntry): { name: string; def?: McpDefinition } => {
+  if (typeof entry === 'string') return { name: entry };
+  const name = Object.keys(entry)[0] as string;
+  return { name, def: entry[name] };
+};
+
+/**
+ * The reason an `agents.<role>.mcp` entry is refused, or undefined (D-17, T-11-03). A plain name is a server the person installed in Claude Code. An inline `stdio` definition would run a
+ * command taken from a committed file on every teammate's machine, outside accord's trust record. An inline `http`, `sse` or `ws` definition needs its `url`, and carries no `command`
+ * or `args` (a remote server has none to run).
+ */
+function mcpProblem(role: RouteKey, entry: McpEntry): string | undefined {
+  const { name, def } = serverParts(entry);
+  if (def === undefined) return undefined;
+  const fix = `install the server in Claude Code and name it in agents.${role}.mcp`;
+  if (def.type === 'stdio') {
+    return `an inline stdio server would run a command from a committed file on every teammate's machine, outside accord's trust record - fix: ${fix}, or give an http, sse or ws server a url`;
+  }
+  if (def.url === undefined || def.url === '') return `an inline ${def.type} server with no url cannot be reached - fix: add its url, or ${fix}`;
+  if (def.command !== undefined || def.args !== undefined) {
+    return `an inline ${def.type} server carries a command, which would run from a committed file on every teammate's machine - fix: remove command and args from ${name}, or ${fix}`;
+  }
+  return undefined;
 }
 
 /** Every entry of `agents:` that breaks a role's rule, in config order. Empty for a config with no `agents:` key. Pure. */
@@ -129,8 +169,12 @@ export function agentsProblems(config: AccordConfig | undefined): AgentProblem[]
   const out: AgentProblem[] = [];
   for (const [role, add] of Object.entries(config?.agents ?? {}) as [RouteKey, AgentAdditions | undefined][]) {
     (add?.tools ?? []).forEach((entry, index) => {
-      if (lockedTool(role, entry) === undefined) return;
-      out.push({ role, field: 'tools', index, entry, reason: `${LOCK_RULE[role]} - fix: remove ${entry} from agents.${role}.tools in accord/config.yml` });
+      const reason = toolProblem(role, entry);
+      if (reason !== undefined) out.push({ role, field: 'tools', index, entry, reason });
+    });
+    (add?.mcp ?? []).forEach((server, index) => {
+      const reason = mcpProblem(role, server);
+      if (reason !== undefined) out.push({ role, field: 'mcp', index, entry: serverParts(server).name, reason });
     });
   }
   return out;
@@ -186,12 +230,13 @@ export function agentFields(config: AccordConfig, routeKey: RouteKey, authored: 
   if (add === undefined) return {};
   const out: AgentExtra = {};
   if (add.skills !== undefined && add.skills.length > 0) out.skills = [...add.skills];
-  const servers = add.mcp ?? [];
+  // D-17: an inline server that would run a command, or has no url, is left out, as a refused tool is below; sync and lint report it.
+  const servers = (add.mcp ?? []).filter((server) => mcpProblem(routeKey, server) === undefined);
   if (servers.length > 0) out.mcpServers = [...servers];
   if (authored.tools !== undefined && authored.tools !== null) {
     const tools = toolList(authored.tools);
     // D-02: a tool the role's rule forbids is left out, never thrown on, so gate done, init and the exempt-copies reader keep working on a bad entry; sync and lint report it.
-    for (const extra of add.tools ?? []) if (lockedTool(routeKey, extra) === undefined && !tools.includes(extra)) tools.push(extra);
+    for (const extra of add.tools ?? []) if (toolProblem(routeKey, extra) === undefined && !tools.includes(extra)) tools.push(extra);
     for (const entry of servers) {
       const name = serverName(entry);
       if (!tools.includes('mcp__' + name + '__*') && !tools.includes('mcp__' + name)) tools.push('mcp__' + name + '__*');

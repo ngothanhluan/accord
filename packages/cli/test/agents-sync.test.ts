@@ -82,3 +82,28 @@ it('risk:security agents.reviewer.tools [Write] makes skills sync exit 2 naming 
   expect((await run(['skills', 'sync'], fresh)).code).toBe(2);
   expect(snapshot(fresh)).toEqual({});
 });
+
+const STDIO_ON_EXECUTOR = CONFIG + 'agents:\n  executor:\n    mcp:\n      - local:\n          type: stdio\n          command: node\n          args: [x.js]\n';
+
+it('risk:security an inline stdio server on the executor makes skills sync exit 2 naming agents.executor and local, with the reason and the fix, and writes nothing (D-17)', async () => {
+  const repo = makeRepo();
+  repos.push(repo);
+  writeFiles(repo, { 'accord/config.yml': STDIO_ON_EXECUTOR });
+  const refused = await run(['skills', 'sync'], repo);
+  expect(refused.code, refused.out + refused.err).toBe(2);
+  expect(refused.err).toContain('agents.executor.mcp: local:');
+  expect(refused.err).toContain("run a command from a committed file on every teammate's machine");
+  expect(refused.err).toContain('install the server in Claude Code and name it');
+  expect(refused.err.trimEnd().endsWith('nothing was written')).toBe(true);
+  expect(snapshot(repo)).toEqual({});
+});
+
+it('risk:security an inline http server with no url, on any role, makes skills sync exit 2 naming agents.<role>.mcp and the server (D-17)', async () => {
+  const repo = makeRepo();
+  repos.push(repo);
+  writeFiles(repo, { 'accord/config.yml': CONFIG + 'agents:\n  verifier:\n    mcp:\n      - docs:\n          type: http\n' });
+  const refused = await run(['skills', 'sync'], repo);
+  expect(refused.code, refused.out + refused.err).toBe(2);
+  expect(refused.err).toContain('agents.verifier.mcp: docs:');
+  expect(snapshot(repo)).toEqual({});
+});

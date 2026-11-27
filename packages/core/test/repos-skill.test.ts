@@ -70,7 +70,7 @@ it('risk:regression repos.md renders beside the stages in every tool, with its s
       '`accord worktree slice <id> <n>`',
       '`accord worktree push <id> --repo <name>`',
       '`accord pr <id> --slice <n>`',
-      '`gh pr create --repo <repository> --head <head> --base <base> --draft`',
+      '`gh pr create --repo <repository> --head <head> --base <base> --draft --title "<title>" --body-file "<body-file>"`',
       '`accord pr ready <id> --slice <n>`',
       '`accord pr wait <id>`',
       '`released`',
@@ -190,7 +190,7 @@ it('risk:regression pull requests of another repository are opened with gh pr cr
     const prs = between(f.text, '## Pull requests', '## Clean');
     for (const p of lacks(prs, [
       '`accord pr <id> --slice <n>`',
-      '`gh pr create --repo <repository> --head <head> --base <base> --draft`',
+      '`gh pr create --repo <repository> --head <head> --base <base> --draft --title "<title>" --body-file "<body-file>"`',
       '`accord pr ready <id> --slice <n>`',
       'never `gh pr ready`',
     ])) {
@@ -290,6 +290,75 @@ it('risk:security no line the plan, build and review stage files gain for anothe
   for (const file of ['plan.md', 'plan-slices.md', 'build.md', 'review.md']) {
     for (const f of rendered(file)) {
       for (const sentence of f.text.split(/(?<=\.) /).filter((s) => /another repository|`\.\/repos\.md`|`repo: <name>`/.test(s))) {
+        if (/git\s+-C|git clone|\bclone\b/i.test(sentence)) bad.push(f.label + ': ' + sentence);
+      }
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression verify step 2 sends the suite of another repository and a held slice to repos.md in one sentence, and the verify stage keeps its byte cap (D-06, D-13)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('verify.md')) {
+    const step2 = between(f.text, '2. **Sync and suite.**', '3. **Verifier.**');
+    const sentence = step2.split(/(?<=\.) /).filter((s) => s.includes('`./repos.md`'));
+    if (sentence.length !== 1) bad.push(f.label + ' step 2 names `./repos.md` in ' + sentence.length + ' sentences');
+    else for (const p of lacks(sentence[0], ['suite of another repository', 'held slice'])) bad.push(f.label + ' pointer lacks: ' + p);
+    if (f.text.split('./repos.md').length !== 2) bad.push(f.label + ' names ./repos.md other than once');
+    if (Buffer.byteLength(f.raw, 'utf8') > 5980) bad.push(f.label + ' is over 5980 bytes');
+    if (f.raw.split('\n').length > 120) bad.push(f.label + ' is over 120 lines');
+  }
+  expect(rendered('verify.md').length).toBeGreaterThan(0);
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression verify-ci opens the pull request of another repository with gh pr create --repo and marks every slice ready with accord pr ready, never gh pr ready (D-08)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('verify-ci.md')) {
+    const step4 = between(f.text, '4. When that list was empty', 'Then run the suite');
+    for (const p of lacks(step4, ['`gh pr create --repo <repository> --head <head> --base <base> --draft --title "<title>" --body-file "<body-file>"`', '`./repos.md`'])) bad.push(f.label + ' Start step 4 lacks: ' + p);
+    const finish3 = between(f.text, '3. Run `git status --porcelain --branch`', '4. Wait for the accord check');
+    for (const p of lacks(finish3, ['plan that names another repository', '`accord pr ready <id> --slice <n>`', 'never `gh pr ready`', '`./repos.md`'])) bad.push(f.label + ' Finish step 3 lacks: ' + p);
+    if (f.text.split('./repos.md').length !== 3) bad.push(f.label + ' names ./repos.md other than twice');
+  }
+  expect(rendered('verify-ci.md').length).toBeGreaterThan(0);
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression worktree.md says clean also removes the worktree and slice branches of another repository after the merge, and never the person\'s own checkout; the shared file links nothing only the accord folder renders (D-10, D-110)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('worktree.md')) {
+    const sentence = f.text.split(/(?<=\.) /).filter((s) => s.includes('another repository'));
+    if (sentence.length !== 1) bad.push(f.label + ' names another repository in ' + sentence.length + ' sentences');
+    else for (const p of lacks(sentence[0], ['After the merge', '`accord worktree clean`', "the person's own checkout"])) bad.push(f.label + ' sentence lacks: ' + p);
+    if (f.text.includes('./repos.md')) bad.push(f.label + ' links ./repos.md, which the other skill folders that render worktree.md do not hold');
+  }
+  expect(rendered('worktree.md').length).toBeGreaterThan(0);
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression pr-wait.md lists the released line and says to go on with the verify of that slice, and every folder that renders pr-wait.md renders repos.md (D-13)', () => {
+  const bad: string[] = [];
+  for (const f of rendered('pr-wait.md')) {
+    const row = between(f.text, '- `pr-wait: released slice <k>: ...`', '- `pr-wait: closed');
+    for (const p of lacks(row, ['waited on a slice of another repository', 'merged', 'Go on with the verify of slice <k>', 'write its block', '`./repos.md`'])) bad.push(f.label + ' released row lacks: ' + p);
+    if (row === '') bad.push(f.label + ' has no released row before the closed row');
+  }
+  for (const runtime of RUNTIMES) {
+    const paths = new Set(skillTargets(config(runtime)).map((t) => t.path));
+    for (const path of paths) {
+      if (path.endsWith('/pr-wait.md') && !paths.has(path.replace(/pr-wait\.md$/, 'repos.md'))) bad.push(`${runtime}: ${path} renders no repos.md beside it`);
+    }
+  }
+  expect(rendered('pr-wait.md').length).toBeGreaterThan(0);
+  expect(bad).toEqual([]);
+});
+
+it('risk:security no line the verify, verify-ci, worktree and pr-wait files gain for another repository holds git -C or an instruction to clone (T-08.9.3-34)', () => {
+  const bad: string[] = [];
+  for (const file of ['verify.md', 'verify-ci.md', 'worktree.md', 'pr-wait.md']) {
+    for (const f of rendered(file)) {
+      for (const sentence of f.text.split(/(?<=\.) /).filter((s) => s.includes('`./repos.md`') || s.includes('another repository'))) {
         if (/git\s+-C|git clone|\bclone\b/i.test(sentence)) bad.push(f.label + ': ' + sentence);
       }
     }

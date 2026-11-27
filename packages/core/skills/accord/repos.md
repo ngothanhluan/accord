@@ -38,7 +38,7 @@ A slice that `accord repos status <id>` prints as `held:` waits for an earlier s
 
 ## Pull requests
 
-Open another repository's slice with `accord pr <id> --slice <n>`, then `gh pr create --repo <repository> --head <head> --base <base> --draft` with the `repository:`, `head:`, `base:`, `title:` and `body-file:` lines it printed.
+Open another repository's slice with `accord pr <id> --slice <n>`, then `gh pr create --repo <repository> --head <head> --base <base> --draft --title "<title>" --body-file "<body-file>"` with the `repository:`, `head:`, `base:`, `title:` and `body-file:` lines it printed.
 
 Mark every slice of a plan that names another repository ready with `accord pr ready <id> --slice <n>`, never `gh pr ready`: it refuses with `held:` while an earlier slice of another repository has not merged.
 

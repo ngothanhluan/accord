@@ -36,6 +36,8 @@ its branches and any folder left behind with nobody typing a command; the hook e
 `tell the owner the lines above`, so show them to the owner in your first reply. A New request the session check
 stops cleans nothing. At the dashboard its lines are shown verbatim with the dashboard's.
 
+After the merge, `accord worktree clean` also removes the worktree and `slice/<id>/<n>` branches a slice of another repository opened, and never touches the person's own checkout of it.
+
 ## Session check
 
 Run it before the dashboard and before every New request, in every lane, also a New request picked from the

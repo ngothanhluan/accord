@@ -30,7 +30,8 @@ reported as CI not checked, with the reason.
    with the `title:` and `body-file:` lines it printed. For a slice, run
    `accord pr <id> --slice <n>` and add `--base <the previous slice's branch>` to
    that command, with no `--base` for slice 1, as `./slices.md` says. A pull
-   request already open is left as it is. Never merge it: merging waits
+   request already open is left as it is. A slice of another repository is opened with
+   `gh pr create --repo <repository> --head <head> --base <base> --draft --title "<title>" --body-file "<body-file>"`, as `./repos.md` says. Never merge it: merging waits
    for the owner.
 
 Then run the suite and the verifier while CI runs.
@@ -159,7 +160,8 @@ no GitHub setting, and every `gh api` call below is a plain read.
    ahead, run `git push`; then, unless
    `gh pr view --json isDraft --jq .isDraft` prints `false`, run
    `gh pr ready`. This step also finishes a session that stopped after
-   the tick commit.
+   the tick commit. For a plan that names another repository, mark every slice ready with
+   `accord pr ready <id> --slice <n>`, never `gh pr ready`, as `./repos.md` says.
 4. Wait for the accord check on the tick commit. `<tick>` is
    `git rev-parse HEAD` after step 3. Wait for no other workflow here:
    Wait already read them.

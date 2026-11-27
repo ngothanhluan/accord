@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://accord.dev/schemas/lens.schema.json",
+  "title": "accord team lens frontmatter (accord/lenses/<name>.md)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "on_finding": { "enum": ["block", "ask", "warn"] }
+  }
+}

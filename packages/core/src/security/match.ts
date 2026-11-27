@@ -236,7 +236,7 @@ export const isTestFile = (path: string): boolean => {
 };
 
 /** A path entry of a security pattern compares ignoring letter case: Windows and default macOS open `.MCP.json` as `.mcp.json`. The trigger still names the path as the diff spells it. */
-const pathMatches = (entry: string, path: string): boolean => {
+export const pathEntryMatches = (entry: string, path: string): boolean => {
   const e = entry.toLowerCase();
   const p = path.toLowerCase();
   if (e.endsWith('/') || e.includes('/')) return matches(e, p);
@@ -325,7 +325,7 @@ function scanPackage(spec: SecuritySpec, files: DiffFile[], changed: readonly st
   };
   const pathPatterns = spec.patterns.filter((p): p is SecurityPattern & { entries: string[] } => p.kind === 'path' && p.entries !== undefined);
   for (const path of new Set([...changed, ...shown])) {
-    for (const p of pathPatterns) if (p.entries.some((e) => pathMatches(e, path))) add({ path, pattern: p.id, label: p.label });
+    for (const p of pathPatterns) if (p.entries.some((e) => pathEntryMatches(e, path))) add({ path, pattern: p.id, label: p.label });
   }
   const lineRes = compileLines(spec);
   const allow = overlapMeter(lineRes.map(({ re }) => re), options.overlapBudget ?? SCAN_OVERLAP_BUDGET, DEFAULT_SECURITY.patterns);

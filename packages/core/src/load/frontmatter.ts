@@ -37,7 +37,7 @@ export interface LoadedFrontmatter<T> {
 export function loadFrontmatter<T>(
   file: string,
   text: string,
-  schemaId: 'ticket' | 'verification',
+  schemaId: 'ticket' | 'verification' | 'lens',
 ): LoadedFrontmatter<T> {
   const { yaml, body, bodyOffset } = splitFrontmatter(text);
   if (yaml === null) {

@@ -1,7 +1,7 @@
 // Phase 15 D-07, D-31: the stacked slice branches of one ticket. A later slice n lives on `slice/<id>/<n>`, cut at the tip of the previous slice's branch. Phase 08.9.3 D-14: which slice the claim branch holds, and
 // where each other slice lives, is `sliceHome` of core's say; `slice/<id>/1` now parses too, for slice 1 of another repository (this repository never gets one).
 // A `slice/` name matches no claim template, so no reader takes it for a claim of another ticket (Pitfall 4); the readers that map a branch to its ticket ask `sliceOfBranch`.
-// The CLI records each slice branch it opens in `<git common dir>/accord/slices`, one `<id> <n> <start sha>` line, beside `worktrees` and `holds` and under the same lock and atomic write.
+// The CLI records each slice branch it opens in `<git common dir>/accord/slices`, one `<id> <n> <start sha>[ <repo>]` line (the optional fourth column names the repository whose clone holds the branch, Phase 08.9.3), beside `worktrees` and `holds` and under the same lock and atomic write.
 // A leaf module (no import of load/fs.ts), so the loader and `accord worktree` both import it; a failed write throws a plain Error and the caller says what it was for.
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { REPO_NAME, SAFE_ID, sliceBranchName } from '@accord-dev/accord-core';

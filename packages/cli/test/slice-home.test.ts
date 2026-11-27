@@ -1,13 +1,22 @@
 // Phase 08.9.3 D-08, D-11, D-14: one function, `sliceHome`, says where a slice of a ticket lives, and every read-only slice reader asks it: the claim branch holds the first slice of this repository,
 // a slice of another repository is `slice/<id>/<n>` in that repository's clone, and the slice order is the deploy order. Pure cases over core, then real git in two sibling clones (helpers/repos.ts).
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, renameSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
-import { firstMainSlice, REPOS_FROM, setFrontmatterKey, sliceBranchName, sliceHome, sliceInWork } from '@accord-dev/accord-core';
-import { claimedUnder, commitAll, run, writeFiles } from './helpers/repo.js';
+import { afterEach, expect, it } from 'vitest';
+import { firstMainSlice, loadSnapshot, REPOS_FROM, setFrontmatterKey, sliceBranchName, sliceHome, sliceInWork } from '@accord-dev/accord-core';
+import { claimedUnder, cleanup, commitAll, run, writeFiles } from './helpers/repo.js';
+import { defaultRefOf, loadFromFs } from '../src/load/fs.js';
+import { gitSliceSize, sliceRange, sliceStart } from '../src/load/slice-size.js';
+import { dropSlices, readSlices, recordSlice, sliceBranch, sliceOfBranch } from '../src/load/slices.js';
 import { reposCopy, useRepoSandboxes, type Repos } from './helpers/repos.js';
 
 useRepoSandboxes();
+
+const away: string[] = [];
+afterEach(() => {
+  for (const d of away.splice(0)) cleanup(d);
+});
 
 const CLAIM = 't/ST-9';
 const MIXED = [{ n: 1, repo: 'tools' }, { n: 2 }, { n: 3 }, { n: 4, repo: 'tools' }];
@@ -58,14 +67,14 @@ const task = (n: number, files: string): string => `## Task ${n}: Step ${n}\ncov
 const slice = (n: number, tasks: string, repo?: string): string => `## Slice ${n}: Part ${n}\n${repo === undefined ? '' : `repo: ${repo}\n`}tasks: ${tasks}\ncovers: @ac-${n}\n`;
 
 /** ST-9 claimed at REPOS_FROM on t/ST-9 of the svc clone, its plan of slice 1 in tools and slice 2 here committed. `base` is the plan's baseline, `toolsSha` the tools baseline. */
-async function planned(r: Repos): Promise<{ base: string; toolsSha: string }> {
+async function planned(r: Repos, o: { third?: boolean } = {}): Promise<{ base: string; toolsSha: string }> {
   r.git(r.svc, 'switch', '-q', '-c', CLAIM);
   claimedUnder(r.svc, REPOS_FROM, 'ST-9');
   expect((await run(['approve', 'ST-9'], r.svc)).code).toBe(0);
   writeFiles(r.svc, { 'src/svc.ts': 'export const svc = 1;\n' });
   const base = commitAll(r.svc);
   const toolsSha = r.git(r.tools, 'rev-parse', 'refs/remotes/origin/main').trim();
-  const text = ['---', `baseline: ${base}`, `baseline_tools: ${toolsSha}`, '---', '', '# Plan', '', task(1, 'tools:src/Tools.cs'), task(2, 'src/svc.ts'), slice(1, '1', 'tools'), slice(2, '2')].join('\n');
+  const text = ['---', `baseline: ${base}`, `baseline_tools: ${toolsSha}`, '---', '', '# Plan', '', task(1, 'tools:src/Tools.cs'), task(2, 'src/svc.ts'), ...(o.third === true ? [task(3, 'src/svc.ts')] : []), slice(1, '1', 'tools'), slice(2, '2'), ...(o.third === true ? [slice(3, '3')] : [])].join('\n');
   writeFiles(r.svc, { 'accord/tickets/ST-9/plan.md': text });
   commitAll(r.svc);
   return { base, toolsSha };
@@ -94,4 +103,109 @@ it('risk:complex-branching gate done --slice auto on the claim branch judges the
   const res = await run(['gate', 'done', 'ST-9', '--slice', 'auto'], r.svc);
   expect(res.out + res.err).toContain('slice 2 of 2:');
   expect(res.out).not.toContain('slice 1 of 2:');
+}, 120_000);
+
+const snapshotOf = (r: Repos) => loadSnapshot(loadFromFs(r.svc));
+
+it('risk:parsing slice/<id>/1 names a slice, sliceBranch builds it, and a name that could not be a slice branch throws (D-14)', () => {
+  expect(sliceOfBranch('slice/ST-9/1')).toEqual({ id: 'ST-9', n: 1 });
+  expect(sliceOfBranch('slice/ST-9/99')).toEqual({ id: 'ST-9', n: 99 });
+  for (const name of ['slice/ST-9/0', 'slice/ST-9/100', 'slice/ST-9/01', 'slice/ST-9', 't/ST-9']) expect(sliceOfBranch(name)).toBeUndefined();
+  expect(sliceBranch('ST-9', 1)).toBe('slice/ST-9/1');
+  expect(() => sliceBranch('-x', 2)).toThrow();
+  expect(() => sliceBranch('ST-9', 100)).toThrow();
+  expect(() => sliceBranch('ST-9', 0)).toThrow();
+});
+
+it('risk:regression the slice record takes an optional repository column, reads a Phase 15 line as before, and keeps a line it did not drop (D-14)', () => {
+  const r = reposCopy();
+  const sha = r.git(r.svc, 'rev-parse', 'HEAD').trim();
+  const file = join(r.svc, '.git', 'accord', 'slices');
+  recordSlice(r.svc, 'ST-9', 1, sha, 'tools');
+  recordSlice(r.svc, 'ST-9', 3, sha);
+  expect(readFileSync(file, 'utf8')).toBe(`ST-9 1 ${sha} tools\nST-9 3 ${sha}\n`);
+  expect(readSlices(r.svc)).toEqual([{ id: 'ST-9', n: 1, start: sha, repo: 'tools' }, { id: 'ST-9', n: 3, start: sha }]);
+  // the same id and number is not written twice
+  recordSlice(r.svc, 'ST-9', 1, sha, 'tools');
+  expect(readFileSync(file, 'utf8').split('\n').filter((l) => l !== '')).toHaveLength(2);
+  // a name that is no repository is refused, and nothing is written for it
+  expect(() => recordSlice(r.svc, 'ST-9', 2, sha, 'Tools')).toThrow();
+  dropSlices(r.svc, 'ST-9', 1);
+  expect(readFileSync(file, 'utf8')).toBe(`ST-9 3 ${sha}\n`);
+});
+
+/** The tools clone with slice/ST-9/1 cut at its baseline and two commits on it: 3 lines of code, then 2 lines of test. Returns the baseline. */
+function toolsSlice(r: Repos): string {
+  const baseline = r.git(r.tools, 'rev-parse', 'refs/remotes/origin/main').trim();
+  r.git(r.tools, 'switch', '-q', '-c', 'slice/ST-9/1');
+  writeFiles(r.tools, { 'src/Added.cs': 'a\nb\nc\n' });
+  commitAll(r.tools, 'slice one, first');
+  writeFiles(r.tools, { 'tests/AddedTests.cs': 'x\ny\n' });
+  commitAll(r.tools, 'slice one, second');
+  return baseline;
+}
+
+it('risk:complex-branching the start, range and size of a slice of tools are read in the tools clone against its baseline (D-14, D-11)', async () => {
+  const r = reposCopy();
+  const { toolsSha } = await planned(r);
+  expect(toolsSlice(r)).toBe(toolsSha);
+  const snap = snapshotOf(r);
+  expect(sliceStart(r.svc, snap, 'ST-9', 1)).toBe(toolsSha);
+  expect(sliceRange(r.svc, snap, 'ST-9', 1)).toEqual({ base: defaultRefOf(r.tools), tip: 'refs/heads/slice/ST-9/1' });
+  // the two commits' lines, counted in tools; nothing of the svc clone enters
+  expect(gitSliceSize(r.svc, snap, 'ST-9', 1, () => [])).toEqual({ n: 1, code: 3, test: 2, docs: 0, total: 5 });
+}, 120_000);
+
+it('risk:complex-branching a later slice of this repository starts at the merge base with the claim branch, and the first one at the plan baseline (D-14)', async () => {
+  const r = reposCopy();
+  const { base } = await planned(r, { third: true });
+  const claimTip = r.git(r.svc, 'rev-parse', 'HEAD').trim();
+  const snap = snapshotOf(r);
+  expect(sliceStart(r.svc, snap, 'ST-9', 2)).toBe(base);
+  r.git(r.svc, 'switch', '-q', '-c', 'slice/ST-9/3');
+  writeFiles(r.svc, { 'src/three.ts': 'export const three = 3;\n' });
+  commitAll(r.svc, 'slice three');
+  expect(sliceStart(r.svc, snap, 'ST-9', 3)).toBe(claimTip);
+  // slice 3 is measured on its own branch over the claim branch, in this repository
+  expect(sliceRange(r.svc, snap, 'ST-9', 3)).toEqual({ base: 'refs/heads/t/ST-9', tip: 'refs/heads/slice/ST-9/3' });
+  expect(gitSliceSize(r.svc, snap, 'ST-9', 3, () => [])).toEqual({ n: 3, code: 1, test: 0, docs: 0, total: 1 });
+}, 120_000);
+
+it('risk:complex-branching with no tools clone on this machine, the start and the size of a tools slice are undefined, not guessed (D-02, D-14)', async () => {
+  const r = reposCopy();
+  await planned(r);
+  const elsewhere = mkdtempSync(join(tmpdir(), 'accord-repos-gone-'));
+  away.push(elsewhere);
+  renameSync(r.tools, join(elsewhere, 'tools'));
+  expect(existsSync(r.tools)).toBe(false);
+  const snap = snapshotOf(r);
+  expect(sliceStart(r.svc, snap, 'ST-9', 1)).toBeUndefined();
+  expect(sliceRange(r.svc, snap, 'ST-9', 1)).toBeUndefined();
+  expect(gitSliceSize(r.svc, snap, 'ST-9', 1, () => [])).toBeUndefined();
+  // the anchor still says which slice, with no start
+  const res = await run(['anchor'], r.svc);
+  expect(res.code, res.out + res.err).toBe(0);
+  expect(sliceLine(res.out)).toBe('Slice: 1 of 2 in repository tools');
+}, 120_000);
+
+it('risk:regression a plan with no repo: line has the Phase 15 start for slices 1, 2 and 3: the baseline, then merge bases with the branch before (D-14)', async () => {
+  const r = reposCopy();
+  r.git(r.svc, 'switch', '-q', '-c', CLAIM);
+  claimedUnder(r.svc, REPOS_FROM, 'ST-9');
+  expect((await run(['approve', 'ST-9'], r.svc)).code).toBe(0);
+  writeFiles(r.svc, { 'src/svc.ts': 'export const svc = 1;\n' });
+  const base = commitAll(r.svc);
+  const plain = ['---', `baseline: ${base}`, '---', '', '# Plan', '', task(1, 'src/svc.ts'), task(2, 'src/svc.ts'), task(3, 'src/svc.ts'), slice(1, '1'), slice(2, '2'), slice(3, '3')].join('\n');
+  writeFiles(r.svc, { 'accord/tickets/ST-9/plan.md': plain });
+  const claimTip = commitAll(r.svc);
+  r.git(r.svc, 'switch', '-q', '-c', 'slice/ST-9/2');
+  writeFiles(r.svc, { 'src/two.ts': 'two\n' });
+  const twoTip = commitAll(r.svc, 'two');
+  r.git(r.svc, 'switch', '-q', '-c', 'slice/ST-9/3');
+  writeFiles(r.svc, { 'src/three.ts': 'three\n' });
+  commitAll(r.svc, 'three');
+  const snap = snapshotOf(r);
+  expect(sliceStart(r.svc, snap, 'ST-9', 1)).toBe(base);
+  expect(sliceStart(r.svc, snap, 'ST-9', 2)).toBe(claimTip);
+  expect(sliceStart(r.svc, snap, 'ST-9', 3)).toBe(twoTip);
 }, 120_000);

@@ -1,5 +1,6 @@
 // Phase 15 D-06, D-10: where a slice starts and how large it is. The size is measured from the slice's own branch over its base (`sliceRange`, review C-WR-05); `sliceStart` below is the
-// start `accord anchor` and `accord review-package` print and diff from. A slice's start is the merge base of HEAD with the previous slice's branch (this clone's copy, else origin's, as in CI where only
+// start `accord anchor` and `accord review-package` print and diff from. Phase 08.9.3 D-14: where a slice lives, and which slice is its previous one, is core's `sliceHome`; a slice of another repository is read in that
+// repository's clone. A slice's start is the merge base of HEAD with the previous slice's branch (this clone's copy, else origin's, as in CI where only
 // the remote ref exists): the claim branch for slice 2, `slice/<id>/<n-1>` after it; slice 1 starts at the plan's `baseline:`. The size is `git diff --numstat` from that start, left to the pure
 // `sliceSizeOf` to count; the files accord itself renders and the lockfiles are not counted (Ruling R13). Every failure is "no answer" (undefined): the callers warn about nothing they could not measure.
 import { execFileSync } from 'node:child_process';
@@ -7,7 +8,6 @@ import { DEFAULT_BRANCH_TEMPLATE, isSha, renderBranch, sliceHome, sliceSizeOf, w
 import type { NumstatLine, RepoSnapshot, SkillFile, SliceHome, SliceSize } from '@accord-dev/accord-core';
 import { defaultRefOf } from './fs.js';
 import { resolveRepo } from './repos.js';
-import { sliceBranch } from './slices.js';
 
 /** The lockfiles of the usual package managers, by file name at any depth: never a reviewer's reading. */
 const LOCKFILES: ReadonlySet<string> = new Set([
@@ -38,15 +38,19 @@ function claimBranchOf(snapshot: RepoSnapshot, id: string): string {
 }
 
 /**
- * Phase 08.9.3 D-14: where slice `n` of ticket `id` lives, by core's `sliceHome` over the plan's slices. A slice number the plan does not list is taken as a slice of this repository, so a slice branch of a plan
- * without `## Slice` sections (or one the plan lost) is answered as in Phase 15. `claim` is the ticket's claim branch when the caller knows it.
+ * The slices core's `sliceHome` reads for slice `n` of ticket `id`: the plan's, and a slice number the plan does not list is taken as a slice of this repository, so a slice branch of a plan without `## Slice` sections
+ * (slices 1 to n then) or one the plan lost is answered as in Phase 15. Empty for a number that could not name a slice.
  */
-export function sliceHomeOf(snapshot: RepoSnapshot, id: string, n: number, claim: string = claimBranchOf(snapshot, id)): SliceHome | undefined {
-  if (!Number.isInteger(n) || n < 1 || n > 99) return undefined;
+function slicesFor(snapshot: RepoSnapshot, id: string, n: number): { n: number; repo?: string }[] {
+  if (!Number.isInteger(n) || n < 1 || n > 99) return [];
   const planned = workOf(snapshot, id)?.plan?.slices ?? [];
-  const listed = new Set(planned.map((s) => s.n));
-  const slices = [...planned, ...Array.from({ length: n }, (_, i) => i + 1).filter((k) => !listed.has(k)).map((k) => ({ n: k }))];
-  return sliceHome(slices, n, { id, claim });
+  if (planned.length > 0) return planned.some((s) => s.n === n) ? planned : [...planned, { n }];
+  return Array.from({ length: n }, (_, i) => ({ n: i + 1 }));
+}
+
+/** Phase 08.9.3 D-14: where slice `n` of ticket `id` lives; `claim` is the ticket's claim branch when the caller knows it. */
+export function sliceHomeOf(snapshot: RepoSnapshot, id: string, n: number, claim: string = claimBranchOf(snapshot, id)): SliceHome | undefined {
+  return sliceHome(slicesFor(snapshot, id, n), n, { id, claim });
 }
 
 /** The clone of another repository on this machine, or undefined when there is none (not declared, not found, refused): no size or start is claimed that nobody measured. */
@@ -82,7 +86,7 @@ function otherStart(root: string, snapshot: RepoSnapshot, id: string, home: Slic
  */
 export function sliceStart(root: string, snapshot: RepoSnapshot, id: string, n: number): string | undefined {
   try {
-    const home = sliceHomeOf(snapshot, id, n);
+    const home = sliceHome(slicesFor(snapshot, id, n), n, { id, claim: claimBranchOf(snapshot, id) });
     if (home === undefined) return undefined;
     if (home.repo !== undefined) return otherStart(root, snapshot, id, { ...home, repo: home.repo });
     if (home.previous === undefined) {
@@ -129,20 +133,33 @@ const isAncestor = (root: string, ancestor: string, of: string): boolean => {
  * is not there, so a run from another slice's checkout measures the slice it was asked about. The base is the branch the pull request stacks on: the default branch for slice 1 (the plan's `baseline:` only when there is none), the branch of slice n-1 for
  * slice n, and the default branch once slice n-1 is merged into it. The diff is three-dot, from the merge base, so what the default branch gained after the fork and was merged into the slice branch is not counted. Undefined when git
  * cannot say: no previous slice branch, no default branch and no baseline.
+ * Phase 08.9.3 D-14: "the claim branch for slice 1" and "slice n-1" are the slice's home and its previous slice of the SAME repository (`sliceHome`). A slice of another repository is read in that repository's clone: its own
+ * branch there (no HEAD fallback, since the checkout is of this repository), over that clone's default branch for the first slice there and over the previous slice's branch after; no clone gives undefined.
  */
 export function sliceRange(root: string, snapshot: RepoSnapshot, id: string, n: number): { base: string; tip: string } | undefined {
+  const found = rangeIn(root, snapshot, id, n);
+  return found === undefined ? undefined : { base: found.base, tip: found.tip };
+}
+
+/** `sliceRange` with the folder git must run in: this checkout, or the clone of the slice's repository. */
+function rangeIn(root: string, snapshot: RepoSnapshot, id: string, n: number): { dir: string; base: string; tip: string } | undefined {
   try {
-    if (!Number.isInteger(n) || n < 1) return undefined;
-    const tip = branchRef(root, n === 1 ? claimBranchOf(snapshot, id) : sliceBranch(id, n)) ?? 'HEAD';
-    const def = defaultRefOf(root);
-    if (n === 1) {
-      if (def !== undefined) return { base: def, tip };
-      const baseline = sliceStart(root, snapshot, id, 1);
-      return baseline === undefined ? undefined : { base: baseline, tip };
+    const home = sliceHome(slicesFor(snapshot, id, n), n, { id, claim: claimBranchOf(snapshot, id) });
+    if (home === undefined) return undefined;
+    const other = home.repo !== undefined;
+    const dir = home.repo === undefined ? root : cloneOf(root, snapshot, home.repo);
+    if (dir === undefined) return undefined;
+    const tip = branchRef(dir, home.branch) ?? (other ? undefined : 'HEAD');
+    if (tip === undefined) return undefined;
+    const def = defaultRefOf(dir);
+    if (home.previous === undefined) {
+      if (def !== undefined) return { dir, base: def, tip };
+      const baseline = sliceStart(root, snapshot, id, n);
+      return baseline === undefined ? undefined : { dir, base: baseline, tip };
     }
-    const previous = branchRef(root, n === 2 ? claimBranchOf(snapshot, id) : sliceBranch(id, n - 1));
+    const previous = branchRef(dir, home.previous.branch);
     if (previous === undefined) return undefined;
-    return { base: def !== undefined && isAncestor(root, previous, def) ? def : previous, tip };
+    return { dir, base: def !== undefined && isAncestor(dir, previous, def) ? def : previous, tip };
   } catch {
     return undefined;
   }
@@ -153,11 +170,12 @@ export function sliceRange(root: string, snapshot: RepoSnapshot, id: string, n: 
  * fails, so no warning is made from a number nobody measured. `rendered` is the lazy list of copies accord writes (`renderedFilesOf` of the config): a loader imports no command, so the caller hands it over.
  */
 export function gitSliceSize(root: string, snapshot: RepoSnapshot, id: string, n: number, rendered: () => SkillFile[]): (SliceSize & { n: number }) | undefined {
-  const range = sliceRange(root, snapshot, id, n);
+  const range = rangeIn(root, snapshot, id, n);
   if (range === undefined) return undefined;
   try {
-    const copies = new Set(rendered().map((f) => f.path));
-    const text = git(root, ['diff', '--numstat', '--no-renames', '-z', `${range.base}...${range.tip}`, '--']);
+    // the copies accord renders are this repository's files; the same names in another repository's clone are that repository's own
+    const copies = new Set(range.dir === root ? rendered().map((f) => f.path) : []);
+    const text = git(range.dir, ['diff', '--numstat', '--no-renames', '-z', `${range.base}...${range.tip}`, '--']);
     const excluded = (path: string): boolean => copies.has(path) || LOCKFILES.has(path.slice(path.lastIndexOf('/') + 1));
     return { n, ...sliceSizeOf(parseNumstat(text), excluded) };
   } catch {

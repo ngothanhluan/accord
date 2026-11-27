@@ -13,7 +13,7 @@ import type { CleanFacts, ResearchAnswers } from '../load/clean-facts.js';
 import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { sliceHomeOf } from '../load/slice-size.js';
-import { resolveRepo } from '../load/repos.js';
+import { readRepoPaths, resolveRepo } from '../load/repos.js';
 import { dropSlices, readSlices, sliceBranch, sliceOfBranch } from '../load/slices.js';
 import type { SliceRecord } from '../load/slices.js';
 import { blobsOnRef } from '../load/merged-state.js';
@@ -2024,7 +2024,8 @@ function cleanSiblings(ctx: CommandContext, ref: string, s: GuardState, fetchFai
   } catch {
     return;
   }
-  const known = new Set((s.recorded ?? []).map((e) => norm(e.path)));
+  // Phase 08.9.3 Pitfall 8: a recorded worktree of another repository, and a clone of one (its stored path), are no forgotten ticket folders whatever they are named
+  const known = new Set([...(s.recorded ?? []).map((e) => norm(e.path)), ...readRepoPaths(ctx.root).map((e) => norm(e.path))]);
   const folders = entries
     .filter((d) => d.isDirectory() && !d.isSymbolicLink() && d.name.startsWith(prefix) && d.name.length > prefix.length)
     .map((d) => ({ path: parent + '/' + d.name, rest: d.name.slice(prefix.length) }))
@@ -2166,6 +2167,8 @@ interface OpenClone {
   merged: ReadonlySet<string>;
   /** True when the clone's origin could not be fetched: its origin branches are not judged. */
   fetchFailed: boolean;
+  /** The `norm`ed worktree paths a dry run named as removed: a real run has removed them by the time its branches are judged. */
+  removed: Set<string>;
 }
 
 /** One ticket's leftovers in one other repository: the worktrees this repository recorded for it there, and the slice branches it recorded. */
@@ -2245,7 +2248,7 @@ function openClone(ctx: CommandContext, s: GuardState, name: string): OpenClone 
   }
   const ref = gitDefaultRef(clone);
   if (ref === undefined) return 'it has no origin default branch to judge against';
-  return { name, clone, ref, def: ref.replace('refs/remotes/', ''), merged: mergedTips(clone, ref), fetchFailed: failed };
+  return { name, clone, ref, def: ref.replace('refs/remotes/', ''), merged: mergedTips(clone, ref), fetchFailed: failed, removed: new Set() };
 }
 
 /** One recorded worktree of another repository's clone: judged by that clone's own list, removed through every guard of a worktree removal, and only when its slice branch is on the clone's default branch. */
@@ -2284,21 +2287,22 @@ function cleanRepoWorktree(ctx: CommandContext, s: GuardState, o: OpenClone, id:
     folderLine(ctx, s.seen, e.path, `kept ${e.path}: checked out on ${W.branch}${where}`);
     return;
   }
-  const why = tipReason(o, W.head, W.branch);
+  const why = tipReason(o, W.head, `its branch ${W.branch}`);
   if (why !== undefined) {
     folderLine(ctx, s.seen, e.path, `kept ${e.path}: ${why}${where}`);
     return;
   }
   const g = passGuards(ctx, W, id, s, list, o.name);
   if (g === undefined) return;
-  removeWorktree(ctx, W, id, undefined, s.seen, { name: o.name, clone: o.clone, listed: new Set(list.map((w) => norm(w.path))) });
+  const gone = removeWorktree(ctx, W, id, undefined, s.seen, { name: o.name, clone: o.clone, listed: new Set(list.map((w) => norm(w.path))) });
+  if (!gone.failed && s.dry !== undefined) o.removed.add(norm(W.path));
 }
 
 /** Why a tip of another repository's clone is not safe to delete, or undefined when its default branch already holds everything it wrote (by ancestry, or by equal content after a squash or rebase merge). */
-function tipReason(o: OpenClone, tip: string, name: string, merged: ReadonlySet<string> = o.merged): string | undefined {
+function tipReason(o: OpenClone, tip: string, subject = 'it', merged: ReadonlySet<string> = o.merged): string | undefined {
   const v = safeTip(o.clone, tip, undefined, o.ref, merged);
   if (v === 'safe') return undefined;
-  return v === 'conflict' ? `merging ${name} into ${o.def} conflicts` : `${name} has changes not on ${o.def}`;
+  return v === 'conflict' ? `merging ${subject} into ${o.def} conflicts` : `${subject} has changes not on ${o.def}`;
 }
 
 /** The `slice/<id>/*` branches of one ticket in another repository's clone: each local one and each origin copy is judged on its own tip and deleted only when merged, and not while any worktree has it checked out. */
@@ -2321,15 +2325,15 @@ function cleanRepoBranches(ctx: CommandContext, s: GuardState, o: OpenClone, g: 
     try {
       const L = local.get(b);
       if (L !== undefined) {
-        const holder = listWorktrees(o.clone).find((w) => w.branch === b);
-        const why = holder !== undefined ? `checked out in ${holder.path}` : tipReason(o, L, b);
+        const holder = listWorktrees(o.clone).find((w) => w.branch === b && !(s.dry !== undefined && o.removed.has(norm(w.path))));
+        const why = tipReason(o, L) ?? (holder === undefined ? undefined : `checked out in ${holder.path}`);
         if (why !== undefined) {
           cleanSay(ctx, `kept ${b}${where}: ${why}`);
           continue;
         }
         // a commit made while the guards ran counts: the delete names the sha it checked
         const now = git(o.clone, ['rev-parse', '--verify', '-q', 'refs/heads/' + b]).trim();
-        const again = now === L ? undefined : tipReason(o, now, b, new Set());
+        const again = now === L ? undefined : tipReason(o, now, 'it', new Set());
         if (again !== undefined) {
           cleanSay(ctx, `kept ${b}${where}: ${again}`);
           continue;
@@ -2343,7 +2347,7 @@ function cleanRepoBranches(ctx: CommandContext, s: GuardState, o: OpenClone, g: 
         // nothing on origin
       } else if (o.fetchFailed) kept = true;
       else {
-        const why = tipReason(o, R, 'origin/' + b);
+        const why = tipReason(o, R);
         if (why !== undefined) {
           cleanSay(ctx, `kept origin/${b}${where}: ${why}`);
           kept = true;

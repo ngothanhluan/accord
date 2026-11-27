@@ -496,10 +496,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(reposSet(preflight(opts), name, path, opts.cwd));
     });
   repos
-    .command('status')
-    .description("print one line per declared repository: <name>: <path> (stored) for a clone whose origin still names its URL, and a line naming why not otherwise (D-02: the exact git clone line, and accord repos set); exit 2 when any has no usable clone; nothing is cloned")
-    .action(() => {
-      setCode(reposStatus(preflight(opts)));
+    .command('status [id]')
+    .description("print one line per declared repository: <name>: <path> (stored) for a clone whose origin still names its URL, and a line naming why not otherwise (D-02: the exact git clone line, and accord repos set); exit 2 when any has no usable clone; nothing is cloned. With a ticket id it prints, per other repository of the ticket's plan, the clone, the recorded worktree, the suite (repos.<name>.tests) and where to run it, each slice's branch, head and pull request read with gh (numbers, states and shas only), the record: lines the verifier copies into verification.md, and held: for a slice of this repository that waits for a pull request that has not merged; it writes nothing")
+    .action((id: string | undefined) => {
+      setCode(reposStatus(preflight(opts), id));
     });
   repos
     .command('baseline <name>')

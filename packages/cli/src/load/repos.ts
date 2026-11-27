@@ -209,8 +209,9 @@ export function scanParent(root: string, config: Pick<AccordConfig, 'repos'> | u
  * With no stored path the parent folder of the main checkout is searched (`scanParent`): exactly one clone whose configured origin names the repository is stored like `accord repos set` and used (`how: 'found'`),
  * two are refused naming both, and none ends in the not-found line. Only a ticket command that needs the repository calls this; status, dashboard and the hooks never do (Decision 9).
  * Phase 08.9.3 D-10: with `scan: false` the parent folder is never searched (the clean the session-start hook runs resolves a clone this way): a repository with no stored path ends in the not-found line, and a stored path is verified as always.
+ * Phase 08.9.3 D-04: with `store: false` a clone the scan found is used but its path is not written to the stored paths (`accord repos status <id>` writes nothing).
  */
-export function resolveRepo(root: string, config: Pick<AccordConfig, 'repos'> | undefined, name: string, options: { scan?: boolean } = {}): Resolved {
+export function resolveRepo(root: string, config: Pick<AccordConfig, 'repos'> | undefined, name: string, options: { scan?: boolean; store?: boolean } = {}): Resolved {
   const entry = config?.repos !== undefined && Object.hasOwn(config.repos, name) ? config.repos[name] : undefined;
   if (entry === undefined) return { refused: `${name}: not declared - accord/config.yml has no repos.${name}` };
   const stored = readRepoPaths(root).find((e) => e.name === name);
@@ -220,10 +221,12 @@ export function resolveRepo(root: string, config: Pick<AccordConfig, 'repos'> | 
       return { refused: `repository ${name} has two clones beside this checkout: ${scan.found[0]} and ${scan.found[1]} - choose one with accord repos set ${name} <path>; nothing was used` };
     }
     if (scan.found.length === 1 && checkClone(scan.found[0], entry.remote).ok) {
-      try {
-        storeRepoPath(root, name, scan.found[0]);
-      } catch {
-        // the clone is verified; a store that failed is searched for again next time
+      if (options.store !== false) {
+        try {
+          storeRepoPath(root, name, scan.found[0]);
+        } catch {
+          // the clone is verified; a store that failed is searched for again next time
+        }
       }
       return { path: scan.found[0], how: 'found' };
     }

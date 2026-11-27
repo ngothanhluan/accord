@@ -506,6 +506,22 @@ export function gitRepoFacts(root: string, snapshot: RepoSnapshot, id: string): 
 }
 
 /**
+ * Phase 08.9.3 D-07, Pitfall 9: the commit slice branch `branch` is at in `clone`: the local branch, else origin's copy of it (a push made from another machine, or a worktree and branch since removed), as a lower-case sha;
+ * undefined when neither resolves or git could not run. `branch` is a `slice/<id>/<n>` name (core's `sliceHome` built it), and `--end-of-options` keeps any other text from reading as an option.
+ */
+export function gitSliceTip(clone: string, branch: string): string | undefined {
+  for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
+    try {
+      const out = execFileSync('git', ['rev-parse', '--verify', '--quiet', '--end-of-options', ref + '^{commit}'], { cwd: clone, ...GIT_QUIET }).trim();
+      if (isSha(out)) return out.toLowerCase();
+    } catch {
+      // not there (exit 1) or git could not run: try the next ref
+    }
+  }
+  return undefined;
+}
+
+/**
  * ST-LN-93 D-08: the `accord:` pin of accord/config.yml at the plan's baseline commit, and at that commit's merge base with the
  * default ref (`basePin`, so a branch that lowers the pin and baselines on it is still caught). A key is left out when it cannot
  * be read: no default ref, no common commit, an unknown commit or no config at that commit. The working-tree pin is never read

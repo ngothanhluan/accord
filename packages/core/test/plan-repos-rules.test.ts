@@ -106,16 +106,16 @@ describe('the slices are the deploy order, this repository last (D-08, D-14)', (
     expect(f).toHaveLength(1);
     expect(f[0].level).toBe('error');
     expect(f[0].reason).toContain('task 1');
-    expect(f[0].reason).toContain('D-08');
-    expect(f[0].reason).toContain('D-09');
+    expect(f[0].reason).toContain('write one slice per repository, in deploy order, this repository last');
+    expect(f[0].reason).not.toMatch(/D-[0-9]/);
   });
 
   it('risk:complex-branching gate.repo-slices refuses a plan whose last slice names repo: (D-03, D-14)', () => {
     const f = rule(check(LAST_SLICE_TOOLS), 'gate.repo-slices');
     expect(f).toHaveLength(1);
     expect(f[0].reason).toContain('slice 2');
-    expect(f[0].reason).toContain('D-03');
-    expect(f[0].reason).toContain('D-14');
+    expect(f[0].reason).toContain('end the plan with a slice of this repository');
+    expect(f[0].reason).not.toMatch(/D-[0-9]/);
   });
 });
 

@@ -648,7 +648,7 @@ export const repoSlices: GateRule['check'] = withNote((snapshot, id) => {
         line: elsewhere[0].line,
         reason:
           `${elsewhere.length === 1 ? 'task' : 'tasks'} ${andList(elsewhere.map((t) => t.n))} ${elsewhere.length === 1 ? 'is' : 'are'} built in ${where}, and plan.md has no ## Slice section; a ticket built in more than one repository ` +
-          'merges one pull request per repository: write one slice per repository, in deploy order, this repository last (D-08, D-09)',
+          'merges one pull request per repository: write one slice per repository, in deploy order, this repository last',
       },
     ];
   }
@@ -658,7 +658,7 @@ export const repoSlices: GateRule['check'] = withNote((snapshot, id) => {
     {
       file: planFile(id),
       line: last.line,
-      reason: `slice ${last.n} is the last slice and names repo: ${last.repo}; the last slice is in this repository, since its pull request carries the ticket's records (D-03, D-14): end the plan with a slice of this repository, and move the ${last.repo} work to an earlier slice`,
+      reason: `slice ${last.n} is the last slice and names repo: ${last.repo}; the last slice is in this repository, since its pull request carries the ticket's records: end the plan with a slice of this repository, and move the ${last.repo} work to an earlier slice`,
     },
   ];
 });

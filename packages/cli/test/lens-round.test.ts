@@ -261,3 +261,37 @@ it("risk:security in CI, a lens that names only another repository's paths is no
     spawnLog.fail = undefined;
   }
 }, 300_000);
+
+// Phase 11 plan 08 (11-ac-7, D-06): what a team lens's finding does follows its `on_finding`. The record below has round 1 (the first package, which prints db), a fix round, and a `(final review)` round that
+// prints db again and finds one Must marked `lens: db`; only round 3 can stop the loop.
+const mode = (on?: string): string => `---\npaths: [src/db/]\n${on === undefined ? '' : `on_finding: ${on}\n`}---\n\n- Every query uses parameters.\n`;
+
+/** A claimed ticket with three rounds on real git; `finding` is round 3's finding line (a final review of src/db), and `more` further lines of round 3. */
+function threeRounds(on: string | undefined, finding: string, ...more: string[]): { repo: string; head: string; fix2: string } {
+  const box = claimed({ lenses: { db: mode(on) }, code: CODE, review: (h) => record(h, 'Lens: db ran') });
+  writeFiles(box.repo, { 'src/db/y.ts': 'export const r = 2;\n' });
+  const fix1 = commitMsg(box.repo, 'fix 1');
+  writeFiles(box.repo, { 'src/db/z.ts': 'export const s = 3;\n' });
+  const fix2 = commitMsg(box.repo, 'fix 2');
+  writeFiles(box.repo, {
+    [REVIEW]:
+      `${record(box.head, 'Lens: db ran')}\n## Round 2 head ${fix1}\n\nNo findings\nSecurity: no pattern matched\n\n` +
+      `## Round 3 head ${fix2} (final review)\n\n${finding}\nSecurity: no pattern matched\nLens: db ran\n${more.map((l) => l + '\n').join('')}`,
+  });
+  commitMsg(box.repo, 'rounds');
+  return { repo: box.repo, head: box.head, fix2 };
+}
+const MUST = 'Must 1: a query is built from a string — src/db/x.ts:3 — open — lens: db';
+
+it("risk:regression a warn lens's open Must of the final review does not stop accord round, is listed as a warn line, and leaves gate done no review-rounds finding, on real git (11-ac-7, D-06)", async () => {
+  const box = threeRounds('warn', MUST);
+  const next = await run(['round', 'T-1'], box.repo);
+  expect(next.err).toBe('');
+  expect(next.out).not.toContain('stop: report to owner');
+  expect(next.out).toContain('Round: 4');
+  expect(next.out).toContain('warn: 3.1 lens db: listed in the verify report, never blocks');
+  expect(next.code).toBe(0);
+  const done = await run(['gate', 'done', 'T-1', '--json'], box.repo);
+  const found = (JSON.parse(done.out).findings as Found[]).filter((f) => f.rule === 'gate.review-rounds');
+  expect(found).toEqual([]);
+}, 300_000);

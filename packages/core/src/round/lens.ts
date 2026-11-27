@@ -5,7 +5,8 @@
 import { stageOff } from '../gate/floor.js';
 import type { GateRule } from '../gate/rules.js';
 import { laneTicket, workOf } from '../gate/work.js';
-import type { RepoSnapshot } from '../model/snapshot.js';
+import type { LensMode } from '../lens/spec.js';
+import type { RepoSnapshot, RoundCycle, RoundFinding } from '../model/snapshot.js';
 import { LENSES_FROM, claimPinBefore } from './pin.js';
 import { placedRounds, skipped } from './scope.js';
 
@@ -71,3 +72,69 @@ export const lensUnreviewed: GateRule['check'] = (snapshot, id) => {
   if (rec === undefined) return [];
   return lensProblems(snapshot, id).map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
 };
+
+/** One finding a team lens made that the mark is honoured for: where it sits, the lens and what its `on_finding` says. */
+export interface LensFinding {
+  f: RoundFinding;
+  /** The round of its cycle (1-based) and the cycle (1-based). */
+  p: number;
+  cycle: number;
+  lens: string;
+  mode: LensMode;
+}
+
+/** True when `f`, a finding of round `p` of `cycle`, is marked `risk:` or carries (`carried from <r>.<n>`, to any depth) a finding that is: a risk is never lowered by a lens (T-11-17). */
+function riskOf(cycle: RoundCycle, p: number, f: RoundFinding): boolean {
+  let at: RoundFinding = f;
+  let round = p;
+  for (let depth = 0; depth <= cycle.rounds.length; depth++) {
+    if (at.risk !== undefined) return true;
+    const c = at.carried;
+    if (c === undefined || c.round >= round) return false;
+    const next = cycle.rounds[c.round - 1]?.findings.find((x) => x.n === c.n);
+    if (next === undefined) return false;
+    at = next;
+    round = c.round;
+  }
+  return false;
+}
+
+/**
+ * Ruling R12 (finding to lens): the Must and Should findings of review.md whose `lens:` mark is honoured, in record order. A mark is honoured only when the lens record rule applies (lensOn), the host's lens
+ * fact reads (no `error`, as many rounds as the record has), the finding's own round printed that lens, and the finding is no risk (`risk:` mark, own or carried): everything else reads as a built-in
+ * finding, which blocks, the safe side. The fact says which lens each round printed, so the mark of a reviewer, or of a forged line, never decides it (T-11-18).
+ */
+export function lensFindings(snapshot: RepoSnapshot, id: string): LensFinding[] {
+  const rec = workOf(snapshot, id)?.rounds;
+  if (rec === undefined || !lensOn(snapshot, id)) return [];
+  const fact = Object.hasOwn(snapshot.lensFacts ?? {}, id) ? snapshot.lensFacts![id] : undefined;
+  if (fact === undefined || 'error' in fact) return [];
+  const placed = placedRounds(rec);
+  if (fact.rounds.length !== placed.length) return [];
+  const out: LensFinding[] = [];
+  for (const at of placed) {
+    const printed = fact.rounds[at.j - 1].lenses;
+    for (const f of at.round.findings) {
+      if (f.lens === undefined || f.severity === 'Nice' || !printed.includes(f.lens) || riskOf(rec.cycles[at.cycle - 1], at.p, f)) continue;
+      out.push({ f, p: at.p, cycle: at.cycle, lens: f.lens, mode: Object.hasOwn(fact.modes, f.lens) ? fact.modes[f.lens] : 'ask' });
+    }
+  }
+  return out;
+}
+
+/**
+ * The findings of one cycle (0-based) that leave the stop of the review loop because of their lens (D-06): the Must and Should findings of a `warn` lens, which never block, and those of an `ask` lens, which the loop
+ * puts to the owner at its end (lensAsks) instead of stopping on them as they appear. A `block` lens's findings are not here: they stop the loop as a built-in finding does (Ruling R14). Never a risk finding.
+ */
+export function lensDeferred(snapshot: RepoSnapshot, id: string, cycle: number): ReadonlySet<RoundFinding> {
+  return new Set(lensFindings(snapshot, id).filter((x) => x.cycle === cycle + 1 && x.mode !== 'block').map((x) => x.f));
+}
+
+const isOpen = (f: RoundFinding): boolean => f.state === undefined || f.state === 'open';
+
+/** The `<r>.<n> lens <name>` of the open Must and Should findings of one cycle (0-based) that a `warn` lens made: listed in the verify report, never blocking. */
+export function lensWarns(snapshot: RepoSnapshot, id: string, cycle: number): string[] {
+  return lensFindings(snapshot, id)
+    .filter((x) => x.cycle === cycle + 1 && x.mode === 'warn' && isOpen(x.f))
+    .map((x) => `${x.p}.${x.f.n} lens ${x.lens}`);
+}

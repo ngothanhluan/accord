@@ -357,6 +357,7 @@ export interface RoundFinding {
   checked?: string[]; // `checked: <place>, <place>…`: each place `<path>` or `<path>:<line>`, at least one
   addressed?: { file: string; line: number }; // the re-reviewer's `addressed: <path>:<line>`
   notAddressed?: { file: string; line: number }; // the re-reviewer's `not addressed: <path>:<line>`
+  lens?: string; // Phase 11 D-06: ` — lens: <name>`, the team lens the reviewer of that lens made the finding for; honoured only for a lens the finding's own round printed (round/lens.ts)
 }
 export interface RecordedRound {
   line: number; // of its ## Round heading

@@ -102,7 +102,7 @@ function splitDashes(line: string): string[] {
   return parts;
 }
 
-type Mark = Pick<RoundFinding, 'carried' | 'risk' | 'test' | 'command' | 'restsOn' | 'checked' | 'addressed' | 'notAddressed'>;
+type Mark = Pick<RoundFinding, 'carried' | 'risk' | 'test' | 'command' | 'restsOn' | 'checked' | 'addressed' | 'notAddressed' | 'lens'>;
 
 // ST-LN-56 D-08: one place a fix checked, `<path>` or `<path>:<line>`, the path in backticks when it holds a space; no colon in a path, so `src/a.ts:abc` is no place.
 const PLACE = /^(?:`([^`]+)`|([^\s,`:]+))(?::([1-9][0-9]*))?$/;
@@ -119,7 +119,7 @@ function readPlaces(list: string): string[] | undefined {
 }
 
 /**
- * One trailing segment as a mark, or undefined when it is none. `review` (the version 2 review finding line only) adds the three marks of ST-LN-56 D-08 and D-10, so a version 1 plan or
+ * One trailing segment as a mark, or undefined when it is none. `review` (the version 2 review finding line only) adds the three marks of ST-LN-56 D-08 and D-10 and the lens mark of Phase 11 D-06, so a version 1 plan or
  * approach line reads exactly as before.
  */
 function readMark(seg: string, review = false): Mark | undefined {
@@ -135,6 +135,8 @@ function readMark(seg: string, review = false): Mark | undefined {
       const where = { file: at[1] ?? at[2], line: Number(at[3]) };
       return m[1] === undefined ? { addressed: where } : { notAddressed: where };
     }
+    // Phase 11 D-06: the lens a team lens's finding belongs to, by the lens name rule; whether it is honoured is decided by lensMode (round/lens.ts), never here.
+    if ((m = /^lens: ([a-z0-9][a-z0-9-]*)$/.exec(seg))) return { lens: m[1] };
   }
   if ((m = /^carried from ([1-9][0-9]*)\.([1-9][0-9]*)$/.exec(seg))) return { carried: { round: Number(m[1]), n: Number(m[2]) } };
   // ST-LN-91 CR-01: the critic's template has the session copy `rests on: risk: security`; the letter case is the writer's.

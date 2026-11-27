@@ -129,3 +129,54 @@ it('risk:regression gate done refuses the ticket whose round skipped the printed
   expect(DONE_RULES.find((r) => r.id === RULE)).toMatchObject({ level: 'error', profiles: ['build', 'maintain'] });
   expect(STAGE_OF[RULE]).toBe('review');
 });
+
+const roundReasons = (snap: RepoSnapshot): string => nextRound(snap, 'T-1', 'review').reasons.join('\n');
+
+it('risk:regression a ticket claimed before LENSES_FROM is asked by neither command, and a failed claim read is not before it (11-ac-6, D-05)', () => {
+  const old = build({ cycles: [[{ lines: ['No findings', 'Lens: db'] }]], lenses: [['db']], pin: '0.22.0' });
+  expect(gateFound(old)).toEqual([]);
+  expect(roundReasons(old)).not.toContain('lens');
+  expect(roundReasons(old)).not.toContain('Lens');
+
+  // the same record where the claim read failed: fail closed, the rule applies in both commands
+  const failedClaim = { ...build({ cycles: [[{ lines: ['No findings'] }]], lenses: [['db']] }), claimPins: { 'T-1': { error: 'git failed' } } } as RepoSnapshot;
+  expect(lensOn(failedClaim, 'T-1')).toBe(true);
+  expect(gateFound(failedClaim)).toHaveLength(1);
+  expect(roundReasons(failedClaim)).toContain('accord review-package T-1 --lens db --round 1');
+});
+
+it('risk:security a fact that failed, or does not fit the record, is one "cannot be checked" finding from gate done and from accord round, never "no lens needed" — fail closed (11-ac-6, D-05)', () => {
+  const cycles: RoundSpec[][] = [[{ lines: ['No findings'] }]];
+  for (const fact of [{ error: 'review round 1 names no head' }, { error: 'review round 1 has no base: the plan records no baseline' }, { rounds: [], modes: {} }] as LensFacts[]) {
+    const snap = build({ cycles, fact });
+    const refused = gateFound(snap);
+    expect(refused, JSON.stringify(fact)).toHaveLength(1);
+    expect(refused[0]).toMatchObject({ level: 'error', file: REVIEW, line: 1 });
+    expect(refused[0].reason).toContain('the team lenses cannot be checked');
+    expect(roundReasons(snap)).toContain('the team lenses cannot be checked');
+  }
+  expect(gateFound(build({ cycles, fact: { error: 'git failed' } }))[0].reason).toContain('cannot be checked: git failed');
+});
+
+it('risk:regression a (final review) round is not exempt from the lens its package printed, and a later fix round needs none, in both commands (11-ac-6, D-05)', () => {
+  const open: RoundSpec[][] = [[{ lines: ['No findings', ran] }, { lines: ['No findings'], mark: 'final' }, { lines: ['No findings'] }]];
+  const skipped = build({ cycles: open, lenses: [['db'], ['db'], []] });
+  const refused = gateFound(skipped);
+  expect(refused).toHaveLength(1);
+  expect(refused[0].reason).toContain('round 2 of cycle 1');
+  expect(refused[0].reason).toContain('--round 2');
+  expect(roundReasons(skipped)).toContain('--lens db --round 2');
+  const done: RoundSpec[][] = [[{ lines: ['No findings', ran] }, { lines: ['No findings', ran], mark: 'final' }, { lines: ['No findings'] }]];
+  expect(gateFound(build({ cycles: done, lenses: [['db'], ['db'], []] }))).toEqual([]);
+});
+
+it('risk:parsing a Lens line that is not "Lens: <name> ran" is a record problem naming its line, from both commands (11-ac-6, D-05)', () => {
+  for (const bad of ['Lens: db', 'Lens: DB ran', 'Lens: db ran twice']) {
+    const snap = build({ cycles: [[{ lines: ['No findings', bad] }]], lenses: [[]] });
+    const refused = gateFound(snap);
+    expect(refused, bad).toHaveLength(1);
+    expect(refused[0], bad).toMatchObject({ level: 'error', file: REVIEW, line: 6 });
+    expect(refused[0].reason, bad).toContain(`"${bad}" is not read`);
+    expect(roundReasons(snap), bad).toContain(`"${bad}" is not read`);
+  }
+});

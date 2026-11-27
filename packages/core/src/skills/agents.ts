@@ -7,7 +7,7 @@ import { agents } from '../generated/agents.js';
 import { normaliseText, stringNumerics } from '../load/frontmatter.js';
 import { contentHash, markerHash, readSource, stamp, withoutMarker } from './render.js';
 import type { AgentKey } from '../generated/agents.js';
-import type { AccordConfig, Effort, McpEntry, RouteKey } from '../model/snapshot.js';
+import type { AccordConfig, AgentAdditions, Effort, McpEntry, RouteKey } from '../model/snapshot.js';
 import type { SkillFile } from './targets.js';
 
 export const agentDir = '.claude/agents';
@@ -77,6 +77,70 @@ export const RETIRED_FILES: readonly string[] = [
 // them run a command (docs/design.md, Agents). So no `agents:` addition ever reaches their files: `agentTargets` renders them with no extra, whatever `agents:` holds.
 export const NO_ADDITIONS: readonly AgentKey[] = ['judge.md', 'foreign-reviewer.md'];
 
+// Phase 11 D-02 (the lock Ruling): the tools a team may never add to a role, because the role's authored rule forbids them. One row per route key, the names the
+// agent's own text rules out; a tool is compared on the name before its `(` (`Bash(git push *)` is `Bash`), without regard to case. An `mcp__<server>__*` entry
+// is never refused (D-03). `agentTargets` renders around a refused entry and never throws; `accord skills sync` and `lint.agents-config` report it by name.
+export const AGENT_LOCKS: Readonly<Record<RouteKey, readonly string[]>> = {
+  scout: [],
+  critic: [],
+  planner: [],
+  executor: [],
+  // reviewer.md: "you never edit a file"; a reviewer reads, runs tests and runs git to read, and never dispatches another agent
+  reviewer: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task'],
+  'reviewer.final': ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task'],
+  verifier: [],
+  debugger: [],
+  researcher: [],
+};
+
+/** The rule text of each role that a refused entry quotes: what the agent's own definition says it never does. */
+const LOCK_RULE: Readonly<Record<RouteKey, string>> = {
+  scout: 'the scout only reads; it never edits a file, runs a command or dispatches another agent',
+  critic: 'the critic only reads; it never edits a file, runs a command or dispatches another agent',
+  planner: 'the planner writes plan.md and direction.md only; it runs no command, edits no notebook and dispatches no agent',
+  executor: 'the executor never dispatches another agent',
+  reviewer: 'the reviewer never edits a file and never dispatches another agent',
+  'reviewer.final': 'the final reviewer never edits a file and never dispatches another agent',
+  verifier: 'the verifier edits no notebook and dispatches no agent',
+  debugger: 'the debugger edits no notebook and dispatches no agent',
+  researcher: 'the researcher only reads and searches',
+};
+
+/** One entry of `agents.<role>` that accord refuses. `index` is the entry's place in its list, for the lint pointer; `reason` is one text with its fix. */
+export interface AgentProblem {
+  role: RouteKey;
+  field: 'tools' | 'mcp';
+  index: number;
+  entry: string;
+  reason: string;
+}
+
+/** The tool name an entry stands for: the text before `(`, trimmed. An entry holding a comma is judged piece by piece, as the renderer's comma-joined list is read piece by piece. */
+const toolNames = (entry: string): string[] => entry.split(',').map((piece) => piece.replace(/\(.*$/s, '').trim());
+
+/** The locked name an `agents.<role>.tools` entry holds, or undefined. */
+function lockedTool(role: RouteKey, entry: string): string | undefined {
+  const locked = AGENT_LOCKS[role].map((name) => name.toLowerCase());
+  return toolNames(entry).find((name) => locked.includes(name.toLowerCase()));
+}
+
+/** Every entry of `agents:` that breaks a role's rule, in config order. Empty for a config with no `agents:` key. Pure. */
+export function agentsProblems(config: AccordConfig | undefined): AgentProblem[] {
+  const out: AgentProblem[] = [];
+  for (const [role, add] of Object.entries(config?.agents ?? {}) as [RouteKey, AgentAdditions | undefined][]) {
+    (add?.tools ?? []).forEach((entry, index) => {
+      if (lockedTool(role, entry) === undefined) return;
+      out.push({ role, field: 'tools', index, entry, reason: `${LOCK_RULE[role]} - fix: remove ${entry} from agents.${role}.tools in accord/config.yml` });
+    });
+  }
+  return out;
+}
+
+/** The text `accord skills sync` (and `accord init`) prints when `agentsProblems` is not empty: one line per problem, then that nothing was written. */
+export function agentsRefusal(problems: readonly AgentProblem[]): string {
+  return [...problems.map((p) => `agents.${p.role}.${p.field}: ${p.entry}: ${p.reason}`), 'nothing was written'].join('\n');
+}
+
 /** True for a copy accord rendered that nobody edited: its marker hash equals the hash of the text around it. */
 export function isIntactRender(text: string): boolean {
   const onDisk = normaliseText(text);
@@ -126,7 +190,8 @@ export function agentFields(config: AccordConfig, routeKey: RouteKey, authored: 
   if (servers.length > 0) out.mcpServers = [...servers];
   if (authored.tools !== undefined && authored.tools !== null) {
     const tools = toolList(authored.tools);
-    for (const extra of add.tools ?? []) if (!tools.includes(extra)) tools.push(extra);
+    // D-02: a tool the role's rule forbids is left out, never thrown on, so gate done, init and the exempt-copies reader keep working on a bad entry; sync and lint report it.
+    for (const extra of add.tools ?? []) if (lockedTool(routeKey, extra) === undefined && !tools.includes(extra)) tools.push(extra);
     for (const entry of servers) {
       const name = serverName(entry);
       if (!tools.includes('mcp__' + name + '__*') && !tools.includes('mcp__' + name)) tools.push('mcp__' + name + '__*');

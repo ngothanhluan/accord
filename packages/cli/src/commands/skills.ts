@@ -14,6 +14,8 @@ import { lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, wri
 import { dirname, join } from 'node:path';
 import {
   agentDir,
+  agentsProblems,
+  agentsRefusal,
   agentTargets,
   allSkillDirs,
   contentHash,
@@ -389,6 +391,10 @@ export function skills(ctx: CommandContext): number {
   if (config === undefined) {
     throw new UsageError('accord/config.yml is missing or failed its schema; run accord lint');
   }
+
+  // Phase 11 D-02, D-17: an `agents:` entry that breaks a role's rule is refused before any path is computed or written, so a refused config leaves .claude/ and .agents/ as they were.
+  const problems = agentsProblems(config);
+  if (problems.length > 0) throw new UsageError(agentsRefusal(problems));
 
   const targets = [...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg)];
   // T-06-03: refuse before the first byte, over every destination. The loop below writes as it iterates, so

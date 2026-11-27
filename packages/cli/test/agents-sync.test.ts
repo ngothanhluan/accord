@@ -1,6 +1,6 @@
 // Phase 11 G1 (D-01): `accord skills sync` renders the `agents:` block of accord/config.yml into the agent files, and a
 // second sync reports them unchanged and writes nothing.
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -40,4 +40,45 @@ it('risk:regression agents.executor.mcp and agents.reviewer.skills reach their a
   expect(second.out).toContain('unchanged ' + EXECUTOR);
   expect(second.out).toContain('unchanged ' + REVIEWER);
   expect([EXECUTOR, REVIEWER].map((p) => statSync(at(repo, p)).mtimeMs)).toEqual(before);
+});
+
+const WRITE_ON_REVIEWER = CONFIG + 'agents:\n  reviewer:\n    tools: [Write]\n';
+
+/** Every file under .claude/ and .agents/ with its bytes and mtime, so a write, a touch or a new file all show. */
+function snapshot(repo: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const top of ['.claude', '.agents']) {
+    const abs = join(repo, top);
+    if (!existsSync(abs)) continue;
+    for (const e of readdirSync(abs, { recursive: true, withFileTypes: true })) {
+      if (!e.isFile()) continue;
+      const file = join(e.parentPath, e.name);
+      out[file.slice(repo.length)] = String(statSync(file).mtimeMs) + ':' + readFileSync(file).toString('base64');
+    }
+  }
+  return out;
+}
+
+it('risk:security agents.reviewer.tools [Write] makes skills sync exit 2 naming agents.reviewer and Write, and no file under .claude/ or .agents/ changes (11-ac-2, D-02)', async () => {
+  const repo = makeRepo();
+  repos.push(repo);
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  expect((await run(['skills', 'sync'], repo)).code).toBe(0);
+  const before = snapshot(repo);
+  expect(Object.keys(before).length).toBeGreaterThan(0);
+
+  writeFiles(repo, { 'accord/config.yml': WRITE_ON_REVIEWER });
+  const refused = await run(['skills', 'sync'], repo);
+  expect(refused.code, refused.out + refused.err).toBe(2);
+  expect(refused.err).toContain('agents.reviewer.tools: Write:');
+  expect(refused.err.trimEnd().endsWith('nothing was written')).toBe(true);
+  expect(refused.out).toBe('');
+  expect(snapshot(repo)).toEqual(before);
+
+  // a repository that never synced gets no file either
+  const fresh = makeRepo();
+  repos.push(fresh);
+  writeFiles(fresh, { 'accord/config.yml': WRITE_ON_REVIEWER });
+  expect((await run(['skills', 'sync'], fresh)).code).toBe(2);
+  expect(snapshot(fresh)).toEqual({});
 });

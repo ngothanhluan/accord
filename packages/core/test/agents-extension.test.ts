@@ -2,7 +2,7 @@
 // renderer merges them into the agent's frontmatter after the authored fields. The judge and the foreign reviewer take none.
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { AGENT_DEFAULTS, agents, agentTargets, loadConfig, NO_ADDITIONS, renderAgent } from '../src/index.js';
+import { AGENT_DEFAULTS, agentsProblems, agentsRefusal, agents, agentTargets, loadConfig, NO_ADDITIONS, renderAgent } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 
 const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
@@ -157,5 +157,27 @@ describe('agents: the schema refuses what the lock cannot take (Security Ruling,
     const lines = (reviewer.split('---\n')[1] as string).split('\n');
     const at = lines.indexOf('skills:');
     expect(lines.slice(at + 1, at + 4).map((l) => l.trim().replace(/^- /, '').replace(/^"(.*)"$/, '$1'))).toEqual(names);
+  });
+});
+
+describe('agents: a tool the rule of a role forbids is refused by name (11-ac-2, D-02)', () => {
+  it('risk:security agents.reviewer.tools [Write] is one problem naming the role, the entry and the reviewer rule, and agentsRefusal prints it (11-ac-2, D-02)', () => {
+    const c = config({ agents: { reviewer: { tools: ['Write'] } } });
+    const problems = agentsProblems(c);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatchObject({ role: 'reviewer', field: 'tools', entry: 'Write', index: 0 });
+    expect(problems[0]?.reason).toContain('never edits');
+    const lines = agentsRefusal(problems).split('\n');
+    expect(lines[0]).toBe('agents.reviewer.tools: Write: ' + problems[0]?.reason);
+    expect(lines.at(-1)).toBe('nothing was written');
+  });
+
+  it('risk:security agentTargets never throws on a refused entry and leaves it out of the rendered tools (11-ac-2, D-02)', () => {
+    const c = config({ agents: { reviewer: { tools: ['Write', 'WebFetch'] } } });
+    const reviewer = fileOf(c, 'accord-reviewer');
+    expect(reviewer.length).toBeGreaterThan(0);
+    expect(agentTargets(c)).toHaveLength(agentTargets(config()).length);
+    expect(toolsOf(c, 'accord-reviewer')).toBe('Read, Grep, Glob, Bash, WebFetch');
+    expect(agentsProblems(config())).toEqual([]);
   });
 });

@@ -222,6 +222,17 @@ function findingPaths(findings: string, tree: ReadonlySet<string>): string[] {
   return out;
 }
 
+/**
+ * Phase 08.9.3 D-06: the test lines of a fix brief for a task of repository `repo`: `repos.<repo>.affected` filled with the task's paths of that repository; `repos.<repo>.tests` is never printed (executor rule, as `tests.full`). The findings add no path: the other
+ * repository's tracked files are not known here (D-03), and a path a model wrote into a finding must not reach a shell command, so only the paths the plan gave the task are run.
+ */
+function repoFixTestLines(ctx: CommandContext, repo: string, paths: readonly string[]): string[] {
+  const entry = ctx.snapshot.config?.repos !== undefined && Object.hasOwn(ctx.snapshot.config.repos, repo) ? ctx.snapshot.config.repos[repo] : undefined;
+  if (entry?.affected === undefined) return [FIX_NO_COMMAND];
+  if (entry.affected.includes('{files}') && paths.length === 0) return [`No test command is configured for this fix: the task's files: line names no path of repository ${repo} for {files}; run only the test files you write or change.`];
+  return ['Test command: ' + entry.affected.split('{files}').join(paths.map(quote).join(' ')), FIX_ONLY];
+}
+
 /** The test lines of a fix brief: `tests.affected` filled with the tracked paths the task and the findings name; `tests.full` is never printed (executor rule). */
 function fixTestLines(ctx: CommandContext, paths: readonly string[]): string[] {
   const affected = ctx.snapshot.config?.tests?.affected;
@@ -241,8 +252,11 @@ function briefFix(ctx: CommandContext, id: string, n: number | undefined, ticket
   const findings = readFindings(resolve(cwd, findingsArg));
   let dir: string;
   let paths: string[] = [];
+  // Phase 08.9.3 D-04, D-06, Ruling R15: the repository of a task built elsewhere, whose worktree is the work dir and whose test command is `repos.<name>.affected`
+  let repo: string | undefined;
   if (n === undefined) dir = fixWorkRoot(ctx.root, claimed, id);
   else {
+    let workDir: string | undefined;
     if (stageOff(ctx.snapshot, id, 'plan')) {
       if (n !== 1) throw new UsageError(`the plan stage is off for lane ${lane} (strictness.stages.${lane}.plan): the whole ticket is task 1, there is no task ${n}`);
     } else {
@@ -250,19 +264,22 @@ function briefFix(ctx: CommandContext, id: string, n: number | undefined, ticket
       if (plan === undefined) throw new UsageError('no plan at ' + planFile(id));
       const t = plan.tasks.find((x) => x.n === n);
       if (t === undefined) throw new UsageError(`${planFile(id)} has no "## Task ${n}"`);
-      paths = taskPaths(ctx, t);
+      workDir = repoWorkRoot(ctx.root, claimed, id, n, `accord brief ${id} ${n} --fix`);
+      repo = workDir === undefined ? undefined : t.repo;
+      paths = repo === undefined ? taskPaths(ctx, t) : repoTaskPaths(t, repo);
     }
-    dir = (briefWorkRoot(ctx.root, claimed, id, n) ?? ctx.root).replace(/\\/g, '/');
+    dir = (workDir ?? briefWorkRoot(ctx.root, claimed, id, n) ?? ctx.root).replace(/\\/g, '/');
   }
-  const named = findingPaths(findings, new Set(ctx.snapshot.tree)).filter((p) => !paths.includes(p));
+  const named = repo === undefined ? findingPaths(findings, new Set(ctx.snapshot.tree)).filter((p) => !paths.includes(p)) : [];
   const k = prepareFixReport(dir, id);
   const cli = [
+    ...(repo === undefined ? [] : ['Repository: ' + repo]),
     'Work dir: ' + dir,
     WORK_DIR_RULE,
     'Report file: ' + fixReportPath(dir, id, k),
     ...FIX_REPORT_CONTRACT.split('\n').filter((l) => l !== ''),
-    ...fixTestLines(ctx, [...paths, ...named]),
-    ...commitRuleLines(ctx, id),
+    ...(repo === undefined ? fixTestLines(ctx, [...paths, ...named]) : repoFixTestLines(ctx, repo, paths)),
+    ...(repo === undefined ? commitRuleLines(ctx, id) : []),
     // R-7: the last line accord writes, so executor.md's last-line rule holds and no skill appends a line to a brief by hand
     ...(testOnly ? [TEST_ONLY_LINE] : []),
   ];

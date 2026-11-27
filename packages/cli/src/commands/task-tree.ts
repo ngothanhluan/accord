@@ -173,11 +173,26 @@ export function fixWorkRoot(root: string, claimed: RepoSnapshot, id: string): st
   throw new UsageError(wrongCheckout(`accord brief ${id} --fix`, id, ticketBranch, list));
 }
 
+const NOTHING_DONE = { open: 'nothing was created', merge: 'nothing was merged', clean: 'nothing was removed' } as const;
+
+/**
+ * Phase 08.9.3 D-04, D-10: a task built in ANOTHER repository has no task worktree: that repository's one worktree for the ticket is its folder, and its tasks are built there one at a time. The task commands refuse such a task (exit 2) before any git read or write,
+ * naming that worktree when it is recorded.
+ */
+function refuseOtherRepoTask(ctx: CommandContext, id: string, n: number, verb: 'open' | 'merge' | 'clean'): void {
+  const repo = workOf(ctx.snapshot, id)?.plan?.tasks.find((t) => t.n === n)?.repo;
+  if (repo === undefined) return;
+  const recorded = readRecorded(ctx.root).find((e) => e.id === id && e.repo === repo);
+  const where = recorded === undefined ? `worktree (not open yet: accord worktree slice ${id} <k> opens it)` : `worktree ${slash(recorded.path)}`;
+  throw new UsageError(`task ${n} is in repository ${repo}: it is built in ${repo}' ${where}, one task at a time; ${NOTHING_DONE[verb]}`);
+}
+
 /** The checks every task command makes: the id and task number, and that it runs in the ticket's own checkout (exit 2 naming the one to run it in). */
 function inTicketCheckout(ctx: CommandContext, id: string, task: string, verb: 'open' | 'merge' | 'clean'): { n: number; ticketBranch: string; list: PrunableEntry[] } {
   const n = taskNumber(task);
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   requireTicket(ctx.snapshot, id);
+  refuseOtherRepoTask(ctx, id, n, verb);
   const ticketBranch = branchOf(ctx.snapshot, id);
   const list = listWorktrees(ctx.root);
   if (currentBranch(ctx.root) !== ticketBranch) throw new UsageError(wrongCheckout(`accord worktree task ${verb}`, id, ticketBranch, list));

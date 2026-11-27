@@ -16,7 +16,8 @@ const SLICE = /^Slice\s+([1-9][0-9]*)\s*:\s*(.*)$/;
 // Review B-WR-04: a heading that starts `Slice` and a digit but fails SLICE (an em dash, no colon, 0, a leading zero, no space) is reported, never read as a plan with no slice. The digit keeps
 // a prose heading such as `## Slice analysis` out of it.
 const SLICE_LIKE = /^slice\s*[0-9]/i;
-const SLICE_FIELD = /^(tasks|covers|estimate):(.*)$/;
+// Phase 08.9.3 D-09: `repo:` names the repository a slice is built in; absent means this repository.
+const SLICE_FIELD = /^(tasks|covers|estimate|repo):(.*)$/;
 // The three fields the older rules read, and the deferral rule reads token by token. `after:` is not one of them (ST-LN-91 CR-01): its own reader is afterField,
 // and the deferral rule reads an `after:` line as free text, as it did before the line existed, so a prose line that starts with it never escapes.
 export const FIELD = /^(covers|files|verify):(.*)$/;
@@ -34,12 +35,42 @@ const HAS_WORD = /[\p{L}\p{N}]/u;
 // Spec §10: the verdict is the first token; accepted-by-owner carries the owner's sentence after it.
 const VERDICT = /^verdict:\s*(\S+)(?:\s.*)?$/;
 
+// Phase 08.9.3 D-05: the frontmatter key of another repository's plan baseline.
+const REPO_BASELINE = /^baseline_([a-z][a-z0-9-]+)$/;
 const MARKER = /^\(@ac-[1-9][0-9]*\)$/;
 // ST-LN-57, ST-LN-91 D-12: `- <review|plan|approach> <round>.<n>[ cycle <k>]: <text>[ — failing case: <case>]` under the ledger's first `## Deferred` section.
 const DEFERRED = /^\s*[-*+]\s+(review|plan|approach) ([1-9][0-9]*)\.([1-9][0-9]*)(?: cycle ([1-9][0-9]*))?:\s*\S/;
 const FAILING_CASE = / — failing case:\s*\S/;
 // Phase 08.8 D-03: the ledger's record of the security review while the review stage is off, under the first `## Security` section: `Security: lens security ran at <sha>`, one list marker allowed.
 const SECURITY_RAN = /^(?:[-*+]\s+)?security:\s*lens security ran at ([0-9a-f]{7,64})$/i;
+
+/** Phase 08.9.3 D-05: a repository name, two or more of a-z, 0-9 and -, starting with a letter: the names `repos:` of accord/config.yml takes. */
+export const REPO_NAME = /^[a-z][a-z0-9-]+$/;
+// `<name>:<path>`: a name as above, then a path that starts with no separator, backslash, colon or white space and holds no white space or backslash. One flat quantifier per group, no nested repeat, so no input backtracks. A
+// one-letter prefix (`c:foo`, `C:/dir`) is a drive and never matches (Pitfall 3).
+const REPO_PATH = /^([a-z][a-z0-9-]+):([^\s:\\/][^\s\\]*)$/;
+
+/**
+ * Phase 08.9.3 D-05: a path token of a plan task read as `<name>:<path>`, or as the plain path it is. A token is another repository's only when it matches REPO_PATH and its path is a relative posix path with no `.`, `..`
+ * or empty segment (T-08.9.3-08): `tools:../x`, `tools:/abs`, `tools:a\b`, `c:foo` and `tools:src//x` stay plain paths, so the checks every plain path goes through still see them.
+ */
+export function splitRepoPath(token: string): { repo?: string; path: string } {
+  const m = REPO_PATH.exec(token);
+  if (m === null || m[2].split('/').some((seg) => seg === '' || seg === '.' || seg === '..')) return { path: token };
+  return { repo: m[1], path: m[2] };
+}
+
+/**
+ * Phase 08.9.3 D-09, Decision 3: every repository a task's paths and model paths sit in, `''` standing for this repository, in order of first appearance. A model named as `like` counts for the repository it is written in.
+ * One entry means the task is built in one repository; two or more mean it spans them (gate.task-repo-mixed). Empty for a task that names no path.
+ */
+export function taskRepos(t: Pick<PlanTask, 'files' | 'models' | 'repoFiles' | 'repoModels'>): string[] {
+  const named = new Set<string>();
+  if (t.files.length > 0) named.add('');
+  for (const f of t.repoFiles ?? []) named.add(f.repo);
+  for (const m of [...t.models, ...(t.repoModels ?? [])]) if (m.like !== undefined) named.add(splitRepoPath(m.like).repo ?? '');
+  return [...named];
+}
 
 /** A declared path, trimmed, with one pair of surrounding backticks removed. */
 const declared = (t: string): string => {
@@ -97,7 +128,7 @@ function readEstimate(value: string): { estimate: NonNullable<PlanSlice['estimat
 
 /** One slice from its section: the first `tasks:`, `covers:` and `estimate:` lines outside a fence. */
 function readSlice(n: number, title: string, s: Section): PlanSlice {
-  const found = readFields<'tasks' | 'covers' | 'estimate'>(s.lines, SLICE_FIELD);
+  const found = readFields<'tasks' | 'covers' | 'estimate' | 'repo'>(s.lines, SLICE_FIELD);
   const unread: string[] = [];
   const numbers: number[] = [];
   for (const t of tokens(found.tasks?.value ?? '')) {
@@ -106,6 +137,8 @@ function readSlice(n: number, title: string, s: Section): PlanSlice {
   }
   const est = found.estimate === undefined ? undefined : readEstimate(found.estimate.value);
   if (est !== undefined) unread.push(...est.unread);
+  const [repo, ...more] = tokens(found.repo?.value ?? '');
+  unread.push(...more);
   return {
     n,
     title,
@@ -115,6 +148,7 @@ function readSlice(n: number, title: string, s: Section): PlanSlice {
     ...(est === undefined ? {} : { estimate: est.estimate }),
     ...(est === undefined || est.unread.length === 0 ? {} : { estimateUnread: est.unread }),
     unread,
+    ...(repo === undefined ? {} : { repo }),
   };
 }
 
@@ -194,6 +228,47 @@ function readFiles(value: string): { files: string[]; newFiles: string[]; models
   return { files, newFiles, models };
 }
 
+type FileRead = { files: string[]; newFiles: string[]; models: PlanTask['models'] };
+
+/**
+ * Phase 08.9.3 D-05: `readFiles`'s result with every `<name>:<path>` token (and model path) moved out of `files`, `newFiles` and `models` into `repoFiles`, `repoNewFiles` and `repoModels`, and `repo` set to the one other
+ * repository the task is built in. A model's `like` is left as written. The four new fields are absent for a task that names no such token, so a plan without one parses to what it always did.
+ */
+function partitionRepos(read: FileRead): FileRead & Pick<PlanTask, 'repoFiles' | 'repoNewFiles' | 'repoModels' | 'repo'> {
+  const files: string[] = [];
+  const newFiles: string[] = [];
+  const models: PlanTask['models'] = [];
+  const repoFiles: NonNullable<PlanTask['repoFiles']> = [];
+  const repoNewFiles: NonNullable<PlanTask['repoNewFiles']> = [];
+  const repoModels: NonNullable<PlanTask['repoModels']> = [];
+  for (const f of read.files) {
+    const s = splitRepoPath(f);
+    if (s.repo === undefined) files.push(f);
+    else repoFiles.push({ repo: s.repo, path: s.path });
+  }
+  for (const f of read.newFiles) {
+    const s = splitRepoPath(f);
+    if (s.repo === undefined) newFiles.push(f);
+    else repoNewFiles.push({ repo: s.repo, path: s.path });
+  }
+  for (const m of read.models) {
+    const s = splitRepoPath(m.path);
+    if (s.repo === undefined) models.push(m);
+    else repoModels.push({ ...m, repo: s.repo, path: s.path });
+  }
+  if (repoFiles.length === 0 && repoNewFiles.length === 0 && repoModels.length === 0) return { files, newFiles, models };
+  const named = taskRepos({ files, models, repoFiles, repoModels });
+  return {
+    files,
+    newFiles,
+    models,
+    ...(repoFiles.length === 0 ? {} : { repoFiles }),
+    ...(repoNewFiles.length === 0 ? {} : { repoNewFiles }),
+    ...(repoModels.length === 0 ? {} : { repoModels }),
+    ...(named.length === 1 && named[0] !== '' ? { repo: named[0] } : {}),
+  };
+}
+
 // The body lines above the first task or slice heading (1-based Markdown line), or the whole body when there is none.
 function preamble(body: string, bodyOffset: number, firstLine: number | undefined): string {
   if (firstLine === undefined) return body;
@@ -246,7 +321,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       const v = found[k];
       if (v !== undefined) fields[k] = tokens(v.value);
     }
-    const { files, newFiles, models } = found.files === undefined ? { files: [], newFiles: [], models: [] } : readFiles(found.files.value);
+    const { files, newFiles, models, ...elsewhere } = partitionRepos(found.files === undefined ? { files: [], newFiles: [], models: [] } : readFiles(found.files.value));
     // `(@ac-n)` maps the test id before it to that scenario; a leading one maps nothing.
     const verify: string[] = [];
     const maps: PlanTask['maps'] = [];
@@ -263,6 +338,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       files,
       newFiles,
       models,
+      ...elsewhere,
       verify,
       maps,
       lines: s.lines,
@@ -272,6 +348,12 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   // A broken or non-string baseline is simply absent; gate.plan-baseline-missing says what to write.
   const map = yaml === null ? undefined : parseYamlMap(file, yaml, 1).map;
   const { baseline, plan_hash: planHash } = map ?? {};
+  // Phase 08.9.3 D-05: one `baseline_<name>: <sha>` per other repository, beside `baseline:`; a value that is not a string is absent, and gate.repo-baseline-missing says what to write.
+  const repoBaselines: Record<string, string> = {};
+  for (const [key, value] of Object.entries(map ?? {})) {
+    const named = REPO_BASELINE.exec(key);
+    if (named !== null && typeof value === 'string') repoBaselines[named[1]] = value;
+  }
   const unfinished = unfinishedLine(body, bodyOffset); // ST-LN-72 D-11: the body as split, comments kept, so no section reader's comment stripping hides it
   const plan: Plan = {
     file,
@@ -280,6 +362,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
     preamble: preamble(body, bodyOffset, sections.find((s) => TASK.test(s.heading) || SLICE.test(s.heading))?.line),
     bodyHash: fnv1a64(body),
     ...(typeof baseline === 'string' ? { baseline } : {}),
+    ...(Object.keys(repoBaselines).length === 0 ? {} : { repoBaselines }),
     ...(typeof planHash === 'string' ? { planHash } : {}),
     ...(unfinished === undefined ? {} : { unfinished }),
   };

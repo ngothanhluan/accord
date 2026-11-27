@@ -2,6 +2,15 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+A ticket may be built in more than one repository (Phase 08.9.3). A ticket claimed before 0.22.0 is judged as before, and a `<name>:<path>` it holds is checked as the plain path it was. Plan 08.9.3-15 completes this section.
+
+- `plan.md` names another repository's path as `<name>:<path>` in `files:` (also `tools:src/New.cs (new, like tools:src/Old.cs)`), a slice's repository as `repo: <name>`, and each other repository's plan baseline as `baseline_<name>: <sha>` in the frontmatter, beside `baseline:`. The name is one of the `repos:` of `accord/config.yml`.
+- New plan rules, errors that no strictness setting lowers: `gate.repo-unknown`, `gate.repo-tests-missing`, `gate.repo-baseline-missing`, `gate.repo-baseline-unknown`, `gate.task-repo-mixed`, `gate.slice-repo-mixed` and `gate.repo-slices`. A task and a slice are each built in one repository, a plan with a task in another repository is sliced (one pull request per repository) and its last slice is in this repository.
+- `gate.task-file-unknown` and `gate.task-model-unknown` check a `<name>:<path>` against that repository's baseline when `accord gate plan` could read it, and say nothing without it (CI).
+- Two tasks built in the same other repository never share a build wave.
+
 ## 0.21.1 — 2026-11-26
 
 Release 0.21.1 is a patch release: it carries the Phase 08.9.1 fixes (the reading of a deferral mark, a security pattern the scan now accepts, and the debug folder of the Windows Administrator account) and a patient publish smoke step. Nothing changes for tickets in flight. A repository pinned to 0.21.0 needs no migration; run `accord upgrade` to move the pin and refresh the skill text.

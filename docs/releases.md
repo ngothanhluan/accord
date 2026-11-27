@@ -2,9 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.22.0 — 2026-11-27
 
-A ticket may be built in more than one repository (Phase 08.9.3). A ticket claimed before 0.22.0 is judged as before, and a `<name>:<path>` it holds is checked as the plain path it was; nothing below changes for a ticket in flight, and every new rule below applies only to a ticket claimed at 0.22.0 or after. A repository pinned to an older accord refuses `repos:` in its schema, so add it only after the pin has moved.
+Release 0.22.0 is a minor release: a ticket can be built in more than one repository. It adds the `repos:` key of `accord/config.yml`, the commands `accord repos set|status|baseline`, `accord pr ready` and `accord worktree push --repo`, and the plan format for a task in another repository (`<name>:<path>` in `files:`, `repo: <name>` and `baseline_<name>`). Nothing changes for tickets in flight: a ticket claimed before 0.22.0 is judged as before, and a `<name>:<path>` it holds is checked as the plain path it was; every new rule below applies only to a ticket claimed at 0.22.0 or after. A repository pinned to 0.21.1 needs no migration; run `accord upgrade` to move the pin and refresh the skill text. A repository pinned to an older accord refuses `repos:` in its schema, so add it only after the pin has moved.
 
 - New config key `repos:` (also `accord config set repos.<name>.tests '<command>'`, which now reaches the key under the repository's name): each other repository by name with its `remote` URL, never a path, and its suite `tests`, with `affected` (a command taking `{files}`) and `report` (its JUnit report path inside its checkout). Where the clone lives is found per machine and kept in the git folder, never committed; accord never clones, and a clone whose origin no longer names the URL is refused.
 - New commands: `accord repos set <name> <path>` gives a clone by hand; `accord repos status [<id>]` prints the clones, and for a ticket the worktree, the suite, each slice's head and pull request, the `record:` lines to copy into `verification.md` and a `held:` line for a slice that waits; `accord repos baseline <name> --id <id>` fetches the other repository's default branch and prints the `baseline_<name>` sha with a listing of its files under `.accord-reports/<id>/repos/`.
@@ -20,6 +20,13 @@ A ticket may be built in more than one repository (Phase 08.9.3). A ticket claim
 - New plan rules, errors that no strictness setting lowers: `gate.repo-unknown`, `gate.repo-tests-missing`, `gate.repo-baseline-missing`, `gate.repo-baseline-unknown`, `gate.task-repo-mixed`, `gate.slice-repo-mixed` and `gate.repo-slices`. A task and a slice are each built in one repository, a plan with a task in another repository is sliced (one pull request per repository) and its last slice is in this repository.
 - `gate.task-file-unknown` and `gate.task-model-unknown` check a `<name>:<path>` against that repository's baseline when `accord gate plan` could read it, and say nothing without it (CI).
 - Two tasks built in the same other repository never share a build wave.
+- The session-resume and wake hooks no longer search the parent folder for another repository's clone and store no clone path they found. `accord anchor`, when a person types it, still searches.
+- `accord pr wait` prints counts only for the feedback and failed checks of another repository's pull requests: no login and no check name. This repository's own pull requests keep the full line.
+- A remote URL's credentials are never printed: `https://user:token@host/repo` shows as `https://***@host/repo` in `accord repos status`, in the `git clone` line and in every refusal of the repository commands. An ssh user name stays; a password in one does not.
+- The clone path accord stores is a real path, so a symlinked checkout keeps working, and worktrees of the clone are matched by real path.
+- Every fetch in the other clone adds no tags and recurses into no submodules.
+- The config schema refuses a remote whose user part starts with `-`, in every form of the URL, so git can never read it as an option.
+- Reading the other clone's `.git/config` is bounded in size and linear in time, so a hostile file cannot stall a command.
 
 ## 0.21.1 — 2026-11-26
 

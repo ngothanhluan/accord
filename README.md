@@ -6,7 +6,7 @@ Accord adds a small, fixed folder to your repository. Before an agent writes cod
 
 Intent, approach, plan, build, review and verify are the stages a ticket passes through, not job titles. One person can take a ticket through all of them, or a team can share them. No gate reads who anyone is, so the same rules hold either way.
 
-Released: `@accord-dev/accord@0.21.1` on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
+Released: `@accord-dev/accord@0.22.0` on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
 
 ## The problem
 
@@ -35,13 +35,13 @@ AI coding agents produce features that pass their own tests and still miss what 
 Node 22.12 or newer. Run accord through npx with an exact version, so nothing needs installing:
 
 ```sh
-npx --yes @accord-dev/accord@0.21.1 <command>
+npx --yes @accord-dev/accord@0.22.0 <command>
 ```
 
 Or install it globally and run `accord <command>`:
 
 ```sh
-npm i -g @accord-dev/accord@0.21.1
+npm i -g @accord-dev/accord@0.22.0
 ```
 
 The global install must be the same version the repository pins (see [Version pin](#8-version-pin-and-upgrading)).
@@ -51,7 +51,7 @@ The global install must be the same version the repository pins (see [Version pi
 In the repository root:
 
 ```sh
-npx --yes @accord-dev/accord@0.21.1 init
+npx --yes @accord-dev/accord@0.22.0 init
 ```
 
 `init` asks nothing and takes no options. It never overwrites `accord/config.yml`, the product files or the workflow when they exist. The skill, agent and pane copies are accord's own and are rewritten to this version, and the hooks are merged into existing settings. Each path is printed as `created`, `skipped`, `appended`, `updated`, `unchanged` or `overwrote local edits`. It writes:
@@ -76,7 +76,7 @@ git commit -m "accord init"
 git push
 ```
 
-Teammates get the same skills, hooks and pane by pulling. The skills run a bare `accord` command. In Claude Code, the session hook tells the agent to run it through `npx` at the pinned version when `accord` is not on PATH. In Codex, Cursor and Copilot there is no such hook, so each person installs the pinned version globally (`npm i -g @accord-dev/accord@0.21.1`).
+Teammates get the same skills, hooks and pane by pulling. The skills run a bare `accord` command. In Claude Code, the session hook tells the agent to run it through `npx` at the pinned version when `accord` is not on PATH. In Codex, Cursor and Copilot there is no such hook, so each person installs the pinned version globally (`npm i -g @accord-dev/accord@0.22.0`).
 
 ### 4. Make the accord check a merge gate
 
@@ -134,14 +134,14 @@ In Claude Code, the pane beside the chat has two tabs: the ticket this worktree 
 After you change `runtimes:`, write the copies again and commit what it prints:
 
 ```sh
-npx --yes @accord-dev/accord@0.21.1 skills sync
+npx --yes @accord-dev/accord@0.22.0 skills sync
 ```
 
 `skills sync` and `accord upgrade` delete only files accord once rendered and no longer renders (a skill folder of an older release, such as the folders of the commands that became files of `/accord`, or `.claude/agents/accord-architect.md`), and only while the file's marker shows nobody edited it. Each deleted file prints as `removed`, and a skill folder that emptied is removed with it. An edited copy stays: it is listed as an orphan with the command that removes it, and so is the folder that holds it. A file you wrote yourself is never touched. When you remove a runtime, `skills sync` lists the copies it no longer writes, and you delete them yourself.
 
 ### 7. CLI commands for people and CI
 
-The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Bare `accord` needs the global install at the pinned version; without it, put `npx --yes @accord-dev/accord@0.21.1` in place of `accord`. Run `accord --help` for the full list, and `accord <command> --help` for each one.
+The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Bare `accord` needs the global install at the pinned version; without it, put `npx --yes @accord-dev/accord@0.22.0` in place of `accord`. Run `accord --help` for the full list, and `accord <command> --help` for each one.
 
 | Command | What it does |
 |---|---|
@@ -185,15 +185,15 @@ Two settings shape what `accord audit` reports and how a person is shown:
 
 ### 8. Version pin and upgrading
 
-`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` and `pre-tool-use` hooks only warn, so the prompt or the agent dispatch goes on), and names the command to run instead, with the pinned version in place of 0.21.1:
+`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` and `pre-tool-use` hooks only warn, so the prompt or the agent dispatch goes on), and names the command to run instead, with the pinned version in place of 0.22.0:
 
 ```sh
-npx --yes @accord-dev/accord@0.21.1 <command>
+npx --yes @accord-dev/accord@0.22.0 <command>
 ```
 
 There is no flag or environment variable that skips the check. Only `--version`, `--help`, `upgrade` and `audit` run regardless: `upgrade` because it runs as the newer version, and `audit` because it only reports (it reports the mismatch as a `pin-mismatch` gap and writes nothing in the repository).
 
-`/accord` says when a newer release is out. `/accord-upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` from the remote default branch with one commit that moves the pin and regenerates the skill files. Your checkout is not touched; merge the pull request to upgrade. `upgrade` also prints one `unsafe line: accord/product/conventions.md:<n>: <reason> - fix: <fix>` line per line of `accord/product/conventions.md` on the default branch that accord withholds from agents (or one `unsafe file:` line when that file is a link or not a regular file), never the line itself, and `accord lint` reports each as `lint.conventions-file`, an error a team cannot lower, so the upgrade pull request is where they are fixed; the upgrade itself is never refused for them. A repository still pinned to 0.1.0 runs `npx --yes @accord-dev/accord@0.21.1 upgrade` once by hand.
+`/accord` says when a newer release is out. `/accord-upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` from the remote default branch with one commit that moves the pin and regenerates the skill files. Your checkout is not touched; merge the pull request to upgrade. `upgrade` also prints one `unsafe line: accord/product/conventions.md:<n>: <reason> - fix: <fix>` line per line of `accord/product/conventions.md` on the default branch that accord withholds from agents (or one `unsafe file:` line when that file is a link or not a regular file), never the line itself, and `accord lint` reports each as `lint.conventions-file`, an error a team cannot lower, so the upgrade pull request is where they are fixed; the upgrade itself is never refused for them. A repository still pinned to 0.1.0 runs `npx --yes @accord-dev/accord@0.22.0 upgrade` once by hand.
 
 Exit codes:
 

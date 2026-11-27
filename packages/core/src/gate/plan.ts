@@ -495,6 +495,120 @@ export const repoUnknown: GateRule['check'] = withNote((snapshot, id) => {
   ];
 });
 
+/** `this repository` for the `''` of taskRepos, the repository's name otherwise. */
+const repoLabel = (r: string): string => (r === '' ? 'this repository' : r);
+
+/** The single repository a task is built in (`''` for this one), or undefined for a task that names no path or spans two: gate.task-repo-mixed owns the second. */
+const homeOf = (t: PlanTask): string | undefined => {
+  const named = taskRepos(t);
+  return named.length === 1 ? named[0] : undefined;
+};
+
+/** Every repository other than this one the plan names, in order of first appearance: by a task's paths and models, then by a slice's `repo:`. */
+const namedRepos = (plan: Plan): string[] => [...new Set([...plan.tasks.flatMap(otherRepos), ...(plan.slices ?? []).flatMap((s) => (s.repo === undefined ? [] : [s.repo]))])];
+
+/** Phase 08.9.3 D-09, Decision 3: a task names paths, or models, in two repositories; a task is built in one, so the finding says to split it. */
+export const taskRepoMixed: GateRule['check'] = withNote((snapshot, id) => {
+  const plan = reposOf(snapshot, id);
+  if (plan === undefined) return [];
+  return plan.tasks.flatMap((t) => {
+    const named = taskRepos(t);
+    return named.length < 2
+      ? []
+      : [{ file: planFile(id), line: t.line, reason: `task ${t.n} names paths in more than one repository (${named.map(repoLabel).join(', ')}); a task is built in one repository: split it into one task per repository` }];
+  });
+});
+
+/** Phase 08.9.3 D-09: every task of a slice is built in the slice's repository (`repo:`, absent meaning this one). One finding per task, naming the slice, the task and both repositories. */
+export const sliceRepoMixed: GateRule['check'] = withNote((snapshot, id) => {
+  const plan = reposOf(snapshot, id);
+  if (plan === undefined) return [];
+  return (plan.slices ?? []).flatMap((s) => {
+    const mine = s.repo ?? '';
+    return plan.tasks
+      .filter((t) => s.tasks.includes(t.n))
+      .flatMap((t) => {
+        const theirs = homeOf(t);
+        return theirs === undefined || theirs === mine
+          ? []
+          : [
+              {
+                file: planFile(id),
+                line: s.line,
+                reason: `slice ${s.n} is built in ${repoLabel(mine)}${s.repo === undefined ? ' (it has no repo: line)' : ''}, but holds task ${t.n}, which is built in ${repoLabel(theirs)}; a slice is built in one repository: move task ${t.n} to a slice of ${repoLabel(theirs)}, or correct the slice's repo: line`,
+              },
+            ];
+      });
+  });
+});
+
+/**
+ * Phase 08.9.3 D-08, D-09, D-03, D-14: a plan with a task in another repository is sliced, one slice (one pull request) per repository in deploy order, and its last slice is in this repository: that pull request carries the ticket's
+ * records, which never go to another repository. One finding for a plan with no slice (naming its tasks elsewhere), one for a last slice that names `repo:`.
+ */
+export const repoSlices: GateRule['check'] = withNote((snapshot, id) => {
+  const plan = reposOf(snapshot, id);
+  if (plan === undefined) return [];
+  const slices = plan.slices ?? [];
+  if (slices.length === 0) {
+    const elsewhere = plan.tasks.filter((t) => otherRepos(t).length > 0);
+    if (elsewhere.length === 0) return [];
+    const where = andList([...new Set(elsewhere.flatMap(otherRepos))]);
+    return [
+      {
+        file: planFile(id),
+        line: elsewhere[0].line,
+        reason:
+          `${elsewhere.length === 1 ? 'task' : 'tasks'} ${andList(elsewhere.map((t) => t.n))} ${elsewhere.length === 1 ? 'is' : 'are'} built in ${where}, and plan.md has no ## Slice section; a ticket built in more than one repository ` +
+          'merges one pull request per repository: write one slice per repository, in deploy order, this repository last (D-08, D-09)',
+      },
+    ];
+  }
+  const last = slices.reduce((a, b) => (b.n > a.n ? b : a));
+  if (last.repo === undefined) return [];
+  return [
+    {
+      file: planFile(id),
+      line: last.line,
+      reason: `slice ${last.n} is the last slice and names repo: ${last.repo}; the last slice is in this repository, since its pull request carries the ticket's records (D-03, D-14): end the plan with a slice of this repository, and move the ${last.repo} work to an earlier slice`,
+    },
+  ];
+});
+
+/** Phase 08.9.3 D-06: a declared repository the plan builds in has no `tests` command to verify with. One finding per repository, at its `repos` entry. Silent when the config is unreadable. */
+export const repoTestsMissing: GateRule['check'] = withNote((snapshot, id) => {
+  const plan = reposOf(snapshot, id);
+  if (plan === undefined || snapshot.config === undefined) return [];
+  const declared = snapshot.config.repos ?? {};
+  return namedRepos(plan)
+    .filter((r) => Object.hasOwn(declared, r) && declared[r].tests === undefined)
+    .map((r) => ({
+      file: 'accord/config.yml',
+      pointer: `/repos/${r}`,
+      reason: `this plan builds in ${r}, and repos.${r}.tests is not set in accord/config.yml; verify runs that suite there: add repos.${r}.tests (one command line)`,
+    }));
+});
+
+/** Phase 08.9.3 D-05: every declared repository a task is built in has a `baseline_<name>:` in plan.md's frontmatter that is a commit sha. One finding per repository, naming the command that takes it. */
+export const repoBaselineMissing: GateRule['check'] = withNote((snapshot, id) => {
+  const plan = reposOf(snapshot, id);
+  if (plan === undefined) return [];
+  const declared = snapshot.config?.repos;
+  const asked = [...new Set(plan.tasks.flatMap(otherRepos))].filter((r) => snapshot.config === undefined || (declared !== undefined && Object.hasOwn(declared, r)));
+  return asked.flatMap((r) => {
+    const sha = plan.repoBaselines !== undefined && Object.hasOwn(plan.repoBaselines, r) ? plan.repoBaselines[r] : undefined;
+    if (sha !== undefined && isSha(sha)) return [];
+    return [
+      {
+        file: plan.file,
+        reason:
+          (sha === undefined ? `plan.md has no baseline_${r}:` : `baseline_${r}: ${sha} is not a commit sha`) +
+          `; write the commit the plan was written against in ${r}: run accord repos baseline ${r} --id ${id} and put the baseline_${r} line it prints into the frontmatter`,
+      },
+    ];
+  });
+});
+
 /** Phase 15 D-03: a plan of more than this many slices gets the warning gate.slice-many. A constant, not a config.yml key. */
 export const SLICES_MANY = 3;
 
@@ -502,7 +616,7 @@ export const SLICES_MANY = 3;
 export const SLICE_LINES_DEFAULT = 1000;
 
 /** `1`, `1 and 2`, `1, 2 and 3`. */
-const andList = (xs: number[]): string => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+const andList = (xs: (number | string)[]): string => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 /**
  * Phase 15 D-09: every task of the plan is in exactly one slice, every task a slice names is a task of the plan, a slice names at least one task, and the slices are numbered 1 to N without a gap.

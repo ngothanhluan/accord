@@ -7,6 +7,7 @@ import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
+import { lensProblems } from './lens.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import { securityProblems } from './security.js';
@@ -432,6 +433,9 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   // is asked for: the one rule (securityProblems) gate done reads, with its own cut-off and its own pin read.
   const security = kind === 'review' ? securityProblems(snapshot, id) : [];
   if (security.length > 0) return refuse(...security.map(scopeReason));
+  // Phase 11 D-05: a round whose package printed a team lens needs `Lens: <name> ran` before the next round is asked for: the one rule (lensProblems) `accord gate done` reads from plan 11-07.
+  const lenses = kind === 'review' ? lensProblems(snapshot, id) : [];
+  if (lenses.length > 0) return refuse(...lenses.map(scopeReason));
   awaiting = [...new Set(allFixes.flatMap((p) => (p.awaiting === undefined ? [] : [p.awaiting])))];
 
   const k = rec.cycles.length;

@@ -1,6 +1,7 @@
 // D-28 input contract and the RepoSnapshot model (D-30 to D-32, D-42, D-46). Type-only file.
 // Plain records and arrays, never Map/Set, so JSON.stringify of a snapshot is the golden (D-54).
 import type { SubjectName } from '../commits/subjects.js';
+import type { LensMode } from '../lens/spec.js';
 import type { SlopHit } from '../slop/match.js';
 import type { LoadFinding } from './finding.js';
 
@@ -105,6 +106,14 @@ export type SecurityFacts =
   // Phase 08.8 D-03: with the review stage off there are no rounds; `triggers` are those of the ticket's cumulative diff (round-one base to HEAD) and `sinceReview` those of the diff from the commit the
   // ledger records its security review at to HEAD, absent when the ledger names no commit
   | { ticket: { triggers: string[]; sinceReview?: string[] } };
+/**
+ * Phase 11 D-05, Ruling R9: the team lenses each recorded review round's own package printed, as the host recomputed them from git and the lens files at the default branch: one entry per `## Round` of
+ * review.md in record order (cycles flattened), `head` the round's typed head and `lenses` the names its package printed (empty for a round whose package names none: every round but the first of the
+ * record and each `(final review)`). `modes` is each lens's `on_finding`, for the refusal text; `note` says the lens files were read from the checkout, as the package says. `error` when git could not say.
+ */
+export type LensFacts =
+  | { error: string }
+  | { rounds: { head: string; lenses: string[] }[]; modes: Record<string, LensMode>; note?: 'no-default-ref' };
 /**
  * Phase 8.5 D-19: one executor fix report (`.accord-reports/<id>/fix-<k>.md`) as the host read it: its file name and each `places checked: <n>: <place>, <place>…` line, `n` the finding's
  * number (`<n>` or `<round>.<n>`) and `places` the listed places as written, trimmed.
@@ -358,6 +367,8 @@ export interface RecordedRound {
   final?: true; // version 2 only: the heading says (final review)
   security?: 'none' | 'ran'; // version 2 review records only (ST-LN-36 D-05 (3)): `Security: no pattern matched` or `Security: lens security ran`; 'ran' wins when a round holds both
   securityUnread?: { line: number; text: string }[]; // version 2 review records only: a line starting `Security:` that is neither form
+  lenses?: string[]; // version 2 review records only (Phase 11 D-05): the names of each `Lens: <name> ran` line, in line order, each once
+  lensUnread?: { line: number; text: string }[]; // version 2 review records only: a line starting `Lens:` that is not `Lens: <name> ran` with a lens name
   markUnread?: { line: number; text: string }[]; // version 1 plan and approach records (ST-LN-91 round 5): the mark slots of the round (a segment or a block line that starts with a mark key) whose value does not parse
 }
 export interface RoundVerdict { value: string; quoted: boolean; line: number } // quoted: accepted-by-owner followed by a "sentence"
@@ -496,6 +507,7 @@ export interface RepoSnapshot {
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
   securityFacts?: Record<string, SecurityFacts>; // ST-LN-36: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, a ticket claimed before the security record rule's cut-off)
+  lensFacts?: Record<string, LensFacts>; // Phase 11 D-05: host-supplied by `accord round` (and `accord gate done`, plan 11-07) after load; absent when the host supplies none (no lane M, L or P ticket, no version 2 record with a round, no lens file, no git, a ticket claimed before LENSES_FROM)
   // Phase 8.5 D-19: host-supplied by `accord round` only, for a ticket claimed at or after PRODUCT_TEXT_FROM and not in lane S, whose review record holds a fixed finding with a `checked:` mark; absent otherwise.
   // `accord gate done` and CI never read it: the reports are machine-local, as the task report is.
   fixReports?: Record<string, readonly FixReport[]>;

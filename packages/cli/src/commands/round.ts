@@ -4,6 +4,7 @@ import { nextRound, roundText, stageOff } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { withFixReports } from '../load/fix-reports.js';
 import { UsageError, withReturnFacts } from '../load/fs.js';
+import { withLensFacts } from '../load/lens-facts.js';
 import { withPlanFix } from '../load/plan-diff.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
@@ -43,13 +44,18 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
         // ST-LN-36 D-05: the security record rule reads the same claim fact, so the loader reads nothing for a ticket claimed before its cut-off.
         // BUG-LN-25 D-16: the same render list as gate done, so the round and the gate agree on which copies are exempt.
         // Phase 8.5 D-19: the fix reports of the checkout this command runs in, for a ticket claimed at or after PRODUCT_TEXT_FROM outside lane S; `accord gate done` never reads them.
+        // Phase 11 D-05: the lens record rule reads the same claim fact and the default branch's lens files, so the loader reads nothing for a ticket claimed before its cut-off.
         withFixReports(
           ctx.root,
-          withSecurityFacts(
+          withLensFacts(
             ctx.root,
-            withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id),
+            withSecurityFacts(
+              ctx.root,
+              withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id),
+              id,
+              renderedFilesOf(ctx.snapshot.config),
+            ),
             id,
-            renderedFilesOf(ctx.snapshot.config),
           ),
           id,
         );

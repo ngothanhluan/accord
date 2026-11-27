@@ -14,6 +14,9 @@ const HEADING_2 = /^round [0-9]+ head ([0-9a-f]{7,40})(?: \((added code round 1|
 const SHA = /^[0-9a-f]{7,40}$/i;
 // ST-LN-36 D-05 (3): a version 2 round's security line, after at most one list marker: `Security: no pattern matched` or `Security: lens security ran[ <text>]`.
 const SECURITY_LINE = /^(?:[-*]\s+)?security:(.*)$/i;
+// Phase 11 D-05: a version 2 review round's lens line, after at most one list marker: `Lens: <name> ran`, the name by the lens name rule; any other `Lens:` line is kept as unread.
+const LENS_LINE = /^(?:[-*]\s+)?lens:\s*(.*)$/i;
+const LENS_RAN = /^([a-z0-9][a-z0-9-]*) ran$/;
 // ST-LN-57: the version 2 finding line, read from the end (see parseFindingV2).
 const FINDING_2 = /^(Must|Should|Nice) ([1-9][0-9]*)(?: \[(?:patch|plan-gap|intent-gap)\])?: (\S.*)$/i;
 const LOCATION = /^(?:`([^`]+)`|([^\s`](?:.*?[^\s`])?))(?::[1-9][0-9]*(?:-[1-9][0-9]*)?)?$/;
@@ -356,6 +359,15 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
         if (value === 'no pattern matched') target!.security ??= 'none';
         else if (value === 'lens security ran' || value.startsWith('lens security ran ')) target!.security = 'ran';
         else (target!.securityUnread ??= []).push({ line: l.line, text: t.trim().length > 160 ? t.trim().slice(0, 157) + '...' : t.trim() });
+        continue;
+      }
+      // Phase 11 D-05: the lens line, read in the same place and for the same records as the security line.
+      const lens = version2 && kind === 'review' && target !== undefined ? LENS_LINE.exec(t.trim()) : null;
+      if (lens !== null) {
+        const named = LENS_RAN.exec(lens[1].trim());
+        if (named !== null) {
+          if (!(target!.lenses ?? []).includes(named[1])) (target!.lenses ??= []).push(named[1]);
+        } else (target!.lensUnread ??= []).push({ line: l.line, text: t.trim().length > 160 ? t.trim().slice(0, 157) + '...' : t.trim() });
         continue;
       }
       const r = readLine(t);

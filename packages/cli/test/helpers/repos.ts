@@ -107,7 +107,7 @@ function handle(parent: string, svcRemote: string, toolsRemote: string): Repos {
 
 /** The `url.<base>.insteadOf` lines of a clone's local config: `[subsection base, value]`. */
 function rewrites(dir: string): [string, string][] {
-  let text = '';
+  let text: string;
   try {
     // -z: `key\nvalue\0` per entry, since a temporary folder's name may hold a space (`C:/Users/Some One/...`)
     text = gitRun(dir, 'config', '--local', '-z', '--get-regexp', '^url\\..*\\.insteadof$');

@@ -1,7 +1,8 @@
 // Phase 11 plan 06 (11-ac-6, D-05): a version 2 review round records `Lens: <name> ran` for each team lens its own package printed; `accord round` refuses a round that does not, naming the
 // dispatch to run. The rule reads one host fact (lensFacts), recomputed from git and the lens files, never the record's own lines.
 import { expect, it } from 'vitest';
-import { LENSES_FROM, lensOn, lensProblems, nextRound, parseRounds } from '../src/index.js';
+import { LENSES_FROM, STAGE_OF, gateDone, lensOn, lensProblems, nextRound, parseRounds } from '../src/index.js';
+import { DONE_RULES } from '../src/gate/rules.js';
 import type { LensFacts, RepoSnapshot } from '../src/index.js';
 import { claimedUnder, facts, H, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
@@ -106,4 +107,25 @@ it('risk:regression a ticket claimed before LENSES_FROM, or a record with no fac
   expect(problems(old)).toEqual([]);
   const none = { ...build({ cycles: [[{ lines: ['No findings'] }]], lenses: [['db']] }), lensFacts: undefined } as RepoSnapshot;
   expect(problems(none)).toEqual([]);
+});
+
+const RULE = 'gate.lens-unreviewed';
+const gateFound = (snap: RepoSnapshot) => gateDone(snap, 'T-1').findings.filter((f) => f.rule === RULE);
+
+it('risk:regression gate done refuses the ticket whose round skipped the printed db lens, from the same lensProblems accord round reads (11-ac-6, D-05)', () => {
+  const skipped = build({ cycles: [[{ lines: ['No findings'] }]], lenses: [['db']] });
+  const refused = gateFound(skipped);
+  expect(refused).toHaveLength(1);
+  expect(refused[0]).toMatchObject({ level: 'error', file: REVIEW, line: 3 });
+  expect(refused[0].reason).toContain('round 1 of cycle 1');
+  expect(refused[0].reason).toContain('lens db');
+  // one function: the finding is the record problem accord round reads, word for word
+  expect(refused.map((f) => f.reason)).toEqual(problems(skipped).map((p) => p.reason));
+  // with the line there is no finding
+  expect(gateFound(build({ cycles: [[{ lines: ['No findings', ran] }]], lenses: [['db']] }))).toEqual([]);
+  // the rule sits beside the security rule in the Done table, and belongs to the review stage
+  const ids = DONE_RULES.map((r) => r.id as string);
+  expect(ids.indexOf(RULE)).toBe(ids.indexOf('gate.security-unreviewed') + 1);
+  expect(DONE_RULES.find((r) => r.id === RULE)).toMatchObject({ level: 'error', profiles: ['build', 'maintain'] });
+  expect(STAGE_OF[RULE]).toBe('review');
 });

@@ -122,6 +122,8 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.fix-not-addressed': 'review',
   'gate.fix-outside-open': 'review',
   'gate.slop-unresolved': 'review',
+  // Phase 11 D-05, Ruling R11 of plan 11-07: with the review stage off no lens runs, so the rule that asks for a lens's record leaves with it
+  'gate.lens-unreviewed': 'review',
   'gate.review-trailing': 'review',
   'gate.review-uncommitted': 'review',
   'gate.review-commit-code': 'review',

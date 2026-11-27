@@ -120,6 +120,7 @@ import { findingEvidence } from '../round/evidence.js';
 import { fixNotAddressed, fixOutsideOpen, fixPlacesMissing } from '../round/fix.js';
 import { findingGrounds, fixFileUnexplained } from '../round/grounds.js';
 import { reviewScope, reviewScopeSkipped } from '../round/scope.js';
+import { lensUnreviewed } from '../round/lens.js';
 import { securityUnreviewed } from '../round/security.js';
 import { slopUnresolved } from '../slop/gate.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
@@ -285,6 +286,8 @@ const FIX_NOT_ADDRESSED: GateRule = { id: 'gate.fix-not-addressed', level: 'erro
 const FIX_OUTSIDE_OPEN: GateRule = { id: 'gate.fix-outside-open', level: 'error', profiles: ['build', 'maintain'], check: fixOutsideOpen };
 /** ST-LN-36 36-ac-2 (D-05 (3), D-10): from SECURITY_TRIGGER_FROM a review round whose package had security triggers needs `Security: lens security ran`, and every round but a final review a `Security:` line; one row for both Done tables. */
 const SECURITY_UNREVIEWED: GateRule = { id: 'gate.security-unreviewed', level: 'error', profiles: ['build', 'maintain'], check: securityUnreviewed };
+/** Phase 11 D-05 (11-ac-6): from LENSES_FROM a review round whose package printed a team lens needs `Lens: <name> ran` (a final review included), and a `Lens:` line that is not that form is a record problem; the review stage's, in the lane M, L and P Done table only. */
+const LENS_UNREVIEWED: GateRule = { id: 'gate.lens-unreviewed', level: 'error', profiles: ['build', 'maintain'], check: lensUnreviewed };
 /** Phase 8.1 D-17 (8.1-ac-13): from SLOP_FROM a slop hit of the ticket's cumulative diff is fixed or named by a `slop:<kind> <path>:<line> — <reason>` line in the last review round; one row for both Done tables, none for lane R (no review). */
 const SLOP_UNRESOLVED: GateRule = { id: 'gate.slop-unresolved', level: 'error', profiles: ['build', 'maintain'], check: slopUnresolved };
 const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
@@ -352,6 +355,7 @@ export const DONE_RULES: readonly GateRule[] = [
   FIX_NOT_ADDRESSED,
   FIX_OUTSIDE_OPEN,
   SECURITY_UNREVIEWED,
+  LENS_UNREVIEWED,
   SLOP_UNRESOLVED,
   SUITE_NOT_PASSED,
   { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },

@@ -118,3 +118,24 @@ it("risk:regression the dispatch line a refusal prints runs as written: review-p
   await usage(['--lens', 'db', '--round', '1', '--base', box.base], 'no --base');
   await usage(['--round', '1'], 'give --security too');
 }, 300_000);
+
+interface Found { rule: string; level: string; file?: string; line?: number; reason: string }
+const RULE = 'gate.lens-unreviewed';
+async function lensFindings(repo: string, env: NodeJS.ProcessEnv = {}): Promise<Found[]> {
+  const r = await run(['gate', 'done', 'T-1', '--json'], repo, env);
+  return (JSON.parse(r.out).findings as Found[]).filter((f) => f.rule === RULE);
+}
+
+it('risk:regression accord gate done refuses the ticket whose round skipped the printed db lens, naming the round and the lens, on real git (11-ac-6, D-05)', async () => {
+  const box = claimed({ lenses: { db: DB }, code: { 'src/db/x.ts': 'export const q = 1;\n' }, review: (h) => record(h) });
+  const refused = await lensFindings(box.repo);
+  expect(refused).toHaveLength(1);
+  expect(refused[0]).toMatchObject({ level: 'error', file: REVIEW });
+  expect(refused[0].reason).toContain('round 1 of cycle 1');
+  expect(refused[0].reason).toContain('lens db (on_finding block)');
+  expect(refused[0].reason).toContain('accord review-package T-1 --lens db --round 1');
+  // the round records the lens, and the refusal is gone
+  writeFiles(box.repo, { [REVIEW]: record(box.head, 'Lens: db ran') });
+  commitMsg(box.repo, 'lens review');
+  expect(await lensFindings(box.repo)).toEqual([]);
+}, 240_000);

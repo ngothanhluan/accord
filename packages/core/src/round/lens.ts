@@ -3,6 +3,7 @@
 // (lensFacts), so the record's own lines never decide which lenses were required. ONE rule (lensProblems) that `accord round` reads whole and `accord gate done` reads from plan 11-07. Pure: the host
 // supplies the fact and the claim pin. No code runs at load but constants.
 import { stageOff } from '../gate/floor.js';
+import type { GateRule } from '../gate/rules.js';
 import { laneTicket, workOf } from '../gate/work.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { LENSES_FROM, claimPinBefore } from './pin.js';
@@ -60,3 +61,13 @@ export function lensProblems(snapshot: RepoSnapshot, id: string): LensRecordProb
   }
   return out.sort((a, b) => a.line - b.line);
 }
+
+/**
+ * gate.lens-unreviewed: each lens record problem of review.md (lensProblems, the function `accord round` reads), at the line it is about. The rule belongs to the review stage (STAGE_OF, Ruling R11 of plan
+ * 11-07), so with the review stage off it is not run; lensOn is false for a lane S ticket, so it has no row in the lane S Done table.
+ */
+export const lensUnreviewed: GateRule['check'] = (snapshot, id) => {
+  const rec = workOf(snapshot, id)?.rounds;
+  if (rec === undefined) return [];
+  return lensProblems(snapshot, id).map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
+};

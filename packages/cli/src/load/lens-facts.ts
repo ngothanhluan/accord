@@ -105,7 +105,8 @@ function factsFor(root: string, snapshot: RepoSnapshot, id: string): LensFacts |
  * ticket done there), its review stage off (all of it lensOn), a claim pin before LENSES_FROM, or no lens file to read: each decided on the snapshot, before the first git call, so a ticket claimed before the cut-off starts no
  * git read for it. The claim fact is the one the caller already loaded; this never calls withClaimPins. A failed claim read is false in claimPinBefore (fail closed), so the facts are read and the rule applies.
  * Ruling R11: the lenses are matched against this repository's changed paths; a `<name>:<path>` entry that names another repository is not matched here (the package's `## Repository <name>` section is the
- * only place those paths are read, and they are not tied to a round's head).
+ * only place those paths are read, and they are not tied to a round's head). Ruling R10 of plan 11-07: `gate done` does not judge a `<name>:` entry in CI or where another clone is not found; as no entry of another
+ * repository is matched here at all (R11), and no git process starts in another clone, the rule holds in CI and out of it with no flag, and a later reader of another clone must take one.
  */
 export function withLensFacts(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot {
   const rec = workOf(snapshot, id)?.rounds;

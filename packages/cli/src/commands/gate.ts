@@ -10,6 +10,7 @@ import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitR
 import { gitBaseRecords } from '../load/base-records.js';
 import { doneOnDefaultBranch, doneRefusal } from '../load/done-on-default.js';
 import { withClaimPins } from '../load/claim-facts.js';
+import { withLensFacts } from '../load/lens-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
 import { gitSliceSize } from '../load/slice-size.js';
@@ -107,7 +108,8 @@ export function gate(
   const render = renderedFilesOf(config);
   let list: ReturnType<typeof render> | undefined;
   const rendered = (): ReturnType<typeof render> => (list ??= render()); // at most one render per command, for the two readers
-  const withFacts = which === 'done' ? withSlopFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id, rendered) : withRefs;
+  // Phase 11 D-05 (11-ac-6): Done also holds each recorded review round against the team lenses its own package printed, recomputed from git and the default branch's lens files, as `accord round` does.
+  const withFacts = which === 'done' ? withSlopFacts(ctx.root, withLensFacts(ctx.root, withSecurityFacts(ctx.root, withRefs, id, rendered), id), id, rendered) : withRefs;
   // Phase 15 D-06: a `--slice` run also holds the measured size of that slice, for gate.slice-diff-large; no flag reads nothing, and a size git could not measure is no fact.
   const measured = which === 'done' && scope !== undefined && scope.widened !== true ? gitSliceSize(ctx.root, ctx.snapshot, id, scope.n, rendered) : undefined;
   const sized = measured === undefined ? withFacts : { ...withFacts, sliceSize: { ...withFacts.sliceSize, [id]: measured } };

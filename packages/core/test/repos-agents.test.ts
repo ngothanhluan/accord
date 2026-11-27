@@ -46,3 +46,26 @@ it('risk:security no verifier line names git in another folder or a clone, and i
   expect(bad).toEqual([]);
   expect(lacking('verifier', ['run `git` only to read'])).toEqual([]);
 });
+
+it('risk:regression the planner writes another repository path as <name>:<path> checked at baseline_<name>, and reads its tracked files from the listing its caller names (D-05, D-08)', () => {
+  expect(rendered('planner').length).toBeGreaterThan(0);
+  expect(
+    lacking('planner', ['`<name>:<path>`', '`baseline_<name>`', 'the listing file your caller names', 'never the clone']),
+  ).toEqual([]);
+});
+
+it('risk:regression the planner keeps each task and each slice in one repository, gives a slice of another repository repo: <name>, and orders the slices with this repository last (D-09, D-14)', () => {
+  expect(rendered('planner').length).toBeGreaterThan(0);
+  expect(
+    lacking('planner', ['`repo: <name>`', 'one repository', 'deploy order', "this repository's slice last"]),
+  ).toEqual([]);
+});
+
+// The executor's Work-dir sentence as it stood before plan 08.9.3-14; the new sentence follows it and changes none of it.
+const WORK_DIR_RULE =
+  "Your brief's `Work dir:` names the folder you work in: run every command there as `cd <dir> && …` or `git -C <dir> …` in one command, give every file as an absolute path under it, and commit there; its `Report file:` lies under it too. You never merge, rebase or push. When your tool refuses a write, commit what you changed and return `BLOCKED: permission <path>`. A brief with no `Work dir:` line leaves you in the folder you were started in.";
+
+it("risk:regression the executor's Work dir may be another repository's worktree and it works only there; its Work-dir sentence is as before (D-10, D-04)", () => {
+  expect(rendered('executor').length).toBeGreaterThan(0);
+  expect(lacking('executor', [WORK_DIR_RULE, "another repository's worktree", 'work only there'])).toEqual([]);
+});

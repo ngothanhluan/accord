@@ -145,4 +145,17 @@ describe('agents: the schema refuses what the lock cannot take (Security Ruling,
     refuses('  executor:\n    mcp:\n      - s:\n          type: ftp\n          url: https://example.test/mcp\n');
     refuses('  executor:\n    mcp:\n      - a: { type: http }\n        b: { type: http }\n');
   });
+
+  // RESEARCH A2, settled in .planning/phases/11-agent-extension-by-role/11-A2-PROBE.md (a private planning record, not in this repository): the docs are silent on which
+  // name form the `skills:` field resolves for a plugin skill, so the probe's "Settled form" is `open` and its "Use" is `both`. accord therefore never rewrites a name.
+  it('risk:parsing a skill name renders verbatim in bare and plugin form (RESEARCH A2, D-01)', () => {
+    const names = ['impeccable', 'impeccable:impeccable', 'ui-ux-pro-max:ui-ux-pro-max'];
+    loads('  reviewer: { skills: [impeccable, "impeccable:impeccable", "ui-ux-pro-max:ui-ux-pro-max"] }\n');
+    const reviewer = fileOf(config({ agents: { reviewer: { skills: names } } }), 'accord-reviewer');
+    expect(frontmatter(reviewer).skills).toEqual(names);
+    // each name sits on its own line of the rendered list, in the order written
+    const lines = (reviewer.split('---\n')[1] as string).split('\n');
+    const at = lines.indexOf('skills:');
+    expect(lines.slice(at + 1, at + 4).map((l) => l.trim().replace(/^- /, '').replace(/^"(.*)"$/, '$1'))).toEqual(names);
+  });
 });

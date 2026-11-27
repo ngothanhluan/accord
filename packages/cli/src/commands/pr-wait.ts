@@ -235,7 +235,7 @@ function linkOf(w: SliceWatch, pr: PrRef): string {
  * The default branch's name as the pull request base: origin's default ref (a full ref name) without its remote, and nothing when it is not a name this command passes to gh. For a slice of another repository
  * it is read in that repository's STORED clone (nothing is searched or stored here); a clone that is not there, or is refused, gives nothing.
  */
-function defaultBranch(ctx: CommandContext, repo?: string): string | undefined {
+export function defaultBranch(ctx: CommandContext, repo?: string): string | undefined {
   let dir = ctx.root;
   if (repo !== undefined) {
     const found = resolveRepo(ctx.root, ctx.snapshot.config, repo, { scan: false, store: false });

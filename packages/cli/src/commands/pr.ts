@@ -3,16 +3,19 @@
 // repository's PR template with every heading kept and what the ticket knows filled in; else it is today's fixed body. It reads the repository and writes files under .git: it never calls `gh` (D-03).
 import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { epicBody, fillTemplate, findTemplate, normaliseText, prFacts, prTitle, prTitleProblem, sliceBlock, sliceBudget, sliceFacts, sliceTitle, todaysBody, workOf } from '@accord-dev/accord-core';
-import type { PrFacts, SlicePart } from '@accord-dev/accord-core';
+import { deployOrderBlock, epicBody, fillTemplate, findTemplate, normaliseText, prFacts, prTitle, parseRepoUrl, prTitleProblem, SAFE_BRANCH, sliceBlock, sliceBudget, sliceFacts, sliceTitle, todaysBody, workOf } from '@accord-dev/accord-core';
+import type { PrFacts, SliceHome, SlicePart } from '@accord-dev/accord-core';
 import { gitBranchCommits, gitDefaultRef, gitFilesAt, gitTracked, UsageError, withQueued } from '../load/fs.js';
+import { ghRepoOf } from '../load/gh.js';
+import { originOf } from '../load/repos.js';
 import { scriptRefusal, shown } from '../load/script-trust.js';
-import { gitSliceSize } from '../load/slice-size.js';
+import { gitSliceSize, sliceHomeOf } from '../load/slice-size.js';
 import { runTeamCommand } from '../load/team-run.js';
 import type { CommandContext } from '../run.js';
 import { renderedFilesOf } from './branch-fact.js';
 import { withNext } from './next-action.js';
-import { git, ID } from './worktree.js';
+import { defaultBranch } from './pr-wait.js';
+import { branchOf, git, ID } from './worktree.js';
 
 /**
  * Phase 15 D-06: slice `value` of ticket `id`'s plan, or a usage error (exit 2): the value is not a whole number of 1 to 3 digits, the plan holds no `## Slice` section, or none has that number.
@@ -95,11 +98,68 @@ function runScript(ctx: CommandContext, command: string, id: string, ticketFile:
 }
 
 /**
+ * The `Ticket:` line of the pull request of a slice built in another repository, which holds no ticket of its own: a link to the ticket file on this repository's claim branch when this repository's origin is on github.com
+ * (`ghRepoOf` vets owner and repository; the branch name passes SAFE_BRANCH), else the file and branch in plain words with the host, owner and repository of the origin when it reads as one. The origin URL itself is
+ * never printed, so a credential in it never reaches another repository's pull request (T-08.9.3-33).
+ */
+function ticketLine(ctx: CommandContext, id: string): string {
+  const path = `accord/tickets/${id}.md`;
+  const claim = branchOf(ctx.snapshot, id);
+  const safe = SAFE_BRANCH.test(claim) && !claim.startsWith('-') && !claim.includes('..');
+  const origin = originOf(ctx.root);
+  const slug = origin === undefined ? undefined : ghRepoOf(origin);
+  if (slug !== undefined && safe) return `Ticket: https://github.com/${slug}/blob/${claim}/${path}\n`;
+  const parsed = origin === undefined ? undefined : parseRepoUrl(origin);
+  const of = parsed === undefined ? '' : ` of ${shown(`${parsed.host}/${parsed.owner}/${parsed.repo}`)}`;
+  return `Ticket: ${path}${safe ? ` on branch ${claim}` : ''}${of}\n`;
+}
+
+/**
+ * Phase 08.9.3 D-03, D-08: the pull request of a slice built in another repository. Its body is the slice block, the deploy order and the `Ticket:` line: no template and no `pr.command` of either repository is read (the
+ * other repository needs nothing of accord, and this one's template describes this repository's change). Besides `title:`, `body-file:` and `template: none (another repository)` it prints what the skill gives
+ * `gh pr create --repo`: `repository: <owner>/<repo>` (from the declared remote), `head: slice/<id>/<n>` and `base:`, the previous slice of that repository's branch, or for its first slice that repository's default branch read in
+ * its stored clone. A remote that is not github.com, or a default branch that cannot be read, is exit 2 with nothing written.
+ */
+function otherRepositoryPr(
+  ctx: CommandContext,
+  snapshot: CommandContext['snapshot'],
+  id: string,
+  at: { slice: { n: number; of: number }; part: SlicePart; facts: PrFacts; home: SliceHome & { repo: string }; title: string; where: string; order: string },
+): number {
+  const { home, part, facts, title, where } = at;
+  const problem = prTitleProblem(title);
+  if (problem !== undefined) throw new UsageError(`ticket ${id}: ${problem}`);
+  const repos = ctx.snapshot.config?.repos;
+  const entry = repos !== undefined && Object.hasOwn(repos, home.repo) ? repos[home.repo] : undefined;
+  const slug = entry === undefined ? undefined : ghRepoOf(entry.remote);
+  if (slug === undefined) throw new UsageError(`${home.repo}: its remote is not a github.com repository, so the pull request of slice ${part.n} cannot be made with gh pr create --repo; nothing was written`);
+  let base: string;
+  if (home.previous !== undefined) base = home.previous.branch;
+  else {
+    const def = defaultBranch(ctx, home.repo);
+    if (def === undefined) {
+      throw new UsageError(`the default branch of ${home.repo} is not known here: its clone is not stored or has no origin/HEAD, origin/main or origin/master - fix: accord repos set ${home.repo} <path>, then git fetch origin there; nothing was written`);
+    }
+    base = def;
+  }
+  const size = gitSliceSize(ctx.root, snapshot, id, part.n, renderedFilesOf(ctx.snapshot.config));
+  writeFileSync(where, sliceBlock(part, facts.criteria, size, sliceBudget(snapshot)) + at.order + ticketLine(ctx, id));
+  ctx.stdout.write(`title: ${title}\n`);
+  ctx.stdout.write(`body-file: ${where.replaceAll('\\', '/')}\n`);
+  ctx.stdout.write('template: none (another repository)\n');
+  ctx.stdout.write(`repository: ${slug}\n`);
+  ctx.stdout.write(`head: ${home.branch}\n`);
+  ctx.stdout.write(`base: ${base}\n`);
+  return 0;
+}
+
+/**
  * Print `title:`, `body-file:`, then `template: <path>` (or `script: pr.command`, or `template: none`) and one `remaining:` line per section of the template nobody could fill, in that
  * order, and write the body to `<git-path>/accord-pr-<id>.md` (one per worktree, never tracked, overwritten on each run). Exit 2 for an id that is no ticket here or on a backlog branch,
  * for a title the quoted `gh` argument cannot carry, and for everything `pr.command` and `pr.template` can get wrong.
  * Phase 15 D-06, SC-2: with `--slice <n>` the pull request is slice n's: the title ends `(slice <n> of <m>)`, the body opens with `Slice <n> of <m>`, the criteria that slice delivers and its measured size,
  * and a template's criteria and evidence sections list only that slice's criteria; a plan with no `## Slice` section, or a number it has no slice for, is exit 2. Without the flag nothing changes.
+ * Phase 08.9.3: when the plan names another repository the block is followed by the deploy order (D-08), and a slice built in the other repository gets `otherRepositoryPr` (D-03).
  */
 export function pr(ctx: CommandContext, id: string, options: { slice?: string } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
@@ -118,7 +178,13 @@ export function pr(ctx: CommandContext, id: string, options: { slice?: string } 
   const config = ctx.snapshot.config;
   const where = resolve(ctx.root, git(ctx.root, ['rev-parse', '--git-path', `accord-pr-${id}.md`]).trim());
 
+  // Phase 08.9.3 D-08: a plan that names another repository has every slice pull request state the deploy order; a slice built in another repository is its own kind of pull request (D-03)
+  const order = slice === undefined ? '' : deployOrderBlock(workOf(snapshot, id)?.plan?.slices ?? []);
+  const home = slice === undefined ? undefined : sliceHomeOf(snapshot, id, slice.n);
   let title = prTitle(id, facts.title, part);
+  if (slice !== undefined && part !== undefined && home?.repo !== undefined) {
+    return otherRepositoryPr(ctx, snapshot, id, { slice, part, facts, home: { ...home, repo: home.repo }, title, where, order });
+  }
   let body: string;
   let source: string;
   let remaining: string[] = [];
@@ -159,7 +225,7 @@ export function pr(ctx: CommandContext, id: string, options: { slice?: string } 
   // the slice block opens the body whatever made it (template, script or today's list): it is what says which slice this pull request is (D-06)
   if (slice !== undefined && part !== undefined) {
     const size = gitSliceSize(ctx.root, snapshot, id, slice.n, renderedFilesOf(config));
-    body = sliceBlock(part, facts.criteria, size, sliceBudget(snapshot)) + body;
+    body = sliceBlock(part, facts.criteria, size, sliceBudget(snapshot)) + order + body;
   }
   writeFileSync(where, body);
   ctx.stdout.write(`title: ${title}\n`);

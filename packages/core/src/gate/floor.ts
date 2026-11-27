@@ -38,7 +38,7 @@ const FLOOR: Record<string, readonly string[]> = {
     'gate.suite-not-passed', 'gate.done-ticket-edited', 'gate.verification-unfinished', 'gate.evidence-unresolved', 'gate.note-missing', 'gate.note-unresolved', 'gate.note-pasted',
     'gate.research-record-missing', 'gate.research-spent-missing', 'gate.research-over-budget', 'gate.research-shipped',
     // Phase 08.9.3 D-07, D-13, Pitfall 9: the other repository's part of a ticket is independently verified and recorded before Done
-    'gate.repo-record-missing', 'gate.repo-record-incomplete',
+    'gate.repo-record-missing', 'gate.repo-record-incomplete', 'gate.repo-head-moved',
   ],
   // Phase 8.5 R-4: lint.conventions-file guards the trust boundary of product text delivered to agents (D-08)
   // Phase 08.8 D-03: gate.security-unreviewed is here, not in STAGE_OF, so switching the review stage off keeps the security review of a lane M, L or P ticket

@@ -39,7 +39,8 @@ const LOCKED_LIST = [
   'gate.note-unresolved',
   'gate.out-of-scope',
   'gate.ready-missing',
-  // Phase 08.9.3 D-07: the other repository's part of a ticket is recorded and checked before Done
+  // Phase 08.9.3 D-07, D-13, Pitfall 9: the other repository's part of a ticket is recorded and checked before Done, and a slice branch that moved past its recorded head fails where the clone is
+  'gate.repo-head-moved',
   'gate.repo-record-incomplete',
   'gate.repo-record-missing',
   'gate.report-missing',

@@ -16,6 +16,7 @@ import {
   commitTrailer,
   doneTicketEdited,
   noScenarios,
+  repoHeadMoved,
   repoRecordIncomplete,
   repoRecordMissing,
   reportMissing,
@@ -321,6 +322,7 @@ export const DONE_RULES: readonly GateRule[] = [
   // Phase 08.9.3 D-07, D-13, Pitfall 9: the other repository's part of the ticket, from the verifier's record in verification.md; each behind REPOS_FROM through claimPinBefore
   { id: 'gate.repo-record-missing', level: 'error', profiles: ['build', 'maintain'], check: repoRecordMissing },
   { id: 'gate.repo-record-incomplete', level: 'error', profiles: ['build', 'maintain'], check: repoRecordIncomplete },
+  { id: 'gate.repo-head-moved', level: 'error', profiles: ['build', 'maintain'], check: repoHeadMoved },
   COMMIT_TRAILER,
   COMMIT_MESSAGE,
   BRANCH_UNKNOWN,

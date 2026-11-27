@@ -1,8 +1,9 @@
 // Phase 08.9.3 D-07, D-12, D-13: the other repository's part of a ticket is recorded in verification.md (`## Repository <name>`) and checked by `gate done` in CI and locally; the same record lets a scenario proved by a test
 // in that repository (`@test:<name>:<id>`) pass. Real loader, real gate, in-memory files: only the rules of this plan are asserted on, never a whole Done verdict.
 import { describe, expect, it } from 'vitest';
-import { gateDone, loadSnapshot, REPOS_FROM } from '../src/index.js';
+import { gateDone, levelRefusal, lintSnapshot, loadSnapshot, LOCKED, REPOS_FROM } from '../src/index.js';
 import type { GateResult, RepoSnapshot } from '../src/index.js';
+import { DONE_RULES } from '../src/gate/rules.js';
 import { parseVerification } from '../src/load/verification.js';
 import { approved } from './helpers/approve.js';
 import { CONFIG, junit, laneTicket, REPORT, sized } from '../../../test/helpers/lane.js';
@@ -13,6 +14,7 @@ const REPOS = ['repos:', '  tools:', `    remote: ${REMOTE}`, `    tests: ${TEST
 const BASE = 'a'.repeat(40);
 const HEAD = 'b'.repeat(40);
 const MERGED = 'c'.repeat(40);
+const OTHER = 'd'.repeat(40);
 
 // A ticket of three criteria: @ac-1 is proved by a test of tools, @ac-2 and @ac-3 by tests of this repository (@ac-3 is the criterion of a third slice, for the plans of D-13).
 const AC3 = ['', '  @ac-3 @test:export#escapes-commas', '  Scenario: a third thing', '    Given a report', '    When the owner exports it', '    Then a csv file is written', '```'].join('\n');
@@ -53,17 +55,18 @@ const verification = (...repo: string[][]): string => ['---', 'ticket: "T-1"', `
 
 interface Opts {
   plan?: string;
+  body?: string; // the ticket's body, BODY by default
   verification?: string | null; // null: no verification.md
   config?: string;
   claim?: { pin: string } | { error: string } | null;
   slice?: number; // gateDone's --slice
   extra?: Partial<RepoSnapshot>;
 }
-const snapshotOf = ({ plan = TOOLS_FIRST, verification: v = verification(section([FULL])), config = CONFIG + REPOS, claim = { pin: REPOS_FROM }, extra = {} }: Opts = {}): RepoSnapshot => {
+const snapshotOf = ({ plan = TOOLS_FIRST, body = BODY, verification: v = verification(section([FULL])), config = CONFIG + REPOS, claim = { pin: REPOS_FROM }, extra = {} }: Opts = {}): RepoSnapshot => {
   const files: Record<string, string> = approved(
     {
       'accord/config.yml': config,
-      'accord/tickets/T-1.md': laneTicket('T-1', { body: BODY }),
+      'accord/tickets/T-1.md': laneTicket('T-1', { body }),
       [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
       'accord/tickets/T-1/plan.md': plan,
       ...(v === null ? {} : { 'accord/tickets/T-1/verification.md': v }),
@@ -252,5 +255,100 @@ describe('a ticket claimed before 0.22.0 is judged as before (D-13, T-08.9.3-27)
   it('risk:regression a failed claim read applies the rules (fail closed)', () => {
     const r = done({ claim: { error: 'git said no' }, verification: verification() });
     expect(rule(r, 'gate.repo-record-missing')).toHaveLength(1);
+  });
+});
+
+// --- the lint skip, the moved head, and the floor ---
+
+const lintOf = (o: Opts = {}) => lintSnapshot(snapshotOf(o)).findings.filter((f) => f.rule === 'lint.test-id-unknown');
+
+describe('@test:<name>:<id> is not looked up in this repository (D-12)', () => {
+  it('risk:regression lint skips an @test:tools:<id> with tools under repos:, and still reports one whose repository is not declared', () => {
+    expect(lintOf()).toEqual([]);
+    const docs = lintOf({ body: BODY.replace('@test:tools:Tools.Tests#adds', '@test:docs:Docs.Tests#adds') });
+    expect(docs).toHaveLength(1);
+    expect(docs[0].reason).toContain('@test:docs:Docs.Tests#adds not found in reports/junit.xml');
+    // an id of this repository that is not in the report is reported as it always was
+    const own = lintOf({ body: BODY.replace('@test:export#escapes-commas', '@test:export#nope') });
+    expect(own.length).toBeGreaterThan(0);
+    expect(own[0].reason).toContain('@test:export#nope not found');
+  });
+
+  it('risk:security @test:docs:<id> with no repos.docs is never a bypass at Done: it is looked up in this repository report and fails (T-08.9.3-27)', () => {
+    const r = done({ body: BODY.replace('@test:tools:Tools.Tests#adds', '@test:docs:Docs.Tests#adds') });
+    const unknown = rule(r, 'gate.test-unknown');
+    expect(unknown).toHaveLength(1);
+    expect(unknown[0].reason).toBe("@test:docs:Docs.Tests#adds not found in reports/junit.xml; ids are classname#name with spaces as '-'");
+  });
+
+  it('risk:security a complete record of a repository the plan has no slice of is no proof: the tag fails, naming that no slice of it is in scope (T-08.9.3-27)', () => {
+    const noTools = planOf([task(1, 'src/a.ts'), task(2, 'src/b.ts')], [slice(1, '1'), slice(2, '2')]);
+    const unknown = rule(done({ plan: noTools }), 'gate.test-unknown');
+    expect(unknown).toHaveLength(1);
+    expect(unknown[0].reason).toContain('@test:tools:Tools.Tests#adds');
+    expect(unknown[0].reason).toContain('no slice of tools');
+  });
+
+  it('risk:security a suite recorded failed fails the id on gate.test-not-passed and not twice on gate.test-unknown (D-12)', () => {
+    const r = done({ verification: verification(section([FULL], `failed ${TESTS}`)) });
+    expect(rule(r, 'gate.test-unknown')).toEqual([]);
+    const notPassed = rule(r, 'gate.test-not-passed');
+    expect(notPassed).toHaveLength(1);
+    expect(notPassed[0].reason).toContain('@test:tools:Tools.Tests#adds');
+    expect(notPassed[0].reason).toContain('recorded failed');
+    expect(rule(r, 'gate.repo-record-incomplete')).toHaveLength(1);
+  });
+
+  it('risk:security a record short of its Merged line does not stand for the tag: gate.test-unknown names the id and the missing line (D-12)', () => {
+    const r = done({ verification: verification(section([{ n: 1, pr: '#41', head: HEAD }])) });
+    const unknown = rule(r, 'gate.test-unknown');
+    expect(unknown).toHaveLength(1);
+    expect(unknown[0].reason).toContain('@test:tools:Tools.Tests#adds');
+    expect(unknown[0].reason).toContain('Merged:');
+  });
+
+  it('risk:regression no case of another repository joins snapshot.tests, so gate.test-untraced lists none (D-12)', () => {
+    const snapshot = snapshotOf();
+    expect(Object.keys(snapshot.tests ?? {}).filter((k) => k.includes('Tools'))).toEqual([]);
+    const r = done();
+    expect(r.findings.filter((f) => f.rule === 'gate.test-untraced' && f.reason.includes('Tools'))).toEqual([]);
+  });
+});
+
+describe('a slice branch that moved past its recorded head fails Done where the clone is (Pitfall 9)', () => {
+  const heads = (tip: string, n = '1'): Partial<RepoSnapshot> => ({ repoHeads: { tools: { [n]: tip } } });
+
+  it('risk:security a branch tip other than the recorded Verified head is one finding naming tools slice 1, both shas and verify the slice again', () => {
+    const f = rule(done({ extra: heads(OTHER) }), 'gate.repo-head-moved');
+    expect(f).toHaveLength(1);
+    expect(f[0].level).toBe('error');
+    expect(f[0].reason).toContain('tools');
+    expect(f[0].reason).toContain('slice 1');
+    expect(f[0].reason).toContain(OTHER);
+    expect(f[0].reason).toContain(HEAD);
+    expect(f[0].reason).toContain('verify the slice again');
+    expect(f[0].file).toBe('accord/tickets/T-1/verification.md');
+  });
+
+  it('risk:security a tip that equals the Verified head as shaEqual judges (case, an abbreviation) is no finding; so is no host fact, and a tip of a slice the run does not ask for', () => {
+    expect(rule(done({ extra: heads(HEAD) }), 'gate.repo-head-moved')).toEqual([]);
+    expect(rule(done({ extra: heads(HEAD.toUpperCase()) }), 'gate.repo-head-moved')).toEqual([]);
+    expect(rule(done({ extra: heads(HEAD.slice(0, 12)) }), 'gate.repo-head-moved')).toEqual([]);
+    expect(rule(done(), 'gate.repo-head-moved')).toEqual([]);
+    expect(rule(done({ extra: heads(OTHER, '2') }), 'gate.repo-head-moved')).toEqual([]);
+  });
+
+  it('risk:regression a ticket claimed before 0.22.0 is not asked, whatever the host read', () => {
+    expect(rule(done({ claim: { pin: '0.21.1' }, extra: heads(OTHER) }), 'gate.repo-head-moved')).toEqual([]);
+  });
+});
+
+describe('the three record rules are on the floor (LOCKED, independent verification before done)', () => {
+  it('risk:security each is a LOCKED error of the Done table, and no strictness key lowers it', () => {
+    for (const id of ['gate.repo-record-missing', 'gate.repo-record-incomplete', 'gate.repo-head-moved']) {
+      expect(LOCKED, id).toContain(id);
+      expect(levelRefusal(id, 'off'), id).toContain('independent verification before done');
+      expect(DONE_RULES.find((r) => r.id === id)?.level, id).toBe('error');
+    }
   });
 });

@@ -270,6 +270,22 @@ describe('agents: an inline server that would run a command is refused (D-17, T-
     expect(problemsOf([{ docs: { type: 'sse', url: 'https://example.test/mcp', args: ['x'] } }])).toHaveLength(1);
   });
 
+  it('risk:security an inline server whose url carries a query string, a fragment or userinfo is refused, naming the role, the server and the fix (11-01 credential-in-url prohibition, D-17)', () => {
+    const urls = ['https://example.test/mcp?token=abc', 'https://example.test?key=1', 'https://example.test/mcp#frag', 'https://user:pw@example.test/mcp', 'wss://example.test/x?a=b'];
+    for (const url of urls) {
+      const type = url.startsWith('ws') ? 'ws' : 'http';
+      const [problem, ...rest] = problemsOf([{ docs: { type, url } }]);
+      expect(rest, url).toEqual([]);
+      expect(problem, url).toMatchObject({ role: 'executor', field: 'mcp', index: 0, entry: 'docs' });
+      expect(problem?.reason, url).toContain('credential or token in a url is refused');
+      expect(problem?.reason, url).toContain('install the server in Claude Code and name it in agents.executor.mcp');
+    }
+    // a path with no query, fragment or userinfo still passes; so does an `@` after the authority
+    expect(problemsOf([{ docs: { type: 'http', url: 'https://example.test/mcp/v1' } }])).toEqual([]);
+    // the refused server is left out of the render, as any refused entry is
+    expect(Object.hasOwn(frontmatter(fileOf(config({ agents: { executor: { mcp: [{ docs: { type: 'http', url: urls[0] as string } }] } } }), 'accord-executor')), 'mcpServers')).toBe(false);
+  });
+
   it('risk:security agentTargets leaves a refused server out and never throws, so the rest of the config still renders (D-17)', () => {
     const c = config({ agents: { executor: { mcp: [local, 'playwright', { docs: { type: 'http' } }] } } });
     const fm = frontmatter(fileOf(c, 'accord-executor'));

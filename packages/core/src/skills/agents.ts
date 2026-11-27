@@ -161,6 +161,10 @@ function mcpProblem(role: RouteKey, entry: McpEntry): string | undefined {
   if (def.command !== undefined || def.args !== undefined) {
     return `an inline ${def.type} server carries a command, which would run from a committed file on every teammate's machine - fix: remove command and args from ${name}, or ${fix}`;
   }
+  // Phase 11 ruling (plan 11-01 prohibition: no credential in a url): a query string, a fragment or userinfo is where a token rides, and a committed agent file would hand it to every teammate.
+  if (/[?#]/.test(def.url) || /^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^/]*@/.test(def.url)) {
+    return `an inline ${def.type} server url carries a query string, a fragment or userinfo; a credential or token in a url is refused because the agent file is committed - fix: ${fix}`;
+  }
   return undefined;
 }
 

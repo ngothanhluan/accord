@@ -1,7 +1,7 @@
 // Phase 08.9.3 D-03, D-10, D-11: the branch accord cuts in another repository, `slice/<id>/<n>`, is never read as a claim (a session whose folder is that worktree works no ticket, and an other repository that
 // uses accord itself does not take the branch for one of its own tickets); no command reads or writes any file under the other repository's `accord/` folder, also when it has one with its own pin; the
-// worktree record reads and keeps a line with and without its repository column; and `accord worktree clean` leaves a record line with a repository column, and its folder, as they are until plan 08.9.3-07
-// judges them in their own clone. Real git in two sibling clones (helpers/repos.ts).
+// worktree record reads and keeps a line with and without its repository column; and `accord worktree clean` keeps a record line with a repository column, and its folder, while the slice has work the other
+// repository's default branch lacks (plan 08.9.3-07 judges them in their own clone). Real git in two sibling clones (helpers/repos.ts).
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
@@ -152,7 +152,7 @@ it('risk:regression the worktree record reads a line with and without its reposi
   expect(readFileSync(recordFile(r), 'utf8')).toContain(bad);
 });
 
-it('risk:data-loss accord worktree clean leaves a recorded tools worktree and its record line as they are, while the ticket is done, until plan 07 judges them in their own clone (D-10)', async () => {
+it('risk:data-loss accord worktree clean keeps a recorded tools worktree whose slice has a commit the default branch of tools lacks, and its record line, while the ticket is done (D-10)', async () => {
   const r = copyOf(plain);
   await openedTools(r);
   const folder = toolsWt(r);
@@ -168,7 +168,8 @@ it('risk:data-loss accord worktree clean leaves a recorded tools worktree and it
   const files = inventory(folder);
   const res = await run(['worktree', 'clean'], r.svc);
   expect(res.code, res.out + res.err).toBe(0);
-  expect(res.out + res.err).not.toContain('tools-st-9');
+  // plan 08.9.3-07: tools judges its own worktree, and the one commit on its slice is not on tools's default branch
+  expect(res.out).toContain(`kept ${folder}: slice/ST-9/1 has changes not on origin/main (repository tools)`);
   expect(existsSync(folder)).toBe(true);
   expect(inventory(folder)).toEqual(files);
   expect(readFileSync(recordFile(r), 'utf8')).toContain(line);

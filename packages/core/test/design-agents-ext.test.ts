@@ -65,3 +65,9 @@ it('risk:regression releases.md opens with Unreleased naming agents:, lint.agent
   const section = flat(unreleased());
   expect(lacks(section, ['`agents:`', '`lint.agents-config`', 'stdio', '`type` and `url`', '`env`', '`headers`', 'pinned before 0.23.0', '`accord upgrade`'])).toEqual([]);
 });
+
+// Every lint rule G1 registered is named in the release notes: a rule a team can meet in `accord lint` without a line saying what it is would be a surprise at upgrade.
+it('risk:regression every rule id G1 registered appears in the Unreleased section of releases.md (11-ac-4)', () => {
+  const G1_RULES = ['lint.agents-config'] as const;
+  expect(lacks(unreleased(), G1_RULES)).toEqual([]);
+});

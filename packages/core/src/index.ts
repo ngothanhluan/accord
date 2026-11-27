@@ -69,7 +69,7 @@ export { pendingAddedCode, scopeProblems, skipped as reviewSkipped } from './rou
 export { slopOn, slopUnresolved } from './slop/gate.js';
 export { securityExemptRounds, securityOn, securityProblems, securityUnreviewed } from './round/security.js';
 export type { SecurityProblem } from './round/security.js';
-export { lensDeferred, lensFindings, lensOn, lensProblems, lensUnreviewed, lensWarns } from './round/lens.js';
+export { lensAsks, lensDeferred, lensFindings, lensOn, lensProblems, lensUnreviewed, lensWarns } from './round/lens.js';
 export type { LensFinding, LensRecordProblem } from './round/lens.js';
 export {
   APPROACH_CAP,

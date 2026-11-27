@@ -138,3 +138,17 @@ export function lensWarns(snapshot: RepoSnapshot, id: string, cycle: number): st
     .filter((x) => x.cycle === cycle + 1 && x.mode === 'warn' && isOpen(x.f))
     .map((x) => `${x.p}.${x.f.n} lens ${x.lens}`);
 }
+
+/** True when the ledger's `## Deferred` holds `- review <p>.<n>[ cycle <cycle>]: …` for the finding (the line the owner's deferral of an ask finding needs). Kept here, not read from evidence.ts, so no import cycle starts at load. */
+const deferredWithLine = (snapshot: RepoSnapshot, id: string, p: number, n: number | undefined, cycle: number): boolean =>
+  (workOf(snapshot, id)?.ledger?.deferred ?? []).some((d) => d.kind === 'review' && d.round === p && d.n === n && d.cycle === cycle);
+
+/**
+ * Ruling R13 (ask timing): the findings of one cycle (0-based) an `ask` lens made that the owner has not decided: the Must and Should findings still open, or written `deferred` with no `## Deferred` line of the
+ * ledger for them. A finding is decided by a fix (`fixed in <sha>`), a deferral (`deferred` and that line), or the cycle ending with a quoted `verdict: accepted-by-owner` (which the callers read). Never a risk finding.
+ */
+export function lensAsks(snapshot: RepoSnapshot, id: string, cycle: number): LensFinding[] {
+  return lensFindings(snapshot, id).filter(
+    (x) => x.cycle === cycle + 1 && x.mode === 'ask' && (isOpen(x.f) || (x.f.state === 'deferred' && !deferredWithLine(snapshot, id, x.p, x.f.n, x.cycle))),
+  );
+}

@@ -295,3 +295,42 @@ it("risk:regression a warn lens's open Must of the final review does not stop ac
   const found = (JSON.parse(done.out).findings as Found[]).filter((f) => f.rule === 'gate.review-rounds');
   expect(found).toEqual([]);
 }, 300_000);
+
+const reviewRounds = async (repo: string): Promise<Found[]> => {
+  const r = await run(['gate', 'done', 'T-1', '--json'], repo);
+  return (JSON.parse(r.out).findings as Found[]).filter((f) => f.rule === 'gate.review-rounds');
+};
+
+it("risk:regression a block lens's Must stops accord round and Done as a built-in one does, and an ask lens's is put to the owner and decided by the owner's verdict, on real git (11-ac-7, D-06)", async () => {
+  const block = threeRounds('block', MUST);
+  const stopped = await run(['round', 'T-1'], block.repo);
+  expect(stopped.out).toContain('stop: report to owner');
+  expect(stopped.out).not.toContain('ask:');
+  expect(stopped.out).not.toContain('warn:');
+  expect(await reviewRounds(block.repo)).toHaveLength(1);
+
+  // no on_finding in the lens file is ask: the finding is put to the owner, never sent to an executor, and Done names it
+  const ask = threeRounds(undefined, MUST);
+  const asked = await run(['round', 'T-1'], ask.repo);
+  expect(asked.out).toContain('stop: report to owner');
+  expect(asked.out).toContain("lens db's, which asks the owner (on_finding: ask): put each to the owner");
+  expect(asked.out).toContain('ask: 3.1 lens db: the owner decides: fix, defer with a ## Deferred line, or accept with verdict: accepted-by-owner');
+  expect(asked.out).not.toContain('Fix executor model');
+  const undecided = await reviewRounds(ask.repo);
+  expect(undecided).toHaveLength(1);
+  expect(undecided[0].reason).toContain('lens db asks the owner');
+  expect(undecided[0].reason).toContain('finding 1');
+  // the owner's sentence decides it
+  writeFiles(ask.repo, { [REVIEW]: readFileSync(join(ask.repo, REVIEW), 'utf8') + '\nverdict: accepted-by-owner "the owner read the db finding and ships it"\n' });
+  commitMsg(ask.repo, 'owner accepts');
+  expect(await reviewRounds(ask.repo)).toEqual([]);
+}, 300_000);
+
+it('risk:security a risk: security finding of a warn lens still stops accord round and Done, with no warn line, on real git (11-ac-7, D-06)', async () => {
+  const box = threeRounds('warn', 'Must 1: a query is built from a string — src/db/x.ts:3 — open — risk: security — lens: db');
+  const stopped = await run(['round', 'T-1'], box.repo);
+  expect(stopped.out).toContain('stop: report to owner');
+  expect(stopped.out).not.toContain('warn:');
+  expect(stopped.out).not.toContain('ask:');
+  expect(await reviewRounds(box.repo)).toHaveLength(1);
+}, 300_000);

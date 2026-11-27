@@ -7,7 +7,7 @@ import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
-import { lensDeferred, lensProblems, lensWarns } from './lens.js';
+import { lensAsks, lensDeferred, lensProblems, lensWarns } from './lens.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import { securityProblems } from './security.js';
@@ -36,6 +36,7 @@ export interface RoundAnswer {
   reReview?: string[]; // next on a review record under the fix record rules: the fixes (`<r>.<n>[ cycle <k>]`) no re-review round has answered yet (ST-LN-56 D-17)
   checker?: true; // a plan `next` answer at round 1 whose cap rules are PLAN_CAP: the plan skill dispatches one plan checker (ST-LN-91 D-12)
   warn?: string[]; // review: `<r>.<n> lens <name>` of each open Must or Should a `warn` team lens made in the last cycle: listed for the verify report, never blocking (Phase 11 D-06)
+  ask?: string[]; // review stop: `<r>.<n> lens <name>` of each open Must or Should an `ask` team lens made that the owner has not decided: the stop's own reason (Phase 11 D-06, Ruling R13)
 }
 
 /**
@@ -521,6 +522,23 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
     }
   }
 
+  // Phase 11 D-06, Ruling R13: the open Must and Should findings of the cycle are only those of an `ask` team lens, no fix waits for its re-review: the end of the review loop. No executor is sent for them;
+  // each is put to the owner, who fixes it, defers it with a `## Deferred` line or accepts it (the forms Done reads). Any other open Must or Should goes on as before, and so does a risk finding.
+  if (kind === 'review' && awaiting.length === 0) {
+    const asks = lensAsks(snapshot, id, k - 1);
+    const leave = deferredFor(snapshot, id, kind, k - 1);
+    const others = cyc.rounds.some((r) => r.findings.some((f) => f.severity !== 'Nice' && (f.state === undefined || f.state === 'open') && !leave.has(f)));
+    if (asks.length > 0 && !others) {
+      const names = [...new Set(asks.map((a) => a.lens))];
+      const rounds = [...new Set(asks.map((a) => a.p))].map((round) => ({ round, lines: asks.filter((a) => a.p === round).map((a) => a.f.text) }));
+      return stop(
+        [`the open findings of this cycle are lens ${names.join(', ')}'s, which asks the owner (on_finding: ask): put each to the owner`],
+        L,
+        { findings: rounds, ask: asks.map((a) => `${a.p}.${a.f.n} lens ${a.lens}`) },
+      );
+    }
+  }
+
   const p = L + 1;
   if (st.allowed(p)) {
     // ST-LN-91 D-14: from the cut-off pin the planner's fix stays in the tasks the open findings name, unless the owner's Ruling allows more.
@@ -566,7 +584,10 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
 }
 
 /** The `warn:` lines of an answer, each ending in a newline (Phase 11 D-06). */
-const lensLines = (answer: RoundAnswer): string[] => (answer.warn ?? []).map((w) => `warn: ${w}: listed in the verify report, never blocks\n`);
+const lensLines = (answer: RoundAnswer): string[] => [
+  ...(answer.warn ?? []).map((w) => `warn: ${w}: listed in the verify report, never blocks\n`),
+  ...(answer.ask ?? []).map((a) => `ask: ${a}: the owner decides: fix, defer with a ## Deferred line, or accept with verdict: accepted-by-owner\n`),
+];
 
 /** The text `accord round` prints. */
 export function roundText(answer: RoundAnswer): string {

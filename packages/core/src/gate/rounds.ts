@@ -2,6 +2,7 @@
 // a stop the owner has not lifted, and a record accord cannot read each fail, so the cap and the stop hold in
 // every tool and not only where a session asked `accord round`.
 import { allowancesOf, capRulesOf, cycleState, deferredFor, planStopOf, recordProblems, roundCount } from '../round/next.js';
+import { lensAsks } from '../round/lens.js';
 import { claimPinNote } from '../round/pin.js';
 import { cycleOpen } from '../round/record.js';
 import { scopeProblems } from '../round/scope.js';
@@ -57,6 +58,16 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
         last.rounds[s - 1].line,
         `round ${s} of cycle ${k} still reports a Should or a Must, so the loop stopped for the owner; Done needs the cycle to end with verdict: accepted-by-owner "<the owner's sentence>", or a round allowed by the owner that reports no findings followed by verdict: converged`,
       );
+    }
+    // Phase 11 D-06, T-11-19: an open finding of an `ask` team lens is the owner's to decide: a fix, a deferral with its ledger line, or the cycle ending with a quoted accepted-by-owner verdict.
+    if (!(verdict?.value === 'accepted-by-owner' && verdict.quoted)) {
+      for (const a of lensAsks(snapshot, id, k - 1)) {
+        const cycle = k >= 2 ? ` cycle ${k}` : '';
+        add(
+          a.f.line,
+          `round ${a.p} of cycle ${k}, finding ${a.f.n}: lens ${a.lens} asks the owner (on_finding: ask) and the finding is not decided; Done needs it fixed (fixed in <sha>), deferred (written deferred, with - review ${a.p}.${a.f.n}${cycle}: <finding> under ## Deferred in the ledger), or the cycle to end with verdict: accepted-by-owner "<the owner's sentence>"`,
+        );
+      }
     }
     if (ticket.frontmatter?.lane !== 'S' && k >= 2 && cycleOpen(last)) {
       add(

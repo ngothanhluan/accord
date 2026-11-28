@@ -85,7 +85,7 @@ const asked = async (repo: string): Promise<{ code: number; out: string }> => {
   return { code: r.code, out: r.out };
 };
 
-it('risk:regression the final review and its one re-check are outside the budget: a re-check that answers its fix gives the verdict answer and no stop (10-ac-30, D-15)', async () => {
+it('risk:regression accord round gives the verdict answer, not a stop, when the re-check of the final review answers its fix (10-ac-30, D-15)', async () => {
   const repo = reviewed('0.24.0', [
     { lines: shoulds(1) },
     { lines: NONE },

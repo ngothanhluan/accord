@@ -218,6 +218,13 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     }
     // The owner's drop needs the owner's words: a bare `owner:` closes nothing and reads as open.
     else if (/^owner:\s*".*\S.*"\s*$/.test(state)) out.state = 'owner';
+    // Phase 10 D-14: the planner's `does not hold: <path>:<line>`. A segment that names no readable place is still the state, with no place: a record problem from DOES_NOT_HOLD_FROM, an open finding before it (round/answers.ts).
+    else if (/^does not hold\b/.test(state)) {
+      out.state = 'notHeld';
+      const at = /^does not hold:\s*(\S.*)$/.exec(state);
+      const place = at === null ? null : ADDRESS.exec(at[1].trim());
+      if (place !== null && !NO_PLACE.test(place[1] ?? place[2])) out.notHeld = { file: place[1] ?? place[2], line: Number(place[3]) };
+    }
   }
   // A mark slot whose value does not parse: a segment after the finding's text that starts with a mark key and is no mark read. Words anywhere else are prose.
   const unread = segs.slice(head).map((x) => x.trim()).filter((x) => inMarkSlot(x) && readMark(x) === undefined);

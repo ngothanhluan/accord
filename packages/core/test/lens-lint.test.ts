@@ -91,6 +91,23 @@ describe('lint.lens-file: every other malformed lens', () => {
     }
   });
 
+  it('risk:regression a path entry with no trailing / that names a folder of the tree is an error at its line, naming the entry and the entry to write; a file, a folder with the slash and another repository are not (WR-03, 11-ac-5, D-05)', () => {
+    const tree = ['src/db/schema.sql', 'src/db/x.ts', 'migrations/001.sql', 'schema.sql', 'accord/lenses/db.md'];
+    const found = (entry: string) => {
+      const files = lens('db', ['paths:', `  - ${entry}`]);
+      return lintSnapshot(loadSnapshot({ files, tree: [...tree, ...Object.keys(files)] })).findings.filter((f) => f.rule === RULE);
+    };
+    for (const [entry, fix] of [['src/db', 'src/db/'], ['migrations', 'migrations/'], ['SRC/DB', 'SRC/DB/']]) {
+      const out = found(entry);
+      expect(out, entry).toHaveLength(1);
+      expect(out[0], entry).toMatchObject({ rule: RULE, level: 'error', file: 'accord/lenses/db.md', line: 3 });
+      expect(out[0].reason, entry).toContain(`"${entry}"`);
+      expect(out[0].reason, entry).toContain(`write ${fix}`);
+    }
+    // the entry the matcher reads as a folder, a file of the tree, a name with no such folder, and an entry of another repository (whose tree this snapshot does not hold)
+    for (const entry of ['src/db/', 'schema.sql', 'src/db/x.ts', 'nothing-here', 'tools:src/db']) expect(found(entry), entry).toEqual([]);
+  });
+
   it('risk:security a lens with a bad path entry runs on every package, so it is never silently skipped: its paths are not kept (11-ac-5, T-11-10, D-05 lens Ruling)', () => {
     const text = (entries: string[]) => ['---', 'paths:', ...entries.map((e) => `  - ${e}`), '---', '', '- A check.', ''].join('\n');
     const bad = parseLens('accord/lenses/db.md', text(['src/db/', '../db/']));

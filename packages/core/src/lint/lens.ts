@@ -12,7 +12,7 @@ export function lensFile(snapshot: RepoSnapshot): Draft[] {
   const out: Draft[] = [];
   for (const file of Object.keys(snapshot.files).sort()) {
     if (!isLensFile(file)) continue;
-    for (const p of parseLens(file, snapshot.files[file]).problems) out.push({ file, ...(p.line === undefined ? {} : { line: p.line }), reason: p.reason });
+    for (const p of parseLens(file, snapshot.files[file], snapshot.tree).problems) out.push({ file, ...(p.line === undefined ? {} : { line: p.line }), reason: p.reason });
   }
   for (const file of snapshot.tree) {
     if (!file.startsWith(LENS_DIR) || isLensFile(file) || file === KEEP) continue;

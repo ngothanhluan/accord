@@ -61,14 +61,25 @@ const NAME = /^[a-z0-9][a-z0-9-]*$/;
 export const isRunnableLens = (lens: Pick<LensFile, 'name'>): boolean => NAME.test(lens.name);
 
 /** The problems of the `paths:` entries: the security file's rules (shared, never a second set), applied to the path part of an entry, with the line of the entry where it can be found. */
-function entryProblems(paths: string[], lines: string[], bodyOffset: number): LensProblem[] {
+function entryProblems(paths: string[], lines: string[], bodyOffset: number, tree?: readonly string[]): LensProblem[] {
   const out: LensProblem[] = [];
   const inFrontmatter = lines.slice(0, Math.max(bodyOffset - 1, 0));
   const keyLine = inFrontmatter.findIndex((l) => /^\s*paths\s*:/.test(l)) + 1;
+  let known: Set<string> | undefined; // the folders of the tree, built once and only when an entry ends without a /
+  const isFolder = (entry: string): boolean => {
+    if (tree === undefined || entry.endsWith('/')) return false;
+    known ??= new Set(tree.flatMap((p) => p.toLowerCase().split('/').slice(0, -1).map((_, n, dirs) => dirs.slice(0, n + 1).join('/'))));
+    return known.has(entry.toLowerCase());
+  };
   for (const entry of paths) {
     const r = REPO_ENTRY.exec(entry);
     const rest = r === null ? entry : r[2];
-    const reason = GLOB_ENTRY.test(rest) ? `the path entry "${entry}" ${GLOB_ENTRY_REASON}` : unmatchableEntry(rest, entry);
+    let reason = GLOB_ENTRY.test(rest) ? `the path entry "${entry}" ${GLOB_ENTRY_REASON}` : unmatchableEntry(rest, entry);
+    // WR-03: the matcher (the security file's, shared) reads only an entry ending in / as a folder, so `src/db` matches the one path `src/db` and a lens meant for the folder is never printed. Only an entry of this
+    // repository is checked, against the tree the host gave (the folders any tracked path lies under); the matcher itself is not changed, so both files read an entry the same way.
+    if (reason === undefined && r === null && isFolder(rest)) {
+      reason = `the path entry "${entry}" is a folder in this repository, and an entry matches a folder only when it ends in /, so this lens would never be printed for a change under it; write ${entry}/`;
+    }
     if (reason === undefined) continue;
     const at = inFrontmatter.findIndex((l, n) => n > 0 && l.includes(entry)) + 1;
     const line = at > 0 ? at : keyLine > 0 ? keyLine : undefined;
@@ -81,8 +92,9 @@ function entryProblems(paths: string[], lines: string[], bodyOffset: number): Le
  * Read one lens file. Never throws: a file that does not read well gives its reasons in `problems`, each naming the fix, and `accord lint` reports them (lint.lens-file). It still runs on every package rather
  * than silently not at all: a frontmatter that does not read, or a `paths:` entry that can never match, gives no `paths` and mode `ask`. A file with no frontmatter block is a lens with no paths. The name
  * must match the name rule and may not be a built-in lens (BUILT_IN_LENS_NAMES). Ruling R8: no checklist line starts with `#`, so a lens cannot open a heading inside the package; the body is not empty.
+ * With `tree` (the repository's tracked paths, which only lint.lens-file gives) an entry of this repository that names a folder without the trailing / is a problem too (WR-03).
  */
-export function parseLens(path: string, text: string): LensFile {
+export function parseLens(path: string, text: string, tree?: readonly string[]): LensFile {
   const name = stemOf(path);
   const split = splitFrontmatter(text);
   const lines = normaliseText(text).split(NEWLINE);
@@ -107,7 +119,7 @@ export function parseLens(path: string, text: string): LensFile {
       }
     } else {
       mode = loaded.value.on_finding ?? 'ask';
-      const bad = loaded.value.paths === undefined ? [] : entryProblems(loaded.value.paths, lines, split.bodyOffset);
+      const bad = loaded.value.paths === undefined ? [] : entryProblems(loaded.value.paths, lines, split.bodyOffset, tree);
       problems.push(...bad);
       if (bad.length === 0) paths = loaded.value.paths;
     }

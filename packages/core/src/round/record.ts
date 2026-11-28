@@ -67,11 +67,12 @@ function kindLike(value: string): boolean {
   for (let k = 1; k <= words.length; k++) {
     joined += words[k - 1];
     if (!oneOff(joined, 'security') && !oneOff(joined, 'dataloss')) continue;
-    // BUG-LN-22 WR-01: the kind words, with markup or punctuation around them and at most one more word (`Security risk`, `security issue`: a kind written wrong, which fails closed), are a mark slot. A value that goes on
-    // past the kind by two words or more (`risk: security is unaffected by this change`) is a sentence, which is prose, as `risk: none` is: the group-1 decisions read a risk from the mark slot only, and fail
-    // closed on a kind written wrong, never on a sentence.
+    // BUG-LN-22 WR-01: the kind words, with markup or punctuation around them, at most one more word (`Security risk`, `security issue`) or punctuation straight after them (`security: tokens reach the log`, `data-loss, the file is
+    // overwritten`) are a mark slot: a kind written or annotated wrong, which fails closed. A value that goes on past the kind into two words or more with no punctuation between (`risk: security is unaffected by this change`)
+    // is a sentence, which is prose, as `risk: none` is: the group-1 decisions read a risk from the mark slot only, and fail closed on a kind written wrong, never on a sentence.
     const upto = new RegExp(`^[^a-z]*[a-z]+(?:[^a-z]{1,3}[a-z]+){${k - 1}}`).exec(lower)![0];
-    if ((lower.slice(upto.length).match(/[a-z]+/g) ?? []).length <= 1) return true;
+    const rest = lower.slice(upto.length);
+    if ((rest.match(/[a-z]+/g) ?? []).length <= 1 || /^\s*[^a-z\s]/.test(rest)) return true;
   }
   return false;
 }

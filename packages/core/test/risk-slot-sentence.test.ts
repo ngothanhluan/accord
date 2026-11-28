@@ -54,7 +54,7 @@ it('risk:parsing the group-1 decisions stand: the kind alone is read, and a kind
   const alone = one('1. Must — tokens reach the log — open — risk: security');
   expect(risks(alone)).toEqual(['security']);
   expect(approvalBlockers(approach(alone), 'T-1')).toHaveLength(1);
-  for (const wrong of ['risk: security.', 'risk: data_loss', 'risks: security', 'risk: secrity', 'risk: data loss', 'risk: `security`', 'risk: data-lost', 'risk: Security risk', 'risk: data-loss issue']) {
+  for (const wrong of ['risk: security.', 'risk: data_loss', 'risks: security', 'risk: secrity', 'risk: data loss', 'risk: `security`', 'risk: data-lost', 'risk: Security risk', 'risk: data-loss issue', 'risk: security: tokens reach the log', 'risk: data-loss, the old file is overwritten']) {
     const text = one('1. Must — tokens reach the log — open — ' + wrong);
     expect(approvalProblems(approach(text), 'T-1').length, wrong).toBeGreaterThan(0);
   }

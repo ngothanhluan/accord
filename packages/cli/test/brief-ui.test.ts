@@ -145,7 +145,9 @@ describe('accord skills sync renders the UI agents and drops them with their key
     expect(r.code, r.err).toBe(0);
     expect(existsSync(at(repo, EXECUTOR_UI))).toBe(false);
     expect(existsSync(at(repo, REVIEWER_UI))).toBe(false);
-    expect(r.out).not.toContain('-ui.md');
+    // the two agent variants only: the accord folder's own approach-ui.md (plan 11-16) is a skill file and is always rendered
+    expect(r.out).not.toContain(EXECUTOR_UI);
+    expect(r.out).not.toContain(REVIEWER_UI);
   }, 120_000);
 
   it('risk:regression a dropped ui.build leaves no variant rendered and the next sync lists the old file as no longer rendered (11-ac-8, D-07, R17)', async () => {

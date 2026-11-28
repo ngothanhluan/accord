@@ -62,7 +62,7 @@ const holds = (n: number, of: number): boolean => n * 100 >= of * MIN_SHARE_PERC
 /** What a repository's own text can put on a terminal: printable ASCII only, so a tracked file name never carries a control sequence. */
 export const printable = (text: string): string => text.replace(/[^\x20-\x7e]/g, '?');
 
-/** Every proposal this repository supports, in the order the output contract lists the keys: git.merge, commits.subjects, branch, ids, tracker, then repos.<name>.tests. */
+/** Every proposal this repository supports, in the order the output contract lists the keys: git.merge, commits.subjects, branch, ids, tracker, repos.<name>.tests, then ui.screenshots. */
 export function detectProposals(root: string): Proposal[] {
   const ref = defaultRefOf(root) ?? 'HEAD';
   const on = shortName(ref);
@@ -78,6 +78,7 @@ export function detectProposals(root: string): Proposal[] {
     trackerKeys(own, branches),
     trackerLinks(root, own),
     ...repoTestProposals(root, config),
+    config?.ui?.screenshots === undefined ? uiScreenshotsProposal(root) : undefined,
   ].filter((p): p is Proposal => p !== undefined);
   return found.filter(accepted(root));
 }
@@ -389,6 +390,62 @@ export function repoTestProposals(root: string, config: Pick<AccordConfig, 'repo
     }
   }
   return out;
+}
+
+/**
+ * Phase 11 D-12, Ruling R29: the names a tracked root package.json lists under `dependencies` and `devDependencies`, read as one `readBounded` read and a JSON parse that never throws. A repository with no
+ * tracked package.json, or one that is not a JSON object, lists nothing: no proposal and no suggestion follow from it.
+ */
+function packageNames(root: string): Set<string> {
+  const names = new Set<string>();
+  if (!trackedFiles(root, ['package.json']).includes('package.json')) return names;
+  const text = readBounded(root, 'package.json');
+  if (text === undefined) return names;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (typeof parsed !== 'object' || parsed === null) return names;
+    for (const block of ['dependencies', 'devDependencies']) {
+      const deps = Object.hasOwn(parsed, block) ? (parsed as Record<string, unknown>)[block] : undefined;
+      if (typeof deps === 'object' && deps !== null && !Array.isArray(deps)) for (const name of Object.keys(deps)) names.add(name);
+    }
+  } catch {
+    // not JSON: nothing is listed
+  }
+  return names;
+}
+
+/** The wdio config files a tracked root can hold, in the order wdio's own init writes them. */
+const WDIO_CONFIGS = ['wdio.conf.ts', 'wdio.conf.js', 'wdio.conf.mjs', 'wdio.conf.cjs', 'wdio.conf.mts', 'wdio.conf.cts'];
+
+/**
+ * Phase 11 D-12, Ruling R28: a browser test tool a package.json lists and the command that runs it with the screenshots written into `{dir}` (the ticket's evidence folder, which `ACCORD_EVIDENCE` carries to the
+ * team's own `@ui` tests). The first row whose package is listed wins; a row whose command needs a file the repository does not track gives no proposal rather than a guess.
+ */
+const BROWSER_TEST_TOOLS: { packages: string[]; command: (root: string) => string | undefined }[] = [
+  { packages: ['@playwright/test'], command: () => 'ACCORD_EVIDENCE={dir} npx playwright test --grep @ui' },
+  { packages: ['cypress'], command: () => 'ACCORD_EVIDENCE={dir} npx cypress run' },
+  {
+    packages: ['@wdio/cli', 'webdriverio'],
+    command: (root) => {
+      const tracked = new Set(trackedFiles(root, WDIO_CONFIGS));
+      const conf = WDIO_CONFIGS.find((f) => tracked.has(f));
+      return conf === undefined ? undefined : `ACCORD_EVIDENCE={dir} npx wdio run ./${conf}`;
+    },
+  },
+];
+
+/** `ui.screenshots` (tier a) from the browser test tool a package.json lists; the caller leaves it out when the key is already set. */
+function uiScreenshotsProposal(root: string): Proposal | undefined {
+  const listed = packageNames(root);
+  if (listed.size === 0) return undefined;
+  for (const tool of BROWSER_TEST_TOOLS) {
+    const name = tool.packages.find((p) => listed.has(p));
+    if (name === undefined) continue;
+    const command = tool.command(root);
+    if (command === undefined) continue;
+    return { key: 'ui.screenshots', value: command, evidence: `package.json lists ${printable(name)}` };
+  }
+  return undefined;
 }
 
 /**

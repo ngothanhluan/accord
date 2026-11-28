@@ -1,6 +1,7 @@
 // ST-LN-91 D-22: the open `risk: data-loss` and `risk: security` approach findings `accord show --approval --short` lists and `accord approve` refuses on.
-import { approvalFindings, approvalProblems, claimPinError } from '@accord-dev/accord-core';
+import { approvalFindings, approvalProblems, approvalWaiting, claimPinError } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
+import { withPlaceFacts } from '../load/place-facts.js';
 import type { CommandContext } from '../run.js';
 
 /** One round's finding lines, as `accord round` prints them. */
@@ -9,13 +10,13 @@ export interface RoundLines { round: number; lines: string[] }
 /**
  * The findings of ticket `id`'s last approach cycle that the approval shows: `blocking` (the block applies only when the ticket's claim pin is at
  * or after the cut-off), `risks`, `problems` (CR-01: what the approach record holds that accord cannot read, on the same rules as `blocking`), and
- * `error`, the git error when the claim pin could not be read and so the capped rules apply (fail closed). The
- * claim pin is read from git as `accord round --approach` reads it; the checkout's snapshot holds the work records.
+ * `error`, the git error when the claim pin could not be read and so the capped rules apply (fail closed), and `waiting` (Phase 10 D-14): the `<round>.<n>` of each blocking finding the planner answered `does not hold`, which
+ * the owner decides. The claim pin is read from git as `accord round --approach` reads it, and the places a `does not hold` answer cites from the working tree as it does; the checkout's snapshot holds the work records.
  */
-export function approachFacts(ctx: CommandContext, id: string): { risks: RoundLines[]; blocking: RoundLines[]; problems: string[]; error?: string } {
-  const snapshot = withClaimPins(ctx.root, ctx.plain ?? ctx.snapshot, id);
+export function approachFacts(ctx: CommandContext, id: string): { risks: RoundLines[]; blocking: RoundLines[]; problems: string[]; waiting: string[]; error?: string } {
+  const snapshot = withPlaceFacts(ctx.root, withClaimPins(ctx.root, ctx.plain ?? ctx.snapshot, id), id);
   const error = claimPinError(snapshot, id);
-  return { ...approvalFindings(snapshot, id), problems: approvalProblems(snapshot, id), ...(error === undefined ? {} : { error }) };
+  return { ...approvalFindings(snapshot, id), problems: approvalProblems(snapshot, id), waiting: approvalWaiting(snapshot, id), ...(error === undefined ? {} : { error }) };
 }
 
 /** The one line that names the git error behind the capped rules (the error is one line already: `whyGit`). */
@@ -25,7 +26,7 @@ export const claimNote = (error: string): string => `${error}; the claim pin cou
  * The refusal `accord approve` prints: one line, the git error when the claim pin could not be read, then each blocking round's findings as `accord round`
  * prints them, then (CR-01) the record problems, one per line, as `accord round` names them.
  */
-export function blockedApproval(id: string, blockers: RoundLines[], error?: string, problems: string[] = []): string {
+export function blockedApproval(id: string, blockers: RoundLines[], error?: string, problems: string[] = [], waiting: string[] = []): string {
   const lead =
     blockers.length > 0
       ? `refused: ${id} has an approach finding marked risk: data-loss or risk: security still open, and it blocks the approval: the owner cannot say yes to this approach; ` +
@@ -34,6 +35,9 @@ export function blockedApproval(id: string, blockers: RoundLines[], error?: stri
   const out = [lead, ...(error === undefined ? [] : [claimNote(error)])];
   if (blockers.length > 0) out.push('Blocking findings:');
   for (const b of blockers) out.push(`Round ${b.round}:`, ...b.lines);
+  if (blockers.length > 0 && waiting.length > 0) {
+    out.push(`The planner answered ${waiting.join(', ')} does not hold, which never closes a data-loss or security finding: it waits for the owner, whose owner: "<the owner's words>" on that finding closes it`);
+  }
   if (problems.length > 0) out.push(...(blockers.length > 0 ? ['Record problems (approach-review.md):'] : ['Record problems:']), ...problems);
   return out.join('\n') + '\n';
 }

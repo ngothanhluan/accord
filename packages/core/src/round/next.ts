@@ -4,11 +4,12 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { resolveStrictness } from '../config/strictness.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
+import { acceptedLines, ambiguousWarns, answerProblems, answersClosed, notHeldWaiting, riskSet } from './answers.js';
 import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { lensAsks, lensDeferred, lensMarkProblems, lensProblems, lensWarns } from './lens.js';
-import { APPROACH_CAP_FROM, CRITIC_ONCE_FROM, PLAN_CAP_FROM, REVIEW_BUDGET_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
+import { ACCEPTED_RISK_FROM, APPROACH_CAP_FROM, CRITIC_ONCE_FROM, PLAN_CAP_FROM, REVIEW_BUDGET_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import { securityProblems } from './security.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
@@ -35,11 +36,12 @@ export interface RoundAnswer {
   addedCode?: true; // next on a version 2 review record: a debug episode or a merge added code that no round has reviewed (ST-LN-57)
   reReview?: string[]; // next on a review record under the fix record rules: the fixes (`<r>.<n>[ cycle <k>]`) no re-review round has answered yet (ST-LN-56 D-17)
   checker?: true; // a plan `next` answer at round 1 whose cap rules are PLAN_CAP: the plan skill dispatches one plan checker (ST-LN-91 D-12)
-  warn?: string[]; // review: `<r>.<n> lens <name>` of each open Must or Should a `warn` team lens made in the last cycle: listed for the verify report, never blocking (Phase 11 D-06)
+  warn?: string[]; // review: `<r>.<n> lens <name>` of each open Must or Should a `warn` team lens made in the last cycle, and `<r>.<n> ambiguous ac-<n>, built "<reading>"` of each ambiguous-criterion finding (Phase 10 D-15 (a)): listed for the verify report, never blocking (Phase 11 D-06)
   recheck?: string[]; // next, round 2 of the one-round rules (Phase 10 D-01): the `1.<n>` risk findings a fresh critic re-checks, and only those
   once?: true; // a plan stop under the one-round rules: no owner Ruling raises the cap, so the answer does not offer one
   intentHint?: string[]; // review budget stop (Phase 10 D-15 (b)): the `<r>.<n>` of each open Must or Should with no risk mark first raised in round `intentRound`: they may be an intent problem
   intentRound?: number; // the round `intentHint` names: the first round of the stretch the budget counts
+  accepted?: string[]; // `<record> <r>.<n>: <why>` of each closed `accepted risk` of the last cycle of the ticket's approach, plan and review records: listed on `accepted:` lines for the verify report (Phase 10 D-15)
   ask?: string[]; // review stop: `<r>.<n> lens <name>` of each open Must or Should an `ask` team lens made that the owner has not decided: the stop's own reason (Phase 11 D-06, Ruling R13)
 }
 
@@ -67,10 +69,10 @@ const isD01 = (rules: CapRules): boolean => rules.fall && !rules.allowances && !
 
 /**
  * Phase 10 D-01, T-10-01: the `n` of each finding `1.<n>` of the cycle's round 1 that is marked `risk: data-loss` or `risk: security` (its own mark, as `classify` reads it): the findings whose fix a scoped re-check
- * round covers. A finding the critic withdrew, or the owner dropped with `owner: "<words>"`, needs no re-check.
+ * round covers. A finding the critic withdrew, or the owner dropped with `owner: "<words>"`, needs no re-check, and neither does one the planner answered `does not hold` (Phase 10 D-14): that answer is no fix, and the finding goes to the owner.
  */
 export function recheckOf(cycle: RoundCycle | undefined): number[] {
-  return (cycle?.rounds[0]?.findings ?? []).flatMap((f) => (f.risk !== undefined && f.n !== undefined && f.state !== 'withdrawn' && f.state !== 'owner' ? [f.n] : []));
+  return (cycle?.rounds[0]?.findings ?? []).flatMap((f) => (f.risk !== undefined && f.n !== undefined && f.state !== 'withdrawn' && f.state !== 'owner' && f.state !== 'notHeld' ? [f.n] : []));
 }
 
 /** ST-LN-91 D-07, D-17: three plan critique rounds, the stop from round 3 beside the count stop, and the owner's allowance Rulings kept. */
@@ -294,32 +296,19 @@ type Class = 'open' | 'blocking' | 'accepted';
  * dropped with `owner: "<words>"` (then it is `accepted`: closed, and listed with the owner's words). An unmarked Must or Should is `open`
  * while open or unverified.
  */
-function classify(cycle: RoundCycle): Map<RoundFinding, Class> {
+function classify(cycle: RoundCycle, closed: ReadonlySet<RoundFinding> = new Set()): Map<RoundFinding, Class> {
   const at = (round: number, n: number): RoundFinding[] => cycle.rounds[round - 1]?.findings.filter((f) => f.n === n) ?? [];
-  const risk = new Set<RoundFinding>();
-  for (const r of cycle.rounds) for (const f of r.findings) if (f.risk !== undefined) risk.add(f);
+  const risk = riskSet(cycle);
   const later = (f: RoundFinding, p: number): RoundFinding[] => (f.repeatedAs !== undefined && f.repeatedAs.round > p ? at(f.repeatedAs.round, f.repeatedAs.n) : []);
-  for (let again = true; again; ) {
-    again = false;
-    cycle.rounds.forEach((r, i) => {
-      for (const f of r.findings) {
-        const inherit = (from: RoundFinding[], to: RoundFinding[]) => {
-          if (!from.some((x) => risk.has(x))) return;
-          for (const x of to) if (!risk.has(x)) { risk.add(x); again = true; }
-        };
-        if (f.carried !== undefined && f.carried.round < i + 1) inherit(at(f.carried.round, f.carried.n), [f]);
-        if (f.state === 'repeated') inherit([f], later(f, i + 1));
-      }
-    });
-  }
   const out = new Map<RoundFinding, Class>();
   cycle.rounds.forEach((r, i) => {
     for (const f of r.findings) {
-      const open = f.state === undefined || f.state === 'open';
+      // Phase 10 D-14, D-15: a finding answered `does not hold`, `accepted risk` or `ambiguous` reads open until an answer of round/answers.ts closes it (`closed`), and a risk finding is never closed by one: it stays blocking until the owner's words.
+      const open = f.state === undefined || f.state === 'open' || f.state === 'notHeld' || f.state === 'accepted' || f.state === 'ambiguous';
       if (risk.has(f)) {
         if (open || f.state === 'deferred' || (f.state === 'repeated' && later(f, i + 1).length === 0)) out.set(f, 'blocking');
         else if (f.state === 'owner') out.set(f, 'accepted');
-      } else if (f.severity !== 'Nice' && open) {
+      } else if (f.severity !== 'Nice' && open && !closed.has(f)) {
         out.set(f, 'open');
       }
     }
@@ -344,8 +333,8 @@ export function openRisks(cycle: RoundCycle): { id: string; text: string }[] {
  * Phase 10 D-15 (b), 10-ac-31: the `<r>.<n>` of each open Must or Should with no risk mark that was first raised in round `first` of the cycle: the finding itself, or one that carries it on (`carried from`, `repeats`)
  * or repeats it (`repeated as`), followed back to the round it started in. A risk-marked finding (own mark or inherited) is never named: it keeps its class and goes to the owner as a risk.
  */
-export function intentOf(cycle: RoundCycle, first: number): string[] {
-  const classes = classify(cycle);
+export function intentOf(cycle: RoundCycle, first: number, closed?: ReadonlySet<RoundFinding>): string[] {
+  const classes = classify(cycle, closed);
   const at = (round: number, n: number): RoundFinding[] => cycle.rounds[round - 1]?.findings.filter((f) => f.n === n) ?? [];
   // the earliest round and number a finding of round `r` comes from: every earlier link, `carried from` and the finding a `repeated as` names, is followed
   const origin = (f: RoundFinding, r: number): { round: number; n: number | undefined } => {
@@ -372,8 +361,8 @@ export function intentOf(cycle: RoundCycle, first: number): string[] {
 }
 
 /** The finding lines of each round of the cycle whose class passes `keep`. */
-function linesOf(cycle: RoundCycle, keep: (c: Class | undefined) => boolean): { round: number; lines: string[] }[] {
-  const classes = classify(cycle);
+function linesOf(cycle: RoundCycle, keep: (c: Class | undefined) => boolean, closed?: ReadonlySet<RoundFinding>): { round: number; lines: string[] }[] {
+  const classes = classify(cycle, closed);
   const out: { round: number; lines: string[] }[] = [];
   cycle.rounds.forEach((r, i) => {
     const lines = r.findings.filter((f) => keep(classes.get(f))).map((f) => f.text);
@@ -383,8 +372,8 @@ function linesOf(cycle: RoundCycle, keep: (c: Class | undefined) => boolean): { 
 }
 
 /** ST-LN-91 D-02: per round of the cycle, the Must and Should findings still open that carry no `risk:` mark: the risks the approval lists. */
-export function openFindings(cycle: RoundCycle): { round: number; lines: string[] }[] {
-  return linesOf(cycle, (c) => c === 'open');
+export function openFindings(cycle: RoundCycle, closed?: ReadonlySet<RoundFinding>): { round: number; lines: string[] }[] {
+  return linesOf(cycle, (c) => c === 'open', closed);
 }
 
 /** ST-LN-91 D-22: the open findings marked `risk: data-loss` or `risk: security`, own mark or inherited through a repeat: they block the approval and are never listed as risks. */
@@ -409,10 +398,20 @@ export function approvalFindings(snapshot: RepoSnapshot, id: string): { risks: {
   if (rec === undefined) return { risks: [], blocking: [] };
   const cycle = rec.cycles[rec.cycles.length - 1];
   const blocks = approvalBlocks(snapshot, id);
+  const closed = answersClosed(snapshot, id, 'approach', rec.cycles.length - 1);
   return {
-    risks: linesOf(cycle, (c) => c === 'open' || c === 'accepted' || (!blocks && c === 'blocking')),
+    risks: linesOf(cycle, (c) => c === 'open' || c === 'accepted' || (!blocks && c === 'blocking'), closed),
     blocking: blocks ? blockingFindings(cycle) : [],
   };
+}
+
+/**
+ * Phase 10 D-14, T-10-08: the `<round>.<n>` of each finding of the last approach cycle that the planner answered `does not hold` and that is marked data-loss or security: it blocks the approval and waits for the owner, whose
+ * `owner: "<words>"` closes it. Empty for a ticket on the older approval rules, which block nothing.
+ */
+export function approvalWaiting(snapshot: RepoSnapshot, id: string): string[] {
+  const rec = workOf(snapshot, id)?.approachRounds;
+  return rec === undefined || !approvalBlocks(snapshot, id) ? [] : notHeldWaiting(snapshot, id, 'approach', rec.cycles.length - 1);
 }
 
 /**
@@ -437,13 +436,14 @@ const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) 
 
 /**
  * The findings of one cycle (0-based) that leave the stop: a review record's evidence deferrals (ST-LN-57 D-08) and re-review findings outside the fix diff written
- * deferred with their ledger line (ST-LN-56 D-10), the findings of a team lens that does not block (Phase 11 D-06) and, for every record kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12).
+ * deferred with their ledger line (ST-LN-56 D-10), the findings of a team lens that does not block (Phase 11 D-06) and, for every record kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12), and the findings an answer closes without a fix: the planner's `does not hold` with a place that exists (Phase 10 D-14, round/answers.ts).
  */
 export const deferredFor = (snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> =>
   new Set([
     ...(kind === 'review' ? deferredOf(snapshot, id, cycle) : []),
     ...(kind === 'review' ? fixDeferred(snapshot, id, cycle) : []),
     ...(kind === 'review' ? lensDeferred(snapshot, id, cycle) : []),
+    ...answersClosed(snapshot, id, kind, cycle),
     ...groundsDeferred(snapshot, id, kind, cycle),
   ]);
 
@@ -452,7 +452,8 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
   const work = workOf(snapshot, id);
   const rec: RoundRecord | undefined = recordOf(work, kind);
   if (rec === undefined) return [];
-  const out = [...rec.unreadable];
+  // Phase 10 D-15, 10-ac-11: a ticket claimed before ACCEPTED_RISK_FROM reads an `accepted risk:` or `ambiguous` review line as it did at b4477211: a line accord cannot read.
+  const out = [...(kind === 'review' && rec.legacyUnreadable !== undefined && claimPinBefore(snapshot, id, ACCEPTED_RISK_FROM) ? rec.legacyUnreadable : rec.unreadable)];
   const all = allowancesOf(snapshot, id, kind);
   const rules = capRulesOf(snapshot, id, kind);
   const add = (line: number, reason: string) => out.push({ line, reason: `line ${line}: ${reason}` });
@@ -487,6 +488,8 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
       }
     });
   }
+  // Phase 10 D-14, 10-ac-21: a `does not hold` answer with no readable place, or whose place the host found missing, is refused with its line; every cycle is held to it.
+  for (const p of answerProblems(snapshot, id, kind)) add(p.line, p.reason);
   // Phase 11 D-06, Ruling R12: a `lens:` mark that names a built-in lens, a lens with no file, or a lens the finding's own round did not print is refused with its line, by `accord round` and `gate done` alike.
   if (kind === 'review') for (const p of lensMarkProblems(snapshot, id)) add(p.line, p.reason);
   rec.cycles.forEach((cycle, i) => {
@@ -576,8 +579,10 @@ const scopeReason = (p: { line?: number; reason: string }): string => (p.line ==
 export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): RoundAnswer {
   const answer = nextRoundOf(snapshot, id, kind);
   const rec = kind === 'review' ? workOf(snapshot, id)?.rounds : undefined;
-  const warn = rec === undefined ? [] : lensWarns(snapshot, id, rec.cycles.length - 1);
-  return warn.length === 0 ? answer : { ...answer, warn };
+  const warn = rec === undefined ? [] : [...lensWarns(snapshot, id, rec.cycles.length - 1), ...ambiguousWarns(snapshot, id, rec.cycles.length - 1)];
+  // Phase 10 D-15: every answer lists the accepted risks of the ticket's three records, so the verify report can name them even once the loop has ended.
+  const accepted = acceptedLines(snapshot, id);
+  return { ...answer, ...(warn.length === 0 ? {} : { warn }), ...(accepted.length === 0 ? {} : { accepted }) };
 }
 
 function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): RoundAnswer {
@@ -675,19 +680,22 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
       : isOnce(rules)
         ? `the one ${NOUN[kind]} round${st.cap > 1 ? ' and its one re-check' : ''} of D-01 (more rounds only from strictness.rounds.${kind} in accord/config.yml)`
         : `the cap of ${st.cap} ${NOUN[kind]} rounds that strictness.rounds.${kind} sets`;
-  const unlisted = (): Pick<RoundAnswer, 'findings' | 'blocking'> => ({ findings: openFindings(cyc), blocking: blockingFindings(cyc) });
+  const unlisted = (): Pick<RoundAnswer, 'findings' | 'blocking'> => ({ findings: openFindings(cyc, answersClosed(snapshot, id, kind, k - 1)), blocking: blockingFindings(cyc) });
   // ST-LN-91 D-22: an ended capped loop (a verdict, a round with no findings, round 3 asked) still refuses the approval while a data-loss or
   // security finding is open; the owner's no with a Correction appends ## Closed and starts a new cycle.
   const blockedRefusal = (lead: string): RoundAnswer | undefined => {
     const left = unlisted();
     if (left.blocking!.length === 0) return undefined;
+    // Phase 10 D-14, T-10-08: a risk finding the planner answered `does not hold` is never closed by the place; the refusal names it as the owner's to decide.
+    const waiting = notHeldWaiting(snapshot, id, kind, k - 1);
+    const waits = waiting.length === 0 ? '' : `; the planner answered ${waiting.join(', ')} does not hold, which never closes a data-loss or security finding: it waits for the owner, whose owner: "<the owner's words>" on that finding closes it`;
     if (d01Plan) {
       // Phase 10 D-01 (Ruling): a plan has no approval to block; a data-loss or security finding still open when the one-round loop has ended stops it for the owner, who accepts it with a verdict after the last round.
       if (cyc.verdicts.some((v) => v.quoted && v.line > cyc.rounds[L - 1].line)) return undefined;
-      return stop([`${lead}; a finding marked risk: data-loss or risk: security is still open`], L, { findings: left.blocking, once: true });
+      return stop([`${lead}; a finding marked risk: data-loss or risk: security is still open${waits}`], L, { findings: left.blocking, once: true });
     }
     if (!capped) return undefined;
-    const reason = `${lead}; a finding marked risk: data-loss or risk: security is still open, and it blocks the approval: the owner cannot say yes to this approach; the owner's no with a Correction appends ## Closed and starts a new cycle of ${st.cap} rounds`;
+    const reason = `${lead}; a finding marked risk: data-loss or risk: security is still open, and it blocks the approval: the owner cannot say yes to this approach; the owner's no with a Correction appends ## Closed and starts a new cycle of ${st.cap} rounds${waits}`;
     return { ...refuseCap(reason), cycle: k, round: L, cap: st.cap, ...left };
   };
   const textsOf = (n: number) => ({ round: n, lines: cyc.rounds[n - 1].findings.map((f) => f.text) });
@@ -721,7 +729,7 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
     const why = st.kindOf?.(s);
     if (why === undefined) return {};
     const risks = blockingFindings(cyc);
-    const hint = why === 'final' ? [] : intentOf(cyc, off + 1);
+    const hint = why === 'final' ? [] : intentOf(cyc, off + 1, answersClosed(snapshot, id, kind, k - 1));
     return { ...(risks.length === 0 ? {} : { blocking: risks }), ...(hint.length === 0 ? {} : { intentHint: hint, intentRound: off + 1 }) };
   };
 
@@ -832,6 +840,7 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
 
 /** The `warn:` lines of an answer, each ending in a newline (Phase 11 D-06). */
 const lensLines = (answer: RoundAnswer): string[] => [
+  ...(answer.accepted ?? []).map((a) => `accepted: ${a}\n`),
   ...(answer.warn ?? []).map((w) => `warn: ${w}: listed in the verify report, never blocks\n`),
   ...(answer.ask ?? []).map((a) => `ask: ${a}: the owner decides: fix, defer with a ## Deferred line, or accept with verdict: accepted-by-owner\n`),
 ];

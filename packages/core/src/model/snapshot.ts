@@ -348,8 +348,13 @@ export interface RoundFinding {
   // Version 2 only (ST-LN-57): the parts of the finding line the form names.
   n?: number;
   file?: string; // absent for `none`
-  state?: 'open' | 'fixed' | 'deferred' | 'withdrawn' | 'repeated' | 'owner'; // the last three: version 1 plan and approach lines only (ST-LN-91)
+  // withdrawn, repeated, owner: version 1 plan and approach lines only (ST-LN-91). notHeld (`does not hold: <path>:<line>`, Phase 10 D-14): version 1 plan and approach lines only. accepted (`accepted risk: <why>`, D-15): version 1 plan and approach lines
+  // and version 2 review lines. ambiguous (`ambiguous ac-<n>: built "<reading>"`, D-15 (a)): version 2 review lines only. Whether an answer closes the finding is decided by round/answers.ts, by the claim pin, never by the reader.
+  state?: 'open' | 'fixed' | 'deferred' | 'withdrawn' | 'repeated' | 'owner' | 'notHeld' | 'accepted' | 'ambiguous';
   carried?: { round: number; n: number };
+  notHeld?: { file: string; line: number }; // state 'notHeld' whose place reads `<path>:<line>`; absent when the segment names none (a record problem for a ticket claimed from the does-not-hold cut-off)
+  why?: string; // state 'accepted': the reason after `accepted risk:`; absent when there is none
+  ambiguous?: { ac: number; reading: string }; // state 'ambiguous': the criterion `ac-<n>` (its number) and the reading that was built
   repeatedAs?: { round: number; n: number }; // state 'repeated' with a target (ST-LN-91 RR-CR-01): the round.n the finding was repeated as
   risk?: 'data-loss' | 'security';
   test?: string;
@@ -384,6 +389,8 @@ export interface RoundRecord {
   version?: 2; // ST-LN-57: set only for `Round record: 2`
   cycles: RoundCycle[]; // always at least one; review: split at ## Return from verify; plan: split after ## Closed
   unreadable: { line: number; reason: string }[];
+  // Phase 10 D-15, 10-ac-11: a version 2 review record that holds an `accepted risk:` or `ambiguous ac-<n>:` state: what `unreadable` was before those two states were read, for a ticket claimed before their cut-off. Absent when the record holds neither.
+  legacyUnreadable?: { line: number; reason: string }[];
 }
 
 /** ST-LN-91 D-04: one gray area of discuss.md: its group, its text, and the `D-nn` ids its answer became. */
@@ -534,6 +541,9 @@ export interface RepoSnapshot {
   // order, every cycle) at or before the start of the slice in work, so the budget counts only the rounds after them; `error` when git could not say where the slice starts, and then every round of the cycle counts (fail closed). Absent when the
   // host supplies none (no slices, no version 2 record, a ticket claimed earlier, a slice of another repository).
   sliceRounds?: Record<string, { before: number } | { error: string }>;
+  // Phase 10 D-14, T-10-07: host-supplied by `accord round --approach` and `--plan` for a ticket claimed at or after DOES_NOT_HOLD_FROM: for each `<path>:<line>` a finding of its plan or approach record answers `does not hold`, whether the place exists in
+  // the working tree (a relative path inside it, no `..`, no link, a regular file with at least that many lines). A place with no entry is not known to exist. Absent when the host supplies none.
+  places?: Record<string, Record<string, boolean>>;
   // ST-LN-91 D-11: host-supplied by accord round for the ticket it counts: the pin at the first round of its plan-review.md or
   // approach-review.md, else HEAD's, and at that commit's merge base with the default ref. A record with no entry keeps the older grounds rule.
   recordPins?: Record<string, { plan?: RecordPin; approach?: RecordPin }>;

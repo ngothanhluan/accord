@@ -5,6 +5,7 @@ import { withClaimPins } from '../load/claim-facts.js';
 import { withFixReports } from '../load/fix-reports.js';
 import { UsageError, withReturnFacts } from '../load/fs.js';
 import { withLensFacts } from '../load/lens-facts.js';
+import { withPlaceFacts } from '../load/place-facts.js';
 import { withPlanFix } from '../load/plan-diff.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
@@ -42,12 +43,13 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
   }
   // ST-LN-91 D-11: a plan or approach record is asked for grounds from round 2 under the pin of its own first round.
   // D-14: the plan's fix is checked from round 1 on, under the same pin, against the tasks its open findings name.
+  // Phase 10 D-14, T-10-07: a plan or approach finding answered `does not hold: <path>:<line>` is closed only when that place exists in the working tree; the loader reads the working tree for a ticket claimed at or after DOES_NOT_HOLD_FROM.
   // ST-LN-91 D-15: every Phase 3 round rule reads the ticket's claim pin (the approach cap now, the plan cap in plan 03-09), loaded here
   // beside the record pin, which stays the grounds rule's.
   const snapshot = plan
-    ? withPlanFix(ctx.root, withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'plan', 1), id)
+    ? withPlaceFacts(ctx.root, withPlanFix(ctx.root, withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'plan', 1), id), id)
     : approach
-      ? withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'approach')
+      ? withPlaceFacts(ctx.root, withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'approach'), id)
       : // ST-LN-56 D-08, D-16: the fix record rules read the ticket's claim pin (RESEARCH Pitfall 7), never the working-tree pin.
         // ST-LN-36 D-05: the security record rule reads the same claim fact, so the loader reads nothing for a ticket claimed before its cut-off.
         // BUG-LN-25 D-16: the same render list as gate done, so the round and the gate agree on which copies are exempt.

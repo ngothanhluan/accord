@@ -100,7 +100,7 @@ it('risk:security a does-not-hold place through a link is refused, a link to a f
   }
 }, 300_000);
 
-it('risk:parsing a does-not-hold answer with no readable place is refused with its line (10-ac-21, D-14)', async () => {
+it('risk:parsing accord round --approach refuses a does-not-hold answer with no readable place and names its line (10-ac-21, D-14)', async () => {
   const repo = claimed('0.24.0', { [APPROACH]: APPROACH_ONE('does not hold: <path>:<line>') });
   try {
     const answer = await run(['round', 'T-1', '--approach'], repo);

@@ -59,11 +59,22 @@ function oneOff(a: string, b: string): boolean {
  * off `security`; the first one, two or three letter runs are joined, whatever up to three non-letters separate them, so a separator inside a word or another one between the words changes nothing.
  */
 function kindLike(value: string): boolean {
-  const m = KIND_WORDS.exec(value.toLowerCase());
+  const lower = value.toLowerCase();
+  const m = KIND_WORDS.exec(lower);
   if (m === null) return false;
-  const two = m[1] + (m[2] ?? '');
-  const three = two + (m[3] ?? '');
-  return [m[1], two, three].some((w) => oneOff(w, 'security') || oneOff(w, 'dataloss'));
+  const words = [m[1], m[2], m[3]].filter((w): w is string => w !== undefined);
+  let joined = '';
+  for (let k = 1; k <= words.length; k++) {
+    joined += words[k - 1];
+    if (!oneOff(joined, 'security') && !oneOff(joined, 'dataloss')) continue;
+    // BUG-LN-22 WR-01: the kind words, with markup or punctuation around them, at most one more word (`Security risk`, `security issue`) or punctuation straight after them (`security: tokens reach the log`, `data-loss, the file is
+    // overwritten`) are a mark slot: a kind written or annotated wrong, which fails closed. A value that goes on past the kind into two words or more with no punctuation between (`risk: security is unaffected by this change`)
+    // is a sentence, which is prose, as `risk: none` is: the group-1 decisions read a risk from the mark slot only, and fail closed on a kind written wrong, never on a sentence.
+    const upto = new RegExp(`^[^a-z]*[a-z]+(?:[^a-z]{1,3}[a-z]+){${k - 1}}`).exec(lower)![0];
+    const rest = lower.slice(upto.length);
+    if ((rest.match(/[a-z]+/g) ?? []).length <= 1 || /^\s*[^a-z\s]/.test(rest)) return true;
+  }
+  return false;
 }
 
 /** A segment or block line that sits in a risk slot, whether or not its value parses. */
@@ -348,8 +359,8 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
     const strict = kind !== 'review' && !version2;
     let block: { f: RoundFinding; indent: number } | undefined;
     let lazy = false;
-    const unread = (line: number, text: string) => {
-      if (target !== undefined) (target.markUnread ??= []).push({ line, text: text.length > 160 ? text.slice(0, 157) + '...' : text });
+    const unread = (line: number, text: string, lazyLine = false) => {
+      if (target !== undefined) (target.markUnread ??= []).push({ line, text: text.length > 160 ? text.slice(0, 157) + '...' : text, ...(lazyLine ? { lazy: true as const } : {}) });
     };
     for (const l of section.lines) {
       const t = textOf(l.line);
@@ -390,7 +401,7 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
             }
           }
         } else {
-          if (lazy && inMarkSlot(seg)) unread(l.line, t.trim());
+          if (lazy && inMarkSlot(seg)) unread(l.line, t.trim(), true);
           block = undefined;
         }
         continue;

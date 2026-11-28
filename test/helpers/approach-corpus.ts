@@ -53,6 +53,8 @@ export interface PlanRow {
   cutProblem?: string[];
   /** Lines of the ledger's ## Deferred. */
   deferred?: string[];
+  /** BUG-LN-22 WR-04: `accord gate plan` (rule `gate.plan-rounds`) for the ticket claimed under 0.4.0, which the rows are about: `refused` when it names a finding, `pass` when it names none; absent: not asserted. */
+  gate?: 'pass' | 'refused';
 }
 
 const TOK = 'tokens reach the log';
@@ -630,7 +632,7 @@ const LEGACY_FORMS: { line: string[]; listed: boolean }[] = [
 LEGACY_FORMS.forEach((f, i) =>
   add({
     id: 'legacy-form-' + String(i + 1).padStart(2, '0'),
-    src: 'rounds 5 and 6 legacy forms (claimed under 0.4.0, byte comparison against origin/main)',
+    src: 'rounds 5 and 6 legacy forms (claimed under 0.4.0: the short view of this build; no test compares it with origin/main)',
     claim: '0.4.0',
     r1: f.line,
     out: 'LEGACY',
@@ -667,7 +669,19 @@ export const PLAN_ROWS: readonly PlanRow[] = [
     round: 'next',
   },
   { id: 'plan-r4-P3-hyphen-risk-words', src: 'round 4 WR-01 P3', rounds: [['1. Should — Task 2: the cache - risk: a stale read — open — rests on: ac-1']], round: 'next' },
-  { id: 'plan-r6-PL1-risk-none', src: 'round 6 WR-01 PL1', rounds: [['1. Should — Task 1: header twice — fixed — risk: none']], round: 'next' },
+  { id: 'plan-r6-PL1-risk-none', src: 'round 6 WR-01 PL1', rounds: [['1. Should — Task 1: header twice — fixed — risk: none']], round: 'next', gate: 'pass' },
+  {
+    id: 'plan-r6-PL2-three-rounds-risks-plural',
+    src: 'round 6 PL2 (BUG-LN-22 WR-04: three plan rounds with a mis-written mark, the record begun at 0.4.1: gate plan names the record problem once the cycle holds three rounds, as PL3 does not with one)',
+    rounds: [
+      ['1. Should — Task 1: header twice — fixed'],
+      ['1. Should — Task 1: delimiter — fixed — rests on: ac-1'],
+      ['1. Should — Task 1: quoting — open — rests on: ac-1 — risks: security'],
+    ],
+    problem: ['1. Should — Task 1: quoting — open — rests on: ac-1 — risks: security'],
+    round: 'refused',
+    gate: 'refused',
+  },
   { id: 'plan-r6-PL3-one-round-risks-plural', src: 'round 6 PL3 (a mark slot whose value is a mis-written kind is a record problem of a plan under the grounds rule)', rounds: [['1. Should — Task 1: quoting — open — risks: security']], problem: ['1. Should — Task 1: quoting — open — risks: security'], round: 'refused' },
   {
     id: 'plan-r6-PL4-three-rounds-risk-words-in-text',

@@ -2,7 +2,7 @@
 // The table is test/helpers/approach-corpus.ts; each row states what the owner decisions require (BLOCK, LIST, PASS, PROBLEM, LEGACY, LANE-S), not what the code did when it was written.
 // A fix of the record reader is held to this file: a row that goes red is a finding that came back.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, PLAN_GROUNDS_FROM, approvalBlockers, approvalFindings, approvalProblems, loadSnapshot, nextRound, parseRounds, recordProblems } from '../src/index.js';
+import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, PLAN_GROUNDS_FROM, approvalBlockers, approvalFindings, approvalProblems, gatePlan, loadSnapshot, nextRound, parseRounds, recordProblems } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
 import { PLAN_ROWS, ROWS } from '../../../test/helpers/approach-corpus.js';
 import type { PlanRow, Row } from '../../../test/helpers/approach-corpus.js';
@@ -102,6 +102,12 @@ function checkPlan(r: PlanRow): void {
   const problems = recordProblems(s, 'T-1', 'plan');
   expect(problems.map((p) => p.line), r.id + ' record problems: ' + JSON.stringify(problems)).toEqual(named);
   expect(nextRound(s, 'T-1', 'plan').kind, r.id + ' round --plan').toBe(r.round);
+  // BUG-LN-22 WR-04: `accord gate plan` reads the same record through gate.plan-rounds; a regression that drops that finding fails here.
+  if (r.gate !== undefined) {
+    const found = gatePlan(s, 'T-1').findings.filter((f) => f.rule === 'gate.plan-rounds');
+    expect(found.length > 0, r.id + ' gate.plan-rounds: ' + JSON.stringify(found)).toBe(r.gate === 'refused');
+    if (r.gate === 'refused') for (const n of named) expect(found.some((f) => f.line === n), r.id + ' gate.plan-rounds names line ' + n).toBe(true);
+  }
   // A ticket claimed at the cut-off (plan 03-09) has the same record problems: the plan cap changes the loop, never how a record line is read. Plan 03-11 (D-19): the grounds rule and its
   // mark reading hold from round 1 there whatever pin the record began under, so a row may name `cutProblem` and the answer `cut`.
   const cut = repoOf('plan-review.md', text, undefined, PLAN_GROUNDS_FROM, r.record ?? GROUNDS_V2_FROM, r.deferred);

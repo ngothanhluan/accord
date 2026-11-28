@@ -373,7 +373,7 @@ export interface RecordedRound {
   securityUnread?: { line: number; text: string }[]; // version 2 review records only: a line starting `Security:` that is neither form
   lenses?: string[]; // version 2 review records only (Phase 11 D-05): the names of each `Lens: <name> ran` line, in line order, each once
   lensUnread?: { line: number; text: string }[]; // version 2 review records only: a line starting `Lens:` that is not `Lens: <name> ran` with a lens name
-  markUnread?: { line: number; text: string }[]; // version 1 plan and approach records (ST-LN-91 round 5): the mark slots of the round (a segment or a block line that starts with a mark key) whose value does not parse
+  markUnread?: { line: number; text: string; lazy?: true }[]; // `lazy`: a risk slot written as the next line, no deeper than the finding (BUG-LN-22 WR-02); version 1 plan and approach records (ST-LN-91 round 5): the mark slots of the round (a segment or a block line that starts with a mark key) whose value does not parse
 }
 export interface RoundVerdict { value: string; quoted: boolean; line: number } // quoted: accepted-by-owner followed by a "sentence"
 export interface RoundCycle { line: number; marker?: string; rounds: RecordedRound[]; verdicts: RoundVerdict[]; closed?: number }

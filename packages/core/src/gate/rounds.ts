@@ -81,9 +81,12 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
     if (s !== undefined) {
       const cap = cycleState(last, mine, kind, undefined, rules).cap;
       // ST-LN-91 D-07: the reason names what stopped the loop: the count (a stop below the first stop round), a Should or a Must from round 3, or the cap.
-      const cause =
-        rules.fall && s < (rules.firstStop ?? Infinity)
-          ? `the count did not fall: ${roundCount(last.rounds[s - 1], deferred)} Must and Should against ${roundCount(last.rounds[s - 2], deferred)} in round ${s - 1}`
+      // Phase 10 D-01: under the one-round rules the loop stops on the count (a team's extra rounds) or on a data-loss or security finding still open when it ended.
+      const byCount = rules.fall && s >= 2 && s < (rules.firstStop ?? Infinity) && roundCount(last.rounds[s - 1], deferred) > 0 && roundCount(last.rounds[s - 1], deferred) >= roundCount(last.rounds[s - 2], deferred);
+      const cause = byCount
+        ? `the count did not fall: ${roundCount(last.rounds[s - 1], deferred)} Must and Should against ${roundCount(last.rounds[s - 2], deferred)} in round ${s - 1}`
+        : rules.fall && !rules.allowances && !rules.capStop
+          ? `a finding marked risk: data-loss or risk: security is still open at the end of the ${cap}-round loop (D-01)`
           : `a Should or a Must from round 3, or the cap of ${cap} rounds`;
       add(
         last.rounds[s - 1].line,

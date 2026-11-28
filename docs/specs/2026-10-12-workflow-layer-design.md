@@ -509,15 +509,28 @@ A failure found after verify (someone reports one, or a check on the pull reques
 - *Review.* `accord-reviewer` gains a `ui` lens: the states above, accessibility (keyboard, focus, contrast,
   labels), the project's own components and tokens before new ones, and fidelity to the design reference.
 - *Design skills by role.* `config.yml` may map a design skill installed in the repository to each of three
-  roles: `ui: { direction: <name>, build: <name>, review: <name> }`. `direction` chooses a visual direction
-  (style, palette, type, tokens) at the approach stage when the project has none; `build` builds or adjusts
-  screens inside that direction, within the executor's task; `review` takes the craft judgement in the `ui`
-  lens, which keeps the contract checks itself. A role with no skill falls to the stage's own agent. Shipped
-  text names only the roles. A named skill only works inside a stage; it never runs its own intent,
-  planning, or done steps, because two orchestrators on one ticket is how intent drifts.
+  roles: `ui: { direction: <name>, build: <name>, review: <name> }`, and a command for the screenshots,
+  `ui.screenshots`. `direction` chooses a visual direction (style, palette, type, tokens) at the approach stage
+  when the project has none; `build` builds or adjusts screens inside that direction, within the executor's
+  task; `review` takes the craft judgement in the `ui` lens, which keeps the contract checks itself. A role
+  with no skill falls to a built-in default: the designer's built-in direction (two or three directions that
+  differ in palette, type and spacing, each derived from what the project already has), no extra build skill
+  (the plain executor builds), and the `ui` lens's own checklist alone. Shipped text names only the roles. A
+  named skill only works inside a stage; it never runs its own intent, planning, or done steps, because two
+  orchestrators on one ticket is how intent drifts.
+- *Visual options.* At the approach stage, a `ui: true` ticket whose `design.tokens` is empty or names no file
+  gets two or three visual options, each a small HTML prototype (`accord/assets/<id>/option-1.html` to
+  `option-3.html`) shown to the owner. The owner's pick comes before `accord approve`; it is copied to
+  `prototype.html`, the design reference the Ready gate reads, and named on the `- Chosen:` line. A project
+  with a file at `design.tokens`, and a `ui: false` ticket, get none.
 - *Verify.* Each `@ui` scenario's evidence is a screenshot per state under `tickets/<id>/evidence/`, named
-  by scenario, at the commit `verification.md` records. Without a browser available the result is
-  `blocked`, never pass.
+  `ac-<n>-<state>.<ext>`, at the commit `verification.md` records, from the first of four tiers that gives it:
+  the `ui.screenshots` command (the session runs it; accord never does), the verifier's own headless browser,
+  a person, or, when none of them can, the owner check. The owner is asked one criterion at a time, and the
+  record quotes the owner's words and the path the owner opened. Each record names its tier (`Tier:`), and a
+  screenshot tier also the commit (`Evidence commit:`). `gate.ui-evidence-missing` is a name-only check at the
+  verified commit: the files and lines exist, and the CLI never judges the picture or the tool that made it. A
+  criterion nobody could show is `blocked` and fails Done until the owner check passes it.
 
 **Human layer by review mode.** Under `outcome`, the owner reads the report and tries the steps; the
 orchestrator then asks one question, approve or not yet, naming the criteria, the commit verified, and the

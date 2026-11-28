@@ -204,6 +204,23 @@ describe('agents: a tool the rule of a role forbids is refused by name (11-ac-2,
     }
   });
 
+  it('risk:security every read-only role locks every command-running and outward tool the researcher row locks, and a reviewer the outward ones (11-ac-2, D-02)', () => {
+    const outward = ['Artifact', 'ShareOnboardingGuide', 'RemoteTrigger', 'CronCreate', 'SendMessage'];
+    const reaching = AGENT_LOCKS.researcher.filter((t) => !['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'Task'].includes(t));
+    expect(reaching).toEqual(expect.arrayContaining(['Monitor', ...outward]));
+    for (const role of ['scout', 'critic', 'planner'] as RouteKey[]) {
+      for (const tool of reaching) expect(refusedBy(role, [tool]), role + ' ' + tool).toEqual([tool]);
+    }
+    for (const role of ['reviewer', 'reviewer.final'] as RouteKey[]) {
+      for (const tool of outward) expect(refusedBy(role, [tool]), role + ' ' + tool).toEqual([tool]);
+    }
+    // a reviewer runs tests and runs git, so the tools that run a command stay open to it, and the executor, verifier and debugger keep their rows
+    expect(refusedBy('reviewer', ['Bash', 'Monitor'])).toEqual([]);
+    for (const role of ['executor', 'verifier', 'debugger'] as RouteKey[]) expect(refusedBy(role, ['Monitor', 'SendMessage']), role).toEqual([]);
+    // the failing case of the review: agents.scout.tools [Monitor] is refused by name and the scout file gains no tools entry
+    expect(toolsOf(config({ agents: { scout: { tools: ['Monitor'] } } }), 'accord-scout')).toBe('Read, Grep, Glob');
+  });
+
   it('risk:security a specifier is compared on the name before its parenthesis, and a name on its case (11-ac-2, D-02)', () => {
     expect(refusedBy('scout', ['Bash(git push *)'])).toEqual(['Bash(git push *)']);
     expect(refusedBy('reviewer', ['Write(src/**)', 'Bash(git log *)'])).toEqual(['Write(src/**)']);

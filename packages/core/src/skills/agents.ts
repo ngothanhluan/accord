@@ -88,24 +88,27 @@ export const EXECUTOR_AGENTS: readonly string[] = ['accord-executor', UI_EXECUTO
 // Phase 11 D-02 (the lock Ruling): the tools a team may never add to a role, because the role's authored rule forbids them. One row per route key, the names the
 // agent's own text rules out; a tool is compared on the name before its `(` (`Bash(git push *)` is `Bash`), without regard to case. An `mcp__<server>__*` entry
 // is never refused (D-03). `agentTargets` renders around a refused entry and never throws; `accord skills sync` and `lint.agents-config` report it by name.
+// WR-04: the tools that run a command in the background, change the working folder, or reach outside the session (publish, schedule, message). A role that runs no command (the researcher, the scout,
+// the critic and the planner) locks all of them from this one list, so a row cannot drift from the others; a reviewer runs tests and git, so it locks only the tools that reach outside (OUTWARD_TOOLS).
+const OUTWARD_TOOLS: readonly string[] = ['Artifact', 'ShareOnboardingGuide', 'RemoteTrigger', 'CronCreate', 'SendMessage'];
+const NO_OUTREACH: readonly string[] = ['Monitor', 'EnterWorktree', 'ExitWorktree', ...OUTWARD_TOOLS, 'TaskStop'];
+
 export const AGENT_LOCKS: Readonly<Record<RouteKey, readonly string[]>> = {
   // scout.md and critic.md: "you read; you never edit a file", and neither runs a command or dispatches another agent
-  scout: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'Task'],
-  critic: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'Task'],
+  scout: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', ...NO_OUTREACH, 'Agent', 'Task'],
+  critic: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', ...NO_OUTREACH, 'Agent', 'Task'],
   // planner.md: "you write only plan.md (direction.md in direction mode)"; it holds Write and Edit for that, runs no command and dispatches no agent
-  planner: ['Bash', 'PowerShell', 'NotebookEdit', 'Agent', 'Task'],
+  planner: ['Bash', 'PowerShell', 'NotebookEdit', ...NO_OUTREACH, 'Agent', 'Task'],
   // executor.md: it builds, writes code, runs commands and commits, and never dispatches another agent
   executor: ['Agent', 'Task'],
   // reviewer.md: "you never edit a file"; a reviewer reads, runs tests and runs git to read, and never dispatches another agent
-  reviewer: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task'],
-  'reviewer.final': ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task'],
+  reviewer: ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', ...OUTWARD_TOOLS, 'Agent', 'Task'],
+  'reviewer.final': ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', ...OUTWARD_TOOLS, 'Agent', 'Task'],
   // verifier.md and debugger.md: each writes one file (verification.md, debug.md) with Write and Edit and runs commands; neither edits a notebook or dispatches another agent
   verifier: ['NotebookEdit', 'Agent', 'Task'],
   debugger: ['NotebookEdit', 'Agent', 'Task'],
   // researcher.md: "you write no file and run no command"; it authors `disallowedTools` and no `tools`, so this row is that list, and any `tools` entry is refused (RESEARCHER_NO_TOOLS)
-  researcher: [
-    'Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell', 'Monitor', 'EnterWorktree', 'ExitWorktree', 'Artifact', 'ShareOnboardingGuide', 'RemoteTrigger', 'CronCreate', 'SendMessage', 'TaskStop', 'Agent', 'Task',
-  ],
+  researcher: ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell', ...NO_OUTREACH, 'Agent', 'Task'],
 };
 
 /** The rule text of each role that a refused entry quotes: what the agent's own definition says it never does. */

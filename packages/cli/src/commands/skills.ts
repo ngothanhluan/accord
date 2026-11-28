@@ -417,20 +417,26 @@ function skillFound(root: string, config: string, name: string): boolean {
 }
 
 /**
- * Pitfall 3, one `note:` line per skill name under `agents.<role>.skills` that is found nowhere: Claude Code skips a missing skill without an error, so the person would otherwise never learn
+ * Pitfall 3, one `note:` line per skill name under `agents.<role>.skills`, `ui.direction`, `ui.build` or `ui.review` that is found nowhere: Claude Code skips a missing skill without an error, so the person would otherwise never learn
  * the preload did nothing. A `<plugin>:<skill>` name is not checked (its folder layout is the plugin's own), and a name that is not a plain folder name is left to the schema. Reads only; the
  * note never refuses and never changes a file.
  */
 export function skillNotes(root: string, config: AccordConfig, env: NodeJS.ProcessEnv): string[] {
   const base = env.CLAUDE_CONFIG_DIR !== undefined && env.CLAUDE_CONFIG_DIR !== '' ? env.CLAUDE_CONFIG_DIR : join(homedir(), '.claude');
   const out: string[] = [];
-  for (const [role, add] of Object.entries(config.agents ?? {})) {
-    for (const name of add?.skills ?? []) {
-      if (name.includes(':') || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) continue;
-      if (!skillFound(root, base, name)) {
-        out.push(`note: agents.${role}.skills: "${name}" is in no skills folder of this repository or user; Claude Code skips a missing skill without an error`);
-      }
+  const check = (key: string, name: string): void => {
+    if (name.includes(':') || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) return;
+    if (!skillFound(root, base, name)) {
+      out.push(`note: ${key}: "${name}" is in no skills folder of this repository or user; Claude Code skips a missing skill without an error`);
     }
+  };
+  for (const [role, add] of Object.entries(config.agents ?? {})) {
+    for (const name of add?.skills ?? []) check(`agents.${role}.skills`, name);
+  }
+  // WR-07: `ui.direction`, `ui.build` and `ui.review` name a skill the same way (the last two lead the skills of the UI agent files), and a missing one fails as silently
+  for (const key of ['direction', 'build', 'review'] as const) {
+    const name = config.ui?.[key];
+    if (name !== undefined) check(`ui.${key}`, name);
   }
   return out;
 }

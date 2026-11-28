@@ -2,7 +2,7 @@
 // for a ticket claimed from PLAN_CAP_FROM; a ticket claimed under 0.4.0 keeps five rounds and the stop from round 3 whatever pin its plan record began
 // under. The cap reads the ticket's claim pin (claimPinBefore), never the record pin, which stays the Phase 2 grounds rule's.
 import { expect, it } from 'vitest';
-import { GROUNDS_V2_FROM, PLAN_CAP, PLAN_CAP_FROM, capRulesOf, cycleState, gatePlan, loadSnapshot, nextRound, recordProblems, roundText } from '../src/index.js';
+import { GROUNDS_V2_FROM, PLAN_CAP, PLAN_CAP_FROM, PLAN_ONCE, capRulesOf, cycleState, gatePlan, loadSnapshot, nextRound, recordProblems, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
@@ -120,7 +120,8 @@ const rows: Row[] = [
   { id: 'new-lane-p-gets-the-plan-rules', rounds: [], lane: 'P', want: { kind: 'next', round: 1, cap: 3, text: [NEXT3] } },
   { id: 'new-lane-l-gets-the-plan-rules', rounds: [2, 2], lane: 'L', want: { kind: 'stop', round: 2 } },
   { id: 'new-lane-s-has-no-plan-critique', rounds: [], lane: 'S', want: { kind: 'refused', text: ['refused: lane S has no plan critique'] } },
-  { id: 'new-failed-claim-read-gives-the-new-rules', rounds: [], claim: { error: 'git failed' }, want: { kind: 'next', round: 1, cap: 3, text: [NEXT3] } },
+  // Phase 10 D-01: the newest rules are one plan critique round.
+  { id: 'new-failed-claim-read-gives-the-new-rules', rounds: [], claim: { error: 'git failed' }, want: { kind: 'next', round: 1, cap: 1, text: ['Round: 1 of 1\nCycle: 1\nCritics: plan checker\n'] } },
 
   // A ticket claimed under 0.4.0: five rounds, the stop from round 3, the 0.4.0 texts, no Critics line.
   { id: 'old-no-record', rounds: [], claim: old, want: { kind: 'next', round: 1, cap: 5, text: ['Round: 1 of 5\nCycle: 1\n'], not: ['Critics:'] } },
@@ -205,11 +206,11 @@ it('risk:complex-branching the claim pin, not the record pin, decides the plan c
   expect(nextRound(bFlat, 'T-1', 'plan')).toMatchObject({ kind: 'stop', round: 2 });
   expect(capRulesOf(bFlat, 'T-1', 'plan')).toBe(PLAN_CAP);
 
-  // A claim pin lowered on the branch below the default branch's pin, and a failed claim read, give the new rules.
-  expect(capRulesOf(repo({ claim: { pin: '0.4.0', basePin: PLAN_CAP_FROM } }), 'T-1', 'plan')).toBe(PLAN_CAP);
-  expect(capRulesOf(repo({ claim: { error: 'git failed' } }), 'T-1', 'plan')).toBe(PLAN_CAP);
-  // A pin that is not a plain release gives the new rules too (claimPinBefore fails closed).
-  for (const pin of ['main', '0.4.1-rc.1', '', '1.0']) expect(capRulesOf(repo({ claim: { pin } }), 'T-1', 'plan'), pin).toBe(PLAN_CAP);
+  // A claim pin lowered on the branch below the default branch's pin, and a failed claim read, give the newest rules (one round since Phase 10 D-01).
+  expect(capRulesOf(repo({ claim: { pin: '0.4.0', basePin: PLAN_CAP_FROM } }), 'T-1', 'plan')).toBe(PLAN_ONCE);
+  expect(capRulesOf(repo({ claim: { error: 'git failed' } }), 'T-1', 'plan')).toBe(PLAN_ONCE);
+  // A pin that is not a plain release gives the newest rules too (claimPinBefore fails closed).
+  for (const pin of ['main', '0.4.1-rc.1', '', '1.0']) expect(capRulesOf(repo({ claim: { pin } }), 'T-1', 'plan'), pin).toBe(PLAN_ONCE);
   expect(capRulesOf(repo({ claim: { pin: '0.3.9' } }), 'T-1', 'plan').cap).toBe(5);
 });
 
@@ -359,14 +360,14 @@ it('risk:security a failed claim-pin read names the git error in accord round --
     expect(text).toContain('the claim pin could not be read');
   };
 
-  // The next round: the cap of three and the plan checker, with the reason.
+  // The next round: the one round of the newest rules (Phase 10 D-01) and the plan checker, with the reason.
   const first = roundText(ask({ claim }));
-  expect(first).toContain('Round: 1 of 3');
+  expect(first).toContain('Round: 1 of 1');
   expect(first).toContain('Critics: plan checker');
   says(first);
-  // The count stop and the stop at the cap.
+  // A second round, past the one round the newest rules give.
   const counted = roundText(ask({ claim, plan: record(2, 2) }));
-  expect(counted.startsWith('stop: report to owner\n')).toBe(true);
+  expect(counted.startsWith('refused:')).toBe(true);
   says(counted);
   says(roundText(ask({ claim, plan: record(3, 2, 1) })));
   // A round run past the cap, and one run after a stop.
@@ -389,8 +390,8 @@ it('risk:security a failed claim-pin read names the git error in accord round --
   for (const c of [cut, old]) {
     for (const plan of [undefined, record(2, 2), record(3, 2, 1)]) expect(roundText(ask({ claim: c, plan })), JSON.stringify(c)).not.toContain('claim pin could not be read');
   }
-  // The answer is the same as for the working claim at the cut-off, plus the reason.
-  const plain = roundText(ask({ claim: cut, plan: record(2, 2) }));
+  // The answer is the same as for the working claim at the one-round cut-off, plus the reason.
+  const plain = roundText(ask({ claim: { pin: '0.24.0' }, plan: record(2, 2) }));
   expect(counted.startsWith(plain.split('\n')[0])).toBe(true);
   expect(counted.split('\n').filter((l) => !l.includes('claim pin could not be read'))).toEqual(plain.split('\n'));
 

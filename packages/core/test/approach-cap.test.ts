@@ -66,10 +66,11 @@ it('risk:complex-branching the approach critic gets two rounds from the cut-off 
   expect(ask({ claim: cut, lane: 'P' })).toMatchObject({ kind: 'next', round: 1, cap: 2 });
 });
 
-it('risk:complex-branching with no claim fact the working-tree pin decides the approach cap, and a failed claim read gives two (ST-LN-91 91d-ac-2)', () => {
+it('risk:complex-branching with no claim fact the working-tree pin decides the approach cap, and a failed claim read gives one round (ST-LN-91 91d-ac-2, Phase 10 D-01)', () => {
   expect(ask({ config: at('0.4.0') })).toMatchObject({ kind: 'next', round: 1, cap: 5 });
   expect(ask({ config: at(APPROACH_CAP_FROM) })).toMatchObject({ kind: 'next', round: 1, cap: 2 });
-  expect(ask({ config: at('0.4.0'), claim: { error: 'git failed' } })).toMatchObject({ kind: 'next', round: 1, cap: 2 });
+  // A failed claim read fails closed to the newest rules: since Phase 10 D-01 that is one round.
+  expect(ask({ config: at('0.4.0'), claim: { error: 'git failed' } })).toMatchObject({ kind: 'next', round: 1, cap: 1 });
 });
 
 const closed = (opt = 'B') => `## Closed option ${opt}: the owner's no\n\n`;
@@ -163,8 +164,8 @@ it('risk:regression a ticket claimed under 0.4.0 keeps five approach rounds and 
   const one = nextRound(repo({ claim: old, approach: HEAD + round(1, R1_FIXED) }), 'T-1', 'approach');
   expect(roundText(one)).toBe('Round: 2 of 5\nCycle: 1\n');
 
-  // A claim pin lowered below the base pin is not an old claim: the cap of two holds.
-  expect(ask({ claim: { pin: '0.4.0', basePin: APPROACH_CAP_FROM } })).toMatchObject({ kind: 'next', round: 1, cap: 2 });
+  // A claim pin lowered below the base pin is not an old claim: the newest rules hold, one round since Phase 10 D-01.
+  expect(ask({ claim: { pin: '0.4.0', basePin: APPROACH_CAP_FROM } })).toMatchObject({ kind: 'next', round: 1, cap: 1 });
 });
 
 it('risk:complex-branching the claim pin, not the record pin, decides the approach cap (ST-LN-91 D-15)', () => {
@@ -267,20 +268,20 @@ it('risk:security approvalBlockers lists the open risk findings of the last appr
   expect(approvalBlockers(repo({ claim: cut, approach }), 'T-404')).toEqual([]);
 });
 
-it('risk:complex-branching a failed claim read is named in the refusal that follows from the cap of two (ST-LN-91 WR-01)', () => {
+it('risk:complex-branching a failed claim read is named in the refusal that follows from the cap of one round (ST-LN-91 WR-01, Phase 10 D-01)', () => {
   const error = 'git failed reading the claim pin of T-1: unable to read the index';
   const five = HEAD + [1, 2, 3, 4, 5].map((n) => round(n, '1. Nice — a wording — deferred')).join('');
   const refused = nextRound(repo({ claim: { error }, approach: five }), 'T-1', 'approach');
   expect(refused.kind).toBe('refused');
   const reason = refused.reasons.join('\n');
-  expect(reason).toContain('past the cap of 2');
+  expect(reason).toContain('past the one approach critique round');
   expect(reason).toContain(error);
   expect(roundText(refused)).toContain('refused: ' + error);
   // A readable fact adds no such line.
   const plain = nextRound(repo({ claim: cut, approach: five }), 'T-1', 'approach');
   expect(plain.reasons.join('\n')).not.toContain('git failed');
   // A next round is no refusal and says nothing of git.
-  expect(roundText(nextRound(repo({ claim: { error } }), 'T-1', 'approach'))).toBe('Round: 1 of 2\nCycle: 1\n');
+  expect(roundText(nextRound(repo({ claim: { error } }), 'T-1', 'approach'))).toBe('Round: 1 of 1\nCycle: 1\n');
 });
 
 // ST-LN-91 RR-CR-01 (owner decision 1): the states a risk-marked finding can be written in, and which of them leave the block.

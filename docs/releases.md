@@ -4,7 +4,7 @@ Each section lists what changes for tickets in flight and for repositories pinne
 
 ## Unreleased
 
-- One approach critique round (Phase 10 D-01): for a ticket claimed at or after 0.24.0, `accord round <id> --approach` gives round 1 and refuses an ordinary round 2, naming the one critique round. A ticket claimed under an earlier accord keeps its two approach rounds.
+- One approach critique round and one plan critique round (Phase 10 D-01): tickets claimed at or after 0.24.0 get one approach and one plan critique round, with a scoped re-check for a data-loss or security fix; tickets in flight keep their rules. For such a ticket `accord round <id> --approach` and `--plan` give round 1 and refuse an ordinary round 2, naming the one critique round. A finding marked `risk: data-loss` or `risk: security` in round 1 earns one second round, a re-check (`accord round` prints `Re-check: 1.<n>, ...`); a re-check finding that carries no risk mark and repeats none of the listed findings is refused by name, and no round 3 follows. More rounds come only from `strictness.rounds.<kind>`, and a plan round whose Must + Should count did not fall from the round before is then a `stop: report to owner`. At the end of the one round an open finding with no risk mark is listed as a risk in `accord show <id> --approval --short`; an open data-loss or security finding still blocks `accord approve` (an open one at the end of the plan loop stops it for the owner). A ticket claimed under an earlier accord keeps its two approach rounds and three plan rounds. A failed read of the claim pin fails closed to the one-round rules, as every claim-pin rule does.
 
 ## 0.23.2 — 2026-11-28
 

@@ -1,4 +1,4 @@
-accord: "0.22.0"
+accord: "0.23.0"
 profile: staging
 tracker:
   adapter: github-issues

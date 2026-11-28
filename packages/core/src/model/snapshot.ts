@@ -530,6 +530,10 @@ export interface RepoSnapshot {
   // one overall), and at that commit's merge base with the default ref. A ticket with no `claim: <id>` commit has no fact: the commit that added its
   // ticket file is no evidence of when work began. Absent when the host supplies none (no such commit, no git); read only through claimPinBefore.
   claimPins?: Record<string, ClaimPin>;
+  // Phase 10 D-06 (per slice), T-10-05: host-supplied by `accord round` and `accord gate done` for a lane M ticket claimed at or after REVIEW_BUDGET_FROM whose plan has `## Slice` sections: `before` is the number of review round heads (record
+  // order, every cycle) at or before the start of the slice in work, so the budget counts only the rounds after them; `error` when git could not say where the slice starts, and then every round of the cycle counts (fail closed). Absent when the
+  // host supplies none (no slices, no version 2 record, a ticket claimed earlier, a slice of another repository).
+  sliceRounds?: Record<string, { before: number } | { error: string }>;
   // ST-LN-91 D-11: host-supplied by accord round for the ticket it counts: the pin at the first round of its plan-review.md or
   // approach-review.md, else HEAD's, and at that commit's merge base with the default ref. A record with no entry keeps the older grounds rule.
   recordPins?: Record<string, { plan?: RecordPin; approach?: RecordPin }>;

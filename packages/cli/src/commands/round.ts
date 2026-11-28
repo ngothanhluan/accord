@@ -8,9 +8,17 @@ import { withLensFacts } from '../load/lens-facts.js';
 import { withPlanFix } from '../load/plan-diff.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
+import { withSliceRounds } from '../load/slice-rounds.js';
 import type { CommandContext } from '../run.js';
+import { currentSlice } from './anchor.js';
 import { renderedFilesOf } from './branch-fact.js';
 import { refuseLaneR, requireLaneTicket } from './lane-args.js';
+
+/** Phase 10 D-06: the slice of this checkout whose review rounds the budget counts; none without slices and for a slice built in another repository's clone. */
+function sliceInWork(ctx: CommandContext, id: string): number | undefined {
+  const slice = currentSlice(ctx, id);
+  return slice?.repo === undefined ? slice?.n : undefined;
+}
 
 /** ST-LN-17: the next review, plan critique or approach critique round, its cap and the fix executor's model, or the stop or refusal; exit 0 only for a next round. */
 export function round(ctx: CommandContext, id: string, options: { plan?: boolean; approach?: boolean }): number {
@@ -45,19 +53,25 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
         // BUG-LN-25 D-16: the same render list as gate done, so the round and the gate agree on which copies are exempt.
         // Phase 8.5 D-19: the fix reports of the checkout this command runs in, for a ticket claimed at or after PRODUCT_TEXT_FROM outside lane S; `accord gate done` never reads them.
         // Phase 11 D-05: the lens record rule reads the same claim fact and the default branch's lens files, so the loader reads nothing for a ticket claimed before its cut-off.
-        withFixReports(
+        // Phase 10 D-06 (per slice): the budget counts the rounds of the slice in work, which the review rounds before its start (read from git) leave out; no slices, or a claim before REVIEW_BUDGET_FROM, reads nothing.
+        withSliceRounds(
           ctx.root,
-          withLensFacts(
+          withFixReports(
             ctx.root,
-            withSecurityFacts(
+            withLensFacts(
               ctx.root,
-              withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id),
+              withSecurityFacts(
+                ctx.root,
+                withRoundFacts(ctx.root, withReturnFacts(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id), id),
+                id,
+                renderedFilesOf(ctx.snapshot.config),
+              ),
               id,
-              renderedFilesOf(ctx.snapshot.config),
             ),
             id,
           ),
           id,
+          sliceInWork(ctx, id),
         );
   const answer = nextRound(snapshot, id, plan ? 'plan' : approach ? 'approach' : 'review');
   ctx.stdout.write(roundText(answer));

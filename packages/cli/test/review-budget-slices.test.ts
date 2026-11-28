@@ -23,19 +23,26 @@ const roundsGate = async (repo: string, ...flags: string[]): Promise<Found[]> =>
 
 it('risk:regression slice 2 has its own budget: rounds 4 and 5 recorded, round 6 is its third and last (10-ac-4, D-06)', async () => {
   const repo = slicedReviewed('0.24.0', SLICE_ONE, [{ lines: shoulds(2) }, { lines: shoulds(1) }]);
-  const stopped = slicedReviewed('0.24.0', SLICE_ONE, [{ lines: shoulds(2) }, { lines: shoulds(1) }, { lines: shoulds(1) }]);
+  const stopped = slicedReviewed('0.24.0', SLICE_ONE, [{ lines: shoulds(3) }, { lines: shoulds(2) }, { lines: shoulds(1) }]);
+  const flat = slicedReviewed('0.24.0', SLICE_ONE, [{ lines: shoulds(2) }, { lines: shoulds(1) }, { lines: shoulds(1) }]);
   try {
     const next = await asked(repo);
     expect(next.code).toBe(0);
     expect(next.out).toContain('Round: 6 of 6\n');
-    // round 6 recorded and still holding an open Should: the budget of the slice is used, and the count did not fall
+    // round 6 recorded and still holding an open Should: the budget of the slice is used before a fourth round of it
     const stop = await asked(stopped);
     expect(stop.code).toBe(1);
     expect(stop.out.startsWith('stop: report to owner\n')).toBe(true);
     expect(stop.out).toContain('budget of 3 review rounds');
+    // the same round whose count did not fall stops on the count
+    const count = await asked(flat);
+    expect(count.code).toBe(1);
+    expect(count.out.startsWith('stop: report to owner\n')).toBe(true);
+    expect(count.out).toContain('the count did not fall');
   } finally {
     cleanup(repo);
     cleanup(stopped);
+    cleanup(flat);
   }
 }, 180_000);
 

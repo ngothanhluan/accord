@@ -199,3 +199,23 @@ it('risk:regression a budget stop names the round-1 findings still open as a pos
   expect(final.kind).toBe('stop');
   expect(final.intentHint).toBeUndefined();
 });
+
+const sliced = (snapshot: RepoSnapshot, fact: { before: number } | { error: string }): RepoSnapshot => ({ ...snapshot, sliceRounds: { 'T-1': fact } });
+
+it('risk:regression the budget counts the rounds after the slice start, an unreadable start counts every round and says why, and fixModel counts the slice only (10-ac-4, D-06, T-10-05)', () => {
+  const five = v2([shoulds(3), shoulds(2), [NONE], shoulds(2), shoulds(1)]);
+  // slice 2 started after round 3: rounds 4 and 5 are its first two, round 6 its third
+  const answer = nextRound(sliced(repo({ review: five }), { before: 3 }), 'T-1', 'review');
+  expect(answer).toMatchObject({ kind: 'next', round: 6, cap: 6 });
+  expect(answer.reasons).toEqual([]);
+  // the same record with no fact: every round counts, and round 4 is past the budget of three
+  expect(nextRound(repo({ review: five }), 'T-1', 'review').kind).toBe('stop');
+  // a start git could not read: the same, and the answer says why
+  const failed = nextRound(sliced(repo({ review: five }), { error: 'git cannot say where slice 2 starts, so every review round of the cycle counts' }), 'T-1', 'review');
+  expect(failed.kind).toBe('stop');
+  expect(failed.reasons.join('\n')).toContain('git cannot say where slice 2 starts');
+  // the tier-up counts the slice's rounds: round 5 is the second of slice 2, so the default tier of 4 is not reached
+  expect(fixModel(sliced(repo({ review: five }), { before: 3 }), 'T-1', 5)).toEqual({ model: 'sonnet' });
+  // a fact larger than the record leaves nothing before the stretch
+  expect(nextRound(sliced(repo({ review: v2([shoulds(2)]) }), { before: 9 }), 'T-1', 'review')).toMatchObject({ kind: 'next', round: 2, cap: 4 });
+});

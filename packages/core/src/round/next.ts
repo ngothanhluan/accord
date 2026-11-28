@@ -145,31 +145,33 @@ export type StopKind = 'count' | 'cap' | 'final';
  * fires on them, a Must or a Should still reported by the re-check is a stop of its own kind ('final'), and a later round needs an owner allowance Ruling. With no final review recorded, the round after a budget of
  * rounds that ended with no stop is allowed as the final review.
  */
-function budgetState(cycle: RoundCycle, allowances: Allowance[], deferred: ReadonlySet<RoundFinding>, rules: CapRules): CycleState {
+function budgetState(cycle: RoundCycle, allowances: Allowance[], deferred: ReadonlySet<RoundFinding>, rules: CapRules, offset: number): CycleState {
   const rounds = cycle.rounds;
   const N = rounds.length;
+  const o = Math.min(Math.max(offset, 0), N); // the rounds of earlier slices: they count against no budget of this slice
   const counted = (p: number): number => roundCount(rounds[p - 1], deferred);
-  const end = rules.cap;
-  const f0 = rounds.findIndex((r) => r.final === true) + 1; // 0: no final review in the cycle
+  const end = o + rules.cap;
+  const f0 = rounds.findIndex((r, i) => i >= o && r.final === true) + 1; // 0: no final review in the slice in work
   const f = f0 > 0 ? f0 : undefined;
   const kindOf = (s: number): StopKind | undefined => {
-    if (s < 1 || s > N || counted(s) === 0) return undefined;
+    if (s <= o || s > N || counted(s) === 0) return undefined;
     if (f !== undefined) {
       if (s === f || s > f + 1) return undefined; // the final review itself and any round past its re-check: no stop of their own
       if (s === f + 1) return 'final';
     }
-    if (s >= 2 && counted(s) >= counted(s - 1)) return 'count';
+    if (s >= o + 2 && counted(s) >= counted(s - 1)) return 'count';
     return s === end ? 'cap' : undefined;
   };
   const stopAt = (q: number): number | undefined => {
     const top = Math.min(q, N);
-    for (let s = top; s >= 1; s--) {
+    for (let s = top; s > o; s--) {
       if (s < top && rounds[s].noFindings) return undefined; // round s + 1 reports no findings: it clears every stop up to s
       if (kindOf(s) !== undefined) return s;
     }
     return undefined;
   };
   const allowed = (p: number): boolean => {
+    if (p <= o) return true;
     const s = stopAt(p - 1);
     const free = s === undefined && (f === undefined ? p <= end || (p === end + 1 && p > N) : p < f ? p <= end : p <= f + 1);
     return free || allowances.some((a) => a.after < p && p <= a.after + a.n && (s === undefined || s <= a.after));
@@ -184,11 +186,29 @@ function budgetState(cycle: RoundCycle, allowances: Allowance[], deferred: Reado
 }
 
 /** Phase 10 D-06, D-15: the rounds of the review budget among rounds 1 to `upTo` of a cycle: not the first final review and not the round after it. */
-function budgetRoundsOf(cycle: RoundCycle | undefined, upTo: number): number {
-  const f = (cycle?.rounds.findIndex((r) => r.final === true) ?? -1) + 1;
+function budgetRoundsOf(cycle: RoundCycle | undefined, upTo: number, offset: number): number {
+  const o = Math.min(Math.max(offset, 0), cycle?.rounds.length ?? 0);
+  const f = (cycle?.rounds.findIndex((r, i) => i >= o && r.final === true) ?? -1) + 1;
   let n = 0;
-  for (let p = 1; p <= upTo; p++) if (f === 0 || (p !== f && p !== f + 1)) n++;
+  for (let p = o + 1; p <= upTo; p++) if (f === 0 || (p !== f && p !== f + 1)) n++;
   return n;
+}
+
+/**
+ * Phase 10 D-06 (per slice): the rounds of cycle `c` (0-based) of the review record that lie before the slice in work, from the host's `sliceRounds` fact: the review round heads at or before the slice's start, taken in record order across
+ * the cycles. 0 when the host gave none or could not read the start (every round of the cycle then counts).
+ */
+export function sliceOffset(snapshot: RepoSnapshot, id: string, rec: RoundRecord | undefined, c: number): number {
+  const fact = Object.hasOwn(snapshot.sliceRounds ?? {}, id) ? snapshot.sliceRounds![id] : undefined;
+  if (rec === undefined || fact === undefined || 'error' in fact) return 0;
+  const earlier = rec.cycles.slice(0, c).reduce((n, cy) => n + cy.rounds.length, 0);
+  return Math.min(Math.max(fact.before - earlier, 0), rec.cycles[c]?.rounds.length ?? 0);
+}
+
+/** Phase 10 D-06, T-10-05: the sentence a review answer adds when git could not say where the slice in work starts, so every round of the cycle counts; undefined when it was read or there is nothing to read. */
+export function sliceNote(snapshot: RepoSnapshot, id: string): string | undefined {
+  const fact = Object.hasOwn(snapshot.sliceRounds ?? {}, id) ? snapshot.sliceRounds![id] : undefined;
+  return fact !== undefined && 'error' in fact ? fact.error : undefined;
 }
 
 /** The cap, the allowed rounds and the stop of one cycle; the caller passes only that cycle's allowances. `deferred` (ST-LN-57 D-08) are findings that do not stop the loop. */
@@ -198,8 +218,9 @@ export function cycleState(
   kind: RoundKind,
   deferred: ReadonlySet<RoundFinding> = new Set(),
   rules: CapRules = LEGACY_CAP,
+  offset = 0,
 ): CycleState {
-  if (isBudget(rules, kind)) return budgetState(cycle, allowances, deferred, rules);
+  if (isBudget(rules, kind)) return budgetState(cycle, allowances, deferred, rules, offset);
   const rounds = cycle.rounds;
   const accepted = cycle.verdicts.filter((v) => v.quoted);
   // Phase 10 D-01: under the one-round rules (no team cap) a round 1 that holds a risk finding allows a second round, the scoped re-check, and no third; the count stop is a team's, never the one-round rules'.
@@ -479,7 +500,7 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
       } else if (before.verdicts.length === 0) {
         add(cycle.line, `cycle ${i} has no verdict: line before ## Return from verify`);
       } else {
-        const stop = cycleState(before, ofCycle(all, i - 1), kind, deferredFor(snapshot, id, kind, i - 1), rules).stopAt(before.rounds.length);
+        const stop = cycleState(before, ofCycle(all, i - 1), kind, deferredFor(snapshot, id, kind, i - 1), rules, kind === 'review' ? sliceOffset(snapshot, id, rec, i - 1) : 0).stopAt(before.rounds.length);
         const last = before.verdicts[before.verdicts.length - 1];
         if (stop !== undefined && !(last.value === 'accepted-by-owner' && last.quoted)) {
           add(cycle.line, `## Return from verify follows the stop at round ${stop} of cycle ${i}, which the owner did not accept with verdict: accepted-by-owner "<sentence>"`);
@@ -525,8 +546,9 @@ export function fixModel(snapshot: RepoSnapshot, id: string, round?: number): { 
   // Phase 10 D-06, D-15: under the review budget the tier-up counts the rounds of the budget, not the final review or its re-check, so it tiers up only past a raised budget (strictness.rounds.review).
   const rules = capRulesOf(snapshot, id, 'review');
   const budget = isBudget(rules, 'review');
-  const counted = (c: RoundCycle | undefined, upTo: number): number => (budget ? Math.min(budgetRoundsOf(c, upTo), rules.cap) : upTo);
-  const raised = counted(rec?.cycles[rec.cycles.length - 1], r) >= tier || (rec?.cycles ?? []).some((c) => counted(c, c.rounds.length) >= tier);
+  const counted = (c: RoundCycle | undefined, i: number, upTo: number): number => (budget ? Math.min(budgetRoundsOf(c, upTo, sliceOffset(snapshot, id, rec, i)), rules.cap) : upTo);
+  const last = (rec?.cycles.length ?? 1) - 1;
+  const raised = counted(rec?.cycles[last], last, r) >= tier || (rec?.cycles ?? []).some((c, i) => counted(c, i, c.rounds.length) >= tier);
   const base = snapshot.config?.models?.executor?.model ?? AGENT_DEFAULTS.executor.model;
   const family = modelFamily(base);
   if (!raised) return { model: family ?? base };
@@ -565,7 +587,8 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
   // ST-LN-91 WR-01, RR-IN-03: a failed read of the claim pin gives the capped rules (fail closed); a refusal the cap rules give (past the cap, an ended
   // loop, a blocked approval) says why; a refusal about the record or the ticket does not.
   // WR-04: a plan answer says it too, in its own words, on every answer that applies the new plan rules: the next round, a stop, and a refusal.
-  const claimError = kind === 'approach' ? claimPinError(snapshot, id) : kind === 'plan' ? claimPinNote(snapshot, id) : undefined;
+  // Phase 10 D-06, T-10-05: for a review answer the same slot says that git could not read where the slice in work starts, so every round of the cycle counts.
+  const claimError = kind === 'approach' ? claimPinError(snapshot, id) : kind === 'plan' ? claimPinNote(snapshot, id) : sliceNote(snapshot, id);
   const refuse = (...reasons: string[]): RoundAnswer => ({ ...base, reasons });
   const refuseCap = (...reasons: string[]): RoundAnswer => refuse(...reasons, ...(claimError === undefined ? [] : [claimError]));
   if (laneTicket(snapshot, id) === undefined) return refuse(`${id} is not a lane ticket`);
@@ -578,7 +601,7 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
   let awaiting: string[] = []; // the fixes whose re-review round has not run yet (set below, read by `next`)
 
   const next = (round: number, cycle: number, cap: number): RoundAnswer => {
-    const answer: RoundAnswer = { ...base, kind: 'next', cycle, round, cap, ...(kind === 'plan' && claimError !== undefined ? { reasons: [claimError] } : {}) };
+    const answer: RoundAnswer = { ...base, kind: 'next', cycle, round, cap, ...((kind === 'plan' || kind === 'review') && claimError !== undefined ? { reasons: [claimError] } : {}) };
     if (kind === 'review' && lane) {
       const m = fixModel(snapshot, id, round);
       if (m !== undefined && 'refused' in m) return refuse(m.refused);
@@ -636,7 +659,9 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
   const cyc = rec.cycles[k - 1];
   const L = cyc.rounds.length;
   const all = allowancesOf(snapshot, id, kind);
-  const st = cycleState(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1), rules);
+  // Phase 10 D-06 (per slice): the rounds of earlier slices count against no budget of the slice in work; a start git could not read is said on every answer and counts every round.
+  const off = kind === 'review' ? sliceOffset(snapshot, id, rec, k - 1) : 0;
+  const st = cycleState(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1), rules, off);
   const stopOf = (q: number) =>
     kind === 'review' ? st.stopAt(q) : kind === 'approach' && !rules.allowances && !rules.capStop ? undefined : planStopOf(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1), rules);
   // ST-LN-91 D-02: at the approach cap round 3 is a refusal, not a stop: no allowance lifts it and `## Closed` stays open to the owner's no.
@@ -696,8 +721,8 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
     const why = st.kindOf?.(s);
     if (why === undefined) return {};
     const risks = blockingFindings(cyc);
-    const hint = why === 'final' ? [] : intentOf(cyc, 1);
-    return { ...(risks.length === 0 ? {} : { blocking: risks }), ...(hint.length === 0 ? {} : { intentHint: hint, intentRound: 1 }) };
+    const hint = why === 'final' ? [] : intentOf(cyc, off + 1);
+    return { ...(risks.length === 0 ? {} : { blocking: risks }), ...(hint.length === 0 ? {} : { intentHint: hint, intentRound: off + 1 }) };
   };
 
   // A round run without being allowed: whatever verdict follows, a skipped stop stays visible.

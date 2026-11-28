@@ -1,7 +1,7 @@
 // Phase 10 D-14, 10-ac-21, 10-ac-11: the planner may answer a critic finding `does not hold: <path>:<line>` at approach and plan. From DOES_NOT_HOLD_FROM the finding is closed when that place
 // exists in the working tree (the host's `places` fact), refused when it does not, and a ticket claimed earlier reads the segment as an open finding, as it did at b4477211.
 import { expect, it } from 'vitest';
-import { DOES_NOT_HOLD_FROM, loadSnapshot, nextRound, parseRounds, recordProblems, roundText } from '../src/index.js';
+import { DOES_NOT_HOLD_FROM, approvalFindings, loadSnapshot, nextRound, parseRounds, recheckOf, recordProblems, roundText } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
@@ -96,4 +96,52 @@ it('risk:regression a ticket claimed under 0.23.1 reads a does-not-hold segment 
       expect(roundText(answer), `${kind} ${state}`).not.toContain('Findings still open: none');
     }
   }
+});
+
+// Task 2: a data-loss or security finding the planner answered `does not hold` is never closed by the place: it waits for the owner (D-14, T-10-08).
+const RISK_MUST = '1. Must — the export overwrites the old file — does not hold: src/a.ts:3 — risk: security';
+const PLACES = { 'src/a.ts:3': true };
+
+it('risk:security a risk finding answered does not hold is blocking though its place exists, and the refusal says it waits for the owner (10-ac-21, D-14, T-10-08)', () => {
+  const answer = nextRound(repo('approach', HEAD + round(1, RISK_MUST), { places: PLACES }), 'T-1', 'approach');
+  expect(answer.kind).toBe('refused');
+  expect(answer.blocking).toEqual([{ round: 1, lines: [RISK_MUST] }]);
+  const text = roundText(answer);
+  expect(text).toContain('Blocking findings:');
+  expect(text).toContain('1.1 does not hold');
+  expect(text).toContain('waits for the owner');
+  expect(approvalFindings(repo('approach', HEAD + round(1, RISK_MUST), { places: PLACES }), 'T-1').blocking).toEqual([{ round: 1, lines: [RISK_MUST] }]);
+});
+
+it('risk:security a risk plan finding answered does not hold stops the loop for the owner even with its place on disk (10-ac-21, D-14, T-10-08)', () => {
+  const line = '1. Must — the export overwrites the old file — does not hold: src/a.ts:3 — risk: data-loss';
+  const answer = nextRound(repo('plan', HEAD + round(1, line), { places: PLACES }), 'T-1', 'plan');
+  expect(answer.kind).toBe('stop');
+  const text = roundText(answer);
+  expect(text.startsWith('stop: report to owner\n')).toBe(true);
+  expect(text).toContain(line);
+  expect(text).toContain('waits for the owner');
+});
+
+it('risk:security a finding that repeats a risk finding and answers does not hold inherits the mark and is blocking (10-ac-21, D-14, T-10-08)', () => {
+  const record = HEAD + round(1, '1. Must — the export overwrites the old file — fixed — risk: data-loss') + round(2, '1. Must — repeats 1.1: the overwrite still happens — does not hold: src/a.ts:3');
+  const snapshot = repo('approach', record, { places: PLACES });
+  const [, second] = snapshot.work!['T-1'].approachRounds!.cycles[0].rounds;
+  expect(approvalFindings(snapshot, 'T-1').blocking).toEqual([{ round: 2, lines: [second.findings[0].text] }]);
+  const answer = nextRound(snapshot, 'T-1', 'approach');
+  expect(answer.kind).toBe('refused');
+  expect(roundText(answer)).toContain('2.1 does not hold');
+});
+
+it('risk:security the owner closes a risk finding answered does not hold with owner: "<words>": nothing is blocking then (10-ac-21, D-14)', () => {
+  const owned = '1. Must — the export overwrites the old file — owner: "the owner accepts the overwrite" — risk: security';
+  const snapshot = repo('approach', HEAD + round(1, owned), { places: PLACES });
+  expect(approvalFindings(snapshot, 'T-1').blocking).toEqual([]);
+  expect(nextRound(snapshot, 'T-1', 'approach').blocking ?? []).toEqual([]);
+});
+
+it('risk:regression a does-not-hold answer on a risk finding is no fix, so it earns no scoped re-check round (10-ac-21, D-14)', () => {
+  expect(recheckOf(parseRounds('plan-review.md', HEAD + round(1, RISK_MUST), 'plan').cycles[0])).toEqual([]);
+  const fixed = '2. Must — the export overwrites the old file — fixed — risk: data-loss';
+  expect(recheckOf(parseRounds('plan-review.md', HEAD + round(1, RISK_MUST, fixed), 'plan').cycles[0])).toEqual([2]);
 });

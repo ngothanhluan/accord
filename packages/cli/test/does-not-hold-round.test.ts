@@ -146,3 +146,56 @@ it('risk:regression a ticket claimed under 0.23.1 reads a does-not-hold finding 
     }
   }
 }, 300_000);
+
+// Task 2: a data-loss or security finding the planner answered `does not hold` is never closed by the place: it waits for the owner (D-14, T-10-08).
+const OWNED = (kind: 'security' | 'data-loss'): string => `1. Must — the export overwrites the old file — owner: "the owner accepts the overwrite as it is" — risk: ${kind}`;
+
+it('risk:security a risk finding answered does not hold blocks the approach and the approval until the owner closes it (10-ac-21, D-14, T-10-08)', async () => {
+  const risk = '1. Must — the export overwrites the old file — does not hold: src/a.ts:3 — risk: security';
+  const repo = claimed('0.24.0', { [APPROACH]: rec([risk]) });
+  try {
+    const refused = await run(['round', 'T-1', '--approach'], repo);
+    expect(refused.code).toBe(1);
+    expect(refused.out.startsWith('refused:')).toBe(true);
+    expect(refused.out).toContain('Blocking findings:');
+    expect(refused.out).toContain(risk);
+    expect(refused.out).toContain('1.1 does not hold');
+    expect(refused.out).toContain('waits for the owner');
+    const approval = await run(['approve', 'T-1'], repo);
+    expect(approval.code).toBe(1);
+    expect(approval.out).toContain('blocks the approval');
+    expect(approval.out).toContain(risk);
+    expect(approval.out).toContain('1.1 does not hold');
+
+    writeFiles(repo, { [APPROACH]: rec([OWNED('security')]) });
+    commitMsg(repo, 'T-1 the owner decides');
+    const after = await run(['round', 'T-1', '--approach'], repo);
+    expect(after.code).toBe(1);
+    expect(after.out).not.toContain('Blocking findings:');
+    expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 300_000);
+
+it('risk:security a risk plan finding answered does not hold stops the plan loop for the owner until the owner closes it (10-ac-21, D-14, T-10-08)', async () => {
+  const risk = '1. Must — the export overwrites the old file — does not hold: src/a.ts:3 — risk: data-loss';
+  const repo = claimed('0.24.0', { [PLAN]: rec([risk]) });
+  try {
+    const stopped = await run(['round', 'T-1', '--plan'], repo);
+    expect(stopped.code).toBe(1);
+    expect(stopped.out.startsWith('stop: report to owner\n')).toBe(true);
+    expect(stopped.out).toContain(risk);
+    expect(stopped.out).toContain('1.1 does not hold');
+    expect(stopped.out).toContain('waits for the owner');
+
+    writeFiles(repo, { [PLAN]: rec([OWNED('data-loss')]) });
+    commitMsg(repo, 'T-1 the owner decides');
+    const after = await run(['round', 'T-1', '--plan'], repo);
+    expect(after.code).toBe(1);
+    expect(after.out.startsWith('refused:')).toBe(true);
+    expect(after.out).toContain('Findings still open: none');
+  } finally {
+    cleanup(repo);
+  }
+}, 300_000);

@@ -2,7 +2,7 @@
 // for `accord round` and, from plan 11-07, `accord gate done`; and the range each round's package read, which `accord review-package --lens <name> --round <k>` resolves through the same function
 // (lensRoundRanges), so the package, the rule and the dispatch the rule prints never disagree. A round's package printed lenses only for the first round of the record and each `(final review)` round (Ruling
 // R6 of plan 11-04). Every git failure is an `error` fact, which the rule reports (fail closed); nothing here writes.
-import { lensesFor, lensOn, parseLens, workOf } from '@accord-dev/accord-core';
+import { lensesFor, lensOn, parseLens, UI_LENS, workOf } from '@accord-dev/accord-core';
 import type { LensFacts, LensFile, LensMode, RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, defaultRefOf, UsageError } from './fs.js';
 import { readLensFiles } from './lens-files.js';
@@ -71,7 +71,9 @@ export function lensRoundPackages(root: string, snapshot: RepoSnapshot, id: stri
     const def = defaultRefOf(root);
     const read = readLensFiles(root, def);
     const lane = snapshot.tickets[id]?.frontmatter?.lane;
-    const parsed = read.lenses.map((l) => parseLens(l.path, l.text));
+    // D-08, Ruling R18: the built-in ui lens is core data, so a ui: true ticket reads it with no lens file, and a repository file named ui is never read as one (a lint error)
+    const ui = snapshot.tickets[id]?.frontmatter?.ui === true && (lane === 'M' || lane === 'L' || lane === 'P');
+    const parsed = [...read.lenses.map((l) => parseLens(l.path, l.text)).filter((l) => l.name !== UI_LENS.name), ...(ui ? [UI_LENS] : [])];
     if (parsed.length === 0) return { rounds: [], lenses: [], ...(read.note === undefined ? {} : { note: read.note }) }; // no lens file: nothing was printed, and no range or git read is needed
     const ranges = lensRoundRanges(root, snapshot, id);
     if ('error' in ranges) return ranges;
@@ -83,7 +85,7 @@ export function lensRoundPackages(root: string, snapshot: RepoSnapshot, id: stri
       } catch (e) {
         throw new Error(`git failed reading the package of review round ${k + 1}: ${e instanceof UsageError ? e.message : why(e)}`, { cause: e });
       }
-      return { ...r, printed: lensesFor(parsed, { lane, changed: pkg.changed, others: [] }).map((l) => l.name) };
+      return { ...r, printed: lensesFor(parsed, { lane, changed: pkg.changed, others: [], ui }).map((l) => l.name) };
     });
     return { rounds, lenses: parsed, ...(read.note === undefined ? {} : { note: read.note }) };
   } catch (e) {

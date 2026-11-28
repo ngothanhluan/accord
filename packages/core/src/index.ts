@@ -142,7 +142,7 @@ export { CALL_SIGN, interfaceSigns, matches, outsideScope, scopeLines } from './
 export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from './security/spec.js';
 export type { SecurityCheck, SecurityPattern, SecuritySpec } from './security/spec.js';
 export { diffFiles, matchedHunks, pathEntryMatches, securityTriggers, triggerText } from './security/match.js';
-export { BUILT_IN_LENS_NAMES, LENS_DIR, isLensFile, lensMatches, lensesFor, parseLens } from './lens/spec.js';
+export { BUILT_IN_LENS_NAMES, LENS_DIR, UI_LENS, isLensFile, lensMatches, lensesFor, parseLens } from './lens/spec.js';
 export type { LensFile, LensMode, LensProblem, OtherChange } from './lens/spec.js';
 export type { DiffFile, DiffHunk, Trigger } from './security/match.js';
 export { DEFAULT_SLOP, parseSlop, SLOP_FILE, slopFile, slopSpec, STRUCTURAL_KINDS } from './slop/spec.js';

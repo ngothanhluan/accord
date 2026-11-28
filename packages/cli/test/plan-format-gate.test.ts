@@ -168,7 +168,8 @@ it('risk:security accord gate plan and accord round --plan on a claim pin git ca
     }
     const after = await run(['round', 'T-1', '--plan'], repo);
     expect(after.code).toBe(0);
-    expect(after.out).toContain('Round: 1 of 3\nCycle: 1\nCritics: plan checker\n');
+    // Phase 10 D-01: the newest rules a failed claim read gives are one plan critique round.
+    expect(after.out).toContain('Round: 1 of 1\nCycle: 1\nCritics: plan checker\n');
     expect(after.out).toContain('Note: git failed reading the claim pin of T-1: accord/config.yml cannot be read at claim commit ' + claim);
   } finally {
     cleanup(repo);

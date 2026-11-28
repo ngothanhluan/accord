@@ -16,9 +16,10 @@ const paragraph = (name: string): string => {
   const end = design.indexOf('\n\n', start);
   return design.slice(start, end < 0 ? undefined : end);
 };
-/** The `## Unreleased` section of releases.md, up to the next `## ` heading; empty when there is none. */
+/** The section of releases.md that holds this phase: `## 0.23.0 — <date>` once released, `## Unreleased` before; up to the next `## ` heading; empty when there is none. */
 const unreleased = (): string => {
-  const start = releases.indexOf('\n## Unreleased');
+  let start = releases.indexOf('\n## 0.23.0 — ');
+  if (start < 0) start = releases.indexOf('\n## Unreleased');
   if (start < 0) return '';
   const end = releases.indexOf('\n## ', start + 1);
   return releases.slice(start, end < 0 ? undefined : end);
@@ -60,8 +61,8 @@ it('risk:regression the Agents paragraph declares the agents: block as one Phase
   expect(sentence).toContain('`claude` runtime only');
 });
 
-it('risk:regression releases.md opens with Unreleased naming agents:, lint.agents-config, the stdio refusal, the inline fields and the pin before 0.23.0 (11-ac-4, D-17)', () => {
-  expect(releases.slice(releases.search(/^## /m)).startsWith('## Unreleased\n'), 'the first section of docs/releases.md is not ## Unreleased').toBe(true);
+it('risk:regression releases.md opens with the 0.23.0 section naming agents:, lint.agents-config, the stdio refusal, the inline fields and the pin before 0.23.0 (11-ac-4, D-17)', () => {
+  expect(/^## 0\.23\.0 — \d{4}-\d{2}-\d{2}\n/.test(releases.slice(releases.search(/^## /m))), 'the first section of docs/releases.md is not ## 0.23.0').toBe(true);
   const section = flat(unreleased());
   expect(lacks(section, ['`agents:`', '`lint.agents-config`', 'stdio', '`type` and `url`', '`env`', '`headers`', 'pinned before 0.23.0', '`accord upgrade`'])).toEqual([]);
 });

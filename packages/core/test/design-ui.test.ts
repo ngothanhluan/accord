@@ -18,9 +18,10 @@ const paragraph = (name: string): string => {
   const end = design.indexOf('\n\n', start);
   return design.slice(start, end < 0 ? undefined : end);
 };
-/** The `## Unreleased` section of releases.md, up to the next `## ` heading; empty when there is none. */
+/** The section of releases.md that holds this phase: `## 0.23.0 — <date>` once released, `## Unreleased` before; up to the next `## ` heading; empty when there is none. */
 const unreleased = (): string => {
-  const start = releases.indexOf('\n## Unreleased');
+  let start = releases.indexOf('\n## 0.23.0 — ');
+  if (start < 0) start = releases.indexOf('\n## Unreleased');
   if (start < 0) return '';
   const end = releases.indexOf('\n## ', start + 1);
   return releases.slice(start, end < 0 ? undefined : end);

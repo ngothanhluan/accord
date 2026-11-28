@@ -2,7 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.23.1 — 2026-11-28
+
+Release 0.23.1 is a patch release for the Phase 11 review fixes listed below: the lens reader fails closed when git cannot list or read a lens, instead of silently dropping it; a lens with an invalid name is no longer demanded in the round record; `lint.lens-file` reports a `paths:` folder entry written without the trailing slash; the scout, critic, planner and reviewer tool locks list the same outward-reaching tools as the researcher's; and `accord skills sync` notes a missing `ui.*` skill name. Nothing changes for tickets in flight beyond those refusals, and the cut-offs `LENSES_FROM` and `UI_EVIDENCE_FROM` stay at 0.23.0, the first release that shipped the rules. A repository pinned to 0.23.0 moves with `accord upgrade`. The live checks of Phase 11 (11-ac-15, 11-ac-16 and the plugin skill name form) are still open and queued in the backlog, as the 0.23.0 notes said.
 
 - Review fixes for Phase 11: a team lens file that git cannot list or read at the default branch now makes `accord round`, `accord gate done` and `accord review-package` refuse with a "cannot be checked" reason naming the file, where a lens was dropped before; a lens file whose name breaks the name rule is neither printed nor asked for (`lint.lens-file` still reports it); `lint.lens-file` reports a `paths:` entry that names a folder without the trailing `/`; the scout, critic and planner refuse `Monitor` and the tools that publish, schedule or message (and a reviewer the last three), as the researcher does; and `accord skills sync` prints a note for a `ui.direction`, `ui.build` or `ui.review` skill that no skills folder holds.
 

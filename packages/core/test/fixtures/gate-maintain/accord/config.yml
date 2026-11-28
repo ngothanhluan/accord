@@ -1,4 +1,4 @@
-accord: "0.23.0"
+accord: "0.23.1"
 profile: maintain
 tracker:
   adapter: none

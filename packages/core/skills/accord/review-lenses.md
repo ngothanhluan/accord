@@ -14,11 +14,12 @@ branch added: do not run it.
 ## Steps, in round 1 and in the final review
 
 1. **Dispatch.** For each `### Lens <name>` the package prints, dispatch one `accord-reviewer` with lens `<name>`, in parallel with the
-   reviewers `./review.md` step 3 chose. Give it the path of the ticket file, the path of the review package and the path of
+   reviewers `./review.md` step 3 chose; the `ui` lens goes to the agent its `### Lens ui` line names. Give it the path of the ticket file, the path of the review package and the path of
    `accord/tickets/<id>/ledger.md`; its checklist is that lens's section of the package.
 2. **Record.** When a lens's reviewer has run, write the line `Lens: <name> ran` in the round's section of `review.md`, one line per
    lens, as `./review-record.md` says. Never write it for a lens that has not run.
 3. **Its findings** join the round's like any reviewer's, each ending ` — lens: <name>`, and are classified as `./review.md` step 4 says.
+   A finding of the built-in `ui` lens carries no ` — lens:` mark and blocks like any built-in finding.
 4. **A refusal.** When `accord round` prints `refused:` naming a lens, run the command it prints, dispatch the reviewer on the package
    that command writes, write the `Lens: <name> ran` line and commit.
 

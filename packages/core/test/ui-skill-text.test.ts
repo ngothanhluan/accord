@@ -179,3 +179,60 @@ it('risk:regression the accord skill loads verify-ui.md in sorted order and name
   if ((source.match(/accord\/verify-ui\.md/g) ?? []).length !== 1) bad.push('SKILL.md names accord/verify-ui.md other than once in loads');
   expect(bad).toEqual([]);
 });
+
+it('risk:regression the build stage dispatches the agent the brief names wherever it dispatches an executor, and stays within 6000 bytes (11-ac-8, D-07)', () => {
+  const bad: string[] = [];
+  const files = rendered('build', 'build.md');
+  if (files.length === 0) bad.push('build.md is not rendered');
+  for (const f of files) {
+    if (f.text === '') {
+      bad.push(f.label + ' is missing');
+      continue;
+    }
+    const step2 = between(f.text, '2. **Dispatch.**', '3. **Record.**');
+    for (const p of lacks(step2, ['the brief\'s `agent:` line names', '`accord-executor`', 'in any build file or for a fix', './build-waves.md', 'refuses'])) bad.push(f.label + ' step 2 lacks: ' + p);
+    // the rule is stated once, and no other step of this stage names a bare `accord-executor` dispatch
+    if ((f.text.match(/`agent:` line/g) ?? []).length !== 1) bad.push(f.label + ' does not state the agent rule exactly once');
+    if (bytes(f.raw) > 6000) bad.push(f.label + ' is ' + bytes(f.raw) + ' bytes, over 6000');
+    if (OTHER_NAMES.test(f.text)) bad.push(f.label + ' names a tool or skill');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the executor and the reviewer keep a skill preloaded for UI work inside the task or the lens, and the ui lens line is the checklist (11-ac-8, D-07, T-11-34)', () => {
+  const bad: string[] = [];
+  const executors = agentsNamed('accord-executor');
+  const reviewers = agentsNamed('accord-reviewer');
+  if (executors.length === 0) bad.push('no accord-executor is rendered');
+  if (reviewers.length === 0) bad.push('no accord-reviewer is rendered');
+  for (const f of executors) {
+    for (const p of lacks(f.text, ['A skill preloaded for UI work guides the craft of this task only', 'never runs its own intent, planning or done steps', 'your brief stays the work'])) bad.push(f.label + ' lacks: ' + p);
+    if (OTHER_NAMES.test(f.text)) bad.push(f.label + ' names a tool or skill');
+  }
+  for (const f of reviewers) {
+    for (const p of lacks(f.text, ['A skill preloaded for UI work guides the craft of this lens only', 'never runs its own intent, planning or done steps', 'Lens `ui`', '`### Lens ui (built in)`', 'is your contract', 'judges the craft as well', 'carries no ` — lens:` mark'])) {
+      bad.push(f.label + ' lacks: ' + p);
+    }
+    if (OTHER_NAMES.test(f.text)) bad.push(f.label + ' names a tool or skill');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression review-lenses.md sends the ui lens to the agent its line names and says a ui finding carries no lens mark (11-ac-8, D-07, hand-off of plan 11-13)', () => {
+  const bad: string[] = [];
+  const files = rendered('review', 'review-lenses.md');
+  if (files.length === 0) bad.push('review-lenses.md is not rendered');
+  for (const f of files) {
+    for (const p of lacks(f.text, [
+      'the `ui` lens goes to the agent its `### Lens ui` line names',
+      'A finding of the built-in `ui` lens carries no ` — lens:` mark',
+      'blocks like any built-in finding',
+      'one `accord-reviewer`',
+      'each ending ` — lens: <name>`',
+    ])) {
+      bad.push(f.label + ' lacks: ' + p);
+    }
+    if (OTHER_NAMES.test(f.text)) bad.push(f.label + ' names a tool or skill');
+  }
+  expect(bad).toEqual([]);
+});

@@ -224,7 +224,8 @@ function runSmoke(plan: string[], extraEnv: Record<string, string> = {}): Smoke 
       '"$@" & pid=$!',
       '( sleep "$cap"; touch timed-out; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 </dev/null & guard=$!',
       'wait "$pid"; code=$?',
-      'kill "$guard" 2>/dev/null',
+      // kill and reap the guard with stderr closed: bash 3.2 (macOS) otherwise prints `Terminated: 15` for it, which the step reads as npx output
+      '{ kill "$guard"; wait "$guard"; } 2>/dev/null',
       '[ -e timed-out ] && exit 124',
       'exit "$code"',
       '',

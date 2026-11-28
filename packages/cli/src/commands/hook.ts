@@ -2,7 +2,7 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
-import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, loadSnapshot, sessionLine, skillDirs, stageFile, statusRows, subagentContext } from '@accord-dev/accord-core';
+import { checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, debugOpen, EPIC_ROLES, epicBlock, EXECUTOR_AGENTS, loadSnapshot, sessionLine, skillDirs, stageFile, statusRows, subagentContext, UI_EXECUTOR } from '@accord-dev/accord-core';
 import type { AccordConfig } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
@@ -442,11 +442,18 @@ export function preToolUseWrite(io: { stdin?: string; stdout: NodeJS.WritableStr
   }
 }
 
-/** ST-LN-17 D-03: refuse an accord-executor dispatched on a model other than the one accord computes while the ticket is at review. Fails open on any error. */
+/**
+ * ST-LN-17 D-03: refuse an executor dispatched on a model other than the one accord computes while the ticket is at review. Phase 11 D-07: refuse the plain executor for a `ui: true` ticket while `ui.build` is set,
+ * and the UI executor for any other ticket, while a ticket is active. Fails open on any error.
+ */
 function preToolUse(ctx: CommandContext): number {
   const allow = (why?: string) => {
     if (why !== undefined) ctx.stderr.write(`accord hook pre-tool-use: ${why.split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
     ctx.stdout.write('{}\n');
+    return 0;
+  };
+  const deny = (reason: string) => {
+    ctx.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }) + '\n');
     return 0;
   };
   try {
@@ -462,13 +469,15 @@ function preToolUse(ctx: CommandContext): number {
     const toolInput = input.tool_input;
     if (typeof toolInput !== 'object' || toolInput === null || Array.isArray(toolInput)) return allow();
     const { subagent_type: agent, model } = toolInput as Record<string, unknown>;
-    if (agent !== 'accord-executor') return allow();
+    if (typeof agent !== 'string' || !EXECUTOR_AGENTS.includes(agent)) return allow();
     const id = activeTicket(ctx.root, ctx.snapshot);
     if (id === undefined) return allow();
+    // Phase 11 D-07 (11-ac-8): the session builds with the executor `accord brief` names (brief.ts `agentOf`: a `ui: true` ticket while `ui.build` is set gets accord-executor-ui, every other ticket accord-executor)
+    const wantsUi = ctx.snapshot.tickets[id]?.frontmatter?.ui === true && ctx.snapshot.config?.ui?.build !== undefined;
+    if (wantsUi && agent !== UI_EXECUTOR) return deny(`accord: ${id} is ui: true and ui.build is set: dispatch ${UI_EXECUTOR}, the agent accord brief names`);
+    if (!wantsUi && agent === UI_EXECUTOR) return deny(`accord: ${id} is not a ui ticket with ui.build set: dispatch accord-executor`);
     const reason = checkFixDispatch(ctx.snapshot, id, typeof model === 'string' ? model : undefined, debugOpenIn(ctx.root, id));
-    if (reason === undefined) return allow();
-    ctx.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }) + '\n');
-    return 0;
+    return reason === undefined ? allow() : deny(reason);
   } catch (e) {
     return allow(e instanceof Error ? e.message : String(e));
   }

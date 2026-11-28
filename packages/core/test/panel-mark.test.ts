@@ -214,6 +214,29 @@ it('risk:security the tick reads a fixed set of files of the git folder through 
   expect(source.match(/MARK_POLL_MS/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
 });
 
+it('risk:compat the panel never reads a $ host call as a value, which Claude Code 2.1.332 refuses for the whole module (GitHub #398)', () => {
+  for (const name of ['register.js', 'view.js']) {
+    const code = readFileSync(new URL('../panel/' + name, import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
+    const read = [...code.matchAll(/\$\.[A-Za-z]+\.[A-Za-z]+(?!\s*[(A-Za-z])/g)].map((m) => name + ': ' + m[0]);
+    expect(read).toEqual([]);
+  }
+});
+
+it('risk:parsing a host whose $.fs.list answers no list finds the worktrees from the CLI record (GitHub #398)', async () => {
+  const h = await host();
+  h.$.fs.list.mockImplementation(async () => undefined);
+  h.files.set(GIT + '/accord/worktrees', 'ST-2\t/work/w2\n');
+  h.files.set('/work/w2/.git', 'gitdir: ' + GIT + '/worktrees/w2\n');
+  await h.fire('session.start', START);
+  h.settle();
+  await quiet();
+  const base = calls(h);
+  h.sizes.set(W2, 90);
+  await h.live()[0].fn();
+  await quiet();
+  expect(calls(h)).toBe(base + 1);
+});
+
 it('risk:parsing a host without $.fs.list finds the worktrees from the CLI record and their .git files (D-18)', async () => {
   const h = await host(false);
   h.files.set(GIT + '/accord/worktrees', 'ST-2\t/work/w2\nbad line\n');

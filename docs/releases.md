@@ -2,6 +2,10 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- The panel loads again in Claude Code 2.1.332 and later (GitHub #398): that version refuses the whole panel module when it reads a host call such as `$.fs.list` as a value, so no pane opened and `/accord-panel` answered `Unknown command`. The panel now calls `$.fs.list` and falls back to the CLI's worktree record when the call fails or answers no list; a clone with no linked worktree now reads that record instead of stopping at an empty list. Run `accord skills sync` (or `accord upgrade`) to re-render the panel.
+
 ## 0.23.1 — 2026-11-28
 
 Release 0.23.1 is a patch release for the Phase 11 review fixes listed below: the lens reader fails closed when git cannot list or read a lens, instead of silently dropping it; a lens with an invalid name is no longer demanded in the round record; `lint.lens-file` reports a `paths:` folder entry written without the trailing slash; the scout, critic, planner and reviewer tool locks list the same outward-reaching tools as the researcher's; and `accord skills sync` notes a missing `ui.*` skill name. Nothing changes for tickets in flight beyond those refusals, and the cut-offs `LENSES_FROM` and `UI_EVIDENCE_FROM` stay at 0.23.0, the first release that shipped the rules. A repository pinned to 0.23.0 moves with `accord upgrade`. The live checks of Phase 11 (11-ac-15, 11-ac-16 and the plugin skill name form) are still open and queued in the backlog, as the 0.23.0 notes said.

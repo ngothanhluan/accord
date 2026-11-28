@@ -244,7 +244,7 @@ export { markDropped } from './write/dropped.js';
 export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
 export { pluginDir, pluginTargets } from './skills/plugin.js';
-export { AGENT_DEFAULTS, AGENT_LOCKS, agentDir, agentFields, agentsProblems, agentsRefusal, agentTargets, isIntactRender, NO_ADDITIONS, renderAgent, RETIRED_FILES, RETIRED_SKILL_FOLDERS } from './skills/agents.js';
+export { AGENT_DEFAULTS, AGENT_LOCKS, agentDir, agentFields, agentsProblems, agentsRefusal, agentTargets, EXECUTOR_AGENTS, isIntactRender, NO_ADDITIONS, renderAgent, RETIRED_FILES, RETIRED_SKILL_FOLDERS, UI_EXECUTOR, UI_REVIEWER } from './skills/agents.js';
 export type { AgentExtra, AgentProblem } from './skills/agents.js';
 export { allSkillDirs, installedName, skillDirs, skillTargets, STAGE_FILES, stageFile, STAGES } from './skills/targets.js';
 export type { SkillFile } from './skills/targets.js';

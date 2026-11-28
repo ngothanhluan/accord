@@ -16,7 +16,9 @@ const shoulds = (k: number, state = 'open'): string[] => (k === 0 ? [NONE] : Arr
 /** A version 1 review record: each round is its finding lines. */
 const record = (...rounds: string[][]): string => HEAD + rounds.map((lines, i) => `## Round ${i + 1}\n\n${lines.join('\n')}\n\n`).join('');
 /** A version 2 review record (heads, and the risk marks a version 1 review line does not read): each round is its finding lines. */
-const v2 = (rounds: string[][], tail = ''): string => v2Review([rounds.map((lines) => ({ lines: lines[0] === NONE ? [] : lines }))], tail);
+type Spec = string[] | { final: string[] };
+const v2 = (rounds: Spec[], tail = ''): string =>
+  v2Review([rounds.map((r) => ('final' in r ? { lines: r.final[0] === NONE ? [] : r.final, mark: 'final' as const } : { lines: r[0] === NONE ? [] : r }))], tail);
 const allow = (n: number, after: number): string => `- Ruling: the owner allows ${n} more review rounds after round ${after} of cycle 1 — "one more" — cost if wrong: ${n} rounds\n`;
 
 interface Opts {
@@ -26,6 +28,7 @@ interface Opts {
   ledger?: string;
   config?: string;
 }
+const checked = 'checked: src/export.ts:9 — addressed: src/export.ts:9';
 function repo({ lane = 'M', claim = { pin: REVIEW_BUDGET_FROM }, review, ledger = '', config = CONFIG }: Opts = {}): RepoSnapshot {
   const files: Record<string, string> = { 'accord/config.yml': config };
   if (lane === 'S') files[P('T-1')] = laneTicket('T-1', { lane: 'S', body: LANE_S_BODY });
@@ -120,4 +123,79 @@ it('risk:security an accepted-by-owner verdict at the budget stop lifts an ordin
   // a ticket claimed under 0.23.1 is held to nothing new
   const older = repo({ claim: before, review: v2([shoulds(3), [should(1), must(2, 'open', 'risk: security')], shoulds(1)], verdict) });
   expect(rule(older)).toEqual([]);
+});
+
+const NONE_ROUND = shoulds(0);
+const fixedLine = (n: number, ...marks: string[]): string => should(n, 'fixed in abc1235 — ' + checked, ...marks);
+
+it('risk:regression the final review and its one re-check are outside the budget: a re-check that answers its fix gives the verdict answer and no stop (10-ac-30, D-15)', () => {
+  const answer = nextRound(repo({ review: v2([shoulds(1), NONE_ROUND, { final: [fixedLine(1)] }, NONE_ROUND]) }), 'T-1', 'review');
+  expect(answer.kind).toBe('refused');
+  expect(answer.round).toBe(4);
+  expect(answer.reasons.join('\n')).toContain('reported no findings');
+  expect(roundText(answer)).not.toContain('stop: report to owner');
+});
+
+it('risk:regression after a budget of three clean rounds the final review is allowed as a fourth, and its re-check as a fifth: Round 5 of 5 (10-ac-30, D-15)', () => {
+  const used = [shoulds(2), shoulds(1), NONE_ROUND];
+  // the final review is asked for after the budget: round 4 of 5
+  expect(roundText(nextRound(repo({ review: v2(used) }), 'T-1', 'review'))).toBe('Round: 4 of 5\nCycle: 1\nFix executor model: sonnet\n');
+  // recorded, its one re-check follows
+  const reviewed = nextRound(repo({ review: v2([...used, { final: shoulds(1) }]) }), 'T-1', 'review');
+  expect(reviewed).toMatchObject({ kind: 'next', round: 5, cap: 5 });
+  expect(roundText(reviewed)).toContain('Round: 5 of 5\n');
+  // a sixth round runs past the final review's one fix and one re-check, and no owner Ruling allows it
+  const sixth = nextRound(repo({ review: v2([...used, { final: shoulds(1) }, shoulds(0), shoulds(0)]) }), 'T-1', 'review');
+  expect(sixth.kind).toBe('stop');
+  expect(sixth.reasons.join('\n')).toContain("past the final review's one fix and one re-check (D-15)");
+  // an owner allowance Ruling allows it
+  expect(nextRound(repo({ review: v2([...used, { final: shoulds(1) }, shoulds(1), shoulds(0)]), ledger: allow(1, 5) }), 'T-1', 'review').kind).not.toBe('next');
+  expect(nextRound(repo({ review: v2([...used, { final: shoulds(1) }, shoulds(1)]), ledger: allow(1, 5) }), 'T-1', 'review')).toMatchObject({ kind: 'next', round: 6 });
+  // an ordinary fourth round, not headed (final review), is past the budget
+  const ordinary = nextRound(repo({ review: v2([...used, shoulds(0)]) }), 'T-1', 'review');
+  expect(ordinary.reasons.join('\n')).toContain('past the budget of 3 review rounds (D-06)');
+});
+
+it('risk:regression a Must or Should still open after the re-check of the final review is a stop that names its one fix and one re-check as used (10-ac-30, D-15)', () => {
+  const answer = nextRound(repo({ review: v2([shoulds(1), NONE_ROUND, { final: shoulds(1) }, shoulds(1)]) }), 'T-1', 'review');
+  expect(answer.kind).toBe('stop');
+  expect(answer.round).toBe(4);
+  expect(answer.reasons.join('\n')).toContain("the final review's one fix and one re-check (D-15) are used");
+  expect(roundText(answer)).toContain('stop: report to owner');
+});
+
+it('risk:regression the count-fall stop never fires on the final review or its re-check (10-ac-30, D-15)', () => {
+  // a final review with two Should after a round with one: no stop, its re-check is asked
+  const answer = nextRound(repo({ review: v2([shoulds(2), shoulds(1), { final: shoulds(2) }]) }), 'T-1', 'review');
+  expect(answer).toMatchObject({ kind: 'next', round: 4, cap: 4 });
+  // the same two rounds without the mark stop on the count
+  expect(nextRound(repo({ review: v2([shoulds(2), shoulds(1), shoulds(2)]) }), 'T-1', 'review').kind).toBe('stop');
+  // a ticket claimed under 0.23.1 counts the final review as a round of the five
+  expect(nextRound(repo({ claim: before, review: v2([shoulds(2), shoulds(1), { final: shoulds(2) }]) }), 'T-1', 'review').kind).toBe('stop');
+});
+
+it('risk:regression a budget stop names the round-1 findings still open as a possible intent problem, once, and only for findings with no risk mark (10-ac-31, D-15)', () => {
+  const rounds = (risk: string[]): Spec[] => [
+    [fixedLine(1), should(2, 'open', ...risk)],
+    [should(1)],
+    [should(1, 'open', 'carried from 1.2')],
+  ];
+  const stop = nextRound(repo({ review: v2(rounds([])) }), 'T-1', 'review');
+  expect(stop.kind).toBe('stop');
+  expect(stop.intentHint).toEqual(['1.2']);
+  const text = roundText(stop);
+  expect(text.split('\n').filter((l) => l.startsWith('Intent:'))).toEqual(['Intent: 1.2 raised in round 1 and still open: they may be an intent problem (the criterion or the approach), not a code fix; ask the owner']);
+  // the findings keep their class: they are still listed as the open findings of the stop
+  expect(text).toContain('Findings of round 3:');
+  // marked data-loss or security, 1.2 and its carry are a risk: no Intent line
+  for (const kind of ['data-loss', 'security']) {
+    const risky = nextRound(repo({ review: v2(rounds([`risk: ${kind}`])) }), 'T-1', 'review');
+    expect(risky.kind).toBe('stop');
+    expect(risky.intentHint).toBeUndefined();
+    expect(roundText(risky)).not.toContain('Intent:');
+  }
+  // a stop at the final review's re-check is not a budget stop: no Intent line
+  const final = nextRound(repo({ review: v2([[should(1)], NONE_ROUND, { final: [should(1, 'open', 'carried from 1.1')] }, [should(1, 'open', 'carried from 3.1')]]) }), 'T-1', 'review');
+  expect(final.kind).toBe('stop');
+  expect(final.intentHint).toBeUndefined();
 });

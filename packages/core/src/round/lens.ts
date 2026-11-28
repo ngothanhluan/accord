@@ -47,6 +47,8 @@ export function lensProblems(snapshot: RepoSnapshot, id: string): LensRecordProb
     return cannot(`the host read the lenses of ${fact.rounds.length} rounds and review.md records ${placed.length}`);
   }
   const out: LensRecordProblem[] = [];
+  // WR-01: with no default branch the lens files are the checkout's own, which this branch can edit; a refusal says so, as the package does
+  const checkout = fact.note === 'no-default-ref' ? ' (the lens files were read from this checkout, not the default branch, because no default branch could be read)' : '';
   for (const at of placed) {
     const where = `round ${at.p} of cycle ${at.cycle}`;
     for (const name of fact.rounds[at.j - 1].lenses) {
@@ -57,7 +59,7 @@ export function lensProblems(snapshot: RepoSnapshot, id: string): LensRecordProb
       out.push({
         line: at.round.line,
         reason:
-          `${where}: its review package named lens ${name} (on_finding ${mode}), and the round records no "Lens: ${name} ran"; ` +
+          `${where}: its review package named lens ${name} (on_finding ${mode}), and the round records no "Lens: ${name} ran"${checkout}; ` +
           `to run it, dispatch ${reviewer} with lens ${name} on the package the command at the end of this line writes, then write "Lens: ${name} ran" in the round: ` +
           `accord review-package ${id} --lens ${name} --round ${at.j} --out lens-${name}-${at.j}.md`,
       });

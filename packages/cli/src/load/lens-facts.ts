@@ -70,6 +70,7 @@ export function lensRoundPackages(root: string, snapshot: RepoSnapshot, id: stri
   try {
     const def = defaultRefOf(root);
     const read = readLensFiles(root, def);
+    if (read.error !== undefined) return { error: read.error }; // WR-01: fail closed; the lenses of a read that failed are never judged as if they were all of them
     const lane = snapshot.tickets[id]?.frontmatter?.lane;
     // D-08, Ruling R18: the built-in ui lens is core data, so a ui: true ticket reads it with no lens file, and a repository file named ui is never read as one (a lint error)
     const ui = snapshot.tickets[id]?.frontmatter?.ui === true && (lane === 'M' || lane === 'L' || lane === 'P');

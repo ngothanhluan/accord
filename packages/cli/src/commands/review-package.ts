@@ -277,6 +277,8 @@ ${l.body.trim()}`;
 function lensSection(ctx: CommandContext, lane: string | undefined, def: string | undefined, changed: string[], others: OtherDiff[], later: boolean, ui: boolean): string | undefined {
   if (lane !== 'M' && lane !== 'L' && lane !== 'P') return undefined;
   const read = readLensFiles(ctx.root, def);
+  // WR-01: a package that prints fewer lenses than the default branch holds would be the silent loss the rule exists to stop
+  if (read.error !== undefined) throw new UsageError(`cannot read the team lenses: ${read.error}`);
   // D-08: a ui: true ticket always has the built-in ui lens, so its package has the section with no lens file at all
   if (read.lenses.length === 0 && read.branchOnly.length === 0 && !ui) return undefined;
   const mapped = uiReviewMapped(ctx);

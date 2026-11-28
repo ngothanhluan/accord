@@ -410,16 +410,19 @@ async function commonOf($) {
   return dir === undefined ? undefined : commonDirOf($, dir);
 }
 
-// the reflog of each linked worktree, from the host's folder listing; a host without `list` gets them from the CLI's own record (`<id>\t<folder>` lines) and each folder's `.git` file. The folders never come from ticket text (T-15-11).
+// the reflog of each linked worktree, from the host's folder listing; a host without `list`, or whose listing answers no list, gets them from the CLI's own record (`<id>\t<folder>` lines) and each folder's `.git` file. The folders never come from ticket text (T-15-11).
+// The host call is only ever called, never read as a value: Claude Code 2.1.332 refuses a module that reads a `$` call as a value (GitHub #398).
 async function worktreeLogs($, common) {
   const logs = [];
-  if (typeof $.fs.list === 'function') {
-    try {
-      for (const entry of await $.fs.list(common + '/worktrees')) {
-        if (entry?.kind === 'dir' && typeof entry.name === 'string' && !/[\\/]/.test(entry.name)) logs.push(common + '/worktrees/' + entry.name + '/logs/HEAD');
-      }
-    } catch {
-      // a clone with no linked worktree has no such folder
+  let listed;
+  try {
+    listed = await $.fs.list(common + '/worktrees');
+  } catch {
+    // no `list` on this host, or a clone with no linked worktree has no such folder
+  }
+  if (Array.isArray(listed)) {
+    for (const entry of listed) {
+      if (entry?.kind === 'dir' && typeof entry.name === 'string' && !/[\\/]/.test(entry.name)) logs.push(common + '/worktrees/' + entry.name + '/logs/HEAD');
     }
     return logs.slice(0, MARK_WORKTREES_MAX);
   }

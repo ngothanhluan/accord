@@ -82,6 +82,7 @@ export {
   allowancesOf,
   approvalBlockers,
   approvalFindings,
+  approvalWaiting,
   approvalProblems,
   blockingFindings,
   capRulesOf,

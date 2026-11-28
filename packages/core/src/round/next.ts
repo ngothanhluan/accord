@@ -4,7 +4,7 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { resolveStrictness } from '../config/strictness.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
-import { answerProblems, answersClosed, riskSet } from './answers.js';
+import { answerProblems, answersClosed, notHeldWaiting, riskSet } from './answers.js';
 import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
@@ -68,10 +68,10 @@ const isD01 = (rules: CapRules): boolean => rules.fall && !rules.allowances && !
 
 /**
  * Phase 10 D-01, T-10-01: the `n` of each finding `1.<n>` of the cycle's round 1 that is marked `risk: data-loss` or `risk: security` (its own mark, as `classify` reads it): the findings whose fix a scoped re-check
- * round covers. A finding the critic withdrew, or the owner dropped with `owner: "<words>"`, needs no re-check.
+ * round covers. A finding the critic withdrew, or the owner dropped with `owner: "<words>"`, needs no re-check, and neither does one the planner answered `does not hold` (Phase 10 D-14): that answer is no fix, and the finding goes to the owner.
  */
 export function recheckOf(cycle: RoundCycle | undefined): number[] {
-  return (cycle?.rounds[0]?.findings ?? []).flatMap((f) => (f.risk !== undefined && f.n !== undefined && f.state !== 'withdrawn' && f.state !== 'owner' ? [f.n] : []));
+  return (cycle?.rounds[0]?.findings ?? []).flatMap((f) => (f.risk !== undefined && f.n !== undefined && f.state !== 'withdrawn' && f.state !== 'owner' && f.state !== 'notHeld' ? [f.n] : []));
 }
 
 /** ST-LN-91 D-07, D-17: three plan critique rounds, the stop from round 3 beside the count stop, and the owner's allowance Rulings kept. */
@@ -405,6 +405,15 @@ export function approvalFindings(snapshot: RepoSnapshot, id: string): { risks: {
 }
 
 /**
+ * Phase 10 D-14, T-10-08: the `<round>.<n>` of each finding of the last approach cycle that the planner answered `does not hold` and that is marked data-loss or security: it blocks the approval and waits for the owner, whose
+ * `owner: "<words>"` closes it. Empty for a ticket on the older approval rules, which block nothing.
+ */
+export function approvalWaiting(snapshot: RepoSnapshot, id: string): string[] {
+  const rec = workOf(snapshot, id)?.approachRounds;
+  return rec === undefined || !approvalBlocks(snapshot, id) ? [] : notHeldWaiting(snapshot, id, 'approach', rec.cycles.length - 1);
+}
+
+/**
  * ST-LN-91 D-22: the open `risk: data-loss` and `risk: security` approach findings of the last approach cycle, per round, for a ticket on the capped rules:
  * `accord approve` refuses while any is open. The owner's no (`## Closed`) opens a cycle that holds none.
  */
@@ -673,13 +682,16 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
   const blockedRefusal = (lead: string): RoundAnswer | undefined => {
     const left = unlisted();
     if (left.blocking!.length === 0) return undefined;
+    // Phase 10 D-14, T-10-08: a risk finding the planner answered `does not hold` is never closed by the place; the refusal names it as the owner's to decide.
+    const waiting = notHeldWaiting(snapshot, id, kind, k - 1);
+    const waits = waiting.length === 0 ? '' : `; the planner answered ${waiting.join(', ')} does not hold, which never closes a data-loss or security finding: it waits for the owner, whose owner: "<the owner's words>" on that finding closes it`;
     if (d01Plan) {
       // Phase 10 D-01 (Ruling): a plan has no approval to block; a data-loss or security finding still open when the one-round loop has ended stops it for the owner, who accepts it with a verdict after the last round.
       if (cyc.verdicts.some((v) => v.quoted && v.line > cyc.rounds[L - 1].line)) return undefined;
-      return stop([`${lead}; a finding marked risk: data-loss or risk: security is still open`], L, { findings: left.blocking, once: true });
+      return stop([`${lead}; a finding marked risk: data-loss or risk: security is still open${waits}`], L, { findings: left.blocking, once: true });
     }
     if (!capped) return undefined;
-    const reason = `${lead}; a finding marked risk: data-loss or risk: security is still open, and it blocks the approval: the owner cannot say yes to this approach; the owner's no with a Correction appends ## Closed and starts a new cycle of ${st.cap} rounds`;
+    const reason = `${lead}; a finding marked risk: data-loss or risk: security is still open, and it blocks the approval: the owner cannot say yes to this approach; the owner's no with a Correction appends ## Closed and starts a new cycle of ${st.cap} rounds${waits}`;
     return { ...refuseCap(reason), cycle: k, round: L, cap: st.cap, ...left };
   };
   const textsOf = (n: number) => ({ round: n, lines: cyc.rounds[n - 1].findings.map((f) => f.text) });

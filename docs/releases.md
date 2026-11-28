@@ -2,7 +2,9 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
-## Unreleased
+## 0.23.2 — 2026-11-28
+
+Release 0.23.2 is a patch release that makes the panel load again in Claude Code 2.1.332 and later (GitHub #398). Nothing changes for tickets in flight, and no cut-off moves. A repository pinned to 0.23.1 moves with `accord upgrade`, which also re-renders the panel.
 
 - The panel loads again in Claude Code 2.1.332 and later (GitHub #398): that version refuses the whole panel module when it reads a host call such as `$.fs.list` as a value, so no pane opened and `/accord-panel` answered `Unknown command`. The panel now calls `$.fs.list` and falls back to the CLI's worktree record when the call fails or answers no list; a clone with no linked worktree now reads that record instead of stopping at an empty list. Run `accord skills sync` (or `accord upgrade`) to re-render the panel.
 

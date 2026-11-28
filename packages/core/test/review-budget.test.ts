@@ -5,6 +5,7 @@ import { expect, it } from 'vitest';
 import { LEGACY_CAP, REVIEW_BUDGET, REVIEW_BUDGET_FROM, capRulesOf, fixModel, gateDone, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { CONFIG, LANE_S_BODY, P, done, laneTicket } from '../../../test/helpers/lane.js';
+import { v2Review } from '../../../test/helpers/review-v2.js';
 
 const RULINGS = '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n';
 const HEAD = 'Round record: 1\n\n';
@@ -14,6 +15,8 @@ const NONE = 'No findings';
 const shoulds = (k: number, state = 'open'): string[] => (k === 0 ? [NONE] : Array.from({ length: k }, (_, i) => should(i + 1, state)));
 /** A version 1 review record: each round is its finding lines. */
 const record = (...rounds: string[][]): string => HEAD + rounds.map((lines, i) => `## Round ${i + 1}\n\n${lines.join('\n')}\n\n`).join('');
+/** A version 2 review record (heads, and the risk marks a version 1 review line does not read): each round is its finding lines. */
+const v2 = (rounds: string[][], tail = ''): string => v2Review([rounds.map((lines) => ({ lines: lines[0] === NONE ? [] : lines }))], tail);
 const allow = (n: number, after: number): string => `- Ruling: the owner allows ${n} more review rounds after round ${after} of cycle 1 — "one more" — cost if wrong: ${n} rounds\n`;
 
 interface Opts {
@@ -96,12 +99,12 @@ it('risk:security an accepted-by-owner verdict at the budget stop lifts an ordin
   const rule = (snap: RepoSnapshot): string[] => gateDone(snap, 'T-1').findings.filter((f) => f.rule === 'gate.review-rounds').map((f) => f.reason);
   const verdict = 'verdict: accepted-by-owner "ship it with the comma issue open"\n';
   // no risk mark: the owner's words lift the stop
-  const ordinary = repo({ review: record(shoulds(3), shoulds(2), shoulds(1)) + verdict });
+  const ordinary = repo({ review: v2([shoulds(3), shoulds(2), shoulds(1)], verdict) });
   expect(rule(ordinary)).toEqual([]);
-  expect(rule(repo({ review: record(shoulds(3), shoulds(2), shoulds(1)) }))).toHaveLength(1);
+  expect(rule(repo({ review: v2([shoulds(3), shoulds(2), shoulds(1)]) }))).toHaveLength(1);
   // an open security finding in the cycle stays refused after the verdict, and the refusal names it and the Ruling form accord round prints
   for (const kind of ['security', 'data-loss']) {
-    const risky = repo({ review: record(shoulds(3), [should(1), must(2, 'open', `risk: ${kind}`)], shoulds(1)) + verdict });
+    const risky = repo({ review: v2([shoulds(3), [should(1), must(2, 'open', `risk: ${kind}`)], shoulds(1)], verdict) });
     const refused = rule(risky);
     expect(refused, kind).toHaveLength(1);
     expect(refused[0], kind).toContain(`risk: ${kind}`);
@@ -109,12 +112,12 @@ it('risk:security an accepted-by-owner verdict at the budget stop lifts an ordin
     expect(refused[0], kind).toContain('Ruling: the owner allows');
     // it is fixed in a round an owner allowance Ruling allows: a fourth round that reports nothing clears the stop and the finding
     const fixedFinding = repo({
-      review: record(shoulds(3), [should(1), must(2, 'fixed in abc1235', `risk: ${kind}`)], shoulds(1), shoulds(0)) + verdict,
+      review: v2([shoulds(3), [should(1), must(2, 'fixed in abc1235 — checked: src/export.ts:3 — addressed: src/export.ts:3', `risk: ${kind}`)], shoulds(1), shoulds(0)], verdict),
       ledger: allow(1, 3),
     });
     expect(rule(fixedFinding), kind).toEqual([]);
   }
   // a ticket claimed under 0.23.1 is held to nothing new
-  const older = repo({ claim: before, review: record(shoulds(3), [should(1), must(2, 'open', 'risk: security')], shoulds(1)) + verdict });
+  const older = repo({ claim: before, review: v2([shoulds(3), [should(1), must(2, 'open', 'risk: security')], shoulds(1)], verdict) });
   expect(rule(older)).toEqual([]);
 });

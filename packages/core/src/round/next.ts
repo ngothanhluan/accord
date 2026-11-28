@@ -8,7 +8,7 @@ import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { lensAsks, lensDeferred, lensMarkProblems, lensProblems, lensWarns } from './lens.js';
-import { APPROACH_CAP_FROM, CRITIC_ONCE_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
+import { APPROACH_CAP_FROM, CRITIC_ONCE_FROM, PLAN_CAP_FROM, REVIEW_BUDGET_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import { securityProblems } from './security.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
@@ -75,6 +75,14 @@ export function recheckOf(cycle: RoundCycle | undefined): number[] {
 export const PLAN_CAP: CapRules = { cap: 3, firstStop: 3, fall: true, allowances: true, capStop: true };
 
 /**
+ * Phase 10 D-06 (as amended per slice 2026-11-28), 10-ac-4: the review budget of a lane M ticket claimed at or after REVIEW_BUDGET_FROM: three review rounds (of the slice in work), the count stop from round 2 of them, and the owner's
+ * allowance Rulings kept. There is no `firstStop`: the budget stop and the count stop replace the stop from round 3. A team's `strictness.rounds.review` replaces only `cap`.
+ */
+export const REVIEW_BUDGET: CapRules = { cap: 3, fall: true, allowances: true, capStop: true };
+/** Phase 10 D-06: the review budget or the same with a team's cap: the only review rules that count the count stop and have no stop from round 3. */
+const isBudget = (rules: CapRules, kind: RoundKind): boolean => kind === 'review' && rules.fall && rules.allowances && rules.capStop && rules.firstStop === undefined;
+
+/**
  * The rules of the record `kind` of ticket `id`; the approach and plan records read the ticket's claim pin (D-15), never their own record pin.
  * ST-LN-50 D-07: a team's `strictness.rounds.<kind>` replaces only `cap` in whichever rules the pin picked; the stop rules, the allowances and the
  * cap-is-a-refusal behaviour keep their data, so the approval block (which reads `allowances` and `capStop`, never `cap`) is the same at every cap.
@@ -83,7 +91,7 @@ export const PLAN_CAP: CapRules = { cap: 3, firstStop: 3, fall: true, allowances
 export function capRulesOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): CapRules {
   const rules =
     kind === 'review'
-      ? LEGACY_CAP
+      ? isLaneM(snapshot, id) && !claimPinBefore(snapshot, id, REVIEW_BUDGET_FROM) ? REVIEW_BUDGET : LEGACY_CAP
       : kind === 'approach'
         ? claimPinBefore(snapshot, id, APPROACH_CAP_FROM) ? LEGACY_CAP : claimPinBefore(snapshot, id, CRITIC_ONCE_FROM) ? APPROACH_CAP : APPROACH_ONCE
         : claimPinBefore(snapshot, id, PLAN_CAP_FROM) ? LEGACY_CAP : claimPinBefore(snapshot, id, CRITIC_ONCE_FROM) ? PLAN_CAP : PLAN_ONCE;
@@ -114,6 +122,53 @@ export function allowancesOf(snapshot: RepoSnapshot, id: string, kind: RoundKind
 export const roundCount = (round: { findings: RoundFinding[] }, deferred: ReadonlySet<RoundFinding> = new Set()): number =>
   round.findings.filter((f) => f.severity !== 'Nice' && !deferred.has(f)).length;
 
+/**
+ * What `cycleState` answers. `kindOf` and `denied` are set only for the review budget (Phase 10 D-06): which kind of stop round `s` is, and the words for a recorded round `p` that is not allowed.
+ */
+export interface CycleState {
+  cap: number;
+  allowed: (p: number) => boolean;
+  stopAt: (q: number) => number | undefined;
+  kindOf?: (s: number) => StopKind | undefined;
+  denied?: (p: number) => string;
+}
+/** Phase 10 D-06: why a round of the review budget stops the loop: the count did not fall, the budget is used. */
+export type StopKind = 'count' | 'cap';
+
+/**
+ * Phase 10 D-06, 10-ac-4: the review budget of one cycle. A round of the stretch the budget counts stops the loop when it is the last round of the budget (round `rules.cap`) and still reports a Must or a Should, or when it is
+ * round 2 or later of the budget and its Must + Should count is above 0 and not below the round before it (an equal count included); a later round that reports no findings clears a stop, as it does under LEGACY_CAP. The
+ * rounds past the budget are not allowed unless an owner allowance Ruling allows them (`allowances`).
+ */
+function budgetState(cycle: RoundCycle, allowances: Allowance[], deferred: ReadonlySet<RoundFinding>, rules: CapRules): CycleState {
+  const rounds = cycle.rounds;
+  const N = rounds.length;
+  const counted = (p: number): number => roundCount(rounds[p - 1], deferred);
+  const end = rules.cap;
+  const kindOf = (s: number): StopKind | undefined => {
+    if (s < 1 || s > N || counted(s) === 0) return undefined;
+    if (s >= 2 && counted(s) >= counted(s - 1)) return 'count';
+    return s === end ? 'cap' : undefined;
+  };
+  const stopAt = (q: number): number | undefined => {
+    const top = Math.min(q, N);
+    for (let s = top; s >= 1; s--) {
+      if (s < top && rounds[s].noFindings) return undefined; // round s + 1 reports no findings: it clears every stop up to s
+      if (kindOf(s) !== undefined) return s;
+    }
+    return undefined;
+  };
+  const allowed = (p: number): boolean => {
+    const s = stopAt(p - 1);
+    return (p <= end && s === undefined) || allowances.some((a) => a.after < p && p <= a.after + a.n && (s === undefined || s <= a.after));
+  };
+  const denied = (p: number): string => {
+    const s = stopAt(p - 1);
+    return s !== undefined ? `after the stop at round ${s}` : `past the budget of ${rules.cap} review rounds (D-06)`;
+  };
+  return { cap: Math.max(end, ...allowances.map((a) => a.after + a.n)), allowed, stopAt, kindOf, denied };
+}
+
 /** The cap, the allowed rounds and the stop of one cycle; the caller passes only that cycle's allowances. `deferred` (ST-LN-57 D-08) are findings that do not stop the loop. */
 export function cycleState(
   cycle: RoundCycle,
@@ -121,11 +176,8 @@ export function cycleState(
   kind: RoundKind,
   deferred: ReadonlySet<RoundFinding> = new Set(),
   rules: CapRules = LEGACY_CAP,
-): {
-  cap: number;
-  allowed: (p: number) => boolean;
-  stopAt: (q: number) => number | undefined;
-} {
+): CycleState {
+  if (isBudget(rules, kind)) return budgetState(cycle, allowances, deferred, rules);
   const rounds = cycle.rounds;
   const accepted = cycle.verdicts.filter((v) => v.quoted);
   // Phase 10 D-01: under the one-round rules (no team cap) a round 1 that holds a risk finding allows a second round, the scoped re-check, and no third; the count stop is a team's, never the one-round rules'.
@@ -228,6 +280,19 @@ function classify(cycle: RoundCycle): Map<RoundFinding, Class> {
         out.set(f, 'open');
       }
     }
+  });
+  return out;
+}
+
+/**
+ * Phase 10 D-06, T-10-04: the open findings marked `risk: data-loss` or `risk: security` of the cycle (own mark or inherited, as `classify` reads it), each as `<round>.<n>` and its line. An owner's
+ * `accepted-by-owner` verdict at the review budget's stop never lifts one: Done reads this list.
+ */
+export function openRisks(cycle: RoundCycle): { id: string; text: string }[] {
+  const classes = classify(cycle);
+  const out: { id: string; text: string }[] = [];
+  cycle.rounds.forEach((r, i) => {
+    for (const f of r.findings) if (classes.get(f) === 'blocking') out.push({ id: `${i + 1}.${f.n ?? '?'}`, text: f.text });
   });
   return out;
 }
@@ -576,13 +641,13 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
       const reason = `round ${p} of cycle ${k} ran past ${capWords()}, which no Ruling raises`;
       return blockedRefusal(reason) ?? { ...refuseCap(reason), cycle: k, round: L, cap: st.cap, ...unlisted() };
     }
-    const s = past ? p - 1 : (st.stopAt(p - 1) ?? p - 1);
+    const s = past && st.denied === undefined ? p - 1 : (st.stopAt(p - 1) ?? p - 1);
     // Phase 10 D-01: an approach round a team's cap allows, run after a round whose count did not fall, is refused: the approach loop has no stop, only the refusal.
     if (capped && d01) {
       const reason = `${countReason(s)} (D-01), and round ${p} of cycle ${k} ran after it`;
       return blockedRefusal(reason) ?? { ...refuseCap(reason), cycle: k, round: L, cap: st.cap, ...unlisted() };
     }
-    const why = past ? `past the cap of ${st.cap} rounds` : `after the stop at round ${s}`;
+    const why = st.denied !== undefined ? st.denied(p) : past ? `past the cap of ${st.cap} rounds` : `after the stop at round ${s}`;
     return stop([`round ${p} of cycle ${k} ran without an owner Ruling allowing it: ${why}`], s, { allowAfter: p - 1, ...(d01Plan ? { once: true } : {}) });
   }
 
@@ -654,9 +719,17 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
   const s = counted;
   if (s !== undefined) {
     // ST-LN-91 D-07: a stop below the first stop round is the count stop.
+    const budgetKind = st.kindOf?.(s);
     const byCount = rules.fall && s < (rules.firstStop ?? Infinity);
-    const reasons = [byCount ? countReason(s) : `round ${s} of cycle ${k} still reports a Should or a Must, and from round 3 such a round stops the loop`];
-    if (L >= st.cap) reasons.push(`the cap of ${st.cap} rounds in cycle ${k} is reached`);
+    // Phase 10 D-06: a review budget stop is the count stop or the budget used, and says so; its reason is not followed by the legacy cap sentence.
+    const reasons = [
+      budgetKind === 'count' || (budgetKind === undefined && byCount)
+        ? countReason(s)
+        : budgetKind === 'cap'
+          ? `round ${s} of cycle ${k} still reports a Should or a Must, and the budget of ${rules.cap} review rounds (D-06) is used: a further round needs the owner`
+          : `round ${s} of cycle ${k} still reports a Should or a Must, and from round 3 such a round stops the loop`,
+    ];
+    if (st.kindOf === undefined && L >= st.cap) reasons.push(`the cap of ${st.cap} rounds in cycle ${k} is reached`);
     const m = kind === 'review' && lane && L < st.cap ? fixModel(snapshot, id, L) : undefined;
     return stop(reasons, s, { ...(m !== undefined && 'model' in m ? { model: m.model, modelFor: L } : {}), ...(d01Plan ? { once: true } : {}) });
   }

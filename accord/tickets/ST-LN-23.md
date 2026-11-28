@@ -2,7 +2,7 @@
 id: "ST-LN-23"                            # equals the file name: tickets/<id>.md
 title: "A @ui criterion the verifier cannot check is checked by the owner, and verify records that check"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: archived                           # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -59,3 +59,6 @@ Feature: ST-LN-23
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Closed
+Built by GSD in Phase 11 (D-16, folded into D-10) and merged in PR #406 (the G3 pull request, "UI roles, evidence tiers and init suggestions") on 2026-11-28, released in 0.23.0. Verify now records a UI evidence tier for each `@ui` scenario; a criterion no tier could show with screenshots is asked of the owner one at a time, recorded as `Tier: owner check` with the owner's words quoted and the path the owner opened, and `accord gate done` checks it (`gate.ui-evidence-missing`).

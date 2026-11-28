@@ -49,6 +49,8 @@ const FLOOR: Record<string, readonly string[]> = {
   ],
   'which rules apply, which lane a ticket is in and what the config says': [
     'gate.ruleset-changed', 'gate.ruleset-missing', 'gate.lane-r-plan', 'lint.subject-duplicate', 'lint.config-floor', 'lint.security-file', 'lint.template-section',
+    // Phase 11 D-05: a malformed lens file is a review check silently lost, so no team can lower the rule that reports it
+    'lint.lens-file',
   ],
 };
 
@@ -120,6 +122,8 @@ export const STAGE_OF: Readonly<Record<string, StageName>> = {
   'gate.fix-not-addressed': 'review',
   'gate.fix-outside-open': 'review',
   'gate.slop-unresolved': 'review',
+  // Phase 11 D-05, Ruling R11 of plan 11-07: with the review stage off no lens runs, so the rule that asks for a lens's record leaves with it
+  'gate.lens-unreviewed': 'review',
   'gate.review-trailing': 'review',
   'gate.review-uncommitted': 'review',
   'gate.review-commit-code': 'review',

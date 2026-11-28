@@ -8,56 +8,34 @@ fix.
 
 ## Steps
 
-1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming review, do not run this stage: tell the
-   owner so in one line and go to the stage it names next, `./verify.md`.
+1. Run `accord anchor`. When it prints `stages off for lane <L>:` naming review, do not run this stage: tell the owner so in one line and go to the stage it names next, `./verify.md`.
 
 2. **Package.** Run `accord review-package <id> --out package-<n>.md`; it prints `Head: <sha>` for the round's heading and `file: <path>`, the reviewers' package. After a round with a head in `review.md`, it holds the commits, the stat and the diff after that head, without what a merge brought from the default branch; before round 1, from the plan's `baseline:` (plan stage off: from the default branch). It lists under `## Undeclared files` every changed file no task's `files:` line names, and under `## Interface signs` each sign of a new interface the branch adds. Another repository: `./repos.md`.
 
 3. **Reviewers.** Choose by the unit's diff size and risk:
    - up to about 500 changed lines: one `accord-reviewer`, lens `both`;
    - about 500 to 1500: an `intent` and a `quality` reviewer, in parallel;
-   - over about 1500: split by area times lens, plus one `integration` reviewer reading only the
-     interfaces and links between areas;
-   - a security trigger in the package: add a `security` reviewer, as `./review-security.md` says.
+   - over about 1500: split by area times lens, plus one `integration` reviewer reading only the interfaces and links between areas;
+   - a `## Security triggers` or `## Team lenses` entry: add that reviewer (`./review-security.md`, `./review-lenses.md`).
 
-   Name the lens in each dispatch. Every reviewer gets the paths of the ticket file, the review
-   package, and `accord/tickets/<id>/ledger.md`. The executor's report is context, never evidence.
+   Name the lens in each dispatch. Every reviewer gets the paths of the ticket file, the review package, and `accord/tickets/<id>/ledger.md`. The executor's report is context, never evidence.
 
 4. **Classify.** De-duplicate the findings, then mark each one `patch`, `plan-gap`, or `intent-gap`.
-   - Fix every Must and Should marked `patch` through `./build.md`'s executor path. Commit the round to `review.md` as
-     `./review-record.md` says. Write the findings to fix, each numbered `<r>.<n>`, in the reviewers' words, to a
-     findings file outside the working tree, then run `accord brief <id> --fix <findings file> --out fix-brief-<r>.md`, which prints `file: <path>`; its brief (ticket,
-     findings, conventions) and report contract ask for one `places checked: <n>: <path>[:<line>], …` line per finding.
-     Dispatch a fresh `accord-executor` with its path and step 6's `model`, and route its stops as `./build.md` does.
-   - When it reports, run the `tests.affected` command over the files the fix touched, or `tests.full`
-     when `tests.affected` is not configured or finds no test file. If it fails, add the failing command and its
-     output to the findings file (output with lines too long for the line checks is saved whole to its own file
-     outside the working tree, which the findings name), run `accord brief <id> --fix <findings file>` again, and dispatch
-     a fresh executor with it, in the same round.
-   - Copy every Ruling in its report, and each file outside the plan you accept, or that the fix changed with no
-     finding of the round in it, as a Ruling naming the file and its reason, into
-     `accord/tickets/<id>/ledger.md` under `## Rulings`; commit the ledger.
-   - After every fix round, a Should-only one included, re-review only the fix diff: `accord review-package <id> --out package-<n>.md`, one reviewer, lens `both`, given the findings it re-checks and asked for one line each,
-     `<r>.<n>: ADDRESSED <path>:<line>` or `<r>.<n>: NOT ADDRESSED <path>:<line>`; record its answers as `./review-record.md` says.
+   - Fix every Must and Should marked `patch` through `./build.md`'s executor path. Commit the round to `review.md` as `./review-record.md` says. Write the findings to fix, each numbered `<r>.<n>`, in the reviewers' words, to a findings file outside the working tree, then run `accord brief <id> --fix <findings file> --out fix-brief-<r>.md`, which prints `file: <path>`; its brief (ticket, findings, conventions) and report contract ask for one `places checked: <n>: <path>[:<line>], …` line per finding. Dispatch a fresh `accord-executor` with its path and step 6's `model`, and route its stops as `./build.md` does.
+   - When it reports, run the `tests.affected` command over the files the fix touched, or `tests.full` when `tests.affected` is not configured or finds no test file. If it fails, add the failing command and its output to the findings file (output with lines too long for the line checks is saved whole to its own file outside the working tree, which the findings name), run `accord brief <id> --fix <findings file>` again, and dispatch a fresh executor with it, in the same round.
+   - Copy every Ruling in its report, and each file outside the plan you accept, or that the fix changed with no finding of the round in it, as a Ruling naming the file and its reason, into `accord/tickets/<id>/ledger.md` under `## Rulings`; commit the ledger.
+   - After every fix round, a Should-only one included, re-review only the fix diff: `accord review-package <id> --out package-<n>.md`, one reviewer, lens `both`, given the findings it re-checks and asked for one line each, `<r>.<n>: ADDRESSED <path>:<line>` or `<r>.<n>: NOT ADDRESSED <path>:<line>`; record its answers as `./review-record.md` says.
    - A plan gap goes back to `./plan.md` as a re-plan, where the critic runs again; with the plan stage off, stop and ask the owner.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
 
-5. **Converged** means no Must or Should is open, every fixed finding is answered `addressed:` (a NOT ADDRESSED one is reopened, as `./review-record.md` says), and that command passes; a finding deferred
-   under `./review-record.md`'s evidence rule, with its `## Deferred` line, does not block it.
+5. **Converged** means no Must or Should is open, every fixed finding is answered `addressed:` (a NOT ADDRESSED one is reopened, as `./review-record.md` says), and that command passes; a finding deferred under `./review-record.md`'s evidence rule, with its `## Deferred` line, does not block it.
 
-6. **Cap.** Run `accord round <id>` before each round and before the verdict. Exit 0 prints `Round: <n> of <cap>` and
-   `Fix executor model: <model>`. It counts at most five rounds, after verify counted from the first round after it, and
-   tiers up from `escalation.fix_round_tier_up`. On `stop: report to owner` (a Should or a Must from round 3, or the cap)
-   or `refused:`, act as `./review-record.md` says; never report the work finished. On `Re-review:`, re-review first; past the cap, on the owner's Ruling.
+6. **Cap.** Run `accord round <id>` before each round and before the verdict. Exit 0 prints `Round: <n> of <cap>` and `Fix executor model: <model>`. It counts at most five rounds, after verify counted from the first round after it, and tiers up from `escalation.fix_round_tier_up`. On `stop: report to owner` (a Should or a Must from round 3, or the cap) or `refused:`, act as `./review-record.md` says; never report the work finished. On `Re-review:`, re-review first; past the cap, on the owner's Ruling.
 
-7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from `accord review-package <id> --base <the plan's baseline:> --out final-package.md` (when the plan stage is off, `--base <the default branch>`), its round headed `(final review)` (over about 1500
-   changed lines, dispatch it with lens `integration`). If it finds a Must or a Should: one fix and one scoped re-review, as in
-   step 4. Its brief: `accord brief <id> --fix`. If a Must or a Should is still open after that (a NOT ADDRESSED one is), stop and ask the owner.
+7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from `accord review-package <id> --base <the plan's baseline:> --out final-package.md` (when the plan stage is off, `--base <the default branch>`), its round headed `(final review)` (over about 1500 changed lines, dispatch it with lens `integration`) beside the lenses its package prints (`./review-lenses.md`). If it finds a Must or a Should: one fix and one scoped re-review, as in step 4. Its brief: `accord brief <id> --fix`. If a Must or a Should is still open after that (a NOT ADDRESSED one is), stop and ask the owner.
 
-8. **Record.** Write every round to `accord/tickets/<id>/review.md` as `./review-record.md` says, ending `verdict: converged`, or,
-   when the owner accepts any stop with findings still open, `verdict: accepted-by-owner` followed by the owner's sentence
-   quoted. Commit it.
+8. **Record.** Write every round to `accord/tickets/<id>/review.md` as `./review-record.md` says, ending `verdict: converged`, or, when the owner accepts any stop with findings still open, `verdict: accepted-by-owner` followed by the owner's sentence quoted. Commit it.
 
 9. Next: `./verify.md`.
 

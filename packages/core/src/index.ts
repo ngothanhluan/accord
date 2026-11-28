@@ -44,6 +44,7 @@ export type {
   HeadFact,
   RoundFacts,
   SecurityFacts,
+  LensFacts,
   FixReport,
   SlopFacts,
   RecordPin,
@@ -57,7 +58,7 @@ export { loadSnapshot } from './load/snapshot.js';
 export { debugHeadings, debugOpen, UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from './load/unfinished.js';
 export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
-export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, RECORD_V2_FROM, REPOS_FROM, RULESET_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLICES_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, pinAllowsV1, pinBefore, pinOf, rulesetFrom, rulesetOfTicket } from './round/pin.js';
+export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, LENSES_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, RECORD_V2_FROM, REPOS_FROM, RULESET_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLICES_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, pinAllowsV1, pinBefore, pinOf, rulesetFrom, rulesetOfTicket } from './round/pin.js';
 export { parseDiscuss, REPO_NAME, SLOP_OK, splitRepoPath, taskRepos } from './load/work.js';
 export { FIX_REPORT_CONTRACT, REPORT_CONTRACT, reportReasons } from './gate/task-report.js';
 export { groundsDeferred, groundsFrom, groundsOn, groundsProblems, groundsV2 } from './round/grounds.js';
@@ -68,6 +69,8 @@ export { pendingAddedCode, scopeProblems, skipped as reviewSkipped } from './rou
 export { slopOn, slopUnresolved } from './slop/gate.js';
 export { securityExemptRounds, securityOn, securityProblems, securityUnreviewed } from './round/security.js';
 export type { SecurityProblem } from './round/security.js';
+export { lensAsks, lensDeferred, lensFindings, lensMarkProblems, lensOn, lensProblems, lensUnreviewed, lensWarns } from './round/lens.js';
+export type { LensFinding, LensRecordProblem } from './round/lens.js';
 export {
   APPROACH_CAP,
   LEGACY_CAP,
@@ -98,6 +101,7 @@ export { checkFixDispatch } from './round/dispatch.js';
 export { configPin, loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export { agentsConfig } from './lint/agents.js';
+export { lensFile } from './lint/lens.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
 export { sliceScope } from './gate/slice.js';
@@ -137,7 +141,9 @@ export type { SliceHome } from './plan/slice-home.js';
 export { CALL_SIGN, interfaceSigns, matches, outsideScope, scopeLines } from './gate/scope.js';
 export { DEFAULT_SECURITY, parseSecurityFile, securityFile, securitySpec } from './security/spec.js';
 export type { SecurityCheck, SecurityPattern, SecuritySpec } from './security/spec.js';
-export { diffFiles, matchedHunks, securityTriggers, triggerText } from './security/match.js';
+export { diffFiles, matchedHunks, pathEntryMatches, securityTriggers, triggerText } from './security/match.js';
+export { BUILT_IN_LENS_NAMES, LENS_DIR, isLensFile, lensMatches, lensesFor, parseLens } from './lens/spec.js';
+export type { LensFile, LensMode, LensProblem, OtherChange } from './lens/spec.js';
 export type { DiffFile, DiffHunk, Trigger } from './security/match.js';
 export { DEFAULT_SLOP, parseSlop, SLOP_FILE, slopFile, slopSpec, STRUCTURAL_KINDS } from './slop/spec.js';
 export type { SlopPattern, SlopSpec } from './slop/spec.js';

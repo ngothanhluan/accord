@@ -248,9 +248,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("print the commits, stat, and diff a reviewer reads, then the ruleset, the story's epic block, the default branch's conventions and the branch's own change to them")
     .option('--base <ref>', "the commit or branch the work started from (default: the plan's baseline:; with the plan stage off, the default branch)")
     .option('--security', 'print the security package: the checklist, the security triggers and only the hunks they match')
-    .option('--round <n>', 'with --security: the package of the n-th ## Round section of review.md')
+    .option('--round <n>', 'with --security or --lens: the package of the n-th ## Round section of review.md')
+    .option('--lens <name>', "with --round: the package of that round's range with only that lens")
     .option('--out <file>', 'write the package to <file> in the report folder (.accord-reports/<id>/, git-ignored), UTF-8 with no byte order mark; stdout then prints the Head line and the file path')
-    .action((id: string, options: { base?: string; security?: boolean; round?: string; out?: string }) => {
+    .action((id: string, options: { base?: string; security?: boolean; round?: string; lens?: string; out?: string }) => {
       setCode(reviewPackage(preflight(opts), id, options));
     });
 

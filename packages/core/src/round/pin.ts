@@ -184,6 +184,13 @@ export const SLICES_FROM = '0.21.0';
  */
 export const REPOS_FROM = '0.22.0';
 
+/**
+ * Phase 11 D-05 and its cut-off Ruling: the release from which a version 2 review round whose package printed a team lens (`accord/lenses/<name>.md`) needs `Lens: <name> ran`, refused by `accord round` and,
+ * from plan 11-07, by `accord gate done` (gate.lens-unreviewed, lane M, L and P). A ticket claimed under a pin below it answers as before and starts no lens-fact git read. Read only through claimPinBefore. It is
+ * the next minor after the newest released heading of docs/releases.md at planning, 0.22.0; the release plan checks it equals the shipped version, and migration-pin.test.ts follows.
+ */
+export const LENSES_FROM = '0.23.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

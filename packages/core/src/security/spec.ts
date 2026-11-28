@@ -5,6 +5,7 @@ import { headingKey, scan, stripHtmlComments } from '../load/sections.js';
 import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { backtrackProblem } from './backtrack.js';
+import { GLOB_ENTRY, GLOB_ENTRY_REASON, unmatchableEntry } from './entry.js';
 
 export interface SecurityPattern {
   id: string;
@@ -140,16 +141,15 @@ export function parseSecurityFile(text: string): SecuritySpec {
         patternProblem(line, `"${id}": a path entry is empty or holds a space`);
         continue;
       }
-      if (entries.some((e) => /[*?[]/.test(e))) {
-        patternProblem(line, `"${id}": a path entry holds *, ? or [; there is no glob, an entry ending in / is a folder`);
+      if (entries.some((e) => GLOB_ENTRY.test(e))) {
+        patternProblem(line, `"${id}": a path entry ${GLOB_ENTRY_REASON}`);
         continue;
       }
       // D-21, lint only: an entry that can never match is a problem naming the fix, one per entry. It is not marked `pattern` and the line does not `continue`: the pattern stays in
       // force as 0.8.0 read it, so the gate behaves for it as before and no ticket in flight is refused for it.
       for (const e of entries) {
-        if (e.includes('\\')) problem(line, `"${id}": the path entry "${e}" holds a backslash; write it with /, as git prints paths`);
-        else if (e.startsWith('/') || e.startsWith('./')) problem(line, `"${id}": the path entry "${e}" starts with / or ./; write it from the repository root without them`);
-        else if (e.split('/').includes('..')) problem(line, `"${id}": the path entry "${e}" holds ..; write the path from the repository root without ..`);
+        const why = unmatchableEntry(e);
+        if (why !== undefined) problem(line, `"${id}": ${why}`);
       }
       seen.add(id);
       spec.patterns.push({ id, kind: 'path', entries, label: label.trim(), line });

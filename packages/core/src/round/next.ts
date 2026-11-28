@@ -7,6 +7,7 @@ import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
+import { lensAsks, lensDeferred, lensMarkProblems, lensProblems, lensWarns } from './lens.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import { securityProblems } from './security.js';
@@ -34,6 +35,8 @@ export interface RoundAnswer {
   addedCode?: true; // next on a version 2 review record: a debug episode or a merge added code that no round has reviewed (ST-LN-57)
   reReview?: string[]; // next on a review record under the fix record rules: the fixes (`<r>.<n>[ cycle <k>]`) no re-review round has answered yet (ST-LN-56 D-17)
   checker?: true; // a plan `next` answer at round 1 whose cap rules are PLAN_CAP: the plan skill dispatches one plan checker (ST-LN-91 D-12)
+  warn?: string[]; // review: `<r>.<n> lens <name>` of each open Must or Should a `warn` team lens made in the last cycle: listed for the verify report, never blocking (Phase 11 D-06)
+  ask?: string[]; // review stop: `<r>.<n> lens <name>` of each open Must or Should an `ask` team lens made that the owner has not decided: the stop's own reason (Phase 11 D-06, Ruling R13)
 }
 
 /**
@@ -265,10 +268,15 @@ const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) 
 
 /**
  * The findings of one cycle (0-based) that leave the stop: a review record's evidence deferrals (ST-LN-57 D-08) and re-review findings outside the fix diff written
- * deferred with their ledger line (ST-LN-56 D-10) and, for every record kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12).
+ * deferred with their ledger line (ST-LN-56 D-10), the findings of a team lens that does not block (Phase 11 D-06) and, for every record kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12).
  */
 export const deferredFor = (snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> =>
-  new Set([...(kind === 'review' ? deferredOf(snapshot, id, cycle) : []), ...(kind === 'review' ? fixDeferred(snapshot, id, cycle) : []), ...groundsDeferred(snapshot, id, kind, cycle)]);
+  new Set([
+    ...(kind === 'review' ? deferredOf(snapshot, id, cycle) : []),
+    ...(kind === 'review' ? fixDeferred(snapshot, id, cycle) : []),
+    ...(kind === 'review' ? lensDeferred(snapshot, id, cycle) : []),
+    ...groundsDeferred(snapshot, id, kind, cycle),
+  ]);
 
 /** Every reason the record cannot be read as it stands, in line order. */
 export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line: number; reason: string }[] {
@@ -293,6 +301,8 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
       }
     }
   }
+  // Phase 11 D-06, Ruling R12: a `lens:` mark that names a built-in lens, a lens with no file, or a lens the finding's own round did not print is refused with its line, by `accord round` and `gate done` alike.
+  if (kind === 'review') for (const p of lensMarkProblems(snapshot, id)) add(p.line, p.reason);
   rec.cycles.forEach((cycle, i) => {
     if (kind === 'review' && i >= 1) {
       const before = rec.cycles[i - 1];
@@ -367,8 +377,18 @@ function approachOf(snapshot: RepoSnapshot, id: string): string[] {
 
 const scopeReason = (p: { line?: number; reason: string }): string => (p.line === undefined ? p.reason : `line ${p.line}: ${p.reason}`);
 
-/** The decision for the next round of review.md or plan-review.md. */
+/**
+ * The decision for the next round of review.md or plan-review.md; a review answer of any kind lists the open findings of a `warn` team lens (Phase 11 D-06), which never block, so the verify report can name
+ * them even once the loop has ended.
+ */
 export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): RoundAnswer {
+  const answer = nextRoundOf(snapshot, id, kind);
+  const rec = kind === 'review' ? workOf(snapshot, id)?.rounds : undefined;
+  const warn = rec === undefined ? [] : lensWarns(snapshot, id, rec.cycles.length - 1);
+  return warn.length === 0 ? answer : { ...answer, warn };
+}
+
+function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): RoundAnswer {
   const laneS = laneTicket(snapshot, id)?.frontmatter?.lane === 'S';
   const rules = capRulesOf(snapshot, id, kind);
   const base: RoundAnswer = { kind: 'refused', ticket: id, record: kind, laneS, cycle: 1, round: 0, cap: rules.cap, reasons: [] };
@@ -432,6 +452,9 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   // is asked for: the one rule (securityProblems) gate done reads, with its own cut-off and its own pin read.
   const security = kind === 'review' ? securityProblems(snapshot, id) : [];
   if (security.length > 0) return refuse(...security.map(scopeReason));
+  // Phase 11 D-05: a round whose package printed a team lens needs `Lens: <name> ran` before the next round is asked for: the one rule (lensProblems) `accord gate done` reads from plan 11-07.
+  const lenses = kind === 'review' ? lensProblems(snapshot, id) : [];
+  if (lenses.length > 0) return refuse(...lenses.map(scopeReason));
   awaiting = [...new Set(allFixes.flatMap((p) => (p.awaiting === undefined ? [] : [p.awaiting])))];
 
   const k = rec.cycles.length;
@@ -501,6 +524,23 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
     }
   }
 
+  // Phase 11 D-06, Ruling R13: the open Must and Should findings of the cycle are only those of an `ask` team lens, no fix waits for its re-review: the end of the review loop. No executor is sent for them;
+  // each is put to the owner, who fixes it, defers it with a `## Deferred` line or accepts it (the forms Done reads). Any other open Must or Should goes on as before, and so does a risk finding.
+  if (kind === 'review' && awaiting.length === 0) {
+    const asks = lensAsks(snapshot, id, k - 1);
+    const leave = deferredFor(snapshot, id, kind, k - 1);
+    const others = cyc.rounds.some((r) => r.findings.some((f) => f.severity !== 'Nice' && (f.state === undefined || f.state === 'open') && !leave.has(f)));
+    if (asks.length > 0 && !others) {
+      const names = [...new Set(asks.map((a) => a.lens))];
+      const rounds = [...new Set(asks.map((a) => a.p))].map((round) => ({ round, lines: asks.filter((a) => a.p === round).map((a) => a.f.text) }));
+      return stop(
+        [`the open findings of this cycle are lens ${names.join(', ')}'s, which asks the owner (on_finding: ask): put each to the owner`],
+        L,
+        { findings: rounds, ask: asks.map((a) => `${a.p}.${a.f.n} lens ${a.lens}`) },
+      );
+    }
+  }
+
   const p = L + 1;
   if (st.allowed(p)) {
     // ST-LN-91 D-14: from the cut-off pin the planner's fix stays in the tasks the open findings name, unless the owner's Ruling allows more.
@@ -545,6 +585,12 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   return stop([`the cap of ${st.cap} rounds in cycle ${k} is reached and no owner Ruling in the ledger allows more`], L);
 }
 
+/** The `warn:` lines of an answer, each ending in a newline (Phase 11 D-06). */
+const lensLines = (answer: RoundAnswer): string[] => [
+  ...(answer.warn ?? []).map((w) => `warn: ${w}: listed in the verify report, never blocks\n`),
+  ...(answer.ask ?? []).map((a) => `ask: ${a}: the owner decides: fix, defer with a ## Deferred line, or accept with verdict: accepted-by-owner\n`),
+];
+
 /** The text `accord round` prints. */
 export function roundText(answer: RoundAnswer): string {
   if (answer.kind === 'next') {
@@ -556,7 +602,8 @@ export function roundText(answer: RoundAnswer): string {
         ? ''
         : `Re-review: ${answer.reReview.join(', ')}: a round not headed (added code round 1) re-checks these fixes and answers each; no verdict before it does (D-17)\n`) +
       (answer.model === undefined ? '' : `Fix executor model: ${answer.model}\n`) +
-      answer.reasons.map((r) => `Note: ${r}\n`).join('')
+      answer.reasons.map((r) => `Note: ${r}\n`).join('') +
+      lensLines(answer).join('')
     );
   }
   if (answer.kind === 'refused') {
@@ -569,6 +616,7 @@ export function roundText(answer: RoundAnswer): string {
       out.push(answer.findings.length === 0 ? 'Findings still open: none\n' : 'Findings still open:\n');
       for (const f of answer.findings) out.push(`Round ${f.round}:\n`, ...f.lines.map((l) => l + '\n'));
     }
+    out.push(...lensLines(answer));
     return out.join('');
   }
   const file = FILE[answer.record];
@@ -580,6 +628,7 @@ export function roundText(answer: RoundAnswer): string {
   }
   for (const f of answer.findings ?? []) out.push(`Findings of round ${f.round}:`, ...f.lines);
   if (answer.approach !== undefined) out.push('Approach:', ...answer.approach);
+  out.push(...lensLines(answer).map((l) => l.trimEnd()));
   out.push(
     answer.laneS
       ? 'Ask the owner whether to change course: in lane S the change of course is the lift to lane M (lane-s.md).'

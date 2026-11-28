@@ -4,6 +4,7 @@ import type { ErrorObject } from 'ajv/dist/2020.js';
 import ticketSchema from '../../schemas/ticket.schema.json' with { type: 'json' };
 import verificationSchema from '../../schemas/verification.schema.json' with { type: 'json' };
 import configSchema from '../../schemas/config.schema.json' with { type: 'json' };
+import lensSchema from '../../schemas/lens.schema.json' with { type: 'json' };
 import type { SchemaFinding } from '../model/finding.js';
 
 // Defaults keep strictSchema on and strictRequired off; strictRequired would throw on config's if/then.
@@ -13,10 +14,12 @@ const validators = {
   ticket: ajv.compile(ticketSchema),
   verification: ajv.compile(verificationSchema),
   config: ajv.compile(configSchema),
+  lens: ajv.compile(lensSchema),
 } as const;
 
 export const schemaIds = ['ticket', 'verification', 'config'] as const;
-export type SchemaId = (typeof schemaIds)[number];
+// Phase 11 D-05: `lens` is the frontmatter of a team's lens file; it is checked by parseLens, so it is not in the list of schemas that carry a minimal document in schemas.test.ts.
+export type SchemaId = (typeof schemaIds)[number] | 'lens';
 
 // D-52: the offending key name travels as `param` so the loader can point at its line (D-33).
 function param(e: ErrorObject): string | undefined {

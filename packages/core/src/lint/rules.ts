@@ -42,6 +42,7 @@ import {
   vagueWording,
 } from './ticket.js';
 import { securityFile } from '../security/spec.js';
+import { lensFile } from './lens.js';
 import { slopFile } from '../slop/spec.js';
 import { conventionsFile } from '../product/lines.js';
 import { researchReference } from './research.js';
@@ -114,4 +115,6 @@ export const RULES: readonly Rule[] = [
   // LOCKED (gate/floor.ts): a team that could lower it would hide a forged line from its own CI; delivery withholds the line whatever the level.
   { id: 'lint.conventions-file', level: 'error', profiles: ['build', 'maintain'], check: conventionsFile },
   { id: 'lint.template-section', level: 'error', profiles: ['build', 'maintain'], check: templateSection },
+  // Phase 11 D-05 (11-ac-5): a malformed lens file is an error, LOCKED (gate/floor.ts): a team that could lower it would lose a review check without a word. No claim cut-off: it reads the team's files, not a ticket.
+  { id: 'lint.lens-file', level: 'error', profiles: ['build', 'maintain'], check: lensFile },
 ];

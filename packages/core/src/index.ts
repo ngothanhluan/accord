@@ -58,7 +58,7 @@ export { loadSnapshot } from './load/snapshot.js';
 export { debugHeadings, debugOpen, UNFINISHED_MARKER, unfinishedEpisode, unfinishedLine } from './load/unfinished.js';
 export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
-export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, LENSES_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, RECORD_V2_FROM, REPOS_FROM, RULESET_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLICES_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, UI_EVIDENCE_FROM, pinAllowsV1, pinBefore, pinOf, rulesetFrom, rulesetOfTicket } from './round/pin.js';
+export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, COMMIT_MESSAGE_FROM, CRITIC_ONCE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, GROUNDS_V2_FROM, LENSES_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_SIZE_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, RECORD_V2_FROM, REPOS_FROM, RULESET_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLICES_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, UI_EVIDENCE_FROM, pinAllowsV1, pinBefore, pinOf, rulesetFrom, rulesetOfTicket } from './round/pin.js';
 export { parseDiscuss, REPO_NAME, SLOP_OK, splitRepoPath, taskRepos } from './load/work.js';
 export { FIX_REPORT_CONTRACT, REPORT_CONTRACT, reportReasons } from './gate/task-report.js';
 export { groundsDeferred, groundsFrom, groundsOn, groundsProblems, groundsV2 } from './round/grounds.js';
@@ -73,6 +73,7 @@ export { lensAsks, lensDeferred, lensFindings, lensMarkProblems, lensOn, lensPro
 export type { LensFinding, LensRecordProblem } from './round/lens.js';
 export {
   APPROACH_CAP,
+  APPROACH_ONCE,
   LEGACY_CAP,
   PLAN_CAP,
   ROUND_CAP,

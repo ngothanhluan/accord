@@ -2,6 +2,10 @@
 
 Each section lists what changes for tickets in flight and for repositories pinned to an older accord. A release pull request copies the `## Unreleased` section into its `release:` commit body and renames the section to the release version.
 
+## Unreleased
+
+- One approach critique round (Phase 10 D-01): for a ticket claimed at or after 0.24.0, `accord round <id> --approach` gives round 1 and refuses an ordinary round 2, naming the one critique round. A ticket claimed under an earlier accord keeps its two approach rounds.
+
 ## 0.23.2 — 2026-11-28
 
 Release 0.23.2 is a patch release that makes the panel load again in Claude Code 2.1.332 and later (GitHub #398). Nothing changes for tickets in flight, and no cut-off moves. A repository pinned to 0.23.1 moves with `accord upgrade`, which also re-renders the panel.

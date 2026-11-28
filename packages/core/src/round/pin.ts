@@ -198,6 +198,14 @@ export const LENSES_FROM = '0.23.0';
  */
 export const UI_EVIDENCE_FROM = '0.23.0';
 
+/**
+ * Phase 10 D-01 and 10-ac-3: the release from which the approach critic and the plan checker run one round (`accord round --approach` and `--plan` refuse an ordinary round 2), with one scoped re-check round
+ * for a finding marked `risk: data-loss` or `risk: security`, and more rounds only from a team's `strictness.rounds.<kind>`. A ticket claimed under a pin below it keeps the two approach rounds
+ * (APPROACH_CAP) and the three plan rounds (PLAN_CAP) it was claimed under (10-ac-11). Read only through claimPinBefore. It is the next minor after the newest released heading of docs/releases.md at planning,
+ * 0.23.2; the release plan checks it equals the shipped version, and PHASE10 in migration-pin.test.ts follows.
+ */
+export const CRITIC_ONCE_FROM = '0.24.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

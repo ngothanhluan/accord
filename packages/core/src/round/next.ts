@@ -8,7 +8,7 @@ import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { lensAsks, lensDeferred, lensMarkProblems, lensProblems, lensWarns } from './lens.js';
-import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
+import { APPROACH_CAP_FROM, CRITIC_ONCE_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import { securityProblems } from './security.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
@@ -49,6 +49,11 @@ export interface CapRules { cap: number; firstStop?: number; fall: boolean; allo
 export const LEGACY_CAP: CapRules = { cap: ROUND_CAP, firstStop: 3, fall: false, allowances: true, capStop: true };
 /** ST-LN-91 D-02: two approach rounds, no stop, no allowance. */
 export const APPROACH_CAP: CapRules = { cap: 2, fall: false, allowances: false, capStop: false };
+/**
+ * Phase 10 D-01, 10-ac-3: one approach critique round, no stop, no allowance, for a ticket claimed at or after CRITIC_ONCE_FROM. `fall` is set for the rounds a team adds with `strictness.rounds.approach`, which
+ * stop early when the Must + Should count does not fall.
+ */
+export const APPROACH_ONCE: CapRules = { cap: 1, fall: true, allowances: false, capStop: false };
 
 /** ST-LN-91 D-07, D-17: three plan critique rounds, the stop from round 3 beside the count stop, and the owner's allowance Rulings kept. */
 export const PLAN_CAP: CapRules = { cap: 3, firstStop: 3, fall: true, allowances: true, capStop: true };
@@ -64,7 +69,7 @@ export function capRulesOf(snapshot: RepoSnapshot, id: string, kind: RoundKind):
     kind === 'review'
       ? LEGACY_CAP
       : kind === 'approach'
-        ? claimPinBefore(snapshot, id, APPROACH_CAP_FROM) ? LEGACY_CAP : APPROACH_CAP
+        ? claimPinBefore(snapshot, id, APPROACH_CAP_FROM) ? LEGACY_CAP : claimPinBefore(snapshot, id, CRITIC_ONCE_FROM) ? APPROACH_CAP : APPROACH_ONCE
         : claimPinBefore(snapshot, id, PLAN_CAP_FROM) ? LEGACY_CAP : PLAN_CAP;
   const team = resolveStrictness(snapshot.config).rounds[kind];
   return team === undefined ? rules : { ...rules, cap: team };
@@ -466,6 +471,14 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
     kind !== 'review' ? planStopOf(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1), rules) : st.stopAt(q);
   // ST-LN-91 D-02: at the approach cap round 3 is a refusal, not a stop: no allowance lifts it and `## Closed` stays open to the owner's no.
   const capped = !rules.allowances && !rules.capStop;
+  // Phase 10 D-01: the one-round rules (APPROACH_ONCE, or the same with a team's cap): the words a refusal uses for the cap it is past. A cap of the older rules reads as it always did.
+  const d01 = rules.fall && !rules.allowances && !rules.capStop;
+  const capWords = (): string =>
+    !d01
+      ? `the cap of ${st.cap} approach critique rounds`
+      : rules === APPROACH_ONCE
+        ? `the one ${NOUN[kind]} round of D-01 (more rounds only from strictness.rounds.${kind} in accord/config.yml)`
+        : `the cap of ${st.cap} ${NOUN[kind]} rounds that strictness.rounds.${kind} sets`;
   const unlisted = (): Pick<RoundAnswer, 'findings' | 'blocking'> => ({ findings: openFindings(cyc), blocking: blockingFindings(cyc) });
   // ST-LN-91 D-22: an ended capped loop (a verdict, a round with no findings, round 3 asked) still refuses the approval while a data-loss or
   // security finding is open; the owner's no with a Correction appends ## Closed and starts a new cycle.
@@ -500,7 +513,7 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
     if (st.allowed(p)) continue;
     const past = p > st.cap;
     if (capped && past) {
-      const reason = `round ${p} of cycle ${k} ran past the cap of ${st.cap} approach critique rounds, which no Ruling raises`;
+      const reason = `round ${p} of cycle ${k} ran past ${capWords()}, which no Ruling raises`;
       return blockedRefusal(reason) ?? { ...refuseCap(reason), cycle: k, round: L, cap: st.cap, ...unlisted() };
     }
     const s = past ? p - 1 : (st.stopAt(p - 1) ?? p - 1);
@@ -557,7 +570,7 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
   }
   if (capped) {
     // ST-LN-91 D-22: an open data-loss or security finding is no risk to approve with.
-    const lead = `round ${p} of cycle ${k} is past the cap of ${st.cap} approach critique rounds, which no Ruling raises`;
+    const lead = `round ${p} of cycle ${k} is past ${capWords()}, which no Ruling raises`;
     const blocked = blockedRefusal(lead);
     if (blocked !== undefined) return blocked;
     return {

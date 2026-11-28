@@ -36,6 +36,7 @@ judges, the owner decides.
    - three to five "try this" steps that take the owner about two minutes;
    - every Ruling under the ledger's `## Rulings`, ordered by its cost if wrong, highest first;
    - the Must and Should items `accord deferred <id>` prints, then follow `./verify-deferred.md` after the owner's step-5 answer;
+   - the `warn:` lines `accord round <id>` prints, each a finding a team lens left open;
    - what was not checked, including every criterion the verifier recorded as `blocked`, every check CI did not check,
      and every test `accord tests skipped` printed, by name, with the operating system it names;
    - slow tests: the slowest cases in the report, with their times.

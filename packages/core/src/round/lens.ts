@@ -5,10 +5,11 @@
 import { stageOff } from '../gate/floor.js';
 import type { GateRule } from '../gate/rules.js';
 import { laneTicket, workOf } from '../gate/work.js';
-import { BUILT_IN_LENS_NAMES } from '../lens/spec.js';
+import { BUILT_IN_LENS_NAMES, UI_LENS } from '../lens/spec.js';
 import type { LensMode } from '../lens/spec.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding } from '../model/snapshot.js';
 import { LENSES_FROM, claimPinBefore } from './pin.js';
+import { UI_REVIEWER } from '../skills/agents.js';
 import { placedRounds, skipped } from './scope.js';
 
 /** One way the lens record is wrong: the line it is about and what to do. */
@@ -51,11 +52,13 @@ export function lensProblems(snapshot: RepoSnapshot, id: string): LensRecordProb
     for (const name of fact.rounds[at.j - 1].lenses) {
       if ((at.round.lenses ?? []).includes(name)) continue;
       const mode = Object.hasOwn(fact.modes, name) ? fact.modes[name] : 'ask';
+      // D-07: the built-in ui lens goes to accord-reviewer-ui when ui.review is set, as its package line says
+      const reviewer = name === UI_LENS.name && snapshot.config?.ui?.review !== undefined ? UI_REVIEWER : 'accord-reviewer';
       out.push({
         line: at.round.line,
         reason:
           `${where}: its review package named lens ${name} (on_finding ${mode}), and the round records no "Lens: ${name} ran"; ` +
-          `to run it, dispatch accord-reviewer with lens ${name} on the package the command at the end of this line writes, then write "Lens: ${name} ran" in the round: ` +
+          `to run it, dispatch ${reviewer} with lens ${name} on the package the command at the end of this line writes, then write "Lens: ${name} ran" in the round: ` +
           `accord review-package ${id} --lens ${name} --round ${at.j} --out lens-${name}-${at.j}.md`,
       });
     }

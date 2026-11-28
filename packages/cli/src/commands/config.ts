@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { appendConfigList, CONFIG_AREAS, citationFailures, DEFAULT_SUBJECTS, floorProblems, flowValue, getConfigValue, idConsequences, loadConfig, mergeProposals, parseValue, resolveKeyPath, setConfigValue, SUBJECT_NAMES, unsetConfigValue } from '@accord-dev/accord-core';
 import type { ConfigProposal, LoadFinding } from '@accord-dev/accord-core';
 import { CONFIG_FILE, describeFinding as describe, editRefusal } from '../load/config-edit.js';
-import { detectProposals, refusal } from '../load/detect.js';
+import { detectProposals, detectSuggestions, refusal } from '../load/detect.js';
 import { gitTicketIdsInHistory, UsageError } from '../load/fs.js';
 import { SCRIPT_KINDS, shown } from '../load/script-trust.js';
 import type { CommandContext } from '../run.js';
@@ -289,6 +289,7 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
   const init = detectProposals(ctx.root);
   const merged = options.proposals === undefined ? { proposals: init, dropped: [] } : mergeProposals(init, readScanProposals(options.proposals, cwd), scanRefusal(ctx, text));
   const proposals = merged.proposals;
+  const suggestions = detectSuggestions(ctx.root); // Phase 11 D-12: text only, shown under the key of the area they advise (init's own lines), never merged with proposals
   const fromInit = new Set<ConfigProposal>(init); // mergeProposals returns init's own objects, so identity tells the two origins apart
   const marked = options.proposals !== undefined;
   const droppedValue = (v: unknown): unknown => (v === TOO_DEEP ? '<nested too deeply>' : (JSON.stringify(v) ?? '').length > MAX_VALUE ? printedValue(v) : v);
@@ -304,6 +305,7 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
       proposals: proposals
         .filter((p) => p.key.split('.')[0] === k.key)
         .map((p) => ({ key: p.key, value: p.value, evidence: p.evidence, ...(marked ? { source: fromInit.has(p) ? 'init' : 'scan' } : {}) })),
+      ...(suggestions.some((s) => s.key === k.key) ? { suggestions: suggestions.filter((s) => s.key === k.key).map((s) => ({ key: s.key, text: s.text, evidence: s.evidence })) } : {}),
     })),
   }));
   if (options.json === true) {
@@ -315,6 +317,7 @@ export function configAreas(ctx: CommandContext, area: string | undefined, optio
     for (const k of a.keys) {
       ctx.stdout.write(`  ${k.key} = ${k.value === null ? 'unset' : shown(flowValue(k.value))} - ${k.text}\n`);
       for (const p of k.proposals) ctx.stdout.write(`  proposal: ${marked ? `[${p.source}] ` : ''}${shown(p.key)} = ${printedValue(p.value)}  (evidence: ${capped(shown(p.evidence))})\n`);
+      for (const s of k.suggestions ?? []) ctx.stdout.write(`  suggestion: ${shown(s.key)}: ${capped(shown(s.text))}  (evidence: ${capped(shown(s.evidence))})\n`);
     }
   }
   for (const d of merged.dropped) ctx.stdout.write(`dropped: ${capped(shown(d.key))} = ${printedValue(d.value)}  (${capped(shown(d.reason))})\n`);

@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, LENSES_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, REPOS_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLICES_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, COMMIT_MESSAGE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, FIX_RECORD_FROM, LENSES_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, REPOS_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLICES_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, UI_EVIDENCE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { building, CONFIG } from '../../../test/helpers/lane.js';
 
@@ -285,8 +285,8 @@ const PHASE15_CUT: string[] = Object.values(PHASE15);
 // Phase 08.9.3 (D-05, D-06, D-08, D-09, D-14): the plan rules of a ticket built in more than one repository apply only to a ticket claimed at or after the release that ships them; every Phase 08.9.3 cut-off added later joins this record.
 const PHASE8_9_3: Record<string, string> = { REPOS_FROM };
 const PHASE8_9_3_CUT: string[] = Object.values(PHASE8_9_3);
-// Phase 11 D-05: the team-lens record rule judges only tickets claimed at or after the release that ships it; every Phase 11 cut-off added later joins this record.
-const PHASE11: Record<string, string> = { LENSES_FROM };
+// Phase 11 D-05, D-16: the team-lens record rule (LENSES_FROM) and the UI evidence rule (UI_EVIDENCE_FROM) judge only tickets claimed at or after the release that ships them; every Phase 11 cut-off added later joins this record.
+const PHASE11: Record<string, string> = { LENSES_FROM, UI_EVIDENCE_FROM };
 const PHASE11_CUT: string[] = Object.values(PHASE11);
 
 it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
@@ -447,11 +447,14 @@ it('risk:regression the Phase 08.9.3 cut-off is 0.22.0 and is read only through 
 
 // Phase 11 D-05: the cut-off of the team-lens record rule is the next minor after 0.22.0, read only through claimPinBefore (the scan of the Phase 4 test above covers every name in PHASE_NAMES).
 it('risk:regression the Phase 11 cut-off is 0.23.0 and is read only through claimPinBefore (11-ac-6, D-05)', () => {
-  expect(Object.keys(PHASE11), 'the record holds exactly one constant').toEqual(['LENSES_FROM']);
+  expect(Object.keys(PHASE11), 'the record holds the lens and the UI evidence constants').toEqual(['LENSES_FROM', 'UI_EVIDENCE_FROM']);
   expect(LENSES_FROM).toBe('0.23.0');
-  expect(PHASE11_CUT).toEqual(['0.23.0']);
+  expect(UI_EVIDENCE_FROM, 'one release ships both Phase 11 rules').toBe('0.23.0');
+  expect(PHASE11_CUT).toEqual(['0.23.0', '0.23.0']);
   expect(cutOffOffences('  if (claimPinBefore(snapshot, id, LENSES_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
+  expect(cutOffOffences('  if (claimPinBefore(snapshot, id, UI_EVIDENCE_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
   expect(cutOffOffences('  if (pinBefore(LENSES_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (pinBefore(UI_EVIDENCE_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
   expect(cutOffOffences("  if (claimPinBefore(snapshot, id, '0.23.0')) return [];", 'packages/core/src/x.ts')).toHaveLength(1);
 });
 

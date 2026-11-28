@@ -5,7 +5,7 @@
 import { execFileSync } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { epicBlock, interfaceSigns, isSha, lensesFor, matchedHunks, outsideScope, parseLens, productBlocks, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { epicBlock, interfaceSigns, isSha, lensesFor, matchedHunks, outsideScope, parseLens, productBlocks, securityExemptRounds, securitySpec, securityTriggers, slopLine, stageOff, triggerText, UI_LENS, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import type { LensFile, RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, defaultRefOf, UsageError } from '../load/fs.js';
 import { lensRoundPackages } from '../load/lens-facts.js';
@@ -244,14 +244,27 @@ export function repositorySections(ctx: CommandContext, id: string, options: { b
   return { text: blocks.join('\n\n'), repos };
 }
 
+/** D-07: true when `ui.review` is set, so the `ui` lens is dispatched to `accord-reviewer-ui`. */
+const uiReviewMapped = (ctx: CommandContext): boolean => ctx.snapshot.config?.ui?.review !== undefined;
+
 /** D-04: what a package prints under `## Team lenses` when it is a later round, which re-checks the fixes of the lenses round 1 and the final review ran. */
 const LATER_ROUNDS = '(none: later rounds re-check the fixes of the lenses round 1 and the final review ran)';
 
 /** One line of a lens file as the package prints it: no control character and no backslash (a lens file that holds one is a lint problem, and a reviewer never reads it as a path). */
 const lensLine = (text: string): string => printable(text).replace(/\\/g, '/');
 
-/** One lens as the package prints it: its `### Lens <name>` heading, its mode and paths and the dispatch to run, then its checklist. */
-function lensBlock(l: LensFile): string {
+/**
+ * One lens as the package prints it: its `### Lens <name>` heading, its mode and paths and the dispatch to run, then its checklist. The built-in `ui` lens (Phase 11 D-07, D-08) says it is built in and runs on every
+ * `ui: true` ticket; with `ui.review` set (`mapped`) it is dispatched to `accord-reviewer-ui`, whose review skill takes the craft judgement while the checklist stays its contract. Roles are named, never the skill.
+ */
+function lensBlock(l: LensFile, mapped: boolean): string {
+  if (l === UI_LENS) {
+    const run = mapped ? 'dispatch accord-reviewer-ui with lens ui: its review skill judges the craft, and the checklist below stays its contract' : 'dispatch accord-reviewer with lens ui and the checklist below';
+    return `### Lens ui (built in)
+on_finding: ${l.mode}; on every ui: true ticket; ${run}
+
+${l.body.trim()}`;
+  }
   const paths = l.paths === undefined ? 'every lane M ticket' : l.paths.map(lensLine).join(', ');
   return `### Lens ${lensLine(l.name)}\non_finding: ${l.mode}; paths: ${paths}; dispatch accord-reviewer with lens ${lensLine(l.name)}\n\n${l.body.trim()}`;
 }
@@ -259,18 +272,20 @@ function lensBlock(l: LensFile): string {
 /**
  * Phase 11 D-04, D-05, Rulings R4 to R8: the `## Team lenses` text of a package, from the lens files of the default branch and the package's own changed paths (this repository's and each other
  * repository's), by git, files and config alone. `later` is a package after a recorded round: it names none. Undefined when the repository holds no lens file at all (the package is then byte for byte
- * what it was before lenses existed) and for lane S, which has no dispatched reviewer.
+ * what it was before lenses existed, unless the ticket is `ui: true`) and for lane S, which has no dispatched reviewer.
  */
-function lensSection(ctx: CommandContext, lane: string | undefined, def: string | undefined, changed: string[], others: OtherDiff[], later: boolean): string | undefined {
+function lensSection(ctx: CommandContext, lane: string | undefined, def: string | undefined, changed: string[], others: OtherDiff[], later: boolean, ui: boolean): string | undefined {
   if (lane !== 'M' && lane !== 'L' && lane !== 'P') return undefined;
   const read = readLensFiles(ctx.root, def);
-  if (read.lenses.length === 0 && read.branchOnly.length === 0) return undefined;
-  const picked = later ? [] : lensesFor(read.lenses.map((l) => parseLens(l.path, l.text)), { lane, changed, others: others.map((o) => ({ name: o.name, changed: o.changed })) });
+  // D-08: a ui: true ticket always has the built-in ui lens, so its package has the section with no lens file at all
+  if (read.lenses.length === 0 && read.branchOnly.length === 0 && !ui) return undefined;
+  const mapped = uiReviewMapped(ctx);
+  const picked = later ? [] : lensesFor(read.lenses.map((l) => parseLens(l.path, l.text)), { lane, changed, others: others.map((o) => ({ name: o.name, changed: o.changed })), ui });
   const lines: string[] = [];
   if (later) lines.push(LATER_ROUNDS);
   else if (picked.length === 0) lines.push('(none)');
   else {
-    for (const l of picked) lines.push(lensBlock(l));
+    for (const l of picked) lines.push(lensBlock(l, mapped));
   }
   if (read.note === 'no-default-ref') lines.push('(read from this checkout: no default branch)');
   for (const name of read.branchOnly) lines.push(`branch only, applies after merge: ${lensLine(name)}`);
@@ -289,6 +304,7 @@ function lensRoundPackage(ctx: CommandContext, id: string, name: string, asked: 
   const read = lensRoundPackages(ctx.root, ctx.snapshot, id);
   if ('error' in read) throw new UsageError(`cannot read the rounds of ${id}: ${read.error}`);
   const lens = read.lenses.find((l) => l.name === name);
+  if (lens === undefined && name === UI_LENS.name) throw new UsageError(`--lens ui: ${id} is not a ui: true lane M, L or P ticket, so it has no built-in ui lens`);
   if (lens === undefined) {
     throw new UsageError(`--lens ${name}: no lens file accord/lenses/${name}.md at the default branch; the lens files there are: ${read.lenses.map((l) => l.name).join(', ') || '(none)'}`);
   }
@@ -313,7 +329,7 @@ function lensRoundPackage(ctx: CommandContext, id: string, name: string, asked: 
   const parts = [
     `# Lens package: ${id} (${pkg.excluded ? `${range}, without ${pkg.short}` : range})\nHead: ${abbrev(at.head)}`,
     '## Team lenses',
-    [lensBlock(lens), ...note].join('\n\n'),
+    [lensBlock(lens, uiReviewMapped(ctx)), ...note].join('\n\n'),
     '## Commits',
     pkg.commits || '(none)',
     '## Stat',
@@ -505,7 +521,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   shown.push('## Security triggers', securitySections(s, diffText, changedFiles, false, { root: ctx.root, head: 'HEAD' }, unread, others.repos).triggers);
   // Phase 11 D-04: a package after a recorded round re-checks fixes and names no lens; round 1 and the final review (--base) name the lenses the package's own diff touches.
   const later = lastHead !== undefined || (old && options.base === undefined);
-  const lenses = lensSection(ctx, ticket.frontmatter?.lane, def, changedFiles, others.repos, later);
+  const lenses = lensSection(ctx, ticket.frontmatter?.lane, def, changedFiles, others.repos, later, ticket.frontmatter?.ui === true);
   if (lenses !== undefined) shown.push('## Team lenses', lenses);
   shown.push('## Slop', slopSection(ctx, s, id, def));
   // D-03, D-05, D-07: the reviewer's product blocks, read from the default ref this function already read (no second lookup); a clone with no default ref gets the working copy and the one line saying so.

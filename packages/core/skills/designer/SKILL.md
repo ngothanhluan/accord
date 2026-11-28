@@ -4,7 +4,7 @@ description: Use when a ticket is marked ui and the Ready gate is asking for a d
 license: MIT
 argument-hint: "<ticket id>"
 kind: role
-loads: [shared/prototype.md]
+loads: [shared/direction.md, shared/prototype.md]
 ---
 
 Designer is a stage a ticket passes through, not a job title. The same person
@@ -33,6 +33,8 @@ ends when the ticket carries the design reference the gate was asking for.
      `accord/assets/<id>/prototype.html`. Read `./prototype.md` and build it
      from the styles the project already has. A prototype invented from new
      styles is a redesign nobody asked for.
+
+   When the project has no file at `design.tokens` and the approach asks for options, build them as `./direction.md` says.
 
 4. Run `accord gate ready <id>` again. The reason you came here for is gone,
    or the work is not finished.

@@ -77,6 +77,14 @@ export const RETIRED_FILES: readonly string[] = [
 // them run a command (docs/design.md, Agents). So no `agents:` addition ever reaches their files: `agentTargets` renders them with no extra, whatever `agents:` holds.
 export const NO_ADDITIONS: readonly AgentKey[] = ['judge.md', 'foreign-reviewer.md'];
 
+// Phase 11 D-07 (Ruling R15, R16): a static agent file cannot depend on the ticket (Claude Code preloads a listed skill into every dispatch), so `ui.build` and `ui.review` each render
+// a second copy of the executor and of the reviewer, under its own name, that carries the skill. `accord brief` names the executor copy for a `ui: true` ticket, and the review dispatch
+// names the reviewer copy for the `ui` lens. The plain agents never carry the skill, and the judge and the foreign reviewer are never copied (NO_ADDITIONS).
+export const UI_EXECUTOR = 'accord-executor-ui';
+export const UI_REVIEWER = 'accord-reviewer-ui';
+/** Every executor agent a session may be told to dispatch for a task: the plain one, and the UI one when `ui.build` is set. */
+export const EXECUTOR_AGENTS: readonly string[] = ['accord-executor', UI_EXECUTOR];
+
 // Phase 11 D-02 (the lock Ruling): the tools a team may never add to a role, because the role's authored rule forbids them. One row per route key, the names the
 // agent's own text rules out; a tool is compared on the name before its `(` (`Bash(git push *)` is `Bash`), without regard to case. An `mcp__<server>__*` entry
 // is never refused (D-03). `agentTargets` renders around a refused entry and never throws; `accord skills sync` and `lint.agents-config` report it by name.
@@ -250,6 +258,9 @@ export function agentFields(config: AccordConfig, routeKey: RouteKey, authored: 
   return out;
 }
 
+/** `extra` with `skill` first in its `skills` list and not listed twice: the skill of a UI role leads, the role's own `agents.<role>.skills` follow. */
+const withSkillFirst = (extra: AgentExtra, skill: string): AgentExtra => ({ ...extra, skills: [skill, ...(extra.skills ?? []).filter((s) => s !== skill)] });
+
 /** The agent as it lands on disk: name, description, tools and disallowedTools (when authored), model, effort, skills and mcpServers (when added), marker, body. */
 export function renderAgent(key: AgentKey, route: { model: string; effort: Effort }, name?: string, extra: AgentExtra = {}): string {
   const { yaml, body } = source(key);
@@ -287,6 +298,14 @@ export function agentTargets(config: AccordConfig): SkillFile[] {
     // Phase 11 D-01: the additions of `agents.<route key>`; the judge and the foreign reviewer take none (NO_ADDITIONS).
     const extra = (rk: RouteKey): AgentExtra => (NO_ADDITIONS.includes(key) ? {} : agentFields(config, rk, yaml));
     out.push({ path: agentDir + '/' + String(yaml.name) + '.md', text: renderAgent(key, route(routeKey), undefined, extra(routeKey)) });
+    // Phase 11 D-07 (R15): the UI executor, rendered from the executor definition under the `executor` route, with the `ui.build` skill first.
+    if (key === 'executor.md' && config.ui?.build !== undefined) {
+      out.push({ path: agentDir + '/' + UI_EXECUTOR + '.md', text: renderAgent(key, route(routeKey), UI_EXECUTOR, withSkillFirst(extra(routeKey), config.ui.build)) });
+    }
+    // Phase 11 D-07 (R16): the UI reviewer, rendered from the reviewer definition under the `reviewer` route, with the `ui.review` skill first. The judge and the foreign reviewer render from other definitions and never get it (T-11-25).
+    if (key === 'reviewer.md' && config.ui?.review !== undefined) {
+      out.push({ path: agentDir + '/' + UI_REVIEWER + '.md', text: renderAgent(key, route(routeKey), UI_REVIEWER, withSkillFirst(extra(routeKey), config.ui.review)) });
+    }
     // The final reviewer is a second render of the reviewer definition, routed separately and given only `agents.reviewer.final`.
     if (key === 'reviewer.md') {
       out.push({

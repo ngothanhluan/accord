@@ -3,6 +3,7 @@
 import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
+import { EXECUTOR_AGENTS } from '../src/index.js';
 
 const PKG = 'ACCORD_PACKAGE_NAME'; // the token the source launcher carries before the render fills it
 const V = '1.2.3';
@@ -366,6 +367,21 @@ it('risk:security the launcher passes a verification write and an executor dispa
     expect(w.bundleRuns(), stdin).toHaveLength(1);
     expect(w.spawned[0]?.opts.input, stdin).toBe(stdin);
   }
+});
+
+// Phase 11 D-07 (11-ac-8, T-11-23): the launcher keeps its own copy of EXECUTOR_AGENTS (it imports nothing), so every name core lists is handed to the bundle, never answered with `{}`.
+it('risk:security the launcher passes a dispatch of every executor agent core lists to the bundle (11-ac-8, D-07)', () => {
+  expect([...EXECUTOR_AGENTS]).toContain('accord-executor-ui');
+  for (const agent of EXECUTOR_AGENTS)
+    for (const tool of ['Agent', 'Task']) {
+      const stdin = pre({ tool_name: tool, tool_input: { subagent_type: agent } });
+      const w = world();
+      w.m.file(bundleOf(V));
+      expect(launch(w.io([V, 'hook', 'pre-tool-use'], { readStdin: () => stdin })), stdin).toBe(0);
+      expect(w.out, stdin).toEqual([]);
+      expect(w.bundleRuns(), stdin).toHaveLength(1);
+      expect(w.spawned[0]?.opts.input, stdin).toBe(stdin);
+    }
 });
 
 // Phase 08.9.2 D-01 (the D-04 line `node .claude/accord.mjs off`): a command word first takes its version from accord/config.yml beside the launcher's folder.

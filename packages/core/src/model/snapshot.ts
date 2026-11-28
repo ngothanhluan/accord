@@ -220,6 +220,9 @@ export interface EvidenceBlock {
   line: number; // Markdown line of the block heading
   result?: 'pass' | 'fail' | 'blocked'; // undefined when missing or invalid (finding load.result-invalid)
   evidence: string; // text after 'Evidence:' to the end of the block, trimmed; may be ''
+  tier?: 'command' | 'verifier' | 'manual' | 'owner check'; // Phase 11 D-10, D-16: the `Tier:` line; undefined when absent or invalid (finding load.tier-invalid)
+  evidenceCommit?: string; // Phase 11 D-11: the `Evidence commit:` line, 7 to 40 hexadecimal characters; undefined when absent or invalid (finding load.evidence-commit-invalid)
+  owner?: string; // Phase 11 D-16: the words inside the quotes of the `Owner: "<words>"` line; undefined when absent, unquoted or empty
 }
 
 /**
@@ -440,6 +443,7 @@ export interface AccordConfig {
   review?: { mode: 'human' | 'outcome'; post?: 'draft'; slice_lines?: string }; // Phase 15 D-32: post is how far a reply to pull request feedback goes without the owner: draft (the only level, and the default) holds every reply for the owner's yes; // spec §7: absent means 'human', the 0.1.0 behaviour
   models?: Partial<Record<RouteKey | 'architect' | 'auditor', { model: string; effort?: Effort }>>; // absent entries use the default routing; architect and auditor are still accepted and have no effect (ST-LN-80, Phase 08.6 D-05)
   agents?: Partial<Record<RouteKey, AgentAdditions>>; // Phase 11 D-01, D-17: per role, MCP servers, skills and tools added to that agent's file by `skills sync`; keyed by the route keys of models (reviewer.final is the final reviewer), and the judge and the foreign reviewer take none (Security Ruling)
+  ui?: { direction?: string; build?: string; review?: string; screenshots?: string }; // Phase 11 D-07: the skill of each UI role (a name of [a-z0-9:_-], the bare or the plugin form, rendered verbatim) and the one-line command that takes screenshots (may hold {dir}); build and review each render one extra agent file (accord-executor-ui, accord-reviewer-ui) that `accord brief` and the review dispatch name for UI work
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
   stale_days?: string; // digits; YAML numerics stay strings
   hook_mode?: 'full' | 'quiet'; // Phase 08.9.2 D-02: quiet makes a session start print one line until /accord or a ticket's branch wakes accord; absent means full

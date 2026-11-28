@@ -3,7 +3,7 @@
 // accord writes after them), an older one keeps today's brief (D-21, D-22); `--fix <findings file>` builds the brief of a fix executor in the shared layout for any ticket (D-02, D-31).
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { briefText, checkProductText, claimPinBefore, commentProblems, commitRuleLine, commitRuleOf, CONVENTIONS_FILE, FINDING_MAX_LINE, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, notReadLine, planFile, PRODUCT_TEXT_FROM, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, withheldLine, workOf } from '@accord-dev/accord-core';
+import { briefText, checkProductText, claimPinBefore, commentProblems, commitRuleLine, commitRuleOf, CONVENTIONS_FILE, FINDING_MAX_LINE, findingsBlock, FIX_REPORT_CONTRACT, normaliseText, notReadLine, planFile, PRODUCT_TEXT_FROM, REPORT_CONTRACT, stageOff, TASK_REPORT_FROM, TEST_ONLY_LINE, UI_EXECUTOR, withheldLine, workOf } from '@accord-dev/accord-core';
 import type { PlanTask, RepoSnapshot } from '@accord-dev/accord-core';
 import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
@@ -196,10 +196,16 @@ export interface BriefOptions {
 }
 
 /** D-23: the brief goes to stdout, or with `--out` into `.accord-reports/<id>/<file>` (UTF-8, no byte order mark, LF), and stdout then holds only the `file:` line. */
-function emit(ctx: CommandContext, id: string, text: string, out: string | undefined): number {
-  ctx.stdout.write(out === undefined ? text : 'file: ' + writeAgentFile(ctx.root, id, out, text) + '\n');
+function emit(ctx: CommandContext, id: string, text: string, out: string | undefined, agent?: string): number {
+  // Phase 11 D-07: `agent: <name>` is its own stdout line after the `file:` line, or after the brief text with no `--out`; the brief itself is never changed by it.
+  const line = agent === undefined ? '' : 'agent: ' + agent + '\n';
+  ctx.stdout.write(out === undefined ? (agent === undefined || text.endsWith('\n') ? text : text + '\n') + line : 'file: ' + writeAgentFile(ctx.root, id, out, text) + '\n' + line);
   return 0;
 }
+
+/** Phase 11 D-07 (R15): the executor agent a brief names. A `ui: true` ticket with `ui.build` set is built by `accord-executor-ui`; every other ticket gets no `agent:` line and the session uses the plain executor. */
+const agentOf = (ctx: CommandContext, ticket: { frontmatter?: { ui?: boolean } }): string | undefined =>
+  ticket.frontmatter?.ui === true && ctx.snapshot.config?.ui?.build !== undefined ? UI_EXECUTOR : undefined;
 
 const NEED_TASK = 'give a task number, or --fix <findings file>';
 const FIX_ONLY = 'This is the only test command the executor runs for these findings.';
@@ -300,11 +306,11 @@ export function brief(ctx: CommandContext, id: string, task: string | undefined,
   if (options.out !== undefined) checkAgentFile(ctx.root, id, options.out);
   if (options.fix !== undefined) {
     if (ticket.frontmatter?.lane === 'S') throw new UsageError('lane S has no executor: the session fixes the findings itself');
-    return emit(ctx, id, briefFix(ctx, id, n, ticket.file, ticket.frontmatter?.lane, options.fix, cwd, options.testOnly === true), options.out);
+    return emit(ctx, id, briefFix(ctx, id, n, ticket.file, ticket.frontmatter?.lane, options.fix, cwd, options.testOnly === true), options.out, agentOf(ctx, ticket));
   }
   if (n === undefined) throw new UsageError(NEED_TASK);
   const claimed = withClaimPins(ctx.root, ctx.snapshot, id);
-  if (stageOff(ctx.snapshot, id, 'plan')) return emit(ctx, id, briefTicket(ctx, claimed, id, n, ticket.file, ticket.frontmatter?.lane), options.out);
+  if (stageOff(ctx.snapshot, id, 'plan')) return emit(ctx, id, briefTicket(ctx, claimed, id, n, ticket.file, ticket.frontmatter?.lane), options.out, agentOf(ctx, ticket));
   const plan = workOf(ctx.snapshot, id)?.plan;
   if (plan === undefined) throw new UsageError('no plan at ' + planFile(id));
   const t = plan.tasks.find((x) => x.n === n);
@@ -323,5 +329,5 @@ export function brief(ctx: CommandContext, id: string, task: string | undefined,
   const legacy = repo === undefined && claimPinBefore(claimed, id, PRODUCT_TEXT_FROM);
   const tests = repo === undefined ? testBlock(ctx, t) : repoTestBlock(ctx, t, repo);
   const body = legacy ? legacyBrief(ctx, id, text, rules, section, report, t) : sharedBrief(ctx, text, rules + section, [...linesOf(report), ...linesOf(tests), ...(repo === undefined ? commitRuleLines(ctx, id) : [])]);
-  return emit(ctx, id, body, options.out);
+  return emit(ctx, id, body, options.out, agentOf(ctx, ticket));
 }

@@ -56,7 +56,8 @@
       "title": "Integrations",
       "keys": [
         { "key": "tracker", "text": "the tracker accord status reads, for display only (none, github-issues, jira, linear or script); nothing else reads it; tracker.command under the script adapter is a script the repository declares, and nothing runs until the person runs accord trust" },
-        { "key": "design", "text": "where the design tokens live (design.tokens, a path), which a prototype may use and the linter checks it against; empty means none" }
+        { "key": "design", "text": "where the design tokens live (design.tokens, a path), which a prototype may use and the linter checks it against; empty means none" },
+        { "key": "ui", "text": "the skill each UI role uses on a ui: true ticket: ui.direction for the visual direction at approach, ui.build for the executor that builds a UI task, ui.review for the reviewer of the ui lens (each a skill name of lowercase letters, digits, - _ and :, written as the repository's agent loads it), and ui.screenshots, one command line that writes the screenshot evidence, which may hold {dir}; an unmapped role keeps accord's built-in default" }
       ]
     },
     {

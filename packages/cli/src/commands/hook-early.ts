@@ -4,7 +4,7 @@
 // except Phase 08.9.2 D-02's: in a repository whose config says `hook_mode: quiet` they print one line, unless the session opens on a ticket's branch.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { branchTypesOf, DEFAULT_BRANCH_TEMPLATE, EPIC_ROLES, expandBranchTypes, loadConfig, subagentContext } from '@accord-dev/accord-core';
+import { branchTypesOf, DEFAULT_BRANCH_TEMPLATE, EPIC_ROLES, EXECUTOR_AGENTS, expandBranchTypes, loadConfig, subagentContext } from '@accord-dev/accord-core';
 import { ticketOfBranch } from '../load/fs.js';
 import { checkoutOf, gitDirsOf, headBranchOf, isOff, isWoken, wakeFilePath } from '../load/gitdir.js';
 import { cliRuleset } from '../load/product.js';
@@ -23,8 +23,8 @@ export const QUIET_LINE = 'accord: quiet in this repository (hook_mode: quiet): 
 const QUIET_MODE = /^hook_mode:[ \t]+(?:"quiet"|'quiet'|quiet)(?:[ \t]+#.*)?[ \t]*$/m;
 
 /**
- * The exit code of an answer `event` can give from stdin alone (already printed), or undefined when the case needs the repository: an accord-executor dispatch
- * (the model guard reads the ticket), an agent in EPIC_ROLES (the epic block reads the story's parent), a typed `continue <id>` or `pick-up <id>`, and both session events.
+ * The exit code of an answer `event` can give from stdin alone (already printed), or undefined when the case needs the repository: an accord-executor or accord-executor-ui dispatch
+ * (the model guard and the ui check read the ticket), an agent in EPIC_ROLES (the epic block reads the story's parent), a typed `continue <id>` or `pick-up <id>`, and both session events.
  * Unparseable stdin takes the fail-open answers the full path gives it today.
  */
 export function hookEarly(opts: RunOptions, event: HookEvent): number | undefined {
@@ -83,8 +83,8 @@ function preToolUseEarly(opts: RunOptions): number | undefined {
   const input = parsed as Record<string, unknown>;
   const toolInput = input.tool_input;
   const agent = typeof toolInput === 'object' && toolInput !== null && !Array.isArray(toolInput) ? (toolInput as Record<string, unknown>).subagent_type : undefined;
-  // ST-LN-17 D-03: only an accord-executor dispatch is judged against the ticket; every other call is allowed
-  if ((input.tool_name === 'Agent' || input.tool_name === 'Task') && agent === 'accord-executor') return undefined;
+  // ST-LN-17 D-03: only an executor dispatch is judged against the ticket (Phase 11 D-07: the UI executor too, EXECUTOR_AGENTS); every other call is allowed
+  if ((input.tool_name === 'Agent' || input.tool_name === 'Task') && typeof agent === 'string' && EXECUTOR_AGENTS.includes(agent)) return undefined;
   opts.stdout.write('{}\n');
   return 0;
 }

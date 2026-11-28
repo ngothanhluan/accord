@@ -1,7 +1,7 @@
 // Phase 8.5 D-04, 8.5-ac-18: an agent told to read the product files on its own is outside the checked CLI delivery, so every agent source that names them needs a CLI channel that carries the
 // conventions, on every tool; the prose reads stay (999.51 removes them), and this test fails on any new one.
 import { describe, expect, it } from 'vitest';
-import { AGENT_CHANNELS, agents, ROLE_BLOCKS, skillTargets } from '../src/index.js';
+import { AGENT_CHANNELS, agents, EPIC_ROLES, ROLE_BLOCKS, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 
 const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
@@ -10,16 +10,22 @@ const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
 /** A source names the product files when it holds `accord/product/` or the relative `product/` the reviewer's own prose uses. */
 const NAMES_PRODUCT = /\bproduct\//;
 
+/** The agents rendered from one source, by the source's own rendered name: the final reviewer from the reviewer's, and (Phase 11 D-07) each UI variant from the executor's or the reviewer's. */
+const RENDERED_FROM: Readonly<Record<string, readonly string[]>> = {
+  'accord-reviewer': ['accord-reviewer', 'accord-final-reviewer', 'accord-reviewer-ui'],
+  'accord-executor': ['accord-executor', 'accord-executor-ui'],
+};
+
 /**
  * The rendered names (`accord-<key>`) of the sources that name the product files and have no CLI channel whose role's blocks hold `conventions`. A key may carry its `.md`, as the generated `agents`
- * map does. The final reviewer renders from the reviewer's source, so a reviewer that reads product files makes the final reviewer count too.
+ * map does. A reviewer or executor source that reads product files makes every agent rendered from it count too (`RENDERED_FROM`).
  */
 function uncovered(sources: Readonly<Record<string, string>>): string[] {
   const names = Object.entries(sources)
     .filter(([, text]) => NAMES_PRODUCT.test(text))
     .flatMap(([key]) => {
       const name = 'accord-' + key.replace(/\.md$/, '');
-      return name === 'accord-reviewer' ? [name, 'accord-final-reviewer'] : [name];
+      return RENDERED_FROM[name] ?? [name];
     });
   return names.filter((name) => {
     const channel = (AGENT_CHANNELS as Record<string, { command: string; role: keyof typeof ROLE_BLOCKS } | undefined>)[name];
@@ -38,7 +44,7 @@ describe('every agent that reads product files has a CLI channel (08.5-09)', () 
   it('risk:regression every agent that reads product files has a CLI channel after this phase (8.5-ac-18 D-04)', () => {
     expect(uncovered(agents)).toEqual([]);
     expect(Object.keys(AGENT_CHANNELS).sort()).toEqual(
-      ['accord-critic', 'accord-executor', 'accord-final-reviewer', 'accord-foreign-reviewer', 'accord-judge', 'accord-planner', 'accord-reviewer', 'accord-scout'],
+      ['accord-critic', 'accord-executor', 'accord-executor-ui', 'accord-final-reviewer', 'accord-foreign-reviewer', 'accord-judge', 'accord-planner', 'accord-reviewer', 'accord-reviewer-ui', 'accord-scout'],
     );
     // each channel's command is something a rendered skill file of some tool tells a session to run
     const rendered = skillTargets({ ...config(), runtimes: ['claude', 'codex', 'cursor', 'copilot'] })
@@ -49,6 +55,18 @@ describe('every agent that reads product files has a CLI channel (08.5-09)', () 
         rendered.some((t) => t.includes(channel.command)),
         `${name}: no rendered skill file names \`${channel.command}\``,
       ).toBe(true);
+  });
+
+  it('risk:regression the UI variants have the channels and the epic role of the agents they render from (11-ac-8, D-07)', () => {
+    expect(AGENT_CHANNELS['accord-executor-ui']).toEqual({ command: 'accord brief', role: 'executor' });
+    expect(AGENT_CHANNELS['accord-reviewer-ui']).toEqual({ command: 'accord review-package', role: 'reviewer' });
+    // each channel carries the conventions, so the UI agents get them through the CLI, as the agents they render from do
+    for (const name of ['accord-executor-ui', 'accord-reviewer-ui'])
+      expect(ROLE_BLOCKS[(AGENT_CHANNELS[name] as { role: keyof typeof ROLE_BLOCKS }).role], name).toContain('conventions');
+    // a reviewer or executor source that names the product files counts for its UI variant
+    expect(uncovered({ executor: 'Read `accord/product/` before you start.' })).toEqual([]);
+    expect(EPIC_ROLES).toContain('accord-reviewer-ui');
+    expect(EPIC_ROLES).not.toContain('accord-executor-ui'); // the executor never gets the epic block
   });
 
   it('risk:regression the prose reads stay until 999.51 removes them (8.5-ac-18 D-04)', () => {

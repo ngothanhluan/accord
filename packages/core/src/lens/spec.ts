@@ -3,6 +3,7 @@
 import { GLOB_ENTRY, GLOB_ENTRY_REASON, unmatchableEntry } from '../security/entry.js';
 import { pathEntryMatches } from '../security/match.js';
 import { loadFrontmatter, normaliseText, splitFrontmatter } from '../load/frontmatter.js';
+import { templates } from '../generated/templates.js';
 
 /** The folder of lens files, directly under which each `<name>.md` is one lens. */
 export const LENS_DIR = 'accord/lenses/';
@@ -134,9 +135,17 @@ export function lensMatches(lens: LensFile, changed: string[], others: OtherChan
 const byName = (a: LensFile, b: LensFile): number => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
 /**
- * D-04, Ruling R5: the lenses a package of a ticket in `lane` names: those of `lenses` that match, in name order; none for lane S (it has no dispatched reviewer), lane R or a ticket with no lane.
+ * Phase 11 D-08, Ruling R18: the built-in `ui` lens, the checklist of `templates/lens-ui.md` (core data, never a scaffolded repository file), run on every `ui: true` ticket. It is read through the same parser as a
+ * team lens under the stem `lens-ui`, because the name `ui` is a built-in one that `parseLens` refuses for a file; the lens is then named `ui`. No `paths`, mode `block`, and no problem: it is shipped text.
  */
-export function lensesFor(lenses: LensFile[], at: { lane: string | undefined; changed: string[]; others: OtherChange[] }): LensFile[] {
+export const UI_LENS: LensFile = { ...parseLens(`${LENS_DIR}lens-ui.md`, templates['lens-ui.md']), name: 'ui' };
+
+/**
+ * D-04, Ruling R5: the lenses a package of a ticket in `lane` names: those of `lenses` that match, in name order; none for lane S (it has no dispatched reviewer), lane R or a ticket with no lane. D-08, Ruling R18:
+ * with `ui` true the built-in UI_LENS comes first, and a file of `lenses` named `ui` (a lint error) is never run, so no repository text replaces or weakens the checklist.
+ */
+export function lensesFor(lenses: LensFile[], at: { lane: string | undefined; changed: string[]; others: OtherChange[]; ui?: boolean }): LensFile[] {
   if (at.lane !== 'M' && at.lane !== 'L' && at.lane !== 'P') return [];
-  return lenses.filter((l) => lensMatches(l, at.changed, at.others)).sort(byName);
+  const team = lenses.filter((l) => l.name !== UI_LENS.name && lensMatches(l, at.changed, at.others)).sort(byName);
+  return at.ui === true ? [UI_LENS, ...team] : team;
 }

@@ -121,8 +121,10 @@ describe('bundled references', () => {
     const designer = files.filter((f) => f.path.includes('/accord-designer/'));
     expect(designer.map((f) => f.path)).toEqual([
       '.agents/skills/accord-designer/SKILL.md',
+      '.agents/skills/accord-designer/direction.md',
       '.agents/skills/accord-designer/prototype.md',
       '.claude/skills/accord-designer/SKILL.md',
+      '.claude/skills/accord-designer/direction.md',
       '.claude/skills/accord-designer/prototype.md',
     ]);
     // D-119: duplication is in the output, never in the source — and the assertion cannot pass on two

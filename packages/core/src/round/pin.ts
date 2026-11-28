@@ -191,6 +191,13 @@ export const REPOS_FROM = '0.22.0';
  */
 export const LENSES_FROM = '0.23.0';
 
+/**
+ * Phase 11 D-10, D-11, D-16 and the Ruling "Cut-off value": the release from which `accord gate done` refuses a `Result: pass` block of a `@ui` scenario on a `ui: true` lane M, L or P ticket that names no tier, or whose tier lacks
+ * its evidence (gate.ui-evidence-missing: a screenshot file and `Evidence commit:` for the tiers command, verifier and manual; an `Owner:` line and a cited path for `owner check`). A ticket claimed under a pin below it is judged as before.
+ * Read only through claimPinBefore. One constant for the one rule, written as a literal beside LENSES_FROM: both ship in the release that carries Phase 11, and the release plan checks both equal the shipped version.
+ */
+export const UI_EVIDENCE_FROM = '0.23.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

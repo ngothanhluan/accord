@@ -62,7 +62,7 @@ const holds = (n: number, of: number): boolean => n * 100 >= of * MIN_SHARE_PERC
 /** What a repository's own text can put on a terminal: printable ASCII only, so a tracked file name never carries a control sequence. */
 export const printable = (text: string): string => text.replace(/[^\x20-\x7e]/g, '?');
 
-/** Every proposal this repository supports, in the order the output contract lists the keys: git.merge, commits.subjects, branch, ids, tracker, then repos.<name>.tests. */
+/** Every proposal this repository supports, in the order the output contract lists the keys: git.merge, commits.subjects, branch, ids, tracker, repos.<name>.tests, then ui.screenshots. */
 export function detectProposals(root: string): Proposal[] {
   const ref = defaultRefOf(root) ?? 'HEAD';
   const on = shortName(ref);
@@ -78,6 +78,7 @@ export function detectProposals(root: string): Proposal[] {
     trackerKeys(own, branches),
     trackerLinks(root, own),
     ...repoTestProposals(root, config),
+    config?.ui?.screenshots === undefined ? uiScreenshotsProposal(root) : undefined,
   ].filter((p): p is Proposal => p !== undefined);
   return found.filter(accepted(root));
 }
@@ -388,6 +389,108 @@ export function repoTestProposals(root: string, config: Pick<AccordConfig, 'repo
       break;
     }
   }
+  return out;
+}
+
+/**
+ * Phase 11 D-12, Ruling R29: the names a tracked root package.json lists under `dependencies` and `devDependencies`, read as one `readBounded` read and a JSON parse that never throws. A repository with no
+ * tracked package.json, or one that is not a JSON object, lists nothing: no proposal and no suggestion follow from it.
+ */
+function packageNames(root: string): Set<string> {
+  const names = new Set<string>();
+  if (!trackedFiles(root, ['package.json']).includes('package.json')) return names;
+  const text = readBounded(root, 'package.json');
+  if (text === undefined) return names;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (typeof parsed !== 'object' || parsed === null) return names;
+    for (const block of ['dependencies', 'devDependencies']) {
+      const deps = Object.hasOwn(parsed, block) ? (parsed as Record<string, unknown>)[block] : undefined;
+      if (typeof deps === 'object' && deps !== null && !Array.isArray(deps)) for (const name of Object.keys(deps)) names.add(name);
+    }
+  } catch {
+    // not JSON: nothing is listed
+  }
+  return names;
+}
+
+/** The wdio config files a tracked root can hold, in the order wdio's own init writes them. */
+const WDIO_CONFIGS = ['wdio.conf.ts', 'wdio.conf.js', 'wdio.conf.mjs', 'wdio.conf.cjs', 'wdio.conf.mts', 'wdio.conf.cts'];
+
+/**
+ * Phase 11 D-12, Ruling R28: a browser test tool a package.json lists and the command that runs it with the screenshots written into `{dir}` (the ticket's evidence folder, which `ACCORD_EVIDENCE` carries to the
+ * team's own `@ui` tests). The first row whose package is listed wins; a row whose command needs a file the repository does not track gives no proposal rather than a guess.
+ */
+const BROWSER_TEST_TOOLS: { packages: string[]; command: (root: string) => string | undefined }[] = [
+  { packages: ['@playwright/test'], command: () => 'ACCORD_EVIDENCE={dir} npx playwright test --grep @ui' },
+  { packages: ['cypress'], command: () => 'ACCORD_EVIDENCE={dir} npx cypress run' },
+  {
+    packages: ['@wdio/cli', 'webdriverio'],
+    command: (root) => {
+      const tracked = new Set(trackedFiles(root, WDIO_CONFIGS));
+      const conf = WDIO_CONFIGS.find((f) => tracked.has(f));
+      return conf === undefined ? undefined : `ACCORD_EVIDENCE={dir} npx wdio run ./${conf}`;
+    },
+  },
+];
+
+/** `ui.screenshots` (tier a) from the browser test tool a package.json lists; the caller leaves it out when the key is already set. */
+function uiScreenshotsProposal(root: string, listed: Set<string> = packageNames(root)): Proposal | undefined {
+  if (listed.size === 0) return undefined;
+  for (const tool of BROWSER_TEST_TOOLS) {
+    const name = tool.packages.find((p) => listed.has(p));
+    if (name === undefined) continue;
+    const command = tool.command(root);
+    if (command === undefined) continue;
+    return { key: 'ui.screenshots', value: command, evidence: `package.json lists ${printable(name)}` };
+  }
+  return undefined;
+}
+
+/** What `accord init` can only say, never propose: a line of advice for a key's area, printed as `suggestion: <key>: <text>  (evidence: <text>)`. It is never a `proposal:` line, so the onboarding skill walks nothing for it. */
+export interface Suggestion {
+  /** the top-level config key the advice belongs to (`ui`), which places it under that key's area in `accord config areas` */
+  key: string;
+  text: string;
+  evidence: string;
+}
+
+/** Phase 11 D-12, Ruling R29: package names that mark a web project. */
+const WEB_MARKERS = ['react', 'react-dom', 'vue', 'svelte', '@sveltejs/kit', 'next', 'nuxt', '@angular/core', 'solid-js', 'preact', 'vite', 'astro'];
+/** Phase 11 D-12, Ruling R29: package names that mark a desktop app. */
+const DESKTOP_MARKERS = ['electron'];
+/** Phase 11 D-12: the browser tools of the CLI kind named until the owner picks one (plan 11-19). No command of either is printed: agent-browser's flags are unverified. */
+export const BROWSER_CLI_CANDIDATES = ['@playwright/cli', 'agent-browser'];
+/** Phase 11 D-12: the desktop accessibility-tree tool named for an Electron app. */
+const DESKTOP_TOOL = 'agent-desktop (Vercel Labs)';
+const NO_INSTALL = "accord installs nothing without the owner's yes";
+const MANUAL_TIER = "verify then uses a person's screenshots (tier manual) or the owner's check";
+
+/**
+ * Phase 11 D-12 (11-ac-12), Rulings R29 and the plan 11-17 rulings: the UI evidence a project could get, by what a tracked package.json lists. Text only: nothing is installed, no file is written and no process
+ * is started. With `ui.screenshots` set, or a tier (a) proposal (a browser test tool and its command), there is nothing to suggest. Otherwise an Electron app gets the desktop tool with its warning (Electron wins
+ * over a web marker: a CLI browser tool cannot drive an Electron window), a web project that lists no browser test tool gets the browser tools of the CLI kind, and either gets the line that verify then falls
+ * back to the manual tier or the owner's check. A project with no package.json, or neither a web nor a desktop marker, gets none.
+ */
+export function detectSuggestions(root: string): Suggestion[] {
+  const configText = readBounded(root, 'accord/config.yml');
+  const config = configText === undefined ? undefined : loadConfig('accord/config.yml', configText).config;
+  if (config?.ui?.screenshots !== undefined) return [];
+  const listed = packageNames(root);
+  if (uiScreenshotsProposal(root, listed) !== undefined) return [];
+  const desktop = DESKTOP_MARKERS.find((m) => listed.has(m));
+  const web = WEB_MARKERS.find((m) => listed.has(m));
+  const marker = desktop ?? web;
+  if (marker === undefined) return [];
+  const evidence = `package.json lists ${printable(marker)}`;
+  const toolListed = BROWSER_TEST_TOOLS.some((t) => t.packages.some((p) => listed.has(p)));
+  const out: Suggestion[] = [];
+  if (desktop !== undefined) {
+    out.push({ key: 'ui', evidence, text: `${DESKTOP_TOOL}, a desktop accessibility-tree tool, would let the verifier drive this Electron app; it controls the whole machine and does not suit CI; ${NO_INSTALL}` });
+  } else if (!toolListed) {
+    out.push({ key: 'ui', evidence, text: `a browser tool of the CLI kind (${BROWSER_CLI_CANDIDATES.join(' or ')}, until the owner picks one) would let the verifier and ui.build and ui.review work drive and screenshot the running app through the shell, because a CLI tool needs no MCP setup; ${NO_INSTALL}` });
+  }
+  out.push({ key: 'ui', evidence, text: `with no command that takes screenshots here, ${MANUAL_TIER}` });
   return out;
 }
 

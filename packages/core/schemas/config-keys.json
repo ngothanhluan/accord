@@ -15,5 +15,9 @@
   { "key": "progress.push", "since": "0.21.0", "default": "off: no progress is pushed before verify; auto: to refs/accord/<id> only on a host a recorded test proved, none yet; ref: on any host" },
   { "key": "review.slice_lines", "since": "0.21.0", "default": "1000 lines added plus deleted per slice, counting code, tests, docs and skills" },
   { "key": "repos", "since": "0.22.0", "default": "none: a ticket changes only this repository; repos.<name> declares another one by its remote URL and its test commands" },
-  { "key": "agents", "since": "0.23.0", "default": "none: every agent has only its own tools, servers and skills" }
+  { "key": "agents", "since": "0.23.0", "default": "none: every agent has only its own tools, servers and skills" },
+  { "key": "ui.direction", "since": "0.23.0", "default": "none: the visual direction at approach comes from accord's own designer text" },
+  { "key": "ui.build", "since": "0.23.0", "default": "none: a ui: true task is built by the plain executor, with no extra skill" },
+  { "key": "ui.review", "since": "0.23.0", "default": "none: the ui lens reviews on accord's built-in checklist alone" },
+  { "key": "ui.screenshots", "since": "0.23.0", "default": "none: screenshot evidence at verify comes from a browser tool on the verifier or from a person" }
 ]

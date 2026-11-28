@@ -298,9 +298,12 @@ function quietStart(io, event, stdin) {
   }
 }
 
+/** The agents whose dispatch the CLI judges against the ticket. The launcher imports nothing, so this is its own copy of EXECUTOR_AGENTS in packages/core/src/skills/agents.ts (a core test pins the two together). */
+const EXECUTOR_AGENTS = ['accord-executor', 'accord-executor-ui'];
+
 /**
  * True for the one PreToolUse call the CLI answers with `{}` and nothing else: an Agent or Task call for any agent but
- * accord-executor. Write, Edit and MultiEdit (the verification.md guard), an executor dispatch and text that is not JSON all
+ * an executor (EXECUTOR_AGENTS). Write, Edit and MultiEdit (the verification.md guard), an executor dispatch and text that is not JSON all
  * go to the CLI, which fails open on its own.
  */
 function answeredAtOnce(text) {
@@ -308,7 +311,7 @@ function answeredAtOnce(text) {
     const call = JSON.parse(text);
     if (call === null || typeof call !== 'object') return false;
     if (call.tool_name !== 'Agent' && call.tool_name !== 'Task') return false;
-    return call.tool_input?.subagent_type !== 'accord-executor';
+    return !EXECUTOR_AGENTS.includes(call.tool_input?.subagent_type);
   } catch {
     return false;
   }

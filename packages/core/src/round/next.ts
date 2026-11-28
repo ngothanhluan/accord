@@ -326,6 +326,11 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
     for (const cycle of rec.cycles) {
       for (const round of cycle.rounds) {
         for (const u of round.markUnread ?? []) {
+          // BUG-LN-22 WR-02: a readable mark on the line under its finding is misplaced, not unreadable: the problem says where it goes.
+          if (u.lazy === true) {
+            add(u.line, `a mark not under its finding ("${u.text}"): write it on the finding line as " — risk: data-loss" or " — risk: security", or indent it under the finding as "rests on: risk: security"`);
+            continue;
+          }
           add(u.line, `a mark accord cannot read ("${u.text}"); a risk is written exactly as " — risk: data-loss" or " — risk: security" after the finding's text, or as "rests on: risk: security" on a line indented under the finding, never in backticks or quotes, with another hyphen or with another word for the kind`);
         }
       }

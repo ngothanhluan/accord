@@ -54,6 +54,12 @@ const stemOf = (path: string): string => {
 /** The lens name rule: lower-case letters, digits and dashes, starting with a letter or a digit. */
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 
+/**
+ * WR-02: whether a lens file's name is one a review round can run: `Lens: <name> ran` and `accord review-package --lens <name>` both take only the name rule. A lens named otherwise is neither printed in a
+ * package nor required of a round (it could never be recorded or dispatched); `lint.lens-file` is the one place that reports it.
+ */
+export const isRunnableLens = (lens: Pick<LensFile, 'name'>): boolean => NAME.test(lens.name);
+
 /** The problems of the `paths:` entries: the security file's rules (shared, never a second set), applied to the path part of an entry, with the line of the entry where it can be found. */
 function entryProblems(paths: string[], lines: string[], bodyOffset: number): LensProblem[] {
   const out: LensProblem[] = [];
@@ -146,6 +152,6 @@ export const UI_LENS: LensFile = { ...parseLens(`${LENS_DIR}lens-ui.md`, templat
  */
 export function lensesFor(lenses: LensFile[], at: { lane: string | undefined; changed: string[]; others: OtherChange[]; ui?: boolean }): LensFile[] {
   if (at.lane !== 'M' && at.lane !== 'L' && at.lane !== 'P') return [];
-  const team = lenses.filter((l) => l.name !== UI_LENS.name && lensMatches(l, at.changed, at.others)).sort(byName);
+  const team = lenses.filter((l) => l.name !== UI_LENS.name && isRunnableLens(l) && lensMatches(l, at.changed, at.others)).sort(byName);
   return at.ui === true ? [UI_LENS, ...team] : team;
 }

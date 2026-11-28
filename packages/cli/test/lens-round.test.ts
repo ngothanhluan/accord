@@ -72,6 +72,20 @@ it('risk:regression accord round refuses a round that skipped the printed db len
   expect(next.code).toBe(0);
 }, 240_000);
 
+it('risk:regression accord round and gate done ask for no lens whose file name breaks the name rule, which could never be recorded, while lint still reports it, on real git (WR-02, 11-ac-6, D-05)', async () => {
+  const box = claimed({ lenses: { 'DB-Review': DB.replace('paths: [src/db/]\n', '') }, code: { 'src/db/x.ts': 'export const q = 1;\n' }, review: (h) => record(h) });
+  const round = await run(['round', 'T-1'], box.repo);
+  expect(round.err).toBe('');
+  expect(round.out).not.toContain('refused:');
+  expect(round.out).not.toContain('DB-Review');
+  expect(round.code).toBe(0);
+  const done = await run(['gate', 'done', 'T-1', '--json'], box.repo);
+  expect((JSON.parse(done.out).findings as { rule: string }[]).filter((f) => f.rule === 'gate.lens-unreviewed')).toEqual([]);
+  const lint = await run(['lint', '--json'], box.repo);
+  const found = (JSON.parse(lint.out).findings as { rule: string; file?: string }[]).filter((f) => f.rule === 'lint.lens-file');
+  expect(found.map((f) => f.file)).toEqual(['accord/lenses/DB-Review.md']);
+}, 240_000);
+
 const EVERY = '---\non_finding: warn\n---\n\n- Every change names its rollback.\n';
 const DB_SECTION = '## Team lenses\n\n### Lens db\non_finding: block; paths: src/db/; dispatch accord-reviewer with lens db\n\n- Every query uses parameters.';
 

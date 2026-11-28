@@ -6,8 +6,11 @@ import type { RepoSnapshot } from '../model/snapshot.js';
 import { fixModel, modelFamily } from './next.js';
 import { cycleOpen } from './record.js';
 
-/** ST-LN-17 D-03: the reason to refuse an accord-executor dispatched with `model` (undefined when none) while `id` is at review; undefined to allow. */
-export function checkFixDispatch(snapshot: RepoSnapshot, id: string, model: string | undefined, debugOpen = false): string | undefined {
+/**
+ * ST-LN-17 D-03: the reason to refuse an executor dispatched with `model` (undefined when none) while `id` is at review; undefined to allow. Phase 11 D-07: `agent` is the executor dispatched
+ * (`accord-executor` or `accord-executor-ui`, both routed `executor`), and the reason names it.
+ */
+export function checkFixDispatch(snapshot: RepoSnapshot, id: string, model: string | undefined, debugOpen = false, agent = 'accord-executor'): string | undefined {
   const ticket = laneTicket(snapshot, id);
   if (ticket === undefined || ticket.frontmatter?.lane === 'S') return undefined;
   if (progressOf(snapshot, ticket)?.stage !== 'review') return undefined;
@@ -33,6 +36,6 @@ export function checkFixDispatch(snapshot: RepoSnapshot, id: string, model: stri
   return (
     `accord: review round ${r} of ${id} is the latest round in review.md and needs the fix executor on ${m}; ` +
     `if this dispatch fixes the findings of a newer round, write that round to review.md and commit it first, then run accord round ${id} and dispatch again with the model it prints; ` +
-    `for round ${r}'s findings, dispatch accord-executor again with model "${m}"`
+    `for round ${r}'s findings, dispatch ${agent} again with model "${m}"`
   );
 }

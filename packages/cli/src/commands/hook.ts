@@ -476,7 +476,7 @@ function preToolUse(ctx: CommandContext): number {
     const wantsUi = ctx.snapshot.tickets[id]?.frontmatter?.ui === true && ctx.snapshot.config?.ui?.build !== undefined;
     if (wantsUi && agent !== UI_EXECUTOR) return deny(`accord: ${id} is ui: true and ui.build is set: dispatch ${UI_EXECUTOR}, the agent accord brief names`);
     if (!wantsUi && agent === UI_EXECUTOR) return deny(`accord: ${id} is not a ui ticket with ui.build set: dispatch accord-executor`);
-    const reason = checkFixDispatch(ctx.snapshot, id, typeof model === 'string' ? model : undefined, debugOpenIn(ctx.root, id));
+    const reason = checkFixDispatch(ctx.snapshot, id, typeof model === 'string' ? model : undefined, debugOpenIn(ctx.root, id), agent);
     return reason === undefined ? allow() : deny(reason);
   } catch (e) {
     return allow(e instanceof Error ? e.message : String(e));

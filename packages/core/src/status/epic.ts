@@ -12,7 +12,7 @@ export const EPIC_LESSONS = 'Epic lessons';
  * The agents whose input carries the epic block (D-13): the ones that scout, plan, challenge and review a story, and the judge of 08.4-01, which decides whether a
  * piece of feedback holds and so must know an epic-level Veto. The executor, verifier, debugger and researcher are left out on purpose.
  */
-export const EPIC_ROLES: readonly string[] = ['accord-scout', 'accord-planner', 'accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-judge'];
+export const EPIC_ROLES: readonly string[] = ['accord-scout', 'accord-planner', 'accord-critic', 'accord-reviewer', 'accord-reviewer-ui', 'accord-final-reviewer', 'accord-judge'];
 
 /**
  * ST-LN-28 D-13: for a story whose frontmatter `parent:` names an epic, `## Epic <id> "<title>"` with the epic's `### Vetoes` and `### Decisions` lines as written

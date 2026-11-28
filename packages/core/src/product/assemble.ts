@@ -43,9 +43,11 @@ export const ROLE_BLOCKS: Readonly<Record<ProductRole, readonly BlockKind[]>> = 
  */
 export const AGENT_CHANNELS: Readonly<Record<string, { command: string; role: ProductRole }>> = {
   'accord-executor': { command: 'accord brief', role: 'executor' },
+  'accord-executor-ui': { command: 'accord brief', role: 'executor' },
   'accord-planner': { command: 'accord related <id> --for planner', role: 'planner' },
   'accord-reviewer': { command: 'accord review-package', role: 'reviewer' },
   'accord-final-reviewer': { command: 'accord review-package', role: 'reviewer' },
+  'accord-reviewer-ui': { command: 'accord review-package', role: 'reviewer' },
   'accord-judge': { command: 'accord related <id> --for judge', role: 'judge' },
   'accord-foreign-reviewer': { command: 'accord diff-package', role: 'foreign-reviewer' },
   'accord-scout': { command: 'accord related <id> --for scout', role: 'scout' },

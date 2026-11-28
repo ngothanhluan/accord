@@ -241,11 +241,13 @@ A team may switch `discuss`, `approach`, `plan` or `review` off for lane M, L or
 | Agent | Gets | From | Conventions copy |
 |-------|------|------|------------------|
 | accord-executor | the ruleset, the ticket, the task or the findings, the conventions | `accord brief` (`--fix` for a fix brief) | the working branch's copy |
+| accord-executor-ui (Phase 11, with `ui.build`) | the same as the executor | `accord brief`, which names it with an `agent:` line for a `ui: true` ticket | the working branch's copy |
 | accord-planner | the ruleset, related tickets, Rejected lines, a story's epic block, the conventions | `accord related <id> --for planner` | the working branch's copy |
 | accord-scout | the ruleset, related tickets, Rejected lines, a story's epic block | `accord related <id> --for scout` | none, no conventions block |
 | accord-critic | the ruleset, related tickets, Rejected lines, a story's epic block | `accord related <id> --for critic` | none, no conventions block |
 | accord-reviewer (the lane S reviewer too) | the ruleset, a story's epic block, the conventions, the branch's change to them | `accord review-package` | the default branch's copy, then `## Product files changed` |
 | accord-final-reviewer | the same as the reviewer | `accord review-package` | the default branch's copy, then `## Product files changed` |
+| accord-reviewer-ui (Phase 11, with `ui.review`) | the same as the reviewer | `accord review-package` | the default branch's copy, then `## Product files changed` |
 | accord-judge | the same, from the package of `/accord-review-pr` or the file of `/accord-resolve-pr` | `accord related <id> --for judge` | the default branch's copy, then `## Product files changed` (D-30) |
 | accord-foreign-reviewer | the conventions of this repository (the ruleset reaches it through the Claude hook; `accord diff-package` prints none) | `accord diff-package` | the default branch's copy; none for another repository's pull request |
 | the main session | the ruleset, outside Claude Code | `accord anchor` | none |

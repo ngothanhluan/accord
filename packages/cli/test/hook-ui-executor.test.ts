@@ -36,6 +36,38 @@ const decision = (out: string): { decision?: string; reason?: string } => {
   return { decision: h?.permissionDecision, reason: h?.permissionDecisionReason };
 };
 
+// A lane M ticket at review whose latest round (4) holds an open Should: the same record pre-tool-use.test.ts uses for the executor's fix-round model check.
+const REVIEW_FILES = {
+  'accord/tickets/T-1/ledger.md': '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n',
+  'accord/tickets/T-1/review.md':
+    'Round record: 1\n\n## Round 1\n\nMust 1 [patch]: the writer drops the header — src/export.ts:3 — fixed in abc1234\n\n' +
+    '## Round 2\n\nNice 1 [patch]: rename w — src/export.ts:1 — deferred\n\n' +
+    '## Round 3\n\nNice 1 [patch]: a comment typo — src/export.ts:2 — deferred\n\n' +
+    '## Round 4\n\nShould 1 [patch]: a comma is not quoted — src/export.ts:9 — open\n',
+};
+
+describe('the UI executor keeps the fix-round model check the executor has (11-ac-8, D-07)', () => {
+  it('risk:security the fix-round check judges accord-executor-ui like accord-executor and its reason names the agent dispatched (11-ac-8, D-07)', async () => {
+    const repo = repoOf({ ui: true, build: true, extra: REVIEW_FILES });
+    for (const o of [{ model: 'sonnet' }, {}]) {
+      const r = await dispatch(repo, 'accord-executor-ui', o);
+      expect(r.code).toBe(0);
+      const { decision: d, reason } = decision(r.out);
+      expect(d, JSON.stringify(o)).toBe('deny');
+      expect(reason).toContain('round 4');
+      expect(reason).toContain('dispatch accord-executor-ui again with model "opus"');
+      expect(reason).not.toContain('dispatch accord-executor again');
+    }
+    expect(await dispatch(repo, 'accord-executor-ui', { model: 'opus' })).toEqual(ALLOWED);
+
+    // the plain executor on a plain ticket keeps its own reason, byte for byte
+    const plain = repoOf({ ui: false, build: true, extra: REVIEW_FILES });
+    const refused = decision((await dispatch(plain, 'accord-executor', { model: 'sonnet' })).out).reason;
+    expect(refused).toContain('dispatch accord-executor again with model "opus"');
+    expect(await dispatch(plain, 'accord-executor', { model: 'opus' })).toEqual(ALLOWED);
+  }, 120_000);
+});
+
 describe('the dispatch hook refuses the wrong executor for the active ticket (11-ac-8, D-07)', () => {
   it('risk:security the hook refuses the plain executor for a ui ticket while ui.build is set, and names the agent to dispatch (11-ac-8, D-07)', async () => {
     const repo = repoOf({ ui: true, build: true });

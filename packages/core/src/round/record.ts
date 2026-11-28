@@ -225,6 +225,12 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
       const place = at === null ? null : ADDRESS.exec(at[1].trim());
       if (place !== null && !NO_PLACE.test(place[1] ?? place[2])) out.notHeld = { file: place[1] ?? place[2], line: Number(place[3]) };
     }
+    // Phase 10 D-15: `accepted risk: <why>`; with no reason it is the state with no `why` (a record problem from ACCEPTED_RISK_FROM, an open finding before it).
+    else if (/^accepted risk\b/.test(state)) {
+      out.state = 'accepted';
+      const why = /^accepted risk:\s*(\S.*)$/.exec(state);
+      if (why !== null) out.why = why[1].trim();
+    }
   }
   // A mark slot whose value does not parse: a segment after the finding's text that starts with a mark key and is no mark read. Words anywhere else are prose.
   const unread = segs.slice(head).map((x) => x.trim()).filter((x) => inMarkSlot(x) && readMark(x) === undefined);
@@ -235,7 +241,11 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
 }
 
 /** A version 2 finding line: `<Severity> <n>[ [class]]: <finding> — <location> — <state>[ — <mark>]…`, read from the end. */
-function parseFindingV2(line: string): Omit<RoundFinding, 'line' | 'text'> | undefined {
+// Phase 10 D-15: the version 2 states that close a review finding without a fix, each one ` — ` segment (its text holds no ` — `).
+const ACCEPTED_2 = /^accepted risk: (\S.*)$/;
+const AMBIGUOUS_2 = /^ambiguous ac-([1-9][0-9]*): built "(.*\S.*)"$/;
+
+function parseFindingV2(line: string, answers: boolean): Omit<RoundFinding, 'line' | 'text'> | undefined {
   const head = FINDING_2.exec(line);
   if (head === null) return undefined;
   const segs = splitDashes(head[3]);
@@ -250,9 +260,12 @@ function parseFindingV2(line: string): Omit<RoundFinding, 'line' | 'text'> | und
   }
   if (marks.addressed !== undefined && marks.notAddressed !== undefined) return undefined; // a fix is addressed or it is not (ST-LN-56 D-10): the line is a record problem
   if (segs.length < 3) return undefined;
-  const state = STATE.exec(segs[segs.length - 1].trim());
+  const stateText = segs[segs.length - 1].trim();
+  const state = STATE.exec(stateText);
+  const accepted = answers ? ACCEPTED_2.exec(stateText) : null;
+  const ambiguous = answers ? AMBIGUOUS_2.exec(stateText) : null;
   const where = segs[segs.length - 2].trim();
-  if (state === null) return undefined;
+  if (state === null && accepted === null && ambiguous === null) return undefined;
   const loc = where === 'none' ? null : LOCATION.exec(where);
   if (where !== 'none' && loc === null) return undefined;
   const file = loc === null ? undefined : (loc[1] ?? loc[2]);
@@ -261,7 +274,11 @@ function parseFindingV2(line: string): Omit<RoundFinding, 'line' | 'text'> | und
     severity: SEVERITY.get(head[1].toLowerCase())!,
     n: Number(head[2]),
     ...(file !== undefined ? { file } : {}),
-    state: state[1].startsWith('fixed') ? 'fixed' : (state[1] as 'open' | 'deferred'),
+    ...(accepted !== null
+      ? { state: 'accepted' as const, why: accepted[1].trim() }
+      : ambiguous !== null
+        ? { state: 'ambiguous' as const, ambiguous: { ac: Number(ambiguous[1]), reading: ambiguous[2] } }
+        : { state: state![1].startsWith('fixed') ? ('fixed' as const) : (state![1] as 'open' | 'deferred') }),
     ...marks,
   };
 }
@@ -296,8 +313,17 @@ function readLine(text: string): Read {
   return { kind: 'finding', severity };
 }
 
-/** Read one review.md or plan-review.md into cycles of rounds; a line accord cannot read is reported, never skipped. */
+/**
+ * Read one review.md or plan-review.md into cycles of rounds; a line accord cannot read is reported, never skipped. Phase 10 D-15, 10-ac-11: a version 2 review record that holds an `accepted risk:` or `ambiguous ac-<n>:` state is read a second
+ * time as it was before those states, and what that reading could not read is kept as `legacyUnreadable`, which a ticket claimed before their cut-off is refused with (round/answers.ts).
+ */
 export function parseRounds(file: string, text: string, kind: 'review' | 'plan' | 'approach'): RoundRecord {
+  const record = readRounds(file, text, kind, true);
+  const answered = record.cycles.some((c) => c.rounds.some((r) => r.findings.some((f) => f.state === 'accepted' || f.state === 'ambiguous')));
+  return kind === 'review' && record.version === 2 && answered ? { ...record, legacyUnreadable: readRounds(file, text, kind, false).unreadable } : record;
+}
+
+function readRounds(file: string, text: string, kind: 'review' | 'plan' | 'approach', answers: boolean): RoundRecord {
   const normal = normaliseText(text);
   const { sections, fences } = scan(normal, 0);
   const inFence = (n: number) => fences.some((f) => n >= f.open && n <= f.close);
@@ -433,7 +459,7 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
           for (const x of markUnread ?? []) unread(l.line, x);
         } else {
           const shown = t.trim().replace(/^[-*+] /, '');
-          const f = parseFindingV2(shown);
+          const f = parseFindingV2(shown, answers);
           if (f === undefined) {
             bad(l.line, `line ${l.line}: a finding of a version 2 record reads <Severity> <n>[ [class]]: <finding> — <path>[:<line>] or none — open, fixed in <sha> or deferred, then its marks: "${shown}"`);
           } else if (target.findings.some((x) => x.n === f.n)) {

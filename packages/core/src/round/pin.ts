@@ -223,6 +223,20 @@ export const REVIEW_BUDGET_FROM = '0.24.0';
  */
 export const DOES_NOT_HOLD_FROM = '0.24.0';
 
+/**
+ * Phase 10 D-15 and 10-ac-29: the release from which a finding answered `accepted risk: <why>` (approach and plan by the planner, review by the session) is closed when the ledger holds `Ruling: accepted risk — <record> <r>.<n>[ cycle <k>]: <why> — <failing case>`,
+ * is listed on an `accepted:` line of `accord round` for the verify report, and is refused for a finding marked data-loss or security. A ticket claimed under a pin below it reads the answer as an open finding at approach and plan and as a line accord cannot read in a review record
+ * (10-ac-11). Read only through claimPinBefore. It is the next minor after the newest released heading of docs/releases.md at planning, 0.23.2; the release plan checks it equals the shipped version, and PHASE10 in migration-pin.test.ts follows.
+ */
+export const ACCEPTED_RISK_FROM = '0.24.0';
+
+/**
+ * Phase 10 D-15 (a) and 10-ac-31: the release from which a review finding answered `ambiguous ac-<n>: built "<reading>"` opens no fix round, is not counted open and becomes a `warn:` line for the verify report, and is refused for a risk finding and where a Decision settles the reading.
+ * A ticket claimed under a pin below it reads the answer as a line accord cannot read (10-ac-11). Read only through claimPinBefore. It is the next minor after the newest released heading of docs/releases.md at planning, 0.23.2; the release plan checks it equals the shipped
+ * version, and PHASE10 in migration-pin.test.ts follows.
+ */
+export const AMBIGUOUS_FROM = '0.24.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

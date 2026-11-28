@@ -4,12 +4,12 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { resolveStrictness } from '../config/strictness.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
-import { answerProblems, answersClosed, notHeldWaiting, riskSet } from './answers.js';
+import { acceptedLines, ambiguousWarns, answerProblems, answersClosed, notHeldWaiting, riskSet } from './answers.js';
 import { fixDeferred, fixProblems } from './fix.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { lensAsks, lensDeferred, lensMarkProblems, lensProblems, lensWarns } from './lens.js';
-import { APPROACH_CAP_FROM, CRITIC_ONCE_FROM, PLAN_CAP_FROM, REVIEW_BUDGET_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
+import { ACCEPTED_RISK_FROM, APPROACH_CAP_FROM, CRITIC_ONCE_FROM, PLAN_CAP_FROM, REVIEW_BUDGET_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import { securityProblems } from './security.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
@@ -36,11 +36,12 @@ export interface RoundAnswer {
   addedCode?: true; // next on a version 2 review record: a debug episode or a merge added code that no round has reviewed (ST-LN-57)
   reReview?: string[]; // next on a review record under the fix record rules: the fixes (`<r>.<n>[ cycle <k>]`) no re-review round has answered yet (ST-LN-56 D-17)
   checker?: true; // a plan `next` answer at round 1 whose cap rules are PLAN_CAP: the plan skill dispatches one plan checker (ST-LN-91 D-12)
-  warn?: string[]; // review: `<r>.<n> lens <name>` of each open Must or Should a `warn` team lens made in the last cycle: listed for the verify report, never blocking (Phase 11 D-06)
+  warn?: string[]; // review: `<r>.<n> lens <name>` of each open Must or Should a `warn` team lens made in the last cycle, and `<r>.<n> ambiguous ac-<n>, built "<reading>"` of each ambiguous-criterion finding (Phase 10 D-15 (a)): listed for the verify report, never blocking (Phase 11 D-06)
   recheck?: string[]; // next, round 2 of the one-round rules (Phase 10 D-01): the `1.<n>` risk findings a fresh critic re-checks, and only those
   once?: true; // a plan stop under the one-round rules: no owner Ruling raises the cap, so the answer does not offer one
   intentHint?: string[]; // review budget stop (Phase 10 D-15 (b)): the `<r>.<n>` of each open Must or Should with no risk mark first raised in round `intentRound`: they may be an intent problem
   intentRound?: number; // the round `intentHint` names: the first round of the stretch the budget counts
+  accepted?: string[]; // `<record> <r>.<n>: <why>` of each closed `accepted risk` of the last cycle of the ticket's approach, plan and review records: listed on `accepted:` lines for the verify report (Phase 10 D-15)
   ask?: string[]; // review stop: `<r>.<n> lens <name>` of each open Must or Should an `ask` team lens made that the owner has not decided: the stop's own reason (Phase 11 D-06, Ruling R13)
 }
 
@@ -302,8 +303,8 @@ function classify(cycle: RoundCycle, closed: ReadonlySet<RoundFinding> = new Set
   const out = new Map<RoundFinding, Class>();
   cycle.rounds.forEach((r, i) => {
     for (const f of r.findings) {
-      // Phase 10 D-14: a finding the planner answered `does not hold` reads open until an answer of round/answers.ts closes it (`closed`), and a risk finding is never closed by it: it stays blocking until the owner's words.
-      const open = f.state === undefined || f.state === 'open' || f.state === 'notHeld';
+      // Phase 10 D-14, D-15: a finding answered `does not hold`, `accepted risk` or `ambiguous` reads open until an answer of round/answers.ts closes it (`closed`), and a risk finding is never closed by one: it stays blocking until the owner's words.
+      const open = f.state === undefined || f.state === 'open' || f.state === 'notHeld' || f.state === 'accepted' || f.state === 'ambiguous';
       if (risk.has(f)) {
         if (open || f.state === 'deferred' || (f.state === 'repeated' && later(f, i + 1).length === 0)) out.set(f, 'blocking');
         else if (f.state === 'owner') out.set(f, 'accepted');
@@ -332,8 +333,8 @@ export function openRisks(cycle: RoundCycle): { id: string; text: string }[] {
  * Phase 10 D-15 (b), 10-ac-31: the `<r>.<n>` of each open Must or Should with no risk mark that was first raised in round `first` of the cycle: the finding itself, or one that carries it on (`carried from`, `repeats`)
  * or repeats it (`repeated as`), followed back to the round it started in. A risk-marked finding (own mark or inherited) is never named: it keeps its class and goes to the owner as a risk.
  */
-export function intentOf(cycle: RoundCycle, first: number): string[] {
-  const classes = classify(cycle);
+export function intentOf(cycle: RoundCycle, first: number, closed?: ReadonlySet<RoundFinding>): string[] {
+  const classes = classify(cycle, closed);
   const at = (round: number, n: number): RoundFinding[] => cycle.rounds[round - 1]?.findings.filter((f) => f.n === n) ?? [];
   // the earliest round and number a finding of round `r` comes from: every earlier link, `carried from` and the finding a `repeated as` names, is followed
   const origin = (f: RoundFinding, r: number): { round: number; n: number | undefined } => {
@@ -451,7 +452,8 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
   const work = workOf(snapshot, id);
   const rec: RoundRecord | undefined = recordOf(work, kind);
   if (rec === undefined) return [];
-  const out = [...rec.unreadable];
+  // Phase 10 D-15, 10-ac-11: a ticket claimed before ACCEPTED_RISK_FROM reads an `accepted risk:` or `ambiguous` review line as it did at b4477211: a line accord cannot read.
+  const out = [...(kind === 'review' && rec.legacyUnreadable !== undefined && claimPinBefore(snapshot, id, ACCEPTED_RISK_FROM) ? rec.legacyUnreadable : rec.unreadable)];
   const all = allowancesOf(snapshot, id, kind);
   const rules = capRulesOf(snapshot, id, kind);
   const add = (line: number, reason: string) => out.push({ line, reason: `line ${line}: ${reason}` });
@@ -577,8 +579,10 @@ const scopeReason = (p: { line?: number; reason: string }): string => (p.line ==
 export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): RoundAnswer {
   const answer = nextRoundOf(snapshot, id, kind);
   const rec = kind === 'review' ? workOf(snapshot, id)?.rounds : undefined;
-  const warn = rec === undefined ? [] : lensWarns(snapshot, id, rec.cycles.length - 1);
-  return warn.length === 0 ? answer : { ...answer, warn };
+  const warn = rec === undefined ? [] : [...lensWarns(snapshot, id, rec.cycles.length - 1), ...ambiguousWarns(snapshot, id, rec.cycles.length - 1)];
+  // Phase 10 D-15: every answer lists the accepted risks of the ticket's three records, so the verify report can name them even once the loop has ended.
+  const accepted = acceptedLines(snapshot, id);
+  return { ...answer, ...(warn.length === 0 ? {} : { warn }), ...(accepted.length === 0 ? {} : { accepted }) };
 }
 
 function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): RoundAnswer {
@@ -725,7 +729,7 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
     const why = st.kindOf?.(s);
     if (why === undefined) return {};
     const risks = blockingFindings(cyc);
-    const hint = why === 'final' ? [] : intentOf(cyc, off + 1);
+    const hint = why === 'final' ? [] : intentOf(cyc, off + 1, answersClosed(snapshot, id, kind, k - 1));
     return { ...(risks.length === 0 ? {} : { blocking: risks }), ...(hint.length === 0 ? {} : { intentHint: hint, intentRound: off + 1 }) };
   };
 
@@ -836,6 +840,7 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
 
 /** The `warn:` lines of an answer, each ending in a newline (Phase 11 D-06). */
 const lensLines = (answer: RoundAnswer): string[] => [
+  ...(answer.accepted ?? []).map((a) => `accepted: ${a}\n`),
   ...(answer.warn ?? []).map((w) => `warn: ${w}: listed in the verify report, never blocks\n`),
   ...(answer.ask ?? []).map((a) => `ask: ${a}: the owner decides: fix, defer with a ## Deferred line, or accept with verdict: accepted-by-owner\n`),
 ];

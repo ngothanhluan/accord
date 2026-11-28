@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, COMMIT_MESSAGE_FROM, CRITIC_ONCE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, DOES_NOT_HOLD_FROM, FIX_RECORD_FROM, LENSES_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, REPOS_FROM, REVIEW_BUDGET_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLICES_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, UI_EVIDENCE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
+import { ACCEPTED_RISK_FROM, AMBIGUOUS_FROM, APPROACH_CAP_FROM, COMMIT_MESSAGE_FROM, CRITIC_ONCE_FROM, DEFERRED_MARK_FROM, DISCUSS_FROM, DOES_NOT_HOLD_FROM, FIX_RECORD_FROM, LENSES_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_LARGE_FROM, PLAN_MODEL_FROM, PLAN_WAVES_FROM, PRODUCT_TEXT_FROM, REPOS_FROM, REVIEW_BUDGET_FROM, SECURITY_OFF_FROM, SECURITY_TRIGGER_FROM, SLICES_FROM, SLOP_FROM, TASK_REPORT_FROM, TITLE_RULE_FROM, UI_EVIDENCE_FROM, gatePlan, gateReady, loadSnapshot, nextRound, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { building, CONFIG } from '../../../test/helpers/lane.js';
 
@@ -289,7 +289,7 @@ const PHASE8_9_3_CUT: string[] = Object.values(PHASE8_9_3);
 const PHASE11: Record<string, string> = { LENSES_FROM, UI_EVIDENCE_FROM };
 const PHASE11_CUT: string[] = Object.values(PHASE11);
 // Phase 10 D-01 (10-ac-3) and the later release A rules (D-15): each applies only to a ticket claimed at or after the release that ships it (0.24.0); every Phase 10 release A cut-off added later joins this record.
-const PHASE10: Record<string, string> = { CRITIC_ONCE_FROM, REVIEW_BUDGET_FROM, DOES_NOT_HOLD_FROM };
+const PHASE10: Record<string, string> = { CRITIC_ONCE_FROM, REVIEW_BUDGET_FROM, DOES_NOT_HOLD_FROM, ACCEPTED_RISK_FROM, AMBIGUOUS_FROM };
 const PHASE10_CUT: string[] = Object.values(PHASE10);
 
 it('risk:regression the 0.6.0 cut-off constants are one release (ST-LN-10 rel-ac-1)', () => {
@@ -463,17 +463,23 @@ it('risk:regression the Phase 11 cut-off is 0.23.0 and is read only through clai
 
 // Phase 10 D-01 (10-ac-3): the cut-off of the one-round approach critic and plan checker is the next minor after 0.23.2, read only through claimPinBefore (the scan of the Phase 4 test above covers every name in PHASE_NAMES).
 it('risk:regression the Phase 10 cut-offs are 0.24.0 and are read only through claimPinBefore (10-ac-3, D-01)', () => {
-  expect(Object.keys(PHASE10), 'the record holds the release A constants').toEqual(['CRITIC_ONCE_FROM', 'REVIEW_BUDGET_FROM', 'DOES_NOT_HOLD_FROM']);
+  expect(Object.keys(PHASE10), 'the record holds the release A constants').toEqual(['CRITIC_ONCE_FROM', 'REVIEW_BUDGET_FROM', 'DOES_NOT_HOLD_FROM', 'ACCEPTED_RISK_FROM', 'AMBIGUOUS_FROM']);
   expect(CRITIC_ONCE_FROM).toBe('0.24.0');
   expect(REVIEW_BUDGET_FROM, 'one release ships every release A rule').toBe('0.24.0');
   expect(DOES_NOT_HOLD_FROM, 'one release ships every release A rule').toBe('0.24.0');
-  expect(PHASE10_CUT).toEqual(['0.24.0', '0.24.0', '0.24.0']);
+  expect(ACCEPTED_RISK_FROM, 'one release ships every release A rule').toBe('0.24.0');
+  expect(AMBIGUOUS_FROM, 'one release ships every release A rule').toBe('0.24.0');
+  expect(PHASE10_CUT).toEqual(['0.24.0', '0.24.0', '0.24.0', '0.24.0', '0.24.0']);
   expect(cutOffOffences('  if (claimPinBefore(snapshot, id, CRITIC_ONCE_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
   expect(cutOffOffences('  if (claimPinBefore(snapshot, id, REVIEW_BUDGET_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
   expect(cutOffOffences('  if (pinBefore(CRITIC_ONCE_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
   expect(cutOffOffences('  if (claimPinBefore(snapshot, id, DOES_NOT_HOLD_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
   expect(cutOffOffences('  if (pinBefore(REVIEW_BUDGET_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
   expect(cutOffOffences('  if (pinBefore(DOES_NOT_HOLD_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (claimPinBefore(snapshot, id, ACCEPTED_RISK_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
+  expect(cutOffOffences('  if (claimPinBefore(snapshot, id, AMBIGUOUS_FROM)) return [];', 'packages/core/src/x.ts')).toEqual([]);
+  expect(cutOffOffences('  if (pinBefore(ACCEPTED_RISK_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
+  expect(cutOffOffences('  if (pinBefore(AMBIGUOUS_FROM, pin)) return [];', 'packages/core/src/x.ts')).toHaveLength(1);
   expect(cutOffOffences("  if (claimPinBefore(snapshot, id, '0.24.0')) return [];", 'packages/core/src/x.ts')).toHaveLength(1);
 });
 

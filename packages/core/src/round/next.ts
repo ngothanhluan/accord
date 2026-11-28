@@ -38,6 +38,8 @@ export interface RoundAnswer {
   warn?: string[]; // review: `<r>.<n> lens <name>` of each open Must or Should a `warn` team lens made in the last cycle: listed for the verify report, never blocking (Phase 11 D-06)
   recheck?: string[]; // next, round 2 of the one-round rules (Phase 10 D-01): the `1.<n>` risk findings a fresh critic re-checks, and only those
   once?: true; // a plan stop under the one-round rules: no owner Ruling raises the cap, so the answer does not offer one
+  intentHint?: string[]; // review budget stop (Phase 10 D-15 (b)): the `<r>.<n>` of each open Must or Should with no risk mark first raised in round `intentRound`: they may be an intent problem
+  intentRound?: number; // the round `intentHint` names: the first round of the stretch the budget counts
   ask?: string[]; // review stop: `<r>.<n> lens <name>` of each open Must or Should an `ask` team lens made that the owner has not decided: the stop's own reason (Phase 11 D-06, Ruling R13)
 }
 
@@ -133,20 +135,29 @@ export interface CycleState {
   denied?: (p: number) => string;
 }
 /** Phase 10 D-06: why a round of the review budget stops the loop: the count did not fall, the budget is used. */
-export type StopKind = 'count' | 'cap';
+export type StopKind = 'count' | 'cap' | 'final';
 
 /**
  * Phase 10 D-06, 10-ac-4: the review budget of one cycle. A round of the stretch the budget counts stops the loop when it is the last round of the budget (round `rules.cap`) and still reports a Must or a Should, or when it is
  * round 2 or later of the budget and its Must + Should count is above 0 and not below the round before it (an equal count included); a later round that reports no findings clears a stop, as it does under LEGACY_CAP. The
  * rounds past the budget are not allowed unless an owner allowance Ruling allows them (`allowances`).
+ * Phase 10 D-15, 10-ac-30: the first round headed `(final review)` and the one round after it (its re-check) are outside the budget: they are allowed whatever the budget has used while no stop is pending, the count stop never
+ * fires on them, a Must or a Should still reported by the re-check is a stop of its own kind ('final'), and a later round needs an owner allowance Ruling. With no final review recorded, the round after a budget of
+ * rounds that ended with no stop is allowed as the final review.
  */
 function budgetState(cycle: RoundCycle, allowances: Allowance[], deferred: ReadonlySet<RoundFinding>, rules: CapRules): CycleState {
   const rounds = cycle.rounds;
   const N = rounds.length;
   const counted = (p: number): number => roundCount(rounds[p - 1], deferred);
   const end = rules.cap;
+  const f0 = rounds.findIndex((r) => r.final === true) + 1; // 0: no final review in the cycle
+  const f = f0 > 0 ? f0 : undefined;
   const kindOf = (s: number): StopKind | undefined => {
     if (s < 1 || s > N || counted(s) === 0) return undefined;
+    if (f !== undefined) {
+      if (s === f || s > f + 1) return undefined; // the final review itself and any round past its re-check: no stop of their own
+      if (s === f + 1) return 'final';
+    }
     if (s >= 2 && counted(s) >= counted(s - 1)) return 'count';
     return s === end ? 'cap' : undefined;
   };
@@ -160,13 +171,24 @@ function budgetState(cycle: RoundCycle, allowances: Allowance[], deferred: Reado
   };
   const allowed = (p: number): boolean => {
     const s = stopAt(p - 1);
-    return (p <= end && s === undefined) || allowances.some((a) => a.after < p && p <= a.after + a.n && (s === undefined || s <= a.after));
+    const free = s === undefined && (f === undefined ? p <= end || (p === end + 1 && p > N) : p < f ? p <= end : p <= f + 1);
+    return free || allowances.some((a) => a.after < p && p <= a.after + a.n && (s === undefined || s <= a.after));
   };
   const denied = (p: number): string => {
     const s = stopAt(p - 1);
-    return s !== undefined ? `after the stop at round ${s}` : `past the budget of ${rules.cap} review rounds (D-06)`;
+    if (s !== undefined) return `after the stop at round ${s}`;
+    return f !== undefined && p > f ? "past the final review's one fix and one re-check (D-15)" : `past the budget of ${rules.cap} review rounds (D-06)`;
   };
-  return { cap: Math.max(end, ...allowances.map((a) => a.after + a.n)), allowed, stopAt, kindOf, denied };
+  const cap = f !== undefined ? f + 1 : N >= end && stopAt(N) === undefined ? end + 2 : end;
+  return { cap: Math.max(cap, ...allowances.map((a) => a.after + a.n)), allowed, stopAt, kindOf, denied };
+}
+
+/** Phase 10 D-06, D-15: the rounds of the review budget among rounds 1 to `upTo` of a cycle: not the first final review and not the round after it. */
+function budgetRoundsOf(cycle: RoundCycle | undefined, upTo: number): number {
+  const f = (cycle?.rounds.findIndex((r) => r.final === true) ?? -1) + 1;
+  let n = 0;
+  for (let p = 1; p <= upTo; p++) if (f === 0 || (p !== f && p !== f + 1)) n++;
+  return n;
 }
 
 /** The cap, the allowed rounds and the stop of one cycle; the caller passes only that cycle's allowances. `deferred` (ST-LN-57 D-08) are findings that do not stop the loop. */
@@ -295,6 +317,37 @@ export function openRisks(cycle: RoundCycle): { id: string; text: string }[] {
     for (const f of r.findings) if (classes.get(f) === 'blocking') out.push({ id: `${i + 1}.${f.n ?? '?'}`, text: f.text });
   });
   return out;
+}
+
+/**
+ * Phase 10 D-15 (b), 10-ac-31: the `<r>.<n>` of each open Must or Should with no risk mark that was first raised in round `first` of the cycle: the finding itself, or one that carries it on (`carried from`, `repeats`)
+ * or repeats it (`repeated as`), followed back to the round it started in. A risk-marked finding (own mark or inherited) is never named: it keeps its class and goes to the owner as a risk.
+ */
+export function intentOf(cycle: RoundCycle, first: number): string[] {
+  const classes = classify(cycle);
+  const at = (round: number, n: number): RoundFinding[] => cycle.rounds[round - 1]?.findings.filter((f) => f.n === n) ?? [];
+  // the earliest round and number a finding of round `r` comes from: every earlier link, `carried from` and the finding a `repeated as` names, is followed
+  const origin = (f: RoundFinding, r: number): { round: number; n: number | undefined } => {
+    let best = { round: r, n: f.n };
+    const consider = (link: { round: number; n: number | undefined }): void => {
+      if (link.round < best.round) best = link;
+    };
+    if (f.carried !== undefined && f.carried.round < r) for (const g of at(f.carried.round, f.carried.n)) consider(origin(g, f.carried.round));
+    cycle.rounds.forEach((round, i) => {
+      if (i + 1 >= r) return;
+      for (const g of round.findings) if (g.state === 'repeated' && g.repeatedAs?.round === r && g.repeatedAs.n === f.n) consider(origin(g, i + 1));
+    });
+    return best;
+  };
+  const named = new Set<number>();
+  cycle.rounds.forEach((round, i) => {
+    for (const f of round.findings) {
+      if (classes.get(f) !== 'open') continue;
+      const o = origin(f, i + 1);
+      if (o.round === first && o.n !== undefined) named.add(o.n);
+    }
+  });
+  return [...named].sort((a, b) => a - b).map((n) => `${first}.${n}`);
 }
 
 /** The finding lines of each round of the cycle whose class passes `keep`. */
@@ -469,7 +522,11 @@ export function fixModel(snapshot: RepoSnapshot, id: string, round?: number): { 
   if (r === 0) return undefined;
   const configured = Number(snapshot.config?.escalation?.fix_round_tier_up ?? '4');
   const tier = Number.isInteger(configured) && configured > 0 ? configured : 4;
-  const raised = r >= tier || (rec?.cycles ?? []).some((c) => c.rounds.length >= tier);
+  // Phase 10 D-06, D-15: under the review budget the tier-up counts the rounds of the budget, not the final review or its re-check, so it tiers up only past a raised budget (strictness.rounds.review).
+  const rules = capRulesOf(snapshot, id, 'review');
+  const budget = isBudget(rules, 'review');
+  const counted = (c: RoundCycle | undefined, upTo: number): number => (budget ? Math.min(budgetRoundsOf(c, upTo), rules.cap) : upTo);
+  const raised = counted(rec?.cycles[rec.cycles.length - 1], r) >= tier || (rec?.cycles ?? []).some((c) => counted(c, c.rounds.length) >= tier);
   const base = snapshot.config?.models?.executor?.model ?? AGENT_DEFAULTS.executor.model;
   const family = modelFamily(base);
   if (!raised) return { model: family ?? base };
@@ -633,6 +690,16 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
     ...extra,
   });
 
+  // Phase 10 D-06, D-15 (b), T-10-04: a review budget stop lists the open data-loss and security findings an owner's verdict cannot lift, and, for the count stop and the budget used (never the final review's), the round-1 findings
+  // that may be an intent problem.
+  const budgetExtra = (s: number): Partial<RoundAnswer> => {
+    const why = st.kindOf?.(s);
+    if (why === undefined) return {};
+    const risks = blockingFindings(cyc);
+    const hint = why === 'final' ? [] : intentOf(cyc, 1);
+    return { ...(risks.length === 0 ? {} : { blocking: risks }), ...(hint.length === 0 ? {} : { intentHint: hint, intentRound: 1 }) };
+  };
+
   // A round run without being allowed: whatever verdict follows, a skipped stop stays visible.
   for (let p = 2; p <= L; p++) {
     if (st.allowed(p)) continue;
@@ -648,7 +715,7 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
       return blockedRefusal(reason) ?? { ...refuseCap(reason), cycle: k, round: L, cap: st.cap, ...unlisted() };
     }
     const why = st.denied !== undefined ? st.denied(p) : past ? `past the cap of ${st.cap} rounds` : `after the stop at round ${s}`;
-    return stop([`round ${p} of cycle ${k} ran without an owner Ruling allowing it: ${why}`], s, { allowAfter: p - 1, ...(d01Plan ? { once: true } : {}) });
+    return stop([`round ${p} of cycle ${k} ran without an owner Ruling allowing it: ${why}`], s, { allowAfter: p - 1, ...(d01Plan ? { once: true } : {}), ...budgetExtra(s) });
   }
 
   const verdict = cyc.verdicts[cyc.verdicts.length - 1];
@@ -727,11 +794,13 @@ function nextRoundOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Round
         ? countReason(s)
         : budgetKind === 'cap'
           ? `round ${s} of cycle ${k} still reports a Should or a Must, and the budget of ${rules.cap} review rounds (D-06) is used: a further round needs the owner`
-          : `round ${s} of cycle ${k} still reports a Should or a Must, and from round 3 such a round stops the loop`,
+          : budgetKind === 'final'
+            ? `round ${s} of cycle ${k}, the re-check of the final review, still reports a Should or a Must: the final review's one fix and one re-check (D-15) are used`
+            : `round ${s} of cycle ${k} still reports a Should or a Must, and from round 3 such a round stops the loop`,
     ];
     if (st.kindOf === undefined && L >= st.cap) reasons.push(`the cap of ${st.cap} rounds in cycle ${k} is reached`);
     const m = kind === 'review' && lane && L < st.cap ? fixModel(snapshot, id, L) : undefined;
-    return stop(reasons, s, { ...(m !== undefined && 'model' in m ? { model: m.model, modelFor: L } : {}), ...(d01Plan ? { once: true } : {}) });
+    return stop(reasons, s, { ...(m !== undefined && 'model' in m ? { model: m.model, modelFor: L } : {}), ...(d01Plan ? { once: true } : {}), ...budgetExtra(s) });
   }
   return stop([`the cap of ${st.cap} rounds in cycle ${k} is reached and no owner Ruling in the ledger allows more`], L);
 }
@@ -779,6 +848,13 @@ export function roundText(answer: RoundAnswer): string {
     out.push(`Re-review: ${answer.reReview.join(', ')}: no verdict before a round not headed (added code round 1) answers these fixes (D-17); past the cap, only after the owner's Ruling below allows that round`);
   }
   for (const f of answer.findings ?? []) out.push(`Findings of round ${f.round}:`, ...f.lines);
+  if (answer.intentHint !== undefined && answer.intentHint.length > 0) {
+    out.push(`Intent: ${answer.intentHint.join(', ')} raised in round ${answer.intentRound ?? 1} and still open: they may be an intent problem (the criterion or the approach), not a code fix; ask the owner`);
+  }
+  if (answer.blocking !== undefined && answer.blocking.length > 0) {
+    out.push('Risk findings still open (data-loss or security): verdict: accepted-by-owner does not lift them at this stop; only a fix in a round an owner Ruling allows does:');
+    for (const f of answer.blocking) out.push(`Round ${f.round}:`, ...f.lines);
+  }
   if (answer.approach !== undefined) out.push('Approach:', ...answer.approach);
   out.push(...lensLines(answer).map((l) => l.trimEnd()));
   out.push(

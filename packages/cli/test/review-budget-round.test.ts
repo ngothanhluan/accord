@@ -120,10 +120,10 @@ it('risk:regression after a budget of three rounds the final review is a fourth 
     expect(stop.code).toBe(1);
     expect(stop.out.startsWith('stop: report to owner\n')).toBe(true);
     expect(stop.out).toContain("the final review's one fix and one re-check (D-15) are used");
-    // a round 6 is past them, and no owner Ruling in the ledger allows it
+    // a round 6 is past them: the record is refused, as the scope rule asks the final review to be the last round of its stretch or the one before it, and a stretch is cut only by an owner allowance
     const sixth = await asked(past);
     expect(sixth.code).toBe(1);
-    expect(sixth.out).toContain("past the final review's one fix and one re-check (D-15)");
+    expect(sixth.out).toContain('a final review is the last round of its stretch or the one before it');
   } finally {
     cleanup(afterBudget);
     cleanup(recorded);

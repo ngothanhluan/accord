@@ -725,8 +725,9 @@ describe('gate done: the Human layer', () => {
     expect(pick(r, 'gate.note-unresolved')).toEqual([]);
     // No @ui-specific rule exists to be exempted or tightened. `profiles: ['build', ...]` contains the
     // letters `ui`, so the match is anchored on the id and nothing else, and on a whole kebab segment,
-    // since `gate.suite-not-passed` spells `ui` inside a word.
-    expect(DONE_RULES.filter((row) => /[.-]ui(-|$)/.test(row.id))).toEqual([]);
+    // since `gate.suite-not-passed` spells `ui` inside a word. Phase 11 D-10 adds one rule about a @ui pass's evidence tier (gate.ui-evidence-missing); it asks for a screenshot or an owner check,
+    // never a note, so the note rule stays the same for a @ui scenario and it is the only @ui-named row.
+    expect(DONE_RULES.filter((row) => /[.-]ui(-|$)/.test(row.id)).map((row) => row.id)).toEqual(['gate.ui-evidence-missing']);
   });
 
   it('PASS still goes through Done with no error finding after the Human layer lands', () => {

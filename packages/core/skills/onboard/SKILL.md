@@ -17,8 +17,8 @@ repository. `accord init` only proposes: it writes nothing to `accord/config.yml
 3. **Merge.** Run `accord config areas --proposals "<file>"`. It prints each setting with `accord init`'s `proposal:` lines and the scan's merged in: on the same key, an ancestor or a
    descendant, `accord init`'s proposal wins, since it is deterministic. Each line reads `proposal: [init] <key> = <JSON value>  (evidence: <text>)`; the marker, `[init]` or `[scan]`, says where it came from. Each scan proposal it refuses prints as a
    `dropped:` line with its reason: show those lines to the owner as printed, and never walk one. On exit 2, show its message, correct the file once and run it again; when it exits 2
-   again, show the owner the message, run `accord config areas` and walk only `accord init`'s proposals. When no `proposal:` line is printed, say accord has nothing to propose for
-   this repository and go to step 6.
+   again, show the owner the message, run `accord config areas` and walk only `accord init`'s proposals. A `suggestion:` line is no `proposal:` line: show each one verbatim once, after the walk, and walk no setting for it; nothing is installed. When no `proposal:` line is printed, say accord has nothing to propose for
+   this repository, show any `suggestion:` line and go to step 6.
 4. Go through the proposals one proposal at a time, in the order printed. Never ask about two at once, and never skip one without asking. Say whether it came from `accord init` or
    the scan, as its `[init]` or `[scan]` marker says, never from its evidence text, and walk each one as `./walk.md` says, with the proposal as the recommendation: a key that declares a script is walked the same way, and `./walk.md` says that nothing
    runs until the person runs `accord trust`. A key with no proposal is not walked here: a later change of any value, or a key accord proposed nothing for, is `/accord-config`.

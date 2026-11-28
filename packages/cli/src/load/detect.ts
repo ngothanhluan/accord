@@ -435,8 +435,7 @@ const BROWSER_TEST_TOOLS: { packages: string[]; command: (root: string) => strin
 ];
 
 /** `ui.screenshots` (tier a) from the browser test tool a package.json lists; the caller leaves it out when the key is already set. */
-function uiScreenshotsProposal(root: string): Proposal | undefined {
-  const listed = packageNames(root);
+function uiScreenshotsProposal(root: string, listed: Set<string> = packageNames(root)): Proposal | undefined {
   if (listed.size === 0) return undefined;
   for (const tool of BROWSER_TEST_TOOLS) {
     const name = tool.packages.find((p) => listed.has(p));
@@ -446,6 +445,53 @@ function uiScreenshotsProposal(root: string): Proposal | undefined {
     return { key: 'ui.screenshots', value: command, evidence: `package.json lists ${printable(name)}` };
   }
   return undefined;
+}
+
+/** What `accord init` can only say, never propose: a line of advice for a key's area, printed as `suggestion: <key>: <text>  (evidence: <text>)`. It is never a `proposal:` line, so the onboarding skill walks nothing for it. */
+export interface Suggestion {
+  /** the top-level config key the advice belongs to (`ui`), which places it under that key's area in `accord config areas` */
+  key: string;
+  text: string;
+  evidence: string;
+}
+
+/** Phase 11 D-12, Ruling R29: package names that mark a web project. */
+const WEB_MARKERS = ['react', 'react-dom', 'vue', 'svelte', '@sveltejs/kit', 'next', 'nuxt', '@angular/core', 'solid-js', 'preact', 'vite', 'astro'];
+/** Phase 11 D-12, Ruling R29: package names that mark a desktop app. */
+const DESKTOP_MARKERS = ['electron'];
+/** Phase 11 D-12: the browser tools of the CLI kind named until the owner picks one (plan 11-19). No command of either is printed: agent-browser's flags are unverified. */
+export const BROWSER_CLI_CANDIDATES = ['@playwright/cli', 'agent-browser'];
+/** Phase 11 D-12: the desktop accessibility-tree tool named for an Electron app. */
+const DESKTOP_TOOL = 'agent-desktop (Vercel Labs)';
+const NO_INSTALL = "accord installs nothing without the owner's yes";
+const MANUAL_TIER = "verify then uses a person's screenshots (tier manual) or the owner's check";
+
+/**
+ * Phase 11 D-12 (11-ac-12), Rulings R29 and the plan 11-17 rulings: the UI evidence a project could get, by what a tracked package.json lists. Text only: nothing is installed, no file is written and no process
+ * is started. With `ui.screenshots` set, or a tier (a) proposal (a browser test tool and its command), there is nothing to suggest. Otherwise an Electron app gets the desktop tool with its warning (Electron wins
+ * over a web marker: a CLI browser tool cannot drive an Electron window), a web project that lists no browser test tool gets the browser tools of the CLI kind, and either gets the line that verify then falls
+ * back to the manual tier or the owner's check. A project with no package.json, or neither a web nor a desktop marker, gets none.
+ */
+export function detectSuggestions(root: string): Suggestion[] {
+  const configText = readBounded(root, 'accord/config.yml');
+  const config = configText === undefined ? undefined : loadConfig('accord/config.yml', configText).config;
+  if (config?.ui?.screenshots !== undefined) return [];
+  const listed = packageNames(root);
+  if (uiScreenshotsProposal(root, listed) !== undefined) return [];
+  const desktop = DESKTOP_MARKERS.find((m) => listed.has(m));
+  const web = WEB_MARKERS.find((m) => listed.has(m));
+  const marker = desktop ?? web;
+  if (marker === undefined) return [];
+  const evidence = `package.json lists ${printable(marker)}`;
+  const toolListed = BROWSER_TEST_TOOLS.some((t) => t.packages.some((p) => listed.has(p)));
+  const out: Suggestion[] = [];
+  if (desktop !== undefined) {
+    out.push({ key: 'ui', evidence, text: `${DESKTOP_TOOL}, a desktop accessibility-tree tool, would let the verifier drive this Electron app; it controls the whole machine and does not suit CI; ${NO_INSTALL}` });
+  } else if (!toolListed) {
+    out.push({ key: 'ui', evidence, text: `a browser tool of the CLI kind (${BROWSER_CLI_CANDIDATES.join(' or ')}, until the owner picks one) would let the verifier and ui.build and ui.review work drive and screenshot the running app through the shell, because a CLI tool needs no MCP setup; ${NO_INSTALL}` });
+  }
+  out.push({ key: 'ui', evidence, text: `with no command that takes screenshots here, ${MANUAL_TIER}` });
+  return out;
 }
 
 /**

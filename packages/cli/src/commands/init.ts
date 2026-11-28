@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { agentsProblems, agentsRefusal, agentTargets, initFiles, loadConfig, loadSnapshot, pluginTargets, POINTER_FILES, pointerText, requiredCheckSteps, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
-import { detectProposals } from '../load/detect.js';
+import { detectProposals, detectSuggestions } from '../load/detect.js';
 import { loadFromFs, UsageError } from '../load/fs.js';
 import { pinMessage, versionOnDisk } from '../pin.js';
 import { planHooks, writeHooks, writeSkillFiles } from './skills.js';
@@ -176,6 +176,9 @@ export function init(ctx: InitContext): number {
   // that prefix) and names the scan, which finds values init's five detectors cannot (Phase 8.4 ruling 12).
   const proposals = detectProposals(ctx.root);
   for (const p of proposals) ctx.stdout.write(`proposal: ${p.key} = ${JSON.stringify(p.value)}  (evidence: ${p.evidence})\n`);
+  // Phase 11 D-12 (11-ac-12): advice that is not a setting, after the last proposal and before the closing line, in the form `suggestion: <key>: <text>  (evidence: <text>)`. Never a `proposal:` line, so the
+  // onboarding skill walks nothing for it; text only: init installs nothing and writes no file for one.
+  for (const s of detectSuggestions(ctx.root)) ctx.stdout.write(`suggestion: ${s.key}: ${s.text}  (evidence: ${s.evidence})\n`);
   ctx.stdout.write(proposals.length === 0 ? 'proposals: 0, accord init detected none here; type /accord-onboard to scan the repository for settings\n' : `proposals: ${proposals.length}, none written to accord/config.yml; type /accord-onboard to confirm them one by one\n`);
   return 0;
 }

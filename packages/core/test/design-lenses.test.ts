@@ -83,3 +83,9 @@ it('risk:regression the design record and release notes describe team lenses (D-
   const round = flat(row('accord round'));
   expect(lacks(round, ['`warn:`', '`ask:`'])).toEqual([]);
 });
+
+it('risk:regression every rule id G2 registered appears in the release notes of the unreleased version (11-ac-6, 11-ac-7, D-05, D-06)', () => {
+  const notes = unreleased();
+  expect(notes, 'docs/releases.md has no ## Unreleased section').not.toBe('');
+  expect(lacks(notes, ['gate.lens-unreviewed', 'lint.lens-file'])).toEqual([]);
+});

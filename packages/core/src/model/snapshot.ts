@@ -508,7 +508,7 @@ export interface RepoSnapshot {
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
   securityFacts?: Record<string, SecurityFacts>; // ST-LN-36: host-supplied by gate done after load; absent when the host supplies none (no review record with a round, no git, a ticket claimed before the security record rule's cut-off)
-  lensFacts?: Record<string, LensFacts>; // Phase 11 D-05: host-supplied by `accord round` (and `accord gate done`, plan 11-07) after load; absent when the host supplies none (no lane M, L or P ticket, no version 2 record with a round, no lens file, no git, a ticket claimed before LENSES_FROM)
+  lensFacts?: Record<string, LensFacts>; // Phase 11 D-05: host-supplied by `accord round` (and `accord gate done`, plan 11-07) after load; absent when the host supplies none (no lane M, L or P ticket, no version 2 record with a round, no lens file, no git, a ticket claimed before the lens cut-off)
   // Phase 8.5 D-19: host-supplied by `accord round` only, for a ticket claimed at or after PRODUCT_TEXT_FROM and not in lane S, whose review record holds a fixed finding with a `checked:` mark; absent otherwise.
   // `accord gate done` and CI never read it: the reports are machine-local, as the task report is.
   fixReports?: Record<string, readonly FixReport[]>;

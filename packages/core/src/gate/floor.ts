@@ -32,7 +32,7 @@ const FLOOR: Record<string, readonly string[]> = {
     'lint.no-scenarios', 'lint.test-tag-duplicate',
   ],
   'independent verification before done': [
-    'gate.no-scenarios', 'gate.tags-differ', 'gate.verification-missing', 'gate.result-not-pass', 'gate.commit-missing', 'gate.sha-too-short',
+    'gate.no-scenarios', 'gate.tags-differ', 'gate.verification-missing', 'gate.result-not-pass', 'gate.ui-evidence-missing', 'gate.commit-missing', 'gate.sha-too-short',
     'gate.ac-hash-missing', 'gate.ac-changed', 'gate.tick-unbound', 'gate.tick-stale-hash', 'gate.tick-stale-commit', 'gate.stale-review',
     'gate.test-tag-missing', 'gate.tests-unconfigured', 'gate.report-missing', 'gate.test-unknown', 'gate.test-not-passed', 'gate.test-untraced',
     'gate.suite-not-passed', 'gate.done-ticket-edited', 'gate.verification-unfinished', 'gate.evidence-unresolved', 'gate.note-missing', 'gate.note-unresolved', 'gate.note-pasted',

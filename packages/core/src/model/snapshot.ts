@@ -220,6 +220,9 @@ export interface EvidenceBlock {
   line: number; // Markdown line of the block heading
   result?: 'pass' | 'fail' | 'blocked'; // undefined when missing or invalid (finding load.result-invalid)
   evidence: string; // text after 'Evidence:' to the end of the block, trimmed; may be ''
+  tier?: 'command' | 'verifier' | 'manual' | 'owner check'; // Phase 11 D-10, D-16: the `Tier:` line; undefined when absent or invalid (finding load.tier-invalid)
+  evidenceCommit?: string; // Phase 11 D-11: the `Evidence commit:` line, 7 to 40 hexadecimal characters; undefined when absent or invalid (finding load.evidence-commit-invalid)
+  owner?: string; // Phase 11 D-16: the words inside the quotes of the `Owner: "<words>"` line; undefined when absent, unquoted or empty
 }
 
 /**

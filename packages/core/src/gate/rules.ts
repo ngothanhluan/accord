@@ -94,6 +94,7 @@ import {
   ticketTitle,
   ticketUnknown,
 } from './ready.js';
+import { uiEvidenceMissing } from './ui-evidence.js';
 import {
   commitAfterReview,
   readyMissing,
@@ -314,6 +315,8 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.tags-differ', level: 'error', profiles: ['build', 'maintain'], check: tagsDiffer },
   { id: 'gate.verification-missing', level: 'error', profiles: ['build', 'maintain'], check: verificationMissing },
   { id: 'gate.result-not-pass', level: 'error', profiles: ['build', 'maintain'], check: resultNotPass },
+  // Phase 11 D-10, D-11, D-16: a `@ui` pass names its tier and holds that tier's evidence; behind UI_EVIDENCE_FROM through claimPinBefore. Lane S and lane R Done tables hold no verification.md, so no row there
+  { id: 'gate.ui-evidence-missing', level: 'error', profiles: ['build', 'maintain'], check: uiEvidenceMissing },
   { id: 'gate.commit-missing', level: 'error', profiles: ['build', 'maintain'], check: commitMissing },
   { id: 'gate.sha-too-short', level: 'error', profiles: ['build', 'maintain'], check: shaTooShort },
   { id: 'gate.ac-hash-missing', level: 'error', profiles: ['build', 'maintain'], check: acHashMissing },

@@ -7,6 +7,9 @@ import { unfinishedLine } from './unfinished.js';
 import { REPO_NAME } from './work.js';
 
 const BLOCK = /^@(ac-[1-9][0-9]*)\b\s*(.*)$/;
+/** Phase 11 D-10, D-16: the four tiers a `@ui` pass names; core/gate/ui-evidence.ts holds the same list as UI_TIERS. */
+const TIERS = ['command', 'verifier', 'manual', 'owner check'] as const;
+const LABELS = /^(?:Tier|Evidence commit|Owner):/;
 const tagOf = (s: Section): string | undefined => BLOCK.exec(s.heading)?.[1];
 
 // Phase 08.9.3 D-07, Ruling R16: the label lines of a `## Repository <name>` section. A label starts its line (never a list item), outside a fence.
@@ -95,11 +98,32 @@ export function parseVerification(
       });
     }
 
+    // Phase 11 D-10, D-11, D-16: the Tier, Evidence commit and Owner labels, each the first matching line of the block, as Result is
+    const tierLines = lines.filter((l) => /^Tier:/.test(l.text));
+    const tierValue = tierLines.length === 0 ? undefined : /^Tier:\s*(.*)$/.exec(tierLines[0].text)?.[1].trim();
+    const tier = TIERS.find((t) => t === tierValue);
+    if (tierLines.length > 0 && tier === undefined) {
+      findings.push({ file, line: tierLines[0].line, rule: 'load.tier-invalid', reason: 'Tier must be command, verifier, manual, or owner check' });
+    }
+    for (const again of tierLines.slice(1)) {
+      findings.push({ file, line: again.line, rule: 'load.tier-invalid', reason: `a second Tier: line in "@${m[1]}"; the first is used` });
+    }
+    const commitLine = lines.find((l) => /^Evidence commit:/.test(l.text));
+    const commitValue = commitLine === undefined ? undefined : /^Evidence commit:\s*(.*)$/.exec(commitLine.text)?.[1].trim();
+    const evidenceCommit = commitValue !== undefined && /^[0-9a-fA-F]{7,40}$/.test(commitValue) ? commitValue : undefined;
+    if (commitLine !== undefined && evidenceCommit === undefined) {
+      findings.push({ file, line: commitLine.line, rule: 'load.evidence-commit-invalid', reason: 'Evidence commit must be 7 to 40 hexadecimal characters' });
+    }
+    const ownerLine = lines.find((l) => /^Owner:/.test(l.text));
+    const ownerWords = ownerLine === undefined ? undefined : /^Owner:\s*"([^"]*)"\s*$/.exec(ownerLine.text)?.[1].trim();
+    const owner = ownerWords === undefined || ownerWords === '' ? undefined : ownerWords;
+
     const at = lines.findIndex((l) => /^Evidence:/.test(l.text));
     let evidence = '';
     if (at >= 0) {
       const first = /^Evidence:\s*(.*)$/.exec(lines[at].text)?.[1] ?? '';
-      evidence = [first, ...lines.slice(at + 1).map((l) => l.text)]
+      // the three labels above are not evidence text: the owner's words must never stand for a cited path
+      evidence = [first, ...lines.slice(at + 1).filter((l) => !LABELS.test(l.text)).map((l) => l.text)]
         .map((t) => t.trimEnd())
         .join('\n')
         .trim();
@@ -111,6 +135,9 @@ export function parseVerification(
       line: section.line,
       ...(valid ? { result } : {}),
       evidence,
+      ...(tier === undefined ? {} : { tier }),
+      ...(evidenceCommit === undefined ? {} : { evidenceCommit }),
+      ...(owner === undefined ? {} : { owner }),
     });
   }
 

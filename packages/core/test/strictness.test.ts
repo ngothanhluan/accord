@@ -71,6 +71,8 @@ const LOCKED_LIST = [
   'gate.tick-stale-hash',
   'gate.tick-unbound',
   'gate.ticket-unknown',
+  // Phase 11 D-10: a @ui pass holds its tier's evidence (independent verification before done)
+  'gate.ui-evidence-missing',
   'gate.verification-missing',
   'gate.verification-unfinished',
   'lint.ac-tag-duplicate',

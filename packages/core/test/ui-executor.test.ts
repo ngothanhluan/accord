@@ -83,3 +83,43 @@ describe('ui.build renders accord-executor-ui from the executor definition (11-a
     expect(agentTargets(config({ runtimes: ['codex'], ui: { build: 'impeccable', review: 'impeccable' } }))).toEqual([]);
   });
 });
+
+describe('ui.review renders accord-reviewer-ui from the reviewer definition (11-ac-8, D-07)', () => {
+  for (const form of FORMS) {
+    it(`risk:regression ui.review ${form} renders accord-reviewer-ui with that skill first and the reviewer's fields (11-ac-8, D-07)`, () => {
+      const c = config({ ui: { review: form }, agents: { reviewer: { skills: ['house-style'], mcp: ['docs'] } } });
+      const ui = fileOf(c, UI_REVIEWER);
+      expect(ui, 'the variant is rendered').toBeDefined();
+      const fm = frontmatter(ui);
+      const plain = frontmatter(fileOf(c, 'accord-reviewer'));
+      expect(fm.name).toBe('accord-reviewer-ui');
+      expect(fm.skills).toEqual([form, 'house-style']);
+      expect(fm.mcpServers).toEqual(['docs']);
+      expect(fm.tools).toBe(plain.tools);
+      expect(fm.model).toBe(plain.model);
+      expect(fm.effort).toBe(plain.effort);
+      // the plain reviewer keeps only its own additions
+      expect(plain.skills).toEqual(['house-style']);
+    });
+  }
+
+  it('risk:security ui.review never reaches the judge, the foreign reviewer, the final reviewer or the plain reviewer (11-ac-8, D-07, T-11-25)', () => {
+    const base = config({ agents: { reviewer: { skills: ['house-style'] } } });
+    const withUi = config({ agents: { reviewer: { skills: ['house-style'] } }, ui: { review: 'impeccable', build: 'impeccable' } });
+    for (const name of ['accord-judge', 'accord-foreign-reviewer', 'accord-reviewer', 'accord-final-reviewer', 'accord-critic', 'accord-planner', 'accord-scout', 'accord-verifier', 'accord-debugger']) {
+      const a = fileOf(base, name);
+      expect(a, name).toBeDefined();
+      expect(fileOf(withUi, name), name).toBe(a);
+    }
+    for (const name of ['accord-judge', 'accord-foreign-reviewer']) expect(frontmatter(fileOf(withUi, name)).skills, name).toBeUndefined();
+    // ui.review adds one file and ui.build one more
+    expect(agentTargets(withUi).length).toBe(agentTargets(base).length + 2);
+  });
+
+  it('risk:regression ui.review alone renders no executor variant and ui.build alone no reviewer variant (11-ac-8, D-07)', () => {
+    const paths = (c: AccordConfig): string[] => agentTargets(c).map((f) => f.path);
+    expect(paths(config({ ui: { review: 'impeccable' } }))).not.toContain('.claude/agents/accord-executor-ui.md');
+    expect(paths(config({ ui: { review: 'impeccable' } }))).toContain('.claude/agents/accord-reviewer-ui.md');
+    expect(paths(config({ ui: { build: 'impeccable' } }))).not.toContain('.claude/agents/accord-reviewer-ui.md');
+  });
+});

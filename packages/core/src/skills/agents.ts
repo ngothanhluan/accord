@@ -302,6 +302,10 @@ export function agentTargets(config: AccordConfig): SkillFile[] {
     if (key === 'executor.md' && config.ui?.build !== undefined) {
       out.push({ path: agentDir + '/' + UI_EXECUTOR + '.md', text: renderAgent(key, route(routeKey), UI_EXECUTOR, withSkillFirst(extra(routeKey), config.ui.build)) });
     }
+    // Phase 11 D-07 (R16): the UI reviewer, rendered from the reviewer definition under the `reviewer` route, with the `ui.review` skill first. The judge and the foreign reviewer render from other definitions and never get it (T-11-25).
+    if (key === 'reviewer.md' && config.ui?.review !== undefined) {
+      out.push({ path: agentDir + '/' + UI_REVIEWER + '.md', text: renderAgent(key, route(routeKey), UI_REVIEWER, withSkillFirst(extra(routeKey), config.ui.review)) });
+    }
     // The final reviewer is a second render of the reviewer definition, routed separately and given only `agents.reviewer.final`.
     if (key === 'reviewer.md') {
       out.push({

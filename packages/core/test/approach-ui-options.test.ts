@@ -137,3 +137,32 @@ it('risk:regression direction.md is the built-in direction default: two or three
   }
   expect(bad).toEqual([]);
 });
+
+it('risk:regression the designer role carries the built-in direction default (D-07)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const targets = skillTargets(config(runtime));
+    const dirs = skillDirs(config(runtime));
+    if (dirs.length === 0) bad.push(runtime + ': no skill directory');
+    for (const dir of dirs) {
+      const skill = targets.find((t) => t.path === `${dir}/accord-designer/SKILL.md`)?.text ?? '';
+      const direction = targets.find((t) => t.path === `${dir}/accord-designer/direction.md`)?.text ?? '';
+      const label = `${runtime}: ${dir}/accord-designer`;
+      if (skill === '') {
+        bad.push(label + '/SKILL.md is missing');
+        continue;
+      }
+      if (direction === '') bad.push(label + '/direction.md is missing');
+      const text = flat(skill);
+      const step3 = between(text, '3. Read `profile:`', '4. Run `accord gate ready');
+      for (const p of lacks(step3, ['`./direction.md`', 'no file at `design.tokens`', 'the approach asks for options'])) bad.push(label + ' step 3 lacks: ' + p);
+      for (const p of lacks(text, ['`./prototype.md`'])) bad.push(label + ' lacks: ' + p);
+      const first = /`(accord [a-z]+ [a-z]+)/.exec(text)?.[1];
+      if (first !== 'accord gate ready') bad.push(label + ' first command is ' + String(first));
+      if (bytes(skill) > 6000) bad.push(label + ' SKILL.md is ' + bytes(skill) + ' bytes, over 6000');
+      if (skill.split('\n').length > 120) bad.push(label + ' SKILL.md is over 120 lines');
+      if (OTHER_NAMES.test(skill)) bad.push(label + ' names a design tool or a skill');
+    }
+  }
+  expect(bad).toEqual([]);
+});

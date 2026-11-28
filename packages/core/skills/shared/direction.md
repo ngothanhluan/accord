@@ -4,7 +4,7 @@ kind: reference
 
 # A visual direction when the project has none
 
-The built-in default of the visual options in `./approach-ui.md`, used when `ui.direction` names no skill. The designer role loads it too.
+The built-in default of the visual options of the approach stage, used when `ui.direction` names no skill. The designer role loads it too.
 
 ## 1. Find what the project already has
 

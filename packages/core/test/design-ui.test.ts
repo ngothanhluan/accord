@@ -117,3 +117,10 @@ it('risk:regression the spec, design record and release notes describe the ui wo
 
   expect(bad).toEqual([]);
 });
+
+it('risk:regression every rule id G3 registered appears in the release notes of the unreleased version, with the init suggestions (11-ac-10, 11-ac-12, D-12, D-16)', () => {
+  const notes = unreleased();
+  expect(notes, 'docs/releases.md has no ## Unreleased section').not.toBe('');
+  expect(lacks(notes, ['gate.ui-evidence-missing', 'load.tier-invalid'])).toEqual([]);
+  expect(lacks(flat(notes), ['`suggestion: ui:`', '`proposal: ui.screenshots', 'does not suit CI', 'Nothing is installed'])).toEqual([]);
+});

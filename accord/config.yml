@@ -64,3 +64,7 @@ generated:
   - packages/cli/README.md
 queue:
   merge: at-once
+ui:
+  direction: ui-ux-pro-max:ui-ux-pro-max
+  build: impeccable:impeccable
+  review: impeccable:impeccable

@@ -17,8 +17,10 @@ names the tier; it never checks which tool made them.
 2. **Verifier.** Else, when `accord-verifier` has a browser tool, it runs each `@ui` scenario headless and saves each screenshot there
    itself. It records `Tier: verifier`.
 3. **Manual.** Else a person takes the screenshots into that folder, and the verifier records `Tier: manual`.
-4. **Owner check.** When none of them gives screenshots for a `@ui` scenario, the verifier records `Result: blocked` for it, and the
-   owner check below follows. It is recorded as `Tier: owner check`.
+4. **Owner check.** When none of them gives screenshots for a `@ui` scenario, the owner check below follows. It is recorded as
+   `Tier: owner check`.
+
+The verifier first records such a scenario as `Result: blocked`.
 
 A screenshot tier also records `Evidence commit: <sha>`, the commit verified. A screenshot of another commit is no evidence.
 
@@ -30,8 +32,9 @@ A screenshot tier also records `Evidence commit: <sha>`, the commit verified. A 
    in the repository.
 3. Dispatch a fresh `accord-verifier` in `owner check mode` with the path of `accord/tickets/<id>.md` and that file. Only a fresh
    verifier writes `verification.md` (`./verify-writer.md`); you never edit it. It rewrites only the `@ui` blocks the answers name.
-   - Held: `Result: pass`, `Tier: owner check`, `Owner: "<the owner's words>"`, and as evidence the files the check exercised.
-   - Did not hold: `Result: fail`, and step 5 of `./verify.md` goes on to `./failure.md`.
+
+A criterion that held is written `Result: pass` with `Tier: owner check`, `Owner: "<the owner's words>"` and, as its evidence, the files the
+check exercised. One that did not hold is `Result: fail`, and step 5 of `./verify.md` goes on to `./failure.md`.
 
 ## In the report and in git
 

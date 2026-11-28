@@ -146,7 +146,7 @@ it('risk:regression the verifier writes verification.md and tier-verifier screen
       '`owner check mode`',
       'Owner: "<the owner\'s words>"',
       'rewrite only the `@ui` blocks',
-      'Result: fail',
+      'is a `fail`',
     ])) {
       bad.push(f.label + ' lacks: ' + p);
     }

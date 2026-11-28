@@ -4,7 +4,7 @@ kind: reference
 
 This stage checks the built work against the ticket and hands it to the
 owner. It starts when the ticket's `review.md` ends with a verdict, or its review stage is off.
-You orchestrate in the main session: the verifier judges, the owner decides.
+You orchestrate: the verifier judges, the owner decides.
 
 ## Steps
 
@@ -48,7 +48,7 @@ You orchestrate in the main session: the verifier judges, the owner decides.
    - Under `review: human` the 0.1.0 human layer stays: a person ticks `verified:` by hand, with the same two values,
      and writes `## Verification notes`. You never write any of them.
    - A `blocked` criterion: show the owner, who decides (`@ui`: owner check, `./verify-ui.md`). A `fail` criterion, or a failure the owner names in answer,
-     goes to `./failure.md`, never to `./build.md` directly; it is never ticked past. An answer here that
+     goes to `./failure.md`, never to `./build.md` directly; it is never ticked past. An answer at step 5 that
      changes the ticket's type follows `./ids.md`.
 
 6. Run `accord gate done <id>` and work from what it prints; on a sliced ticket below the last slice add `--slice <n>`, as `./slices.md` says. Leave `verification.md` and the tick uncommitted until it passes; the notice

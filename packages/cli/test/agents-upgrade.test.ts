@@ -198,6 +198,25 @@ it('risk:regression skills sync names agents.reviewer.final.skills for a missing
   expect(r.out).toContain('note: agents.reviewer.final.skills: "gone" is in no skills folder');
 });
 
+it('risk:regression skills sync prints one note for each ui.direction, ui.build and ui.review skill no skills folder holds, not for a plugin name or a found one, and exits 0 (WR-07, 11-ac-3, D-07)', async () => {
+  const repo = makeRepo();
+  dirs.push(repo);
+  const home = mkdtempSync(join(tmpdir(), 'accord-home-'));
+  dirs.push(home);
+  put(join(repo, '.claude', 'skills', 'found-review', 'SKILL.md'));
+  writeFiles(repo, { 'accord/config.yml': CONFIG + 'ui:\n  direction: dirction\n  build: impecable\n  review: found-review\n' });
+  const r = await run(['skills', 'sync'], repo, { CLAUDE_CONFIG_DIR: home });
+  expect(r.code, r.err).toBe(0);
+  const notes = r.out.split('\n').filter((l) => l.startsWith('note: ui.'));
+  const tail = 'is in no skills folder of this repository or user; Claude Code skips a missing skill without an error';
+  expect(notes).toEqual([`note: ui.direction: "dirction" ${tail}`, `note: ui.build: "impecable" ${tail}`]);
+  // the plugin form is not checked, and the files are written as before
+  writeFiles(repo, { 'accord/config.yml': CONFIG + 'ui:\n  direction: "impeccable:impeccable"\n  build: "ui-ux-pro-max:ui-ux-pro-max"\n' });
+  const plugin = await run(['skills', 'sync'], repo, { CLAUDE_CONFIG_DIR: home });
+  expect(plugin.code, plugin.err).toBe(0);
+  expect(plugin.out.split('\n').filter((l) => l.startsWith('note: ui.'))).toEqual([]);
+});
+
 it('risk:regression a plugin-prefixed name is not checked, and neither is a real skill in the repository, the user folder or a plugin folder in the probe layout (Pitfall 3, 11-A2-PROBE)', async () => {
   expect((await syncWith('"impeccable:impeccable"')).notes).toEqual([]);
   expect((await syncWith('local', (repo) => put(join(repo, '.claude', 'skills', 'local', 'SKILL.md')))).notes).toEqual([]);

@@ -1,13 +1,14 @@
 // Phase 11 plan 06 (11-ac-6, D-05): `accord round` holds each recorded review round against the team lenses its own package printed, recomputed from git and the lens files at the default branch, on
 // real git. The CLI here runs as the cut-off release (0.23.0), so a ticket claimed under it is judged.
-import { readFileSync, realpathSync } from 'node:fs';
+import { chmodSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { loadSnapshot } from '@accord-dev/accord-core';
+import { lensProblems, loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { laneTicket, PLAN, pinned } from '../../../test/helpers/lane.js';
 import { withClaimPins } from '../src/load/claim-facts.js';
 import { loadFromFs } from '../src/load/fs.js';
+import { readLensFiles } from '../src/load/lens-files.js';
 import { withLensFacts } from '../src/load/lens-facts.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
@@ -70,6 +71,20 @@ it('risk:regression accord round refuses a round that skipped the printed db len
   expect(next.out).not.toContain('refused:');
   expect(next.out).toContain('Round: 2');
   expect(next.code).toBe(0);
+}, 240_000);
+
+it('risk:regression accord round and gate done ask for no lens whose file name breaks the name rule, which could never be recorded, while lint still reports it, on real git (WR-02, 11-ac-6, D-05)', async () => {
+  const box = claimed({ lenses: { 'DB-Review': DB.replace('paths: [src/db/]\n', '') }, code: { 'src/db/x.ts': 'export const q = 1;\n' }, review: (h) => record(h) });
+  const round = await run(['round', 'T-1'], box.repo);
+  expect(round.err).toBe('');
+  expect(round.out).not.toContain('refused:');
+  expect(round.out).not.toContain('DB-Review');
+  expect(round.code).toBe(0);
+  const done = await run(['gate', 'done', 'T-1', '--json'], box.repo);
+  expect((JSON.parse(done.out).findings as { rule: string }[]).filter((f) => f.rule === 'gate.lens-unreviewed')).toEqual([]);
+  const lint = await run(['lint', '--json'], box.repo);
+  const found = (JSON.parse(lint.out).findings as { rule: string; file?: string }[]).filter((f) => f.rule === 'lint.lens-file');
+  expect(found.map((f) => f.file)).toEqual(['accord/lenses/DB-Review.md']);
 }, 240_000);
 
 const EVERY = '---\non_finding: warn\n---\n\n- Every change names its rollback.\n';
@@ -148,6 +163,41 @@ it('risk:regression accord gate done refuses the ticket whose round skipped the 
   commitMsg(box.repo, 'lens review');
   expect(await lensFindings(box.repo)).toEqual([]);
 }, 240_000);
+
+it('risk:security a lens file the default branch lists but git cannot read is one "cannot be checked" refusal naming the file, in accord round and gate done, never a lens dropped (WR-01, 11-ac-6, D-05)', async () => {
+  const box = claimed({ lenses: { db: DB }, code: CODE, review: (h) => record(h) });
+  // the blob of accord/lenses/db.md is gone from the object store, as in a partial clone whose fetch fails: the tree still lists it
+  const oid = gitRun(box.repo, 'rev-parse', 'main:accord/lenses/db.md').trim();
+  const loose = join(box.repo, '.git', 'objects', oid.slice(0, 2), oid.slice(2));
+  chmodSync(loose, 0o666);
+  rmSync(loose);
+  const found = await lensFindings(box.repo);
+  expect(found).toHaveLength(1);
+  expect(found[0]).toMatchObject({ level: 'error', file: REVIEW, line: 1 });
+  expect(found[0].reason).toContain('the team lenses cannot be checked');
+  expect(found[0].reason).toContain('accord/lenses/db.md');
+  const refused = await run(['round', 'T-1'], box.repo);
+  expect(refused.code).toBe(1);
+  expect(refused.out).toContain('refused:');
+  expect(refused.out).toContain('the team lenses cannot be checked');
+  expect(refused.out).toContain('accord/lenses/db.md');
+}, 240_000);
+
+it("risk:security a default ref whose tree git cannot list is an error, not the ticket branch's own lens files, and a repository with no default ref keeps the checkout's files and says so in a refusal (WR-01, 11-ac-6, D-05)", async () => {
+  const box = claimed({ lenses: { db: DB }, code: CODE, review: (h) => record(h) });
+  // a ref that was named but cannot be read: the lens files of the checkout must not stand in for it
+  const bad = readLensFiles(box.repo, 'refs/heads/does-not-exist');
+  expect(bad.lenses).toEqual([]);
+  expect(bad.error).toContain('accord/lenses/');
+  expect(bad.note).toBeUndefined();
+  // no default ref at all is not a git failure: the checkout's files are read, and the note reaches the refusal
+  expect(readLensFiles(box.repo, undefined)).toMatchObject({ note: 'no-default-ref', lenses: [{ path: 'accord/lenses/db.md' }] });
+  const s: RepoSnapshot = withClaimPins(box.repo, loadSnapshot(loadFromFs(box.repo)), 'T-1');
+  const withFact: RepoSnapshot = { ...s, lensFacts: { 'T-1': { rounds: [{ head: box.head, lenses: ['db'] }], modes: { db: 'block' }, note: 'no-default-ref' } } };
+  const problems = lensProblems(withFact, 'T-1');
+  expect(problems).toHaveLength(1);
+  expect(problems[0].reason).toContain('read from this checkout');
+});
 
 /** A git read of the lens files at the default branch: the one read the lens rule starts for a ticket it judges. */
 const lensRead = (a: string[]): boolean => a.includes('ls-tree') && a.includes('accord/lenses/');

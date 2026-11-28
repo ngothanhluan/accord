@@ -62,7 +62,9 @@ it('risk:regression the Agents paragraph declares the agents: block as one Phase
 });
 
 it('risk:regression releases.md opens with the 0.23.0 section naming agents:, lint.agents-config, the stdio refusal, the inline fields and the pin before 0.23.0 (11-ac-4, D-17)', () => {
-  expect(/^## 0\.23\.0 — \d{4}-\d{2}-\d{2}\n/.test(releases.slice(releases.search(/^## /m))), 'the first section of docs/releases.md is not ## 0.23.0').toBe(true);
+  // the first released section: a later `## Unreleased` section above it is the next release's, not this one's
+  const released = releases.replace(/^## Unreleased\n[\s\S]*?(?=^## )/m, '');
+  expect(/^## 0\.23\.0 — \d{4}-\d{2}-\d{2}\n/.test(released.slice(released.search(/^## /m))), 'the first released section of docs/releases.md is not ## 0.23.0').toBe(true);
   const section = flat(unreleased());
   expect(lacks(section, ['`agents:`', '`lint.agents-config`', 'stdio', '`type` and `url`', '`env`', '`headers`', 'pinned before 0.23.0', '`accord upgrade`'])).toEqual([]);
 });

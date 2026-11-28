@@ -1,6 +1,6 @@
 // Phase 11 plan 04 (11-ac-5, D-04, D-05): which team lenses a package's diff names. The lens file is data a team writes; matching is the security file's path-entry matcher, so there is one matcher.
 import { describe, expect, it } from 'vitest';
-import { BUILT_IN_LENS_NAMES, LENS_DIR, lensMatches, lensesFor, parseLens } from '../src/index.js';
+import { BUILT_IN_LENS_NAMES, LENS_DIR, lensMatches, lensesFor, lintSnapshot, loadSnapshot, parseLens } from '../src/index.js';
 
 const lens = (name: string, frontmatter: string[], body = '- A check.\n') => parseLens(`${LENS_DIR}${name}.md`, ['---', ...frontmatter, '---', '', body].join('\n'));
 
@@ -78,5 +78,18 @@ describe('lensesFor', () => {
     expect(lensesFor(lenses, { lane: 'S', changed: ['src/db/x.ts'], others: [] })).toEqual([]);
     expect(lensesFor(lenses, { lane: undefined, changed: ['src/db/x.ts'], others: [] })).toEqual([]);
     expect(lensesFor(lenses, { lane: 'M', changed: ['src/other.ts'], others: [] }).map((l) => l.name)).toEqual(['zeta']);
+  });
+
+  it('risk:regression a lens file whose name breaks the name rule is neither printed nor required, and lint.lens-file is the one place that reports it (WR-02, 11-ac-5, D-05)', () => {
+    // a round can only record `Lens: <name> ran` for a lower-case name and `review-package --lens` takes only one, so a lens named otherwise could never be run: it is left out
+    const named = ['DB-Review', 'db_review', 'db.review', '-db'].map((name) => lens(name, []));
+    for (const l of named) expect(l.problems.length, l.name).toBeGreaterThan(0);
+    expect(lensesFor([...named, lens('db', [])], { lane: 'M', changed: ['src/x.ts'], others: [] }).map((l) => l.name)).toEqual(['db']);
+    expect(lensesFor(named, { lane: 'M', changed: ['src/x.ts'], others: [] })).toEqual([]);
+    // the lint finding stays
+    const files = { [`${LENS_DIR}DB-Review.md`]: '---\non_finding: block\n---\n\n- A check.\n' };
+    const found = lintSnapshot(loadSnapshot({ files, tree: Object.keys(files) })).findings.filter((f) => f.rule === 'lint.lens-file');
+    expect(found).toHaveLength(1);
+    expect(found[0].reason).toContain('^[a-z0-9][a-z0-9-]*$');
   });
 });

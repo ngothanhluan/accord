@@ -13,13 +13,22 @@ import { withClaimPins } from '../load/claim-facts.js';
 import { withLensFacts } from '../load/lens-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { withSecurityFacts } from '../load/security-facts.js';
+import { withSliceRounds } from '../load/slice-rounds.js';
 import { gitSliceSize } from '../load/slice-size.js';
 import { withSlopFacts } from '../load/slop-facts.js';
 import { appendGateRun, GATE_LOG } from '../load/ticket-log.js';
 import { colourFindings } from '../render/color.js';
+import { currentSlice } from './anchor.js';
 import { branchFactFor, renderedFilesOf } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
+
+/** Phase 10 D-06: the slice whose review rounds the budget counts: the one `--slice` names, else the slice of this checkout (`currentSlice`); none for a slice of another repository. */
+function sliceInWorkOf(ctx: CommandContext, id: string, scope: SliceScope | undefined): number | undefined {
+  if (scope !== undefined) return scope.n;
+  const slice = currentSlice(ctx, id);
+  return slice?.repo === undefined ? slice?.n : undefined;
+}
 
 /**
  * Phase 15 D-31: the scope of `--slice <value>` for ticket `id`, or undefined when the ticket is unknown (the gate then says so as it always does). A value that is not a whole number, a plan with no
@@ -95,7 +104,8 @@ export function gate(
   // not done on the default branch needs that branch's snapshot.
   // ST-LN-57: Done also reads the round facts from git, and the default ref's snapshot for every record with a round,
   // whatever its version, so a ticket done there skips the review scope checks (D-10).
-  const forRounds = which === 'done' ? withRoundFacts(ctx.root, withReturnFacts(ctx.root, gated, id), id) : gated;
+  // Phase 10 D-06 (per slice): Done reads the same counts as `accord round`: the slice in work is the one `--slice` names, else the one this checkout works.
+  const forRounds = which === 'done' ? withSliceRounds(ctx.root, withRoundFacts(ctx.root, withReturnFacts(ctx.root, gated, id), id), id, sliceInWorkOf(ctx, id, scope)) : gated;
   const roundRecord = which === 'done' ? workOf(forRounds, id)?.rounds : which === 'plan' ? workOf(forRounds, id)?.planRounds : undefined;
   const hasRounds = roundRecord !== undefined && roundRecord.cycles.some((c) => c.rounds.length > 0);
   // Phase 08.8 review CR-02: a lane ticket whose review stage is off has no rounds, and Done reads the default ref for it too, so its security rule skips it once it is done there (D-03).

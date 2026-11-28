@@ -206,6 +206,15 @@ export const UI_EVIDENCE_FROM = '0.23.0';
  */
 export const CRITIC_ONCE_FROM = '0.24.0';
 
+/**
+ * Phase 10 D-06 (as amended per slice 2026-11-28), D-15 and 10-ac-4, 10-ac-30, 10-ac-31: the release from which the review loop of a lane M ticket has a budget of three rounds per slice with a
+ * count-fall stop (`accord round` prints `stop: report to owner` before a fourth round and after a round whose Must + Should count did not fall), the final review gets one fix and one re-check outside
+ * that budget, and a budget stop names the round-1 findings still open as a possible intent problem. A ticket claimed under a pin below it keeps the five rounds and the stop from round 3 it was claimed
+ * under (LEGACY_CAP, 10-ac-11); lanes S and R keep their caps whatever the pin. Read only through claimPinBefore. It is the next minor after the newest released heading of docs/releases.md at planning,
+ * 0.23.2; the release plan checks it equals the shipped version, and PHASE10 in migration-pin.test.ts follows.
+ */
+export const REVIEW_BUDGET_FROM = '0.24.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

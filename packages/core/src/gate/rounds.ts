@@ -1,7 +1,7 @@
 // ST-LN-17 AC-3, AC-4: Done and the plan gate read the round records. A round run past the cap or past a stop,
 // a stop the owner has not lifted, and a record accord cannot read each fail, so the cap and the stop hold in
 // every tool and not only where a session asked `accord round`.
-import { allowancesOf, capRulesOf, cycleState, deferredFor, planStopOf, recordProblems, roundCount } from '../round/next.js';
+import { allowancesOf, capRulesOf, cycleState, deferredFor, openRisks, planStopOf, recordProblems, roundCount, sliceNote, sliceOffset } from '../round/next.js';
 import { lensAsks } from '../round/lens.js';
 import { claimPinNote } from '../round/pin.js';
 import { cycleOpen } from '../round/record.js';
@@ -20,7 +20,8 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
   const name = kind === 'review' ? 'review.md' : 'plan-review.md';
   const out: GateDraft[] = [];
   // ST-LN-91 WR-04: when git failed reading the claim pin the plan rules apply as fail-closed, and each finding says why.
-  const note = kind === 'plan' ? claimPinNote(snapshot, id) : undefined;
+  // Phase 10 D-06, T-10-05: a review finding says so when git could not read where the slice in work starts and every round of the cycle counts.
+  const note = kind === 'plan' ? claimPinNote(snapshot, id) : sliceNote(snapshot, id);
   const add = (line: number | undefined, reason: string) =>
     out.push({ file: rec.file, ...(line === undefined ? {} : { line }), reason: note === undefined ? reason : `${reason}; ${note}` });
 
@@ -38,10 +39,10 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
   const all = allowancesOf(snapshot, id, kind);
   const rules = capRulesOf(snapshot, id, kind);
   rec.cycles.forEach((cycle, i) => {
-    const state = cycleState(cycle, all.filter((a) => a.cycle === i + 1), kind, deferredFor(snapshot, id, kind, i), rules);
+    const state = cycleState(cycle, all.filter((a) => a.cycle === i + 1), kind, deferredFor(snapshot, id, kind, i), rules, kind === 'review' ? sliceOffset(snapshot, id, rec, i) : 0);
     for (let p = 1; p <= cycle.rounds.length; p++) {
       if (state.allowed(p)) continue;
-      const why = p > state.cap ? `past the cap of ${state.cap} rounds` : `after the stop at round ${state.stopAt(p - 1)}`;
+      const why = state.denied !== undefined ? state.denied(p) : p > state.cap ? `past the cap of ${state.cap} rounds` : `after the stop at round ${state.stopAt(p - 1)}`;
       add(cycle.rounds[p - 1].line, `round ${p} of cycle ${i + 1} ran without an owner Ruling allowing it: ${why}`);
       break;
     }
@@ -51,9 +52,19 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
   const last = rec.cycles[k - 1];
   const mine = all.filter((a) => a.cycle === k);
   if (kind === 'review') {
-    const s = cycleState(last, mine, kind, deferredFor(snapshot, id, kind, k - 1), rules).stopAt(last.rounds.length);
+    const state = cycleState(last, mine, kind, deferredFor(snapshot, id, kind, k - 1), rules, sliceOffset(snapshot, id, rec, k - 1));
+    const s = state.stopAt(last.rounds.length);
     const verdict = last.verdicts[last.verdicts.length - 1];
-    if (s !== undefined && !(verdict?.value === 'accepted-by-owner' && verdict.quoted)) {
+    const lifted = verdict?.value === 'accepted-by-owner' && verdict.quoted;
+    // Phase 10 D-06, T-10-04: at the stop of REVIEW_BUDGET (next.ts) an accepted-by-owner verdict lifts every open finding but a data-loss or security one: that one needs a fix in a round an owner allowance Ruling allows.
+    const risks = s !== undefined && lifted && state.kindOf !== undefined ? openRisks(last) : [];
+    if (risks.length > 0) {
+      add(
+        last.rounds[s! - 1].line,
+        `round ${s} of cycle ${k} stopped for the owner with a finding marked risk: data-loss or risk: security still open, which verdict: accepted-by-owner does not lift (D-06): ${risks.map((r) => `${r.id} "${r.text}"`).join('; ')}; Done needs it fixed in a round an owner allowance Ruling allows: add under ## Rulings in the ledger: Ruling: the owner allows <n> more review rounds after round ${s} of cycle ${k} — "<the owner's sentence>" — <cost if wrong>`,
+      );
+    }
+    if (s !== undefined && !lifted) {
       add(
         last.rounds[s - 1].line,
         `round ${s} of cycle ${k} still reports a Should or a Must, so the loop stopped for the owner; Done needs the cycle to end with verdict: accepted-by-owner "<the owner's sentence>", or a round allowed by the owner that reports no findings followed by verdict: converged`,

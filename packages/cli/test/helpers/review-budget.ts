@@ -18,7 +18,7 @@ export const must = (n: number, state = 'open', ...marks: string[]): string => `
 export const shoulds = (k: number, state = 'open'): string[] => Array.from({ length: k }, (_, i) => should(i + 1, state));
 
 /** A ticket claimed under `claimPin`: the base commit on main, the claim commit on `t/T-1`, then the working pin back to the running release. `extra` files join the base commit. */
-export function claimedRepo(claimPin: string, extra: Record<string, string> = {}): string {
+export function claimedRepo(claimPin: string, extra: Record<string, string> = {}, slices = ''): string {
   const repo = makeEmptyRepo();
   gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
   gitRun(repo, 'config', 'user.name', 'fixture');
@@ -31,7 +31,7 @@ export function claimedRepo(claimPin: string, extra: Record<string, string> = {}
   writeFiles(repo, { 'accord/config.yml': CONFIG });
   // the pin back to the running release in a commit of its own, then the plan whose baseline it is: the first round's package starts there
   const base = commitMsg(repo, 'pin', undefined, true);
-  writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base) });
+  writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', base) + slices });
   commitMsg(repo, 'plan');
   return repo;
 }
@@ -71,5 +71,25 @@ export function reviewed(claimPin: string, rounds: Round[], o: { tail?: string; 
   const filled = rounds.map((r, i) => ({ ...r, head: heads[i], lines: r.lines.map((l) => l.replaceAll('<head>', heads[i])) }));
   writeFiles(repo, { [REVIEW]: reviewText(filled, o.tail) });
   commitMsg(repo, 'T-1 review');
+  return repo;
+}
+
+/** The plan's two slices: slice 1 on the claim branch, slice 2 on `slice/T-1/2`, cut at the tip of slice 1. */
+export const SLICES = ['## Slice 1: Writer', 'tasks: 1', 'covers: @ac-1', '', '## Slice 2: Escaping', 'tasks: 2', 'covers: @ac-2', ''].join('\n');
+
+/**
+ * A ticket of two slices with a review.md that spans both: the rounds of slice 1 are recorded on the claim branch `t/T-1` (one code commit each), then `slice/T-1/2` is cut from its tip and the rounds of slice 2 follow,
+ * numbered on from slice 1's, each with a code commit of its own. The checkout is left on `slice/T-1/2`.
+ */
+export function slicedReviewed(claimPin: string, first: Round[], second: Round[], o: { tail?: string } = {}): string {
+  const repo = claimedRepo(claimPin, {}, SLICES);
+  const fill = (rounds: Round[], heads: string[]) => rounds.map((r, i) => ({ ...r, head: heads[i], lines: r.lines.map((l) => l.replaceAll('<head>', heads[i])) }));
+  const one = first.map((_, i) => codeCommit(repo, `round ${i + 1}`));
+  writeFiles(repo, { [REVIEW]: reviewText(fill(first, one)) });
+  commitMsg(repo, 'T-1 review of slice 1');
+  gitRun(repo, 'switch', '-q', '-c', 'slice/T-1/2');
+  const two = second.map((_, i) => codeCommit(repo, `round ${first.length + i + 1}`));
+  writeFiles(repo, { [REVIEW]: reviewText([...fill(first, one), ...fill(second, two)], o.tail) });
+  commitMsg(repo, 'T-1 review of slice 2');
   return repo;
 }
